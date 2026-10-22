@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { isProduction } from "@/lib/config";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
+import { parseChatFiles } from "@/lib/chat/files";
+import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
 
 /**
  * The outbox's second step (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a message a member wrote
@@ -40,7 +42,7 @@ interface OutboxRow {
   deleted_at: string | null;
   author_member_id: string | null;
   thread_root_id: string | null;
-  chat_message_contents: { body: string } | { body: string }[] | null;
+  chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
   chat_channels: { slack_channel_id: string | null } | { slack_channel_id: string | null }[] | null;
 }
 
@@ -58,7 +60,7 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   const { data } = await supabase
     .from("chat_messages")
     .select(
-      "id, origin, slack_sync_status, deleted_at, author_member_id, thread_root_id, chat_message_contents(body), chat_channels(slack_channel_id)"
+      "id, origin, slack_sync_status, deleted_at, author_member_id, thread_root_id, chat_message_contents(body, files), chat_channels(slack_channel_id)"
     )
     .eq("id", messageId)
     .maybeSingle();
@@ -76,9 +78,11 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
     return "failed";
   };
 
-  const body = one(row.chat_message_contents)?.body;
+  const content = one(row.chat_message_contents);
+  const body = content?.body ?? "";
+  const files = parseChatFiles(content?.files, { staged: true });
   const slackChannelId = one(row.chat_channels)?.slack_channel_id;
-  if (!body || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
+  if ((!body && files.length === 0) || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
 
   // Everything the post needs, read at once: the thread root's ts, the member's Slack connection
   // and (for the bot path) their name and photo. Waiting on these one after another was a good
@@ -101,6 +105,22 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   if (row.thread_root_id) {
     if (!root?.slack_ts) return fail("thread root has no Slack ts");
     threadTs = root.slack_ts;
+  }
+
+  if (files.length > 0) {
+    return sendChatFilesToSlack({
+      supabase,
+      messageId,
+      slackChannelId,
+      threadTs,
+      body,
+      files,
+      connection,
+      authorMemberId,
+      authorName: author?.display_name || author?.name || null,
+      escape: escapeForSlack,
+      fail: fail as (reason: string, error?: unknown) => Promise<"failed">,
+    });
   }
 
   const post = (token: string, identity?: { username?: string; icon_url?: string }) =>

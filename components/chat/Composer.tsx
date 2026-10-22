@@ -2,7 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { sendChatMessage } from "@/app/(member)/chat/actions";
+import { prepareChatUploads, sendChatMessage } from "@/app/(member)/chat/actions";
+import { createClient } from "@/lib/supabase/client";
+import { formatFileSize } from "@/lib/chat/files";
+import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
+import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/lib/chat/list-events";
 
 /**
@@ -14,6 +18,10 @@ import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/li
  * whole page to re-render, which took seconds. The action's real message replaces the placeholder;
  * a refused or failed send takes it away and puts the text back. Afterwards the conversation is
  * asked to catch up (in the background, and Realtime does too) so what is shown is what the server has.
+ *
+ * Files: the paperclip, pasting an image or dropping files adds attachments. They go straight from
+ * the browser to private storage (a server action can't take a big body), then the message is sent
+ * with them. A message with files isn't shown early: it waits for its uploads.
  */
 export default function Composer({
   channelId,
@@ -34,19 +42,58 @@ export default function Composer({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [attached, setAttached] = useState<File[]>([]);
   const boxRef = useRef<HTMLTextAreaElement>(null);
-  const early = Boolean(viewer) && showSent;
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const early = Boolean(viewer) && showSent && attached.length === 0;
+
+  const attach = (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    const tooBig = incoming.find((f) => f.size > MAX_CHAT_FILE_BYTES);
+    if (tooBig) return setError(`${tooBig.name} is over ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB.`);
+    if (attached.length + incoming.length > MAX_CHAT_FILES) return setError(`Attach up to ${MAX_CHAT_FILES} files at a time.`);
+    setError(null);
+    setAttached((current) => [...current, ...incoming]);
+  };
+
+  /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
+  const uploadAttachments = async (): Promise<StagedUpload[] | null> => {
+    const prepared = await prepareChatUploads(attached.map((f) => ({ name: f.name || "file", size: f.size }))).catch(() => null);
+    if (!prepared?.ok) {
+      setError(prepared?.error ?? "Couldn't start the upload. Try again.");
+      return null;
+    }
+    const storage = createClient().storage.from(SLACK_FILES_BUCKET);
+    const done: StagedUpload[] = [];
+    for (let i = 0; i < attached.length; i++) {
+      const file = attached[i];
+      const { path, token } = prepared.uploads[i];
+      const { error: uploadError } = await storage.uploadToSignedUrl(path, token, file, { contentType: file.type || "application/octet-stream" });
+      if (uploadError) {
+        setError(`Couldn't upload ${file.name}. Try again.`);
+        return null;
+      }
+      done.push({ path, name: file.name || "file", mimetype: file.type || "application/octet-stream", size: file.size });
+    }
+    return done;
+  };
 
   const send = async () => {
     const body = text.trim();
-    if (!body || sending) return;
+    if ((!body && attached.length === 0) || sending) return;
     setError(null);
     setSending(true);
+    let uploads: StagedUpload[] = [];
+    if (attached.length > 0) {
+      const staged = await uploadAttachments();
+      if (!staged) return setSending(false);
+      uploads = staged;
+    }
     setText("");
     const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
     if (early) emitListEvent({ kind: "add", channelId, threadRootId, view: optimisticView({ id: tempId, body, viewer: viewer! }) });
 
-    const result = await sendChatMessage(channelId, body, threadRootId).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
+    const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
     if (!result.ok) {
       if (early) emitListEvent({ kind: "drop", channelId, threadRootId, tempId });
@@ -54,6 +101,7 @@ export default function Composer({
       setError(result.error);
       return;
     }
+    setAttached([]);
     if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();
@@ -66,6 +114,12 @@ export default function Composer({
       onSubmit={(e) => {
         e.preventDefault();
         void send();
+      }}
+      onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        attach([...e.dataTransfer.files]);
       }}
     >
       <label className="sr-only" htmlFor={`composer-${threadRootId ?? channelId}`}>
@@ -80,6 +134,12 @@ export default function Composer({
           maxLength={4000}
           placeholder={placeholder}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const pasted = [...e.clipboardData.files];
+            if (pasted.length === 0) return;
+            e.preventDefault();
+            attach(pasted);
+          }}
           onKeyDown={(e) => {
             // Not while an input method is composing (Enter picks a candidate then).
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -89,15 +149,56 @@ export default function Composer({
           }}
           className="min-w-0 flex-1 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
         />
+        <input
+          ref={pickerRef}
+          type="file"
+          multiple
+          hidden
+          aria-label="Attach files"
+          onChange={(e) => {
+            attach([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          data-track="chat-composer-attach"
+          aria-label="Attach files"
+          title="Attach files"
+          disabled={sending}
+          onClick={() => pickerRef.current?.click()}
+          className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          📎
+        </button>
         <button
           type="submit"
           data-track="chat-composer-send"
-          disabled={sending || text.trim() === ""}
+          disabled={sending || (text.trim() === "" && attached.length === 0)}
           className="shrink-0 rounded-lg bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
         >
           {sending ? "Sending…" : "Send"}
         </button>
       </div>
+      {attached.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-2" aria-label="Attached files">
+          {attached.map((f, i) => (
+            <li key={`${f.name}-${i}`} className="inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 px-2 py-1 text-xs dark:border-slate-700">
+              <span className="truncate">{f.name || "file"}</span>
+              <span className="shrink-0 text-slate-500 dark:text-slate-400">{formatFileSize(f.size)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${f.name || "file"}`}
+                disabled={sending}
+                onClick={() => setAttached((current) => current.filter((_, j) => j !== i))}
+                className="shrink-0 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && (
         <p role="alert" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
           {error}

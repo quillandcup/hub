@@ -59,6 +59,17 @@ describe("GET /api/chat/files/[messageId]/[fileId]", () => {
     expect(res.headers.get("content-disposition")).toContain("attachment");
   });
 
+  it("serves a file still being sent from where the composer staged it, without asking Slack", async () => {
+    content = { files: [{ id: "pending-1", name: "new.png", mimetype: "image/png", staged: "staging/2026-10-22/x/new.png" }], chat_messages: { slack_ts: null, chat_channels: { slack_channel_id: "C1" } } };
+    const res = await call(MESSAGE, "pending-1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(ensureSlackFileCopied).not.toHaveBeenCalled();
+
+    content = { files: [{ id: "pending-1", name: "new.png", mimetype: "image/png" }], chat_messages: null };
+    expect((await call(MESSAGE, "pending-1")).status).toBe(404);
+  });
+
   it("answers 404 when the caller can't read the message (RLS returns nothing) or the file isn't on it", async () => {
     content = null;
     expect((await call(MESSAGE, "F_IMG")).status).toBe(404);

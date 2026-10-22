@@ -12,6 +12,10 @@ import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
 import { deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
 import { isUuid } from "@/lib/chat/format";
+import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
+import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
+import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { clock } from "@/lib/clock";
 import {
   buildMessageViews,
   chatTextContext,
@@ -201,6 +205,7 @@ const POST_ERRORS: Record<string, string> = {
   empty: "Write something first.",
   too_long: "That message is too long (4,000 characters at most).",
   bad_thread: "That thread can't be replied to.",
+  bad_files: "Those files can't be sent.",
 };
 
 /** Posting is its own preview on top of chat, and never happens in sudo (read-only). */
@@ -211,6 +216,55 @@ async function postingCaller() {
   return caller;
 }
 
+export type PrepareUploadsResult = { ok: true; uploads: { path: string; token: string }[] } | { ok: false; error: string };
+
+/**
+ * Places for the browser to put attachments: one signed upload per file, in the member's own folder
+ * of the private bucket (the file goes straight to Storage; a server action can't take a big body).
+ * Same gate as posting, and the same limits the send checks again.
+ */
+export async function prepareChatUploads(files: { name: string; size: number }[]): Promise<PrepareUploadsResult> {
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_CHAT_FILES) {
+    return { ok: false, error: `Attach up to ${MAX_CHAT_FILES} files at a time.` };
+  }
+  if (files.some((f) => typeof f?.name !== "string" || !f.name || !(f.size >= 0) || f.size > MAX_CHAT_FILE_BYTES)) {
+    return { ok: false, error: `Files can be up to ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB each.` };
+  }
+  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const uploads: { path: string; token: string }[] = [];
+  for (const f of files) {
+    const path = newStagingPath(caller.identity.memberId, f.name, clock.now(), crypto.randomUUID());
+    const { data, error } = await bucket.createSignedUploadUrl(path);
+    if (error || !data) {
+      console.error("createSignedUploadUrl failed:", error?.message);
+      return { ok: false, error: "Couldn't start the upload. Try again." };
+    }
+    uploads.push({ path, token: data.token });
+  }
+  return { ok: true, uploads };
+}
+
+/**
+ * The files JSON for chat_post_message from what the browser says it uploaded: only the member's own
+ * staged paths, and only ones that are really in the bucket, with their real size. Null if anything is off.
+ */
+async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promise<Record<string, unknown>[] | null> {
+  if (!Array.isArray(uploads) || uploads.length > MAX_CHAT_FILES) return null;
+  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const files: Record<string, unknown>[] = [];
+  for (const u of uploads) {
+    if (typeof u?.path !== "string" || typeof u.name !== "string" || !u.name || !isOwnStagingPath(memberId, u.path)) return null;
+    const slash = u.path.lastIndexOf("/");
+    const { data } = await bucket.list(u.path.slice(0, slash), { search: u.path.slice(slash + 1), limit: 5 });
+    const size = (data?.find((o) => o.name === u.path.slice(slash + 1))?.metadata as { size?: number } | undefined)?.size;
+    if (typeof size !== "number" || size > MAX_CHAT_FILE_BYTES) return null;
+    files.push({ id: `${PENDING_FILE_PREFIX}${crypto.randomUUID()}`, name: u.name.slice(0, 200), mimetype: typeof u.mimetype === "string" ? u.mimetype.slice(0, 100) : "application/octet-stream", size, staged: u.path });
+  }
+  return files;
+}
+
 /**
  * The signed-in member posts `body` to a conversation (or as a reply in a thread). The message is
  * written first, as the member (chat_post_message checks they are in the conversation and that it
@@ -218,15 +272,23 @@ async function postingCaller() {
  * else as the bot under their name and photo). If Slack is down the message stays in the Hub
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
-async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
+async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = []): Promise<SendChatResult> {
   if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
-  if (!(await postingCaller())) return { ok: false, error: "Posting isn't available to you yet." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+
+  let files: Record<string, unknown>[] | null = null;
+  if (uploads.length > 0) {
+    files = await stagedFilesFor(caller.identity.memberId, uploads);
+    if (!files) return { ok: false, error: POST_ERRORS.bad_files };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("chat_post_message", {
     p_channel_id: channelId,
     p_body: body,
     p_thread_root_id: threadRootId ?? null,
+    ...(files ? { p_files: files } : {}),
   });
   if (error || !data) {
     const reason = /chat_post: (\w+)/.exec(error?.message ?? "")?.[1];

@@ -7,7 +7,15 @@ export interface ChatFile {
   size: number | null;
   width: number | null;
   height: number | null;
+  /**
+   * Where the bytes wait in the private bucket while the message is still being sent (its id is
+   * then 'pending-...'). Never sent to the browser: only parseChatFiles(raw, { staged: true }) keeps it.
+   */
+  staged?: string | null;
 }
+
+/** A file's id until Slack has it. */
+export const PENDING_FILE_PREFIX = "pending-";
 
 /** Image types a browser shows in an <img>; everything else is offered as a download. */
 const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
@@ -17,7 +25,7 @@ export function isInlineImage(file: Pick<ChatFile, "mimetype">): boolean {
 }
 
 /** Read the stored list defensively: it comes from jsonb written by SQL, Slack payloads and the Hub. */
-export function parseChatFiles(raw: unknown): ChatFile[] {
+export function parseChatFiles(raw: unknown, opts: { staged?: boolean } = {}): ChatFile[] {
   if (!Array.isArray(raw)) return [];
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -25,7 +33,9 @@ export function parseChatFiles(raw: unknown): ChatFile[] {
   for (const f of raw) {
     const id = str(f?.id);
     if (!id) continue;
-    files.push({ id, name: str(f.name), mimetype: str(f.mimetype), size: num(f.size), width: num(f.width), height: num(f.height) });
+    const file: ChatFile = { id, name: str(f.name), mimetype: str(f.mimetype), size: num(f.size), width: num(f.width), height: num(f.height) };
+    if (opts.staged) file.staged = str(f.staged);
+    files.push(file);
   }
   return files;
 }

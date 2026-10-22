@@ -61,6 +61,8 @@ oauth_config:
       - channels:write
       - groups:write
       - mpim:write
+      # Files the member sends from the Hub post as them (lib/chat/slack-upload.ts).
+      - files:write
   # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
   redirect_urls:
     - https://hub.quillandcup.com/api/oauth/slack/callback

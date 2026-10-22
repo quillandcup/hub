@@ -24,6 +24,9 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   getSlackUserToken: (...args: unknown[]) => getSlackUserToken(...args),
 }));
 
+const { sendFiles } = vi.hoisted(() => ({ sendFiles: vi.fn() }));
+vi.mock("@/lib/chat/slack-upload", () => ({ sendChatFilesToSlack: sendFiles }));
+
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata, retryUnsentChatMessages, sendChatMessageToSlack } from "@/lib/chat/slack-post";
 
 interface Fixture {
@@ -248,5 +251,37 @@ describe("retryUnsentChatMessages", () => {
     expect(filter("eq")).toContainEqual({ method: "eq", args: ["slack_sync_status", "pending"] });
     expect(filter("lte")[0].args).toEqual(["created_at", "2026-10-09T12:00:00.000Z"]);
     expect(postMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendChatMessageToSlack with files", () => {
+  it("hands a message with files (and no text) to the file upload instead of chat.postMessage", async () => {
+    sendFiles.mockResolvedValue("sent");
+    fixture.message = {
+      ...MESSAGE,
+      thread_root_id: "root-1",
+      chat_message_contents: { body: "", files: [{ id: "pending-1", name: "cat.gif", mimetype: "image/gif", staged: "staging/x/y/cat.gif" }] },
+    };
+
+    expect(await sendChatMessageToSlack(supabase as never, "m1")).toBe("sent");
+
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(sendFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: "m1",
+        slackChannelId: "C_HOSTS",
+        threadTs: "1699999999.000100",
+        body: "",
+        authorName: "Fern",
+        files: [expect.objectContaining({ id: "pending-1", staged: "staging/x/y/cat.gif" })],
+      })
+    );
+  });
+
+  it("still fails a message with neither text nor files", async () => {
+    sendFiles.mockClear();
+    fixture.message = { ...MESSAGE, chat_message_contents: { body: "" } };
+    expect(await sendChatMessageToSlack(supabase as never, "m1")).toBe("failed");
+    expect(sendFiles).not.toHaveBeenCalled();
   });
 });

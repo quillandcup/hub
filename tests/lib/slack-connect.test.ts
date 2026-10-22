@@ -62,7 +62,7 @@ describe("configuration and the authorize URL", () => {
     expect(url.origin + url.pathname).toBe("https://slack.com/oauth/v2/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-1");
     expect(url.searchParams.get("user_scope")).toBe(
-      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write"
+      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write,files:write"
     );
     expect(url.searchParams.get("redirect_uri")).toBe(`${APP_URL}/api/oauth/slack/callback`);
     expect(slackRedirectUri()).toBe(`${APP_URL}/api/oauth/slack/callback`);
