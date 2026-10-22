@@ -10,6 +10,11 @@ features:
   app_home:
     home_tab_enabled: true
     messages_tab_enabled: true
+    # Members can't write to the bot in its Messages tab (it only answers buttons and /hub).
+    # Set in the dashboard before the manifest owned the config; a push removes anything not listed.
+    messages_tab_read_only_enabled: true
+    # Also set in the dashboard, kept as it was (not documented in Slack's manifest reference).
+    agent_tasks_enabled: true
   slash_commands:
     - command: /hub
       url: https://hub.quillandcup.com/api/webhooks/slack/commands
