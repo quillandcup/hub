@@ -1,6 +1,6 @@
 // Fails when a migration would be rejected by `supabase db push` on main:
 // a new migration numbered at or below the latest one already on the base branch,
-// a duplicate version, or a file name that isn't `<14-digit version>_<name>.sql`.
+// a duplicate version (also against migrations in other open PRs), or a file name that isn't `<14-digit version>_<name>.sql`.
 // Run by the pre-commit hook and the unit CI job (pull requests only).
 //
 //   tsx scripts/check-migration-order.ts [baseRef]    (default: origin/main)
@@ -54,6 +54,68 @@ export function findMigrationProblems(baseFiles: string[], localFiles: string[])
     }
   }
   return problems;
+}
+
+export type OpenPr = { number: number; migrations: string[] };
+
+/**
+ * Collisions with migrations added by other open PRs. Only the later PR (higher number; a branch
+ * with no PR yet counts as latest) fails, so the earlier one keeps its place: a duplicate version,
+ * or a version at or below one an earlier open PR will land first.
+ */
+export function findOpenPrProblems(added: string[], myPr: number, openPrs: OpenPr[]): string[] {
+  const problems: string[] = [];
+  for (const file of added) {
+    const version = file.match(NAME_PATTERN)?.[1];
+    if (!version) continue;
+    for (const pr of openPrs) {
+      if (pr.number >= myPr) continue;
+      for (const other of pr.migrations) {
+        if (other === file) continue;
+        const otherVersion = other.match(NAME_PATTERN)?.[1];
+        if (!otherVersion) continue;
+        if (otherVersion === version) {
+          problems.push(`${file}: same version as ${other} in open PR #${pr.number}; renumber this one after it`);
+        } else if (version < otherVersion) {
+          problems.push(
+            `${file}: older than ${otherVersion} (${other}) in open PR #${pr.number}, which will merge first and make this one rejected; renumber it newer`,
+          );
+        }
+      }
+    }
+  }
+  return problems;
+}
+
+/** Migration files added by other open PRs, via `gh`; empty when gh is unavailable. */
+function listOpenPrs(): OpenPr[] {
+  try {
+    const out = execFileSync("gh", ["pr", "list", "--state", "open", "--limit", "200", "--json", "number,files"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const prs = JSON.parse(out) as { number: number; files: { path: string }[] }[];
+    return prs.map((pr) => ({
+      number: pr.number,
+      migrations: pr.files
+        .map((f) => f.path)
+        .filter((path) => path.startsWith(`${MIGRATIONS_DIR}/`) && path.endsWith(".sql"))
+        .map((path) => path.slice(MIGRATIONS_DIR.length + 1)),
+    }));
+  } catch {
+    console.warn("check-migration-order: could not list open PRs (gh unavailable?), skipping that check");
+    return [];
+  }
+}
+
+function currentPrNumber(): number {
+  if (process.env.PR_NUMBER) return Number(process.env.PR_NUMBER);
+  try {
+    const out = execFileSync("gh", ["pr", "view", "--json", "number"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return (JSON.parse(out) as { number: number }).number;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
 }
 
 /** Local migrations production hasn't applied but that sit below one it has. */
@@ -133,6 +195,11 @@ function main() {
 
   const localFiles = readdirSync(MIGRATIONS_DIR).filter((file) => file.endsWith(".sql"));
   const problems = findMigrationProblems(baseFiles, localFiles);
+  const baseSet = new Set(baseFiles);
+  const added = localFiles.filter((file) => !baseSet.has(file));
+  if (added.length > 0 && process.env.CHECK_OPEN_PRS !== "0") {
+    problems.push(...findOpenPrProblems(added, currentPrNumber(), listOpenPrs()));
+  }
   if (problems.length === 0) return;
 
   console.error(`❌ Migration problems (compared with ${baseRef}):`);
