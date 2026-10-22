@@ -22,7 +22,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
   if (caller.identity.isSudo) return { error: "Progress can't be changed while viewing as a member" };
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("course_id, state, title").eq("id", lessonId).maybeSingle();
+  const { data: lesson } = await service.from("course_lessons").select("course_id, state, title, duration_seconds").eq("id", lessonId).maybeSingle();
   if (!lesson || lesson.state !== "open") return { error: "Lesson not found" };
   const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return { error: "You don't have access to this course" };
@@ -40,7 +40,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
     return { error: "Couldn't save your progress" };
   }
   if (complete) {
-    await recordLessonCompleted(supabase, { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title });
+    await recordLessonCompleted(supabase, { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title, lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds) });
   }
 
   revalidatePath("/courses", "layout");

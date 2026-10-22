@@ -13,9 +13,23 @@ import { localDateString } from "@/lib/events-filter";
  */
 
 export const COURSES_ACTIVITY_SOURCE = "courses";
-/** Points toward the engagement score (a prickle is 10, a Slack message 1-3). */
-export const LESSON_WATCHED_POINTS = 3;
-export const LESSON_COMPLETED_POINTS = 5;
+/**
+ * Points toward the engagement score (a prickle is 10, a Slack message 1-3). They grow with the
+ * lesson's length, so an hour-long webinar is worth more than a five-minute coaching video: watching
+ * is a point per 5 minutes of lesson (1 to 10, a prickle at most), completing a point per 10 minutes
+ * (1 to 5). Fixed when the row is written, since members can't edit their activity rows, so they
+ * follow the lesson's length, not how long the member watched that day. A lesson without a length
+ * gets the middle of each range.
+ */
+export const LESSON_WATCHED_POINTS_UNKNOWN = 3;
+export const LESSON_COMPLETED_POINTS_UNKNOWN = 5;
+
+function pointsFor(lessonSeconds: number | null, minutesPerPoint: number, max: number, unknown: number): number {
+  if (lessonSeconds === null || lessonSeconds <= 0) return unknown;
+  return Math.min(max, Math.max(1, Math.round(lessonSeconds / 60 / minutesPerPoint)));
+}
+export const lessonWatchedPoints = (lessonSeconds: number | null) => pointsFor(lessonSeconds, 5, 10, LESSON_WATCHED_POINTS_UNKNOWN);
+export const lessonCompletedPoints = (lessonSeconds: number | null) => pointsFor(lessonSeconds, 10, 5, LESSON_COMPLETED_POINTS_UNKNOWN);
 /** A day of watching counts once it covers this share of the video, or this much video time. */
 export const WATCHED_SHARE_THRESHOLD = 0.5;
 export const WATCHED_SECONDS_THRESHOLD = 5 * 60;
@@ -35,6 +49,8 @@ interface LessonRef {
   lessonId: string;
   courseId: string;
   lessonTitle: string;
+  /** The lesson's length, null when unknown. */
+  lessonSeconds: number | null;
 }
 
 async function insertOnce(supabase: SupabaseClient, row: Record<string, unknown>, label: string) {
@@ -54,7 +70,7 @@ async function insertOnce(supabase: SupabaseClient, row: Record<string, unknown>
  */
 export async function recordLessonWatched(
   supabase: SupabaseClient,
-  lesson: LessonRef & { videoId: string; lessonSeconds: number | null },
+  lesson: LessonRef & { videoId: string },
   now: Date = new Date()
 ): Promise<void> {
   try {
@@ -75,7 +91,7 @@ export async function recordLessonWatched(
         activity_type: "lesson_watched",
         title: `Watched ${lesson.lessonTitle}`,
         related_id: `${lesson.lessonId}:${today}`,
-        engagement_value: LESSON_WATCHED_POINTS,
+        engagement_value: lessonWatchedPoints(lesson.lessonSeconds),
         duration_minutes: Math.round(watchedSeconds / 60),
         occurred_at: now.toISOString(),
         data: { lesson_id: lesson.lessonId, course_id: lesson.courseId, watched_seconds: Math.round(watchedSeconds) },
@@ -97,7 +113,7 @@ export async function recordLessonCompleted(supabase: SupabaseClient, lesson: Le
         activity_type: "lesson_completed",
         title: `Completed ${lesson.lessonTitle}`,
         related_id: lesson.lessonId,
-        engagement_value: LESSON_COMPLETED_POINTS,
+        engagement_value: lessonCompletedPoints(lesson.lessonSeconds),
         occurred_at: now.toISOString(),
         data: { lesson_id: lesson.lessonId, course_id: lesson.courseId },
       },

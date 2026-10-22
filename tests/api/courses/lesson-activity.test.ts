@@ -4,8 +4,10 @@ import {
   recordLessonCompleted,
   recordLessonWatched,
   watchedEnough,
-  LESSON_COMPLETED_POINTS,
-  LESSON_WATCHED_POINTS,
+  LESSON_COMPLETED_POINTS_UNKNOWN,
+  LESSON_WATCHED_POINTS_UNKNOWN,
+  lessonCompletedPoints,
+  lessonWatchedPoints,
   WATCHED_SECONDS_THRESHOLD,
 } from '@/lib/courses/activity'
 
@@ -14,6 +16,30 @@ import {
  * has covered enough of the lesson, one row per member, lesson and day; completing counts once per
  * lesson. Real local database; the service role stands in for the member's own client.
  */
+
+describe('points by lesson length', () => {
+  it('grow with the lesson: a 5-minute video is worth less than an hour-long webinar', () => {
+    expect(lessonWatchedPoints(5 * 60)).toBe(1)
+    expect(lessonWatchedPoints(30 * 60)).toBe(6)
+    expect(lessonWatchedPoints(60 * 60)).toBe(10)
+    expect(lessonCompletedPoints(5 * 60)).toBe(1)
+    expect(lessonCompletedPoints(30 * 60)).toBe(3)
+    expect(lessonCompletedPoints(60 * 60)).toBe(5)
+  })
+
+  it('has a floor of 1 and tops out at a prickle for watching and 5 for completing', () => {
+    expect(lessonWatchedPoints(30)).toBe(1)
+    expect(lessonCompletedPoints(30)).toBe(1)
+    expect(lessonWatchedPoints(10 * 3600)).toBe(10)
+    expect(lessonCompletedPoints(10 * 3600)).toBe(5)
+  })
+
+  it('uses the middle of each range when the length is unknown', () => {
+    expect(lessonWatchedPoints(null)).toBe(LESSON_WATCHED_POINTS_UNKNOWN)
+    expect(lessonWatchedPoints(0)).toBe(LESSON_WATCHED_POINTS_UNKNOWN)
+    expect(lessonCompletedPoints(null)).toBe(LESSON_COMPLETED_POINTS_UNKNOWN)
+  })
+})
 
 describe('watchedEnough', () => {
   it('counts a day of watching by share of the lesson or by minutes', () => {
@@ -100,7 +126,7 @@ describe('lesson activity rows', () => {
       title: 'Watched Plot Basics',
       activity_category: 'learning',
       actor_kind: 'member',
-      engagement_value: LESSON_WATCHED_POINTS,
+      engagement_value: lessonWatchedPoints(600),
       duration_minutes: 5,
       data: { lesson_id: ids.lesson, course_id: ids.course, watched_seconds: 320 },
     })
@@ -138,21 +164,21 @@ describe('lesson activity rows', () => {
   })
 
   it('logs "completed" once per lesson, even after unmarking and marking again', async () => {
-    const lesson = { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'Plot Basics' }
+    const lesson = { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'Plot Basics', lessonSeconds: 1800 }
     await recordLessonCompleted(supabase, lesson)
     await recordLessonCompleted(supabase, lesson)
     const rows = await activities('lesson_completed')
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ title: 'Completed Plot Basics', engagement_value: LESSON_COMPLETED_POINTS, related_id: ids.lesson })
+    expect(rows[0]).toMatchObject({ title: 'Completed Plot Basics', engagement_value: lessonCompletedPoints(1800), related_id: ids.lesson })
   })
 
   it('never throws, and logs the failure, when the write is refused', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const broken = { from: () => { throw new Error('boom') } } as never
-    await expect(recordLessonCompleted(broken, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x' })).resolves.toBeUndefined()
+    await expect(recordLessonCompleted(broken, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })).resolves.toBeUndefined()
     await expect(recordLessonWatched(broken, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', videoId: ids.video, lessonSeconds: 1 })).resolves.toBeUndefined()
     const refused = { from: () => ({ insert: async () => ({ error: { code: '42501', message: 'denied' } }) }) } as never
-    await recordLessonCompleted(refused, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x' })
+    await recordLessonCompleted(refused, { memberId: ids.member, lessonId: ids.lesson, courseId: ids.course, lessonTitle: 'x', lessonSeconds: null })
     expect(spy).toHaveBeenCalledTimes(3)
     spy.mockRestore()
   })
