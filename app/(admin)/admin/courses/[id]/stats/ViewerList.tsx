@@ -38,8 +38,8 @@ export default function ViewerList({
       <ul className="space-y-3">
         {rows.map((s) => (
           <li key={s.sessionId} className="rounded-lg border border-slate-200 dark:border-slate-800">
-            <details className="group">
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 sm:flex-nowrap">
+            <details className="@container group">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 @pair:flex-nowrap">
                 <span className="w-44 shrink-0 text-sm text-slate-600 dark:text-slate-300">{s.startedAt ? formatCourseDateTime(s.startedAt) : "Unknown time"}</span>
                 <span className="w-40 shrink-0 text-sm font-medium">
                   <Link href={`/admin/members/${s.memberId}`} className="text-plum-700 underline dark:text-plum-300">

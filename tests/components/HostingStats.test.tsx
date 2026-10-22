@@ -39,4 +39,22 @@ describe("HostingStats", () => {
 
     expect(screen.getByText("show-up rate").previousElementSibling).toHaveTextContent("—");
   });
+
+  it("breaks hosting down by prickle type when there is more than one, in a card whose padding follows its container", () => {
+    const stats = computeHostingStats(
+      [
+        { prickleId: "a", typeName: "Heads Down", startTime: "2026-06-01T10:00:00Z", earliestJoinTime: "2026-06-01T10:00:00Z" },
+        { prickleId: "b", typeName: "Heads Down", startTime: "2026-06-02T10:00:00Z", earliestJoinTime: "2026-06-02T10:00:00Z" },
+        { prickleId: "c", typeName: "Story Spill", startTime: "2026-06-03T10:00:00Z", earliestJoinTime: "2026-06-03T10:00:00Z" },
+      ],
+      new Date("2026-06-15T00:00:00Z")
+    );
+    const { container } = render(<HostingStats stats={stats} />);
+
+    expect(screen.getByText("By prickle type")).toBeInTheDocument();
+    expect(screen.getByText(/Heads Down · 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Story Spill · 1/)).toBeInTheDocument();
+    expect(container.firstElementChild).toHaveClass("@container");
+    expect(container.firstElementChild!.firstElementChild).toHaveClass("p-4", "@pair:p-6");
+  });
 });

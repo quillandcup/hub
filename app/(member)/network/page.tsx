@@ -354,14 +354,14 @@ export default async function NetworkPage() {
   })
 
   return (
-    <div className="container mx-auto px-6 py-8">
+    <div className="@container container mx-auto px-6 py-8">
       <h1 className="text-3xl font-bold mb-2">Network</h1>
       <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">
         Hedgies you&apos;ve built a sister streak with — showing up to the same prickle, week after week.
       </p>
 
       {hasConnections ? (
-        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 md:p-10">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 @cards:p-10">
           <div className="relative mx-auto" style={{ maxWidth: 560, aspectRatio: "1 / 1" }}>
             <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" aria-hidden="true">
               {positioned.map((c) => (

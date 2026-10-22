@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Viewport breakpoints (`sm:`/`md:`/`lg:`/`xl:`/`2xl:`) decide the app shell only; a layout inside the
  * content area follows the room it has, with a container query (`@container` + `@pair:`, `@split:`...;
- * "Responsive Layout" in CLAUDE.md). This fails on the structural viewport variants (stacking, columns and
+ * "Responsive Layout" in CLAUDE.md). This fails on the structural viewport variants (stacking, wrapping, columns and
  * their placement) in app and components, so a page can't guess what the shell is doing. Visibility,
  * spacing and text variants (`lg:hidden`, `sm:p-6`) are not covered: the shell legitimately uses them.
  *
@@ -16,7 +16,7 @@ const ALLOWED: Record<string, string> = {
   "components/ConsentBanner.tsx": "fixed to the bottom of the window, outside the app shell: laid out by the viewport",
 };
 
-const STRUCTURAL = /(?<![\w@-])((?:sm|md|lg|xl|2xl):(?:flex-row|flex-col|flex-row-reverse|flex-col-reverse|grid-cols-[\w[\](),.%_-]+|col-span-\w+|col-start-\w+|col-end-\w+|row-span-\w+|row-start-\w+))/g;
+const STRUCTURAL = /(?<![\w@-])((?:sm|md|lg|xl|2xl):(?:flex-row|flex-col|flex-row-reverse|flex-col-reverse|flex-nowrap|flex-wrap|flex-wrap-reverse|grid-cols-[\w[\](),.%_-]+|col-span-\w+|col-start-\w+|col-end-\w+|row-span-\w+|row-start-\w+))/g;
 
 const root = path.resolve(__dirname, "../..");
 
