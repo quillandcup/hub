@@ -7,6 +7,7 @@ vi.mock("@/app/actions/member-hover-card", () => ({ getMemberHoverCard: (...a: u
 const track = vi.fn();
 vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...a) }));
 
+import Link from "next/link";
 import MemberHoverCard from "@/components/member/MemberHoverCard";
 
 const card = (overrides = {}) => ({
@@ -42,7 +43,7 @@ afterEach(() => {
 describe("MemberHoverCard", () => {
   it("shows nothing until hovered, then the profile with Message and View profile", async () => {
     getMemberHoverCard.mockResolvedValue({ card: card({ id: "mbr_hover_1" }) });
-    render(<MemberHoverCard memberId="mbr_hover_1" surface="streaks"><a href="/members/mbr_hover_1">Ada Example</a></MemberHoverCard>);
+    render(<MemberHoverCard memberId="mbr_hover_1" surface="streaks"><Link href="/members/mbr_hover_1">Ada Example</Link></MemberHoverCard>);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(getMemberHoverCard).not.toHaveBeenCalled();
 
