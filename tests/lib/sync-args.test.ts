@@ -72,4 +72,14 @@ describe("parseSyncArgs", () => {
     expect(SYNC_USAGE).toContain("--only");
     expect(SYNC_USAGE).toContain("--target");
   });
+
+  it("ignores the bare -- pnpm passes ahead of the flags", () => {
+    expect(parse("--", "--only=SLACK_BOT_TOKEN")).toEqual({ ok: true, only: new Set(["SLACK_BOT_TOKEN"]), targets: null });
+  });
+
+  it("names the destination in the error, and has no --target when there are no targets (GitHub)", () => {
+    const github = { names: known.names, targets: [], destination: "GitHub" };
+    expect(parseSyncArgs(["--only=NOPE"], github)).toMatchObject({ ok: false, error: expect.stringContaining("synced to GitHub: NOPE") });
+    expect(parseSyncArgs(["--target=production"], github)).toEqual({ ok: false, error: "Unknown option --target=production" });
+  });
 });
