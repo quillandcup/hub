@@ -65,6 +65,40 @@ describe("Composer", () => {
     await userEvent.type(screen.getByRole("textbox"), "   {Enter}");
     expect(sendChatMessage).not.toHaveBeenCalled();
   });
+
+  it("shows an upload overlay while files are dragged over the conversation, and attaches what is dropped", async () => {
+    const { container } = render(
+      <div>
+        <Composer channelId="c1" placeholder="Message #hosts" />
+      </div>
+    );
+    const column = container.firstElementChild as HTMLElement;
+    const file = new File(["x"], "notes.pdf", { type: "application/pdf" });
+    fireEvent.dragEnter(column, { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(await screen.findByText("Upload to #hosts")).toBeInTheDocument();
+    fireEvent.drop(column, { dataTransfer: { types: ["Files"], files: [file] } });
+    expect(await screen.findByText("notes.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Upload to #hosts")).not.toBeInTheDocument();
+  });
+
+  it("labels the overlay for a thread, and ignores a picker closed with no files", async () => {
+    const { container } = render(
+      <div>
+        <Composer channelId="c1" placeholder="Reply" threadRootId="t1" />
+      </div>
+    );
+    fireEvent.dragEnter(container.firstElementChild as HTMLElement, { dataTransfer: { types: ["Files"], files: [] } });
+    expect(await screen.findByText("Upload to thread")).toBeInTheDocument();
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [] } });
+    expect(screen.queryByRole("list", { name: "Attached files" })).not.toBeInTheDocument();
+  });
+
+  it("opens the file picker from the paperclip", async () => {
+    const { container } = render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    const click = vi.spyOn(container.querySelector('input[type="file"]') as HTMLInputElement, "click");
+    await userEvent.click(screen.getByRole("button", { name: "Attach files" }));
+    expect(click).toHaveBeenCalled();
+  });
 });
 
 describe("Composer attachments", () => {

@@ -140,4 +140,16 @@ describe("MessageBody", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack won't let this message be deleted.");
     expect(screen.getByText("first draft")).toBeInTheDocument();
   });
+
+  it("hides the message's row in the feed at once when it is deleted", async () => {
+    vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
+    const row = document.createElement("article");
+    row.id = "m-m1";
+    document.body.appendChild(row);
+    mount();
+    fire("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row.style.display).toBe("none"));
+    row.remove();
+  });
 });

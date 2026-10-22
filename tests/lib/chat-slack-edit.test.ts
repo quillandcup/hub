@@ -186,4 +186,10 @@ describe("deleteChatFileInSlack", () => {
     row = { ...ROW, author_member_id: "someone-else" };
     await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
   });
+  it("asks to reconnect Slack when the member's token is dead", async () => {
+    row = { ...ROW, posted_via: "user_token" };
+    remove.mockRejectedValueOnce({ data: { error: "invalid_auth" } });
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("Reconnect Slack") });
+    expect(rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "member-fern" });
+  });
 });
