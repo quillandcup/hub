@@ -4,6 +4,7 @@ import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageBody from "@/components/chat/MessageBody";
 import MessageFiles from "@/components/chat/MessageFiles";
+import ChatText from "@/components/chat/ChatText";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
@@ -29,6 +30,22 @@ export default function MessageItem({
   canEdit?: boolean;
 }) {
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
+  if (message.system && message.contentState === "ok" && message.body !== null) {
+    return (
+      <article className="py-2 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
+        <span aria-hidden="true" className="shrink-0 w-9 text-center text-slate-400">#</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            <ChatText body={message.body} ctx={ctx} />
+            <time dateTime={message.createdAt} className="text-xs">
+              {formatChatTime(message.createdAt)}
+            </time>
+          </div>
+          <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && !isPendingId(message.id)} />
+        </div>
+      </article>
+    );
+  }
   return (
     <article className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
       <div className="shrink-0 pt-0.5">

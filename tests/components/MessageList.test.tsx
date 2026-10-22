@@ -30,6 +30,7 @@ const view = (n: number, extra: Partial<ChatMessageView> = {}): ChatMessageView 
   syncStatus: null,
   mine: false,
   fromHub: false,
+  system: false,
   ...extra,
 });
 const texts = () => screen.getAllByRole("article").map((a) => /message \d+|from the next page/.exec(a.textContent ?? "")![0]);
@@ -45,6 +46,20 @@ describe("MessageList", () => {
     const line = screen.getByRole("separator", { name: "New messages" });
     expect(line.nextElementSibling).toHaveTextContent("message 2");
     expect(screen.queryByRole("button", { name: /older/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a notice Slack posted itself as a quiet line without an author", () => {
+    render(
+      <MessageList
+        channelId="c1"
+        views={[view(1, { system: true, body: "renamed the channel from a to b", authorName: "Someone on Slack" })]}
+        ctx={CTX}
+        olderBefore={null}
+      />
+    );
+    const notice = screen.getByRole("article");
+    expect(notice).toHaveTextContent("renamed the channel from a to b");
+    expect(notice).not.toHaveTextContent("Someone on Slack");
   });
 
   it("loads older messages above, from the cursor, and stops offering them at the start", async () => {

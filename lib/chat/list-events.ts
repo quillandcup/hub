@@ -91,5 +91,6 @@ export function optimisticView(opts: {
     syncStatus: "pending",
     mine: true,
     fromHub: true,
+    system: false,
   };
 }

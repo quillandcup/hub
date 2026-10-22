@@ -17,7 +17,12 @@ import {
 } from "@/lib/slack-engagement-stats"
 
 import { resolveDateRange } from "@/lib/stats-date-range"
+import { SLACK_SYSTEM_SUBTYPES } from "@/lib/slack-messages"
 import { requireAdminPage } from "@/lib/admin-auth"
+
+// Notices Slack posts itself (a channel rename) are not engagement. message_type is nullable, and a
+// plain NOT IN would drop those rows too.
+const NOT_SYSTEM = `message_type.is.null,message_type.not.in.(${SLACK_SYSTEM_SUBTYPES.join(",")})`
 
 export const maxDuration = 60
 
@@ -53,6 +58,7 @@ async function fetchAllMessages(
       .gte("occurred_at", since)
       .lte("occurred_at", until)
       .is("deleted_at", null)
+      .or(NOT_SYSTEM)
       .order("occurred_at")
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {
@@ -107,6 +113,7 @@ async function fetchAllTimeMessageActivity(supabase: SupabaseClient): Promise<Ch
       .from("slack_messages_meta")
       .select("channel_id, occurred_at")
       .is("deleted_at", null)
+      .or(NOT_SYSTEM)
       .order("occurred_at")
       .range(offset, offset + BATCH - 1)
     if (batch && batch.length > 0) {

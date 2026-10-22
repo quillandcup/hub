@@ -60,6 +60,7 @@ const EXAMPLE_VIEW = {
   syncStatus: null,
   mine: false,
   fromHub: false,
+  system: false,
 };
 
 let earnedBadges: unknown[] = [];
