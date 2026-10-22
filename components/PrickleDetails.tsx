@@ -7,6 +7,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { withOrgTime } from "@/lib/org-time";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import { REASON_ICON } from "@/components/ReasonBadges";
 
@@ -106,6 +107,7 @@ export default function PrickleDetails({
       minute: "2-digit",
     });
   };
+  const formatTimeWithOrg = (date: Date) => withOrgTime(formatTime(date), date, timezone);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -186,7 +188,7 @@ export default function PrickleDetails({
             <p className="font-semibold text-slate-900 dark:text-slate-100">
               {insightsSlotUrl ? (
                 <Link data-track="prickle-open-insights" href={insightsSlotUrl} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                  {formatTime(startTime)} - {formatTime(endTime)}
+                  {formatTimeWithOrg(startTime)} - {formatTimeWithOrg(endTime)}
                 </Link>
               ) : (
                 <>{formatTime(startTime)} - {formatTime(endTime)}</>

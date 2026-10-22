@@ -6,6 +6,7 @@ import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getWizardRecommendations, type WizardAnswers } from "./actions";
 import type { PickerRecommendation, TimeOfDay, VibePreference, PurposePreference } from "@/lib/prickle-picker";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { withOrgTime } from "@/lib/org-time";
 import {
   FEELING_DISPLAY_GROUPS,
   MAX_FEELINGS,
@@ -248,7 +249,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                     data-track="prickle-picker-result"
                     className="px-3 py-1.5 rounded-lg text-sm bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 hover:bg-plum-100 dark:hover:bg-plum-900/40 transition-colors"
                   >
-                    {formatOccurrence(occ.startTime, timezone)}
+                    {withOrgTime(formatOccurrence(occ.startTime, timezone), occ.startTime, timezone)}
                   </Link>
                 ))}
               </div>
