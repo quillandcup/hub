@@ -31,8 +31,8 @@ export default function MemberDirectory({
   }
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+    <div className="@container">
+      <div className="flex flex-col @pair:flex-row @pair:items-center gap-3 mb-6">
         <label htmlFor="directory-search" className="sr-only">
           Search members
         </label>
@@ -43,7 +43,7 @@ export default function MemberDirectory({
           onChange={(e) => search(e.target.value)}
           placeholder="Search names, projects, topics, bios…"
           autoComplete="off"
-          className="w-full sm:max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+          className="w-full @pair:max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
         />
         <p className="text-sm text-slate-500 dark:text-slate-400" aria-live="polite">
           {query.trim()
