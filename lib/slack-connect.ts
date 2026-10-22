@@ -110,33 +110,52 @@ export async function exchangeSlackCode(code: string): Promise<SlackGrant> {
   };
 }
 
-/**
- * Whether this Slack user is the member: the Slack user the Hub already matched to them, or the one
- * their account signs in from Slack as. A connection to anyone else's Slack account is refused, so
- * what the Hub posts "as" a member is always that member.
- */
-export async function slackUserIsMember(service: SupabaseClient, slackUserId: string, memberId: string, authUserId: string): Promise<boolean> {
-  const [{ data: matched }, { data: identity }] = await Promise.all([
-    service.from("chat_slack_authors").select("member_id").eq("slack_user_id", slackUserId).maybeSingle(),
-    service.from("slack_identities").select("user_id").eq("slack_user_id", slackUserId).maybeSingle(),
-  ]);
-  return matched?.member_id === memberId || identity?.user_id === authUserId;
-}
+export type LinkResult =
+  | { ok: true; replaced: string[] }
+  | { ok: false; reason: "wrong_workspace" | "taken" | "other_account" };
 
 /**
- * Bind the Slack account that just approved to the signed-in member, so "Open Hedgie Hub" works
- * even when their Slack email isn't one of their Hub emails. Slack's OAuth shows they control that
- * Slack account and their session shows the Hub one. Refuses a Slack account already matched to
- * another member, or a Hub account already bound to a different Slack user (the unique keys).
+ * Binds the Slack account that just approved to the signed-in member. Slack's OAuth shows they
+ * control that Slack account and their Hub session shows the Hub one, so the binding needs no name
+ * or email match, and it outranks every other kind (email_match, email_alias, admin): those are
+ * inferences, this is a proof. It replaces them, loudly, and the matcher follows it
+ * (lib/slack-matching.ts). Refused only when the Slack account is in another workspace, is already
+ * connected by a different member (a real dispute for an admin), or this member already connected a
+ * different Slack account.
  */
-export async function bindSlackIdentity(service: SupabaseClient, slackUserId: string, memberId: string, authUserId: string): Promise<boolean> {
-  const { data: matched } = await service.from("chat_slack_authors").select("member_id").eq("slack_user_id", slackUserId).maybeSingle();
-  if (matched && matched.member_id !== memberId) return false;
+export async function linkSlackAccount(service: SupabaseClient, grant: SlackGrant, memberId: string, authUserId: string): Promise<LinkResult> {
+  const team = process.env.SLACK_TEAM_ID;
+  if (team && grant.teamId !== team) return { ok: false, reason: "wrong_workspace" };
+
+  const [{ data: held }, { data: bySlack }, { data: byUser }] = await Promise.all([
+    service.from("member_slack_connections").select("member_id").eq("slack_user_id", grant.slackUserId).neq("member_id", memberId).limit(1),
+    service.from("slack_identities").select("user_id, linked_via").eq("slack_user_id", grant.slackUserId).maybeSingle(),
+    service.from("slack_identities").select("slack_user_id, linked_via").eq("user_id", authUserId).maybeSingle(),
+  ]);
+  if ((held?.length ?? 0) > 0 || (bySlack && bySlack.user_id !== authUserId && bySlack.linked_via === "slack_connect")) {
+    return { ok: false, reason: "taken" };
+  }
+  if (byUser && byUser.slack_user_id !== grant.slackUserId && byUser.linked_via === "slack_connect") {
+    return { ok: false, reason: "other_account" };
+  }
+
+  const replaced: string[] = [];
+  if (bySlack && bySlack.user_id !== authUserId) {
+    const { error } = await service.from("slack_identities").delete().eq("slack_user_id", grant.slackUserId);
+    if (error) throw error;
+    replaced.push(`${bySlack.linked_via} (another account)`);
+  }
+  if (byUser && byUser.slack_user_id !== grant.slackUserId) {
+    const { error } = await service.from("slack_identities").delete().eq("user_id", authUserId);
+    if (error) throw error;
+    replaced.push(`${byUser.linked_via} (another Slack user)`);
+  }
   const { error } = await service
     .from("slack_identities")
-    .insert({ slack_user_id: slackUserId, user_id: authUserId, linked_via: "slack_connect" });
-  if (error) console.error("slack-connect: could not bind %s to user %s:", slackUserId, authUserId, error);
-  return !error;
+    .upsert({ slack_user_id: grant.slackUserId, user_id: authUserId, linked_via: "slack_connect" }, { onConflict: "slack_user_id" });
+  if (error) throw error;
+  if (replaced.length > 0) console.error("slack-connect: a verified link replaced %s for member %s", replaced.join(", "), memberId);
+  return { ok: true, replaced };
 }
 
 export async function saveSlackConnection(service: SupabaseClient, memberId: string, grant: SlackGrant): Promise<void> {

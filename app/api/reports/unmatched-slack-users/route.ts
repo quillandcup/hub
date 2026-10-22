@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -46,7 +47,8 @@ export async function GET(request: NextRequest) {
     const userToMemberMap = await matchSlackUsersToMembers(
       slackUsers || [],
       members || [],
-      aliases || []
+      aliases || [],
+      await loadVerifiedSlackLinks(createServiceRoleClient())
     );
 
     // Filter ignored users

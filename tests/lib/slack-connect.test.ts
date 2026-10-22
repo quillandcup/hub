@@ -20,8 +20,7 @@ import {
   isDeadTokenError,
   isSlackConnectConfigured,
   slackRedirectUri,
-  slackUserIsMember,
-  bindSlackIdentity,
+  linkSlackAccount,
 } from "@/lib/slack-connect";
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
@@ -99,45 +98,87 @@ describe("exchangeSlackCode", () => {
   });
 });
 
-describe("slackUserIsMember", () => {
-  it("accepts the Slack user already matched to the member, or the one their account signs in as", async () => {
-    expect(await slackUserIsMember(fakeService({ rows: { chat_slack_authors: { member_id: "m1" } } }), "U1", "m1", "auth-1")).toBe(true);
-    expect(await slackUserIsMember(fakeService({ rows: { slack_identities: { user_id: "auth-1" } } }), "U1", "m1", "auth-1")).toBe(true);
-  });
+describe("linkSlackAccount", () => {
+  const grant = { slackUserId: "U1", teamId: "T_TEAM", accessToken: "t", refreshToken: null, expiresAt: null, scopes: [] };
+  type Identity = { user_id?: string; slack_user_id?: string; linked_via: string };
 
-  it("refuses a Slack account matched to someone else, or to no one", async () => {
-    expect(await slackUserIsMember(fakeService({ rows: { chat_slack_authors: { member_id: "other" } } }), "U1", "m1", "auth-1")).toBe(false);
-    expect(await slackUserIsMember(fakeService(), "U1", "m1", "auth-1")).toBe(false);
-  });
-});
-
-describe("bindSlackIdentity", () => {
-  /** insert() resolves with `error`; reads come from `rows`. */
-  function bindService(rows: Record<string, unknown>, error: unknown = null) {
-    const insert = vi.fn(async () => ({ error }));
-    const from = (table: string) => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: rows[table] ?? null }) }) }),
-      insert,
-    });
-    return { service: { from } as never as import("@supabase/supabase-js").SupabaseClient, insert };
+  /** member_slack_connections and slack_identities, with the reads link needs and the writes it makes. */
+  function linkService(rows: { held?: unknown[]; bySlack?: Identity; byUser?: Identity; upsertError?: unknown } = {}) {
+    const deleted: Array<[string, unknown]> = [];
+    const upsert = vi.fn(async () => ({ error: rows.upsertError ?? null }));
+    const from = (table: string) => {
+      let column = "";
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.neq = () => chain;
+      chain.eq = (col: string) => {
+        column = col;
+        return chain;
+      };
+      chain.limit = async () => ({ data: rows.held ?? [] });
+      chain.maybeSingle = async () => ({ data: (column === "slack_user_id" ? rows.bySlack : rows.byUser) ?? null });
+      chain.delete = () => ({
+        eq: async (col: string, value: unknown) => {
+          deleted.push([`${table}.${col}`, value]);
+          return { error: null };
+        },
+      });
+      chain.upsert = upsert;
+      return chain;
+    };
+    return { service: { from } as never as import("@supabase/supabase-js").SupabaseClient, upsert, deleted };
   }
 
-  it("binds an unmatched Slack user to the signed-in account", async () => {
-    const { service, insert } = bindService({});
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(true);
-    expect(insert).toHaveBeenCalledWith({ slack_user_id: "U1", user_id: "auth-1", linked_via: "slack_connect" });
+  it("binds a Slack account nobody has claimed to the signed-in member, as the strongest kind of link", async () => {
+    const { service, upsert, deleted } = linkService();
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: true, replaced: [] });
+    expect(upsert).toHaveBeenCalledWith({ slack_user_id: "U1", user_id: "auth-1", linked_via: "slack_connect" }, { onConflict: "slack_user_id" });
+    expect(deleted).toEqual([]);
   });
 
-  it("refuses a Slack user matched to another member, without inserting", async () => {
-    const { service, insert } = bindService({ chat_slack_authors: { member_id: "other" } });
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
-    expect(insert).not.toHaveBeenCalled();
+  it("needs no name or email match: a sign-in binding to the same member is simply upgraded", async () => {
+    const { service, upsert } = linkService({ bySlack: { user_id: "auth-1", linked_via: "email_match" }, byUser: { slack_user_id: "U1", linked_via: "email_match" } });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: true, replaced: [] });
+    expect(upsert).toHaveBeenCalled();
   });
 
-  it("refuses when the insert conflicts (either side already bound elsewhere)", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const { service } = bindService({}, { code: "23505" });
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
+  it("replaces a guess that points at someone else, and says so", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { service, upsert, deleted } = linkService({
+      bySlack: { user_id: "auth-other", linked_via: "email_alias" },
+      byUser: { slack_user_id: "U_OLD", linked_via: "email_match" },
+    });
+    const result = await linkSlackAccount(service, grant, "m1", "auth-1");
+    expect(result).toEqual({ ok: true, replaced: ["email_alias (another account)", "email_match (another Slack user)"] });
+    expect(deleted).toEqual([["slack_identities.slack_user_id", "U1"], ["slack_identities.user_id", "auth-1"]]);
+    expect(upsert).toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("replaced"), expect.any(String), "m1");
+  });
+
+  it("refuses a Slack account from another workspace, before reading anything", async () => {
+    const { service, upsert } = linkService();
+    await expect(linkSlackAccount(service, { ...grant, teamId: "T_OTHER" }, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "wrong_workspace" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Slack account another member connected, whether or not their identity row exists", async () => {
+    const connected = linkService({ held: [{ member_id: "other" }] });
+    await expect(linkSlackAccount(connected.service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "taken" });
+    const linked = linkService({ bySlack: { user_id: "auth-other", linked_via: "slack_connect" } });
+    await expect(linkSlackAccount(linked.service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "taken" });
+    expect(connected.upsert).not.toHaveBeenCalled();
+    expect(linked.deleted).toEqual([]);
+  });
+
+  it("refuses a member who already connected a different Slack account", async () => {
+    const { service, upsert } = linkService({ byUser: { slack_user_id: "U_OLD", linked_via: "slack_connect" } });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "other_account" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a write that fails, so nothing is stored for a half-made link", async () => {
+    const { service } = linkService({ upsertError: new Error("db down") });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).rejects.toThrow("db down");
   });
 });
 

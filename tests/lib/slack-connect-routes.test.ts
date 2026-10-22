@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 
-const { getCurrentUser, getEffectiveIdentity, hasFeature, setConnectStateCookie, consumeConnectStateCookie, exchangeSlackCode, slackUserIsMember, bindSlackIdentity, saveSlackConnection } =
+const { getCurrentUser, getEffectiveIdentity, hasFeature, setConnectStateCookie, consumeConnectStateCookie, exchangeSlackCode, linkSlackAccount, saveSlackConnection } =
   vi.hoisted(() => ({
     getCurrentUser: vi.fn(),
     getEffectiveIdentity: vi.fn(),
@@ -9,8 +9,7 @@ const { getCurrentUser, getEffectiveIdentity, hasFeature, setConnectStateCookie,
     setConnectStateCookie: vi.fn(async () => "state-1"),
     consumeConnectStateCookie: vi.fn(async () => true),
     exchangeSlackCode: vi.fn(),
-    slackUserIsMember: vi.fn(),
-    bindSlackIdentity: vi.fn(),
+    linkSlackAccount: vi.fn(),
     saveSlackConnection: vi.fn(),
   }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser }));
@@ -26,8 +25,7 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   setConnectStateCookie: () => setConnectStateCookie(),
   consumeConnectStateCookie: (...a: unknown[]) => consumeConnectStateCookie(...(a as [])),
   exchangeSlackCode: (...a: unknown[]) => exchangeSlackCode(...a),
-  slackUserIsMember: (...a: unknown[]) => slackUserIsMember(...a),
-  bindSlackIdentity: (...a: unknown[]) => bindSlackIdentity(...a),
+  linkSlackAccount: (...a: unknown[]) => linkSlackAccount(...a),
   saveSlackConnection: (...a: unknown[]) => saveSlackConnection(...a),
 }));
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
@@ -48,7 +46,7 @@ beforeEach(() => {
   getEffectiveIdentity.mockResolvedValue({ memberId: "m1", isSudo: false });
   hasFeature.mockResolvedValue(true);
   consumeConnectStateCookie.mockResolvedValue(true);
-  slackUserIsMember.mockResolvedValue(true);
+  linkSlackAccount.mockResolvedValue({ ok: true, replaced: [] });
   exchangeSlackCode.mockResolvedValue({ slackUserId: "U_FERN", accessToken: "xoxp-1" });
   for (const fn of [setConnectStateCookie, exchangeSlackCode, saveSlackConnection]) fn.mockClear();
 });
@@ -87,18 +85,14 @@ describe("GET /api/oauth/slack/callback", () => {
     expect(saveSlackConnection).toHaveBeenCalledWith(expect.anything(), "m1", expect.objectContaining({ slackUserId: "U_FERN" }));
   });
 
-  it("binds a Slack account that isn't matched yet to the signed-in member and connects", async () => {
-    slackUserIsMember.mockResolvedValue(false);
-    bindSlackIdentity.mockResolvedValue(true);
+  it("links the Slack account to the signed-in member before storing the token", async () => {
     expect(location(await callback(request(ok)))).toBe("https://hub.example.test/settings?slack=connected");
-    expect(bindSlackIdentity).toHaveBeenCalledWith(expect.anything(), "U_FERN", "m1", "auth-1");
-    expect(saveSlackConnection).toHaveBeenCalled();
+    expect(linkSlackAccount).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ slackUserId: "U_FERN" }), "m1", "auth-1");
   });
 
-  it("refuses a Slack account that can't be bound to the member, without storing anything", async () => {
-    slackUserIsMember.mockResolvedValue(false);
-    bindSlackIdentity.mockResolvedValue(false);
-    expect(location(await callback(request(ok)))).toBe("https://hub.example.test/settings?slack=wrong_account");
+  it.each(["wrong_workspace", "taken", "other_account"])("sends %s back to settings without storing anything", async (reason) => {
+    linkSlackAccount.mockResolvedValue({ ok: false, reason });
+    expect(location(await callback(request(ok)))).toBe(`https://hub.example.test/settings?slack=${reason}`);
     expect(saveSlackConnection).not.toHaveBeenCalled();
   });
 
