@@ -56,4 +56,17 @@ describe("ImageLightbox", () => {
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("accepts blob, https and same-site sources and refuses anything else", () => {
+    for (const src of ["blob:http://x/1", "https://a.example/b.png", "/p"]) {
+      const { unmount } = render(<ImageLightbox images={[{ src, name: "ok" }]} onClose={vi.fn()} />);
+      expect(screen.getByAltText("ok")).toHaveAttribute("src", src);
+      unmount();
+    }
+    for (const src of ["javascript:alert(1)", "data:text/html,x", "//evil.example/x", "http://a.example/x"]) {
+      const { container, unmount } = render(<ImageLightbox images={[{ src }]} onClose={vi.fn()} />);
+      expect(container).toBeEmptyDOMElement();
+      unmount();
+    }
+  });
 });

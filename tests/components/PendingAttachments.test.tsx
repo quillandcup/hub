@@ -53,3 +53,12 @@ describe("ImageLightbox", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("PendingAttachments with a non-blob object URL", () => {
+  it("shows the file chip instead of loading the image", () => {
+    URL.createObjectURL = vi.fn(() => "javascript:alert(1)");
+    render(<PendingAttachments files={[new File(["a"], "cat.png", { type: "image/png" })]} onRemove={vi.fn()} />);
+    expect(screen.getByText("cat.png")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Preview cat.png" })).toBeNull();
+  });
+});

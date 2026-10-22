@@ -1,6 +1,5 @@
 "use client";
 
-import { safeImageSrc } from "@/lib/safe-image-src";
 import { useEffect, useMemo, useState } from "react";
 import ImageLightbox from "@/components/ImageLightbox";
 import { formatFileSize } from "@/lib/chat/files";
@@ -34,7 +33,7 @@ export default function PendingAttachments({ files, disabled, onRemove }: { file
           const url = urls[i];
           return (
             <li key={`${f.name}-${i}`} className="group relative">
-              {url ? (
+              {url && url.startsWith("blob:") ? (
                 <button
                   type="button"
                   aria-label={`Preview ${f.name || "image"}`}
@@ -42,7 +41,7 @@ export default function PendingAttachments({ files, disabled, onRemove }: { file
                   className="block overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- a blob: URL */}
-                  <img src={safeImageSrc(url)} alt="" className="h-16 w-16 object-cover" />
+                  <img src={url} alt="" className="h-16 w-16 object-cover" />
                 </button>
               ) : (
                 <div className="flex h-16 max-w-48 flex-col justify-center rounded-lg border border-slate-200 px-3 text-xs dark:border-slate-700">

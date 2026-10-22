@@ -1,6 +1,5 @@
 "use client";
 
-import { safeImageSrc } from "@/lib/safe-image-src";
 import { useEffect, useState } from "react";
 
 export type LightboxImage = { src: string; name?: string };
@@ -26,11 +25,13 @@ export default function ImageLightbox({ images, startIndex = 0, onClose }: { ima
 
   const image = images[index];
   if (!image) return null;
+  const src = image.src;
+  if (!(src.startsWith("blob:") || src.startsWith("https://") || (src.startsWith("/") && !src.startsWith("//")))) return null;
 
   return (
     <div role="dialog" aria-modal="true" aria-label={image.name ?? "Image preview"} className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6" onClick={onClose}>
       {/* eslint-disable-next-line @next/next/no-img-element -- a blob: or private-storage URL */}
-      <img src={safeImageSrc(image.src)} alt={image.name ?? ""} onClick={(e) => e.stopPropagation()} className="max-h-full max-w-full rounded object-contain" />
+      <img src={src} alt={image.name ?? ""} onClick={(e) => e.stopPropagation()} className="max-h-full max-w-full rounded object-contain" />
       <button type="button" aria-label="Close preview" data-track-ignore onClick={onClose} className="absolute right-4 top-4 rounded-full bg-black/60 px-3 py-1 text-white hover:bg-black/80">
         ✕
       </button>
