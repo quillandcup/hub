@@ -13,6 +13,7 @@ const file = (over: Partial<PlannedFile> = {}): PlannedFile => ({
   kajabiFileId: "f1",
   filename: "Tracker.pdf",
   lessonTitle: "Lesson 1",
+  draft: false,
   position: 1,
   state: "ready_to_copy",
   sourceUrl: "https://kajabi.test/f",
@@ -30,9 +31,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CourseFilesPanel", () => {
-  it("says so when no visible lesson has a download", () => {
+  it("says so when no lesson has a download", () => {
     render(<CourseFilesPanel slug="c" plan={plan([])} />);
-    expect(screen.getByText("No visible lesson has a download recorded.")).toBeInTheDocument();
+    expect(screen.getByText("No lesson has a download recorded.")).toBeInTheDocument();
+  });
+
+  it("marks draft lessons' files and says they are copied too, only when there are some", () => {
+    const { rerender } = render(<CourseFilesPanel slug="c" plan={plan([file()])} />);
+    expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Files of draft lessons are copied too/)).not.toBeInTheDocument();
+
+    rerender(<CourseFilesPanel slug="c" plan={plan([file(), file({ kajabiFileId: "f2", filename: "Plot.pdf", lessonTitle: "Draft: Plot", draft: true })])} />);
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText(/Files of draft lessons are copied too/)).toBeInTheDocument();
+    // One button covers both: files cost nothing to keep.
+    expect(screen.getByRole("button", { name: "Copy 2 files" })).toBeEnabled();
   });
 
   it("lists each file with its lesson and state, and what will be removed", () => {

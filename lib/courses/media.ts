@@ -14,7 +14,7 @@ import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
  * upload. A video used only by Kajabi drafts is planned too (`draft`) so staff can preview those
  * lessons, but it is never uploaded by the normal upload: every upload is billed, and drafts are
  * work in progress (some are leftovers), so uploading them is a separate, deliberate action
- * (`drafts: true`). A video already uploaded is never uploaded again, and a run only ever does new
+ * (`drafts: true`), and one staff can narrow to the exact videos they pick (`mediaIds`). A video already uploaded is never uploaded again, and a run only ever does new
  * work, so it is safe to repeat. An upload is a button press, not part of the automatic sync, for
  * the same cost reason.
  *
@@ -138,6 +138,8 @@ export interface UploadResult {
   /** Needs a fresh link: run the Kajabi content step again. */
   needsNewLink: { mediaId: string; lessonTitles: string[]; reason: "expired" | "missing" }[];
   failed: { mediaId: string; lessonTitles: string[]; error: string }[];
+  /** Picked videos (`mediaIds`) that this upload doesn't cover: not in the course, or the other kind (draft or not). Nothing was done for them. */
+  notAvailable: string[];
 }
 
 export async function uploadCourseVideos(
@@ -146,14 +148,27 @@ export async function uploadCourseVideos(
   courseKajabiId: string,
   now: Date,
   fingerprint: (url: string) => Promise<string> = fingerprintSource,
-  /** `drafts` uploads the videos only drafts use, and only those: the normal upload never does. */
-  options: { drafts?: boolean } = {}
+  /**
+   * `drafts` uploads the videos only drafts use, and only those: the normal upload never does.
+   * `mediaIds` narrows either kind to exactly the videos picked (Kajabi media ids); every other video
+   * is left alone. Without it, every video of that kind is considered.
+   */
+  options: { drafts?: boolean; mediaIds?: string[] } = {}
 ): Promise<UploadResult> {
   const plan = await planCourseVideos(supabase, courseKajabiId, now);
-  const result: UploadResult = { uploaded: [], alreadyInMux: 0, needsNewLink: [], failed: [] };
+  const wantDrafts = options.drafts ?? false;
+  const picked = options.mediaIds ? new Set(options.mediaIds) : null;
+  const result: UploadResult = {
+    uploaded: [],
+    alreadyInMux: 0,
+    needsNewLink: [],
+    failed: [],
+    notAvailable: picked ? [...picked].filter((id) => !plan.some((p) => p.mediaId === id && p.draft === wantDrafts)) : [],
+  };
 
   for (const item of plan) {
-    if (item.draft !== (options.drafts ?? false)) continue;
+    if (item.draft !== wantDrafts) continue;
+    if (picked && !picked.has(item.mediaId)) continue;
     if (item.state === "uploaded") {
       result.alreadyInMux++;
       continue;

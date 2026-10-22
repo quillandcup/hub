@@ -10,10 +10,14 @@ import { visibleLessonIds } from "@/lib/courses/visible";
  * `course-files` bucket and records a `course_lesson_files` row, which the lesson page lists and serves
  * through a short-lived signed link after an access check.
  *
- * Only files of lessons members can see (open or "Coming soon") are copied, and only once the course
- * is published (a file hangs off a Hub lesson). A file already copied is never copied again; a file
- * Kajabi no longer lists is removed from storage and the table (the lesson's files are re-derived from
- * Bronze, like everything in Silver). Safe to repeat. Needs a service-role client.
+ * Files of every lesson are copied, drafts' included (`draft: true`): a file costs nothing to keep, and
+ * staff preview draft lessons. A draft's files stay staff-only without any extra rule here: a draft is
+ * a hidden Hub lesson, members' row-level security only reads files of open lessons, and the download
+ * route (`/courses/[slug]/lessons/[lessonId]/files/[fileId]`) refuses anyone who can't open the lesson.
+ * They are copied only once the course is published (a file hangs off a Hub lesson). A file already
+ * copied is never copied again; a file Kajabi no longer lists is removed from storage and the table
+ * (the lesson's files are re-derived from Bronze, like everything in Silver). Safe to repeat. Needs a
+ * service-role client.
  */
 
 export const COURSE_FILES_BUCKET = "course-files";
@@ -36,6 +40,8 @@ export interface PlannedFile {
   kajabiFileId: string;
   filename: string;
   lessonTitle: string;
+  /** Its lesson isn't visible to members (a Kajabi draft, or under a draft module): staff-only. */
+  draft: boolean;
   position: number;
   state: FilePlanState;
   sourceUrl: string | null;
@@ -44,7 +50,7 @@ export interface PlannedFile {
 
 export interface FilePlan {
   files: PlannedFile[];
-  /** Hub files whose Kajabi file is gone (or whose lesson is no longer visible): to be removed. */
+  /** Hub files whose Kajabi file (or lesson) is gone: to be removed. */
   stale: { id: string; storagePath: string; filename: string }[];
   /** The Hub course, or null when it isn't published (nothing can be copied). */
   courseId: string | null;
@@ -106,7 +112,7 @@ export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: 
   const titleById = new Map(lessons.map((l) => [l.kajabi_id, l.title as string]));
 
   const bronzeFiles: any[] = [];
-  for (const batch of inBatches([...visible])) {
+  for (const batch of inBatches(lessons.map((l) => l.kajabi_id as string))) {
     bronzeFiles.push(
       ...(await fetchAllBronzeRows(supabase, "kajabi_lesson_files", "kajabi_id, lesson_kajabi_id, filename, source_url, raw_payload", (q) =>
         q.in("lesson_kajabi_id", batch).is("deleted_at", null)
@@ -145,6 +151,7 @@ export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: 
         kajabiFileId: f.kajabi_id as string,
         filename: f.filename as string,
         lessonTitle: titleById.get(f.lesson_kajabi_id) ?? "",
+        draft: !visible.has(f.lesson_kajabi_id),
         position: typeof f.raw_payload?.position === "number" ? f.raw_payload.position : index,
         state,
         sourceUrl: (f.source_url as string | null) ?? null,
@@ -234,7 +241,7 @@ export async function copyCourseFiles(
     }
   }
 
-  // Files Kajabi no longer lists (or whose lesson is no longer visible): the row and the stored object go.
+  // Files Kajabi no longer lists (or whose lesson is gone): the row and the stored object go.
   for (const stale of plan.stale) {
     await bucket.remove([stale.storagePath]);
     const { error } = await supabase.from("course_lesson_files").delete().eq("id", stale.id);

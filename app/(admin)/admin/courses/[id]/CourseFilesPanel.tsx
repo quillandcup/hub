@@ -12,7 +12,11 @@ const STATE_TEXT: Record<PlannedFile["state"], string> = {
   lesson_not_in_hub: "Its lesson isn't in the Hub yet: publish or sync first",
 };
 
-/** A course's lesson downloads and the button that copies them into the Hub (docs/COURSES.md, step D, files). */
+/**
+ * A course's lesson downloads and the button that copies them into the Hub (docs/COURSES.md, step D,
+ * files). Draft lessons' files are listed and copied with the rest (they cost nothing and staff preview
+ * those lessons); they are marked, and only staff can open them.
+ */
 export default function CourseFilesPanel({ slug, plan }: { slug: string | null; plan: FilePlan }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -49,14 +53,20 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
     <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
       <h2 className="text-lg font-semibold">Downloads</h2>
       {plan.files.length === 0 && plan.stale.length === 0 ? (
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">No visible lesson has a download recorded.</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">No lesson has a download recorded.</p>
       ) : (
         <>
+          {plan.files.some((f) => f.draft) && (
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Files of draft lessons are copied too, marked Draft. Members never see them; staff can open them in a preview.
+            </p>
+          )}
           <ul className="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
             {plan.files.map((f) => (
               <li key={f.kajabiFileId} className="flex flex-wrap items-center gap-x-3 py-1.5">
                 <span className="min-w-0 flex-1">
                   {f.filename} <span className="text-xs text-slate-500 dark:text-slate-400">· {f.lessonTitle}</span>
+                  {f.draft && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">Draft</span>}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400">{STATE_TEXT[f.state]}</span>
               </li>

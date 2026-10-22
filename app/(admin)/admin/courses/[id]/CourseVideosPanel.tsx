@@ -23,12 +23,14 @@ const minutes = (seconds: number | null) => (seconds ? Math.round(seconds / 60) 
  * A course's videos and the Mux step (docs/COURSES.md, step D). Uploading is billed per minute, so it
  * asks first and says how much it is about to upload. Videos of lessons members can see are one list
  * and button; videos only Kajabi drafts use are a separate list with their own button, so a draft is
- * never uploaded (and billed) by pressing the normal one.
+ * never uploaded (and billed) by pressing the normal one. Drafts are picked one by one (nothing is
+ * pre-selected): some are leftovers, and each upload is billed.
  */
 export default function CourseVideosPanel({ slug, videos: all }: { slug: string | null; videos: PlannedVideo[] }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [confirmingDrafts, setConfirmingDrafts] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -36,11 +38,21 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
   const drafts = all.filter((v) => v.draft);
   const toUpload = videos.filter((v) => v.state === "ready_to_upload");
   const uploadMinutes = toUpload.reduce((sum, v) => sum + minutes(v.durationSeconds), 0);
-  const draftsToUpload = drafts.filter((v) => v.state === "ready_to_upload");
-  const draftMinutes = draftsToUpload.reduce((sum, v) => sum + minutes(v.durationSeconds), 0);
+  const draftsPickable = drafts.filter((v) => v.state === "ready_to_upload");
+  // Only what is still pickable counts: a video that has since been uploaded drops out of the selection.
+  const draftsPicked = draftsPickable.filter((v) => selected.has(v.mediaId));
+  const draftMinutes = draftsPicked.reduce((sum, v) => sum + minutes(v.durationSeconds), 0);
   const preparing = all.filter((v) => v.state === "uploaded" && v.videoStatus === "preparing").length;
 
-  async function run(action: "upload" | "upload_drafts" | "refresh") {
+  function toggle(mediaId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(mediaId)) next.add(mediaId);
+      return next;
+    });
+  }
+
+  async function run(action: "upload" | "upload_drafts" | "refresh", mediaIds?: string[]) {
     setBusy(true);
     setMessage(null);
     setConfirming(false);
@@ -49,7 +61,7 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
       const response = await fetch("/api/process/course-media", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ course: slug, action }),
+        body: JSON.stringify({ course: slug, action, ...(mediaIds ? { mediaIds } : {}) }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed");
@@ -57,10 +69,12 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
       if (data.upload) {
         parts.push(`Uploaded ${data.upload.uploaded.length}`);
         if (data.upload.needsNewLink.length > 0) parts.push(`${data.upload.needsNewLink.length} need a new link`);
+        if (data.upload.notAvailable?.length > 0) parts.push(`${data.upload.notAvailable.length} picked ${data.upload.notAvailable.length === 1 ? "video wasn't" : "videos weren't"} available (reload the page)`);
         if (data.upload.failed.length > 0) parts.push(`${data.upload.failed.length} failed: ${data.upload.failed[0].error}`);
       }
       parts.push(`${data.refresh.ready} ready, ${data.refresh.stillPreparing} still preparing`);
       setMessage({ ok: !(data.upload?.failed.length > 0), text: parts.join(". ") + "." });
+      if (action === "upload_drafts") setSelected(new Set());
       router.refresh();
     } catch (err: any) {
       setMessage({ ok: false, text: err.message || "Failed" });
@@ -131,11 +145,30 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
             <div className="mt-6 border-t border-slate-100 pt-4 dark:border-slate-800">
               <h3 className="font-medium">Draft lessons&apos; videos</h3>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                {drafts.length} {drafts.length === 1 ? "video is" : "videos are"} used only by draft lessons. Members never see them; upload them to preview those lessons. Some drafts are leftovers, so this is a separate step.
+                {drafts.length} {drafts.length === 1 ? "video is" : "videos are"} used only by draft lessons. Members never see them; upload them to preview those lessons. Some drafts are leftovers, so tick the ones to upload.
               </p>
+              {slug && draftsPickable.length > 0 && (
+                <p className="mt-2 flex gap-3 text-sm">
+                  <button type="button" onClick={() => setSelected(new Set(draftsPickable.map((v) => v.mediaId)))} className="text-plum-700 underline dark:text-plum-300">
+                    Select all
+                  </button>
+                  <button type="button" onClick={() => setSelected(new Set())} disabled={draftsPicked.length === 0} className="text-plum-700 underline disabled:opacity-50 dark:text-plum-300">
+                    Clear
+                  </button>
+                </p>
+              )}
               <ul className="mt-3 divide-y divide-slate-100 text-sm dark:divide-slate-800">
                 {drafts.map((v) => (
                   <li key={v.mediaId} className="flex flex-wrap items-center gap-x-3 py-1.5">
+                    {slug && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(v.mediaId) && v.state === "ready_to_upload"}
+                        onChange={() => toggle(v.mediaId)}
+                        disabled={busy || v.state !== "ready_to_upload"}
+                        aria-label={`Upload ${v.lessonTitles.join(", ")}`}
+                      />
+                    )}
                     <span className="min-w-0 flex-1">{v.lessonTitles.join(", ")}</span>
                     {minutes(v.durationSeconds) > 0 && <span className="text-xs text-slate-500 dark:text-slate-400">{minutes(v.durationSeconds)} min</span>}
                     <span className="text-xs text-slate-500 dark:text-slate-400">{statusText(v)}</span>
@@ -147,9 +180,9 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
                   {confirmingDrafts ? (
                     <>
                       <span className="text-sm">
-                        Upload {draftsToUpload.length} draft {draftsToUpload.length === 1 ? "video" : "videos"} (about {draftMinutes} minutes) to Mux? Mux bills per minute.
+                        Upload {draftsPicked.length} selected draft {draftsPicked.length === 1 ? "video" : "videos"} (about {draftMinutes} minutes) to Mux? Mux bills per minute.
                       </span>
-                      <button type="button" onClick={() => run("upload_drafts")} disabled={busy} className="rounded bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50">
+                      <button type="button" onClick={() => run("upload_drafts", draftsPicked.map((v) => v.mediaId))} disabled={busy || draftsPicked.length === 0} className="rounded bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50">
                         Upload drafts
                       </button>
                       <button type="button" onClick={() => setConfirmingDrafts(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600">
@@ -160,10 +193,10 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
                     <button
                       type="button"
                       onClick={() => setConfirmingDrafts(true)}
-                      disabled={busy || draftsToUpload.length === 0}
+                      disabled={busy || draftsPicked.length === 0}
                       className="rounded border border-plum-600 px-3 py-1.5 text-sm font-medium text-plum-700 hover:bg-plum-50 disabled:opacity-50 dark:text-plum-300 dark:hover:bg-slate-800"
                     >
-                      {busy ? "Working…" : `Upload ${draftsToUpload.length} draft ${draftsToUpload.length === 1 ? "video" : "videos"} to Mux`}
+                      {busy ? "Working…" : `Upload ${draftsPicked.length} selected draft ${draftsPicked.length === 1 ? "video" : "videos"} to Mux`}
                     </button>
                   )}
                 </div>

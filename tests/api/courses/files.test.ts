@@ -4,8 +4,8 @@ import { COURSE_FILES_BUCKET, copyCourseFiles, planCourseFiles } from '@/lib/cou
 
 /**
  * Lesson downloads into the Hub, against the real local database and Storage with a fake source:
- * only visible lessons' files are copied, once, into the private bucket with a recorded row; links
- * that have expired are reported; a file Kajabi no longer lists is removed.
+ * every lesson's files, drafts' included and marked, are copied once into the private bucket with a
+ * recorded row; links that have expired are reported; a file Kajabi no longer lists is removed.
  */
 
 const ts = Date.now()
@@ -70,16 +70,21 @@ describe('Course files step', () => {
     ])
     sources.broken = { status: 500 }
 
-    // The Hub course (as publishing makes it), without the lesson "nohub".
+    // The Hub course (as publishing makes it), without the lesson "nohub". Drafts are there too, hidden.
     const { data: course } = await supabase.from('courses').insert({ slug: `files-course-${ts}`, title: 'Files Course', source_key: COURSE }).select('id').single()
     ids.course = course!.id
-    const { data: hub } = await supabase.from('course_lessons').insert(['a', 'b'].map((n) => ({ course_id: ids.course, title: `Lesson ${n}`, source_key: `${COURSE}-l-${n}` }))).select('id, source_key')
-    ids.a = hub!.find((l) => l.source_key.endsWith('-l-a'))!.id
-    ids.b = hub!.find((l) => l.source_key.endsWith('-l-b'))!.id
+    const hubLessons = [
+      { n: 'a', state: 'open' },
+      { n: 'b', state: 'open' },
+      { n: 'draft', state: 'hidden' },
+      { n: 'c', state: 'hidden' },
+    ]
+    const { data: hub } = await supabase.from('course_lessons').insert(hubLessons.map(({ n, state }) => ({ course_id: ids.course, title: `Lesson ${n}`, state, source_key: `${COURSE}-l-${n}` }))).select('id, source_key')
+    for (const { n } of hubLessons) ids[n] = hub!.find((l) => l.source_key.endsWith(`-l-${n}`))!.id
   })
   afterAll(cleanup)
 
-  it('plans only visible lessons\' files, each with what it needs', async () => {
+  it('plans every lesson\'s files, drafts\' marked, each with what it needs', async () => {
     const plan = await planCourseFiles(supabase, COURSE, NOW)
     const byName = Object.fromEntries(plan.files.map((f) => [f.filename, f.state]))
 
@@ -89,8 +94,12 @@ describe('Course files step', () => {
       'expired.pdf': 'link_expired',
       'nolink.pdf': 'no_link',
       'broken.pdf': 'ready_to_copy',
+      'indraft.pdf': 'ready_to_copy',
+      'indraftmodule.pdf': 'ready_to_copy',
       'nohub.pdf': 'lesson_not_in_hub',
     })
+    // A draft lesson's file, and one under a draft module, are marked; the rest are members' to see.
+    expect(plan.files.filter((f) => f.draft).map((f) => f.filename).sort()).toEqual(['indraft.pdf', 'indraftmodule.pdf'])
     expect(plan.courseId).toBe(ids.course)
     expect(plan.files.filter((f) => f.lessonTitle === 'Lesson a').map((f) => f.filename)).toEqual(['tracker.pdf', 'second.pdf']) // by position
   })
@@ -98,7 +107,7 @@ describe('Course files step', () => {
   it('copies each file once into the private bucket and records its size, type and hash', async () => {
     const result = await copyCourseFiles(supabase, COURSE, NOW, download)
 
-    expect(result.copied.map((c) => c.filename).sort()).toEqual(['tracker.pdf', 'second.pdf'].sort())
+    expect(result.copied.map((c) => c.filename).sort()).toEqual(['tracker.pdf', 'second.pdf', 'indraft.pdf', 'indraftmodule.pdf'].sort())
     expect(result.failed).toMatchObject([{ filename: 'broken.pdf', error: 'source answered 500' }])
     expect(result.needsNewLink.map((n) => `${n.filename}:${n.reason}`).sort()).toEqual(['expired.pdf:expired', 'nolink.pdf:missing'])
     expect(result.waitingForLesson).toBe(1)
@@ -114,17 +123,18 @@ describe('Course files step', () => {
     })
     expect(stored.content_hash).toMatch(/^[0-9a-f]{64}$/)
     expect(await exists(stored.storage_path)).toBe(true)
-    // Drafts and lessons under draft modules are never copied.
-    expect((await rows()).some((r) => r.filename === 'indraft.pdf' || r.filename === 'indraftmodule.pdf')).toBe(false)
+    // A draft lesson's file, and one under a draft module, are copied onto their hidden Hub lessons.
+    const draftRows = (await rows()).filter((r) => r.filename === 'indraft.pdf' || r.filename === 'indraftmodule.pdf')
+    expect(draftRows.map((r) => r.lesson_id).sort()).toEqual([ids.draft, ids.c].sort())
   })
 
   it('copies nothing again, and retries only what failed', async () => {
     sources.broken = { body: 'fixed now' }
     const result = await copyCourseFiles(supabase, COURSE, NOW, download)
 
-    expect(result.alreadyCopied).toBe(2)
+    expect(result.alreadyCopied).toBe(4)
     expect(result.copied.map((c) => c.filename)).toEqual(['broken.pdf'])
-    expect((await rows()).filter((r) => r.filename.endsWith('.pdf'))).toHaveLength(3)
+    expect((await rows()).filter((r) => r.filename.endsWith('.pdf'))).toHaveLength(5)
   })
 
   it('refuses a file over the size limit without storing it', async () => {
