@@ -21,8 +21,8 @@ name: Auto-merge
 # the stricter rule: only patch/minor version bumps are enabled, majors are far more likely
 # to carry breaking changes and always need a human. That is a deliberate safety choice, not
 # something to make configurable. Dependabot runs read Dependabot secrets, not Actions
-# secrets, so GH_TOKEN_AUTO_MERGE must also be added under Settings -> Secrets and variables
-# -> Dependabot; until it is, those PRs fall back to GITHUB_TOKEN, whose merges don't
+# secrets, so `pnpm env:sync:github` also writes GH_TOKEN_AUTO_MERGE as a Dependabot secret
+# (env-vars.config.ts); without it those PRs fall back to GITHUB_TOKEN, whose merges don't
 # trigger the push CI run on main. Needs the repo-level "Allow auto-merge" setting
 # (Settings -> General -> Pull Requests); without it `gh pr merge --auto` fails.
 on:

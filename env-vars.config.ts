@@ -38,6 +38,12 @@ export type Destination =
   /** Synced via `gh secret set` (type "secret") or `gh variable set` (type "config"). */
   | { readonly kind: "github" }
   /**
+   * Synced via `gh secret set --app dependabot`. Workflows that Dependabot triggers read
+   * Dependabot secrets, not Actions secrets, so a secret they need goes here as well as
+   * under "github". Secrets only.
+   */
+  | { readonly kind: "github-dependabot" }
+  /**
    * Synced into Supabase Vault (`vault.decrypted_secrets`), read by SQL/PL-pgSQL/pg_cron.
    * `vaultName` is the name SQL code looks it up by, independent of this env var's name.
    */
@@ -504,9 +510,9 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GH_TOKEN_AUTO_MERGE",
     group: "GitHub Actions CI",
     description:
-      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only. Lets auto-merge.yml turn on auto-merge as a real user: a merge GitHub attributes to the workflow's own GITHUB_TOKEN doesn't trigger the push CI run on main (migrations, deploy, Slack manifest).",
+      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only. Lets auto-merge.yml (Actions and Dependabot secrets, since Dependabot-triggered runs read only the latter) turn on auto-merge as a real user: a merge GitHub attributes to the workflow's own GITHUB_TOKEN doesn't trigger the push CI run on main (migrations, deploy, Slack manifest).",
     type: "secret",
-    destinations: [{ kind: "github" }],
+    destinations: [{ kind: "github" }, { kind: "github-dependabot" }],
   },
   {
     name: "DOCKERHUB_USERNAME",

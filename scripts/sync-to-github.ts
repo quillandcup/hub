@@ -22,17 +22,23 @@ function main(): void {
 
   for (const spec of ENV_VARS) {
     for (const dest of spec.destinations) {
-      if (dest.kind !== "github") continue;
+      if (dest.kind !== "github" && dest.kind !== "github-dependabot") continue;
       const value = env[spec.name];
       if (value === undefined || value === "") {
         console.warn(`⚠️  ${spec.name} not found in ${ENV_FILE}, skipping...`);
         missing.push(spec.name);
         continue;
       }
-      const label = spec.type === "secret" ? "🔒 secret" : "📤 variable";
+      if (dest.kind === "github-dependabot" && spec.type !== "secret") {
+        console.error(`❌ ${spec.name}: only secrets can go to Dependabot`);
+        process.exit(1);
+      }
+      const dependabot = dest.kind === "github-dependabot";
+      const label = spec.type === "secret" ? `🔒 ${dependabot ? "dependabot " : ""}secret` : "📤 variable";
       console.log(`${label} ${spec.name}...`);
       const cmd = spec.type === "secret" ? "secret" : "variable";
-      const result = spawnSync("gh", [cmd, "set", spec.name, "--repo", REPO], {
+      const args = [cmd, "set", spec.name, "--repo", REPO, ...(dependabot ? ["--app", "dependabot"] : [])];
+      const result = spawnSync("gh", args, {
         input: value,
         stdio: ["pipe", "inherit", "inherit"],
       });
