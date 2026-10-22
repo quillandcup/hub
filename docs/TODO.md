@@ -495,6 +495,13 @@ Auth and notification email sends from `no-reply@hub.quillandcup.com` through Re
 ### Clean Up React Compiler Lint Warnings
 `eslint-config-next@16` enabled hook rules (`react-hooks/set-state-in-effect`, `immutability`, `exhaustive-deps`, `purity`) that surfaced ~49 errors in ~20 existing files. They were downgraded to `warn` in `eslint.config.mjs` instead of fixed. Fix the patterns and turn the rules back on. Also check `next dev` and Sentry source maps on the next Vercel preview.
 
+### Typed Database Access: Supabase Generated Types vs. Drizzle _(Needs Scoping)_
+The Supabase clients (`lib/supabase/server.ts` and the others) are untyped, so query results are `any` and column renames or typos only show up at runtime. Pick one way to type them. Deferred while the data pipeline and notification work take priority; worth doing before the next large schema change, since the first compile errors would point at stale queries. Surfaced while reviewing the `nextjs/saas-starter` repo, which uses Drizzle but has nothing else we need.
+
+- [ ] **Option A, the smaller step: `supabase gen types typescript` plus `createClient<Database>()`.** Stays on PostgREST, so RLS, `auth.uid()`, the `X-Acting-As` sudo header and the audit triggers keep working unchanged. Add a `types:gen` script, commit or CI-check the generated file (a stale one should fail CI, like `check:migrations`), and type the clients in `lib/supabase/`. Gives typed selects, inserts and RPC arguments; joins and `select("a, b(c)")` strings are inferred too. Start with the server client and the busiest routes and let `any` shrink over time.
+- [ ] **Option B, the bigger one: Drizzle as the query layer.** `drizzle-kit pull` generates the schema from the live database (migrations stay Supabase SQL files; don't let drizzle-kit own them). Costs: a direct Postgres connection bypasses RLS, so every user-scoped query must run in a transaction that sets `request.jwt.claims` and `set local role authenticated` (the documented `createDrizzle` wrapper), and that wrapper must also set the sudo header setting or `audit_row_change` records `system` instead of the admin/`acting_as`. Pooler needs `prepare: false`. Worth it only if we want typed joins and query composition beyond what PostgREST allows; try it on one read-only service-role route first.
+- Decide A vs. B (or A now, B later) before starting; the two overlap, and A is a prerequisite for nothing in B. Check the pgTAP and RLS tests still cover any path that moves off PostgREST.
+
 ---
 
 ## Security & Access Control
