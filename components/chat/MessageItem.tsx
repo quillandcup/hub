@@ -49,22 +49,26 @@ export default function MessageItem({
   timeZone?: string;
 }) {
   if (message.contentState === "deleted") {
-    // Never a tombstone, but a deleted thread root with live replies keeps its link to them.
-    if (inThread || message.replyCount <= 0) return null;
+    // A tombstone only for a deleted thread root that still has live replies (as in Slack); any
+    // other deleted message is not shown at all.
+    if (message.replyCount <= 0) return null;
     return (
       <article className="-mx-2 px-2 pb-1 pt-2" id={`m-${message.id}`}>
-        <Link
-          href={`/chat/${channelId}?thread=${message.id}`}
-          data-track="chat-open-thread"
-          scroll={false}
-          className="inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
-        >
-          <AvatarStack people={message.replyAuthors} size={20} />
-          <span>
-            {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
-            {message.lastReplyAt ? ` · last ${formatChatTime(message.lastReplyAt, timeZone)}` : ""}
-          </span>
-        </Link>
+        <p className="text-sm italic text-slate-500 dark:text-slate-400">This message was deleted.</p>
+        {!inThread && (
+          <Link
+            href={`/chat/${channelId}?thread=${message.id}`}
+            data-track="chat-open-thread"
+            scroll={false}
+            className="mt-1 inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
+          >
+            <AvatarStack people={message.replyAuthors} size={20} />
+            <span>
+              {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
+              {message.lastReplyAt ? ` · last ${formatChatTime(message.lastReplyAt, timeZone)}` : ""}
+            </span>
+          </Link>
+        )}
       </article>
     );
   }
