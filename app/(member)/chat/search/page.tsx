@@ -1,3 +1,4 @@
+import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -104,7 +105,7 @@ export default async function ChatSearchPage({
           chatSearched
         />
       )}
-      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
+      <Link href={CHAT_LIST_HREF} data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
         ← Channels
       </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>

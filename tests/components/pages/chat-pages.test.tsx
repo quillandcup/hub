@@ -21,6 +21,10 @@ import {
   type FakeTables,
 } from "@/tests/helpers/server-page";
 
+let lastChannelCookie: string | undefined;
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "chat_last_channel" && lastChannelCookie ? { name, value: lastChannelCookie } : undefined) }),
+}));
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
@@ -190,6 +194,7 @@ beforeEach(() => {
   messages = [];
   reactions = [];
   replies = [];
+  lastChannelCookie = undefined;
   vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   fake = useFakeSupabase(fakeTables());
@@ -199,13 +204,13 @@ describe("chat shell", () => {
   it("is a 404 without the chat flag, on the layout and on every page", async () => {
     vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
     await expect(ChatLayout({ children: null })).rejects.toThrow("404");
-    await expect(ChatIndexPage()).rejects.toThrow("404");
+    await expect(ChatIndexPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("404");
     await expect(ChatChannelPage({ params: Promise.resolve({ id: GENERAL }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
   });
 
   it("sends signed-out visitors to login", async () => {
     signInAs(null);
-    await expectRedirect(ChatIndexPage, undefined, "/login");
+    await expectRedirect(ChatIndexPage, { searchParams: Promise.resolve({}) }, "/login");
   });
 
   it("lists public channels and the member's own conversations, and nothing else", async () => {
@@ -576,8 +581,26 @@ describe("authors and members", () => {
 });
 
 describe("chat index", () => {
+  it("reopens the conversation last viewed", async () => {
+    lastChannelCookie = GENERAL;
+    await expectRedirect(ChatIndexPage, { searchParams: Promise.resolve({}) }, `/chat/${GENERAL}`);
+  });
+
+  it("shows the list when asked, or when the remembered conversation is gone or not readable", async () => {
+    lastChannelCookie = GENERAL;
+    render(await ChatIndexPage({ searchParams: Promise.resolve({ list: "1" }) }));
+    expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+    cleanup();
+    for (const value of [SECRET, "not-a-uuid"]) {
+      lastChannelCookie = value;
+      render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
+      expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+      cleanup();
+    }
+  });
+
   it("explains the read-only mirror", async () => {
-    render(await ChatIndexPage());
+    render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByText(/read-only view of our Slack conversations/)).toBeInTheDocument();
   });

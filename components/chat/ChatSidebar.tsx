@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
 import type { ChannelSummary } from "@/lib/chat/load";
+import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
@@ -163,6 +164,12 @@ export default function ChatSidebar({
   const pathname = usePathname();
   const activeId = pathname.startsWith("/chat/") ? pathname.split("/")[2] : null;
   const counts = useUnreadCounts(unread, activeId, selfMemberId, channels);
+  // Remember the open conversation so /chat can reopen it (a year; read by chat/page.tsx).
+  useEffect(() => {
+    if (activeId && channels.some((c) => c.id === activeId)) {
+      document.cookie = `${LAST_CHAT_COOKIE}=${activeId}; path=/; max-age=31536000; samesite=lax`;
+    }
+  }, [activeId, channels]);
   const [filter, setFilter] = useState("");
   // Finding a conversation by name is separate from searching what was said in them (the form
   // below, which goes to /chat/search): this only narrows the list, as you type, and sends nowhere.
