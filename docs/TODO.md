@@ -145,6 +145,15 @@ Every video in Mux is billed for storage by the minute (about $2/month for the R
 
 **Notes:** the same page could also show videos stuck in `preparing` or `errored`. A matching page for `course_lesson_files` (copied PDFs no lesson lists any more) would follow the same pattern, though the files step already removes those itself.
 
+### Video library: what I've watched, and a watch-later list _(Idea)_
+Let a member see in the Hub which videos from the library they have watched, and bookmark the ones they want to watch. Not scoped yet: it is unclear whether "library" means the course lessons or a wider set of videos (replays, talks), so decide that first.
+
+**Watched:** the data mostly exists for course lessons. `lesson_progress` has `completed_at` and `last_position_seconds`, and `video_watch_segments` records every stretch watched (`docs/COURSES.md`, "Watch tracking"). A "Watched" / "In progress" / "Not started" mark on each lesson or video in the list comes from those, not a new table. Completion today is the 90%-playhead rule in `LessonCompletion.tsx`; "90% of the video actually watched" from the segments is still open (`docs/COURSES.md`) and would make the mark exact. Nothing is written in sudo, so the marks are read-only there like the rest.
+
+**Bookmarks:** a new Local table (say `video_bookmarks`: member, video or lesson, `created_at`, soft delete with `deleted_at`), writable only by the member and read-only in sudo, with a bookmark control on the lesson and library views and a "Watch later" list. Needs the table grants and a pgTAP test per `supabase-table-grants.md`, and `track()` events per the usage-analytics rule.
+
+**Related, same area:** "Continue watching" on the dashboard and a per-member stats view are both listed as not built in `docs/COURSES.md`; this would share their reads. Start at `lib/courses/member.ts` and the lesson list pages.
+
 ### TrackBear Import Gaps
 
 The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
