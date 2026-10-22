@@ -11,6 +11,45 @@ import { pokeChat } from "@/lib/chat/list-events";
 /** The reactions people reach for first, as Slack shortcodes. */
 export const QUICK_REACTIONS = ["thumbsup", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
 
+/** Toggling a reaction on a message, then asking the conversation to bring itself up to date. */
+export function useToggleReaction(channelId: string, messageId: string) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const toggle = (emoji: string, done?: () => void) => {
+    setError(null);
+    done?.();
+    startTransition(async () => {
+      const result = await toggleChatReaction(messageId, emoji);
+      if (result.ok) {
+        if (!pokeChat(channelId)) router.refresh();
+      } else setError(result.error);
+    });
+  };
+  return { toggle, pending, error };
+}
+
+/** The quick reactions in a small popover; `onPick` gets the shortcode. */
+export function ReactionPicker({ custom, onPick, className }: { custom: Record<string, CustomEmoji>; onPick: (name: string) => void; className: string }) {
+  return (
+    <ul aria-label="Pick a reaction" className={className}>
+      {QUICK_REACTIONS.map((name) => (
+        <li key={name}>
+          <button
+            type="button"
+            aria-label={`React with :${name}:`}
+            data-track="chat-reaction-quick-pick"
+            onClick={() => onPick(name)}
+            className="rounded px-1.5 py-0.5 text-base hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <Emoji name={name} custom={custom} />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * A message's reactions as chips, and (when the viewer can react) a way to add one. A chip is a
  * toggle: pressing yours takes it back, pressing someone else's adds the same one. Reactions made
@@ -30,22 +69,9 @@ export default function ReactionBar({
   custom: Record<string, CustomEmoji>;
   canReact: boolean;
 }) {
-  const router = useRouter();
   const [picking, setPicking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  const toggle = (emoji: string) => {
-    setError(null);
-    setPicking(false);
-    startTransition(async () => {
-      const result = await toggleChatReaction(messageId, emoji);
-      if (result.ok) {
-        if (!pokeChat(channelId)) router.refresh();
-      }
-      else setError(result.error);
-    });
-  };
+  const { toggle: toggleReaction, pending, error } = useToggleReaction(channelId, messageId);
+  const toggle = (emoji: string) => toggleReaction(emoji, () => setPicking(false));
 
   const chipClass = (mine: boolean) =>
     `px-2 py-0.5 rounded-full text-xs border ${
@@ -91,24 +117,11 @@ export default function ReactionBar({
               ＋
             </button>
             {picking && (
-              <ul
-                aria-label="Pick a reaction"
+              <ReactionPicker
+                custom={custom}
+                onPick={toggle}
                 className="absolute left-0 z-10 mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow dark:border-slate-700 dark:bg-slate-900"
-              >
-                {QUICK_REACTIONS.map((name) => (
-                  <li key={name}>
-                    <button
-                      type="button"
-                      aria-label={`React with :${name}:`}
-                      data-track="chat-reaction-quick-pick"
-                      onClick={() => toggle(name)}
-                      className="rounded px-1.5 py-0.5 text-base hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      <Emoji name={name} custom={custom} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              />
             )}
           </li>
         )}

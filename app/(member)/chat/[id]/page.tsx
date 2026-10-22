@@ -21,6 +21,9 @@ import ThreadList from "@/components/chat/ThreadList";
 import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
 import SidePanel from "@/components/chat/SidePanel";
+import { ORG_TIMEZONE } from "@/lib/config";
+import { getUserTimezonePreference } from "@/lib/timezone";
+import { isValidTimeZone } from "@/lib/time-zone";
 import ProfileCard from "@/components/chat/ProfileCard";
 
 export const metadata: Metadata = {
@@ -70,6 +73,10 @@ export default async function ChatChannelPage({
       threadPage = await loadMessages(supabase, channel.id, { threadRootId: threadId });
     }
   }
+
+  // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
+  const preferredZone = await getUserTimezonePreference();
+  const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
 
   const people = sudoHidden ? [] : await loadChannelMembers(supabase, channel.id);
 
@@ -168,6 +175,7 @@ export default async function ChatChannelPage({
                 firstUnreadId={firstUnreadId}
                 canReact={canReact}
                 showSent={!before}
+                timeZone={timeZone}
               />
             </section>
           )}
@@ -193,6 +201,7 @@ export default async function ChatChannelPage({
             replies={replyViews}
             ctx={ctx}
             canReact={canReact}
+            timeZone={timeZone}
           />
           {canPost && rootView.syncStatus === null && (
             <Composer channelId={channel.id} threadRootId={rootView.id} placeholder="Reply…" viewer={viewer} showSent />

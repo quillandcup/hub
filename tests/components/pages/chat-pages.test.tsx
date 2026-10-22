@@ -260,7 +260,9 @@ describe("the line between read and new", () => {
     await renderChannel(HOSTS);
     expect(line()).toBeInTheDocument();
     expect(line()!.nextElementSibling).toHaveAttribute("id", `m-${id(103)}`);
-    expect(line()!.previousElementSibling).toHaveAttribute("id", `m-${id(102)}`);
+    // The messages fall on different days, so the previous one sits in the section above.
+    const previous = document.getElementById(`m-${id(102)}`)!;
+    expect(previous.compareDocumentPosition(line()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("is not drawn for a public channel the member is not in (no read marker to compare with)", async () => {
@@ -553,7 +555,7 @@ describe("authors and members", () => {
     const profile = `/chat/${GENERAL}?profile=member-gale`;
     expect(first.getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", profile);
     expect(first.getAllByRole("link").filter((a) => !/thread=/.test(a.getAttribute("href")!)).every((a) => a.getAttribute("href") === profile)).toBe(true);
-    expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link", { name: /Prickleton|Slack/ })).not.toBeInTheDocument();
   });
 
   it("shows a members link with the count in the channel header", async () => {

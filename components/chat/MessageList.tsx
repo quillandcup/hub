@@ -9,6 +9,8 @@ import { scrollParent } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import { subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
+import { groupByDay } from "@/lib/chat/days";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -28,6 +30,7 @@ export default function MessageList({
   firstUnreadId,
   canReact = false,
   showSent = true,
+  timeZone = ORG_TIMEZONE,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -42,6 +45,8 @@ export default function MessageList({
   /** Take part in the live conversation: show messages the viewer is sending right away and the
    *  newest messages as they are fetched (the newest page, not an older one). */
   showSent?: boolean;
+  /** The reader's time zone: decides which day a message belongs to and the times shown. */
+  timeZone?: string;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -171,11 +176,23 @@ export default function MessageList({
         )}
       </div>
       {messages.length === 0 && <p className="py-3 text-sm text-slate-500">No messages here yet.</p>}
-      {messages.map((m) => (
-        <Fragment key={m.id}>
-          {m.id === firstUnreadId && <UnreadDivider />}
-          <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} />
-        </Fragment>
+      {groupByDay(messages, timeZone, firstUnreadId).map((day) => (
+        <section key={day.key} aria-label={day.label}>
+          {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
+          <div role="separator" aria-label={day.label} className="pointer-events-none sticky top-0 z-10 flex items-center py-2">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+            <span className="pointer-events-auto rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
+              {day.label}
+            </span>
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+          </div>
+          {day.items.map(({ message: m, compact }) => (
+            <Fragment key={m.id}>
+              {m.id === firstUnreadId && <UnreadDivider />}
+              <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} compact={compact} timeZone={timeZone} />
+            </Fragment>
+          ))}
+        </section>
       ))}
     </>
   );

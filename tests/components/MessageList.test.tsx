@@ -142,3 +142,46 @@ describe("MessageList", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("MessageList days and hover", () => {
+  const at = (iso: string, n: number, extra: Partial<ChatMessageView> = {}) => view(n, { createdAt: iso, ...extra });
+
+  it("puts a day marker before each day's messages, in the reader's time zone", () => {
+    const views = [at("2026-10-08T03:30:00Z", 1), at("2026-10-08T05:00:00Z", 2)];
+    const { unmount } = render(<MessageList channelId="c1" views={views} ctx={CTX} olderBefore={null} timeZone="America/New_York" />);
+    expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-label"))).toEqual(["Wednesday, October 7th", "Thursday, October 8th"]);
+    unmount();
+    render(<MessageList channelId="c1" views={views} ctx={CTX} olderBefore={null} timeZone="UTC" />);
+    expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-label"))).toEqual(["Thursday, October 8th"]);
+  });
+
+  it("shows times in the reader's zone and a follow-up without its own name", () => {
+    render(<MessageList channelId="c1" views={[at("2026-10-07T14:00:00Z", 1), at("2026-10-07T14:01:00Z", 2)]} ctx={CTX} olderBefore={null} timeZone="Asia/Tokyo" />);
+    expect(screen.getAllByText("Gale Prickleton")).toHaveLength(1);
+    expect(screen.getByText("11:00 PM")).toBeInTheDocument();
+    expect(screen.getByText("11:01")).toBeInTheDocument();
+  });
+
+  it("offers reply in thread and copy actions on a message", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore={null} />);
+    expect(screen.getByRole("link", { name: "Reply in thread" })).toHaveAttribute("href", "/chat/c1?thread=m1");
+    expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy message" }));
+    expect(writeText).toHaveBeenCalledWith("message 1");
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy link" }));
+    expect(writeText).toHaveBeenLastCalledWith(`${window.location.origin}/chat/c1#m-m1`);
+  });
+
+  it("reacts from the hover bar when the viewer can react", async () => {
+    const { toggleChatReaction } = await import("@/app/(member)/chat/actions");
+    vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: true });
+    render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore={null} canReact />);
+    await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
+    await userEvent.click(screen.getByRole("button", { name: "React with :tada:" }));
+    expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada");
+  });
+});
