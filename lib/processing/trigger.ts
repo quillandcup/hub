@@ -64,6 +64,17 @@ export const SILVER_DEPENDENCIES: Record<string, TableDependencies> = {
     silver: ['members'],  // Author matching reads members, like slack
     processingScope: 'date-range',
     dateField: 'occurred_at'
+  },
+
+  // Who talked with whom, built from the chat tables for the member network graph. It changes when the
+  // import changes Slack messages, reactions or conversation membership, and must run after chat (it
+  // reads what chat projected). The Slack webhook skips it, like chat: a rebuild per event doesn't scale.
+  member_interactions: {
+    bronze: ['slack_messages', 'slack_reactions', 'slack_channel_members'],
+    local: [],
+    silver: ['chat'],
+    processingScope: 'date-range',
+    dateField: 'occurred_at'
   }
 };
 
@@ -166,6 +177,7 @@ async function processTable(
     attendance: () => import('@/app/api/process/attendance/route'),
     slack: () => import('@/app/api/process/slack/route'),
     chat: () => import('@/app/api/process/chat/route'),
+    member_interactions: () => import('@/app/api/process/member-interactions/route'),
   };
 
   const handlerLoader = handlers[table];

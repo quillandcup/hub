@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { describeChat } from "@/lib/member-network";
 
 interface Node {
   id: string;
@@ -17,8 +18,14 @@ interface Node {
 interface Edge {
   source: string;
   target: string;
+  /** What the edge is drawn by: shared prickles plus weighted chat. */
   weight: number;
   normalizedWeight: number;
+  /** Shared prickles, chat (weighted), and chat by kind; absent on older callers. */
+  prickles?: number;
+  chat?: number;
+  chatByKind?: Record<string, number>;
+  chatPrivate?: number;
 }
 
 interface NetworkGraphProps {
@@ -393,12 +400,20 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{otherNode.name}</span>
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {conn.weight} Prickles
+                            {conn.prickles ?? conn.weight} Prickles
                           </span>
                         </div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {conn.normalizedWeight}% of attendance overlap
-                        </div>
+                        {(conn.prickles ?? conn.weight) > 0 && (
+                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {conn.normalizedWeight}% of attendance overlap
+                          </div>
+                        )}
+                        {conn.chatByKind && Object.keys(conn.chatByKind).length > 0 && (
+                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Chat: {describeChat(conn.chatByKind)}
+                            {conn.chatPrivate ? ` (${conn.chatPrivate} private)` : ""}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
