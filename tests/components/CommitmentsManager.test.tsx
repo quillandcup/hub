@@ -132,4 +132,19 @@ describe("CommitmentsManager", () => {
     expect(await screen.findByText("Only active commitments can be cancelled")).toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("shows a slot label with a secondary time zone in full, wrapping instead of cutting it off", () => {
+    const label = "Sprint · every Monday · 5 AM EDT (2:00 AM PT)";
+    const commitment: MyCommitment = {
+      ...MWF,
+      title: "Sprint · Mon, Wed, Fri · 5 AM EDT (2:00 AM PT)",
+      slots: MWF.slots.map((slot, i) => (i === 0 ? { ...slot, label } : slot)),
+    };
+    render(<CommitmentsManager commitments={[commitment]} />);
+
+    const slotLabel = screen.getByText("every Monday · 5 AM EDT (2:00 AM PT)");
+    expect(slotLabel).toHaveAttribute("title", label);
+    expect(slotLabel).not.toHaveClass("truncate");
+    expect(screen.getByText(commitment.title)).toHaveClass("break-words");
+  });
 });
