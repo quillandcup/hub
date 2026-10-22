@@ -514,12 +514,15 @@ jobs:
     needs: push-migrations
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: write # moves the `production` tag below
     # Makes GitHub record a deployment for this commit (Environments page, the merged PR,
     # `gh api repos/{owner}/{repo}/deployments?sha=<sha>`), marked success or failure when
-    # the job ends. Vercel's git integration is off, so this is the only record.
+    # the job ends. Vercel's git integration is off, so this is the only record. The URL is
+    # the canonical one, not the deployment's own hub-<hash>.vercel.app address.
     environment:
       name: production
-      url: ${{ steps.deploy.outputs.url }}
+      url: ${{ steps.app-url.outputs.url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -532,6 +535,14 @@ jobs:
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
+
+      # The deployment record's URL (see `environment` above), read from app.config.ts like
+      # the rest of the app. Node 24 runs the .ts file directly; it has no imports.
+      - name: Read the production URL
+        id: app-url
+        run: |
+          url=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.appUrl)")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
 
@@ -580,13 +591,18 @@ jobs:
       # succeed, rather than reporting green the instant Vercel accepts the
       # webhook.
       - name: Deploy prebuilt artifacts to production
-        id: deploy
-        run: |
-          url=$(vercel deploy --prebuilt --prod)
-          echo "$url"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+        run: vercel deploy --prebuilt --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Moves the `production` tag to the commit that just deployed, so `git log` shows how
+      # far production is and `git log production..origin/main` lists what's merged but not
+      # live. Only runs when the deploy above succeeded. It's a tag, not a branch, so
+      # `pnpm branches:prune` leaves it alone; fetch it with `git fetch --tags --force`.
+      - name: Move the production tag
+        run: |
+          git tag --force production "$GITHUB_SHA"
+          git push --force origin refs/tags/production
 
   # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push
