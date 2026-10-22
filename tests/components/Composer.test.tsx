@@ -83,8 +83,8 @@ describe("Composer", () => {
 
   it("labels the overlay for a thread, and ignores a picker closed with no files", async () => {
     const { container } = render(
-      <div>
-        <Composer channelId="c1" placeholder="Reply" threadRootId="t1" />
+      <div id="col">
+        <Composer channelId="c1" placeholder="Reply" threadRootId="t1" dropTargetIds={["col"]} />
       </div>
     );
     fireEvent.dragEnter(container.firstElementChild as HTMLElement, { dataTransfer: { types: ["Files"], files: [] } });
