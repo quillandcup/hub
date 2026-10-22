@@ -10,9 +10,10 @@ import { clock } from "@/lib/clock";
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
 
-// Days of Slack history per project_slack_chat_messages call. A week keeps each call well
-// under Postgres's 8s statement timeout (same lesson as the Slack activity rebuild).
-const PROJECTION_WINDOW_DAYS = 7;
+// Days of Slack history per project_slack_chat_messages call. A week still hit Postgres's 8s
+// statement timeout on a 90-day import in prod (thousands of reaction and content rows rewritten
+// per call), so a day keeps each call well under it.
+const PROJECTION_WINDOW_DAYS = 1;
 const BATCH_SIZE = 1000;
 
 /**
@@ -21,7 +22,7 @@ const BATCH_SIZE = 1000;
  *
  * 1. Matches Slack users to members in memory (same matching as /api/process/slack)
  * 2. Projects channels and membership (cheap, whole workspace) in one call
- * 3. Projects messages, contents, threads and reactions one week per call
+ * 3. Projects messages, contents, threads and reactions one day per call
  *
  * Re-runnable: everything is an UPSERT on the Slack keys and Bronze's soft deletes carry
  * over, so chat ids stay stable. Nothing is deleted. Message content is service role only
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       throw channelError;
     }
 
-    // STEP 4: Messages, one week per call. Each call is one transaction, so a failed week
+    // STEP 4: Messages, one day per call. Each call is one transaction, so a failed week
     // changes nothing and the next run redoes it.
     let messages = 0;
     let reactions = 0;
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(
-      `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} weekly windows`
+      `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} daily windows`
     );
 
     // The outbox: Hub-written messages Slack never took. After the projection, so one whose
