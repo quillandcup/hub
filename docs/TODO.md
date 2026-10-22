@@ -1,5 +1,41 @@
 # TODO / Future Enhancements
 
+Reviewed 2026-10-21: completed items removed, duplicates merged. Sections below are grouped by area; entries within a section are roughly in priority order. The sales and marketing roadmap (CRM Features and the roadmap under UI Enhancements) is a separate product line from operations.
+
+## Top Picks
+
+**Member-facing**
+1. Roll browser notifications out past their flag (`browser_notifications`); in-app is already on for everyone.
+2. Chat drafts, synced with the Slack bridge (see Messaging).
+3. Save Find a Prickle's answers as a check-in.
+
+**Admin-facing (operations, incl. churn reduction)**
+1. Member merge log with exact undo.
+2. Prickle check-in patterns page (reach-out prompt).
+3. Automatic hiatus detection from Kajabi tags.
+
+**User experience**
+1. Return-to after session expiry mid-form, and origin-aware back links.
+2. Basic date format localization (non-US hedgies).
+3. Show on Settings when a channel can't reach the member.
+
+**Developer experience**
+1. Re-introduce test parallelism.
+2. Coverage floors for `app/(admin)` and `app/(member)`, plus a ratchet.
+3. Move the staff-channel Slack posts onto `createNotifier`, and test Slack with MSW.
+
+**Infrastructure and reliability**
+1. Serialize or coalesce concurrent members/attendance reprocessing (advisory lock); a prerequisite for change propagation.
+2. Make member merge atomic (one Postgres function); it runs about 20 writes with no transaction.
+3. Downstream change propagation in the processing DAG.
+Also: re-audit the public repo for private data (see Security).
+
+**Costs**
+1. Replace the per-event Slack activity rebuild (cost grows with the day's traffic).
+2. Mux spending alerts have no API; keep a manual checklist as the course launches.
+
+---
+
 ## Member Status Refinements
 
 ### Rename `members` to `contacts` _(Needs Scheduling)_
@@ -12,48 +48,25 @@ a rename touches the same ~50 foreign keys, views and policies as the id convers
 keep it separate from that one. "Member" can stay as the UI word for `status = 'active'`
 people.
 
-### Fix Hiatus Tracking - Automatic Detection From Kajabi Tags
-**Resolved (partially):** `on_hiatus` used to be effectively non-functional — nothing in
-the automated pipeline ever set it, and even a manually-set value got silently
-overwritten within 24h by the nightly Kajabi sync. Fixed by wiring the existing
-`member_status_overrides` table (previously built but never used) into
-`reprocess_members_atomic`: an admin can now set someone `on_hiatus` via
-`/admin/member-overrides` and it will actually stick across reprocessing runs.
+### Automatic Hiatus Detection From Kajabi Tags
+`on_hiatus` is admin-set only, via `/admin/member-overrides` (overrides now stick across reprocessing). If Kajabi tags (e.g. "Quill & Cup Member" + "Offboarding") are reliable enough to trust, compute `on_hiatus` automatically instead of one override per member.
 
-**Still open:** there's no *automatic* hiatus detection from Kajabi tags/spreadsheet —
-hiatus is admin-set only, via the overrides UI. If Kajabi tagging (e.g. "Quill & Cup
-Member" + "Offboarding") is reliable enough to trust, a future pass could compute
-`on_hiatus` automatically instead of requiring a manual override per member.
 
-### Enhanced Inactive Member Classification
-**Resolved:** `members.status` is now `lead | active | on_hiatus | cancelled` (was a
-flat `active | inactive | on_hiatus`, with `inactive` conflating everyone who wasn't
-currently paying). See `app/api/process/members/route.ts` classification logic:
-- **Lead** — never purchased anything, or only ever had a trial that lapsed before
-  converting (`has_trialed=true` in that case, for "abandoned cart" style outreach)
-- **Cancelled** — had a real (non-trial) subscription that's no longer active
-- `is_trial` — true while `status=active` and currently within a trial window
+### "Former BFF"-Style Labels
+Single-product former-member labels need the `member_products` table (see Kajabi Data Expansion), not a `status` value.
 
-**Still open:** "Former BFF" (or other single-product-specific former-member labels)
-isn't distinguished — that needs the `member_products` junction table already planned
-under Kajabi Data Expansion below, not a `status` value.
 
 ### Guest Attendance Tracking (Deferred)
 Some people who attend prickles have no Kajabi footprint at all (not a member, trial, or lead) — e.g. a guest brought by a member. Tracking them would mean creating member-like records for people who never appear in any Bronze source.
 
 **Why deferred:** Different problem from member status/matching — the whole pipeline assumes attendees resolve to a `members` row derived from Kajabi. Guests break that assumption and need their own identity/record model rather than a fix to existing matching logic.
 
-### Program Cohort Tracking + Revenue Leakage Report (Resolved, with follow-ups)
-**Resolved:** replaced the old `member_status_overrides` `override_type='180_program'` stopgap with real generic cohort tracking — `programs` / `program_cohorts` / `member_program_enrollments` tables (`supabase/migrations/20260903000000_create_program_cohort_tracking.sql`), driving member status via `reprocess_members_atomic` Steps 4a/4c/4d, and migrating any existing `180_program` override rows into real cohorts/enrollments (`20260904130000_program_cohorts_supersede_180_program.sql`). A cohort's start/end dates live once and apply to everyone enrolled in it; a member can enroll in more than one cohort over time (e.g. an alumna repeating the 180 Program). Admin UI at `/admin/programs` (feature flag `program_cohorts`) manages programs/cohorts/enrollments and shows a leakage report — members whose most recent cohort lapsed without their status converting to `active` — per program. Seeded with the two known real programs: **180 Program** and **Self-Editing Academy**.
+### Program Cohorts: Still Open
+- **Self-Editing Academy's level-within-cohort progression.** The cohort moves together through 3 levels, plus a flexible "stay in the previous level" option; rules are TBD, needs a conversation with Ania before modeling. Today's schema tracks one shared cohort window, not levels.
+- **Broader direction (not scoped):** first-class local data for `courses`, `events` and other Kajabi "products", plus a sync to keep them current: part of an eventual move away from Kajabi as the source of truth.
+- **Ad-hoc Kajabi Payments subscriptions aren't reconciled.** Some members pay through a custom product in Kajabi's Payments/Billing area (subscriptions/invoices, not the Offers catalog the sync was built around), so reconciliation shows them as `cancelled` despite an active paid subscription. Stopgap: a `gift` override per member. Real fix: sync Kajabi's Payments API.
+- Matching rule worth remembering: the date that decides whether a purchase falls in a cohort window is `created_at_kajabi`, falling back to `effective_start_at` only when null, never both (`lib/kajabi-cohort-matching.ts`).
 
-**Resolved:** Automatic Kajabi-purchase-to-cohort matching. `programs.kajabi_offer_names` is now editable in the UI (search-and-chips picker on `/admin/programs/[id]`, sourced live from `bronze.kajabi_offers` via `/api/admin/kajabi-offers` — not free-form text, so names can't drift from what Kajabi actually calls them). Each cohort has a "Find Kajabi matches" action (`/api/admin/program-cohorts/[id]/kajabi-matches`, logic in `lib/kajabi-cohort-matching.ts`) that surfaces members whose purchase of a configured offer falls inside the cohort's `[starts_at, expires_at]` window, for staff to review and bulk-enroll — cohorts still stay manually created (dates/names are a staff decision), this only automates finding who belongs in one instead of hand-searching per member. Enrollment stays staff-reviewed, not blind, deliberately: a candidate already enrolled in a *different* cohort of the same program (i.e. the cohorts' windows genuinely overlap) is shown but defaults **unchecked** rather than auto-selected, since bulk-enrolling it would double-enroll someone already correctly placed.
-
-**A real matching bug surfaced and got fixed in the process, worth remembering:** the date field used to decide "is this purchase in this cohort's window" must be a single coalesced date — `created_at_kajabi` (transaction date), falling back to `effective_start_at` only when null — never a union/OR of both fields independently. The first attempt unioned them (reasoning: `effective_start_at` can *lag* the transaction — see the access-date audit above), which seemed like the safe superset, but a repeat/alumna purchase's `effective_start_at` can instead be *stale* — reflecting original access from a much earlier, unrelated cohort, since Kajabi doesn't grant a fresh access date for an evergreen course the member never lost access to. Unioning let that stale old date pull a purchase into the wrong cohort's window even though its real transaction date fell squarely in the correct, later cohort. See `resolveMatchDate`/`isDateWithinCohortWindow` in `lib/kajabi-cohort-matching.ts` and their tests in `tests/lib/kajabi-cohort-matching.test.ts`.
-
-**Still open:**
-- **Self-Editing Academy's level-within-cohort progression.** The cohort moves together through 3 levels, plus a flexible "stay in the previous level" option — rules are TBD, needs a conversation with Ania before modeling. Today's schema only tracks one shared cohort window, not levels.
-- **Broader direction (not scoped yet):** first-class local data for `courses` (evergreen and cohort-based), `events` (in-person/virtual retreats, paid public prickles), and other Kajabi "products," plus a sync pipeline to import and keep them current from Kajabi — part of an eventual move away from Kajabi as the source of truth.
-- **Ad-hoc Kajabi Payments subscriptions aren't reconciled at all.** Discovered while backfilling real 180 Program cohorts: some members (e.g. Abby VanLuvanee) pay through a custom product set up directly in Kajabi's Payments/Billing area (subscriptions/invoices, not the classic "Offers" catalog this sync was built around) — nothing in `kajabi_purchases`/`kajabi_offers` reflects them, so reconciliation shows them as `cancelled` despite an active paid subscription. Stopgap: a `gift` override per affected member. Real fix needs syncing Kajabi's Payments API (subscriptions/invoices), separate from the existing Offers-based purchase sync.
 
 ---
 
@@ -99,14 +112,6 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 - **Open questions**: keep the existing text ("Wanna prickle at a time not posted? ...") verbatim? Post earlier-than-morning prickles for the next day? Edit the post when a prickle is added or cancelled later in the day? Does the one-off or irregular event (monthly goal review) go in it? Pop-ups hosted in secondary rooms need the "Secondary Zoom Rooms" item above.
 - **Test**: with the fake clock (`useFakeClock`), post once per day, skip a second run, and use the link in effect that day. Include a test with more than 1000 prickles' worth of pagination only if the query isn't date-bounded.
 
-### Testing Page CSV Imports (Lower Priority)
-- [ ] Add Zoom CSV import to `/data/import/testing`
-  - Component for uploading meeting/attendee CSV files
-  - Parse and call `/api/import/zoom`
-- [ ] Add Calendar CSV import to `/data/import/testing`
-  - Component for uploading calendar events CSV
-  - Parse and call `/api/import/calendar`
-
 ### Kajabi Data Expansion
 
 **Current state:** Kajabi API sync (`/api/sync/kajabi`, runs daily at 3am via Vercel Cron) fetches contacts, customers, purchases, and offers into Bronze, then processes Silver. Goal is to own the full member lifecycle.
@@ -124,18 +129,6 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 
 **Lead & engagement tracking (future)**
 - Form submissions, opt-in reports, product progress — lower priority until core member/financial data is solid
-
-### Multi-Product Support & Badges
-
-Beyond the core Quill & Cup membership, these products/programs each show as a badge on the member's profile:
-- **In-Person / Virtual Retreats** — one badge *per retreat attended*. **Resolved**: `badge_types.event_id` links a badge to an `events` row; `event_attendees` + `add_event_attendee`/`remove_event_attendee` (`20260905010000_link_badges_to_events_and_attendees.sql`) auto-grant/revoke the badge as an admin adds/removes attendees.
-- **180 Program** / **Self-Editing Academy** — completion badge, auto-derived from cohort tracking. **Resolved**: `badge_types.program_id` links a badge to a `programs` row (`20260906010000_link_badges_to_programs.sql`); `lib/badges.ts` computes it on the fly (same "Gold layer" pattern as Founding Hedgie/Prickle Milestones, not a stored/triggered award) as "a member is earned once an enrolled cohort's `expires_at` has passed" — i.e. an *enrolled* badge wasn't added, only *completed*. Any pre-existing manual awards for these two badges (from before cohort tracking existed) are merged in rather than dropped. Self-Editing Academy's internal level progression is still open — see the "Still open" bullet below.
-
-### Schedule Import
-Import Prickles schedule from:
-- Google Calendar API
-- Slack integration
-- Excel schedule (from Python app reference: `/Users/cody/codyaray/git/quillandcup/zoom-analytics`)
 
 ---
 
@@ -158,7 +151,8 @@ everything else per import instead of silently dropping it. Closing these gaps n
 - **Entry "last edited" time** (`updatedAt`): Hub entries only have `created_at`.
 - **Covers**: always cropped to Hub's 145×215 spec; a cover that fails to copy isn't retried on re-import (the project already exists), so the member has to upload it by hand.
 - **Not in TrackBear's export at all** (would need their API or a TrackBear change): account-level lifetime starting balance, week-start and other settings, leaderboards.
-- **One-click import**: TrackBear has no OAuth, and its API needs a member-created API key, so import is export-file upload for now. If TrackBear adds OAuth, switch to it. An API-key version was prototyped (paste a key from trackbear.app/account/api-keys, then read /api/v1/project, /tally, /goal, /tag) but dropped so members don't have to create credentials.
+- **One-click import**: TrackBear has no OAuth, and its API needs a member-created API key, so import is export-file upload. If TrackBear adds OAuth, switch to it.
+
 
 ## Infrastructure & Deployment
 
@@ -381,8 +375,6 @@ Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-f
 - [ ] **Automate `pnpm github:config:push`.** It runs by hand because `GITHUB_TOKEN` can't
       manage rulesets. Worth a CI job with an admin-token secret only if the ruleset changes
       often; at minimum a scheduled `github:config:diff` to flag drift.
-- [ ] **Clean up `.claude/rules/pr-feedback.md`.** It still says to check Semaphore and
-      SonarQube; CI is GitHub Actions and neither is used.
 - [ ] **Clear the remaining uncleared `setTimeout`s.** An uncleared timer that fires after its
       component unmounts sets state on a torn-down DOM; in a test that's an unhandled
       `window is not defined` that fails a run in which every test passed, only on slow runs. #97
@@ -461,18 +453,8 @@ Mux's settings live in its dashboard, unlike Supabase (`config.toml`), Slack (`s
 
 **Priority:** after the course launch; the production webhook is created by hand once the route deploys.
 
-### Google Calendar push channel: create and renew it, or drop the webhook _(Needs Decision)_
-`/api/webhooks/calendar` receives Google Calendar push notifications (a "watch channel"), but **nothing in the app creates or renews the channel**. `docs/WEBHOOK_SETUP.md` describes creating one by hand with `curl`.
-
-**State on 2026-10-18:**
-- Production's runtime logs for the past week showed one request to the route (a `GET` verification ping) and no `POST` notifications from Google, so there's no sign of an active channel. Channels expire, and no job renews them, so one created long ago has very likely lapsed.
-- The route now rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (PR #105; the token is now in production). A channel created without a token would be rejected anyway.
-- **Google has no call that lists channels.** One can only be stopped by its `id` and `resourceId` (`POST /calendar/v3/channels/stop`), both from the original watch response. If those were kept, stop any leftover channel; otherwise it just expires.
-- The nightly calendar reconcile (`/api/reconcile/calendar`) already pulls every change, so without push the only cost is latency (a prickle edited in Google Calendar appears by the next morning).
-
-**Options:**
-1. **Drop push.** Remove the route and the setup docs. Smallest, and the "nothing through webhooks alone" rule is already met by the reconcile. *(Leaning this way.)*
-2. **Own the lifecycle.** A small `calendar_watch_channels` table (`channel_id`, `resource_id`, `expires_at`), created and renewed by a cron before expiry, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token; stop the old channel when replacing it. Worth it only if minute-level freshness for calendar changes matters.
+### Drop the Google Calendar Push Webhook _(Decided: drop)_
+`/api/webhooks/calendar` receives Google Calendar push notifications, but nothing creates or renews the watch channel and production has seen no `POST`s. The nightly reconcile (`/api/reconcile/calendar`) already pulls every change, so push would only cut latency (a Google Calendar edit appearing in minutes instead of by morning). Remove the route, `GOOGLE_CALENDAR_WEBHOOK_TOKEN` and the setup section of `docs/WEBHOOK_SETUP.md`. Any leftover channel just expires (Google can't list channels). Revisit only if minute-level freshness for calendar edits matters.
 
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
@@ -486,48 +468,15 @@ The domain is registered at Squarespace, but its DNS records are currently manag
 - [ ] `support@quillandcup.com` is a Squarespace email-forwarding alias (to the team Google Group). Confirm where its MX records live and whether Squarespace forwarding keeps working once nameservers point at Cloudflare; if not, replace it with Cloudflare Email Routing (see next item).
 - [ ] Lower TTLs ahead of the cutover; verify the Resend domain, Supabase auth emails, and OAuth callbacks after.
 
-### Email routing on separate subdomains _(Needs Scoping)_
-Auth emails now send via Resend SMTP (see `docs/INVITING_USERS.md`). Plan the sending/receiving domains per email category so each has its own reputation:
+### Email Routing on Separate Subdomains _(Needs Scoping)_
+Auth and notification email sends from `no-reply@hub.quillandcup.com` through Resend; footers point replies to the support address. Newsletters would get their own subdomain (`news.`) later, and login email only gets `auth.` if it needs isolating. Open:
+- Keep open/click tracking off on `hub.`; enable it only on `news.` if newsletters go through Resend.
+- Publish a DMARC record on the root `quillandcup.com` (subdomains inherit it).
+- Reply handling, if replies ever matter: the Supabase Send Email hook (real `Reply-To`) or inbound routing after the Cloudflare move. `hub` is a CNAME to Vercel and can't coexist with an MX record, so inbound mail needs a different name.
+- Carry the Resend DNS records over in the Cloudflare move (DNS-only/grey cloud). Check the Resend plan's domain limit before adding subdomains.
 
-| Category | Domain | Status |
-|---|---|---|
-| Auth (invites, magic links, resets) + Hedgie Hub app notifications | `hub.quillandcup.com` | Planned first — matches the app hostname/brand |
-| Newsletters | `news.quillandcup.com` | Later. If sent from Kajabi or another tool, that tool needs its own subdomain and DNS records, not Resend's |
-| Optional auth split | `auth.quillandcup.com` | Only if login-email delivery needs isolating from notification volume |
-
-**Open items:**
-- [x] `hub.quillandcup.com` added in Resend with return path `bounce.hub.quillandcup.com` (DNS at Kajabi for now; carry the records over in the Cloudflare move, DNS-only/grey cloud). Verified. Check the Resend plan's domain limit before adding more subdomains.
-- [x] Sender address: `no-reply@hub.quillandcup.com`. Supabase's SMTP settings have no reply-to field, and Squarespace forwarding doesn't cover subdomain addresses, so replies bounce. The email footers (`supabase/emails/layout.tsx`) now say "Questions? Email support@quillandcup.com".
-- [ ] Tracking: keep open/click tracking off on `hub.`; enable only on `news.` if newsletters go through Resend.
-- [ ] Publish a DMARC record on the root `quillandcup.com` (subdomains inherit it).
-- [ ] Reply handling: if replies to system emails ever matter, either use the Supabase Send Email hook (real `Reply-To`) or set up subdomain inbound routing after the Cloudflare move (Cloudflare Email Routing). Note `hub` is a CNAME to Vercel, and a CNAME can't coexist with an MX record on the same name, so inbound mail for a subdomain that's also a web host needs a different name.
-- [ ] Log auth/notification emails to `member_activities` (CRM Phase 1) — see the CRM & Outreach Automation Roadmap. The Send Email hook would capture every auth email with its exact type; Resend webhooks alone give delivery/bounce/complaint status only.
-
-### Upgrade to Next.js 16
-**Status:** Code complete locally (lint/typecheck/build/full test suite all green) — not yet merged or preview-validated on Vercel
-
-Bumped `next` 15.5.26 → 16.3.6, `eslint-config-next` 15.5.14 → 16.3.6, `@next/third-parties` → 16.3.6 (pinned exact, matching the upgrade codemod's default for the Next/React stack). Supersedes dependabot PRs #13 and #9 — close those once this merges.
-
-**What the codemods actually did** (`npx @next/codemod@canary upgrade latest`, then separately `next-async-request-api` per the note below):
-- `middleware.ts` → `proxy.ts`, `export function middleware` → `export function proxy`. No other changes needed — it only re-exports `updateSession` from `lib/supabase/middleware.ts`, which is unaffected (that's a helper file, not the Next.js convention file).
-- `next-async-request-api` codemod made **zero changes** — the codebase was already fully migrated to async `params`/`cookies()`/`headers()` (confirmed: all 47 dynamic-route files already use `params: Promise<...>` + `await params`). Nothing to do here.
-- `eslint.config.mjs` switched from `FlatCompat` + `next/core-web-vitals` string extends to importing `eslint-config-next/core-web-vitals` / `eslint-config-next/typescript` directly (the `@eslint/eslintrc` shim is no longer needed).
-- The `cacheComponents-instant-false` codemod pass added `export const instant = false` to 69 page/layout files as a proactive Cache Components opt-out — reverted all of it, since this upgrade does not adopt `cacheComponents`. Revisit if/when that migration is actually undertaken.
-- The codemod bumped `eslint` to `10.11.0`, which conflicts with `eslint-config-next`'s own transitive `eslint-plugin-react`/`eslint-plugin-jsx-a11y` (peer-capped at `^9`) — reverted to `^9`. `eslint-config-next` itself only requires `eslint >= 9.0.0`.
-
-**Manual changes beyond the codemods:**
-- `next.config.ts`: dropped the `eslint: { ignoreDuringBuilds: isPreview }` block — that option is removed entirely in v16 (`next build` no longer lints, period, regardless of config). `typescript.ignoreBuildErrors` is unaffected and stays.
-- **CI lint coverage gap**: since `next build` no longer lints, and `ci.yml` never had an explicit `pnpm lint` step (it relied entirely on `next build`'s implicit lint pass), linting would have silently stopped running in CI. Added an explicit `Run lint` step to the `test-unit` job.
-- `eslint-config-next@16` newly enables React Compiler-oriented hook rules (`react-hooks/set-state-in-effect`, `react-hooks/immutability`, `react-hooks/exhaustive-deps`, `react-hooks/purity`) by default, which surfaced 49 errors across ~20 existing files. Downgraded to `warn` in `eslint.config.mjs` (matching the file's existing precedent for `@typescript-eslint/no-explicit-any`/`react/no-unescaped-entities`) rather than fixing ~20 files of pre-existing hook patterns as a side effect of this bump. Worth a dedicated cleanup pass later.
-- Fixed real, upgrade-caused build breakage — Next 16's stricter typecheck (confirmed via CI history: the identical test files passed clean CI at the pre-upgrade commit) surfaced ~15 TypeScript errors, all genuine: a regex `s` flag needing `es2018+` under the `ES2017` target (rewrote to `[\s\S]`), three `member_name_aliases` test queries missing `source` in `.select()` (every production call site selects it; the tests didn't), a stale `MemberBadgesPanel` test fixture missing `eventId`/`eventTitle`/`eventSlug` added to `RawAward`, an untyped default-parameter object in `settings-session-actions.test.ts` inferring `data: never[]`, and a dead `kajabi_purchase_id` comparison in a membership-history test (that field was never on `MembershipPurchase`, and the OR-fallback on `created_at_kajabi` was already sufficient).
-- 3 pre-existing `prefer-const` lint errors in `tests/api/reprocessability/*` fixed via `eslint --fix`.
-
-**Verified locally:** `pnpm lint` (0 errors), `npx tsc --noEmit` (0 errors), `pnpm build` (Turbopack, 126 pages, clean), `pnpm test:unit` (975/975 passed), `pnpm test:db` against a live `next start` + local Supabase (384/393 passed, 9 intentionally skipped).
-
-**Still open before merge:**
-- [ ] A real Vercel preview-deployment build (the only environment that actually matches production — don't skip it, per the prior Turbopack migration's own lesson).
-- [ ] Re-run the bundle-size comparison done for the CI/prod Turbopack migration — Next 16 may shift Turbopack's chunking behavior again from the 15.5.26 baseline already measured.
-- [ ] Sentry: `@sentry/nextjs@10.75.3` already declares `next: ^16.0.0-0` peer support, so no SDK bump was needed — but still worth a real preview deploy to confirm source maps/tunneling behave.
+### Clean Up React Compiler Lint Warnings
+`eslint-config-next@16` enabled hook rules (`react-hooks/set-state-in-effect`, `immutability`, `exhaustive-deps`, `purity`) that surfaced ~49 errors in ~20 existing files. They were downgraded to `warn` in `eslint.config.mjs` instead of fixed. Fix the patterns and turn the rules back on. Also check `next dev` and Sentry source maps on the next Vercel preview.
 
 ---
 
@@ -586,17 +535,6 @@ Two low-severity advisories from `supabase db advisors --linked --type security`
   - Real-world risk is low: `is_admin()` just returns a boolean based on `auth.uid()` (returns `false` for anon since `auth.uid()` is null), and `create_user_profile()` is a trigger function that errors if invoked directly outside trigger context.
   - **If revisited:** switch `is_admin()` to `SECURITY INVOKER` (it only reads `user_profiles`, which already has its own RLS) instead of touching grants, and/or restrict `create_user_profile()`'s grant to just the role Postgres uses to fire the trigger.
 
-- **`auth_leaked_password_protection`** — Supabase Auth's HaveIBeenPwned check is disabled. This is a dashboard toggle, not a migration: **Dashboard → Authentication → Policies → Password Security → enable "Leaked password protection."**
-
-### Self-Service Sessions + Long-Lived Login (both done)
-An "Active Sessions" panel now exists on `/profile` (`app/(member)/profile/SessionsPanel.tsx` + `getMySessions`/`revokeSession`/`signOutOtherSessions` in `app/(member)/profile/actions.ts`), backed by `get_my_sessions()` / `revoke_my_session()` — `SECURITY DEFINER` RPCs self-scoped to `auth.uid()` in `supabase/migrations/20260827150000_create_session_management_functions.sql`. It lets a member see their own sessions (device/user-agent, IP, created/last-active) and either revoke one (deletes the row from `auth.sessions`, cascading to `auth.refresh_tokens`, functionally identical to GoTrue's own internal `LogoutSession`) or sign out of every *other* session in one action (`supabase.auth.signOut({ scope: 'others' })`, the one bulk primitive Supabase Auth exposes natively). Supabase Auth has no admin/public API to list or revoke one specific session by id — only bulk scope-based `signOut` — so the RPC pair above is the actual mechanism, not a cosmetic wrapper around something Supabase already provides. Migrations and app code have been pushed to production.
-
-Admins also get an equivalent: the `/admin/users` "Activity" tab (renamed from "History") now shows each visit-session's linked real login (`auth_session_id`, `session_active`, `auth_session_created_at`) and a "Force sign-out" button backed by `revoke_user_sessions(target_user_id)` — see `supabase/migrations/20260827160000_link_access_events_to_auth_sessions.sql`. Needed because sudo mode (`lib/sudo.ts`) is a pure app-level cookie mapping admin→member; it never changes `auth.uid()`, so it can't reach a member's real session on its own.
-
-**"Stay logged in longer" — verified already correct, no change made.** Checked **Supabase Dashboard → Authentication → Sessions** (2026-08-27): `Time-box user sessions = 0 (never)`, `Inactivity timeout = 0 (never)`, `Enforce single session per user = off`. That's already the permanent-login configuration — nothing to flip. (The project is on a plan below Pro, so this section shows "Configuring user sessions is only available on the Pro Plan and above" and the controls are read-only, but the values in effect are these defaults, not something mid-configuration.)
-
-If members still report being logged out unexpectedly, the dashboard isn't the cause — check `lib/supabase/middleware.ts` instead: it treats a timed-out or failed `supabase.auth.getUser()` call (`AUTH_CHECK_TIMEOUT_MS`) as unauthenticated and redirects to `/login`, which would look identical to a real logout if Supabase is ever slow to respond even though the underlying session is still valid.
-
 ### Role-Based Access Control (RBAC)
 Define user roles and permissions:
 
@@ -635,7 +573,7 @@ Define user roles and permissions:
 ### Session Replay (PostHog bolt-on)
 Per-user login/access history (`access_events` table + `get_access_sessions()`, surfaced via a "History" view on `/admin/users`) tracks when a user came back and what pages they visited, sourced directly from Supabase — see `supabase/migrations/20260827140000_create_access_events.sql`. That covers "when did they come back" and "what pages did they view," but not literal visual playback of what happened on screen.
 
-**Idea:** Add PostHog's free tier (1M events/mo, session replay included) as a bolt-on for that specific need — `posthog.identify(userId)` client-side, tied to the same Supabase auth id. Not a replacement for the custom table: PostHog's dashboard is a separate view, not integrated into `/admin/users`, and self-hosting PostHog was ruled out as too much infra for this app's all-serverless Vercel+Supabase stack.
+**Idea:** Add PostHog's free tier (1M events/mo, session replay included) as a bolt-on for that specific need — `posthog.identify(userId)` client-side, tied to the same Supabase auth id. Not a replacement for the custom table: PostHog's dashboard is a separate view, not integrated into `/admin/users`. Self-hosting PostHog is ruled out.
 
 **Why deferred:** The custom table already answers the primary ask (login history + page trail inside the existing admin UI) with no new infrastructure or third-party script. Session replay is a nice-to-have for UX debugging, not a blocker.
 
@@ -661,10 +599,10 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - Kinds today: `prickle_checkin`, `prickle_checkout`.
 
 **Next channels** (each = `CHANNELS` entry + adapter + whatever it needs to resolve an address; every notification kind gets it at once):
-- In-app: mark one unread again, and roll it out past the flag
+- In-app: mark one unread again
+
 - Browser/OS: roll Web Push out past the flag; let members name their devices. Settings → Notifications already has a device list (remove one remotely) and a test button; the admin member page shows enrolled devices. iOS needs a home-screen install (16.4+), prompted by `InstallAppPrompt`
 - Mobile push: native app later; Web Push covers it until then
-- Email: Resend API sender module + `react-email` templates, `List-Unsubscribe`, including digests
 - SMS / WhatsApp: important for non-US hedgies; needs a provider (e.g. Twilio), a verified phone number per member, and explicit opt-in (carrier/WhatsApp template rules)
 
 **Still to build:**
@@ -675,7 +613,8 @@ One system for everything the Hub sends members, instead of each feature hand-ro
 - Quiet hours / time zone, and per-member frequency caps across kinds
 - Escalation and dedupe: don't email what was already seen in-app; delay-then-send (e.g. email only if a DM is still unread after N minutes)
 - Digests: batch low-priority events into a daily/weekly email
-- Unsubscribe links and delivery tracking (Resend webhooks), logged to `member_activities` where useful
+- Email delivery tracking: Resend webhooks (delivered, bounced, complaints) and sent/opened/clicked events in `member_activities`
+
 - A per-message "Stop these" Slack button that writes `notification_preferences` (the settings link covers it for now)
 - Show on the settings page when a channel can't reach the member (e.g. no matched Slack account)
 
@@ -695,6 +634,10 @@ Migration `20261003130000` renamed the code, route, cron job and dedup log to ch
 ### Big Sisters: message in the Hub _(Blocked on Hub DMs)_
 
 The dashboard card and `/big-sisters` link a new member and their big sister to each other's **Slack** DM (`getSlackDmLinksForMembers`), because Hub chat can't start a conversation yet: `app/(member)/chat/actions.ts` only posts into existing channels, and `chat_channels` has a `dm` kind (Hub-native, always `restricted`, see `docs/SLACK_BRIDGED_CHAT.md`) with nothing that creates one. When Hub DMs exist: add a "Message in the Hub" button to `components/member/BigSisterCards.tsx` (find-or-create the DM with the other member and link to `/chat/<id>`), make it the primary action and keep Slack as the fallback for members who aren't in Hub chat, and point the `big_sister_match` introduction's `url` at the DM. Gate it on the `chat_posting` feature like the rest of chat.
+
+### Chat Drafts, Synced With Slack _(Needs Scoping)_
+Save unsent message text per conversation (and per thread) in Hub chat, so leaving a channel or an expired session doesn't lose it. Slack keeps drafts too; sync both ways with the Slack bridge (`docs/SLACK_BRIDGED_CHAT.md`) so a draft started in Slack shows as unsent in the Hub and the reverse, and show "Drafts" in the chat list. Check which Slack API exposes drafts (and whether the bot or a member token is needed) before designing. Related: session expiry mid-form under "Return To".
+
 
 ## Slack Bot Channel Access
 
@@ -814,9 +757,6 @@ On 2026-10-17, signed out in Chrome, `www.quillandcup.com` loaded Google's tag s
 
 **Done when:** a visitor to the marketing site gets a `_ga` cookie scoped to `.quillandcup.com` that Hub then reuses (compare `ga_client_id` on their first Hub visit).
 
-### Background Agents
-Set up background agents for faster parallel development
-
 ---
 
 ## Live Page (Who's in the Prickle Right Now)
@@ -846,27 +786,16 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
-### Convert Page Layouts to Container Queries _(Needs Scheduling)_
-The lesson page, course overview, chat and every `sm:`/`md:`/`lg:`/`xl:` `grid-cols` grid in `app` and `components` now use container queries (see "Responsive Layout" in CLAUDE.md): a wrapper marked `@container` with the named sizes (`@pair`/`@cards`/`@split`/`@columns`/`@outline`, defined in `tailwind.config.ts`) on the grid. What's left is the row-direction toggles (`sm:flex-row` in `MemberDirectory`, `Wheel`, `ConsentBanner`) and `CalendarWeekView`'s column template, which still use viewport breakpoints. Check any converted page at widths just either side of its breakpoints.
-
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
 
 ### Site-wide "Return To" Handling (Needs Design)
-"Take me back to where I was" is solved ad hoc in several places, each with its own storage, validation and fallback. Build one system for it, like Rails' `redirect_back_or_to` / Devise's `store_location_for` + `stored_location_for`.
+**Resolved:** sign-in return. The proxy stores the requested page in the `hub_next` cookie before redirecting to `/login`, and the email callback, Slack button and Slack code read it back via `takeNextPath()` (`lib/next-path-cookie.ts`, validated by `safeNextPath()` in `lib/safe-next.ts`).
 
-**Today's separate implementations:**
-- **Sign-in:** the proxy (`lib/supabase/middleware.ts`) stores the requested page in the `hub_next` cookie before redirecting to `/login`. The email callback, Slack button and Slack code read it back via `takeNextPath()` (`lib/next-path-cookie.ts`), validated by `safeNextPath()` (`lib/safe-next.ts`).
-- **Sudo:** `startSudo` stores the Referer in `sudo_return_to`, and exiting returns there (`app/actions/sudo.ts`, `lib/sudo-redirect.ts` — `toSafeRelativePath`, which `safeNextPath` builds on).
-- **"← Back to …" links:** hardcoded per page, sometimes chosen by role (e.g. `app/(member)/prickles/[id]/page.tsx` picks "Back to Calendar" vs "Back to My Prickles"). They ignore where the visitor actually came from, e.g. a prickle opened from a member profile still links back to the calendar.
-- **Future:** auto-logout / idle timeout on any page, and session expiry mid-form, need to return the member to the same page (ideally with unsaved input kept) after they sign in again.
-
-**Shape to design:**
-- One module (e.g. `lib/return-to.ts`) with `storeReturnTo`, `takeReturnTo` and `peekReturnTo`, one validator (same-origin path only; see `safeNextPath`), and named slots (`sign_in`, `sudo_exit`, …) so flows don't overwrite each other.
-- Only store top-level GET navigations: never POSTs, server actions, RSC or router prefetches, or API routes.
-- Back links: carry the origin page (e.g. a `?from=` param or history state) and derive the label from a route registry ("Back to Alex's profile"). Keep today's role-based default as the fallback when there's no origin.
-- Client-side session expiry: whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored, instead of relying on the next full page load hitting the proxy.
-- Tests: one shared suite for the validator (open-redirect cases), plus a flow test per slot.
+**Still open:**
+- **Session expiry or idle timeout mid-form.** Whatever detects a 401 or expired session in the browser should send the member to `/login` with the current location stored (not wait for the next full page load to hit the proxy), and ideally keep their unsaved input.
+- **"← Back to …" links** are hardcoded per page (e.g. `app/(member)/prickles/[id]/page.tsx` picks "Back to Calendar" vs "Back to My Prickles") and ignore where the visitor came from. Carry the origin (a `?from=` param or history state) and derive the label from a route registry ("Back to Alex's profile"); keep today's default as the fallback.
+- **Sudo** keeps its own `sudo_return_to` (Referer, `lib/sudo-redirect.ts`). Fold it into one module (`lib/return-to.ts`: `storeReturnTo`, `takeReturnTo`, `peekReturnTo`, named slots, one same-origin-path validator, GET navigations only) with a shared open-redirect test suite.
 
 ### Member Location History, and Video Viewing Attribution _(Built, with follow-ups)_
 **Why:** Kajabi's per-viewer video stats show where each view came from ("Muncie, Indiana, US") and the device. We want that, and more generally geographic insight into the membership. A member's location changes over time (prickles ask "Where are you writing from today?"), so it belongs to a *period*, not to the member row.
@@ -894,11 +823,6 @@ Tabs became URL paths on 2026-10-03 (`/settings/notifications`, `/my-prickles/al
 Old links come from Slack DMs (the check-in/check-out "Notification settings" link, sent from 2026-10-03 until this change deploys; Slack keeps them forever), calendar feed descriptions (refreshed by calendar apps within a day), and bookmarks or links pasted into Slack, emails and docs.
 
 **When:** each redirect logs `[legacy-tab-redirect]` with the page and tab. After 2027-01-03, search the Vercel logs for it. If none (or only a stray few) in the last 30 days, delete the calls, the helper and their tests, and drop the "old `?tab=` links" bullet from CLAUDE.md. A `?tab=` URL then just opens the page's first tab, which is a fine fallback. If they're still being hit, look at which page and tab and check again in another quarter.
-
-### Custom Date Picker (Needs Scoping)
-Every date field in the app (`<input type="date">` — e.g. Writing Projects' Log Progress date, goal start/end dates) uses the browser's native date picker. Feedback: the native picker's up/down arrows for month navigation aren't intuitive — unclear which direction is "forward" in time. Left/right arrows (with the month view sliding left/right on change, not up/down as it does now) would read more clearly.
-
-**Why not a quick fix:** the native picker is rendered entirely by the browser itself, outside the page's DOM — there's no CSS/JS hook to restyle its arrows, direction, or transitions. Fixing this means replacing `<input type="date">` with a custom-built calendar component (a library like `react-datepicker`, or hand-rolled) everywhere a date is picked, which gives up the native input's free accessibility, mobile keyboard integration, and OS-consistent look. Scope as a real component-replacement project, not a style tweak, before starting.
 
 ### Drag-and-Drop Table Column Reordering (Not Persisted)
 Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set in code — on mobile, whichever columns come first are the only ones visible without scrolling, so getting the "right" default order matters but can't cover every viewer's priorities. Letting users drag-and-drop reorder columns in the standard table widget (session-only, not persisted per-user) would let each viewer put what they care about first without a code change per table.
@@ -960,7 +884,6 @@ Every admin table (Hedgieversaries, Members, etc.) has a fixed column order set 
 ### Admin Features
 - Manually create/edit members
 - Manually create/edit Prickles
-- ~~Mark members for outreach~~ — done: `/admin/outreach` (hot/warm/cold status, daily 25-outreach queue, outreach_touches log)
 
 ### CRM & Outreach Automation Roadmap (Needs Scoping — Multi-Phase)
 `/admin/outreach` (hot/warm/cold status, the daily 25-lead queue, `outreach_touches` log) is the first slice of a much bigger planned system: a built-in CRM with a unified inbox, response-driven outreach, lead scoring, and eventually an AI prospecting agent. Stated 2026-09-09 as the direction to build toward — not scoped or started beyond Outreach itself. Phases below are roughly the order they'd need to happen (later phases depend on earlier ones), not a commitment to build all of them.
@@ -1027,9 +950,6 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 - Reuse `lib/config.ts`'s `deployment` (branch/commitSha) and `features` objects rather than duplicating that data
 - Since this is meant to work in production, it should not be gated behind `features.showEnvironmentBadge` the way `EnvironmentIndicator` is — consider restricting it to admin users only (auth check) since it may reveal internal build/config info
 
-### General Improvements
-- Add favicon to the application
-
 ---
 
 ## Internationalization
@@ -1070,19 +990,6 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
-### Members Reprocessing Deadlocks / Statement Timeouts on Concurrent Webhooks
-Production logs show members reprocessing deadlocking and hitting statement timeouts when Slack and Zoom webhooks start it at the same time. Noted while reviewing PR #27 (email aliases → member ids).
-
-- **Path (confirmed from logs 2026-09-29):** every Slack message/reaction webhook ran `triggerReprocessing("slack_messages")`, and `getProcessingOrder` added `members` in front of `slack` because of the Silver edge, so each event ran a full `reprocess_members_atomic` and then the 90-day attendance reprocess hard-coded at the end of `/api/process/members`. Zoom imports (from the `meeting.ended` webhook) did the same via `attendance`'s edge to `members`. A burst of Slack events ran many at once: `57014 canceling statement due to statement timeout`.
-- **Fixed 2026-09-29 (`e974c08`):** Silver edges only order the steps a change selects, so webhooks no longer start members runs at all.
-- **Remaining:** members can still run concurrently from a Kajabi import, the nightly reconcile, and a Slack import's user rebuild, and attendance from several Zoom meetings ending together. Options: serialize runs with a Postgres advisory lock (skip or queue when one is already running), coalesce overlapping runs, or narrow each run's scope so concurrent runs don't touch the same rows. Needed before adding downstream propagation (see "Silver Change Propagation in the Processing DAG").
-
-### Member Filters
-- **At-risk and highly-engaged filters don't work**
-  - URL: `/dashboard/members?filter=highly_engaged`
-  - Filter parameter is in URL but not applied to results
-  - Both filters affected
-
 ### Reconciliation: Split monolithic endpoint and unify discrepancy logic _(refactor + code smell)_
 - **Code smell:** `has_discrepancy` is currently a hybrid — computed server-side for Kajabi/Stripe in `/api/analyze/subscription-reconciliation`, but Slack absence is ORed in client-side in `app/(admin)/admin/reconciliation/page.tsx`
 - **Root cause:** Slack, Stripe orphans, and Zoom access were already extracted into their own endpoints (`/api/analyze/slack-reconciliation`, `/api/analyze/stripe-orphans`, `/api/analyze/zoom-access`), but the subscription endpoint is still an all-in-one monolith that owns the `has_discrepancy` flag
@@ -1102,79 +1009,20 @@ Production logs show members reprocessing deadlocking and hitting statement time
 
 ## CRM Features
 
-### Slack Integration (Phase 1: In Progress)
-**Goal:** Track Slack engagement as another signal of community health
+### Slack Engagement Signals (ingestion and profile display are built)
+Slack ingestion, the member-matching library and Slack activity on member profiles are done. Still open:
+- Data hygiene UI for unmatched Slack users.
+- Use Slack activity in at-risk detection (members who stopped posting, lurkers who attend but never post) and fold it into one engagement/risk score; refine `engagement_score` weights by activity type and recency.
+- Staff alerts: "hasn't posted in 14 days (usually 3x/week)", "very active in Slack but no prickle in 30 days".
+- Channel health metrics (messages per day, participation, dead channels).
+- A wider activity feed (Slack messages, reactions, file shares, whitepaper downloads, email opens/clicks, retreat registrations) combined with attendance; same idea as the Dashboard's "Recent Activity Feed".
 
-**Phase 1: Data Ingestion (Real-time Slack API)**
-- Install Slack app with Events API
-- Ingest: messages posted, reactions given/received, thread participation, channel activity, file uploads
-- Store in `member_activities` table (already has slack_message, slack_reaction types)
-- Bronze layer: `slack_events` (raw Slack events)
-- Silver layer: Process into `member_activities`
+### Host Confirmation Flow (not built)
+After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees. For unhosted prickles: TBD, options include assigning a random active member or the most senior hedgie (by join date or total duration excluding hiatus). Build it as a notification kind sent with `createNotifier`, not wired directly to Slack. Related: "Let a prickle's host report unmatched Zoom attendees".
 
-**Phase 2: Member Profile Enhancement**
-- Show Slack activity on member profile pages
-  - "Posted 12 messages this month"
-  - "Active in #accountability, #sprints"
-  - Timeline of Slack engagement alongside Prickle attendance
-
-**Phase 3: Combined Engagement Scoring**
-- Calculate unified engagement score across Prickles + Slack + other activities
-- Weight different activity types (Prickle attendance = 5, Slack message = 1, etc.)
-- Display on dashboard and member profiles
-
-**Phase 4: At-Risk Detection Enhancement**
-- Use Slack activity as health signal
-- Flag members who stopped posting (used to be active)
-- Identify lurkers (attending Prickles but not engaging in Slack)
-- Combined risk score: low Prickle attendance + low Slack activity
-
-**Phase 5: Outreach Triggers & Alerts**
-- "Alice hasn't posted in 14 days (usually posts 3x/week)"
-- "Bob is very active in Slack but hasn't attended a Prickle in 30 days"
-- Email/dashboard notifications for community managers
-
-**Phase 6: Channel Health Metrics (Future)**
-- Messages per day by channel
-- Member participation rates
-- Identify dead channels for archival
-
-**Phase 7: Activity Feed (Future)**
-- Live stream of community activity
-- Recent Slack messages, reactions, file shares
-- Combined with Prickle attendance
-- Real-time or near-real-time updates
-- Help admins stay connected to pulse of community
-
-**Host Confirmation Flow (Phase TBD):**
-- After each prickle ends, message the host to confirm participants and resolve unmatched Zoom attendees
-- For unhosted prickles: TBD — options include assigning to a random active member or the most "senior" hedgie (by join date or total duration excluding hiatus periods)
-
-**Messaging abstraction layer:** see Channels, Notifications & Messaging (Notifications section above). Build the Host Confirmation Flow and other interactive flows (confirmations, reminders, outreach) as notification kinds sent with `createNotifier`, not wired directly to Slack.
-
-**Phase 1 Progress:**
-- [x] Database migrations (Bronze tables, aliases extension)
-- [x] Export script (batch CSV export with auto-join for public channels)
-- [x] Import API endpoint (handles multi-line CSV fields, escaped quotes)
-- [x] Processing endpoint (Bronze → Silver with DELETE + INSERT pattern)
-- [x] Member matching library (3-tier: manual alias > email > normalized name)
-- [x] Tests (reprocessability, idempotency, matching) - All 9 tests passing
-- [x] Initial export and import (484 users, 26 channels, 485 messages, 4726 reactions → 111 activities)
-- [ ] Data hygiene UI (unmatched users matching interface)
-- [x] Dashboard updates (member profiles show Slack activity, engagement scoring)
-
-### Payment Failure Notifications
+### Payment Failure Notifications (not built)
 On payment failure, notify the member (a `payment_failed` notification kind via `createNotifier`, Slack by default) to prompt them to update their payment method.
 
-### Activity Feed Expansion (Future)
-Beyond Slack, expand `member_activities` tracking:
-- Whitepaper downloads
-- Email opens/clicks
-- Retreat registrations/attendance
-- Community contributions
-
-### Engagement Scoring
-Refine `engagement_score` calculation based on activity types and recency
 
 ---
 
