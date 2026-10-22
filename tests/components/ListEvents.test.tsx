@@ -179,7 +179,7 @@ describe("MessageList: shows what is being sent", () => {
   it("can't react to a message that isn't saved yet", () => {
     render(list([], { canReact: true }));
     act(() => emitListEvent({ kind: "add", channelId: "c1", view: optimisticView({ id: "pending-1", body: "Hello there", viewer: VIEWER }) }));
-    expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
   });
 
   it("merges the newest messages the server fetched: its version of each wins and new ones are added", () => {

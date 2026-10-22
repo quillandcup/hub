@@ -442,12 +442,12 @@ describe("channel page", () => {
     it("offers reactions only with the chat_posting flag, and in a public channel the member hasn't joined", async () => {
       messages = [msg(1)];
       await renderChannel(GENERAL);
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
       cleanup();
 
       vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       await renderChannel(GENERAL);
-      expect(screen.getByRole("button", { name: "Add reaction" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add reaction…" })).toBeInTheDocument();
     });
 
     it("offers no message box in a public channel the member hasn't joined, and nothing in sudo", async () => {
@@ -460,7 +460,7 @@ describe("channel page", () => {
       signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
       await renderChannel(HOSTS);
       expect(composer()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
     });
 
     it("offers a reply box in a thread whose root is in Slack, and none while the root is still sending", async () => {

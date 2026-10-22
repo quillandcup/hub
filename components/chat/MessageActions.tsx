@@ -7,7 +7,49 @@ import type { CustomEmoji } from "@/lib/chat/emoji";
 import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
 
 const buttonClass =
-  "flex h-8 w-8 items-center justify-center rounded-md text-base text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+  "flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+/** A smiley with a small + at the top right, like Slack's add-reaction. */
+function AddReactionIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M20 11.5A8.5 8.5 0 1 1 12.5 3.1" />
+      <path d="M8.5 14a4 4 0 0 0 7 0" />
+      <path d="M9 9.5h.01M14.5 10.5h.01" />
+      <path d="M18 2v5M15.5 4.5h5" />
+    </svg>
+  );
+}
+
+function ThreadIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12Z" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg {...iconProps} fill="currentColor" stroke="none">
+      <circle cx="12" cy="5.5" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="12" cy="18.5" r="1.75" />
+    </svg>
+  );
+}
 
 /**
  * The bar that appears at the top right of a message while the pointer is over it (or focus is in
@@ -93,12 +135,13 @@ export default function MessageActions({
             onClick={() => setOpen(open === "react" ? null : "react")}
             className={buttonClass}
           >
-            ☺
+            <AddReactionIcon />
           </button>
           {open === "react" && (
             <ReactionPicker
               custom={custom}
               onPick={(name) => toggle(name, () => setOpen(null))}
+              onClose={() => setOpen(null)}
               className="absolute right-0 top-full z-30 mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow dark:border-slate-700 dark:bg-slate-900"
             />
           )}
@@ -113,7 +156,7 @@ export default function MessageActions({
           data-track="chat-hover-reply-in-thread"
           className={buttonClass}
         >
-          💬
+          <ThreadIcon />
         </Link>
       )}
       <div className="relative">
@@ -127,7 +170,7 @@ export default function MessageActions({
           onClick={() => setOpen(open === "more" ? null : "more")}
           className={buttonClass}
         >
-          ⋮
+          <MoreIcon />
         </button>
         {open === "more" && (
           <ul

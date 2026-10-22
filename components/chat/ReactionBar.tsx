@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import EmojiPicker from "@/components/chat/EmojiPicker";
 import { useRouter } from "next/navigation";
 import { Emoji } from "@/components/chat/ChatText";
 import type { CustomEmoji } from "@/lib/chat/emoji";
@@ -53,8 +54,23 @@ function ReactionHoverCard({ reaction, custom }: { reaction: ReactionSummary; cu
   );
 }
 
-/** The quick reactions in a small popover; `onPick` gets the shortcode. */
-export function ReactionPicker({ custom, onPick, className }: { custom: Record<string, CustomEmoji>; onPick: (name: string) => void; className: string }) {
+/**
+ * The quick reactions in a small popover, with a "more" button that swaps it for the full emoji
+ * picker; `onPick` gets the shortcode, `onClose` (for the full picker's Escape/outside click) closes it.
+ */
+export function ReactionPicker({
+  custom,
+  onPick,
+  onClose,
+  className,
+}: {
+  custom: Record<string, CustomEmoji>;
+  onPick: (name: string) => void;
+  onClose: () => void;
+  className: string;
+}) {
+  const [more, setMore] = useState(false);
+  if (more) return <EmojiPicker custom={custom} onPick={onPick} onClose={onClose} />;
   return (
     <ul aria-label="Pick a reaction" className={className}>
       {QUICK_REACTIONS.map((name) => (
@@ -70,12 +86,24 @@ export function ReactionPicker({ custom, onPick, className }: { custom: Record<s
           </button>
         </li>
       ))}
+      <li>
+        <button
+          type="button"
+          aria-label="More emoji…"
+          title="More emoji"
+          data-track="chat-reaction-more-emoji"
+          onClick={() => setMore(true)}
+          className="rounded px-1.5 py-0.5 text-base font-semibold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          +
+        </button>
+      </li>
     </ul>
   );
 }
 
 /**
- * A message's reactions as chips, and (when the viewer can react) a way to add one. A chip is a
+ * A message's reactions as chips. Adding one is done from the hover bar (MessageActions). A chip is a
  * toggle: pressing yours takes it back, pressing someone else's adds the same one. Reactions made
  * in the Hub stay in the Hub for now; Slack's own show here as they always did.
  */
@@ -93,16 +121,14 @@ export default function ReactionBar({
   custom: Record<string, CustomEmoji>;
   canReact: boolean;
 }) {
-  const [picking, setPicking] = useState(false);
-  const { toggle: toggleReaction, pending, error } = useToggleReaction(channelId, messageId);
-  const toggle = (emoji: string) => toggleReaction(emoji, () => setPicking(false));
+  const { toggle, pending, error } = useToggleReaction(channelId, messageId);
 
   const chipClass = (mine: boolean) =>
     `px-2 py-0.5 rounded-full text-xs border ${
       mine ? "border-plum-300 bg-plum-50 dark:border-plum-700 dark:bg-plum-900/20" : "border-slate-200 dark:border-slate-700"
     }`;
 
-  if (reactions.length === 0 && !canReact) return null;
+  if (reactions.length === 0) return null;
   return (
     <div className="mt-1.5">
       <ul className="flex flex-wrap items-center gap-1" aria-label="Reactions">
@@ -128,27 +154,6 @@ export default function ReactionBar({
             )}
           </li>
         ))}
-        {canReact && (
-          <li className="relative">
-            <button
-              type="button"
-              aria-expanded={picking}
-              aria-label="Add reaction"
-              data-track="chat-reaction-add"
-              onClick={() => setPicking((p) => !p)}
-              className="px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-300 text-slate-500 hover:border-plum-400 dark:border-slate-600"
-            >
-              ＋
-            </button>
-            {picking && (
-              <ReactionPicker
-                custom={custom}
-                onPick={toggle}
-                className="absolute left-0 z-10 mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow dark:border-slate-700 dark:bg-slate-900"
-              />
-            )}
-          </li>
-        )}
       </ul>
       {error && (
         <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
