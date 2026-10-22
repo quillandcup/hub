@@ -95,6 +95,16 @@ describe("ChatSidebar", () => {
       expect(screen.getByRole("link", { name: "Gale, Fern" })).not.toHaveClass("font-semibold");
     });
 
+    it("remembers the open conversation in a cookie, and not the list", async () => {
+      document.cookie = "chat_last_channel=; max-age=0; path=/";
+      pathname = "/chat";
+      const { rerender } = render(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+      expect(document.cookie).not.toContain("chat_last_channel=1");
+      pathname = "/chat/2";
+      rerender(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+      expect(document.cookie).toContain("chat_last_channel=2");
+    });
+
     it("shows no count on the conversation that is open, and clears one when it is opened", async () => {
       pathname = "/chat/1";
       const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{ "1": 3, "2": 4 }} selfMemberId={ME} />);

@@ -1,3 +1,4 @@
+import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -125,7 +126,7 @@ export default async function ChatChannelPage({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 flex items-start justify-between gap-4 border-b border-slate-200 px-6 pb-3 pt-5 dark:border-slate-800">
           <div>
-            <Link data-track="chat-channel-channels" href="/chat" className="mb-1 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
+            <Link data-track="chat-channel-channels" href={CHAT_LIST_HREF} className="mb-1 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
               ← Channels
             </Link>
             <h1 className="text-2xl font-bold">{channel.label}</h1>
