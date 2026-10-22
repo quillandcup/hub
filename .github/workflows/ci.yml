@@ -510,6 +510,12 @@ jobs:
     needs: push-migrations
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Makes GitHub record a deployment for this commit (Environments page, the merged PR,
+    # `gh api repos/{owner}/{repo}/deployments?sha=<sha>`), marked success or failure when
+    # the job ends. Vercel's git integration is off, so this is the only record.
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -570,7 +576,11 @@ jobs:
       # succeed, rather than reporting green the instant Vercel accepts the
       # webhook.
       - name: Deploy prebuilt artifacts to production
-        run: vercel deploy --prebuilt --prod
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod)
+          echo "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
