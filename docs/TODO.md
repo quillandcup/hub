@@ -12,17 +12,22 @@ Reviewed 2026-10-21: completed items removed, duplicates merged. Sections below 
 **Admin-facing (operations, incl. churn reduction)**
 1. Member merge log with exact undo.
 2. Prickle check-in patterns page (reach-out prompt).
-3. Automatic hiatus detection from Kajabi tags.
+3. Host-facing: let a prickle's host report unmatched Zoom attendees (member-facing, scoped write path needed).
 
 **User experience**
 1. Return-to after session expiry mid-form, and origin-aware back links.
 2. Basic date format localization (non-US hedgies).
 3. Show on Settings when a channel can't reach the member.
 
-**Developer experience**
+**Developer experience** (speed and tooling: CI time, agents coordinating)
 1. Re-introduce test parallelism.
 2. Coverage floors for `app/(admin)` and `app/(member)`, plus a ratchet.
-3. Move the staff-channel Slack posts onto `createNotifier`, and test Slack with MSW.
+3. Test Slack at the HTTP level with MSW.
+
+**Tech debt and code quality**
+1. Move the remaining hand-rolled sends onto `createNotifier` (staff-channel posts as admin notification kinds).
+2. Turn the React Compiler lint rules back on from `warn`.
+3. Finish the pre-prickle-nudge rename; move the ~32 direct-import route tests onto `apiFetch`.
 
 **Infrastructure and reliability**
 1. Serialize or coalesce concurrent members/attendance reprocessing (advisory lock); a prerequisite for change propagation.
@@ -47,10 +52,6 @@ table, `member_id` columns, API routes, types and docs to match. Do it as its ow
 a rename touches the same ~50 foreign keys, views and policies as the id conversion, so
 keep it separate from that one. "Member" can stay as the UI word for `status = 'active'`
 people.
-
-### Automatic Hiatus Detection From Kajabi Tags
-`on_hiatus` is admin-set only, via `/admin/member-overrides` (overrides now stick across reprocessing). If Kajabi tags (e.g. "Quill & Cup Member" + "Offboarding") are reliable enough to trust, compute `on_hiatus` automatically instead of one override per member.
-
 
 ### "Former BFF"-Style Labels
 Single-product former-member labels need the `member_products` table (see Kajabi Data Expansion), not a `status` value.
@@ -453,8 +454,12 @@ Mux's settings live in its dashboard, unlike Supabase (`config.toml`), Slack (`s
 
 **Priority:** after the course launch; the production webhook is created by hand once the route deploys.
 
-### Drop the Google Calendar Push Webhook _(Decided: drop)_
-`/api/webhooks/calendar` receives Google Calendar push notifications, but nothing creates or renews the watch channel and production has seen no `POST`s. The nightly reconcile (`/api/reconcile/calendar`) already pulls every change, so push would only cut latency (a Google Calendar edit appearing in minutes instead of by morning). Remove the route, `GOOGLE_CALENDAR_WEBHOOK_TOKEN` and the setup section of `docs/WEBHOOK_SETUP.md`. Any leftover channel just expires (Google can't list channels). Revisit only if minute-level freshness for calendar edits matters.
+### Google Calendar push channel: create and renew it _(Keep; needs scheduling)_
+`/api/webhooks/calendar` receives Google Calendar push notifications (a "watch channel"), but **nothing in the app creates or renews the channel**; `docs/WEBHOOK_SETUP.md` describes creating one by hand with `curl`. Goal: a Google Calendar edit reaches the prickle schedule in minutes instead of by the next nightly reconcile (`/api/reconcile/calendar`, which stays the guaranteed path).
+
+**State on 2026-10-18:** production saw one `GET` verification ping and no `POST`s in a week, so no active channel (channels expire and nothing renews them). The route rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (PR #105; token now in production). Google has no call that lists channels; one is stopped only by its `id` and `resourceId` (`POST /calendar/v3/channels/stop`) from the original watch response.
+
+**Build:** a small `calendar_watch_channels` table (`channel_id`, `resource_id`, `expires_at`), created and renewed by a cron before expiry using the token as the channel token, stopping the old channel when replacing it. Record each gap-fill per "On-Demand Incremental Fetch".
 
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:
@@ -487,6 +492,8 @@ Auth and notification email sends from `no-reply@hub.quillandcup.com` through Re
 The repo is public. A full-history scan (2026-10-02, every blob in every commit) found private
 values in docs, tests and code. Don't copy any of them into this file or a PR -- refer to the
 location instead.
+
+**Missed by that scan (example, found 2026-10-21):** a real member's name in this file's Kajabi Payments entry, added in commit `c8f3cf7b` (2026-09-04) and removed from the current file in the PR that reviewed this list, but still in history. Re-run the audit with names in mind (docs, TODO entries, comments, test fixtures), not just emails and ids, and add that commit to the rewrite list.
 
 1. **Remove from the current files** (normal PR), replacing each with a pointer to where the
    value lives (`.env.shared` / `.env.prod`, see `docs/ENV_MANAGEMENT.md`):
@@ -931,7 +938,7 @@ Phase 1 follow-ups (activity/audit log):
   - Show timeline: "Became at-risk: March 17", "Previously at-risk: Jan 5 - Jan 20 (returned after outreach)"
   - Helps validate at-risk detection and hiatus tracking
   - Shows engagement patterns over time
-  - **Depends on:** Reliable hiatus data from Kajabi (see "Fix Hiatus Tracking" above)
+  - Hiatus is Hub-owned (admin-set, `member_hiatus_history`), so this has the data it needs
 
 - **Working location and timezone**
   - Configurable per member
