@@ -2,7 +2,10 @@ import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
 import { isUuid, parseBefore } from "@/lib/chat/format";
 import {
@@ -57,6 +60,20 @@ export default async function ChatChannelPage({
   if (!channel) notFound();
 
   const sudoHidden = identity.isSudo && channel.restricted;
+
+  // Opening a conversation catches it up with Slack after the page is sent: whatever the webhook never
+  // delivered is fetched now, not at the nightly import (one fetch per conversation a minute, however
+  // many members open it; recorded in chat_gap_fills). Not for an older page, and not in sudo.
+  if (!sudoHidden && !identity.isSudo && !before && channel.slackChannelId) {
+    const slackChannelId = channel.slackChannelId;
+    after(async () => {
+      try {
+        await catchUpChannel(createServiceRoleClient(), { channelId: slackChannelId, source: "open" });
+      } catch (error) {
+        console.error("catching a conversation up with Slack failed:", error);
+      }
+    });
+  }
   const threadId = Array.isArray(thread) ? thread[0] : thread;
   if (threadId !== undefined && !isUuid(threadId)) notFound();
   const profileParam = Array.isArray(profile) ? profile[0] : profile;

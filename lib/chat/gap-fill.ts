@@ -1,0 +1,287 @@
+import { WebClient } from "@slack/web-api";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { projectChatMessage } from "@/lib/chat-projection";
+import { clock } from "@/lib/clock";
+import { slackChannelType } from "@/lib/slack-capture";
+import { markRemovedSlackReactions } from "@/lib/slack-reactions";
+import { addSlackMessage } from "@/lib/slack-messages";
+
+/**
+ * Gap-fill (docs/SLACK_BRIDGED_CHAT.md, "Gap-fill"): when the chat is missing something Slack has,
+ * fetch it from Slack on the spot and store it exactly as the import would (Bronze, then the chat
+ * projection) instead of waiting for the nightly import. Three scopes:
+ *
+ * - `message`: one message the webhook told us about but we never stored (a reaction or edit on it),
+ *   and its thread root if that is missing too;
+ * - `thread`: a whole thread (a reply arrived whose root we don't have);
+ * - `channel`: what is newer than the newest message we have, when someone opens a conversation.
+ *
+ * Every fill is claimed first (`claim_chat_gap_fill`, at most one per channel/scope/message per
+ * interval, so a burst of events or a crowd opening a conversation is one fetch) and recorded
+ * (`chat_gap_fills`, shown on /admin/data-health/gap-fills): a fill that recovers a lot means the
+ * webhook was down. Reads from Slack and writes our own tables; only the production deploy does it,
+ * like every other thing that talks to the real workspace. Service role.
+ */
+
+export type GapFillSource = "webhook" | "open" | "manual";
+
+export interface GapFillResult {
+  /** False when nothing was done: not production, not a mirrored conversation, or another fill has it covered. */
+  claimed: boolean;
+  messages: number;
+  reactions: number;
+  error?: string;
+}
+
+const NOT_DONE: GapFillResult = { claimed: false, messages: 0, reactions: 0 };
+
+/** The same fill isn't started twice inside this: a burst of events becomes one fetch. */
+const CLAIM_INTERVAL = "1 minute";
+/** A catch-up on open stops here; the import fetches the rest. */
+const MAX_CATCH_UP_MESSAGES = 100;
+const MAX_CATCH_UP_THREADS = 10;
+const MAX_THREAD_REPLIES = 500;
+/** With nothing stored for a conversation, look this far back. */
+const FIRST_CATCH_UP_WINDOW_SECONDS = 24 * 60 * 60;
+const PROJECT_CONCURRENCY = 10;
+
+interface MirroredChannel {
+  name: string;
+  type: string;
+}
+
+/** The conversation, if the chat mirrors it. */
+async function mirroredChannel(service: SupabaseClient, slackChannelId: string): Promise<MirroredChannel | null> {
+  const { data } = await service
+    .from("chat_channels")
+    .select("name, kind, visibility, bridge_disabled")
+    .eq("slack_channel_id", slackChannelId)
+    .maybeSingle();
+  if (!data || data.bridge_disabled) return null;
+  const isMpim = data.kind === "group_dm";
+  return { name: data.name ?? "", type: slackChannelType({ is_private: data.visibility === "private", is_mpim: isMpim }) };
+}
+
+async function claim(
+  service: SupabaseClient,
+  source: GapFillSource,
+  scope: "message" | "thread" | "channel",
+  slackChannelId: string,
+  ts: string | null
+): Promise<string | null> {
+  const { data, error } = await service.rpc("claim_chat_gap_fill", {
+    p_source: source,
+    p_scope: scope,
+    p_channel: slackChannelId,
+    p_ts: ts,
+    p_min_interval: CLAIM_INTERVAL,
+  });
+  if (error) {
+    console.error("claim_chat_gap_fill failed:", error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
+}
+
+async function finish(service: SupabaseClient, id: string, result: { messages: number; reactions: number; error?: string }) {
+  const { error } = await service
+    .from("chat_gap_fills")
+    .update({ finished_at: new Date(clock.now()).toISOString(), messages_recovered: result.messages, reactions_recovered: result.reactions, error: result.error ?? null })
+    .eq("id", id);
+  if (error) console.error("recording a gap-fill failed:", error.message);
+}
+
+type SlackMsg = Record<string, any>;
+
+/**
+ * Store what Slack returned: Bronze first (idempotent upserts, like the import), then the chat
+ * projection for every message touched. Returns how many messages and reactions were new to us.
+ */
+async function storeAndProject(
+  service: SupabaseClient,
+  slackChannelId: string,
+  channel: MirroredChannel,
+  slackMessages: SlackMsg[]
+): Promise<{ messages: number; reactions: number }> {
+  const messages: any[] = [];
+  const reactions: any[] = [];
+  for (const msg of slackMessages) addSlackMessage(msg, slackChannelId, channel.name, channel.type, messages, reactions);
+  if (messages.length === 0) return { messages: 0, reactions: 0 };
+
+  // A thread_broadcast reply can come back twice (history and thread); one upsert can't touch a row twice.
+  const uniqueMessages = [...new Map(messages.map((m) => [m.message_ts, m])).values()];
+  const uniqueReactions = [...new Map(reactions.map((r) => [`${r.message_ts}|${r.reaction}|${r.user_id}`, r])).values()];
+
+  // Who is who, as the import fills it in.
+  const userIds = [...new Set([...uniqueMessages.map((m) => m.user_id), ...uniqueReactions.map((r) => r.user_id)])];
+  const { data: users } = await service
+    .schema("bronze")
+    .from("slack_users")
+    .select("user_id, email, real_name, name")
+    .in("user_id", userIds);
+  const byId = new Map((users ?? []).map((u) => [u.user_id as string, u]));
+  for (const row of [...uniqueMessages, ...uniqueReactions]) {
+    const user = byId.get(row.user_id);
+    if (user) {
+      row.user_email = user.email || "";
+      row.user_name = user.real_name || user.name || "";
+    }
+  }
+
+  // What was new to us (the count a recovery is judged by).
+  const timestamps = uniqueMessages.map((m) => m.message_ts as string);
+  const [{ data: haveMessages }, { data: haveReactions }] = await Promise.all([
+    service.schema("bronze").from("slack_messages").select("message_ts").eq("channel_id", slackChannelId).in("message_ts", timestamps),
+    service
+      .schema("bronze")
+      .from("slack_reactions")
+      .select("message_ts, reaction, user_id")
+      .eq("channel_id", slackChannelId)
+      .in("message_ts", timestamps)
+      .is("deleted_at", null),
+  ]);
+  const knownMessages = new Set((haveMessages ?? []).map((m) => m.message_ts as string));
+  const knownReactions = new Set((haveReactions ?? []).map((r) => `${r.message_ts}|${r.reaction}|${r.user_id}`));
+  const newMessages = uniqueMessages.filter((m) => !knownMessages.has(m.message_ts)).length;
+  const newReactions = uniqueReactions.filter((r) => !knownReactions.has(`${r.message_ts}|${r.reaction}|${r.user_id}`)).length;
+
+  const importedAt = new Date(clock.now()).toISOString();
+  const { error: messageError } = await service
+    .schema("bronze")
+    .from("slack_messages")
+    .upsert(uniqueMessages.map((m) => ({ ...m, imported_at: importedAt })), { onConflict: "channel_id,message_ts" });
+  if (messageError) throw messageError;
+  if (uniqueReactions.length > 0) {
+    const { error: reactionError } = await service
+      .schema("bronze")
+      .from("slack_reactions")
+      .upsert(uniqueReactions.map((r) => ({ ...r, imported_at: importedAt })), { onConflict: "channel_id,message_ts,reaction,user_id" });
+    if (reactionError) throw reactionError;
+  }
+
+  // Slack's list is the whole truth for a message it returned, so a stored reaction missing from it was
+  // taken back. Only judged where Slack gave every reactor (a long list can be cut short).
+  const complete = slackMessages.filter((m) => (m.reactions ?? []).every((r: any) => (r.users?.length ?? 0) >= (r.count ?? 0)));
+  const completeTs = new Set(complete.map((m) => m.ts as string));
+  await markRemovedSlackReactions(
+    service,
+    uniqueMessages.filter((m) => completeTs.has(m.message_ts)),
+    uniqueReactions,
+    importedAt
+  );
+
+  for (let i = 0; i < timestamps.length; i += PROJECT_CONCURRENCY) {
+    await Promise.all(timestamps.slice(i, i + PROJECT_CONCURRENCY).map((ts) => projectChatMessage(service, slackChannelId, ts)));
+  }
+  return { messages: newMessages, reactions: newReactions };
+}
+
+/** Claim, run, record. Never throws: a failure is recorded and returned. */
+async function run(
+  service: SupabaseClient,
+  claimed: Promise<string | null>,
+  work: () => Promise<{ messages: number; reactions: number }>
+): Promise<GapFillResult> {
+  const id = await claimed;
+  if (!id) return NOT_DONE;
+  try {
+    const recovered = await work();
+    await finish(service, id, recovered);
+    return { claimed: true, ...recovered };
+  } catch (error: any) {
+    const message = String(error?.data?.error ?? error?.message ?? error).slice(0, 300);
+    console.error("gap-fill failed:", message);
+    await finish(service, id, { messages: 0, reactions: 0, error: message });
+    return { claimed: true, messages: 0, reactions: 0, error: message };
+  }
+}
+
+/** Every reply of one thread, root first (conversations.replies), up to a cap. */
+async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: string): Promise<SlackMsg[]> {
+  const out: SlackMsg[] = [];
+  let cursor: string | undefined;
+  do {
+    const result = await slack.conversations.replies({ channel: slackChannelId, ts: threadTs, cursor, limit: 200 });
+    out.push(...((result.messages ?? []) as SlackMsg[]));
+    cursor = result.response_metadata?.next_cursor || undefined;
+  } while (cursor && out.length < MAX_THREAD_REPLIES);
+  return out;
+}
+
+/** Whether the chat has this message already. */
+async function chatHasMessage(service: SupabaseClient, slackChannelId: string, ts: string): Promise<boolean> {
+  const { data: channel } = await service.from("chat_channels").select("id").eq("slack_channel_id", slackChannelId).maybeSingle();
+  if (!channel) return false;
+  const { data } = await service.from("chat_messages").select("id").eq("channel_id", channel.id).eq("slack_ts", ts).maybeSingle();
+  return Boolean(data);
+}
+
+/**
+ * One message we were told about but don't have (the webhook delivered a reaction or edit on it).
+ * `reactions.get` returns any message by ts, a thread reply included, with its reactions; if it is a
+ * reply whose root we also lack, the whole thread is fetched too.
+ */
+export async function fillMessageGap(
+  service: SupabaseClient,
+  opts: { channelId: string; ts: string; source: GapFillSource; slack?: WebClient }
+): Promise<GapFillResult> {
+  if (!chatSlackWritesEnabled()) return NOT_DONE;
+  const channel = await mirroredChannel(service, opts.channelId);
+  if (!channel) return NOT_DONE;
+  return run(service, claim(service, opts.source, "message", opts.channelId, opts.ts), async () => {
+    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    const result: any = await slack.reactions.get({ channel: opts.channelId, timestamp: opts.ts, full: true });
+    const message = result.message as SlackMsg | undefined;
+    if (!message) return { messages: 0, reactions: 0 };
+    const fetched: SlackMsg[] = [message];
+    const rootTs = message.thread_ts && message.thread_ts !== message.ts ? (message.thread_ts as string) : null;
+    if (rootTs && !(await chatHasMessage(service, opts.channelId, rootTs))) fetched.push(...(await fetchThread(slack, opts.channelId, rootTs)));
+    return storeAndProject(service, opts.channelId, channel, fetched);
+  });
+}
+
+/** A thread whose root we don't have (a reply arrived): the whole thread. Nothing if the root is already here. */
+export async function fillThreadIfRootMissing(
+  service: SupabaseClient,
+  opts: { channelId: string; threadTs: string; source: GapFillSource; slack?: WebClient }
+): Promise<GapFillResult> {
+  if (!chatSlackWritesEnabled()) return NOT_DONE;
+  const channel = await mirroredChannel(service, opts.channelId);
+  if (!channel || (await chatHasMessage(service, opts.channelId, opts.threadTs))) return NOT_DONE;
+  return run(service, claim(service, opts.source, "thread", opts.channelId, opts.threadTs), async () => {
+    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    return storeAndProject(service, opts.channelId, channel, await fetchThread(slack, opts.channelId, opts.threadTs));
+  });
+}
+
+/**
+ * What is newer than the newest message we have for this conversation (someone opened it): up to
+ * 100 top-level messages and the replies of up to 10 of their threads. The import covers the rest.
+ */
+export async function catchUpChannel(
+  service: SupabaseClient,
+  opts: { channelId: string; source: GapFillSource; slack?: WebClient }
+): Promise<GapFillResult> {
+  if (!chatSlackWritesEnabled()) return NOT_DONE;
+  const channel = await mirroredChannel(service, opts.channelId);
+  if (!channel) return NOT_DONE;
+  return run(service, claim(service, opts.source, "channel", opts.channelId, null), async () => {
+    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    const { data: newest } = await service
+      .schema("bronze")
+      .from("slack_messages")
+      .select("message_ts")
+      .eq("channel_id", opts.channelId)
+      .order("message_ts", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const oldest = newest?.message_ts ?? String(Math.floor(clock.now() / 1000) - FIRST_CATCH_UP_WINDOW_SECONDS);
+
+    const result: any = await slack.conversations.history({ channel: opts.channelId, oldest, limit: MAX_CATCH_UP_MESSAGES });
+    const fetched = ((result.messages ?? []) as SlackMsg[]).filter((m) => typeof m.ts === "string");
+    const threads = fetched.filter((m) => (m.reply_count ?? 0) > 0).slice(0, MAX_CATCH_UP_THREADS);
+    for (const root of threads) fetched.push(...(await fetchThread(slack, opts.channelId, root.ts)).filter((m) => m.ts !== root.ts));
+    return storeAndProject(service, opts.channelId, channel, fetched);
+  });
+}

@@ -44,6 +44,12 @@ vi.mock("@/app/(member)/chat/actions", () => ({
   toggleChatReaction: vi.fn(),
 }));
 vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
+// Opening a conversation schedules a catch-up with Slack after the response; it is checked in chat-gap-fill.test.ts.
+const afterCallbacks: (() => unknown)[] = [];
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => void afterCallbacks.push(cb) }));
+const catchUpChannel = vi.fn(async () => ({ claimed: false, messages: 0, reactions: 0 }));
+vi.mock("@/lib/chat/gap-fill", () => ({ catchUpChannel: (...a: unknown[]) => catchUpChannel(...(a as [])) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 
 const EMPTY_CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const EXAMPLE_VIEW = {
@@ -187,6 +193,8 @@ async function renderChannel(cid: string, search: Record<string, string> = {}) {
 
 beforeEach(() => {
   resetServerPageMocks();
+  afterCallbacks.length = 0;
+  catchUpChannel.mockClear();
   sudoMemberHasFlag = true;
   readMarker = null;
   unread = [];
@@ -475,6 +483,41 @@ describe("channel page", () => {
       await renderChannel(HOSTS);
       expect(screen.getAllByText(/Slack didn't get this message/)).toHaveLength(2);
       expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+    });
+  });
+
+  describe("catching up with Slack on open", () => {
+    const runAfter = async () => {
+      for (const cb of afterCallbacks.splice(0)) await cb();
+    };
+
+    it("schedules a catch-up of the conversation after the response, from the open conversation", async () => {
+      messages = [msg(1)];
+      await renderChannel(HOSTS);
+      expect(catchUpChannel).not.toHaveBeenCalled(); // not before the page is sent
+
+      await runAfter();
+      expect(catchUpChannel).toHaveBeenCalledWith({ service: true }, { channelId: "C_HOSTS", source: "open" });
+    });
+
+    it("doesn't, on an older page or in sudo (and never for a restricted conversation viewed in sudo)", async () => {
+      messages = [msg(1)];
+      await renderChannel(HOSTS, { before: "2026-10-05T00:00:00Z" });
+      expect(afterCallbacks).toHaveLength(0);
+      cleanup();
+
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderChannel(GENERAL);
+      await renderChannel(QUIET);
+      expect(afterCallbacks).toHaveLength(0);
+    });
+
+    it("never lets a failed catch-up reach the reader", async () => {
+      messages = [msg(1)];
+      catchUpChannel.mockRejectedValueOnce(new Error("slack down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await renderChannel(HOSTS);
+      await expect(runAfter()).resolves.toBeUndefined();
     });
   });
 
