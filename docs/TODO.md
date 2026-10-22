@@ -1041,8 +1041,8 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 
 ## Internationalization
 
-### Eastern Time Beside the Member's Zone: Remaining Displays
-Members talk about prickles in Eastern whatever their zone, so `withOrgTime` (`lib/org-time.ts`) appends "(7:00 AM ET)" to times shown in another zone. **Resolved:** upcoming rows, Events, the prickle picker, prickle details, All Prickles (table, calendar cards, commit slot labels), and attendance history (list, month grid, member view). **Still open:** the hosting schedule and its calendar picker, `lib/prickle-writing.ts`, Slack/email notification text, and the calendar's hour column. Consider a settings toggle to always show Eastern if members ask for it.
+### Secondary Time Zone: Remaining Displays
+Members talk about prickles in Eastern whatever their zone, so a member can opt in (Settings → Preferences, `user_profiles.secondary_timezone`, off by default, like Google Calendar's additional time zone) to see a second zone in parentheses beside theirs: "4:00 AM (7:00 AM ET)" (`lib/secondary-time.ts`, `components/SecondaryTimezone.tsx`). Usage is visible as the `secondary_timezone_changed` action outcome and the `settings-secondary-timezone*` click tracking. **Resolved:** upcoming rows, Events, the prickle picker, prickle details, All Prickles (table, calendar cards, commit slot labels), attendance history. **Still open:** the hosting schedule and its calendar picker, `lib/prickle-writing.ts`, Slack/email notification text, the calendar's hour column (Google Calendar shows a second column there), and a label next to the zone.
 
 ### Basic Date Format Localization (Needs Scoping)
 Dates are currently always displayed US-style (`MM/DD/YYYY`), but many/most other countries prefer `DD/MM/YYYY`. Language should stay English and money stay USD (that's all Quill & Cup charges in and speaks) — this is scoped to date display only, not full i18n.

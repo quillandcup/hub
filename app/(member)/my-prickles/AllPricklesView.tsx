@@ -8,6 +8,7 @@ import AllPricklesTable, { type TableCalendarContext } from "./AllPricklesTable"
 import AllPricklesCalendar from "./AllPricklesCalendar";
 import CommitPanel from "./CommitPanel";
 import { PillFilter } from "@/components/PillFilter";
+import { useSecondaryTimezone } from "@/components/SecondaryTimezone";
 
 type ViewMode = "table" | "calendar";
 
@@ -36,10 +37,11 @@ export default function AllPricklesView({
   calendar?: Omit<TableCalendarContext, "timeZone">;
 }) {
   const router = useRouter();
+  const secondaryZone = useSecondaryTimezone();
   const [view, setView] = useState<ViewMode>("table");
 
   // Committable slots = the recurring schedule rows (each has an upcoming occurrence).
-  const slotOptions = useMemo(() => buildSlotOptions(rows, timeZone), [rows, timeZone]);
+  const slotOptions = useMemo(() => buildSlotOptions(rows, timeZone, secondaryZone), [rows, timeZone, secondaryZone]);
   const optionByKey = useMemo(() => new Map(slotOptions.map((o) => [o.key, o])), [slotOptions]);
   const selectable = useMemo(() => new Set(optionByKey.keys()), [optionByKey]);
 

@@ -7,7 +7,7 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { withOrgTime } from "@/lib/org-time";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import { REASON_ICON } from "@/components/ReasonBadges";
 
@@ -87,6 +87,7 @@ export default function PrickleDetails({
       : userTimezonePreference;
 
   const [timezone, setTimezone] = useState(defaultTimezone);
+  const withSecondary = useWithSecondaryTime();
 
   useEffect(() => {
     setTimezone(defaultTimezone);
@@ -107,7 +108,7 @@ export default function PrickleDetails({
       minute: "2-digit",
     });
   };
-  const formatTimeWithOrg = (date: Date) => withOrgTime(formatTime(date), date, timezone);
+  const formatTimeWithOrg = (date: Date) => withSecondary(formatTime(date), date, timezone);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {

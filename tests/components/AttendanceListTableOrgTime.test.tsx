@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { SecondaryTimezoneProvider } from "@/components/SecondaryTimezone";
 import AttendanceListTable from "@/components/AttendanceListTable";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
@@ -16,16 +17,25 @@ const ATTENDANCE = [
   },
 ];
 
-const renderTable = (timezone: string) =>
-  render(<AttendanceListTable attendance={ATTENDANCE} timezone={timezone} activeListDateKey={undefined} memberId="m1" />);
+const renderTable = (timezone: string, secondary: string | null = ORG_TIMEZONE) =>
+  render(
+    <SecondaryTimezoneProvider zone={secondary}>
+      <AttendanceListTable attendance={ATTENDANCE} timezone={timezone} activeListDateKey={undefined} memberId="m1" />
+    </SecondaryTimezoneProvider>
+  );
 
-describe("AttendanceListTable Eastern time", () => {
+describe("AttendanceListTable secondary time zone", () => {
   it("shows the Eastern start beside a viewer's own zone", () => {
     renderTable("America/Los_Angeles");
     expect(screen.getByText("4:00 AM – 5:00 AM (7:00 AM ET)")).toBeInTheDocument();
   });
 
-  it("adds nothing for a viewer in the org zone", () => {
+  it("adds nothing without a secondary zone", () => {
+    renderTable("America/Los_Angeles", null);
+    expect(screen.getByText("4:00 AM – 5:00 AM")).toBeInTheDocument();
+  });
+
+  it("adds nothing for a viewer in the secondary zone", () => {
     renderTable(ORG_TIMEZONE);
     expect(screen.getByText("7:00 AM – 8:00 AM")).toBeInTheDocument();
   });

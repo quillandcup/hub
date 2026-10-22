@@ -1,6 +1,6 @@
 "use client";
 
-import { withOrgTime } from "@/lib/org-time";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
@@ -96,6 +96,7 @@ export default function AllPricklesTable({
   selection?: TableSlotSelection;
   calendar?: TableCalendarContext;
 }) {
+  const withSecondary = useWithSecondaryTime();
   const columnCount = 4 + (selection ? 1 : 0) + (calendar ? 1 : 0);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   // Grouped under day headers, so it never pages (a page break would split a day).
@@ -213,7 +214,7 @@ export default function AllPricklesTable({
                         href={`/prickles/${row.nextOccurrenceId}`}
                         className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400"
                       >
-                        {timeZone ? withOrgTime(row.timeLabel, row.nextOccurrenceStart, timeZone) : row.timeLabel}
+                        {timeZone ? withSecondary(row.timeLabel, row.nextOccurrenceStart, timeZone) : row.timeLabel}
                       </Link>
                     </td>
                     <td className="py-2 pr-2 text-slate-600 dark:text-slate-300">{row.typeName}</td>

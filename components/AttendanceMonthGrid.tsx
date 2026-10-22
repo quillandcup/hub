@@ -1,6 +1,6 @@
 "use client";
 
-import { withOrgTime } from "@/lib/org-time";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -45,6 +45,7 @@ export default function AttendanceMonthGrid({
   checkins,
   onOpenCheck,
 }: Props) {
+  const withSecondary = useWithSecondaryTime();
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
@@ -178,7 +179,7 @@ export default function AttendanceMonthGrid({
                         {prickle.prickle_types?.name || "Unknown"}
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        {withOrgTime(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)} ({duration} min)
+                        {withSecondary(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)} ({duration} min)
                       </div>
                       {prickle.host && (
                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">

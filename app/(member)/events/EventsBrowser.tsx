@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { hostShortName } from "@/lib/formatters";
-import { withOrgTime } from "@/lib/org-time";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import {
   EVENT_TYPE_LABELS,
   countUpcoming,
@@ -221,6 +221,7 @@ function EducationalSection({
   moreCount?: number;
   onSeeAll?: () => void;
 }) {
+  const withSecondary = useWithSecondaryTime();
   return (
     <section
       aria-label="Upcoming educational prickles"
@@ -248,7 +249,7 @@ function EducationalSection({
                   </p>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 text-right">
-                  {withOrgTime(fmtPrickleTime(p.startTime, timeZone), p.startTime, timeZone)}
+                  {withSecondary(fmtPrickleTime(p.startTime, timeZone), p.startTime, timeZone)}
                 </p>
               </Link>
             </li>

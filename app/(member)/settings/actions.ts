@@ -137,9 +137,40 @@ async function updateTimezonePreferenceImpl(timezone: string) {
   return { success: true };
 }
 
+/** Saves (or, with null, turns off) the member's secondary time zone, shown beside their own on prickle times. */
+async function updateSecondaryTimezoneImpl(timezone: string | null) {
+  if (timezone !== null && !isValidTimeZone(timezone)) {
+    return { error: "Choose a valid time zone" };
+  }
+
+  const supabase = await createClient();
+
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  const { error } = await supabase
+    .from("user_profiles")
+    .update({ secondary_timezone: timezone })
+    .eq("id", user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function updateTimezonePreference(...args: Parameters<typeof updateTimezonePreferenceImpl>): ReturnType<typeof updateTimezonePreferenceImpl> {
   return withAction("timezone_changed", () => updateTimezonePreferenceImpl(...args));
+}
+
+export async function updateSecondaryTimezone(...args: Parameters<typeof updateSecondaryTimezoneImpl>): ReturnType<typeof updateSecondaryTimezoneImpl> {
+  return withAction("secondary_timezone_changed", () => updateSecondaryTimezoneImpl(...args));
 }
 
 export async function revokeSession(...args: Parameters<typeof revokeSessionImpl>): ReturnType<typeof revokeSessionImpl> {

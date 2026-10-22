@@ -42,3 +42,28 @@ describe("updateTimezonePreference", () => {
     expect(await updateTimezonePreference("Europe/Dublin")).toEqual({ error: "Not authenticated" });
   });
 });
+
+describe("updateSecondaryTimezone", async () => {
+  const { updateSecondaryTimezone } = await import("@/app/(member)/settings/actions");
+
+  it("saves a zone to the member's profile, and null turns it off", async () => {
+    const sb = makeSupabase();
+    expect(await updateSecondaryTimezone("America/New_York")).toEqual({ success: true });
+    expect(sb.update).toHaveBeenCalledWith({ secondary_timezone: "America/New_York" });
+    expect(sb.eq).toHaveBeenCalledWith("id", "user-1");
+    expect(await updateSecondaryTimezone(null)).toEqual({ success: true });
+    expect(sb.update).toHaveBeenLastCalledWith({ secondary_timezone: null });
+  });
+
+  it.each(["browser", "", "Not/AZone"])("refuses %j", async (value) => {
+    const sb = makeSupabase();
+    expect(await updateSecondaryTimezone(value)).toEqual({ error: "Choose a valid time zone" });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("refuses when not signed in", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    makeSupabase();
+    expect(await updateSecondaryTimezone("America/New_York")).toEqual({ error: "Not authenticated" });
+  });
+});
