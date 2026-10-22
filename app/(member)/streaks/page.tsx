@@ -7,6 +7,7 @@ import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 import { getSlackDmLinksForMembers } from "@/lib/member-slack-links"
+import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar"
 
 export const metadata: Metadata = {
   title: "Streaks",
@@ -99,10 +100,12 @@ function SisterStreakRow({
   s,
   prickleMap,
   slackDmUrl,
+  photoUrl,
 }: {
   s: SisterStreak
   prickleMap: Map<string, PrickleInfo>
   slackDmUrl?: string
+  photoUrl: string | null
 }) {
   const isActive = s.currentStreak > 0
   const sharedPrickles = s.sharedPrickleIds
@@ -114,6 +117,10 @@ function SisterStreakRow({
     <div className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
+          {/* Decorative: the name is beside it. 24px fits the row, which the stats on the right already make about 32px tall. */}
+          <span aria-hidden="true" className="flex-shrink-0">
+            <MemberAvatar name={s.memberName} photoUrl={photoUrl} size={24} />
+          </span>
           <span
             className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
           >
@@ -283,7 +290,15 @@ export default async function StreaksPage() {
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
   // Other members' aliases/emails and bronze.slack_users are admin-only under RLS, so this is
   // resolved server-side and only the resulting DM URLs come back.
-  const slackDmByMemberId = await getSlackDmLinksForMembers(sisterStreaks.map((s) => s.memberId))
+  const sisterIds = sisterStreaks.map((s) => s.memberId)
+  const [slackDmByMemberId, photoRows] = await Promise.all([
+    getSlackDmLinksForMembers(sisterIds),
+    // Photos come from the member directory (public fields), one query for the (at most 10) rows.
+    sisterIds.length > 0
+      ? supabase.from("member_directory").select("id, photo_url").in("id", sisterIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as { id: string; photo_url: string | null }[]),
+  ])
+  const photoByMemberId = new Map(photoRows.map((r) => [r.id, r.photo_url]))
 
   // Map prickle_id → display info for shared prickle links
   const prickleMap = new Map<string, PrickleInfo>()
@@ -368,6 +383,7 @@ export default async function StreaksPage() {
                   s={s}
                   prickleMap={prickleMap}
                   slackDmUrl={slackDmByMemberId.get(s.memberId)}
+                  photoUrl={photoByMemberId.get(s.memberId) ?? null}
                 />
               ))}
               {totalSisterStreaks > sisterStreaks.length && (
