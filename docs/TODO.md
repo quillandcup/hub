@@ -520,6 +520,14 @@ Runs of `ci.yml` on `main` queue one behind another: `concurrency` at the top of
 - [ ] Guard against out-of-order deploys: with parallel tests an older commit can finish after a newer one. Each production job first checks that `$GITHUB_SHA` is still the tip of `main` (`git fetch origin main`, then compare with `git rev-parse origin/main`, or `git merge-base --is-ancestor`) and skips otherwise.
 - Check first: the Free plan caps runners at 20 concurrent jobs per account, so parallel runs compete with PR runs and CodeQL for slots and the gain shrinks when busy. `Check migration numbering` stays outside the deploy group, unchanged. Roll out in its own PR and watch the next two `main` runs (`ship-via-pr.md` step 7). Related and cheaper: run CodeQL only on `main` plus a weekly schedule instead of every PR and push.
 
+
+### Trim CodeQL Runs _(Needs Scheduling)_
+CodeQL is on GitHub's default setup (`gh api repos/quillandcup/hub/code-scanning/default-setup`: languages `actions` and `javascript-typescript`, weekly schedule), which scans every pull request and every push to `main`. Those runs share the Free plan's 20-concurrent-job pool with CI, so during a burst of merges they compete with the required checks for runners (each run is short, about 1 to 10 minutes, so this is a small share next to CI). Deferred because it trades away per-PR scanning, which is a security decision, and because the default setup has no trigger options: narrowing them means replacing it with an advanced setup.
+
+- [ ] Decide whether per-PR scans are worth the runner slots. Alternatives: scan only `main` plus the weekly schedule, or keep PR scans only for paths that change code (`app/`, `lib/`, `components/`, `.github/workflows/`) and skip docs and migrations-only PRs.
+- [ ] To change triggers: disable the default setup (Settings -> Advanced Security -> Code scanning), add `.github/workflows/codeql.yml` (GitHub's template, `on: push` to `main`, optional `pull_request` with `paths`, and `schedule`), and keep both languages. Add a repo-config note if a ruleset ever requires the check. The `Analyze (...)` jobs aren't in the required checks today (`github-repo-config.yml`), so removing them from PRs doesn't block merging.
+- Related: `Faster main CI: Serialize Only the Deploy Jobs` above. Do that one first; it is the larger part of the queueing.
+
 ---
 
 ## Security & Access Control
