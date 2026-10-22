@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import MessageBody from "@/components/chat/MessageBody";
-import { onPoke, optimisticView } from "@/lib/chat/list-events";
+import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
 
 const CTX: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const mine = (extra: Partial<ChatMessageView> = {}): ChatMessageView & { body: string } => ({
@@ -22,6 +22,11 @@ const mine = (extra: Partial<ChatMessageView> = {}): ChatMessageView & { body: s
 });
 const mount = (message = mine(), canEdit = true) => render(<MessageBody message={message} ctx={CTX} channelId="c1" canEdit={canEdit} />);
 
+const fire = (what: "edit" | "delete", messageId = "m1") =>
+  act(() => {
+    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what } }));
+  });
+
 beforeEach(() => {
   cleanup();
   refresh.mockReset();
@@ -30,10 +35,13 @@ beforeEach(() => {
 });
 
 describe("MessageBody", () => {
-  it("offers Edit and Delete only on the viewer's own sent Hub message, with editing allowed", () => {
+  it("starts editing or deleting from the menu's event, only on the viewer's own sent Hub message", () => {
     mount();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    fire("delete", "other");
+    expect(screen.queryByText(/Delete this message\?/)).not.toBeInTheDocument();
+    fire("delete");
+    expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
 
     for (const [message, canEdit] of [
       [mine({ mine: false }), true], // someone else's
@@ -44,7 +52,8 @@ describe("MessageBody", () => {
     ] as const) {
       cleanup();
       mount(message, canEdit);
-      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+      fire("edit");
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       expect(screen.getByText("first draft")).toBeInTheDocument();
     }
   });
@@ -55,7 +64,7 @@ describe("MessageBody", () => {
     const off = onPoke("c1", poked);
     mount();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     const box = screen.getByRole("textbox", { name: "Edit message" });
     expect(box).toHaveValue("first draft");
     await userEvent.clear(box);
@@ -72,23 +81,23 @@ describe("MessageBody", () => {
   it("falls back to a page refresh when no live conversation is open", async () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it("cancels with Escape or Cancel, and saves nothing for unchanged or empty text", async () => {
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), " more{Escape}");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "{Enter}"); // unchanged
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.clear(screen.getByRole("textbox"));
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -98,7 +107,7 @@ describe("MessageBody", () => {
   it("keeps the editor open with the reason when the edit is refused", async () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: false, error: "That message is no longer in Slack." });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("no longer in Slack");
@@ -106,29 +115,41 @@ describe("MessageBody", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("asks before deleting, then shows the tombstone at once", async () => {
+  it("asks before deleting, then removes it at once", async () => {
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fire("delete");
     expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
     expect(deleteChatMessage).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteChatMessage).toHaveBeenCalledWith("m1"));
-    expect(await screen.findByText("This message was deleted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("This message was deleted.")).not.toBeInTheDocument());
     expect(screen.queryByText("first draft")).not.toBeInTheDocument();
   });
 
   it("keeps the message when 'Keep' is chosen or Slack won't delete it", async () => {
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fire("delete");
     await userEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: false, error: "Slack won't let this message be deleted." });
+    fire("delete");
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await userEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack won't let this message be deleted.");
     expect(screen.getByText("first draft")).toBeInTheDocument();
+  });
+
+  it("hides the message's row in the feed at once when it is deleted", async () => {
+    vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
+    const row = document.createElement("article");
+    row.id = "m-m1";
+    document.body.appendChild(row);
+    mount();
+    fire("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row.style.display).toBe("none"));
+    row.remove();
   });
 });

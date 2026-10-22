@@ -347,14 +347,16 @@ describe("channel page", () => {
     expect(within(first).getByText("world").tagName).toBe("STRONG");
     expect(within(first).getByText("@Gale Prickleton")).toBeInTheDocument();
     const chips = within(first).getAllByRole("listitem").map((li) => li.textContent);
-    expect(chips).toEqual(["🎉 2", "👀 1"]);
+    expect(chips.map((c) => c?.replace(/^.*reacted with :[a-z_]+:/, ""))).toEqual(["🎉 2", "👀 1"]);
+    expect(chips[0]).toContain("You (click to remove) and Gale Prickleton reacted with :tada:");
     expect(within(first).getByRole("link", { name: /2 replies/ })).toHaveAttribute("href", `/chat/${GENERAL}?thread=${id(101)}`);
     // The author's photo, and one avatar per distinct replier (Fern has no photo: initials).
     expect(first.querySelectorAll('img[src="https://photos.example.test/gale.jpg"]').length).toBeGreaterThanOrEqual(1);
     const stack = within(first).getByRole("link", { name: /2 replies/ }).querySelectorAll("[title]");
     expect([...stack].map((el) => el.getAttribute("title"))).toEqual(["Fern", "Gale Prickleton"]);
 
-    expect(within(document.getElementById(`m-${id(102)}`)!).getByText("This message was deleted.")).toBeInTheDocument();
+    expect(document.getElementById(`m-${id(102)}`)).toBeNull();
+    expect(screen.queryByText("This message was deleted.")).toBeNull();
     expect(within(document.getElementById(`m-${id(103)}`)!).getByText("You can't read this message.")).toBeInTheDocument();
 
     const fromApp = document.getElementById(`m-${id(104)}`)!;
@@ -440,12 +442,12 @@ describe("channel page", () => {
     it("offers reactions only with the chat_posting flag, and in a public channel the member hasn't joined", async () => {
       messages = [msg(1)];
       await renderChannel(GENERAL);
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
       cleanup();
 
       vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       await renderChannel(GENERAL);
-      expect(screen.getByRole("button", { name: "Add reaction" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add reaction…" })).toBeInTheDocument();
     });
 
     it("offers no message box in a public channel the member hasn't joined, and nothing in sudo", async () => {
@@ -458,7 +460,7 @@ describe("channel page", () => {
       signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
       await renderChannel(HOSTS);
       expect(composer()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
     });
 
     it("offers a reply box in a thread whose root is in Slack, and none while the root is still sending", async () => {

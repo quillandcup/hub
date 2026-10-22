@@ -94,3 +94,6 @@ export function optimisticView(opts: {
     system: false,
   };
 }
+
+/** Fired on window by a message's menu to start editing or deleting it; MessageBody listens. */
+export const MESSAGE_CHANGE_EVENT = "chat-message-change";

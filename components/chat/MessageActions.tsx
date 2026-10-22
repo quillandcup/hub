@@ -4,9 +4,52 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ReactionPicker, useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
+import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
 
 const buttonClass =
-  "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-base text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+  "group/tip relative flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800";
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+/** A smiley with a small + at the top right, like Slack's add-reaction. */
+function AddReactionIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M20 11.5A8.5 8.5 0 1 1 12.5 3.1" />
+      <path d="M8.5 14a4 4 0 0 0 7 0" />
+      <path d="M9 9.5h.01M14.5 10.5h.01" />
+      <path d="M18 2v5M15.5 4.5h5" />
+    </svg>
+  );
+}
+
+function ThreadIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12Z" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg {...iconProps} fill="currentColor" stroke="none">
+      <circle cx="12" cy="5.5" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="12" cy="18.5" r="1.75" />
+    </svg>
+  );
+}
 
 /** Styled tooltip for a `group/tip` button; the browser's `title` tooltip looks out of place. Hidden from assistive tech since the button has an aria-label. */
 function Tip({ children }: { children: React.ReactNode }) {
@@ -33,6 +76,7 @@ export default function MessageActions({
   custom,
   canReact,
   canReply,
+  canChange = false,
 }: {
   channelId: string;
   messageId: string;
@@ -42,6 +86,8 @@ export default function MessageActions({
   canReact: boolean;
   /** Offer "Reply in thread" (not inside a thread, not for a message still being sent). */
   canReply: boolean;
+  /** Offer Edit and Delete (the viewer's own Hub message); MessageBody does the work, told by an event. */
+  canChange?: boolean;
 }) {
   const [open, setOpen] = useState<"react" | "more" | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -100,13 +146,14 @@ export default function MessageActions({
             onClick={() => setOpen(open === "react" ? null : "react")}
             className={buttonClass}
           >
-            ☺
-            <Tip>Add reaction</Tip>
+            <AddReactionIcon />
+          <Tip>Add reaction</Tip>
           </button>
           {open === "react" && (
             <ReactionPicker
               custom={custom}
               onPick={(name) => toggle(name, () => setOpen(null))}
+              onClose={() => setOpen(null)}
               className="absolute right-0 top-full z-30 mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow dark:border-slate-700 dark:bg-slate-900"
             />
           )}
@@ -120,7 +167,7 @@ export default function MessageActions({
           data-track="chat-hover-reply-in-thread"
           className={buttonClass}
         >
-          💬
+          <ThreadIcon />
           <Tip>Reply in thread</Tip>
         </Link>
       )}
@@ -134,7 +181,7 @@ export default function MessageActions({
           onClick={() => setOpen(open === "more" ? null : "more")}
           className={buttonClass}
         >
-          ⋮
+          <MoreIcon />
           <Tip>More actions</Tip>
         </button>
         {open === "more" && (
@@ -154,6 +201,38 @@ export default function MessageActions({
                 Copy link
               </button>
             </li>
+            {canChange && body && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-edit"
+                  onClick={() => {
+                    setOpen(null);
+                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "edit" } }));
+                  }}
+                  className="block w-full px-3 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Edit message
+                </button>
+              </li>
+            )}
+            {canChange && (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-track="chat-menu-delete"
+                  onClick={() => {
+                    setOpen(null);
+                    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what: "delete" } }));
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Delete message
+                </button>
+              </li>
+            )}
             {body && (
               <li role="none">
                 <button

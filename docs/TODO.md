@@ -734,6 +734,12 @@ Save unsent message text per conversation (and per thread) in Hub chat, so leavi
 ### Chat Message Menu: Edit/Delete And The Rest _(Needs Scheduling)_
 The ⋮ in a message's hover bar (`components/chat/MessageActions.tsx`) has only Copy link and Copy message. Left for later: (1) Edit and Delete are still inline buttons under a member's own message (`components/chat/MessageBody.tsx`); move them into the menu, which means lifting the view/edit/confirm-delete state out of `MessageBody` so the menu can start it. (2) Slack's other entries aren't supported: Mark unread, Add to saved, Add a reminder, Get notified about new replies, Pin to channel, Connect to apps, and the hover bar's Forward and Add to-do. Each needs its own feature first (the read marker only moves when the reader leaves a conversation, there are no saved items or pins), so add them one at a time as those land.
 
+### Chat Emoji Picker: Skin Tones And Keyboard Grid _(Needs Scheduling)_
+The reaction picker (`components/chat/EmojiPicker.tsx`, `lib/chat/emoji-catalog.ts`) lists base emoji only: no skin-tone choice (Slack names a toned reaction `+1::skin-tone-3`; `unicodeEmoji` in `lib/chat/emoji.ts` already strips the suffix on display, so it needs a tone setting per member plus the suffix on pick), no arrow-key movement through the grid (Tab, Escape and the search box work), and the custom emoji grid relies on `content-visibility` rather than true virtualisation (check with a few thousand emoji). Recents live in localStorage per browser, not per member.
+
+### Chat Reply Count Isn't Decremented When A Reply Is Deleted _(Needs Scheduling)_
+Deleted messages now vanish from the chat feed (`buildMessageViews` in `lib/chat/load.ts` drops rows with `deleted_at`), but a parent's `reply_count` (and the "N replies" link built from it) is never decremented when one of its replies is deleted, so it can show more replies than the thread panel lists. A deleted parent that still has replies also disappears from the feed, so its thread is unreachable from there. Deferred because it needs a decision on whether the count is stored or derived: preferably derive it from live replies (`deleted_at IS NULL`) or recompute it in the delete path (`chat_delete_message`, `supabase/migrations/20261130000000_chat_edit_delete.sql`, and the Slack-side delete in `/api/process/chat`), with a pgTAP test. Also check the sidebar unread logic in `components/chat/ChatSidebar.tsx` against deleted messages.
+
 ### Chat Thread Replies Aren't Grouped _(Needs Scheduling)_
 In the conversation, a message from the same person within five minutes of the previous one drops its avatar and name and shows its time on hover (`groupByDay` in `lib/chat/days.ts`, used by `components/chat/MessageList.tsx`). Replies in a thread panel (`components/chat/ThreadList.tsx`) never get that, so every reply repeats the avatar and name. Reuse `groupByDay`'s follow-up rule there (no day markers) and pass `compact` to `MessageItem`.
 
@@ -887,6 +893,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ---
 
 ## UI Enhancements
+
+### Chat composer: drop zone on the profile panel and lightbox for sent attachments
+Files can be dropped on the conversation column and the thread panel (`components/chat/useFileDrop.ts`, used by `Composer`), but not onto a profile panel (no composer there) and the drop target is found from the composer's DOM position (`closest("aside")` or its parent) instead of being passed in. Deferred as the page (`app/(member)/chat/[id]/page.tsx`) was out of scope; a small `ChatDropZone` wrapper there would be cleaner. **Resolved:** sent images in `MessageFiles` now open in `components/ImageLightbox.tsx`; the author's file removal (`chat_delete_file`) has a pgTAP test (`supabase/tests/database/chat_delete_file.test.sql`). **Still open:** pending uploads show no progress bar.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
@@ -1070,6 +1079,13 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 
 ### Member Hover Card: Local Time, Touch, More Places _(Needs Scheduling)_
 `components/member/MemberHoverCard.tsx` (profile at a glance on hover, shared by chat authors, the streaks page and the Big Sister cards) is deliberately small. Left for later: (1) Slack's card shows the person's local time and offset ("9:33 PM local time"); the Hub has no readable per-member time zone (`user_profiles.timezone_preference` is private and often `"browser"`), so it needs a decision on what members agree to share, then a field on `member_directory`; (2) it is hover and keyboard-focus only, so on a touch screen a tap follows the name's link and the streaks page no longer has a direct Slack shortcut there (a tap-to-open variant, or a Message action on the profile page); (3) other places that name another member (the members directory, prickle attendee lists, hosts, the dashboard, mentions inside chat messages, `<@U...>` tokens resolve to names in `lib/chat/names.ts`) should wrap their names in it; (4) "Message" is still a Slack DM link until Hub DMs exist, see "Big Sisters: message in the Hub".
+
+### Chat attachments: wire-up, pgTAP, lightbox swap, zip
+- `MessageFiles` now takes `canDelete`; `MessageItem` must pass `canDelete={message.mine}` (it was off limits for the change that added this). Until then the remove and Delete file controls never show.
+- `chat_delete_file` (migration 20261208000000) has no pgTAP test yet (owner only, other member refused, deleted message refused, file dropped from the list, last file leaves `files` null). Add to `supabase/tests/database/`.
+- The built-in enlarge overlay in `MessageFiles` should become `components/ImageLightbox` once that exists.
+- "Download all" triggers one download per file (browsers may ask permission for multiple downloads); a zip route would be nicer. Deleting a file removes it from the Hub list only for Hub-written messages; Slack-origin messages' files are rebuilt from Bronze.
+- Deleted files stay in the private bucket and Bronze; no cleanup yet.
 
 ## Internationalization
 

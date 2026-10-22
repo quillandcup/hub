@@ -8,7 +8,7 @@ const { update, remove, config, getSlackUserToken } = vi.hoisted(() => ({
 }));
 vi.mock("@slack/web-api", () => ({
   WebClient: vi.fn(function (token?: string) {
-    return { chat: { update: (a: unknown) => update(a, token), delete: (a: unknown) => remove(a, token) } };
+    return { files: { delete: (a: unknown) => remove(a, token) }, chat: { update: (a: unknown) => update(a, token), delete: (a: unknown) => remove(a, token) } };
   }),
 }));
 vi.mock("@/lib/config", async (original) => ({
@@ -22,7 +22,7 @@ vi.mock("@/lib/slack-connect", async (original) => ({
   getSlackUserToken: (...args: unknown[]) => getSlackUserToken(...args),
 }));
 
-import { deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
+import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { hubMessageMetadata } from "@/lib/chat/slack-post";
 
 const ROW = {
@@ -164,5 +164,34 @@ describe("deleteChatMessageInSlack", () => {
     row = { ...ROW };
     remove.mockRejectedValueOnce({ data: { error: "cant_delete_message" } });
     await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: false, error: "Slack won't let this message be deleted." });
+  });
+});
+
+describe("deleteChatFileInSlack", () => {
+  const FILE = { ...DELETE, fileId: "F1" };
+  it("deletes the file as whoever posted the message", async () => {
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toEqual({ ok: true });
+    expect(remove).toHaveBeenCalledWith({ file: "F1" }, "xoxb-test");
+  });
+  it("treats a missing file or an unsent message as done, and reports other failures", async () => {
+    remove.mockRejectedValueOnce({ data: { error: "file_not_found" } });
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toEqual({ ok: true });
+    row = { ...ROW, slack_ts: null };
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toEqual({ ok: true });
+    row = { ...ROW };
+    remove.mockRejectedValueOnce({ data: { error: "boom" } });
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
+    remove.mockResolvedValueOnce({ ok: false });
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
+    remove.mockRejectedValueOnce(new Error("network down"));
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
+    row = { ...ROW, author_member_id: "someone-else" };
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
+  });
+  it("asks to reconnect Slack when the member's token is dead", async () => {
+    row = { ...ROW, posted_via: "user_token" };
+    remove.mockRejectedValueOnce({ data: { error: "invalid_auth" } });
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("Reconnect Slack") });
+    expect(rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "member-fern" });
   });
 });
