@@ -48,7 +48,26 @@ export default function MessageItem({
   /** The reader's time zone, for every time shown. */
   timeZone?: string;
 }) {
-  if (message.contentState === "deleted") return null;
+  if (message.contentState === "deleted") {
+    // Never a tombstone, but a deleted thread root with live replies keeps its link to them.
+    if (inThread || message.replyCount <= 0) return null;
+    return (
+      <article className="-mx-2 px-2 pb-1 pt-2" id={`m-${message.id}`}>
+        <Link
+          href={`/chat/${channelId}?thread=${message.id}`}
+          data-track="chat-open-thread"
+          scroll={false}
+          className="inline-flex items-center gap-2 text-xs text-plum-600 dark:text-plum-400 hover:underline"
+        >
+          <AvatarStack people={message.replyAuthors} size={20} />
+          <span>
+            {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
+            {message.lastReplyAt ? ` · last ${formatChatTime(message.lastReplyAt, timeZone)}` : ""}
+          </span>
+        </Link>
+      </article>
+    );
+  }
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   const sent = !isPendingId(message.id);
   const reactable = canReact && message.contentState === "ok" && sent;

@@ -48,6 +48,17 @@ describe("buildMessageViews", () => {
     expect(out.views).toEqual([]);
   });
 
+  it("keeps a deleted thread root that still has replies, with no content", async () => {
+    const out = await buildMessageViews(
+      fakeSupabase({}),
+      { slackChannelId: null },
+      [row("m1", { deleted_at: "2026-10-02T00:00:00Z", reply_count: 2 })],
+      "member-fern"
+    );
+    expect(out.views).toHaveLength(1);
+    expect(out.views[0]).toMatchObject({ contentState: "deleted", body: null, replyCount: 2 });
+  });
+
   it("names the other people who reacted, from the directory and from Slack, and not the viewer", async () => {
     names.userNames = { U_SLACK: "Rae & <Co>" };
     const supabase = fakeSupabase({
