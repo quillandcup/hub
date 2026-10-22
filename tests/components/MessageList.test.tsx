@@ -62,6 +62,22 @@ describe("MessageList", () => {
     expect(notice).not.toHaveTextContent("Someone on Slack");
   });
 
+  it("names the author on a notice whose text doesn't, and shows the time without the date", () => {
+    render(
+      <MessageList
+        channelId="c1"
+        views={[view(1, { system: true, body: "has renamed the channel from \"a\" to \"b\"", authorName: "Ania Ray" })]}
+        ctx={CTX}
+        olderBefore={null}
+        timeZone="UTC"
+      />
+    );
+    const notice = screen.getByRole("article");
+    expect(notice).toHaveTextContent('Ania Ray renamed the channel from "a" to "b"');
+    expect(notice).toHaveTextContent("12:01 AM");
+    expect(notice).not.toHaveTextContent("Oct");
+  });
+
   it("loads older messages above, from the cursor, and stops offering them at the start", async () => {
     vi.mocked(loadOlderChat).mockResolvedValueOnce({ views: [view(0, { body: "from the next page" })], ctx: CTX, olderBefore: null });
     render(<MessageList channelId="c1" views={[view(1), view(2)]} ctx={CTX} olderBefore="2026-10-01T00:01:00.000Z" />);
