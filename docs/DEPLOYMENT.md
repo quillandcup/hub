@@ -1,5 +1,61 @@
 # Deployment Guide
 
+## How production deploys (the CI pipeline)
+
+Production is deployed by one GitHub Actions workflow (`.github/workflows/ci.yml`) on every
+push to `main`. Vercel's own git deploys are **off for `main`** (`git.deploymentEnabled.main:
+false` in `vercel.json`), so nothing reaches production any other way. The Step 2 sections
+below describe first-time project setup; they are not how code ships day to day.
+
+**Jobs on a push to `main`, in order:**
+
+1. `changes` (Detect docs-only change): if every changed file is documentation, the jobs
+   below are skipped and nothing deploys (`.claude/rules/docs-only-changes.md`).
+2. `check-migrations`, `test-unit`, `test-db` run in parallel. All three must pass.
+3. `push-migrations` pushes pending Supabase migrations and the Supabase config to
+   production. It runs before the deploy so code that needs a new table or column never goes
+   live before it exists.
+4. `deploy` runs `vercel pull`, `vercel build --prod` and `vercel deploy --prebuilt --prod`
+   for the exact commit that just passed. A failed build or deploy fails the workflow.
+5. `push-slack-manifest` and `push-vercel-config` run after `deploy`.
+
+`main` runs one at a time. A run still waiting when a newer merge lands is **cancelled**, and
+the newer run contains its commit, so a cancelled run is not a failure but is not a deploy
+either. Pull requests get `Coverage report` as well, and Vercel's git integration still
+builds a **Preview** for each branch.
+
+### Seeing what is in production
+
+Three records, all written by the `deploy` job:
+
+- **GitHub deployment record**: the job declares `environment: production`, so each deploy
+  creates a record for the commit (Repo → Deployments → Production, or
+  `gh api "repos/{owner}/{repo}/deployments?sha=<sha>"`). It moves from `queued` to
+  `in_progress` to `success` or `failure`, and links to the canonical URL (`appUrl` in
+  `app.config.ts`), not the deployment's own `hub-<hash>.vercel.app` address. The newest
+  successful one carries the **Active** badge.
+- **The `production` tag**: after a successful deploy the job force-moves the tag to the
+  deployed commit. `git log --decorate` shows `(tag: production)` there; everything below it
+  is live. Only a successful deploy moves it. A plain `git fetch` won't update a tag that
+  exists locally, so fetch it with
+  `git fetch origin +refs/tags/production:refs/tags/production`.
+- **`git live` and `git undeployed`** are personal git aliases (not in the repo, since git
+  config is per machine), built on the tag. `git live` prints the deployed commit,
+  `git live -v` adds how many commits on `main` are not yet live, and `git live <sha>` says
+  whether one commit is live. `git undeployed` lists the commits not yet live. Pass the
+  squash commit on `main`, not a PR branch commit (that one never reaches `main`).
+
+Things that look wrong but aren't:
+
+- **Docs-only commits** never deploy, so they stay "not yet live" until a code commit
+  deploys after them.
+- **The `Production` environment holds two spellings.** GitHub treats `Production` and
+  `production` as one environment. The older records (spelled `Production`, deployed by
+  Vercel's git integration before the switch to CI deploys) and ours are in the same list. Don't delete
+  the environment: that is the one the `deploy` job writes to.
+- **A record can lag.** The job's last status arrives when it finishes, so a deploy that
+  just succeeded can read `in_progress` for a minute.
+
 ## Security Status ✅
 
 Before deploying, all critical security measures are in place:
@@ -146,6 +202,9 @@ vercel
 ```
 
 ### 2.3 Or Deploy via GitHub
+
+For a brand-new project only. Once the CI pipeline above is set up, `main` deploys only
+through it, and Vercel's git deploys stay off for `main`.
 
 1. Push your code to GitHub:
    ```bash
