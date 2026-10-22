@@ -83,20 +83,23 @@ describe("Streaks: a sister streak's flame", () => {
   /** The row's name, avatar and flame slot, in the order they appear. */
   function rowParts() {
     const name = screen.getByText("Gale Prickleton");
-    // The name is a link inside the hover-card wrapper, which is the avatar's next sibling.
-    const hoverWrapper = name.parentElement!;
+    // Avatar and name share one link, inside the hover-card wrapper that follows the flame slot.
+    const link = name.parentElement!;
+    const hoverWrapper = link.parentElement!;
     const group = hoverWrapper.parentElement!;
-    const [flameSlot, avatar] = Array.from(group.children);
-    return { name, hoverWrapper, group, flameSlot, avatar };
+    const flameSlot = group.firstElementChild!;
+    const avatar = link.firstElementChild!;
+    return { name, link, hoverWrapper, group, flameSlot, avatar };
   }
 
   it("sits left of the avatar, which is next to the name", async () => {
     await renderServerPage(StreaksPage, {});
-    const { hoverWrapper, group, flameSlot, avatar } = rowParts();
+    const { name, hoverWrapper, group, flameSlot, avatar } = rowParts();
 
     expect(flameSlot).toHaveTextContent("🔥");
     expect(avatar).toHaveTextContent("GP");
-    expect(avatar.nextElementSibling).toBe(hoverWrapper);
+    expect(avatar.nextElementSibling).toBe(name);
+    expect(flameSlot.nextElementSibling).toBe(hoverWrapper);
     expect(group.firstElementChild).toBe(flameSlot);
   });
 

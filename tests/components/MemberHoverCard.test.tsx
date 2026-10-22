@@ -108,6 +108,26 @@ describe("MemberHoverCard", () => {
     expect(track).not.toHaveBeenCalled();
   });
 
+  it("given a name, renders avatar and name as one profile link and opens from the avatar", async () => {
+    getMemberHoverCard.mockResolvedValue({ card: card({ id: "mbr_hover_7" }) });
+    render(<MemberHoverCard memberId="mbr_hover_7" name="Ada Example" photoUrl={null} avatarSize={24} surface="streaks" trackName="t" />);
+    const link = screen.getByRole("link", { name: "Ada Example" });
+    expect(link).toHaveAttribute("href", "/members/mbr_hover_7");
+    const avatar = screen.getByText("AE");
+    expect(link).toContainElement(avatar);
+
+    await hover("AE");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Hedgie since March 2025");
+  });
+
+  it("given a name and no avatar size, shows the name alone", async () => {
+    getMemberHoverCard.mockResolvedValue({ card: card({ id: "mbr_hover_8" }) });
+    render(<MemberHoverCard memberId="mbr_hover_8" name="Ada Example" surface="big_sisters" />);
+    expect(screen.queryByText("AE")).toBeNull();
+    await hover("Ada Example");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("fetches a member once per page load", async () => {
     getMemberHoverCard.mockResolvedValue({ card: card({ id: "mbr_hover_6" }) });
     const { unmount } = render(<MemberHoverCard memberId="mbr_hover_6" surface="chat"><span>Ada Example</span></MemberHoverCard>);

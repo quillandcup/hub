@@ -22,7 +22,11 @@ function Person({
 }) {
   return (
     <div className="flex items-center gap-4">
-      <MemberAvatar name={partner.name} photoUrl={partner.photoUrl} size={48} />
+      <MemberHoverCard memberId={partner.memberId} surface="big_sisters">
+        <Link data-track="big-sister-open-partner-avatar" href={`/members/${partner.memberId}`} aria-hidden="true" tabIndex={-1}>
+          <MemberAvatar name={partner.name} photoUrl={partner.photoUrl} size={48} />
+        </Link>
+      </MemberHoverCard>
       <div className="min-w-0 flex-1">
         <MemberHoverCard memberId={partner.memberId} surface="big_sisters">
           <Link data-track="big-sister-open-partner"

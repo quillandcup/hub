@@ -89,11 +89,25 @@ function CardBody({ card }: { card: MemberHoverCardData }) {
 export default function MemberHoverCard({
   memberId,
   surface,
+  name,
+  photoUrl = null,
+  avatarSize,
+  nameClassName = "",
+  trackName,
   children,
 }: {
   memberId: string;
   surface: Surface;
-  children: ReactNode;
+  /** Give a name to have the card render the member's avatar and name as one link to their profile, with the card opening from either. */
+  name?: string;
+  photoUrl?: string | null;
+  /** Avatar diameter in px, next to the name; leave out for the name alone. */
+  avatarSize?: number;
+  nameClassName?: string;
+  /** The profile link's `data-track` name. */
+  trackName?: string;
+  /** What to wrap instead, for layouts that split the avatar and name (chat's avatar column, a name above a caption). */
+  children?: ReactNode;
 }) {
   const id = useId();
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -209,7 +223,18 @@ export default function MemberHoverCard({
         if (!cardRef.current?.contains(e.relatedTarget as Node | null)) scheduleClose();
       }}
     >
-      {children}
+      {name !== undefined ? (
+        <Link data-track={trackName} href={`/members/${memberId}`} className="flex min-w-0 items-center gap-2">
+          {avatarSize !== undefined && (
+            <span aria-hidden="true" className="flex-shrink-0">
+              <MemberAvatar name={name} photoUrl={photoUrl} size={avatarSize} />
+            </span>
+          )}
+          <span className={`truncate hover:underline ${nameClassName}`}>{name}</span>
+        </Link>
+      ) : (
+        children
+      )}
       {open &&
         createPortal(
           <div
