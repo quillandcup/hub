@@ -46,20 +46,26 @@ describe("MessageItem actions menu", () => {
 });
 
 describe("MessageItem deleted messages", () => {
-  it("shows nothing for a deleted message without replies, or inside a thread", () => {
+  it("shows nothing for a deleted message without replies, in the feed or a thread", () => {
     const { container } = mount(base({ contentState: "deleted", body: null, replyCount: 0 }));
     expect(container).toBeEmptyDOMElement();
     cleanup();
-    const inThread = render(<MessageItem message={base({ contentState: "deleted", body: null, replyCount: 2 })} ctx={CTX} channelId="c1" inThread />);
+    const inThread = render(<MessageItem message={base({ contentState: "deleted", body: null, replyCount: 0 })} ctx={CTX} channelId="c1" inThread />);
     expect(inThread.container).toBeEmptyDOMElement();
   });
 
-  it("keeps only the replies link for a deleted root that has replies, with no tombstone", () => {
+  it("shows a tombstone and the replies link for a deleted root that has replies", () => {
     mount(base({ contentState: "deleted", body: null, replyCount: 1, lastReplyAt: null }));
+    expect(screen.getByText("This message was deleted.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /1 reply/ })).toHaveAttribute("href", expect.stringContaining("thread="));
-    expect(screen.queryByText(/deleted/i)).not.toBeInTheDocument();
     cleanup();
     mount(base({ contentState: "deleted", body: null, replyCount: 3, lastReplyAt: "2026-10-02T00:00:00Z" }));
     expect(screen.getByRole("link", { name: /3 replies · last/ })).toBeInTheDocument();
+  });
+
+  it("shows the tombstone without a replies link as the thread's first message", () => {
+    render(<MessageItem message={base({ contentState: "deleted", body: null, replyCount: 2 })} ctx={CTX} channelId="c1" inThread />);
+    expect(screen.getByText("This message was deleted.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

@@ -743,7 +743,7 @@ The ⋮ in a message's hover bar (`components/chat/MessageActions.tsx`) has only
 **Still open:** true virtualisation if a workspace passes tens of thousands of custom emoji; toned emoji inside message text (`:name::skin-tone-N:` still renders untoned); recents live in localStorage per browser, not per member.
 
 ### Chat Reply Count Isn't Decremented When A Reply Is Deleted _(Mostly resolved)_
-**Resolved:** `reply_count` and `last_reply_at` already exclude deleted replies in every path (`chat_delete_message`, the reprocess window and the single-message projection in `20261204000000_chat_author_follows_matching.sql`); prod check: 763 thread roots, none mismatched, so no backfill. A deleted root that still has live replies now stays in the feed as just its replies link (no tombstone, no content), so the thread is reachable (`buildMessageViews`, `MessageItem`).
+**Resolved:** `reply_count` and `last_reply_at` already exclude deleted replies in every path (`chat_delete_message`, the reprocess window and the single-message projection in `20261204000000_chat_author_follows_matching.sql`); prod check: 763 thread roots, none mismatched, so no backfill. A deleted root that still has live replies now stays in the feed as "This message was deleted." with its replies link (and heads the thread panel the same way), so the thread is reachable; a deleted message without replies is not shown (`buildMessageViews`, `MessageItem`).
 
 **Still open:** the sidebar's realtime unread bump (`components/chat/ChatSidebar.tsx`) ignores deleted inserts but never decrements when an already-counted message is deleted later; the badge corrects on the next load (`chat_unread_counts` filters `deleted_at`).
 
