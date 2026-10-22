@@ -1,5 +1,6 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import MemberHoverCard from "@/components/member/MemberHoverCard";
 import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageActions from "@/components/chat/MessageActions";
@@ -95,9 +96,11 @@ export default function MessageItem({
         {!compact && (
           <header className="flex items-baseline gap-2 text-sm">
             {message.authorMemberId ? (
-              <Link href={profileHref} scroll={false} data-track="chat-message-author" className="font-semibold hover:underline">
-                {message.authorName}
-              </Link>
+              <MemberHoverCard memberId={message.authorMemberId} surface="chat">
+                <Link href={profileHref} scroll={false} data-track="chat-message-author" className="font-semibold hover:underline">
+                  {message.authorName}
+                </Link>
+              </MemberHoverCard>
             ) : (
               <span className="font-semibold">{message.authorName}</span>
             )}

@@ -98,6 +98,12 @@ export const EVENTS = {
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
 
   /**
+   * A member's profile-at-a-glance opened from their name (components/member/MemberHoverCard.tsx):
+   * `surface` is the page it was on, `has_message` whether the card offered a Message button.
+   */
+  member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
+
+  /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`
    * whether it worked, `detail` a short word when "worked" needs qualifying (a wheel spin that found
    * nobody). Recorded by the server, in the visit that made the request and only for visitors who

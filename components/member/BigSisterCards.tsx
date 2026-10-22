@@ -1,5 +1,6 @@
 import Link from "next/link";
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import MemberHoverCard from "@/components/member/MemberHoverCard";
 import type { MentorshipPartner, MyMentorships } from "@/lib/my-mentorship";
 import ReasonForm from "@/app/(member)/big-sisters/ReasonForm";
 import { parseDateOnly } from "@/lib/member-tenure";
@@ -23,12 +24,14 @@ function Person({
     <div className="flex items-center gap-4">
       <MemberAvatar name={partner.name} photoUrl={partner.photoUrl} size={48} />
       <div className="min-w-0 flex-1">
-        <Link data-track="big-sister-open-partner"
-          href={`/members/${partner.memberId}`}
-          className="text-base font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
-        >
-          {partner.name}
-        </Link>
+        <MemberHoverCard memberId={partner.memberId} surface="big_sisters">
+          <Link data-track="big-sister-open-partner"
+            href={`/members/${partner.memberId}`}
+            className="text-base font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400"
+          >
+            {partner.name}
+          </Link>
+        </MemberHoverCard>
         <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>
       </div>
       {slackLink && (

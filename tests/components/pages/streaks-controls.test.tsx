@@ -15,7 +15,6 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ from: () => ({ select: () => ({ data: [] }) }) }) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "UTC" }));
-vi.mock("@/lib/member-slack-links", () => ({ getSlackDmLinksForMembers: async () => new Map() }));
 
 let SISTER = {
   memberId: "member-gale",
@@ -84,18 +83,20 @@ describe("Streaks: a sister streak's flame", () => {
   /** The row's name, avatar and flame slot, in the order they appear. */
   function rowParts() {
     const name = screen.getByText("Gale Prickleton");
-    const group = name.parentElement!;
+    // The name is a link inside the hover-card wrapper, which is the avatar's next sibling.
+    const hoverWrapper = name.parentElement!;
+    const group = hoverWrapper.parentElement!;
     const [flameSlot, avatar] = Array.from(group.children);
-    return { name, group, flameSlot, avatar };
+    return { name, hoverWrapper, group, flameSlot, avatar };
   }
 
   it("sits left of the avatar, which is next to the name", async () => {
     await renderServerPage(StreaksPage, {});
-    const { name, group, flameSlot, avatar } = rowParts();
+    const { hoverWrapper, group, flameSlot, avatar } = rowParts();
 
     expect(flameSlot).toHaveTextContent("🔥");
     expect(avatar).toHaveTextContent("GP");
-    expect(avatar.nextElementSibling).toBe(name);
+    expect(avatar.nextElementSibling).toBe(hoverWrapper);
     expect(group.firstElementChild).toBe(flameSlot);
   });
 

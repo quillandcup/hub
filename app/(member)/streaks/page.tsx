@@ -6,8 +6,8 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getMemberDisplayName } from "@/lib/member-display-name"
-import { getSlackDmLinksForMembers } from "@/lib/member-slack-links"
 import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar"
+import MemberHoverCard from "@/components/member/MemberHoverCard"
 
 export const metadata: Metadata = {
   title: "Streaks",
@@ -99,12 +99,10 @@ function formatShortDate(iso: string): string {
 function SisterStreakRow({
   s,
   prickleMap,
-  slackDmUrl,
   photoUrl,
 }: {
   s: SisterStreak
   prickleMap: Map<string, PrickleInfo>
-  slackDmUrl?: string
   photoUrl: string | null
 }) {
   const isActive = s.currentStreak > 0
@@ -125,29 +123,15 @@ function SisterStreakRow({
           <span aria-hidden="true" className="flex-shrink-0">
             <MemberAvatar name={s.memberName} photoUrl={photoUrl} size={24} />
           </span>
-          <span
-            className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
-          >
-            {s.memberName}
-          </span>
-          {slackDmUrl && (
-            <Link data-track="streaks-message-on-slack"
-              href={slackDmUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-[#4A154B]/10 text-[#4A154B] hover:bg-[#4A154B]/20 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 transition-colors flex-shrink-0"
-              title={`Message ${s.memberName} on Slack`}
+          <MemberHoverCard memberId={s.memberId} surface="streaks">
+            <Link
+              data-track="streaks-open-member"
+              href={`/members/${s.memberId}`}
+              className={`text-sm font-medium truncate hover:underline ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
             >
-              <svg viewBox="0 0 54 54" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
-                <g fill="none" fillRule="evenodd">
-                  <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/>
-                  <path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/>
-                  <path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/>
-                  <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
-                </g>
-              </svg>
+              {s.memberName}
             </Link>
-          )}
+          </MemberHoverCard>
         </div>
         <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
           <div className="w-12">
@@ -289,18 +273,14 @@ export default async function StreaksPage() {
     STREAK_LIST_LIMIT
   )
 
-  // Look up Slack user IDs: prefer confirmed alias, fall back to email match
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
-  // Other members' aliases/emails and bronze.slack_users are admin-only under RLS, so this is
-  // resolved server-side and only the resulting DM URLs come back.
+  // Photos come from the member directory (public fields), one query for the (at most 10) rows.
+  // The Message button lives in the hover card on each name, which resolves the Slack link itself.
   const sisterIds = sisterStreaks.map((s) => s.memberId)
-  const [slackDmByMemberId, photoRows] = await Promise.all([
-    getSlackDmLinksForMembers(sisterIds),
-    // Photos come from the member directory (public fields), one query for the (at most 10) rows.
+  const photoRows =
     sisterIds.length > 0
-      ? supabase.from("member_directory").select("id, photo_url").in("id", sisterIds).then((r) => r.data ?? [])
-      : Promise.resolve([] as { id: string; photo_url: string | null }[]),
-  ])
+      ? await supabase.from("member_directory").select("id, photo_url").in("id", sisterIds).then((r) => r.data ?? [])
+      : ([] as { id: string; photo_url: string | null }[])
   const photoByMemberId = new Map(photoRows.map((r) => [r.id, r.photo_url]))
 
   // Map prickle_id → display info for shared prickle links
@@ -385,7 +365,6 @@ export default async function StreaksPage() {
                   key={s.memberId}
                   s={s}
                   prickleMap={prickleMap}
-                  slackDmUrl={slackDmByMemberId.get(s.memberId)}
                   photoUrl={photoByMemberId.get(s.memberId) ?? null}
                 />
               ))}
