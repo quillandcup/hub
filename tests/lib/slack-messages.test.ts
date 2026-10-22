@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   isKeptSlackMessage,
+  isSlackSystemMessage,
   slackMessageUserId,
   threadKey,
   threadsNeedingReplies,
@@ -12,12 +13,23 @@ describe('isKeptSlackMessage', () => {
     [{}, true],
     [{ subtype: 'file_share' }, true],
     [{ subtype: 'thread_broadcast' }, true],
+    [{ subtype: 'channel_name' }, true],
+    [{ subtype: 'channel_archive' }, true],
+    [{ subtype: 'group_topic' }, true],
     [{ subtype: 'channel_join' }, false],
     [{ subtype: 'message_changed' }, false],
     [{ subtype: 'message_deleted' }, false],
     [{ subtype: 'bot_message' }, false],
   ])('%j -> %s', (msg, kept) => {
     expect(isKeptSlackMessage(msg)).toBe(kept)
+  })
+})
+
+describe('isSlackSystemMessage', () => {
+  it('is true for channel-change notices only', () => {
+    expect(isSlackSystemMessage({ subtype: 'channel_purpose' })).toBe(true)
+    expect(isSlackSystemMessage({ subtype: 'file_share' })).toBe(false)
+    expect(isSlackSystemMessage({})).toBe(false)
   })
 })
 

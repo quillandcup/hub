@@ -6,7 +6,7 @@ import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
-import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { isKeptSlackMessage, isSlackSystemMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
   applySlackMembershipEvent,
@@ -183,7 +183,8 @@ async function processSlackEvent(event: any) {
       // A message written in the Hub is posted by the bot, so it has a bot_id; its real author is
       // the member on the chat_messages row our post's metadata points at, and it counts.
       const hubAuthorMemberId = event.bot_id ? await hubMessageAuthor(supabase, event) : null;
-      if (!event.bot_id || hubAuthorMemberId) {
+      // A channel-change notice isn't a message anyone wrote, so it never counts as an exchange.
+      if (!isSlackSystemMessage(event) && (!event.bot_id || hubAuthorMemberId)) {
         await trackWheelExchange(supabase, event, hubAuthorMemberId);
       }
 

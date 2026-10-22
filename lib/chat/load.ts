@@ -254,13 +254,15 @@ export interface MessageRow {
   reply_count: number;
   last_reply_at: string | null;
   has_files: boolean;
+  /** The Slack subtype of a notice Slack posted itself (a channel rename, say); null for a message someone wrote. */
+  system_subtype?: string | null;
   /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
   slack_sync_status?: "pending" | "sent" | "failed" | null;
   chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
 }
 
 const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body, files)";
+  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, system_subtype, slack_sync_status, chat_message_contents(body, files)";
 
 export interface MessagePage {
   /** Oldest first. */
@@ -360,6 +362,8 @@ export interface ChatMessageView {
   mine: boolean;
   /** Written in the Hub (not projected from Slack): the only kind its author can edit or delete from here. */
   fromHub: boolean;
+  /** A notice Slack posted itself ("… renamed the channel"): shown as a quiet line, not a post. */
+  system: boolean;
 }
 
 export interface ChatMessages {
@@ -542,6 +546,7 @@ export async function buildMessageViews(
       syncStatus: row.slack_sync_status === "pending" || row.slack_sync_status === "failed" ? row.slack_sync_status : null,
       mine: row.author_member_id === viewerMemberId,
       fromHub: row.origin === "app",
+      system: Boolean(row.system_subtype),
     };
   });
   return { views, userNames, userMembers, channelNames, customEmoji };

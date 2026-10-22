@@ -4,11 +4,36 @@
  * so a message looks the same whichever path stored it.
  */
 
-/** Plain messages (no subtype) plus these subtypes are kept; joins, leaves, topic changes etc. are not. */
-const KEPT_SUBTYPES = new Set(["file_share", "thread_broadcast"]);
+/**
+ * Notices Slack posts itself when someone changes a channel ("Ania renamed the channel from X to Y").
+ * Kept so the Hub chat shows them, but they are not something a member wrote: activity, engagement
+ * and the Wheel of Wonder leave them out. The same list is in chat_messages' system_subtype trigger
+ * (20261203000000_chat_system_messages.sql).
+ */
+export const SLACK_SYSTEM_SUBTYPES = [
+  'channel_name',
+  'channel_topic',
+  'channel_purpose',
+  'channel_archive',
+  'channel_unarchive',
+  'group_name',
+  'group_topic',
+  'group_purpose',
+  'group_archive',
+  'group_unarchive',
+] as const
+
+const SYSTEM_SUBTYPES = new Set<string>(SLACK_SYSTEM_SUBTYPES)
+
+export function isSlackSystemMessage(msg: { subtype?: string }): boolean {
+  return !!msg.subtype && SYSTEM_SUBTYPES.has(msg.subtype)
+}
+
+/** Plain messages (no subtype), these subtypes and channel-change notices are kept; joins, leaves etc. are not. */
+const KEPT_SUBTYPES = new Set(['file_share', 'thread_broadcast'])
 
 export function isKeptSlackMessage(msg: { subtype?: string }): boolean {
-  return !msg.subtype || KEPT_SUBTYPES.has(msg.subtype);
+  return !msg.subtype || KEPT_SUBTYPES.has(msg.subtype) || isSlackSystemMessage(msg)
 }
 
 /**

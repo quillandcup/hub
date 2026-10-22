@@ -190,7 +190,15 @@ describe('Slack webhook: message subtypes', () => {
     expect((await rows()).map((r) => r.message_type)).toEqual(['file_share', 'thread_broadcast'])
   })
 
-  it.each(['channel_join', 'channel_leave', 'channel_topic', 'bot_message'])('skips %s, which the import skips too', async (subtype) => {
+  it.each(['channel_name', 'channel_topic', 'channel_purpose', 'channel_archive', 'channel_unarchive'])(
+    'stores the %s notice Slack posts itself, so the chat can show it',
+    async (subtype) => {
+      await send({ type: 'message', subtype, ts: `${nowSec - 30}.000001`, user: 'UAUTHOR', text: 'changed the channel' })
+      expect(await rows()).toMatchObject([{ message_type: subtype, user_id: 'UAUTHOR', text: 'changed the channel' }])
+    }
+  )
+
+  it.each(['channel_join', 'channel_leave', 'bot_message'])('skips %s, which the import skips too', async (subtype) => {
     await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'has joined the channel' })
     expect(await rows()).toEqual([])
     expect(triggerReprocessing).not.toHaveBeenCalled()

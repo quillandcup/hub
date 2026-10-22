@@ -121,6 +121,7 @@ App-only "followed threads" for the feed. Slack doesn't expose users' thread sub
 ### Webhook (`app/api/webhooks/slack/route.ts`)
 Respond within Slack's 3 seconds; do the work after the response. Handle:
 - `message` with subtypes: plain, `thread_broadcast`, `file_share`, `message_changed` (update the original row from `event.message`), `message_deleted` (soft delete by `deleted_ts`), `tombstone`, `channel_join` / `channel_leave`. Today every message event is treated as new and keyed on `event.ts`, which is wrong for changed/deleted.
+- Channel-change notices Slack posts itself (`channel_name`, `channel_topic`, `channel_purpose`, `channel_archive`, `channel_unarchive`, and the `group_*` equivalents) are kept in Bronze with that subtype in `message_type` (`SLACK_SYSTEM_SUBTYPES`, `lib/slack-messages.ts`). `chat_messages.system_subtype` marks them and the Hub shows a quiet line; they never count as activity, engagement, unread or a Wheel of Wonder exchange. Ones from before this change appear after the next Slack import (it re-reads the last 90 days).
 - `reaction_added` / `reaction_removed` (soft remove).
 - `member_joined_channel` / `member_left_channel` (the bot joining a channel auto-creates a bridged `chat_channels` row).
 - `channel_rename`, `channel_archive`, `channel_unarchive`, and the `group_*` equivalents; `emoji_changed`; `user_change`.
