@@ -107,7 +107,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
         htmlFor="timezone"
         className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"
       >
-        Default Timezone
+        Primary time zone
       </label>
       <select
         id="timezone"

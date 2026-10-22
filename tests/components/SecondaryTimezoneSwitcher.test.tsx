@@ -18,7 +18,7 @@ beforeEach(() => {
 describe("SecondaryTimezoneSwitcher", () => {
   it("is off by default, with no zone picker", () => {
     render(<SecondaryTimezoneSwitcher initialTimezone={null} />);
-    expect(screen.getByRole("checkbox", { name: /second time zone/i })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /secondary time zone/i })).not.toBeChecked();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 

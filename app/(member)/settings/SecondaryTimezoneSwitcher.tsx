@@ -6,7 +6,7 @@ import { updateSecondaryTimezone } from "./actions";
 import { TIMEZONES } from "./TimezoneSwitcher";
 
 /**
- * Optional second time zone, shown in parentheses beside the member's own on prickle times
+ * Optional secondary time zone (the Settings one is the primary), shown in parentheses beside the member's own on prickle times
  * ("4:00 AM (7:00 AM ET)"), like Google Calendar's additional time zone. Off until they turn it on;
  * turning it on starts at the org's zone, since that is how prickles are announced.
  */
@@ -41,12 +41,12 @@ export function SecondaryTimezoneSwitcher({ initialTimezone }: { initialTimezone
           onChange={(e) => save(e.target.checked ? ORG_TIMEZONE : null)}
           className="h-4 w-4 rounded border-slate-300 text-plum-600 focus:ring-plum-500"
         />
-        Also show a second time zone
+        Show a secondary time zone
       </label>
       {timezone !== null && (
         <div className="mt-2">
-          <label htmlFor="secondary-timezone" className="sr-only">
-            Second time zone
+          <label htmlFor="secondary-timezone" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+            Secondary time zone
           </label>
           <select
             id="secondary-timezone"
@@ -71,7 +71,7 @@ export function SecondaryTimezoneSwitcher({ initialTimezone }: { initialTimezone
         </div>
       )}
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-        Prickles are announced in Eastern time, so many members show it beside their own: 4:00 AM (7:00 AM ET).
+        Shown in parentheses beside your primary time zone. Prickles are announced in Eastern time, so many members pick it: 4:00 AM (7:00 AM ET).
         {saving && <span className="ml-2 italic">Saving...</span>}
       </p>
     </div>
