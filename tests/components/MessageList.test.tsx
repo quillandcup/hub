@@ -52,13 +52,13 @@ describe("MessageList", () => {
     render(
       <MessageList
         channelId="c1"
-        views={[view(1, { system: true, body: "renamed the channel from a to b", authorName: "Someone on Slack" })]}
-        ctx={CTX}
+        views={[view(1, { system: true, body: "<@U1> has renamed the channel from \"a\" to \"b &amp; c\"", authorName: "Someone on Slack" })]}
+        ctx={{ ...CTX, userNames: { U1: "Fern Quillsby" } }}
         olderBefore={null}
       />
     );
     const notice = screen.getByRole("article");
-    expect(notice).toHaveTextContent("renamed the channel from a to b");
+    expect(notice).toHaveTextContent('Fern Quillsby renamed the channel from "a" to "b & c"');
     expect(notice).not.toHaveTextContent("Someone on Slack");
   });
 

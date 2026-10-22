@@ -4,12 +4,19 @@ import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageBody from "@/components/chat/MessageBody";
 import MessageFiles from "@/components/chat/MessageFiles";
-import ChatText from "@/components/chat/ChatText";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
 import { isPendingId } from "@/lib/chat/list-events";
 import type { ChatMessageView } from "@/lib/chat/load";
+import { decodeEntities, mentionsToPlainText } from "@/lib/chat/render";
+
+/** Slack's own wording for a channel notice: "Ania renamed the channel…", a plain name rather than a mention chip. */
+function systemNoticeText(body: string, ctx: ChatTextContext): string {
+  return decodeEntities(mentionsToPlainText(body, ctx))
+    .replace(/^@/, "")
+    .replace(/^(.+?) has (renamed|set|archived|unarchived|changed)\b/, "$1 $2");
+}
 
 /** One message: author, time, text (or why there is none), reactions and a link into its thread. */
 export default function MessageItem({
@@ -32,15 +39,17 @@ export default function MessageItem({
   const profileHref = `/chat/${channelId}?profile=${message.authorMemberId}`;
   if (message.system && message.contentState === "ok" && message.body !== null) {
     return (
-      <article className="py-2 border-b border-slate-100 dark:border-slate-800 last:border-0 flex gap-3" id={`m-${message.id}`}>
-        <span aria-hidden="true" className="shrink-0 w-9 text-center text-slate-400">#</span>
+      <article className="py-1.5 flex items-baseline gap-3" id={`m-${message.id}`}>
+        <span aria-hidden="true" className="shrink-0 w-9 text-center text-lg font-semibold leading-none text-slate-400 dark:text-slate-500">
+          #
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            <ChatText body={message.body} ctx={ctx} />
-            <time dateTime={message.createdAt} className="text-xs">
+          <p className="text-[13px] text-slate-500 dark:text-slate-400">
+            {systemNoticeText(message.body, ctx)}{" "}
+            <time dateTime={message.createdAt} className="text-xs text-slate-400 dark:text-slate-500">
               {formatChatTime(message.createdAt)}
             </time>
-          </div>
+          </p>
           <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && !isPendingId(message.id)} />
         </div>
       </article>
