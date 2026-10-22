@@ -22,6 +22,7 @@ const fill = (id: string, extra: Record<string, unknown> = {}) => ({
   finished_at: hoursAgo(1),
   messages_recovered: 0,
   reactions_recovered: 0,
+  messages_seen: 0,
   error: null,
   ...extra,
 });
@@ -55,7 +56,7 @@ describe("admin chat gap-fills page", () => {
     useFakeSupabase({
       chat_gap_fills: {
         data: [
-          fill("a", { scope: "channel", source: "open", slack_ts: null, messages_recovered: 4, reactions_recovered: 2 }),
+          fill("a", { scope: "channel", source: "open", slack_ts: null, messages_recovered: 4, reactions_recovered: 2, messages_seen: 17 }),
           fill("b", { slack_channel_id: "G_GROUP", scope: "thread", error: "not_in_channel", finished_at: hoursAgo(1) }),
           fill("c", { scope: "message", finished_at: null }),
           fill("d", { slack_channel_id: "C_UNKNOWN", source: "manual" }),
@@ -70,6 +71,8 @@ describe("admin chat gap-fills page", () => {
     expect(within(rows[0]).getByText("#general")).toBeInTheDocument();
     expect(within(rows[0]).getByText("Catch-up on open")).toBeInTheDocument();
     expect(within(rows[0]).getByText("Opening a conversation")).toBeInTheDocument();
+    // What Slack returned (new or not) is shown apart from what was new to us.
+    expect(within(rows[0]).getByText("17")).toBeInTheDocument();
     expect(within(rows[0]).getByText("4")).toBeInTheDocument();
     expect(within(rows[0]).getByText("Done")).toBeInTheDocument();
 

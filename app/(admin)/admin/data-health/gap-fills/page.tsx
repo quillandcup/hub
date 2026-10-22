@@ -28,6 +28,7 @@ interface GapFillRow {
   finished_at: string | null;
   messages_recovered: number;
   reactions_recovered: number;
+  messages_seen: number;
   error: string | null;
 }
 
@@ -42,7 +43,7 @@ export default async function ChatGapFillsPage() {
 
   const { data } = await supabase
     .from("chat_gap_fills")
-    .select("id, source, scope, slack_channel_id, slack_ts, started_at, finished_at, messages_recovered, reactions_recovered, error")
+    .select("id, source, scope, slack_channel_id, slack_ts, started_at, finished_at, messages_recovered, reactions_recovered, messages_seen, error")
     .order("started_at", { ascending: false })
     .limit(200);
   const fills = (data ?? []) as GapFillRow[];
@@ -69,7 +70,9 @@ export default async function ChatGapFillsPage() {
           <p className="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
             Each row is a time the chat fetched something from Slack because it was missing: a reaction or edit on a message
             we never stored, a reply whose thread we lacked, or new messages when someone opened a conversation. A fill that
-            recovers a lot means the Slack webhook was down or dropping events.
+            recovers a lot means the Slack webhook was down or dropping events. "Slack returned" is how many messages came
+            back, new or not, so zero new messages from a busy conversation means nothing was missed, and zero returned
+            from one that should have traffic means the fetch isn't working.
           </p>
         </div>
       </header>
@@ -101,7 +104,8 @@ export default async function ChatGapFillsPage() {
                   <th className="px-4 py-2">Conversation</th>
                   <th className="px-4 py-2">What</th>
                   <th className="px-4 py-2">Triggered by</th>
-                  <th className="px-4 py-2 text-right">Messages</th>
+                  <th className="px-4 py-2 text-right" title="Messages Slack returned, new or not: 0 here means nothing came back">Slack returned</th>
+                  <th className="px-4 py-2 text-right">New messages</th>
                   <th className="px-4 py-2 text-right">Reactions</th>
                   <th className="px-4 py-2">Result</th>
                 </tr>
@@ -115,6 +119,7 @@ export default async function ChatGapFillsPage() {
                     <td className="px-4 py-2">{names.get(f.slack_channel_id) ?? f.slack_channel_id}</td>
                     <td className="px-4 py-2">{SCOPE_LABELS[f.scope] ?? f.scope}</td>
                     <td className="px-4 py-2">{SOURCE_LABELS[f.source] ?? f.source}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{f.messages_seen}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{f.messages_recovered}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{f.reactions_recovered}</td>
                     <td className="px-4 py-2">
