@@ -598,7 +598,9 @@ jobs:
       # Moves the `production` tag to the commit that just deployed, so `git log` shows how
       # far production is and `git log production..origin/main` lists what's merged but not
       # live. Only runs when the deploy above succeeded. It's a tag, not a branch, so
-      # `pnpm branches:prune` leaves it alone; fetch it with `git fetch --tags --force`.
+      # `pnpm branches:prune` leaves it alone. A plain `git fetch` won't move a tag that
+      # already exists locally; update it with
+      # `git fetch origin +refs/tags/production:refs/tags/production`.
       - name: Move the production tag
         run: |
           git tag --force production "$GITHUB_SHA"
