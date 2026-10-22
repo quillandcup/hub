@@ -711,6 +711,15 @@ Chat shows images, GIFs and other files under a message (`docs/SLACK_BRIDGED_CHA
 ### Chat Drafts, Synced With Slack _(Needs Scoping)_
 Save unsent message text per conversation (and per thread) in Hub chat, so leaving a channel or an expired session doesn't lose it. Slack keeps drafts too; sync both ways with the Slack bridge (`docs/SLACK_BRIDGED_CHAT.md`) so a draft started in Slack shows as unsent in the Hub and the reverse, and show "Drafts" in the chat list. Check which Slack API exposes drafts (and whether the bot or a member token is needed) before designing. Related: session expiry mid-form under "Return To".
 
+### Chat Message Menu: Edit/Delete And The Rest _(Needs Scheduling)_
+The ⋮ in a message's hover bar (`components/chat/MessageActions.tsx`) has only Copy link and Copy message. Left for later: (1) Edit and Delete are still inline buttons under a member's own message (`components/chat/MessageBody.tsx`); move them into the menu, which means lifting the view/edit/confirm-delete state out of `MessageBody` so the menu can start it. (2) Slack's other entries aren't supported: Mark unread, Add to saved, Add a reminder, Get notified about new replies, Pin to channel, Connect to apps, and the hover bar's Forward and Add to-do. Each needs its own feature first (the read marker only moves when the reader leaves a conversation, there are no saved items or pins), so add them one at a time as those land.
+
+### Chat Thread Replies Aren't Grouped _(Needs Scheduling)_
+In the conversation, a message from the same person within five minutes of the previous one drops its avatar and name and shows its time on hover (`groupByDay` in `lib/chat/days.ts`, used by `components/chat/MessageList.tsx`). Replies in a thread panel (`components/chat/ThreadList.tsx`) never get that, so every reply repeats the avatar and name. Reuse `groupByDay`'s follow-up rule there (no day markers) and pass `compact` to `MessageItem`.
+
+### Chat Visual Tests: Day Marker And Hover Bar _(Needs Scoping)_
+The sticky day marker (opaque, flush to the top of the message pane) and the hover action bar are layout and CSS behavior that the jsdom component tests can't see: two regressions there (a transparent marker, a gap above it) were only caught by looking at the real page. There are no Playwright or other browser tests in the repo today. Decide whether to add a small Playwright suite (a seeded conversation spanning several days, scrolled past a day boundary, viewport widths either side of the sidebar breakpoint, hover on a message) or screenshot checks; start from `components/chat/MessageList.tsx` and `components/chat/MessageActions.tsx`.
+
 
 ## Slack Bot Channel Access
 
