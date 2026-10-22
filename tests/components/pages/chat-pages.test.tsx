@@ -53,6 +53,7 @@ const EXAMPLE_VIEW = {
   body: "text",
   contentState: "ok" as const,
   hasFiles: false,
+  files: [],
   replyCount: 0,
   lastReplyAt: null,
   reactions: [],

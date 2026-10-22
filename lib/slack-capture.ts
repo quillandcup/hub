@@ -618,3 +618,69 @@ export async function copySlackFiles(
   result.pending = remaining + result.failed;
   return result;
 }
+
+export type EnsuredSlackFile = { ok: true; path: string; mimetype: string | null } | { ok: false; reason: string };
+
+/**
+ * The stored copy of one file, made now if the import hasn't got to it yet (a file shared a minute
+ * ago, which the Hub shows before the nightly copy). Records the file in Bronze first when the
+ * webhook didn't (asking Slack for it), then copies it like `copySlackFiles` does.
+ */
+export async function ensureSlackFileCopied(
+  storage: SupabaseClient,
+  botToken: string,
+  ref: { fileId: string; channelId: string; messageTs: string },
+  download: typeof fetch = fetch
+): Promise<EnsuredSlackFile> {
+  const bronze = () => storage.schema("bronze").from("slack_files");
+  const columns = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, raw_payload";
+
+  let { data: row } = await bronze().select(columns).eq("file_id", ref.fileId).maybeSingle();
+  if (row?.storage_path) return { ok: true, path: row.storage_path, mimetype: row.mimetype };
+
+  if (!row) {
+    const info = await download(`https://slack.com/api/files.info?file=${encodeURIComponent(ref.fileId)}`, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    const json: any = info.ok ? await info.json().catch(() => null) : null;
+    if (!json?.ok || !json.file) return { ok: false, reason: json?.error ?? `files.info failed with HTTP ${info.status}` };
+    const [fresh] = slackFilesFromMessages([{ channel_id: ref.channelId, message_ts: ref.messageTs, files: [json.file] }]);
+    const { error } = await bronze().upsert({ ...fresh, imported_at: new Date(clock.now()).toISOString() }, { onConflict: "file_id", ignoreDuplicates: true });
+    if (error) return { ok: false, reason: error.message };
+    row = { ...fresh, storage_path: null, copy_error: null };
+  }
+
+  const file = row as SlackFileRow & { storage_path: string | null; copy_error: string | null };
+  const skip = slackFileSkipReason(file);
+  if (skip) {
+    await bronze().update({ copy_error: skip }).eq("file_id", file.file_id);
+    return { ok: false, reason: skip };
+  }
+
+  try {
+    const response = await download(file.raw_payload.url_private_download || file.raw_payload.url_private, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    if (!response.ok) throw new Error(`download failed with HTTP ${response.status}`);
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.startsWith("text/html") && !(file.mimetype ?? "").startsWith("text/html")) {
+      throw new Error("Slack returned a sign-in page instead of the file");
+    }
+    const body = await response.arrayBuffer();
+    if (body.byteLength > MAX_SLACK_FILE_BYTES) {
+      await bronze().update({ copy_error: "skipped: larger than 20 MB" }).eq("file_id", file.file_id);
+      return { ok: false, reason: "skipped: larger than 20 MB" };
+    }
+    const path = slackFileStoragePath(file);
+    const { error: uploadError } = await storage.storage
+      .from(SLACK_FILES_BUCKET)
+      .upload(path, body, { contentType: file.mimetype || "application/octet-stream", upsert: true });
+    if (uploadError) throw uploadError;
+    await bronze().update({ storage_path: path, copied_at: new Date(clock.now()).toISOString(), copy_error: null }).eq("file_id", file.file_id);
+    return { ok: true, path, mimetype: file.mimetype };
+  } catch (error: any) {
+    const reason = String(error?.message ?? error).slice(0, 300);
+    await bronze().update({ copy_error: reason }).eq("file_id", file.file_id);
+    return { ok: false, reason };
+  }
+}

@@ -3,6 +3,7 @@ import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
 import AvatarStack from "@/components/AvatarStack";
 import { type ChatTextContext } from "@/components/chat/ChatText";
 import MessageBody from "@/components/chat/MessageBody";
+import MessageFiles from "@/components/chat/MessageFiles";
 import ReactionBar from "@/components/chat/ReactionBar";
 import RetryButton from "@/components/chat/RetryButton";
 import { formatChatTime } from "@/lib/chat/format";
@@ -74,8 +75,9 @@ export default function MessageItem({
             {message.mine && <RetryButton channelId={channelId} messageId={message.id} />}
           </p>
         )}
-        {message.hasFiles && message.contentState === "ok" && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files, which the Hub doesn&apos;t show yet.</p>
+        {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} />}
+        {message.hasFiles && message.contentState === "ok" && message.files.length === 0 && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
         )}
 
         <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={canReact && message.contentState === "ok" && !isPendingId(message.id)} />

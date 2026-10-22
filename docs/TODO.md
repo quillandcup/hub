@@ -654,6 +654,9 @@ Migration `20261003130000` renamed the code, route, cron job and dedup log to ch
 
 The dashboard card and `/big-sisters` link a new member and their big sister to each other's **Slack** DM (`getSlackDmLinksForMembers`), because Hub chat can't start a conversation yet: `app/(member)/chat/actions.ts` only posts into existing channels, and `chat_channels` has a `dm` kind (Hub-native, always `restricted`, see `docs/SLACK_BRIDGED_CHAT.md`) with nothing that creates one. When Hub DMs exist: add a "Message in the Hub" button to `components/member/BigSisterCards.tsx` (find-or-create the DM with the other member and link to `/chat/<id>`), make it the primary action and keep Slack as the fallback for members who aren't in Hub chat, and point the `big_sister_match` introduction's `url` at the DM. Gate it on the `chat_posting` feature like the rest of chat.
 
+### Chat Files: What Is Still Missing _(Needs Scheduling)_
+Chat shows images, GIFs and other files under a message (`docs/SLACK_BRIDGED_CHAT.md`, 2026-10-21). Left for later: files over 20 MB and files hosted outside Slack aren't copied, so their chip answers 404 (link them to Slack's own URL instead, from `bronze.slack_files.raw_payload`); no audio/video players or PDF previews; Slack's legacy `attachments` (link unfurls, bot cards) aren't rendered. Start at `components/chat/MessageFiles.tsx` and `app/api/chat/files/`.
+
 ### Chat Drafts, Synced With Slack _(Needs Scoping)_
 Save unsent message text per conversation (and per thread) in Hub chat, so leaving a channel or an expired session doesn't lose it. Slack keeps drafts too; sync both ways with the Slack bridge (`docs/SLACK_BRIDGED_CHAT.md`) so a draft started in Slack shows as unsent in the Hub and the reverse, and show "Drafts" in the chat list. Check which Slack API exposes drafts (and whether the bot or a member token is needed) before designing. Related: session expiry mid-form under "Return To".
 

@@ -86,7 +86,7 @@ export async function searchChat(supabase: SupabaseClient, viewerMemberId: strin
   const { data: rows } = await supabase
     .from("chat_messages")
     .select(
-      "id, channel_id, thread_root_id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, chat_message_contents(body)"
+      "id, channel_id, thread_root_id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, chat_message_contents(body, files)"
     )
     .in("id", pageIds);
   type Row = NonNullable<typeof rows>[number];
