@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ImageLightbox from "@/components/ImageLightbox";
 import { formatFileSize } from "@/lib/chat/files";
 
@@ -10,8 +10,12 @@ import { formatFileSize } from "@/lib/chat/files";
  */
 export default function PendingAttachments({ files, disabled, onRemove }: { files: File[]; disabled?: boolean; onRemove: (index: number) => void }) {
   const [open, setOpen] = useState<number | null>(null);
-  const urls = useMemo(() => files.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null)), [files]);
-  useEffect(() => () => urls.forEach((u) => u && URL.revokeObjectURL(u)), [urls]);
+  const [urls, setUrls] = useState<(string | null)[]>([]);
+  useEffect(() => {
+    const made = files.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null));
+    setUrls(made);
+    return () => made.forEach((u) => u && URL.revokeObjectURL(u));
+  }, [files]);
 
   const images = files.flatMap((f, i) => (urls[i] ? [{ src: urls[i]!, name: f.name || "image", fileIndex: i }] : []));
   const remove = (i: number) => (
