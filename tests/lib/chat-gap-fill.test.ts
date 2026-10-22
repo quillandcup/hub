@@ -167,6 +167,17 @@ describe("fillMessageGap", () => {
     expect(projectChatMessage).not.toHaveBeenCalled();
   });
 
+  it("does nothing, and says so in the log, when the database can't hand out a claim", async () => {
+    const slack = slackStub({ get: slackMessage("100.1") });
+    const service = fakeService(answer);
+    service.rpc.mockResolvedValueOnce({ data: null, error: { message: "connection lost" }, args: {} } as never);
+
+    await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: false, messages: 0, reactions: 0 });
+
+    expect(console.error).toHaveBeenCalledWith("claim_chat_gap_fill failed:", "connection lost");
+    expect(slack.reactions.get).not.toHaveBeenCalled();
+  });
+
   it("records a Slack failure instead of throwing", async () => {
     const slack = slackStub();
     slack.reactions.get.mockRejectedValue({ data: { error: "message_not_found" } });
