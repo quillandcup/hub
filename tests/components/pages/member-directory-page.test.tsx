@@ -70,7 +70,7 @@ describe("member directory page", () => {
     expect(screen.getByRole("link", { name: "Zoë Thornfield" })).toHaveAttribute("href", "/members/m-zoe");
     expect(screen.getByText("The Lantern Keeper")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "querying agents" })).toBeInTheDocument();
-    expect(screen.getByText("2 Hedgies")).toBeInTheDocument();
+    expect(screen.queryByText(/Hedgies/)).not.toBeInTheDocument();
     // Unsafe photo URLs are dropped (initials avatar instead).
     expect(document.querySelector('img[src^="javascript"]')).toBeNull();
   });
@@ -81,7 +81,7 @@ describe("member directory page", () => {
 
     await userEvent.type(search, "lantern");
     expect(screen.queryByRole("link", { name: "Pat Quill" })).not.toBeInTheDocument();
-    expect(screen.getByText("1 of 2 Hedgies")).toBeInTheDocument();
+    expect(screen.queryByText(/Hedgies/)).not.toBeInTheDocument();
 
     await userEvent.clear(search);
     await userEvent.click(screen.getByRole("button", { name: "cozy mysteries" }));
