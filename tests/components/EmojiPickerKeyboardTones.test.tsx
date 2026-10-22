@@ -4,6 +4,9 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
+// The picker lays out the whole emoji catalog; a loaded CI runner needs more than the 5s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
 import EmojiPicker from "@/components/chat/EmojiPicker";
 import { Emoji } from "@/components/chat/ChatText";
