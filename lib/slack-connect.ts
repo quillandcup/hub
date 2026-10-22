@@ -27,6 +27,8 @@ export const SLACK_USER_SCOPES = [
   "channels:write",
   "groups:write",
   "mpim:write",
+  // Sending files from the Hub as the member (lib/chat/slack-upload.ts); without it the bot uploads.
+  "files:write",
 ];
 
 /** Whether a stored connection predates read sync and needs to be reconnected to share read state. */

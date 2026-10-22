@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
 import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
+import { purgeStagedChatFiles } from "@/lib/chat/staging";
+import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
@@ -112,9 +114,16 @@ export async function POST(request: NextRequest) {
       return { sent: 0, failed: 0, expired: 0 };
     });
 
+    // Attachments nobody sent.
+    const purgedStaged = await purgeStagedChatFiles(supabase, clock.now()).catch((error) => {
+      console.error("Error purging staged chat files:", error);
+      return 0;
+    });
+
     return NextResponse.json({
       success: true,
       processed: {
+        purgedStaged,
         channels: channelResult?.channels ?? 0,
         members: channelResult?.members ?? 0,
         messages,

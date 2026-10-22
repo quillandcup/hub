@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
-import { isInlineImage, parseChatFiles } from "@/lib/chat/files";
+import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 
 export const maxDuration = 60;
 
@@ -30,31 +30,40 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .select("files, chat_messages(slack_ts, chat_channels(slack_channel_id))")
     .eq("message_id", messageId)
     .maybeSingle();
-  const file = parseChatFiles(content?.files).find((f) => f.id === fileId);
+  const file = parseChatFiles(content?.files, { staged: true }).find((f) => f.id === fileId);
   if (!content || !file) return notFound();
 
   const message: any = Array.isArray(content.chat_messages) ? content.chat_messages[0] : content.chat_messages;
   const channel: any = Array.isArray(message?.chat_channels) ? message.chat_channels[0] : message?.chat_channels;
 
   const service = createServiceRoleClient();
-  const token = process.env.SLACK_BOT_TOKEN;
-  const copy = await ensureSlackFileCopied(
-    service,
-    token ?? "",
-    { fileId, channelId: channel?.slack_channel_id ?? "", messageTs: message?.slack_ts ?? "" }
-  );
-  if (!copy.ok) {
-    console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);
-    return notFound();
+  let path: string;
+  let storedType: string | null = null;
+  if (file.id.startsWith(PENDING_FILE_PREFIX)) {
+    // Still being sent to Slack: the bytes are where the composer staged them.
+    if (!file.staged) return notFound();
+    path = file.staged;
+  } else {
+    const copy = await ensureSlackFileCopied(service, process.env.SLACK_BOT_TOKEN ?? "", {
+      fileId,
+      channelId: channel?.slack_channel_id ?? "",
+      messageTs: message?.slack_ts ?? "",
+    });
+    if (!copy.ok) {
+      console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);
+      return notFound();
+    }
+    path = copy.path;
+    storedType = copy.mimetype;
   }
 
-  const { data: blob, error } = await service.storage.from(SLACK_FILES_BUCKET).download(copy.path);
+  const { data: blob, error } = await service.storage.from(SLACK_FILES_BUCKET).download(path);
   if (error || !blob) {
     console.error(`[chat] file ${fileId} missing from the bucket: ${error?.message}`);
     return notFound();
   }
 
-  const mimetype = file.mimetype ?? copy.mimetype ?? "application/octet-stream";
+  const mimetype = file.mimetype ?? storedType ?? "application/octet-stream";
   const inline = isInlineImage({ mimetype });
   const filename = (file.name ?? "file").replace(/[^A-Za-z0-9._ -]+/g, "_");
   return new NextResponse(blob, {

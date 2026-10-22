@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
   connected: vi.fn(),
+  serviceClient: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({ after: (cb: () => Promise<void> | void) => void m.afterCallbacks.push(cb) }));
@@ -33,13 +34,13 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serviceClient() }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: m.syncReaction }));
 vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdate, deleteChatMessageInSlack: m.slackDelete }));
 vi.mock("@/lib/chat/load", () => ({}));
 
-import { deleteChatMessage, editChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
+import { deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
 const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
 const MESSAGE = "00000000-0000-4000-a000-0000000000d1";
@@ -48,6 +49,7 @@ const flushAfter = async () => {
 };
 
 beforeEach(() => {
+  m.serviceClient.mockReset().mockReturnValue({ service: true });
   m.afterCallbacks.length = 0;
   m.getCurrentUser.mockResolvedValue({ id: "auth-1", email: "fern@example.test" });
   m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: false });
@@ -98,6 +100,73 @@ describe("sendChatMessage", () => {
     m.hasFeature.mockResolvedValue(true);
     m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
     await expect(sendChatMessage(CHANNEL, "hello")).resolves.toMatchObject({ ok: false });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+});
+
+const MEMBER_ID = "member-fern";
+const STAGED = `staging/2026-10-22/${MEMBER_ID}-11111111-2222-4333-8444-555555555555/cat.gif`;
+
+/** A fake bucket: `listed` is what a folder listing returns; signed upload urls come back as tokens. */
+function bucket(listed: { name: string; metadata?: { size: number } }[] = [{ name: "cat.gif", metadata: { size: 1234 } }]) {
+  const createSignedUploadUrl = vi.fn(async (path: string) => ({ data: { token: `tok:${path}` }, error: null }));
+  m.serviceClient.mockReturnValue({ storage: { from: () => ({ createSignedUploadUrl, list: async () => ({ data: listed }) }) } });
+  return { createSignedUploadUrl };
+}
+
+describe("prepareChatUploads", () => {
+  it("hands out one signed upload per file, in the member's own folder", async () => {
+    const { createSignedUploadUrl } = bucket();
+    const result = await prepareChatUploads([{ name: "cat.gif", size: 10 }, { name: "my notes.pdf", size: 20 }]);
+    expect(result.ok).toBe(true);
+    const paths = createSignedUploadUrl.mock.calls.map((c) => c[0]);
+    expect(paths[0]).toMatch(new RegExp(`^staging/\\d{4}-\\d{2}-\\d{2}/${MEMBER_ID}-[0-9a-f-]{36}/cat\\.gif$`));
+    expect(paths[1]).toMatch(/\/my_notes\.pdf$/);
+    expect(result).toMatchObject({ uploads: [{ path: paths[0], token: `tok:${paths[0]}` }, { path: paths[1] }] });
+  });
+
+  it("refuses too many files, files that are too big, and callers who can't post", async () => {
+    bucket();
+    expect(await prepareChatUploads([])).toMatchObject({ ok: false });
+    expect(await prepareChatUploads(Array.from({ length: 11 }, () => ({ name: "a", size: 1 })))).toMatchObject({ ok: false });
+    expect(await prepareChatUploads([{ name: "big.mov", size: 21 * 1024 * 1024 }])).toMatchObject({ ok: false, error: expect.stringContaining("20 MB") });
+
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: MEMBER_ID, isSudo: true });
+    expect(await prepareChatUploads([{ name: "a", size: 1 }])).toMatchObject({ ok: false });
+  });
+
+  it("says so when storage won't sign an upload", async () => {
+    m.serviceClient.mockReturnValue({ storage: { from: () => ({ createSignedUploadUrl: async () => ({ data: null, error: { message: "nope" } }) }) } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await prepareChatUploads([{ name: "a", size: 1 }])).toEqual({ ok: false, error: "Couldn't start the upload. Try again." });
+  });
+});
+
+describe("sendChatMessage with files", () => {
+  const upload = { path: STAGED, name: "cat.gif", mimetype: "image/gif", size: 1 };
+
+  it("saves the message with its staged files, using the size storage reports, and sends it after the response", async () => {
+    bucket();
+    m.rpc.mockResolvedValue({ data: MESSAGE, error: null });
+
+    await expect(sendChatMessage(CHANNEL, "", undefined, [upload])).resolves.toEqual({ ok: true, id: MESSAGE });
+
+    const args = m.rpc.mock.calls[0][1];
+    expect(args.p_files).toEqual([{ id: expect.stringMatching(/^pending-/), name: "cat.gif", mimetype: "image/gif", size: 1234, staged: STAGED }]);
+  });
+
+  it("refuses paths that aren't the member's own, files that aren't in storage, and too many", async () => {
+    bucket();
+    const bad = { error: expect.stringContaining("can't be sent") };
+    await expect(sendChatMessage(CHANNEL, "hi", undefined, [{ ...upload, path: STAGED.replace(MEMBER_ID, "member-gale") }])).resolves.toMatchObject({ ok: false, ...bad });
+
+    bucket([]);
+    await expect(sendChatMessage(CHANNEL, "hi", undefined, [upload])).resolves.toMatchObject({ ok: false, ...bad });
+
+    bucket([{ name: "cat.gif", metadata: { size: 99 * 1024 * 1024 } }]);
+    await expect(sendChatMessage(CHANNEL, "hi", undefined, [upload])).resolves.toMatchObject({ ok: false, ...bad });
+
+    await expect(sendChatMessage(CHANNEL, "hi", undefined, Array.from({ length: 11 }, () => upload))).resolves.toMatchObject({ ok: false, ...bad });
     expect(m.rpc).not.toHaveBeenCalled();
   });
 });
