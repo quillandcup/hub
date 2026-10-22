@@ -1032,6 +1032,9 @@ Add a hidden keyboard shortcut (typing "helpme", similar to Confluent Cloud's de
 
 ## Internationalization
 
+### Eastern Time Beside the Member's Zone: Remaining Displays
+Members talk about prickles in Eastern whatever their zone, so `withOrgTime` (`lib/org-time.ts`) appends "(7:00 AM ET)" to times shown in another zone. Done: upcoming prickle rows, the Events list, the prickle picker, the prickle details page. Still only the viewer's zone: calendar week view cards (`components/CalendarWeekView.tsx`), attendance tables (`MemberAttendanceView`, `AttendanceListTable`), the hosting schedule, `lib/prickle-writing.ts`. Deferred to keep the first change small; apply `withOrgTime` where a prickle's start time is shown, and consider the settings-level alternative (a toggle to always show Eastern) if members ask for it.
+
 ### Basic Date Format Localization (Needs Scoping)
 Dates are currently always displayed US-style (`MM/DD/YYYY`), but many/most other countries prefer `DD/MM/YYYY`. Language should stay English and money stay USD (that's all Quill & Cup charges in and speaks) — this is scoped to date display only, not full i18n.
 
