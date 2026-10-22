@@ -11,7 +11,7 @@ Subject is always a CRM person (`member_id`). This is a live table (not new) —
 - **`source`**: which pipeline/table produced this row (`'slack'`, `'prickle_attendance'`, `'outreach_touches'`, `'access_events'`, ...). Combined with `related_id`, this points back to the origin row.
 - Two write patterns in use:
   - **DELETE+INSERT by source + date range** (Slack, prickle attendance) — fully reprocessable, matches the Silver-layer convention in CLAUDE.md.
-  - **Best-effort single insert alongside the primary action** (writing-progress, outreach touches, logins, prickle commitments -- see `docs/COMMITMENTS.md`) — append-only, not reprocessed; a failure here is logged but never blocks the primary write.
+  - **Best-effort single insert alongside the primary action** (writing-progress, outreach touches, logins, prickle commitments -- see `docs/COMMITMENTS.md`; lesson viewing, `lesson_watched` once a day that covers half the lesson or five minutes and `lesson_completed` once per lesson, source `courses`, deduplicated by the `idx_member_activities_courses_dedup` unique index and written by `lib/courses/activity.ts` from the watch route and the mark-complete action; the source of truth stays `video_watch_segments` / `lesson_progress`) — append-only, not reprocessed; a failure here is logged but never blocks the primary write.
 
 ## `audit_log` — the audit log
 

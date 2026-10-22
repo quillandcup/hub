@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { getCoursesCaller } from "@/lib/courses/caller";
+import { recordLessonCompleted } from "@/lib/courses/activity";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { isUuid } from "@/lib/chat/format";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +22,7 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
   if (caller.identity.isSudo) return { error: "Progress can't be changed while viewing as a member" };
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("course_id, state").eq("id", lessonId).maybeSingle();
+  const { data: lesson } = await service.from("course_lessons").select("course_id, state, title").eq("id", lessonId).maybeSingle();
   if (!lesson || lesson.state !== "open") return { error: "Lesson not found" };
   const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return { error: "You don't have access to this course" };
@@ -37,6 +38,9 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
   if (error) {
     console.error("lesson_progress upsert failed:", error.message);
     return { error: "Couldn't save your progress" };
+  }
+  if (complete) {
+    await recordLessonCompleted(supabase, { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title });
   }
 
   revalidatePath("/courses", "layout");

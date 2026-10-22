@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
+import { recordLessonWatched } from "@/lib/courses/activity";
 import { parseWatchBatch } from "@/lib/courses/watch";
 import { userAgentForStorage } from "@/lib/device-label";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (caller.identity.isSudo) return NextResponse.json({ saved: 0, reason: "sudo" });
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("course_id, state, video_id").eq("id", batch.lessonId).maybeSingle();
+  const { data: lesson } = await service.from("course_lessons").select("course_id, state, video_id, title, duration_seconds").eq("id", batch.lessonId).maybeSingle();
   // Members only get open lessons; staff acting as themselves can also record a preview of an unreleased one (their own rows).
   const openToCaller = lesson?.state === "open" || caller.scope.isAdminActing;
   if (!lesson || !openToCaller || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
@@ -86,6 +87,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
     }
     saved = data?.length ?? 0;
+  }
+
+  // New stretches may have tipped today's watching over the line that counts as having watched the
+  // lesson: log it for the Activity Log and engagement. Members' open lessons only (not a staff preview).
+  if (saved > 0 && lesson.state === "open") {
+    await recordLessonWatched(supabase, {
+      memberId,
+      lessonId: batch.lessonId,
+      courseId: lesson.course_id,
+      lessonTitle: lesson.title,
+      videoId: lesson.video_id,
+      lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds),
+    });
   }
 
   if (batch.position !== null) {
