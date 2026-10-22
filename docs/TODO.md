@@ -333,7 +333,7 @@ are ahead of the code.
 ### Un-pin CI Runners from ubuntu-24.04
 **Status:** Pinned 2026-09-24, needs revisiting after 2026-11-19
 
-`.github/workflows/ci.yml`, `checkly.yml`, and `dependabot-auto-merge.yml` all pin
+`.github/workflows/ci.yml`, `checkly.yml`, and `auto-merge.yml` all pin
 `runs-on: ubuntu-24.04` instead of `ubuntu-latest`, added to avoid flaky CI during
 GitHub's gradual, non-deterministic rollout of `ubuntu-latest` → Ubuntu 26.04 between
 Oct 19 and Nov 19, 2026 (`actions/runner-images#14748`).

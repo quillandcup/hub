@@ -4,8 +4,8 @@
 # ruleset match it.
 #
 # Repository settings: allow_auto_merge lets GitHub merge a PR by itself once its required checks
-# pass, which .github/workflows/auto-merge.yml turns on for every new PR (and
-# dependabot-auto-merge.yml for patch/minor bumps); it does nothing while this is off.
+# pass, which .github/workflows/auto-merge.yml turns on for every new PR (Dependabot's only
+# for patch/minor bumps); it does nothing while this is off.
 #
 # delete_branch_on_merge removes a PR's branch from the remote when it merges (auto-merge
 # included), so merged branches don't pile up and nobody pushes follow-ups to a dead one.
