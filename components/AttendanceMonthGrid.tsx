@@ -1,5 +1,6 @@
 "use client";
 
+import { withOrgTime } from "@/lib/org-time";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -177,7 +178,7 @@ export default function AttendanceMonthGrid({
                         {prickle.prickle_types?.name || "Unknown"}
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        {formatTime(joinTime)} – {formatTime(leaveTime)} ({duration} min)
+                        {withOrgTime(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)} ({duration} min)
                       </div>
                       {prickle.host && (
                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">

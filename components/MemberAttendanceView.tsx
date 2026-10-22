@@ -1,5 +1,6 @@
 "use client";
 
+import { withOrgTime } from "@/lib/org-time";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -261,7 +262,7 @@ export default function MemberAttendanceView({
                           {formatDate(joinTime)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                          {formatTime(joinTime)} - {formatTime(leaveTime)}
+                          {withOrgTime(`${formatTime(joinTime)} - ${formatTime(leaveTime)}`, joinTime, timezone)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {durationMinutes} min
@@ -402,7 +403,7 @@ export default function MemberAttendanceView({
                                 {prickle.prickle_types?.name || "Unknown"}
                               </div>
                               <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                                {formatTime(joinTime)} - {formatTime(leaveTime)} ({durationMinutes} min)
+                                {withOrgTime(`${formatTime(joinTime)} - ${formatTime(leaveTime)}`, joinTime, timezone)} ({durationMinutes} min)
                               </div>
                               {prickle.host && (
                                 <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">

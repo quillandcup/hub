@@ -1,5 +1,6 @@
 "use client";
 
+import { withOrgTime } from "@/lib/org-time";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { computeOverlapLayout } from "@/lib/calendar-overlap";
@@ -438,7 +439,7 @@ export default function CalendarWeekView({
                                     role: "button",
                                     tabIndex: 0,
                                     "aria-pressed": isSelected,
-                                    "aria-label": `${prickle.prickle_type} at ${startTime}`,
+                                    "aria-label": `${prickle.prickle_type} at ${withOrgTime(startTime, prickle.start_time, timezone)}`,
                                     onKeyDown: (e: React.KeyboardEvent) => {
                                       if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
@@ -456,7 +457,7 @@ export default function CalendarWeekView({
                               </div>
                               <div className="text-[10px] @pair:text-xs truncate">
                                 <span className="@pair:hidden">{compactStartTime}</span>
-                                <span className="hidden @pair:inline">{startTime}</span>
+                                <span className="hidden @pair:inline">{withOrgTime(startTime, prickle.start_time, timezone)}</span>
                               </div>
                               {mode !== "member" && attendanceLabel(prickle, attendanceDataThrough) && (
                                 <div className="text-xs font-bold mt-0.5">
