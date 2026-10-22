@@ -133,6 +133,18 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 
 ---
 
+### Course videos: a cleanup page for unused and long-draft videos _(Idea)_
+Every video in Mux is billed for storage by the minute (about $2/month for the Ready Writer's ~650 minutes, `docs/COURSES.md`), and nothing today tells staff which uploads are no longer earning their keep. An admin page (under the Courses area, behind the `courses` flag) would list two kinds:
+
+1. **Not used in a lesson.** A `videos` row that no `course_lessons.video_id` points at: the old asset after a lesson's video was replaced (the plan retires it "once nothing references it"), a lesson that was deleted in Kajabi, or a duplicate upload. `video_id` is `ON DELETE SET NULL`, so these accumulate quietly.
+2. **Only in draft for N months.** A video whose lessons are all hidden (Kajabi drafts) and that was uploaded at least N months ago. N comes from a filter on the page (default 3 months, say). There is no "became a draft on" date today (a lesson's `updated_at` moves for any edit), so start with `videos.created_at` as the age, and say so on the page. A lesson that is only "Coming soon" doesn't count: those are planned and visible.
+
+**Per row:** Mux asset id, duration, quality (`basic`/`plus`), status, uploaded on, the lessons that use it (linked, with their state), and the stored minutes, with a total at the top ("N videos, M minutes").
+
+**Acting on it:** staff-only, and never automatic. A "Delete from Mux" button per row (and for a selection) that confirms with the minutes it frees, calls Mux's delete-asset API, then removes the `videos` row and its `video_text_tracks`. Refuse when a lesson still references the video (re-check at delete time, since a lesson may have been re-linked since the page loaded). Write each delete to the audit log. Deleting a draft's video means the lesson has to be uploaded again when it is published, so label that clearly.
+
+**Notes:** the same page could also show videos stuck in `preparing` or `errored`. A matching page for `course_lesson_files` (copied PDFs no lesson lists any more) would follow the same pattern, though the files step already removes those itself.
+
 ### TrackBear Import Gaps
 
 The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
