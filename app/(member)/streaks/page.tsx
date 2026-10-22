@@ -6,7 +6,6 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getMemberDisplayName } from "@/lib/member-display-name"
-import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar"
 import MemberHoverCard from "@/components/member/MemberHoverCard"
 
 export const metadata: Metadata = {
@@ -119,19 +118,16 @@ function SisterStreakRow({
           <span aria-hidden="true" className="w-5 flex-shrink-0 text-center text-sm">
             {isActive && "🔥"}
           </span>
-          {/* Decorative: the name is beside it. 24px fits the row, which the stats on the right already make about 32px tall. */}
-          <span aria-hidden="true" className="flex-shrink-0">
-            <MemberAvatar name={s.memberName} photoUrl={photoUrl} size={24} />
-          </span>
-          <MemberHoverCard memberId={s.memberId} surface="streaks">
-            <Link
-              data-track="streaks-open-member"
-              href={`/members/${s.memberId}`}
-              className={`text-sm font-medium truncate hover:underline ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
-            >
-              {s.memberName}
-            </Link>
-          </MemberHoverCard>
+          {/* 24px fits the row, which the stats on the right already make about 32px tall. */}
+          <MemberHoverCard
+            memberId={s.memberId}
+            name={s.memberName}
+            photoUrl={photoUrl}
+            avatarSize={24}
+            surface="streaks"
+            trackName="streaks-open-member"
+            nameClassName={`text-sm font-medium ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+          />
         </div>
         <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
           <div className="w-12">

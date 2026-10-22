@@ -83,9 +83,11 @@ export default function MessageItem({
             {clock.replace(/\s?[AP]M$/i, "")}
           </time>
         ) : message.authorMemberId ? (
-          <Link data-track="chat-message-avatar" href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
-            <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
-          </Link>
+          <MemberHoverCard memberId={message.authorMemberId} surface="chat">
+            <Link data-track="chat-message-avatar" href={profileHref} scroll={false} aria-hidden="true" tabIndex={-1}>
+              <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
+            </Link>
+          </MemberHoverCard>
         ) : (
           <span aria-hidden="true">
             <MemberAvatar name={message.authorName} photoUrl={message.authorPhotoUrl} size={36} />
