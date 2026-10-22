@@ -112,7 +112,7 @@ export default function EmojiPicker({
     // After the browse view is back, scroll to the section.
     requestAnimationFrame(() => {
       const section = scroller.current?.querySelector(`[data-section="${id}"]`);
-      if (section instanceof HTMLElement && scroller.current) scroller.current.scrollTop = section.offsetTop - scroller.current.offsetTop;
+      if (section instanceof HTMLElement) scroller.current!.scrollTop = section.offsetTop - scroller.current!.offsetTop;
     });
   };
 

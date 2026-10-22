@@ -53,6 +53,16 @@ describe("EmojiPicker", () => {
     expect(screen.getByText(/No emoji match/)).toBeInTheDocument();
   });
 
+  it("does not scroll when the picker is gone before the next frame", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
+    await open();
+    await userEvent.click(screen.getByRole("tab", { name: "Food" }));
+    cleanup();
+    expect(() => frames.forEach((cb) => cb(0))).not.toThrow();
+    raf.mockRestore();
+  });
+
   it("jumps to a category from its tab and clears the search", async () => {
     await open();
     await userEvent.type(screen.getByLabelText("Search emoji"), "a");

@@ -27,6 +27,17 @@ describe("PendingAttachments", () => {
   });
 });
 
+describe("PendingAttachments without file names", () => {
+  it("falls back to generic labels", async () => {
+    const files = [new File(["a"], "", { type: "image/png" }), new File(["b"], "", { type: "application/pdf" })];
+    render(<PendingAttachments files={files} onRemove={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Preview image" }));
+    expect(screen.getByRole("dialog", { name: "image" })).toBeInTheDocument();
+    expect(screen.getByText("file")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Remove file" })).toHaveLength(2);
+  });
+});
+
 describe("ImageLightbox", () => {
   it("steps through images and closes on backdrop click", async () => {
     const onClose = vi.fn();
@@ -35,6 +46,8 @@ describe("ImageLightbox", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next image" }));
     expect(screen.getByRole("img")).toHaveAttribute("src", "b");
     await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("img")).toHaveAttribute("src", "a");
+    await userEvent.keyboard("x");
     expect(screen.getByRole("img")).toHaveAttribute("src", "a");
     fireEvent.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalled();

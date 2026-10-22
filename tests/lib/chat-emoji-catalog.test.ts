@@ -20,6 +20,13 @@ const codes = { "1F44D": ["+1", "thumbsup"], "1F600": "grinning", "1F3FB": "ligh
 
 beforeEach(() => localStorage.clear());
 
+describe("emoji catalog keywords", () => {
+  it("builds keywords for an emoji without tags", () => {
+    const [e] = buildCatalog([{ hexcode: "1F9FF", emoji: "🧿", label: "nazar amulet", group: 7 }], { "1F9FF": "nazar" });
+    expect(e.keywords).toBe("nazar amulet");
+  });
+});
+
 describe("emoji catalog", () => {
   const catalog = buildCatalog(data, codes);
 

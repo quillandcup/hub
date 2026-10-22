@@ -26,18 +26,23 @@ const row = (id: string, extra: Partial<MessageRow> = {}): MessageRow => ({
   ...extra,
 });
 
-function fakeSupabase(tables: Record<string, unknown[]>) {
+function fakeSupabase(tables: Record<string, unknown[] | null>) {
   return {
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
       for (const f of ["select", "in", "is", "eq", "order", "range"]) chain[f] = () => chain;
-      chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: tables[table] ?? [], error: null });
+      chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: table in tables ? tables[table] : [], error: null });
       return chain;
     },
   } as never;
 }
 
 describe("buildMessageViews", () => {
+  it("copes with the reactions query returning nothing", async () => {
+    const out = await buildMessageViews(fakeSupabase({ chat_reactions: null }), { slackChannelId: null }, [row("m1")], "member-fern");
+    expect(out.views[0].reactions).toEqual([]);
+  });
+
   it("leaves deleted messages out entirely", async () => {
     const out = await buildMessageViews(fakeSupabase({}), { slackChannelId: null }, [row("m1", { deleted_at: "2026-10-02T00:00:00Z" })], "member-fern");
     expect(out.views).toEqual([]);

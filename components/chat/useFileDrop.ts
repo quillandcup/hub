@@ -35,7 +35,7 @@ export function useFileDrop(target: () => HTMLElement | null, onFiles: (files: F
     const drop = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
-      const files = Array.from(e.dataTransfer?.files ?? []);
+      const files = Array.from(e.dataTransfer!.files);
       end();
       if (files.length > 0) onFiles(files);
     };

@@ -183,6 +183,8 @@ describe("deleteChatFileInSlack", () => {
     await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
     remove.mockResolvedValueOnce({ ok: false });
     await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
+    remove.mockRejectedValueOnce(new Error("network down"));
+    await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
     row = { ...ROW, author_member_id: "someone-else" };
     await expect(deleteChatFileInSlack(service, FILE)).resolves.toMatchObject({ ok: false });
   });

@@ -129,6 +129,55 @@ describe("MessageFiles attachments", () => {
   });
 });
 
+describe("MessageFiles image menu extras", () => {
+  it("copies the image itself when the browser allows it, and closes the menu from links", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { write, writeText: vi.fn() }, configurable: true });
+    vi.stubGlobal("ClipboardItem", class { constructor(public items: unknown) {} });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ blob: async () => new Blob(["x"], { type: "image/png" }) }));
+    const files = parseChatFiles([{ id: "F1", mimetype: "image/png" }]);
+    render(<MessageFiles messageId="m1" files={files} />);
+    expect(screen.getByRole("img", { name: "Image" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy image" }));
+    await waitFor(() => expect(write).toHaveBeenCalled());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    for (const name of ["Open in new tab", "Download"]) {
+      await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+      await userEvent.click(screen.getByRole("menuitem", { name }));
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    }
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("MessageFiles without file names", () => {
+  it("uses generic labels for an image and a file", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const files = parseChatFiles([
+      { id: "F1", mimetype: "image/png" },
+      { id: "F2", mimetype: "application/pdf" },
+    ]);
+    render(<MessageFiles messageId="m1" files={files} canDelete />);
+    expect(screen.getByText("File")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove image" }));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("this file"));
+    await userEvent.click(screen.getByRole("button", { name: "Enlarge image" }));
+    expect(screen.getByRole("dialog", { name: "Image" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await userEvent.click(screen.getByRole("button", { name: /2 attachments/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Download all" }));
+    await vi.advanceTimersByTimeAsync(600);
+    expect(click).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+});
+
 describe("chat file helpers", () => {
   it("parses defensively and formats sizes", () => {
     expect(parseChatFiles(null)).toEqual([]);

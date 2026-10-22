@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn() }));
+import { toggleChatReaction } from "@/app/(member)/chat/actions";
 import MessageActions from "@/components/chat/MessageActions";
 import MessageItem from "@/components/chat/MessageItem";
 import { MESSAGE_CHANGE_EVENT, optimisticView } from "@/lib/chat/list-events";
@@ -13,6 +14,25 @@ import { MESSAGE_CHANGE_EVENT, optimisticView } from "@/lib/chat/list-events";
 beforeEach(cleanup);
 
 const props = { channelId: "c1", messageId: "m1", body: "hi", custom: {}, canReact: false, canReply: false };
+
+describe("MessageActions reactions", () => {
+  it("reacts from the picker and closes it, showing an error when the action refuses", async () => {
+    vi.mocked(toggleChatReaction).mockResolvedValue({ ok: false, error: "No can do." });
+    render(<MessageActions {...props} canReact />);
+    await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
+    await userEvent.click(screen.getByRole("button", { name: "React with :tada:" }));
+    expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada");
+    expect(screen.queryByRole("button", { name: "React with :tada:" })).not.toBeInTheDocument();
+  });
+
+  it("closes the picker with Escape", async () => {
+    render(<MessageActions {...props} canReact />);
+    await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
+    await userEvent.click(screen.getByRole("button", { name: "More emoji…" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
+  });
+});
 
 describe("MessageActions menu", () => {
   it("puts Edit and Delete in the more menu for the author, telling MessageBody by event", async () => {

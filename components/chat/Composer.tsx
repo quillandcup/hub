@@ -66,7 +66,7 @@ export default function Composer({
     latestAttach.current = attach;
   });
   const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
-  const { dragging, rect } = useFileDrop(() => formRef.current?.closest("aside") ?? formRef.current?.parentElement ?? null, onDrop, !sending);
+  const { dragging, rect } = useFileDrop(() => formRef.current!.closest("aside") ?? formRef.current!.parentElement, onDrop, !sending);
   const dropLabel = threadRootId ? "Upload to thread" : `Upload to ${placeholder.replace(/^Message /, "")}`;
 
   /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
@@ -175,7 +175,7 @@ export default function Composer({
             hidden
             aria-label="Attach files"
             onChange={(e) => {
-              attach([...(e.target.files ?? [])]);
+              attach([...e.target.files!]);
               e.target.value = "";
             }}
           />
