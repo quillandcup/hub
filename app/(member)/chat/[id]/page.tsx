@@ -170,7 +170,7 @@ export default async function ChatChannelPage({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
           {sudoHidden ? (
             <p className="py-3 text-sm text-slate-600 dark:text-slate-400">
               This conversation is restricted, so its messages are hidden while you view as a member.

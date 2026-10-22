@@ -180,7 +180,7 @@ export default function MessageList({
 
   return (
     <>
-      <div ref={top}>
+      <div ref={top} className={cursor ? "pt-2" : undefined}>
         {cursor && (
           <button
             type="button"
