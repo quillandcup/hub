@@ -1,5 +1,6 @@
 "use client";
 
+import { withOrgTime } from "@/lib/org-time";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -193,7 +194,7 @@ export default function AttendanceListTable({
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                          {formatTime(joinTime)} – {formatTime(leaveTime)}
+                          {withOrgTime(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {duration} min

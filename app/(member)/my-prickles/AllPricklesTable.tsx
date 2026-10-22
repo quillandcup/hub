@@ -1,5 +1,6 @@
 "use client";
 
+import { withOrgTime } from "@/lib/org-time";
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrickleScheduleRow } from "@/lib/prickle-schedule";
@@ -87,8 +88,11 @@ export default function AllPricklesTable({
   rows,
   selection,
   calendar,
+  timeZone,
 }: {
   rows: PrickleScheduleRow[];
+  /** The viewer's zone; when set, each time also shows its Eastern reading. */
+  timeZone?: string;
   selection?: TableSlotSelection;
   calendar?: TableCalendarContext;
 }) {
@@ -209,7 +213,7 @@ export default function AllPricklesTable({
                         href={`/prickles/${row.nextOccurrenceId}`}
                         className="flex items-center py-2 pr-2 text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400"
                       >
-                        {row.timeLabel}
+                        {timeZone ? withOrgTime(row.timeLabel, row.nextOccurrenceStart, timeZone) : row.timeLabel}
                       </Link>
                     </td>
                     <td className="py-2 pr-2 text-slate-600 dark:text-slate-300">{row.typeName}</td>
