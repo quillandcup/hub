@@ -81,4 +81,18 @@ describe("useFileDrop", () => {
     unmount();
     expect(off).toHaveBeenCalledTimes(4);
   });
+
+  it("watches several elements and ends the drop state on the one left", () => {
+    const a = document.createElement("div");
+    const b = document.createElement("div");
+    const onFiles = vi.fn();
+    const { result } = renderHook(() => useFileDrop(() => [a, null, b], onFiles));
+    fire(b, dragEvent("dragenter"));
+    expect(result.current.dragging).toBe(true);
+    fire(b, dragEvent("dragleave"));
+    expect(result.current.dragging).toBe(false);
+    const file = new File(["x"], "a.png");
+    fire(a, dragEvent("drop", { files: [file] }));
+    expect(onFiles).toHaveBeenCalledWith([file]);
+  });
 });

@@ -916,8 +916,8 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
-### Chat composer: drop zone on the profile panel and lightbox for sent attachments
-Files can be dropped on the conversation column and the thread panel (`components/chat/useFileDrop.ts`, used by `Composer`), but not onto a profile panel (no composer there) and the drop target is found from the composer's DOM position (`closest("aside")` or its parent) instead of being passed in. Deferred as the page (`app/(member)/chat/[id]/page.tsx`) was out of scope; a small `ChatDropZone` wrapper there would be cleaner. **Resolved:** sent images in `MessageFiles` now open in `components/ImageLightbox.tsx`; the author's file removal (`chat_delete_file`) has a pgTAP test (`supabase/tests/database/chat_delete_file.test.sql`). **Still open:** pending uploads show no progress bar.
+### Chat composer: byte-level upload progress
+Dropping files on the profile panel now attaches them to the conversation composer (the composer is given drop target ids explicitly: `dropTargetIds` on `components/chat/Composer.tsx`, ids set in `app/(member)/chat/[id]/page.tsx`). **Resolved:** drop on the profile panel, explicit drop targets, sent-image lightbox, `chat_delete_file` pgTAP test, and a files-uploaded progress bar while sending. **Still open:** the bar counts files, not bytes: `uploadToSignedUrl` reports no progress, so a single big file shows 0 of 1 until done. Byte progress needs an XHR/`fetch` upload to the signed URL instead of the storage client.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.

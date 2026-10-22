@@ -31,6 +31,7 @@ export default function Composer({
   placeholder,
   viewer,
   showSent = true,
+  dropTargetIds = [],
 }: {
   channelId: string;
   threadRootId?: string;
@@ -39,12 +40,19 @@ export default function Composer({
   viewer?: { memberId: string; name: string; photoUrl: string | null };
   /** Show the sent message in the list at once (the conversation's, or the thread's for a reply). Off on older pages. */
   showSent?: boolean;
+  /**
+   * Ids of the elements files may be dropped on to attach them here: the conversation column, and
+   * the profile panel beside it (which has no box of its own). Ones that aren't on the page are
+   * skipped. Without any, dropping does nothing.
+   */
+  dropTargetIds?: string[];
 }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [attached, setAttached] = useState<File[]>([]);
+  const [uploaded, setUploaded] = useState(0);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
   const early = Boolean(viewer) && showSent && attached.length === 0;
@@ -66,7 +74,7 @@ export default function Composer({
     latestAttach.current = attach;
   });
   const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
-  const { dragging, rect } = useFileDrop(() => formRef.current!.closest("aside") ?? formRef.current!.parentElement, onDrop, !sending);
+  const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
   const dropLabel = threadRootId ? "Upload to thread" : `Upload to ${placeholder.replace(/^Message /, "")}`;
 
   /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
@@ -78,6 +86,7 @@ export default function Composer({
     }
     const storage = createClient().storage.from(SLACK_FILES_BUCKET);
     const done: StagedUpload[] = [];
+    setUploaded(0);
     for (let i = 0; i < attached.length; i++) {
       const file = attached[i];
       const { path, token } = prepared.uploads[i];
@@ -87,6 +96,7 @@ export default function Composer({
         return null;
       }
       done.push({ path, name: file.name || "file", mimetype: file.type || "application/octet-stream", size: file.size });
+      setUploaded(done.length);
     }
     return done;
   };
@@ -99,7 +109,10 @@ export default function Composer({
     let uploads: StagedUpload[] = [];
     if (attached.length > 0) {
       const staged = await uploadAttachments();
-      if (!staged) return setSending(false);
+      if (!staged) {
+        setUploaded(0);
+        return setSending(false);
+      }
       uploads = staged;
     }
     setText("");
@@ -108,6 +121,7 @@ export default function Composer({
 
     const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
+    setUploaded(0);
     if (!result.ok) {
       if (early) emitListEvent({ kind: "drop", channelId, threadRootId, tempId });
       setText((current) => (current ? `${body}\n${current}` : body));
@@ -200,6 +214,14 @@ export default function Composer({
           </button>
         </div>
       </div>
+      {sending && attached.length > 0 && (
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <progress aria-label="Upload progress" max={attached.length} value={uploaded} className="h-1.5 flex-1 accent-plum-600" />
+          <span>
+            {uploaded} of {attached.length} uploaded
+          </span>
+        </div>
+      )}
       {error && (
         <p role="alert" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
           {error}
