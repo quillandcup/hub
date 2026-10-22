@@ -23,6 +23,7 @@ const view = (n: number, extra: Partial<ChatMessageView> = {}): ChatMessageView 
   body: `message ${n}`,
   contentState: "ok",
   hasFiles: false,
+  files: [],
   replyCount: 0,
   lastReplyAt: null,
   reactions: [],

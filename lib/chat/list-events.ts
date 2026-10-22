@@ -84,6 +84,7 @@ export function optimisticView(opts: {
     body: opts.body,
     contentState: "ok",
     hasFiles: false,
+    files: [],
     replyCount: 0,
     lastReplyAt: null,
     reactions: [],

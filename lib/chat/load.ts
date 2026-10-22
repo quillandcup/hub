@@ -4,6 +4,7 @@ import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserMemberI
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
+import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
 
 /**
@@ -255,11 +256,11 @@ export interface MessageRow {
   has_files: boolean;
   /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
   slack_sync_status?: "pending" | "sent" | "failed" | null;
-  chat_message_contents: { body: string } | { body: string }[] | null;
+  chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
 }
 
 const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body)";
+  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body, files)";
 
 export interface MessagePage {
   /** Oldest first. */
@@ -348,6 +349,8 @@ export interface ChatMessageView {
   /** "deleted" = removed in Slack (a tombstone); "hidden" = this viewer can't read it. */
   contentState: ContentState;
   hasFiles: boolean;
+  /** The files to show under the message (empty when it has none, or Slack never gave us any). */
+  files: ChatFile[];
   replyCount: number;
   lastReplyAt: string | null;
   reactions: ReactionSummary[];
@@ -386,10 +389,10 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
   };
 }
 
-const bodyOf = (row: MessageRow): string | null => {
-  const c = Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
-  return c?.body ?? null;
-};
+const contentOf = (row: MessageRow) =>
+  Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
+
+const bodyOf = (row: MessageRow): string | null => contentOf(row)?.body ?? null;
 
 interface ReplyAuthor {
   memberId: string | null;
@@ -532,6 +535,7 @@ export async function buildMessageViews(
       body: contentState === "ok" ? body : null,
       contentState,
       hasFiles: row.has_files,
+      files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),

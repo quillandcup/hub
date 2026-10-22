@@ -81,13 +81,14 @@ import {
   applySlackEmojiEvent,
   applySlackMembershipEvent,
   copySlackFiles,
+  ensureSlackFileCopied,
   MAX_SLACK_FILE_BYTES,
   SLACK_FILES_BUCKET,
 } from '@/lib/slack-capture'
 
 const supabase = getTestSupabaseAdminClient()
 const bronze = (table: string) => supabase.schema('bronze').from(table)
-const fileIds = [1, 2, 3, 4].map((n) => `TEST_CAPTURE_FILE_${suffix}_${n}`)
+const fileIds = [1, 2, 3, 4, 5, 6].map((n) => `TEST_CAPTURE_FILE_${suffix}_${n}`)
 
 async function cleanup() {
   const { data: files } = await bronze('slack_files').select('storage_path').in('file_id', fileIds)
@@ -375,6 +376,50 @@ describe('Slack import: group DMs, membership, emoji and files', () => {
       // the older message's file is the one that got copied.
       expect((await stored(fileIds[0])).storage_path).not.toBeNull()
       expect((await stored(fileIds[1])).storage_path).toBeNull()
+    })
+    describe('ensureSlackFileCopied (the Hub opening a file the import has not copied yet)', () => {
+      const ref = (n: number) => ({ fileId: fileIds[n - 1], channelId, messageTs: `${nowSec - 100}.000400` })
+      const slackReplies = (calls: string[], file: Record<string, any> | null) =>
+        (async (url: any, init: any) => {
+          calls.push(String(url))
+          if (String(url).startsWith('https://slack.com/api/files.info')) {
+            return new Response(JSON.stringify(file ? { ok: true, file } : { ok: false, error: 'file_not_found' }), { status: 200 })
+          }
+          return new Response('fresh bytes', { status: 200, headers: { 'content-type': 'text/plain' } })
+        }) as typeof fetch
+
+      it('asks Slack for a file it has no record of, then copies it once', async () => {
+        const calls: string[] = []
+        const first = await ensureSlackFileCopied(supabase, 'xoxb-test', ref(5), slackReplies(calls, slackFile(5)))
+        expect(first).toMatchObject({ ok: true, path: `${fileIds[4]}/draft_5.txt` })
+        expect(calls).toHaveLength(2)
+        const { data: blob } = await supabase.storage.from(SLACK_FILES_BUCKET).download(`${fileIds[4]}/draft_5.txt`)
+        expect(await blob!.text()).toBe('fresh bytes')
+
+        const second = await ensureSlackFileCopied(supabase, 'xoxb-test', ref(5), slackReplies(calls, slackFile(5)))
+        expect(second).toMatchObject({ ok: true, path: `${fileIds[4]}/draft_5.txt` })
+        expect(calls).toHaveLength(2)
+      })
+
+      it('reports why it could not, and remembers permanent reasons', async () => {
+        const calls: string[] = []
+        expect(await ensureSlackFileCopied(supabase, 'xoxb-test', ref(6), slackReplies(calls, null))).toEqual({ ok: false, reason: 'file_not_found' })
+
+        const big = slackFile(6, { size: MAX_SLACK_FILE_BYTES + 1 })
+        expect(await ensureSlackFileCopied(supabase, 'xoxb-test', ref(6), slackReplies(calls, big))).toEqual({ ok: false, reason: 'skipped: larger than 20 MB' })
+        expect((await stored(fileIds[5])).copy_error).toBe('skipped: larger than 20 MB')
+      })
+
+      it('marks a failed download so the import retries it', async () => {
+        const down = (async (url: any) =>
+          String(url).startsWith('https://slack.com/')
+            ? new Response(JSON.stringify({ ok: true, file: slackFile(6) }), { status: 200 })
+            : new Response('nope', { status: 500 })) as typeof fetch
+        await bronze('slack_files').delete().eq('file_id', fileIds[5])
+        const result = await ensureSlackFileCopied(supabase, 'xoxb-test', ref(6), down)
+        expect(result).toEqual({ ok: false, reason: 'download failed with HTTP 500' })
+        expect((await stored(fileIds[5])).copy_error).toBe('download failed with HTTP 500')
+      })
     })
   })
 })
