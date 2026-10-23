@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   kick: vi.fn(),
   leave: vi.fn(),
   kickAs: vi.fn(),
+  inviteAs: vi.fn(),
+  joinAs: vi.fn(),
   revoke: vi.fn(),
   userToken: vi.fn(),
   slackIds: vi.fn(),
@@ -28,6 +30,8 @@ vi.mock("@/lib/chat/slack-membership", () => ({
   kickFromSlackChannel: m.kick,
   leaveSlackChannelAsMember: m.leave,
   kickAsMember: m.kickAs,
+  inviteAsMember: m.inviteAs,
+  joinAsMember: m.joinAs,
   slackUserIdsFor: m.slackIds,
 }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackUserToken: m.userToken }));
@@ -126,6 +130,10 @@ beforeEach(() => {
   m.invite.mockReset();
   m.invite.mockResolvedValue({ ok: true });
   m.kick.mockReset();
+  m.inviteAs.mockReset();
+  m.inviteAs.mockResolvedValue({ ok: true });
+  m.joinAs.mockReset();
+  m.joinAs.mockResolvedValue({ ok: true });
   m.kickAs.mockReset();
   m.kickAs.mockResolvedValue({ ok: true });
   m.revoke.mockReset();
@@ -238,6 +246,56 @@ describe("addChatMembers", () => {
     m.postingCaller.mockResolvedValue(null);
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toMatchObject({ ok: false, error: expect.stringContaining("isn't available to you yet") });
     expect(m.invite).not.toHaveBeenCalled();
+  });
+});
+
+describe("adding as the member", () => {
+  it("adds people as the member when they've connected Slack, and the bot is not involved", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    await expect(addChatMembers(CHANNEL, [GALE, HAZEL])).resolves.toEqual({ ok: true });
+    expect(m.inviteAs).toHaveBeenCalledWith({ channel: "C_SLACK", userIds: ["U_GALE", "U_HAZEL"], token: "xoxp-test" });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(writes("upsert")).toHaveLength(1);
+  });
+
+  it("joins a public channel as the member with a join, not an invite", async () => {
+    world.summary = { label: "#general", joined: false };
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    await expect(joinChatChannel(CHANNEL)).resolves.toEqual({ ok: true });
+    expect(m.joinAs).toHaveBeenCalledWith({ channel: "C_SLACK", token: "xoxp-test" });
+    expect(m.inviteAs).not.toHaveBeenCalled();
+  });
+
+  it("uses the bot when they haven't connected, or their token can't do it", async () => {
+    await addChatMembers(CHANNEL, [GALE]);
+    expect(m.invite).toHaveBeenCalledTimes(1);
+
+    m.invite.mockClear();
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    m.inviteAs.mockResolvedValue({ ok: false, error: "x", retryWithBot: true });
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: true });
+    expect(m.invite).toHaveBeenCalledTimes(1);
+    expect(m.revoke).not.toHaveBeenCalled();
+  });
+
+  it("shows Slack's refusal to their own account instead of overriding it with the bot", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    m.inviteAs.mockResolvedValue({ ok: false, error: "Slack won't let the people be added to this conversation." });
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: expect.stringContaining("won't let the people") });
+    expect(m.invite).not.toHaveBeenCalled();
+    expect(writes("upsert")).toHaveLength(0);
+  });
+
+  it("disconnects a dead connection, still adds through the bot, and says to reconnect", async () => {
+    world.present = [];
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    m.inviteAs.mockResolvedValue({ ok: false, error: "x", retryWithBot: true, deadToken: true });
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: true, message: expect.stringContaining("Reconnect Slack in Settings") });
+    expect(m.revoke).toHaveBeenCalledWith("slack_connection_revoke", { p_member: FERN });
+    expect(m.invite).toHaveBeenCalledTimes(1);
+
+    m.invite.mockResolvedValue({ ok: false, error: "Billie Bot isn't in this conversation, so it can't add people." });
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: expect.stringContaining("Reconnect Slack in Settings") });
   });
 });
 
