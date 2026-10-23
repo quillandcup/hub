@@ -922,7 +922,7 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ## UI Enhancements
 
 ### Chat composer: byte-level upload progress
-Dropping files on the profile panel now attaches them to the conversation composer (the composer is given drop target ids explicitly: `dropTargetIds` on `components/chat/Composer.tsx`, ids set in `app/(member)/chat/[id]/page.tsx`). **Resolved:** drop on the profile panel, explicit drop targets, sent-image lightbox, `chat_delete_file` pgTAP test, and a files-uploaded progress bar while sending. **Still open:** the bar counts files, not bytes: `uploadToSignedUrl` reports no progress, so a single big file shows 0 of 1 until done. Byte progress needs an XHR/`fetch` upload to the signed URL instead of the storage client.
+Dropping files on the profile panel now attaches them to the conversation composer (the composer is given drop target ids explicitly: `dropTargetIds` on `components/chat/Composer.tsx`, ids set in `app/(member)/chat/[id]/page.tsx`). **Resolved:** drop on the profile panel, explicit drop targets, sent-image lightbox, `chat_delete_file` pgTAP test, and a progress bar while sending, now in bytes across all files with a ring on each thumbnail (XHR upload to the signed URL, `lib/chat/upload-progress.ts`). **Still open:** no cancel button while uploading (the x on a file is disabled during a send), and files upload one after another rather than in parallel.
 
 ### Add an Icon Library
 The app has no icon library: icons are inline SVGs pasted into components. Add one (e.g. lucide-react) and replace the hand-drawn crosshair on Settings' "Use current location" button (`app/(member)/settings/TimezoneSwitcher.tsx`) with its "locate" icon, then move the other inline SVGs over as they're touched.
