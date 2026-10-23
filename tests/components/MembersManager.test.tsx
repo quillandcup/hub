@@ -196,8 +196,9 @@ describe("MembersManager", () => {
 describe("JoinPrompt", () => {
   it("offers to join, then refreshes so the message box appears", async () => {
     render(<JoinPrompt channelId="c1" channelLabel="#general" />);
-    expect(screen.getByText(/You're not in #general/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Join #general" }));
+    expect(screen.getByRole("region", { name: "Join #general" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Details" })).toHaveAttribute("href", "/chat/c1/members");
+    await userEvent.click(screen.getByRole("button", { name: "Join channel" }));
     expect(actions.joinChatChannel).toHaveBeenCalledWith("c1");
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
@@ -205,7 +206,7 @@ describe("JoinPrompt", () => {
   it("shows why it didn't work", async () => {
     actions.joinChatChannel.mockResolvedValue({ ok: false, error: "Nope." });
     render(<JoinPrompt channelId="c1" channelLabel="#general" />);
-    await userEvent.click(screen.getByRole("button", { name: "Join #general" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join channel" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Nope.");
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -213,7 +214,7 @@ describe("JoinPrompt", () => {
   it("falls back to a generic message when the action throws", async () => {
     actions.joinChatChannel.mockRejectedValue(new Error("x"));
     render(<JoinPrompt channelId="c1" channelLabel="#general" />);
-    await userEvent.click(screen.getByRole("button", { name: "Join #general" }));
+    await userEvent.click(screen.getByRole("button", { name: "Join channel" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
   });
 });

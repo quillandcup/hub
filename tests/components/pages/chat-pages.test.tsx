@@ -683,22 +683,22 @@ describe("authors and members", () => {
     it("on the channel page, offers a join prompt in place of the message box for a public channel the member isn't in", async () => {
       on();
       await renderChannel(GENERAL);
-      expect(screen.getByText(/You're not in #general/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Join #general" })).toBeInTheDocument();
       cleanup();
 
       await renderChannel(HOSTS);
-      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
     });
 
     it("has no join prompt without the preview or in sudo", async () => {
       await renderChannel(GENERAL);
-      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
       cleanup();
 
       on();
       signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
       await renderChannel(GENERAL);
-      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
     });
   });
 });
