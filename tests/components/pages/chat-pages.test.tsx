@@ -43,6 +43,12 @@ vi.mock("@/app/(member)/chat/actions", () => ({
   retryChatMessage: vi.fn(),
   toggleChatReaction: vi.fn(),
 }));
+vi.mock("@/app/(member)/chat/membership-actions", () => ({
+  addChatMembers: vi.fn(),
+  joinChatChannel: vi.fn(),
+  removeChatMember: vi.fn(),
+  searchMembersToAdd: vi.fn(async () => []),
+}));
 vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
 // Opening a conversation schedules a catch-up with Slack after the response; it is checked in chat-gap-fill.test.ts.
 const afterCallbacks: (() => unknown)[] = [];
@@ -73,6 +79,7 @@ const EXAMPLE_VIEW = {
   system: false,
 };
 
+let staffRole = "member";
 let earnedBadges: unknown[] = [];
 let sudoMemberHasFlag = true;
 /** The member's read marker for a conversation (null = never read: counts from joining). */
@@ -111,7 +118,8 @@ const QUIET = id(4);
 const GROUP = id(5);
 
 const channel = (cid: string, extra: Record<string, unknown>) => ({
-  id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null, ...extra,
+  id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null,
+  bridge_mode: "bridged", bridge_disabled: false, bridge_status: "ok", ...extra,
 });
 const CHANNELS = [
   channel(GENERAL, { name: "general", slack_channel_id: "C_GENERAL" }),
@@ -177,6 +185,7 @@ const fakeTables = (): FakeTables => ({
     const wanted = eqArg(q, "id");
     return { data: wanted ? rows.filter((r) => r.id === wanted) : rows };
   },
+  user_profiles: () => ({ data: { role: staffRole } }),
   member_ask_me_about: { data: { topics: ["cozy mysteries", "morning routines"] } },
   chat_messages: (q) => {
     if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
@@ -196,6 +205,7 @@ beforeEach(() => {
   afterCallbacks.length = 0;
   catchUpChannel.mockClear();
   sudoMemberHasFlag = true;
+  staffRole = "member";
   readMarker = null;
   unread = [];
   earnedBadges = [];
@@ -622,6 +632,73 @@ describe("authors and members", () => {
 
   it("404s the members page for a private conversation the member isn't in", async () => {
     await expect(ChatMembersPage({ params: Promise.resolve({ id: SECRET }) })).rejects.toThrow("404");
+  });
+
+  describe("changing who is in a conversation (behind the chat_posting preview)", () => {
+    const membersPage = (cid: string) => ChatMembersPage({ params: Promise.resolve({ id: cid }) }).then((ui) => render(ui));
+    const on = () => vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
+
+    it("shows no controls without the preview", async () => {
+      await membersPage(HOSTS);
+      expect(screen.queryByRole("button", { name: /Leave/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
+    });
+
+    it("lets a member leave and add people to a conversation they're in, but only staff remove others", async () => {
+      on();
+      await membersPage(HOSTS);
+      expect(screen.getByRole("button", { name: "Leave #hosts" })).toBeInTheDocument();
+      expect(screen.getByRole("searchbox", { name: "Add people" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+      cleanup();
+
+      staffRole = "admin";
+      await membersPage(GROUP);
+      expect(screen.getByText(/Slack doesn't allow changing who is in a group message/)).toBeInTheDocument();
+      cleanup();
+
+      await membersPage(HOSTS);
+      expect(screen.getAllByRole("button", { name: /^Remove / }).length).toBeGreaterThan(0);
+    });
+
+    it("offers to join a public channel the member isn't in, and no way to add people", async () => {
+      on();
+      await membersPage(GENERAL);
+      expect(screen.getByRole("button", { name: "Join #general" })).toBeInTheDocument();
+      expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
+    });
+
+    it("explains a conversation that isn't bridged to Slack", async () => {
+      on();
+      CHANNELS[0].bridge_mode = "app_only";
+      try {
+        await membersPage(GENERAL);
+        expect(screen.getByText(/isn't connected to Slack/)).toBeInTheDocument();
+      } finally {
+        CHANNELS[0].bridge_mode = "bridged";
+      }
+    });
+
+    it("on the channel page, offers a join prompt in place of the message box for a public channel the member isn't in", async () => {
+      on();
+      await renderChannel(GENERAL);
+      expect(screen.getByText(/You're not in #general/)).toBeInTheDocument();
+      cleanup();
+
+      await renderChannel(HOSTS);
+      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+    });
+
+    it("has no join prompt without the preview or in sudo", async () => {
+      await renderChannel(GENERAL);
+      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+      cleanup();
+
+      on();
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderChannel(GENERAL);
+      expect(screen.queryByText(/You're not in/)).not.toBeInTheDocument();
+    });
   });
 });
 

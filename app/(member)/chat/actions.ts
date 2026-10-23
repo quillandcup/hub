@@ -31,21 +31,7 @@ import {
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
 import { withAction } from "@/lib/analytics/server";
-/**
- * Who is calling a chat action: the signed-in member with chat on, or null (signed out, no member
- * record, chat off). Actions are directly callable endpoints, so each one checks for itself rather
- * than trusting the page that offers it; unlike the pages they answer "nothing" instead of redirecting.
- */
-async function chatCaller(): Promise<{ userId: string; identity: EffectiveIdentity } | null> {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  // Neither needs the other's answer, so ask together.
-  const [identity, ownFeatures] = await Promise.all([getEffectiveIdentity(user), getUserFeaturePreviews(user.id)]);
-  if (!identity) return null;
-  if (!(await effectiveMemberHasFeature("chat", identity, ownFeatures))) return null;
-  return { userId: user.id, identity };
-}
-
+import { chatCaller, postingCaller } from "@/lib/chat/caller";
 /**
  * The signed-in member has seen a conversation through `through` (the time of the newest message
  * they had on screen): moves their own read marker forward (the `chat_mark_read` function can only
@@ -208,14 +194,6 @@ const POST_ERRORS: Record<string, string> = {
   bad_thread: "That thread can't be replied to.",
   bad_files: "Those files can't be sent.",
 };
-
-/** Posting is its own preview on top of chat, and never happens in sudo (read-only). */
-async function postingCaller() {
-  const caller = await chatCaller();
-  if (!caller || caller.identity.isSudo) return null;
-  if (!(await effectiveMemberHasFeature("chat_posting", caller.identity, await getUserFeaturePreviews(caller.userId)))) return null;
-  return caller;
-}
 
 export type PrepareUploadsResult = { ok: true; uploads: { path: string; token: string }[] } | { ok: false; error: string };
 

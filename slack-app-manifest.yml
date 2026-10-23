@@ -28,6 +28,10 @@ oauth_config:
       - channels:read
       - channels:join
       - channels:write.invites
+      # Removing people (conversations.kick) from the Hub's members page: public and private channels. Adding
+      # them needs only the .invites scopes. lib/chat/slack-membership.ts
+      - channels:manage
+      - groups:write
       - groups:history
       - groups:read
       - groups:write.invites
