@@ -740,6 +740,8 @@ The ⋮ in a message's hover bar (`components/chat/MessageActions.tsx`) has only
 ### Chat Emoji Picker: Skin Tones And Keyboard Grid _(Needs Scheduling)_
 **Resolved:** skin-tone chooser in `components/chat/EmojiPicker.tsx` (remembered per browser, applied as `name::skin-tone-N`, shown toned by `Emoji`), roving-focus arrow-key grid, and custom emoji lists split into `content-visibility` chunks with lazy images.
 
+**Resolved (phones):** the quick-reaction row is gone; the add-reaction button opens the full picker, with Frequently used seeded from the old quick set, as a bottom sheet with backdrop and close button below `sm`, nudged back inside the window above it.
+
 **Still open:** true virtualisation if a workspace passes tens of thousands of custom emoji; toned emoji inside message text (`:name::skin-tone-N:` still renders untoned); recents live in localStorage per browser, not per member.
 
 ### Chat Reply Count Isn't Decremented When A Reply Is Deleted _(Mostly resolved)_

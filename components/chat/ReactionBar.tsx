@@ -1,16 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import EmojiPicker from "@/components/chat/EmojiPicker";
 import { useRouter } from "next/navigation";
 import { Emoji } from "@/components/chat/ChatText";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ReactionSummary } from "@/lib/chat/load";
 import { toggleChatReaction } from "@/app/(member)/chat/actions";
 import { pokeChat } from "@/lib/chat/list-events";
-
-/** The reactions people reach for first, as Slack shortcodes. */
-export const QUICK_REACTIONS = ["thumbsup", "heart", "joy", "tada", "pray", "eyes", "white_check_mark", "raised_hands"];
 
 /** Toggling a reaction on a message, then asking the conversation to bring itself up to date. */
 export function useToggleReaction(channelId: string, messageId: string) {
@@ -51,54 +47,6 @@ function ReactionHoverCard({ reaction, custom }: { reaction: ReactionSummary; cu
       </span>
       <span>{reactorsSentence(reaction)}</span>
     </div>
-  );
-}
-
-/**
- * The quick reactions in a small popover, with a "more" button that swaps it for the full emoji
- * picker; `onPick` gets the shortcode, `onClose` (for the full picker's Escape/outside click) closes it.
- */
-export function ReactionPicker({
-  custom,
-  onPick,
-  onClose,
-  className,
-}: {
-  custom: Record<string, CustomEmoji>;
-  onPick: (name: string) => void;
-  onClose: () => void;
-  className: string;
-}) {
-  const [more, setMore] = useState(false);
-  if (more) return <EmojiPicker custom={custom} onPick={onPick} onClose={onClose} />;
-  return (
-    <ul aria-label="Pick a reaction" className={className}>
-      {QUICK_REACTIONS.map((name) => (
-        <li key={name}>
-          <button
-            type="button"
-            aria-label={`React with :${name}:`}
-            data-track="chat-reaction-quick-pick"
-            onClick={() => onPick(name)}
-            className="rounded px-1.5 py-0.5 text-base hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            <Emoji name={name} custom={custom} />
-          </button>
-        </li>
-      ))}
-      <li>
-        <button
-          type="button"
-          aria-label="More emoji…"
-          title="More emoji"
-          data-track="chat-reaction-more-emoji"
-          onClick={() => setMore(true)}
-          className="rounded px-1.5 py-0.5 text-base font-semibold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-        >
-          +
-        </button>
-      </li>
-    </ul>
   );
 }
 

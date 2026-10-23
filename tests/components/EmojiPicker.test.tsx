@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -12,7 +12,6 @@ vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn() }));
 import EmojiPicker from "@/components/chat/EmojiPicker";
-import { ReactionPicker } from "@/components/chat/ReactionBar";
 
 const CUSTOM = { partyparrot: { url: "https://example.com/p.png" }, hedgie: { text: "🦔" } };
 
@@ -105,20 +104,48 @@ describe("EmojiPicker", () => {
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockReturnValue({ top: 900, bottom: 1300, height: 400 } as DOMRect);
     await open();
-    expect(screen.getByRole("dialog")).toHaveClass("bottom-full");
+    expect(screen.getByRole("dialog")).toHaveClass("sm:bottom-full");
     spy.mockRestore();
   });
 });
 
-describe("ReactionPicker", () => {
-  it("keeps the quick row and opens the full picker from the plus button", async () => {
-    const onPick = vi.fn();
-    render(<ReactionPicker custom={{}} onPick={onPick} onClose={vi.fn()} className="" />);
-    await userEvent.click(screen.getByRole("button", { name: "React with :tada:" }));
-    expect(onPick).toHaveBeenCalledWith("tada");
-    await userEvent.click(screen.getByRole("button", { name: "More emoji…" }));
-    expect(screen.getByRole("dialog", { name: "Pick an emoji" })).toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Pick a reaction" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "React with :grinning:" })).toBeInTheDocument());
+describe("EmojiPicker on narrow screens", () => {
+  it("seeds Frequently used with the old quick reactions when there are no recents", async () => {
+    const { onPick } = await open();
+    expect(screen.getByRole("tab", { name: "Frequently used" })).toHaveAttribute("aria-selected", "true");
+    const grid = screen.getByRole("group", { name: "Frequently used" });
+    expect(grid.querySelectorAll("button")).toHaveLength(8);
+    await userEvent.click(within(grid).getByRole("button", { name: "React with :heart:" }));
+    expect(onPick).toHaveBeenCalledWith("heart");
+  });
+
+  it("is a bottom sheet on phones with a backdrop and a close button, 16px search, 40px targets", async () => {
+    const { onClose } = await open();
+    expect(screen.getByRole("dialog")).toHaveClass("fixed", "inset-x-0", "bottom-0", "sm:absolute", "sm:w-80");
+    expect(screen.getByTestId("emoji-backdrop")).toHaveClass("fixed", "inset-0", "sm:hidden");
+    expect(screen.getByLabelText("Search emoji")).toHaveClass("text-base");
+    expect(within(screen.getByRole("group", { name: "Frequently used" })).getByRole("button", { name: "React with :heart:" })).toHaveClass("h-10", "w-10");
+    expect(screen.getByRole("tab", { name: "Food" })).toHaveClass("h-10", "w-10");
+    expect(screen.getByRole("tablist")).toHaveClass("overflow-x-auto");
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("nudges itself back when its left edge is off the window", async () => {
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ top: 10, bottom: 300, height: 290, left: -50, right: 270 } as DOMRect);
+    await open();
+    expect(screen.getByRole("dialog").style.transform).toBe("translateX(58px)");
+    spy.mockRestore();
+  });
+
+  it("nudges itself back when its right edge is off the window", async () => {
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ top: 10, bottom: 300, height: 290, left: 900, right: 1100 } as DOMRect);
+    await open();
+    expect(screen.getByRole("dialog").style.transform).toMatch(/^translateX\(-/);
+    spy.mockRestore();
   });
 });

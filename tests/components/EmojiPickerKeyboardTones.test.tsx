@@ -119,7 +119,7 @@ describe("EmojiPicker with thousands of custom emoji", () => {
     await open(custom);
     const group = screen.getByRole("group", { name: "Custom" });
     expect(group.children).toHaveLength(Math.ceil(3000 / 144));
-    expect((group.children[0] as HTMLElement).style.containIntrinsicSize).toBe("auto 32rem");
+    expect((group.children[0] as HTMLElement).style.containIntrinsicSize).toBe("auto 42rem");
     expect(group.querySelector("img")).toHaveAttribute("loading", "lazy");
   });
 });
