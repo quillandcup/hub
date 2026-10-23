@@ -7,7 +7,7 @@
 -- Same predicate as chat_unread_counts (top-level messages by others, not deleted, after the
 -- marker or the join; not archived, not left), but keyed by member id instead of the caller's
 -- session, because the pull runs in a server action with the service role. Service role only.
-CREATE OR REPLACE FUNCTION public.chat_unread_channel_ids(p_member UUID) RETURNS TABLE (channel_id UUID, newest_at TIMESTAMPTZ) AS $$
+CREATE OR REPLACE FUNCTION public.chat_unread_channel_ids(p_member TEXT) RETURNS TABLE (channel_id TEXT, newest_at TIMESTAMPTZ) AS $$
   SELECT cm.channel_id, u.newest_at
   FROM chat_channel_members cm
   JOIN chat_channels c ON c.id = cm.channel_id AND c.archived_at IS NULL
@@ -17,6 +17,7 @@ CREATE OR REPLACE FUNCTION public.chat_unread_channel_ids(p_member UUID) RETURNS
     WHERE m.channel_id = cm.channel_id
       AND m.thread_root_id IS NULL
       AND m.deleted_at IS NULL
+      AND m.system_subtype IS NULL
       AND m.created_at > COALESCE(cm.last_read_at, cm.joined_at)
       AND m.author_member_id IS DISTINCT FROM cm.member_id
   ) u
@@ -26,5 +27,5 @@ CREATE OR REPLACE FUNCTION public.chat_unread_channel_ids(p_member UUID) RETURNS
   ORDER BY u.newest_at DESC;
 $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 
-REVOKE ALL ON FUNCTION public.chat_unread_channel_ids(UUID) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.chat_unread_channel_ids(UUID) TO service_role;
+REVOKE ALL ON FUNCTION public.chat_unread_channel_ids(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.chat_unread_channel_ids(TEXT) TO service_role;
