@@ -13,6 +13,8 @@ import SudoBanner from '@/components/SudoBanner'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 import { SecondaryTimezoneProvider } from '@/components/SecondaryTimezone'
+import { TimezoneProvider } from '@/components/Timezone'
+import { resolveTimeZone } from '@/lib/timezone'
 import { isValidTimeZone } from '@/lib/time-zone'
 import FeedbackWidget from '@/components/FeedbackWidget'
 import PageViewTracker from '@/components/PageViewTracker'
@@ -75,6 +77,7 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
+        <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
           <AppHeader resultsPath="/search" isAdmin={isAdmin}>
@@ -89,6 +92,7 @@ export default async function MemberLayout({
           {main}
         </WithInAppNotifications>
         </SecondaryTimezoneProvider>
+        </TimezoneProvider>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
       <FeedbackWidget />

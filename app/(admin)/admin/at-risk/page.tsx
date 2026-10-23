@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { formatDateOnly } from "@/lib/formatters";
 
 export const metadata: Metadata = {
   title: "At-Risk Members",
@@ -139,7 +140,7 @@ export default async function AtRiskPage() {
                         <div>
                           <span className="text-slate-500 dark:text-slate-400">Joined:</span>{" "}
                           <span className="font-semibold">
-                            {new Date(member.joined_at).toLocaleDateString()}
+                            {formatDateOnly(member.joined_at)}
                           </span>
                         </div>
                       </div>

@@ -3,15 +3,15 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
-import { parseDateOnly } from "@/lib/member-tenure";
 import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import { addVolunteer, removeVolunteer } from "./actions";
+import { formatDateOnly } from "@/lib/formatters";
 
 const TH = "px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
 const TD = "px-6 py-3 text-sm text-slate-600 dark:text-slate-400";
 
 function formatDay(dateOnly: string): string {
-  return parseDateOnly(dateOnly.slice(0, 10)).toLocaleDateString();
+  return formatDateOnly(dateOnly.slice(0, 10));
 }
 
 /** The volunteer pool: who's offered to be a Big Sister, in the order to consider them, with a way

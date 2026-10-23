@@ -6,6 +6,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface EventRow {
   id: string;
@@ -33,7 +34,7 @@ function slugify(title: string): string {
 }
 
 function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString();
+  return formatDateOnly(d);
 }
 
 const emptyForm = {

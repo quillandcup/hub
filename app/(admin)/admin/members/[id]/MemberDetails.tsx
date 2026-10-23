@@ -17,6 +17,8 @@ import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface MemberDetailsProps {
   /** The tab the route opened (/admin/members/<id>[/<tab>]). */
@@ -70,6 +72,7 @@ export default function MemberDetails({
   nameAliases,
   emailAliases,
 }: MemberDetailsProps) {
+  const timeZone = useTimeZone();
   const [activeTab, setActiveTabState] = useState<Tab>(initialTab);
   // Keep the tab in the URL path so a reload, or Back from a prickle/detail page, returns to it.
   const basePath = `/admin/members/${member.id}`;
@@ -145,7 +148,7 @@ export default function MemberDetails({
           <StatItem label="Last Attended">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics.last_attended_at
-                ? new Date(memberMetrics.last_attended_at).toLocaleDateString()
+                ? formatDateInZone(memberMetrics.last_attended_at, timeZone)
                 : "Never"}
             </span>
           </StatItem>
@@ -184,7 +187,7 @@ export default function MemberDetails({
                 label="Last Attended"
                 value={
                   memberMetrics.last_attended_at
-                    ? new Date(memberMetrics.last_attended_at).toLocaleDateString()
+                    ? formatDateInZone(memberMetrics.last_attended_at, timeZone)
                     : "Never"
                 }
               />

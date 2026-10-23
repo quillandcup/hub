@@ -11,6 +11,8 @@ import {
   sendTestPushNotification,
   type PushDeviceRow,
 } from "./notificationActions";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 type DeviceState = "checking" | "unsupported" | "blocked" | "off" | "on";
 
@@ -36,6 +38,7 @@ function supportsPush(): boolean {
  * (public/sw.js) and the server remembering the subscription (savePushSubscription).
  */
 export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey: string; readOnly: boolean }) {
+  const timeZone = useTimeZone();
   const lastEndpoint = useRef<string | null>(null);
   const [state, setState] = useState<DeviceState>("checking");
   const [busy, setBusy] = useState(false);
@@ -230,7 +233,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                   <span className="ml-2 text-xs text-slate-500">this device</span>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {thisDevice
-                      ? `Added ${new Date(thisDevice.addedAt).toLocaleDateString()}${thisDevice.lastSentAt ? ` · last notified ${new Date(thisDevice.lastSentAt).toLocaleDateString()}` : ""}`
+                      ? `Added ${formatDateInZone(thisDevice.addedAt, timeZone)}${thisDevice.lastSentAt ? ` · last notified ${formatDateInZone(thisDevice.lastSentAt, timeZone)}` : ""}`
                       : "Off"}
                   </div>
                 </div>
@@ -251,8 +254,8 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                 <div className="min-w-0 flex-1">
                   <span className="text-slate-900 dark:text-slate-100">{device.label}</span>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {device.paused ? "Paused while signed out · " : ""}Added {new Date(device.addedAt).toLocaleDateString()}
-                    {device.lastSentAt && ` · last notified ${new Date(device.lastSentAt).toLocaleDateString()}`}
+                    {device.paused ? "Paused while signed out · " : ""}Added {formatDateInZone(device.addedAt, timeZone)}
+                    {device.lastSentAt && ` · last notified ${formatDateInZone(device.lastSentAt, timeZone)}`}
                   </div>
                 </div>
                 <button

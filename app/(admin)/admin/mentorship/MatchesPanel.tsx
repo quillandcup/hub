@@ -7,11 +7,11 @@ import { SortableTh } from "@/components/SortableTh";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
-import { parseDateOnly } from "@/lib/member-tenure";
 import type { MentorshipOutcome, MentorshipRow } from "@/lib/mentorship";
 import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import type { Arrival } from "@/lib/arrivals";
 import { createMentorship, deleteMentorship, updateMentorship } from "./actions";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface PickerMember {
   id: string;
@@ -61,7 +61,7 @@ const INPUT =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 
 function formatDay(dateOnly: string): string {
-  return parseDateOnly(dateOnly.slice(0, 10)).toLocaleDateString();
+  return formatDateOnly(dateOnly.slice(0, 10));
 }
 
 export default function MatchesPanel({

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface Candidate {
   id: string;
@@ -16,6 +18,7 @@ interface AmbiguousEntry {
 }
 
 export default function AmbiguousNamesResolver({ entries }: { entries: AmbiguousEntry[] }) {
+  const timeZone = useTimeZone();
   const [resolvedNames, setResolvedNames] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -73,7 +76,7 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {entry.occurrenceCount} occurrence{entry.occurrenceCount !== 1 ? "s" : ""} · last
-                  seen {new Date(entry.lastSeenAt).toLocaleDateString()}
+                  seen {formatDateInZone(entry.lastSeenAt, timeZone)}
                 </span>
               </div>
 

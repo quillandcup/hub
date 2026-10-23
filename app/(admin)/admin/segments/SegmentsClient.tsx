@@ -7,6 +7,8 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface Segment {
   id: string;
@@ -67,6 +69,7 @@ function getSortValue(segment: Segment, column: SortColumn): SortValue {
 }
 
 export default function SegmentsClient({ allMembers }: { allMembers: SegmentMember[] }) {
+  const timeZone = useTimeZone();
   const [segments, setSegments] = useState<Segment[]>([]);
   const table = useDataTable<Segment, SortColumn>({
     rows: segments,
@@ -365,7 +368,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                      {new Date(s.created_at).toLocaleDateString()}
+                      {formatDateInZone(s.created_at, timeZone)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">

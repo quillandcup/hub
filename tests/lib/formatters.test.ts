@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hostShortName, formatPrickleTitle } from '@/lib/formatters'
+import { hostShortName, formatPrickleTitle, formatDateInZone, formatDateOnly } from '@/lib/formatters'
 
 // ---------------------------------------------------------------------------
 // hostShortName
@@ -85,5 +85,44 @@ describe('formatPrickleTitle', () => {
       prickle_types: { name: 'Progress Prickle' },
     })
     expect(title).toBe('Monday Progress Prickle')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// formatOrgDate / formatDateOnly: the same text on the server (UTC) and in any browser
+// ---------------------------------------------------------------------------
+
+describe('formatDateInZone', () => {
+  const NY = 'America/New_York'
+
+  it('uses the zone\'s calendar day on either side of midnight', () => {
+    expect(formatDateInZone('2024-03-01T04:30:00Z', NY)).toBe('2/29/2024') // 11:30 pm Eastern
+    expect(formatDateInZone('2024-03-01T05:30:00Z', NY)).toBe('3/1/2024') // 12:30 am Eastern
+  })
+
+  it('differs by the viewer\'s zone for the same instant', () => {
+    expect(formatDateInZone('2024-03-01T20:00:00Z', 'Pacific/Auckland')).toBe('3/2/2024')
+    expect(formatDateInZone('2024-03-01T20:00:00Z', 'America/Los_Angeles')).toBe('3/1/2024')
+  })
+
+  it('follows daylight saving time', () => {
+    expect(formatDateInZone('2024-03-10T04:59:00Z', NY)).toBe('3/9/2024')
+    expect(formatDateInZone('2024-11-03T03:59:00Z', NY)).toBe('11/2/2024') // still EDT, fall-back day
+    expect(formatDateInZone('2024-11-03T05:00:00Z', NY)).toBe('11/3/2024')
+  })
+
+  it('accepts a Date', () => {
+    expect(formatDateInZone(new Date('2024-07-19T12:00:00Z'), NY)).toBe('7/19/2024')
+  })
+})
+
+describe('formatDateOnly', () => {
+  it('prints the stored date without shifting it', () => {
+    expect(formatDateOnly('2023-02-15')).toBe('2/15/2023')
+    expect(formatDateOnly('2024-01-01')).toBe('1/1/2024')
+  })
+
+  it('uses the first ten characters of a timestamp', () => {
+    expect(formatDateOnly('2023-02-15T00:00:00+00:00')).toBe('2/15/2023')
   })
 })

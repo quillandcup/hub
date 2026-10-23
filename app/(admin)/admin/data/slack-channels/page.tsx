@@ -3,6 +3,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
 import RestrictionToggle from "./RestrictionToggle";
+import { formatDateInZone } from "@/lib/formatters";
+import { getViewerTimeZone } from "@/lib/timezone";
 
 export const metadata: Metadata = {
   title: "Slack Channels",
@@ -26,6 +28,7 @@ interface ChannelRow {
  * (docs/SLACK_BRIDGED_CHAT.md, "Access control").
  */
 export default async function SlackChannelsPage() {
+  const timeZone = await getViewerTimeZone();
   await requireAdminPage();
   const supabase = await createClient();
 
@@ -82,7 +85,7 @@ export default async function SlackChannelsPage() {
                   </td>
                   <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{c.member_count ?? "—"}</td>
                   <td className="px-6 py-3">
-                    {since ? `No, restricted ${new Date(since).toLocaleDateString()}` : "Yes"}
+                    {since ? `No, restricted ${formatDateInZone(since, timeZone)}` : "Yes"}
                   </td>
                   <td className="px-6 py-3">
                     {(c.is_private || since) && (

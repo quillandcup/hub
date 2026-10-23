@@ -1175,6 +1175,13 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
   2. `/api/aliases` and `/api/aliases/slack` are both `requireAdmin`-only. A host-facing version needs a scoped write path — only allow aliasing a Zoom name that actually appeared in a prickle that member hosted, not arbitrary alias creation — which is its own design/security decision, not a drop-in relaxation of the existing admin check.
 - **Why not built yet:** Raised during the data-hygiene dashboard cleanup (see "Data hygiene / reconciliation dashboard cleanup" work); deliberately scoped out since the permission model needs its own design pass.
 
+### Remaining places that format dates with the host's locale and zone _(hydration mismatch risk)_
+- **What:** A bare `toLocaleDateString()` / `toLocaleTimeString()` formats in the host's zone, so the server render (UTC on Vercel) and the browser can print different text and React reports a hydration mismatch. It also breaks the `ORG_TIMEZONE` rule (`.claude/rules/dates-and-timezones.md`).
+- **Resolved:** Every bare `toLocaleDateString()` in `app/` and `components/` except the one below now goes through `formatDateInZone` (the viewer's zone: `useTimeZone()` from `TimezoneProvider` in the member and admin layouts, `getViewerTimeZone()` on the server, Eastern until the first page load saves a zone) or `formatDateOnly` (date-only values, no zone shift) in `lib/formatters.ts`.
+- **Still open:** `formatDate`, `formatDateTime`, `formatTime` and `formatDateTimeRange` in `lib/formatters.ts` (about 10 callers) are still zone-less. The admin calendar page builds `weekStart` with `setHours` in the host's zone (`app/(admin)/admin/calendar/page.tsx`), so its "Week of" label still uses `toLocaleDateString()`.
+- **Why deferred:** Found while checking a Sentry hydration issue that turned out to be browser extensions; none of these is a known cause of an error, and changing the shared `formatDate*` helpers touches every prickle page.
+- **Where to start:** `grep -rn "toLocale" app components lib`; make `formatDate*` take a zone, defaulting to `ORG_TIMEZONE`.
+
 ---
 
 ## CRM Features

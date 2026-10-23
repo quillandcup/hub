@@ -8,6 +8,8 @@ import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusB
 import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable, type DataTable } from "@/lib/hooks/useDataTable";
 import type { MemberSortColumn } from "@/lib/admin-members-paging";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 export interface MemberRow {
   id: string;
@@ -77,6 +79,7 @@ function getSortValue(member: MemberRow, column: SortColumn): string | number {
 }
 
 export default function MembersTable({ members, table: serverTable }: MembersTableProps) {
+  const timeZone = useTimeZone();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const localTable = useDataTable<MemberRow, SortColumn>({
@@ -235,7 +238,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                   {member.member_metrics?.last_attended_at
-                    ? new Date(member.member_metrics.last_attended_at).toLocaleDateString()
+                    ? formatDateInZone(member.member_metrics.last_attended_at, timeZone)
                     : "Never"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">

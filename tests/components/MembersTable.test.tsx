@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { TimezoneProvider } from '@/components/Timezone'
 import MembersTable, { type MemberRow } from '@/app/(admin)/admin/members/MembersTable'
 
 vi.mock('next/link', () => ({
@@ -102,5 +103,24 @@ describe('MembersTable churn risk', () => {
     const noData: MemberRow = { id: 'n', name: 'Nora', email: 'n@example.com', status: 'active', member_metrics: null, member_engagement: null } as MemberRow
     render(<MembersTable members={[noData]} />)
     expect(screen.getByText('low')).toBeTruthy()
+  })
+})
+
+describe('MembersTable last attended', () => {
+  it('shows the date in the viewer\'s zone from the provider', () => {
+    const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T20:00:00Z' } }
+    render(
+      <TimezoneProvider zone="Pacific/Auckland">
+        <MembersTable members={[row]} />
+      </TimezoneProvider>
+    )
+    expect(screen.getByText('3/2/2024')).toBeTruthy()
+  })
+
+  it('falls back to the org timezone without a provider, not the host zone', () => {
+    // 03:00 UTC on Mar 1 is still Feb 29 in Eastern time.
+    const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T03:00:00Z' } }
+    render(<MembersTable members={[row]} />)
+    expect(screen.getByText('2/29/2024')).toBeTruthy()
   })
 })

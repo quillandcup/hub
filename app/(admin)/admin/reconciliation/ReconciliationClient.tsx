@@ -6,6 +6,8 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -122,6 +124,7 @@ const EMPTY: never[] = [];
 const HEADER_CLASS = "px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300";
 
 export default function ReconciliationClient() {
+  const timeZone = useTimeZone();
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [slackData, setSlackData] = useState<SlackData | null>(null);
   const [stripeOrphanData, setStripeOrphanData] = useState<StripeOrphanData | null>(null);
@@ -689,7 +692,7 @@ export default function ReconciliationClient() {
                       {o.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
+                      {o.created_at ? formatDateInZone(o.created_at, timeZone) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -765,7 +768,7 @@ export default function ReconciliationClient() {
                       {(g.amount_in_cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {g.created_at ? new Date(g.created_at).toLocaleDateString() : "—"}
+                      {g.created_at ? formatDateInZone(g.created_at, timeZone) : "—"}
                     </td>
                   </tr>
                 ))}

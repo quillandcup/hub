@@ -12,6 +12,8 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { describeDevice } from "@/lib/device-label";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -114,6 +116,7 @@ function getSortValue(user: AppUser, column: SortColumn): SortValue {
 }
 
 export default function UsersClient({ currentUserId }: { currentUserId: string }) {
+  const timeZone = useTimeZone();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [allMembers, setAllMembers] = useState<MemberRecord[]>([]);
   const table = useDataTable<AppUser, SortColumn>({
@@ -573,7 +576,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-slate-500 dark:text-slate-400">
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {formatDateInZone(user.createdAt, timeZone)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
