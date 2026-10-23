@@ -2,7 +2,7 @@
 
 import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller, type ChatCaller } from "@/lib/chat/caller";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { loadChannelForMember } from "@/lib/chat/load";
 import { inviteToSlackChannel, kickFromSlackChannel, slackUserIdsFor } from "@/lib/chat/slack-membership";
 import { createClient } from "@/lib/supabase/server";
@@ -97,7 +97,7 @@ async function alreadyIn(channelId: string, memberIds: string[]): Promise<Set<st
 /** Add `memberIds` (the member's own id to join a public channel). */
 async function addMembersImpl(channelId: string, memberIds: string[]): Promise<MembershipResult> {
   const unique = [...new Set(memberIds)];
-  if (!isUuid(channelId) || unique.length === 0 || !unique.every(isUuid)) return { ok: false, error: "Something went wrong." };
+  if (!isId(channelId, "chn") || unique.length === 0 || !unique.every((m) => isId(m, "mbr"))) return { ok: false, error: "Something went wrong." };
   if (unique.length > MAX_ADD_AT_ONCE) return { ok: false, error: `Add at most ${MAX_ADD_AT_ONCE} people at a time.` };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Changing who is in a conversation isn't available to you yet." };
@@ -145,7 +145,7 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
 
 /** Remove `memberId`: oneself leaving, or staff removing someone. */
 async function removeMemberImpl(channelId: string, memberId: string): Promise<MembershipResult> {
-  if (!isUuid(channelId) || !isUuid(memberId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(channelId, "chn") || !isId(memberId, "mbr")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Changing who is in a conversation isn't available to you yet." };
   const isSelf = memberId === caller.identity.memberId;
@@ -200,7 +200,7 @@ export interface MemberCandidate {
  */
 export async function searchMembersToAdd(channelId: string, query: string): Promise<MemberCandidate[]> {
   const text = query.trim().slice(0, 60);
-  if (!isUuid(channelId) || text.length < 2) return [];
+  if (!isId(channelId, "chn") || text.length < 2) return [];
   const caller = await postingCaller();
   if (!caller) return [];
   const managed = await manageableChannel(caller, channelId);

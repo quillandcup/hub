@@ -4,10 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
+import { isId } from "@/lib/ids";
 
 export const maxDuration = 60;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -19,7 +19,7 @@ const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 }
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ messageId: string; fileId: string }> }) {
   const { messageId, fileId } = await params;
-  if (!UUID.test(messageId)) return notFound();
+  if (!isId(messageId, "msg")) return notFound();
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

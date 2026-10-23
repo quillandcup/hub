@@ -6,13 +6,13 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, parseChatFiles } from "@/lib/chat/files";
 import { uniqueZipNames } from "@/lib/chat/zip-names";
+import { isId } from "@/lib/ids";
 
 export const maxDuration = 300;
 
 /** The zip is built in memory, so cap what goes into it. */
 const MAX_ZIP_BYTES = 100 * 1024 * 1024;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -23,7 +23,7 @@ const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 }
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ messageId: string }> }) {
   const { messageId } = await params;
-  if (!UUID.test(messageId)) return notFound();
+  if (!isId(messageId, "msg")) return notFound();
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
