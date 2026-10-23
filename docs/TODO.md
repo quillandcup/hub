@@ -1175,6 +1175,12 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
   2. `/api/aliases` and `/api/aliases/slack` are both `requireAdmin`-only. A host-facing version needs a scoped write path — only allow aliasing a Zoom name that actually appeared in a prickle that member hosted, not arbitrary alias creation — which is its own design/security decision, not a drop-in relaxation of the existing admin check.
 - **Why not built yet:** Raised during the data-hygiene dashboard cleanup (see "Data hygiene / reconciliation dashboard cleanup" work); deliberately scoped out since the permission model needs its own design pass.
 
+### Client components format dates with the host's locale and zone _(hydration mismatch risk)_
+- **What:** About 15 client components still call a bare `toLocaleDateString()` (for example `UsersClient`, `ReconciliationClient`, `MemberOverridesClient`, the mentorship panels, `BrowserNotificationsToggle`, the hygiene pages). A bare call formats in the host's zone and locale, so the server render (UTC on Vercel) and the browser can print different text and React reports a hydration mismatch. It also breaks the `ORG_TIMEZONE` rule (`.claude/rules/dates-and-timezones.md`).
+- **Done:** `MembersTable` now formats with `Intl.DateTimeFormat("en-US", { timeZone: ORG_TIMEZONE })`.
+- **Why deferred:** Found while checking a Sentry hydration issue that turned out to be browser extensions; none of these is a known cause of an error.
+- **Where to start:** `grep -rn "toLocaleDateString()" app components`. Add one shared formatter in `lib/` (date-only values from `parseDateOnly` need a zone-free path) and convert them together.
+
 ---
 
 ## CRM Features

@@ -104,3 +104,12 @@ describe('MembersTable churn risk', () => {
     expect(screen.getByText('low')).toBeTruthy()
   })
 })
+
+describe('MembersTable last attended', () => {
+  it('formats the date in the org timezone, not the host zone', () => {
+    // 03:00 UTC on Mar 1 is still Feb 29 in Eastern time.
+    const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T03:00:00Z' } }
+    render(<MembersTable members={[row]} />)
+    expect(screen.getByText('2/29/2024')).toBeTruthy()
+  })
+})

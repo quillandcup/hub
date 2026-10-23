@@ -8,6 +8,11 @@ import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusB
 import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable, type DataTable } from "@/lib/hooks/useDataTable";
 import type { MemberSortColumn } from "@/lib/admin-members-paging";
+import { ORG_TIMEZONE } from "@/lib/config";
+
+// Fixed locale and zone: a bare toLocaleDateString() formats in the host's zone, so the
+// server (UTC) and the browser disagree and React reports a hydration mismatch.
+const lastAttendedFormat = new Intl.DateTimeFormat("en-US", { timeZone: ORG_TIMEZONE });
 
 export interface MemberRow {
   id: string;
@@ -235,7 +240,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                   {member.member_metrics?.last_attended_at
-                    ? new Date(member.member_metrics.last_attended_at).toLocaleDateString()
+                    ? lastAttendedFormat.format(new Date(member.member_metrics.last_attended_at))
                     : "Never"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
