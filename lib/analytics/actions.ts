@@ -32,6 +32,9 @@ export const OUTCOME_ACTIONS = [
   "chat_reaction_toggled",
   "chat_message_edited",
   "chat_message_deleted",
+  "chat_members_added",
+  "chat_member_removed",
+  "chat_channel_joined",
   "chat_file_deleted",
   // Community
   "wheel_spun",

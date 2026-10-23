@@ -21,6 +21,7 @@ import {
 import AvatarStack from "@/components/AvatarStack";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import Composer from "@/components/chat/Composer";
+import JoinPrompt from "@/components/chat/JoinPrompt";
 import ThreadList from "@/components/chat/ThreadList";
 import MessageList from "@/components/chat/MessageList";
 import ChatLive from "@/components/chat/ChatLive";
@@ -200,6 +201,9 @@ export default async function ChatChannelPage({
         </div>
         {canPost && (
           <Composer channelId={channel.id} placeholder={`Message ${channel.label}`} viewer={viewer} showSent={!before} dropTargetIds={["chat-conversation", "chat-profile-panel"]} />
+        )}
+        {postingOn && !channel.joined && channel.kind === "channel" && channel.visibility === "public" && (
+          <JoinPrompt channelId={channel.id} channelLabel={channel.label} />
         )}
       </div>
 
