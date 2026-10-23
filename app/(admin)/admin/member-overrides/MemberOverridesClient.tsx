@@ -5,11 +5,11 @@ import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
-import { parseDateOnly } from "@/lib/member-tenure";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface Member {
   id: string;
@@ -323,11 +323,11 @@ export default function MemberOverridesClient() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                    {parseDateOnly(override.starts_at).toLocaleDateString()}
+                    {formatDateOnly(override.starts_at)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                     {override.expires_at
-                      ? parseDateOnly(override.expires_at).toLocaleDateString()
+                      ? formatDateOnly(override.expires_at)
                       : "Never"}
                   </td>
                   <td className="px-4 py-3">

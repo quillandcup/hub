@@ -17,6 +17,7 @@ import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed
 import MemberBadgesPanel from "./MemberBadgesPanel";
 import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./MemberIdentityPanel";
 import type { EarnedBadge } from "@/lib/badges";
+import { formatOrgDate } from "@/lib/formatters";
 
 interface MemberDetailsProps {
   /** The tab the route opened (/admin/members/<id>[/<tab>]). */
@@ -145,7 +146,7 @@ export default function MemberDetails({
           <StatItem label="Last Attended">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics.last_attended_at
-                ? new Date(memberMetrics.last_attended_at).toLocaleDateString()
+                ? formatOrgDate(memberMetrics.last_attended_at)
                 : "Never"}
             </span>
           </StatItem>
@@ -184,7 +185,7 @@ export default function MemberDetails({
                 label="Last Attended"
                 value={
                   memberMetrics.last_attended_at
-                    ? new Date(memberMetrics.last_attended_at).toLocaleDateString()
+                    ? formatOrgDate(memberMetrics.last_attended_at)
                     : "Never"
                 }
               />

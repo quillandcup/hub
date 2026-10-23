@@ -7,6 +7,7 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface Member {
   id: string;
@@ -60,7 +61,7 @@ interface ProgramDetailData {
 }
 
 function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString();
+  return formatDateOnly(d);
 }
 
 // Six months out, clamping day-of-month like the Hedgieversary math does

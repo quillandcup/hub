@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface EventData {
   id: string;
@@ -342,8 +343,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             <div>
               <dt className="text-gray-500 dark:text-gray-400">Dates</dt>
               <dd>
-                {new Date(`${event.starts_at}T00:00:00`).toLocaleDateString()} –{" "}
-                {new Date(`${event.ends_at}T00:00:00`).toLocaleDateString()}
+                {formatDateOnly(event.starts_at)} –{" "}
+                {formatDateOnly(event.ends_at)}
               </dd>
             </div>
             {event.location && (

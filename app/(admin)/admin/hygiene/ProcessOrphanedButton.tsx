@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatOrgDate } from "@/lib/formatters";
 
 interface ProcessOrphanedButtonProps {
   orphanedCount: number;
@@ -21,8 +22,8 @@ export default function ProcessOrphanedButton({ orphanedCount, dateRange }: Proc
       return;
     }
 
-    const fromFormatted = new Date(dateRange.fromDate).toLocaleDateString();
-    const toFormatted = new Date(dateRange.toDate).toLocaleDateString();
+    const fromFormatted = formatOrgDate(dateRange.fromDate);
+    const toFormatted = formatOrgDate(dateRange.toDate);
 
     if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess events from ${fromFormatted} to ${toFormatted}.`)) {
       return;

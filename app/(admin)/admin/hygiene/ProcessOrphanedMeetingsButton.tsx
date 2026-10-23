@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatOrgDate } from "@/lib/formatters";
 
 interface ProcessOrphanedMeetingsButtonProps {
   orphanedCount: number;
@@ -21,8 +22,8 @@ export default function ProcessOrphanedMeetingsButton({ orphanedCount, dateRange
       return;
     }
 
-    const fromFormatted = new Date(dateRange.fromDate).toLocaleDateString();
-    const toFormatted = new Date(dateRange.toDate).toLocaleDateString();
+    const fromFormatted = formatOrgDate(dateRange.fromDate);
+    const toFormatted = formatOrgDate(dateRange.toDate);
 
     if (!confirm(`Process Zoom meetings to resolve ${orphanedCount} orphaned meetings?\n\nThis will reprocess attendance from ${fromFormatted} to ${toFormatted}.`)) {
       return;

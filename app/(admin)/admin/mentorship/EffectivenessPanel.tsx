@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { MentorStats, PeriodStats } from "@/lib/mentorship";
-import { parseDateOnly } from "@/lib/member-tenure";
+import { formatDateOnly } from "@/lib/formatters";
 
 function percent(rate: number | null): string {
   return rate === null ? "–" : `${Math.round(rate * 100)}%`;
@@ -137,7 +137,7 @@ export default function EffectivenessPanel({
                   <td className={TD}>{m.noTrial}</td>
                   <td className={TD}>{percent(m.conversionRate)}</td>
                   <td className={TD}>{m.currentMembers}</td>
-                  <td className={TD}>{parseDateOnly(m.lastStartedOn).toLocaleDateString()}</td>
+                  <td className={TD}>{formatDateOnly(m.lastStartedOn)}</td>
                 </tr>
               ))}
             </tbody>

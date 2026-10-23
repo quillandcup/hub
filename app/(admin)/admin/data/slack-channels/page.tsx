@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
 import RestrictionToggle from "./RestrictionToggle";
+import { formatOrgDate } from "@/lib/formatters";
 
 export const metadata: Metadata = {
   title: "Slack Channels",
@@ -82,7 +83,7 @@ export default async function SlackChannelsPage() {
                   </td>
                   <td className="px-6 py-3 text-slate-600 dark:text-slate-400">{c.member_count ?? "—"}</td>
                   <td className="px-6 py-3">
-                    {since ? `No, restricted ${new Date(since).toLocaleDateString()}` : "Yes"}
+                    {since ? `No, restricted ${formatOrgDate(since)}` : "Yes"}
                   </td>
                   <td className="px-6 py-3">
                     {(c.is_private || since) && (

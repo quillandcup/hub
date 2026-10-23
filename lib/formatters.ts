@@ -3,6 +3,31 @@
  * Eliminates duplicate toLocaleString() calls across the app
  */
 
+import { ORG_TIMEZONE } from "@/lib/config";
+
+// A bare toLocaleDateString() formats in the host's zone and locale, so the server (UTC) and the
+// browser print different text and React reports a hydration mismatch. These two name both.
+const orgDateFormat = new Intl.DateTimeFormat("en-US", { timeZone: ORG_TIMEZONE });
+const dateOnlyFormat = new Intl.DateTimeFormat("en-US", { timeZone: "UTC" });
+
+/**
+ * Format an instant as its calendar date in the org timezone, the same on server and client
+ * Example: "7/19/2026"
+ */
+export function formatOrgDate(date: Date | string): string {
+  return orgDateFormat.format(typeof date === "string" ? new Date(date) : date);
+}
+
+/**
+ * Format a "YYYY-MM-DD" date-only value (a timestamp's first ten characters are used) without
+ * shifting it through any timezone
+ * Example: "2026-07-19" -> "7/19/2026"
+ */
+export function formatDateOnly(dateOnly: string): string {
+  const [y, m, d] = dateOnly.slice(0, 10).split("-").map(Number);
+  return dateOnlyFormat.format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 /**
  * Format date and time without seconds
  * Example: "7/19/2026, 10:00 AM"

@@ -11,6 +11,7 @@ import {
   sendTestPushNotification,
   type PushDeviceRow,
 } from "./notificationActions";
+import { formatOrgDate } from "@/lib/formatters";
 
 type DeviceState = "checking" | "unsupported" | "blocked" | "off" | "on";
 
@@ -230,7 +231,7 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                   <span className="ml-2 text-xs text-slate-500">this device</span>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     {thisDevice
-                      ? `Added ${new Date(thisDevice.addedAt).toLocaleDateString()}${thisDevice.lastSentAt ? ` · last notified ${new Date(thisDevice.lastSentAt).toLocaleDateString()}` : ""}`
+                      ? `Added ${formatOrgDate(thisDevice.addedAt)}${thisDevice.lastSentAt ? ` · last notified ${formatOrgDate(thisDevice.lastSentAt)}` : ""}`
                       : "Off"}
                   </div>
                 </div>
@@ -251,8 +252,8 @@ export function BrowserNotificationsToggle({ publicKey, readOnly }: { publicKey:
                 <div className="min-w-0 flex-1">
                   <span className="text-slate-900 dark:text-slate-100">{device.label}</span>
                   <div className="text-xs text-slate-500 dark:text-slate-400">
-                    {device.paused ? "Paused while signed out · " : ""}Added {new Date(device.addedAt).toLocaleDateString()}
-                    {device.lastSentAt && ` · last notified ${new Date(device.lastSentAt).toLocaleDateString()}`}
+                    {device.paused ? "Paused while signed out · " : ""}Added {formatOrgDate(device.addedAt)}
+                    {device.lastSentAt && ` · last notified ${formatOrgDate(device.lastSentAt)}`}
                   </div>
                 </div>
                 <button

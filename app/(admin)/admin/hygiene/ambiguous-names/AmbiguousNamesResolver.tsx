@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatOrgDate } from "@/lib/formatters";
 
 interface Candidate {
   id: string;
@@ -73,7 +74,7 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {entry.occurrenceCount} occurrence{entry.occurrenceCount !== 1 ? "s" : ""} · last
-                  seen {new Date(entry.lastSeenAt).toLocaleDateString()}
+                  seen {formatOrgDate(entry.lastSeenAt)}
                 </span>
               </div>
 

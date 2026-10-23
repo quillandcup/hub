@@ -13,6 +13,7 @@ import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { formatOrgDate } from "@/lib/formatters";
 
 export const metadata: Metadata = {
   title: "Data Health Dashboard",
@@ -545,7 +546,7 @@ export default async function DataHygienePage() {
                   <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
                     {stalePrivateChannels.map((c) => (
                       <li key={c.channelId}>
-                        #{c.channelName} — last seen {new Date(c.lastSeenAt).toLocaleDateString()}
+                        #{c.channelName} — last seen {formatOrgDate(c.lastSeenAt)}
                       </li>
                     ))}
                   </ul>

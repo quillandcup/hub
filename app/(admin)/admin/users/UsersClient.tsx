@@ -12,6 +12,7 @@ import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { describeDevice } from "@/lib/device-label";
+import { formatOrgDate } from "@/lib/formatters";
 
 type Role = "admin" | "assistant" | "member";
 type StaffRole = "owner" | "staff" | "contractor";
@@ -573,7 +574,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-slate-500 dark:text-slate-400">
-                          {new Date(user.createdAt).toLocaleDateString()}
+                          {formatOrgDate(user.createdAt)}
                         </span>
                       </td>
                       <td className="px-6 py-4">

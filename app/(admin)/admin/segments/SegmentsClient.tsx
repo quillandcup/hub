@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
+import { formatOrgDate } from "@/lib/formatters";
 
 interface Segment {
   id: string;
@@ -365,7 +366,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
                     <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                      {new Date(s.created_at).toLocaleDateString()}
+                      {formatOrgDate(s.created_at)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
