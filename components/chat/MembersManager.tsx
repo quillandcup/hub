@@ -113,7 +113,7 @@ export default function MembersManager({
           )}
           {abilities.canLeave && confirming === "leave" && (
             <span className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-600 dark:text-slate-400">Leave {channelLabel}? You&apos;ll be removed from it in Slack too.</span>
+              <span className="text-slate-600 dark:text-slate-400">Leave {channelLabel}?</span>
               <button
                 type="button"
                 disabled={busy}
@@ -144,7 +144,6 @@ export default function MembersManager({
             autoComplete="off"
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
           />
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">They&apos;re added in Slack too.</p>
           {results.length > 0 && (
             <ul aria-label="People to add" className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
               {results.map((c) => {
@@ -199,7 +198,7 @@ export default function MembersManager({
                 <Link
                   data-track="chat-members-open-member"
                   href={`/members/${p.memberId}`}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   <MemberAvatar name={p.name} photoUrl={p.photoUrl} size={32} />
                   <span className="truncate text-sm font-medium">{p.name}</span>
@@ -217,6 +216,7 @@ export default function MembersManager({
                 )}
                 {confirming === p.memberId && (
                   <span className="flex shrink-0 items-center gap-2 text-xs">
+                    <span className="text-slate-600 dark:text-slate-400">Remove {p.name}?</span>
                     <button
                       type="button"
                       disabled={busy}
@@ -224,7 +224,7 @@ export default function MembersManager({
                       onClick={() => run(() => removeChatMember(channelId, p.memberId))}
                       className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60"
                     >
-                      {busy ? "Removing…" : "Remove from Slack too"}
+                      {busy ? "Removing…" : "Remove"}
                     </button>
                     <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="text-slate-600 hover:underline dark:text-slate-400">
                       Keep

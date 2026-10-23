@@ -117,16 +117,24 @@ export async function kickFromSlackChannel(opts: { channel: string; userId: stri
   }
 }
 
+/** What a try with a member's own Slack token came to. `retryWithBot`: the token or its reach wasn't enough, so the bot should try; `deadToken`: the connection no longer works at all. */
+export type AsMemberResult = SlackMembershipResult & { retryWithBot?: boolean; deadToken?: boolean };
+
+function asMemberFailure(code: string | undefined, error: unknown, notInChannelToBot: boolean): AsMemberResult {
+  if (isDeadTokenError(error)) return { ok: false, error: "Your Slack connection stopped working.", retryWithBot: true, deadToken: true };
+  if (code === "missing_scope" || (notInChannelToBot && code === "not_in_channel")) return { ok: false, error: "Slack didn't let you do that.", retryWithBot: true };
+  if (code === "channel_not_found") return { ok: false, error: "Slack can't find this conversation." };
+  if (code === "is_archived") return { ok: false, error: "This conversation is archived in Slack." };
+  if (code === "cant_leave_general" || code === "cant_kick_from_general") return { ok: false, error: "Slack doesn't allow removing people from the workspace's default channel." };
+  if (code === "restricted_action" || code === "no_permission") return { ok: false, error: "Your Slack workspace doesn't let you remove people from this channel." };
+  return { ok: false, error: "Slack didn't do that. Try again in a moment." };
+}
+
 /**
  * A member leaving a conversation as themselves, with their own Slack token (`conversations.leave`). Unlike the
- * bot's kick it isn't held back by a workspace rule on who may remove people. `retryWithBot` is set when the
- * token itself is no good (revoked, or connected before it had the scope), so the caller can fall back to the bot.
+ * bot's kick it isn't held back by a workspace rule on who may remove people.
  */
-export async function leaveSlackChannelAsMember(opts: {
-  channel: string;
-  token: string;
-  slack?: WebClient;
-}): Promise<SlackMembershipResult & { retryWithBot?: boolean }> {
+export async function leaveSlackChannelAsMember(opts: { channel: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
   try {
     const slack = opts.slack ?? new WebClient(opts.token);
@@ -136,10 +144,24 @@ export async function leaveSlackChannelAsMember(opts: {
     const code = slackError(error);
     if (code === "not_in_channel") return { ok: true };
     console.error("conversations.leave failed:", code ?? error);
-    if (isDeadTokenError(error) || code === "missing_scope") return { ok: false, error: "Slack didn't let you leave.", retryWithBot: true };
-    if (code === "channel_not_found") return { ok: false, error: "Slack can't find this conversation." };
-    if (code === "is_archived") return { ok: false, error: "This conversation is archived in Slack." };
-    if (code === "cant_leave_general") return { ok: false, error: "Slack doesn't allow leaving the workspace's default channel." };
-    return { ok: false, error: "Slack didn't let you leave. Try again in a moment." };
+    return asMemberFailure(code, error, false);
+  }
+}
+
+/**
+ * Staff removing someone as themselves, with their own Slack token, so Slack applies the rules to them
+ * rather than to the bot. Anything that stops it for the token's sake (dead, missing scope, or not being
+ * in the conversation themselves) hands over to the bot.
+ */
+export async function kickAsMember(opts: { channel: string; userId: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
+  if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
+  try {
+    const slack = opts.slack ?? new WebClient(opts.token);
+    await slack.conversations.kick({ channel: opts.channel, user: opts.userId });
+    return { ok: true };
+  } catch (error) {
+    const code = slackError(error);
+    console.error("conversations.kick as member failed:", code ?? error);
+    return asMemberFailure(code, error, true);
   }
 }

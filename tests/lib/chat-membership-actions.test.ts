@@ -7,6 +7,8 @@ const m = vi.hoisted(() => ({
   invite: vi.fn(),
   kick: vi.fn(),
   leave: vi.fn(),
+  kickAs: vi.fn(),
+  revoke: vi.fn(),
   userToken: vi.fn(),
   slackIds: vi.fn(),
   actionNames: [] as string[],
@@ -25,6 +27,7 @@ vi.mock("@/lib/chat/slack-membership", () => ({
   inviteToSlackChannel: m.invite,
   kickFromSlackChannel: m.kick,
   leaveSlackChannelAsMember: m.leave,
+  kickAsMember: m.kickAs,
   slackUserIdsFor: m.slackIds,
 }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackUserToken: m.userToken }));
@@ -46,6 +49,7 @@ const queries: Query[] = [];
 let answer: (q: Query) => unknown;
 vi.mock("@/lib/supabase/service", () => ({
   createServiceRoleClient: () => ({
+    rpc: (...args: unknown[]) => m.revoke(...args),
     from: (table: string) => {
       const q: Query = { table, calls: [] };
       queries.push(q);
@@ -122,6 +126,9 @@ beforeEach(() => {
   m.invite.mockReset();
   m.invite.mockResolvedValue({ ok: true });
   m.kick.mockReset();
+  m.kickAs.mockReset();
+  m.kickAs.mockResolvedValue({ ok: true });
+  m.revoke.mockReset();
   m.leave.mockReset();
   m.leave.mockResolvedValue({ ok: true });
   m.userToken.mockReset();
@@ -277,12 +284,44 @@ describe("removeChatMember", () => {
     expect(m.kick).not.toHaveBeenCalled();
   });
 
-  it("never uses the removed person's token when staff remove someone else", async () => {
-    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_GALE" });
+  it("has staff remove someone else with their own Slack account when connected, never the removed person's", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-staff", slackUserId: "U_FERN" });
+    m.role.current = "admin";
+    await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
+    expect(m.userToken).toHaveBeenCalledWith(expect.anything(), FERN);
+    expect(m.kickAs).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_GALE", token: "xoxp-staff" });
+    expect(m.kick).not.toHaveBeenCalled();
+  });
+
+  it("has staff use the bot when they haven't connected Slack, or their account can't reach it", async () => {
     m.role.current = "admin";
     await removeChatMember(CHANNEL, GALE);
-    expect(m.userToken).not.toHaveBeenCalled();
+    expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_GALE" });
+
+    m.kick.mockClear();
+    m.userToken.mockResolvedValue({ token: "xoxp-staff", slackUserId: "U_FERN" });
+    m.kickAs.mockResolvedValue({ ok: false, error: "x", retryWithBot: true });
+    await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
     expect(m.kick).toHaveBeenCalled();
+    expect(m.revoke).not.toHaveBeenCalled();
+  });
+
+  it("shows Slack's refusal to a staff member's own account instead of overriding it with the bot", async () => {
+    m.role.current = "admin";
+    m.userToken.mockResolvedValue({ token: "xoxp-staff", slackUserId: "U_FERN" });
+    m.kickAs.mockResolvedValue({ ok: false, error: "Your Slack workspace doesn't let you remove people from this channel." });
+    await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: false, error: expect.stringContaining("doesn't let you") });
+    expect(m.kick).not.toHaveBeenCalled();
+  });
+
+  it("disconnects a dead Slack connection and says to reconnect, whether the bot then manages or not", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    m.leave.mockResolvedValue({ ok: false, error: "x", retryWithBot: true, deadToken: true });
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true, message: expect.stringContaining("Reconnect Slack in Settings") });
+    expect(m.revoke).toHaveBeenCalledWith("slack_connection_revoke", { p_member: FERN });
+
+    m.kick.mockResolvedValue({ ok: false, error: "Slack won't let that person be removed." });
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: false, error: expect.stringContaining("Reconnect Slack in Settings") });
   });
 
   it("keeps them in when Slack won't remove them", async () => {
