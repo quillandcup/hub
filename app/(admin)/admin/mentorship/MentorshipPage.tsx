@@ -20,6 +20,7 @@ import EffectivenessPanel from "./EffectivenessPanel";
 import MatchesPanel from "./MatchesPanel";
 import VolunteersPanel from "./VolunteersPanel";
 import { MENTORSHIP_BASE_PATH, MENTORSHIP_TAB_LABELS, MENTORSHIP_TITLE, type MentorshipTab } from "./tabs";
+import { isId } from "@/lib/ids";
 
 /** Shared by the base page and each tab's route (lib/tab-routes.ts). Callers have already run
  * requireAdminPage(). Behind the `big_sisters` feature preview. */
@@ -50,7 +51,7 @@ export default async function MentorshipPage({
 
   const prefillId = prefill?.newMemberId;
   const { data: prefillMember } =
-    prefillId && /^[0-9a-f-]{36}$/i.test(prefillId)
+    prefillId && isId(prefillId, "mbr")
       ? await supabase.from("members").select("id, name, email").eq("id", prefillId).maybeSingle()
       : { data: null };
 

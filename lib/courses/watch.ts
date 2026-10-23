@@ -1,4 +1,4 @@
-import { isUuid } from "@/lib/chat/format";
+import { isId, isUuid } from "@/lib/ids";
 
 /** One continuous stretch of a video a member watched, as the player reports it. */
 export interface WatchSegmentInput {
@@ -50,7 +50,7 @@ function parseSegment(raw: unknown): WatchSegmentInput | null {
 export function parseWatchBatch(body: unknown): WatchBatch | null {
   if (typeof body !== "object" || body === null) return null;
   const b = body as Record<string, unknown>;
-  if (typeof b.lessonId !== "string" || !isUuid(b.lessonId)) return null;
+  if (typeof b.lessonId !== "string" || !isId(b.lessonId, "les")) return null;
   if (typeof b.sessionId !== "string" || !isUuid(b.sessionId)) return null;
   if (!Array.isArray(b.segments) || b.segments.length > MAX_SEGMENTS_PER_BATCH) return null;
   const segments: WatchSegmentInput[] = [];

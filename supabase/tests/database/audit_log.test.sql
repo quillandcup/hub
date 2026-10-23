@@ -19,11 +19,11 @@ ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 -- Inserted as the superuser running this file: no auth.uid(), so a 'system' insert row.
 INSERT INTO public.members (id, name, email, joined_at, status, user_id) VALUES
-  ('00000000-0000-4000-a000-00000000f101', 'Audit Alice', 'audit-alice@example.test', now(), 'lead', '00000000-0000-4000-a000-00000000f1a1');
+  ('mbr_AAAAAAAAf1A1', 'Audit Alice', 'audit-alice@example.test', now(), 'lead', '00000000-0000-4000-a000-00000000f1a1');
 
 SELECT is(
   (SELECT actor_kind || ':' || action || ':' || entity_type FROM public.audit_log
-    WHERE entity_id = '00000000-0000-4000-a000-00000000f101'),
+    WHERE entity_id = 'mbr_AAAAAAAAf1A1'),
   'system:insert:member',
   'a write with no auth.uid() is recorded as a system insert'
 );
@@ -35,13 +35,13 @@ GRANT INSERT ON result TO authenticated;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a4", "email": "audit-dana@example.test", "role": "authenticated"}', true);
-UPDATE public.members SET status = 'active' WHERE id = '00000000-0000-4000-a000-00000000f101';
+UPDATE public.members SET status = 'active' WHERE id = 'mbr_AAAAAAAAf1A1';
 -- Bookkeeping-only update: must not write a row.
-UPDATE public.members SET updated_at = now() + interval '1 second' WHERE id = '00000000-0000-4000-a000-00000000f101';
+UPDATE public.members SET updated_at = now() + interval '1 second' WHERE id = 'mbr_AAAAAAAAf1A1';
 INSERT INTO result SELECT 'dana_audit_rows', to_jsonb(count(*)) FROM public.audit_log
-  WHERE entity_id = '00000000-0000-4000-a000-00000000f101';
+  WHERE entity_id = 'mbr_AAAAAAAAf1A1';
 INSERT INTO result SELECT 'dana_feed', COALESCE(jsonb_agg(to_jsonb(f)), '[]'::jsonb)
-  FROM public.get_activity_feed(true, NULL, NULL, '00000000-0000-4000-a000-00000000f101') f;
+  FROM public.get_activity_feed(true, NULL, NULL, 'mbr_AAAAAAAAf1A1') f;
 INSERT INTO result SELECT 'dana_actor_filter', to_jsonb(count(*))
   FROM public.get_activity_feed(false, NULL, '00000000-0000-4000-a000-00000000f1a4', NULL) f;
 
@@ -97,16 +97,16 @@ SELECT is((SELECT value FROM result WHERE label = 'alice_feed'), '0'::jsonb,
 
 -- Audit-only drops non-audit activity: a member-actor activity shows in the full feed only.
 INSERT INTO public.member_activities (member_id, activity_type, activity_category, title, actor_kind, occurred_at, source)
-VALUES ('00000000-0000-4000-a000-00000000f101', 'hedgie_hub_login', 'engagement', 'Logged in', 'member', now(), 'audit_test');
+VALUES ('mbr_AAAAAAAAf1A1', 'hedgie_hub_login', 'engagement', 'Logged in', 'member', now(), 'audit_test');
 INSERT INTO public.member_activities (member_id, activity_type, activity_category, title, actor_kind, occurred_at, source)
-VALUES ('00000000-0000-4000-a000-00000000f101', 'outreach_touch', 'outreach', 'Emailed', 'staff', now(), 'audit_test');
+VALUES ('mbr_AAAAAAAAf1A1', 'outreach_touch', 'outreach', 'Emailed', 'staff', now(), 'audit_test');
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a4", "email": "audit-dana@example.test", "role": "authenticated"}', true);
 SELECT is(
   (SELECT array_agg(event_type ORDER BY event_type)
-     FROM public.get_activity_feed(true, ARRAY['activity'], NULL, '00000000-0000-4000-a000-00000000f101')),
+     FROM public.get_activity_feed(true, ARRAY['activity'], NULL, 'mbr_AAAAAAAAf1A1')),
   ARRAY['outreach_touch'],
   'audit-only keeps staff-acted activities and drops the member''s own'
 );
@@ -123,34 +123,34 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a1", "role": "authenticated"}', true);
 SELECT set_config('request.headers',
-  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a1:00000000-0000-4000-a000-00000000f101"}', true);
+  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a1:mbr_AAAAAAAAf1A1"}', true);
 INSERT INTO sudo_result SELECT 'forged_by_member', to_jsonb(public.current_acting_as_member_id());
 
 -- Dana naming someone else as the admin is ignored too.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a4", "role": "authenticated"}', true);
 SELECT set_config('request.headers',
-  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a1:00000000-0000-4000-a000-00000000f101"}', true);
+  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a1:mbr_AAAAAAAAf1A1"}', true);
 INSERT INTO sudo_result SELECT 'wrong_admin', to_jsonb(public.current_acting_as_member_id());
 
 -- Dana's own header is honored, and her write is recorded with both.
 SELECT set_config('request.headers',
-  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a4:00000000-0000-4000-a000-00000000f101"}', true);
+  '{"x-acting-as": "00000000-0000-4000-a000-00000000f1a4:mbr_AAAAAAAAf1A1"}', true);
 INSERT INTO sudo_result SELECT 'honored', to_jsonb(public.current_acting_as_member_id());
-UPDATE public.members SET name = 'Audit Alice Renamed' WHERE id = '00000000-0000-4000-a000-00000000f101';
+UPDATE public.members SET name = 'Audit Alice Renamed' WHERE id = 'mbr_AAAAAAAAf1A1';
 RESET ROLE;
 
 SELECT is((SELECT value FROM sudo_result WHERE label = 'forged_by_member'), NULL::jsonb,
   'a non-admin forging X-Acting-As gets no acting_as recorded');
 SELECT is((SELECT value FROM sudo_result WHERE label = 'wrong_admin'), NULL::jsonb,
   'a header naming a different admin is ignored');
-SELECT is((SELECT value FROM sudo_result WHERE label = 'honored'), '"00000000-0000-4000-a000-00000000f101"'::jsonb,
+SELECT is((SELECT value FROM sudo_result WHERE label = 'honored'), '"mbr_AAAAAAAAf1A1"'::jsonb,
   'an admin''s own X-Acting-As header resolves to the member they are viewing as');
 
 SELECT is(
   (SELECT changed_by::text || ':' || acting_as_member_id::text FROM public.audit_log
-    WHERE entity_id = '00000000-0000-4000-a000-00000000f101' AND action = 'update' AND changes ? 'name'),
-  '00000000-0000-4000-a000-00000000f1a4:00000000-0000-4000-a000-00000000f101',
+    WHERE entity_id = 'mbr_AAAAAAAAf1A1' AND action = 'update' AND changes ? 'name'),
+  '00000000-0000-4000-a000-00000000f1a4:mbr_AAAAAAAAf1A1',
   'a write in sudo records both the real admin and the member they were acting as'
 );
 
@@ -158,12 +158,12 @@ SELECT is(
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000f1a4", "role": "authenticated"}', true);
 INSERT INTO public.member_activities (member_id, activity_type, activity_category, title, actor_kind, occurred_at, source, acting_as_member_id)
-VALUES ('00000000-0000-4000-a000-00000000f101', 'writing_progress', 'writing', 'Logged words', 'member', now(), 'audit_test',
-        '00000000-0000-4000-a000-00000000f101');
+VALUES ('mbr_AAAAAAAAf1A1', 'writing_progress', 'writing', 'Logged words', 'member', now(), 'audit_test',
+        'mbr_AAAAAAAAf1A1');
 SELECT is(
   (SELECT actor_user_id::text || ':' || acting_as_member_id::text FROM public.member_activities
     WHERE source = 'audit_test' AND activity_type = 'writing_progress'),
-  '00000000-0000-4000-a000-00000000f1a4:00000000-0000-4000-a000-00000000f101',
+  '00000000-0000-4000-a000-00000000f1a4:mbr_AAAAAAAAf1A1',
   'a sudo activity is attributed to the real admin as actor and to the member as acting_as'
 );
 SELECT set_config('request.headers', '', true);
@@ -171,8 +171,8 @@ SELECT set_config('request.jwt.claims', '', true);
 
 -- Page visits: one sudo stretch by Dana, one ordinary visit by Alice.
 INSERT INTO public.access_events (user_id, path, is_page, created_at, acting_as_member_id) VALUES
-  ('00000000-0000-4000-a000-00000000f1a4', '/dashboard', true, now() - interval '5 minutes', '00000000-0000-4000-a000-00000000f101'),
-  ('00000000-0000-4000-a000-00000000f1a4', '/my-prickles', true, now() - interval '4 minutes', '00000000-0000-4000-a000-00000000f101'),
+  ('00000000-0000-4000-a000-00000000f1a4', '/dashboard', true, now() - interval '5 minutes', 'mbr_AAAAAAAAf1A1'),
+  ('00000000-0000-4000-a000-00000000f1a4', '/my-prickles', true, now() - interval '4 minutes', 'mbr_AAAAAAAAf1A1'),
   ('00000000-0000-4000-a000-00000000f1a1', '/dashboard', true, now() - interval '3 minutes', NULL);
 
 SET LOCAL ROLE authenticated;
@@ -181,14 +181,14 @@ SELECT set_config('request.jwt.claims',
 INSERT INTO sudo_result SELECT 'sudo_sessions', COALESCE(jsonb_agg(to_jsonb(f)), '[]'::jsonb)
   FROM public.get_activity_feed(false, ARRAY['session'], '00000000-0000-4000-a000-00000000f1a4', NULL, true) f;
 INSERT INTO sudo_result SELECT 'audit_only_sessions', to_jsonb(count(*))
-  FROM public.get_activity_feed(true, ARRAY['session'], NULL, '00000000-0000-4000-a000-00000000f101') f;
-INSERT INTO sudo_result SELECT 'timeline_count', to_jsonb(public.count_activity_feed(false, NULL, NULL, '00000000-0000-4000-a000-00000000f101'));
+  FROM public.get_activity_feed(true, ARRAY['session'], NULL, 'mbr_AAAAAAAAf1A1') f;
+INSERT INTO sudo_result SELECT 'timeline_count', to_jsonb(public.count_activity_feed(false, NULL, NULL, 'mbr_AAAAAAAAf1A1'));
 INSERT INTO sudo_result SELECT 'timeline_rows', to_jsonb(count(*))
-  FROM public.get_activity_feed(false, NULL, NULL, '00000000-0000-4000-a000-00000000f101', false, now() - interval '30 days', now() + interval '1 minute', 0, 1000) f;
+  FROM public.get_activity_feed(false, NULL, NULL, 'mbr_AAAAAAAAf1A1', false, now() - interval '30 days', now() + interval '1 minute', 0, 1000) f;
 INSERT INTO sudo_result SELECT 'page1', to_jsonb(event_id)
-  FROM public.get_activity_feed(false, NULL, NULL, '00000000-0000-4000-a000-00000000f101', false, now() - interval '30 days', now() + interval '1 minute', 0, 1) f;
+  FROM public.get_activity_feed(false, NULL, NULL, 'mbr_AAAAAAAAf1A1', false, now() - interval '30 days', now() + interval '1 minute', 0, 1) f;
 INSERT INTO sudo_result SELECT 'page2', to_jsonb(event_id)
-  FROM public.get_activity_feed(false, NULL, NULL, '00000000-0000-4000-a000-00000000f101', false, now() - interval '30 days', now() + interval '1 minute', 1, 1) f;
+  FROM public.get_activity_feed(false, NULL, NULL, 'mbr_AAAAAAAAf1A1', false, now() - interval '30 days', now() + interval '1 minute', 1, 1) f;
 RESET ROLE;
 
 SELECT is(

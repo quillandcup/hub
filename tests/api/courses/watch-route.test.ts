@@ -188,7 +188,7 @@ describe('/api/courses/watch', () => {
   it("doesn't track a lesson that is still coming soon, one without a video, or an unknown one", async () => {
     expect((await post(body({ lessonId: ids.lessonSoon }))).status).toBe(404)
     expect((await post(body({ lessonId: ids.lessonNoVideo }))).status).toBe(404)
-    expect((await post(body({ lessonId: '00000000-0000-4000-a000-0000000000ff' }))).status).toBe(404)
+    expect((await post(body({ lessonId: 'les_AAAAAAAAAAff' }))).status).toBe(404)
     expect(await segmentsOf('current')).toEqual([])
   })
 

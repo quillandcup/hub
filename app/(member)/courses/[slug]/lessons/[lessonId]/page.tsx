@@ -7,7 +7,7 @@ import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } fr
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
@@ -92,7 +92,7 @@ export default async function LessonPage({
 }) {
   const { slug, lessonId } = await params;
   const trackPreview = (await searchParams)?.track === "1";
-  if (!isUuid(lessonId)) notFound();
+  if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
   const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
 

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageBounds } from "@/lib/pagination";
+import { isAnyId, isId } from "@/lib/ids";
 import { withMentionNames } from "@/lib/chat/names";
 
 /**
@@ -104,7 +105,7 @@ export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDe
     view: parseView(first(params.view), defaults.view),
     kinds: kindList.length > 0 ? kindList : null,
     actorUserId: actor && UUID_RE.test(actor) ? actor : null,
-    memberId: member && UUID_RE.test(member) ? member : null,
+    memberId: isId(member, "mbr") ? member : null,
     sudoOnly: first(params.sudo) === "1",
     hideSystem: first(params.nosystem) === "1",
     hideSlack: first(params.noslack) === "1",
@@ -341,17 +342,16 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   return null;
 }
 
-const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const titleCase = (s: string) => s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** "/prickles/<uuid>" -> "Prickles · one", "/my-prickles/all" -> "My Prickles · All": paths read as places. */
+/** "/prickles/<id>" -> "Prickles · one", "/my-prickles/all" -> "My Prickles · All": paths read as places. */
 export function pageLabel(path: string): string {
   const segments = path.split("?")[0].split("/").filter(Boolean);
   if (segments.length === 0) return "Home";
   const [first, second] = segments;
   const section = titleCase(first);
   if (!second) return section;
-  return UUID_SEGMENT.test(second) ? `${section} · one` : `${section} · ${titleCase(second)}`;
+  return isAnyId(second) ? `${section} · one` : `${section} · ${titleCase(second)}`;
 }
 
 export interface PageCount {

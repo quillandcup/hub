@@ -17,6 +17,7 @@ import { getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { isId } from "@/lib/ids";
 
 export interface PaletteSearch {
   results: KindResults[];
@@ -188,7 +189,7 @@ export async function suggestOperatorValues(operator: "from" | "channel", typed:
   return out.slice(0, VALUE_LIMIT);
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; // an in_app_notifications id
 
 /**
  * "Mark as read" for rows of "Needs attention" (by their Suggestion ids), so they leave every list:
@@ -203,14 +204,15 @@ export async function markSuggestionsRead(ids: string[]): Promise<number> {
   const results = await Promise.all(
     ids.slice(0, MAX_SUGGESTIONS).map(async (id) => {
       const [kind, ref] = String(id).split(":");
-      if (!UUID.test(ref ?? "")) return false;
+      // A check-in or check-out names a prickle; a notification names an in_app_notifications row (still a uuid).
+      if (kind === "notification" ? !UUID.test(ref ?? "") : !isId(ref, "prkl")) return false;
       try {
         if (kind === "checkout") return (await dismissCheckout(supabase, viewerMemberId, ref)) === null;
         if (kind === "checkin") return (await dismissCheckin(supabase, viewerMemberId, ref)) === null;
         if (kind === "notification") {
           // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
           const { data: note } = await supabase.from("in_app_notifications").select("kind, ref").eq("id", ref).eq("member_id", viewerMemberId).maybeSingle();
-          if (note && UUID.test(note.ref ?? "")) {
+          if (note && isId(note.ref, "prkl")) {
             if (note.kind === "prickle_checkin") return (await dismissCheckin(supabase, viewerMemberId, note.ref)) === null;
             if (note.kind === "prickle_checkout") return (await dismissCheckout(supabase, viewerMemberId, note.ref)) === null;
           }

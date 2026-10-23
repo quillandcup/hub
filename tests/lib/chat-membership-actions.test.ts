@@ -65,10 +65,10 @@ vi.mock("@/lib/supabase/service", () => ({
 
 import { addChatMembers, joinChatChannel, removeChatMember, searchMembersToAdd } from "@/app/(member)/chat/membership-actions";
 
-const CHANNEL = "00000000-0000-4000-a000-0000000000c1";
-const FERN = "00000000-0000-4000-a000-0000000000f1";
-const GALE = "00000000-0000-4000-a000-0000000000f2";
-const HAZEL = "00000000-0000-4000-a000-0000000000f3";
+const CHANNEL = "chn_AAAAAAAAAAC1";
+const FERN = "mbr_AAAAAAAAAAF1";
+const GALE = "mbr_AAAAAAAAAAF2";
+const HAZEL = "mbr_AAAAAAAAAAF3";
 
 interface World {
   channelRow: Record<string, unknown> | null;
@@ -217,7 +217,7 @@ describe("addChatMembers", () => {
     await expect(addChatMembers("nope", [GALE])).resolves.toMatchObject({ ok: false });
     await expect(addChatMembers(CHANNEL, [])).resolves.toMatchObject({ ok: false });
     await expect(addChatMembers(CHANNEL, ["nope"])).resolves.toMatchObject({ ok: false });
-    const many = Array.from({ length: 21 }, (_, i) => `00000000-0000-4000-a000-00000000${String(i).padStart(4, "0")}`);
+    const many = Array.from({ length: 21 }, (_, i) => `mbr_${String(i + 1).replace(/0/g, "A").padStart(12, "B")}`);
     await expect(addChatMembers(CHANNEL, many)).resolves.toEqual({ ok: false, error: "Add at most 20 people at a time." });
 
     m.postingCaller.mockResolvedValue(null);
@@ -332,7 +332,7 @@ describe("searchMembersToAdd", () => {
   });
 
   it("offers at most eight", async () => {
-    const people = Array.from({ length: 12 }, (_, i) => ({ id: `00000000-0000-4000-a000-00000000${String(i + 100).padStart(4, "0")}`, name: `Person ${String(i).padStart(2, "0")}`, display_name: null, photo_url: null }));
+    const people = Array.from({ length: 12 }, (_, i) => ({ id: `mbr_${String(i + 101).replace(/0/g, "A").padStart(12, "B")}`, name: `Person ${String(i).padStart(2, "0")}`, display_name: null, photo_url: null }));
     world.directory = people;
     world.active = people.map((p) => p.id);
     m.slackIds.mockResolvedValue(new Map());

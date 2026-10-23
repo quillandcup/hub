@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied } from "@/lib/slack-capture";
 
-const MESSAGE = "00000000-0000-4000-8000-000000000001";
+const MESSAGE = "msg_AAAAAAAAAAA1";
 const url = (id: string) => `/api/chat/files/${id}/zip`;
 
 let content: unknown;

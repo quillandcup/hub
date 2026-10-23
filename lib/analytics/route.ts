@@ -1,3 +1,4 @@
+import { isAnyId } from "@/lib/ids";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_ROUTE_LENGTH = 120;
 
@@ -12,7 +13,7 @@ export function templateRoute(path: unknown): string | null {
   const pathname = path.split(/[?#]/, 1)[0];
   const segments = pathname.split("/").map((segment) => {
     if (!segment) return segment;
-    if (UUID.test(segment) || /^\d+$/.test(segment)) return "[id]";
+    if (UUID.test(segment) || isAnyId(segment) || /^\d+$/.test(segment)) return "[id]";
     if (segment.length >= 8 && /\d/.test(segment) && /^[\w-]+$/.test(segment)) return "[id]";
     return segment;
   });

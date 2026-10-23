@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_SEGMENTS_PER_BATCH, parseWatchBatch, resumeSeconds } from '@/lib/courses/watch'
 
-const LESSON = '00000000-0000-4000-a000-00000000c200'
+const LESSON = 'les_AAAAAAAAAAC2'
 const SESSION = '00000000-0000-4000-a000-00000000c999'
 const SEGMENT_ID = '00000000-0000-4000-a000-00000000e001'
 const segment = { id: SEGMENT_ID, start: 1, end: 9.5, rate: 1.5, captions: 'English', visible: true }

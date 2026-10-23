@@ -21,9 +21,9 @@ import CourseWatchStatsPage from "@/app/(admin)/admin/courses/[id]/stats/page";
 import LessonWatchStatsPage from "@/app/(admin)/admin/courses/[id]/stats/[lessonId]/page";
 
 const KAJABI = "kaj-1";
-const L1 = "00000000-0000-4000-a000-00000000a001";
-const L2 = "00000000-0000-4000-a000-00000000a002";
-const L3 = "00000000-0000-4000-a000-00000000a003";
+const L1 = "les_AAAAAAAAAAA1";
+const L2 = "les_AAAAAAAAAAA2";
+const L3 = "les_AAAAAAAAAAA3";
 const seg = (m: string, start: number, end: number, over: object = {}) => ({ memberId: m, sessionId: `s-${m}`, start, end, rate: 1, captions: null, visible: true, ...over });
 const lesson = (id: string, title: string, over: object = {}) => ({ id, module_id: null, title, position: 1, state: "open", duration_seconds: 600, ...over });
 

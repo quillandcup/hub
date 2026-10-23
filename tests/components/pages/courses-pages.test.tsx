@@ -39,9 +39,9 @@ import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(m
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
 import LessonPage, { generateMetadata as generateLessonMetadata } from "@/app/(member)/courses/[slug]/lessons/[lessonId]/page";
 
-const LESSON_A = "11111111-1111-4111-8111-111111111111";
-const LESSON_B = "22222222-2222-4222-8222-222222222222";
-const LESSON_SOON = "33333333-3333-4333-8333-333333333333";
+const LESSON_A = "les_AAAAAAAAAAA1";
+const LESSON_B = "les_AAAAAAAAAAA2";
+const LESSON_SOON = "les_AAAAAAAAAAA3";
 
 const mod: OutlineModule = { id: "mod", parent_id: null, title: "Month 1", position: 1, state: "open" };
 const lesson = (id: string, title: string, position: number, state: "open" | "coming_soon" | "hidden" = "open"): OutlineLesson => ({
@@ -509,9 +509,9 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
   describe("Next Module and the next-lesson card", () => {
     const twoModules = buildOutline(
       [mod, { id: "mod2", parent_id: null, title: "Week 2", position: 2, state: "open" }],
-      [lesson(LESSON_A, "Welcome", 1), lesson(LESSON_B, "Voice", 2), { ...lesson("44444444-4444-4444-8444-444444444444", "Next week", 1), module_id: "mod2" }]
+      [lesson(LESSON_A, "Welcome", 1), lesson(LESSON_B, "Voice", 2), { ...lesson("les_AAAAAAAAAAA4", "Next week", 1), module_id: "mod2" }]
     );
-    const NEXT_WEEK = "44444444-4444-4444-8444-444444444444";
+    const NEXT_WEEK = "les_AAAAAAAAAAA4";
     const inTwoModules = (over: Record<string, unknown> = {}) => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       loadLessonView.mockResolvedValue(
