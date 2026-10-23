@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelSummary } from "@/lib/chat/load";
 
 let pathname = "/chat";
@@ -9,10 +9,14 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
 type Row = Record<string, unknown>;
 let onInsert: (payload: { new: Row }) => void = () => {};
+let onUpdate: (payload: { new: Row }) => void = () => {};
+const loadCounts = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: loadCounts }));
 const subscribe = vi.fn();
 const realtime: { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> } = {
-  on: vi.fn((_t: string, _f: unknown, cb: (p: { new: Row }) => void) => {
-    onInsert = cb;
+  on: vi.fn((_t: string, f: { event: string }, cb: (p: { new: Row }) => void) => {
+    if (f.event === "UPDATE") onUpdate = cb;
+    else onInsert = cb;
     return realtime;
   }),
   subscribe: vi.fn(() => {
@@ -50,6 +54,7 @@ const CHANNELS = [
 beforeEach(() => {
   pathname = "/chat";
   subscribe.mockClear();
+  loadCounts.mockReset();
   syncRead.mockReset();
   syncRead.mockResolvedValue(null);
 });
@@ -147,6 +152,79 @@ describe("ChatSidebar", () => {
 
       rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 5 }} selfMemberId={ME} />);
       expect(screen.getByRole("link", { name: "#general, 5 unread" })).toBeInTheDocument();
+    });
+
+    describe("a message deleted after it was counted", () => {
+      const del = (extra: Row = {}) => ({ new: { channel_id: "1", thread_root_id: null, author_member_id: "member-gale", deleted_at: "2026-10-10T00:00:00Z", ...extra } });
+      const settle = () =>
+        act(async () => {
+          await vi.advanceTimersByTimeAsync(400);
+        });
+      beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+      afterEach(() => vi.useRealTimers());
+
+      it("takes the server's count once, however many events arrive", async () => {
+        pathname = "/chat/2";
+        loadCounts.mockResolvedValue({ "1": 1 });
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        act(() => onUpdate(del()));
+        await settle();
+        expect(loadCounts).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+      });
+
+      it("drops the badge when the last unread message goes", async () => {
+        loadCounts.mockResolvedValue({});
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 1 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+      });
+
+      it("leaves the count alone when the deleted message was already read", async () => {
+        loadCounts.mockResolvedValue({ "1": 2 });
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      });
+
+      it("ignores edits, your own, replies, the open conversation and ones you are not in", async () => {
+        pathname = "/chat/2";
+        render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del({ deleted_at: null })));
+        act(() => onUpdate(del({ author_member_id: ME })));
+        act(() => onUpdate(del({ thread_root_id: "m1" })));
+        act(() => onUpdate(del({ channel_id: "2" })));
+        act(() => onUpdate(del({ channel_id: "5" })));
+        await settle();
+        expect(loadCounts).not.toHaveBeenCalled();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      });
+
+      it("keeps its numbers if the recount fails, and skips a conversation opened meanwhile", async () => {
+        loadCounts.mockRejectedValueOnce(new Error("offline"));
+        const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+
+        loadCounts.mockResolvedValue({ "1": 1 });
+        act(() => onUpdate(del()));
+        pathname = "/chat/1";
+        rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await settle();
+        expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+      });
     });
 
     it("does not listen at all in sudo", async () => {
