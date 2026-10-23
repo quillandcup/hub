@@ -3,19 +3,23 @@
  * Eliminates duplicate toLocaleString() calls across the app
  */
 
-import { ORG_TIMEZONE } from "@/lib/config";
-
 // A bare toLocaleDateString() formats in the host's zone and locale, so the server (UTC) and the
-// browser print different text and React reports a hydration mismatch. These two name both.
-const orgDateFormat = new Intl.DateTimeFormat("en-US", { timeZone: ORG_TIMEZONE });
+// browser print different text and React reports a hydration mismatch. These name the zone.
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
 const dateOnlyFormat = new Intl.DateTimeFormat("en-US", { timeZone: "UTC" });
 
 /**
- * Format an instant as its calendar date in the org timezone, the same on server and client
+ * Format an instant as its calendar date in `timeZone` (the viewer's: `useTimeZone()` in a client
+ * component, `getViewerTimeZone()` on the server), the same on server and client
  * Example: "7/19/2026"
  */
-export function formatOrgDate(date: Date | string): string {
-  return orgDateFormat.format(typeof date === "string" ? new Date(date) : date);
+export function formatDateInZone(date: Date | string, timeZone: string): string {
+  let format = dateFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", { timeZone });
+    dateFormats.set(timeZone, format);
+  }
+  return format.format(typeof date === "string" ? new Date(date) : date);
 }
 
 /**

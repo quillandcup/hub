@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { isValidTimeZone } from "@/lib/time-zone";
+import { ORG_TIMEZONE } from "@/lib/config";
 
 /**
  * Get the user's timezone preference from their profile
@@ -44,3 +45,16 @@ export const getUserSecondaryTimezone = cache(async (): Promise<string | null> =
 
   return isValidTimeZone(profile?.secondary_timezone) ? profile.secondary_timezone : null;
 });
+
+/**
+ * The zone to show the signed-in viewer's dates in: their stored zone, or the org's while it is
+ * still "browser" (before their first page load saves the detected one) or isn't a zone.
+ */
+export function resolveTimeZone(preference: string | null | undefined): string {
+  return isValidTimeZone(preference) ? preference : ORG_TIMEZONE;
+}
+
+/** `resolveTimeZone` of the signed-in viewer's stored preference, for server components. */
+export async function getViewerTimeZone(): Promise<string> {
+  return resolveTimeZone(await getUserTimezonePreference());
+}

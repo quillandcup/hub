@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { formatOrgDate } from "@/lib/formatters";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface ProcessOrphanedButtonProps {
   orphanedCount: number;
@@ -9,6 +10,7 @@ interface ProcessOrphanedButtonProps {
 }
 
 export default function ProcessOrphanedButton({ orphanedCount, dateRange }: ProcessOrphanedButtonProps) {
+  const timeZone = useTimeZone();
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -22,8 +24,8 @@ export default function ProcessOrphanedButton({ orphanedCount, dateRange }: Proc
       return;
     }
 
-    const fromFormatted = formatOrgDate(dateRange.fromDate);
-    const toFormatted = formatOrgDate(dateRange.toDate);
+    const fromFormatted = formatDateInZone(dateRange.fromDate, timeZone);
+    const toFormatted = formatDateInZone(dateRange.toDate, timeZone);
 
     if (!confirm(`Process calendar events to resolve ${orphanedCount} orphaned events?\n\nThis will reprocess events from ${fromFormatted} to ${toFormatted}.`)) {
       return;

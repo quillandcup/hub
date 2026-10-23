@@ -13,7 +13,8 @@ import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
 import ReconciliationClient from "@/app/(admin)/admin/reconciliation/ReconciliationClient";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { formatOrgDate } from "@/lib/formatters";
+import { formatDateInZone } from "@/lib/formatters";
+import { getViewerTimeZone } from "@/lib/timezone";
 
 export const metadata: Metadata = {
   title: "Data Health Dashboard",
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function DataHygienePage() {
+  const timeZone = await getViewerTimeZone();
   await requireAdminPage();
   const supabase = await createClient();
 
@@ -546,7 +548,7 @@ export default async function DataHygienePage() {
                   <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
                     {stalePrivateChannels.map((c) => (
                       <li key={c.channelId}>
-                        #{c.channelName} — last seen {formatOrgDate(c.lastSeenAt)}
+                        #{c.channelName} — last seen {formatDateInZone(c.lastSeenAt, timeZone)}
                       </li>
                     ))}
                   </ul>

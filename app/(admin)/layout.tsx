@@ -8,6 +8,8 @@ import AppHeader from "@/components/AppHeader";
 import WithInAppNotifications from "@/components/WithInAppNotifications";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import PageViewTracker from "@/components/PageViewTracker";
+import { TimezoneProvider } from "@/components/Timezone";
+import { getViewerTimeZone } from "@/lib/timezone";
 
 export default async function AdminLayout({
   children,
@@ -24,6 +26,7 @@ export default async function AdminLayout({
 
   // The admin's own member record, if they have one, for the bell; none is fine.
   const identity = await getEffectiveIdentity(user);
+  const timeZone = await getViewerTimeZone();
 
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
@@ -33,9 +36,11 @@ export default async function AdminLayout({
           <AppHeader resultsPath="/admin/search" isAdmin={true}>
             <UserMenu userEmail={user.email || "User"} isAdmin={true} />
           </AppHeader>
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
+          <TimezoneProvider zone={timeZone}>
+            <main className="flex-1 overflow-auto">
+              {children}
+            </main>
+          </TimezoneProvider>
         </WithInAppNotifications>
       </div>
       <FeedbackWidget />
