@@ -12,7 +12,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied } from "@/lib/slack-capture";
 import { GET } from "@/app/api/chat/files/[messageId]/[fileId]/route";
 
-const MESSAGE = "00000000-0000-4000-8000-000000000001";
+const MESSAGE = "msg_AAAAAAAAAAA1";
 const FILES = [
   { id: "F_IMG", name: "hedgie.gif", mimetype: "image/gif", size: 10 },
   { id: "F_HTML", name: "page.html", mimetype: "text/html", size: 10 },
