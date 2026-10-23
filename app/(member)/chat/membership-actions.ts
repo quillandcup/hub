@@ -4,8 +4,9 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller, type ChatCaller } from "@/lib/chat/caller";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember } from "@/lib/chat/load";
-import { inviteToSlackChannel, kickAsMember, kickFromSlackChannel, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { inviteAsMember, inviteToSlackChannel, joinAsMember, kickAsMember, kickFromSlackChannel, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
 import { getSlackUserToken } from "@/lib/slack-connect";
+import type { AsMemberResult } from "@/lib/chat/slack-membership";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { clock } from "@/lib/clock";
@@ -95,6 +96,36 @@ async function alreadyIn(channelId: string, memberIds: string[]): Promise<Set<st
   return new Set((data ?? []).map((r) => r.member_id as string));
 }
 
+const RECONNECT_HINT = " Reconnect Slack in Settings to do this as yourself.";
+const RECONNECT_NOTICE = "Your Slack connection stopped working, so Billie Bot did this for you. Reconnect Slack in Settings.";
+
+/**
+ * Do something in Slack as the acting member when they've connected their account (so Slack attributes it to
+ * them and applies its rules to them), and as the bot when they haven't or their token can't do it. Slack's own
+ * refusal to the member's account is returned as is, not overridden by the bot. A token Slack says is dead is
+ * revoked so Settings stops saying it's connected, and `reconnect` says to tell the member.
+ */
+async function asMemberElseBot(
+  service: ReturnType<typeof createServiceRoleClient>,
+  actorId: string,
+  own: (token: string) => Promise<AsMemberResult>,
+  bot: () => Promise<{ ok: true } | { ok: false; error: string }>
+): Promise<{ result: { ok: true } | { ok: false; error: string }; reconnect: boolean }> {
+  let reconnect = false;
+  const connection = await getSlackUserToken(service, actorId);
+  if (connection) {
+    const tried = await own(connection.token);
+    if (tried.ok) return { result: tried, reconnect };
+    if (!tried.retryWithBot) return { result: tried, reconnect };
+    if (tried.deadToken) {
+      await service.rpc("slack_connection_revoke", { p_member: actorId });
+      reconnect = true;
+    }
+  }
+  const result = await bot();
+  return { result: !result.ok && reconnect ? { ok: false, error: result.error + RECONNECT_HINT } : result, reconnect };
+}
+
 /** Add `memberIds` (the member's own id to join a public channel). */
 async function addMembersImpl(channelId: string, memberIds: string[]): Promise<MembershipResult> {
   const unique = [...new Set(memberIds)];
@@ -134,13 +165,25 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
     };
   }
 
-  const invited = await inviteToSlackChannel({ channel: channel.slackChannelId, userIds: wanted.flatMap((id) => (slackIds.has(id) ? [slackIds.get(id)!] : [])) });
-  if (!invited.ok) return invited;
+  const slackUserIds = wanted.flatMap((id) => (slackIds.has(id) ? [slackIds.get(id)!] : []));
+  const done = await asMemberElseBot(
+    service,
+    self,
+    // Joining yourself to a public channel is a join, not an invite; adding others is an invite by you.
+    (token) => (onlySelf && !channel.joined ? joinAsMember({ channel: channel.slackChannelId, token }) : inviteAsMember({ channel: channel.slackChannelId, userIds: slackUserIds, token })),
+    () => inviteToSlackChannel({ channel: channel.slackChannelId, userIds: slackUserIds })
+  );
+  if (!done.result.ok) return done.result;
 
   await recordJoined(channelId, wanted.map((memberId) => ({ memberId, source: slackIds.has(memberId) ? ("slack" as const) : ("app" as const) })));
   return {
     ok: true,
-    message: withoutSlack.length > 0 ? `${withoutSlack.length === 1 ? "One person isn't" : `${withoutSlack.length} people aren't`} in Slack, so they are only in the Hub's copy of this channel.` : undefined,
+    message: [
+      withoutSlack.length > 0 ? `${withoutSlack.length === 1 ? "One person isn't" : `${withoutSlack.length} people aren't`} in Slack, so they are only in the Hub's copy of this channel.` : undefined,
+      done.reconnect ? RECONNECT_NOTICE : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined,
   };
 }
 
@@ -168,32 +211,22 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
     .maybeSingle();
   if (!row) return { ok: true }; // already out
 
-  const RECONNECT = " Reconnect Slack in Settings to do this as yourself.";
   let reconnect = false;
   // In Slack too, unless the Hub alone knows they were in it.
   if (row.source !== "app") {
     const slackUser = (await slackUserIdsFor(service, [memberId])).get(memberId);
     if (slackUser) {
-      // As the member's own Slack account when they've connected it (Slack then applies its rules to them, not
-      // to the bot, which a workspace can restrict); the bot when they haven't or the token can't do it.
-      let done = false;
-      const own = await getSlackUserToken(service, caller.identity.memberId);
-      if (own) {
-        const tried = isSelf
-          ? await leaveSlackChannelAsMember({ channel: channel.slackChannelId, token: own.token })
-          : await kickAsMember({ channel: channel.slackChannelId, userId: slackUser, token: own.token });
-        if (!tried.ok && !tried.retryWithBot) return tried;
-        done = tried.ok;
-        if (tried.deadToken) {
-          // So Settings stops saying it's connected, and the answer can tell them.
-          await service.rpc("slack_connection_revoke", { p_member: caller.identity.memberId });
-          reconnect = true;
-        }
-      }
-      if (!done) {
-        const kicked = await kickFromSlackChannel({ channel: channel.slackChannelId, userId: slackUser });
-        if (!kicked.ok) return reconnect ? { ok: false, error: kicked.error + RECONNECT } : kicked;
-      }
+      const done = await asMemberElseBot(
+        service,
+        caller.identity.memberId,
+        (token) =>
+          isSelf
+            ? leaveSlackChannelAsMember({ channel: channel.slackChannelId, token })
+            : kickAsMember({ channel: channel.slackChannelId, userId: slackUser, token }),
+        () => kickFromSlackChannel({ channel: channel.slackChannelId, userId: slackUser })
+      );
+      if (!done.result.ok) return done.result;
+      reconnect = done.reconnect;
     }
   }
 
@@ -204,7 +237,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
     .eq("member_id", memberId)
     .is("left_at", null);
   if (error) throw error;
-  return reconnect ? { ok: true, message: "Your Slack connection stopped working, so Billie Bot did this for you. Reconnect Slack in Settings." } : { ok: true };
+  return reconnect ? { ok: true, message: RECONNECT_NOTICE } : { ok: true };
 }
 
 export interface MemberCandidate {

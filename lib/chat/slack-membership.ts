@@ -165,3 +165,42 @@ export async function kickAsMember(opts: { channel: string; userId: string; toke
     return asMemberFailure(code, error, true);
   }
 }
+
+/**
+ * Adding people as the member, with their own Slack token, so Slack shows them as the one who added them.
+ * A token that can't do it (dead, missing the scope, not in the conversation themselves) hands over to the bot.
+ */
+export async function inviteAsMember(opts: { channel: string; userIds: string[]; token: string; slack?: WebClient }): Promise<AsMemberResult> {
+  if (opts.userIds.length === 0) return { ok: true };
+  if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be added from the live Hub." };
+  try {
+    const slack = opts.slack ?? new WebClient(opts.token);
+    await slack.conversations.invite({ channel: opts.channel, users: opts.userIds.join(",") });
+    return { ok: true };
+  } catch (error) {
+    const code = slackError(error);
+    if (code === "already_in_channel") return { ok: true };
+    console.error("conversations.invite as member failed:", code ?? error);
+    if (isDeadTokenError(error)) return { ok: false, error: "Your Slack connection stopped working.", retryWithBot: true, deadToken: true };
+    if (code === "missing_scope" || code === "not_in_channel") return { ok: false, error: "Slack didn't let you do that.", retryWithBot: true };
+    return { ok: false, error: inviteProblem(code) };
+  }
+}
+
+/** A member joining a public channel as themselves (`conversations.join`); a token that can't hands over to the bot. */
+export async function joinAsMember(opts: { channel: string; token: string; slack?: WebClient }): Promise<AsMemberResult> {
+  if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be added from the live Hub." };
+  try {
+    const slack = opts.slack ?? new WebClient(opts.token);
+    await slack.conversations.join({ channel: opts.channel });
+    return { ok: true };
+  } catch (error) {
+    const code = slackError(error);
+    console.error("conversations.join failed:", code ?? error);
+    if (isDeadTokenError(error)) return { ok: false, error: "Your Slack connection stopped working.", retryWithBot: true, deadToken: true };
+    if (code === "missing_scope" || code === "method_not_supported_for_channel_type") return { ok: false, error: "Slack didn't let you do that.", retryWithBot: true };
+    if (code === "channel_not_found") return { ok: false, error: "Slack can't find this conversation." };
+    if (code === "is_archived") return { ok: false, error: "This conversation is archived in Slack." };
+    return { ok: false, error: "Slack didn't let you join. Try again in a moment." };
+  }
+}
