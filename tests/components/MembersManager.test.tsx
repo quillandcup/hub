@@ -98,7 +98,7 @@ describe("MembersManager", () => {
   it("asks before leaving, can be backed out of, and goes to the chat list after leaving", async () => {
     setup({ canLeave: true });
     await userEvent.click(screen.getByRole("button", { name: "Leave #hosts" }));
-    expect(screen.getByText(/removed from it in Slack too/)).toBeInTheDocument();
+    expect(screen.getByText("Leave #hosts?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Stay" }));
     expect(actions.removeChatMember).not.toHaveBeenCalled();
 
