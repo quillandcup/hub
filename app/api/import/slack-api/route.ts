@@ -31,6 +31,7 @@ import {
   syncCustomEmoji,
   toSlackChannelRow,
 } from '@/lib/slack-capture';
+import { removeFilesGoneFromSlack } from '@/lib/chat/file-cleanup';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -266,6 +267,10 @@ export async function POST(request: NextRequest) {
     const files = await capture('files', () =>
       copySlackFiles(supabase, SLACK_BOT_TOKEN, allMessages, importTimestamp, startedAt + FILE_COPY_DEADLINE_MS)
     );
+    // Files Slack deleted (shown as tombstones, or dropped from an edited message): soft-delete the
+    // Bronze row and remove our copy. The file_deleted webhook does the same at once.
+    const filesGone = await capture('deleted files', () => removeFilesGoneFromSlack(supabase, allMessages));
+    if (filesGone && filesGone.gone > 0) console.log(`  Files deleted in Slack: ${filesGone.gone} (${filesGone.removed} cleaned up, ${filesGone.failed} failed)`);
     if (files) console.log(`  Files: ${files.copied} copied, ${files.skipped} skipped, ${files.failed} failed, ${files.pending} still pending`);
 
     return NextResponse.json({
@@ -276,6 +281,7 @@ export async function POST(request: NextRequest) {
         membership,
         emoji,
         files,
+        filesGone,
         errors: captureErrors,
       },
       fetched: {

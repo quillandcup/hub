@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 export type FileBytesResult = "removed" | "kept" | "nothing" | "failed";
 
@@ -13,11 +14,18 @@ const DELETED_COPY_ERROR = "skipped: deleted";
  * delete and the list update; a failed removal is logged and left for `sweepDeletedFileBytes`
  * (deleted_at set, storage_path still set). `service` must be a service-role client.
  */
-export async function removeChatFileBytes(service: SupabaseClient, fileId: string): Promise<FileBytesResult> {
+export async function removeChatFileBytes(
+  service: SupabaseClient,
+  fileId: string,
+  /** For a file Slack itself deleted: a message list may still name it (as a tombstone), but the file is gone at the source. */
+  opts: { ignoreReferences?: boolean } = {}
+): Promise<FileBytesResult> {
   try {
-    const { data: refs, error: refError } = await service.from("chat_message_contents").select("message_id").contains("files", [{ id: fileId }]).limit(1);
-    if (refError) throw refError;
-    if (refs && refs.length > 0) return "kept";
+    if (!opts.ignoreReferences) {
+      const { data: refs, error: refError } = await service.from("chat_message_contents").select("message_id").contains("files", [{ id: fileId }]).limit(1);
+      if (refError) throw refError;
+      if (refs && refs.length > 0) return "kept";
+    }
 
     const bronze = () => service.schema("bronze").from("slack_files");
     const { data: row, error: rowError } = await bronze().select("storage_path, deleted_at").eq("file_id", fileId).maybeSingle();
@@ -74,4 +82,65 @@ export async function sweepDeletedFileBytes(service: SupabaseClient, limit = 100
     else failed++;
   }
   return { removed, failed };
+}
+
+/**
+ * Files Slack no longer has, judged from messages a run just fetched (their file lists are Slack's
+ * current truth): a file shown as a tombstone, or one a fetched message used to list and no longer
+ * does (the message was edited), and that no fetched message still lists. `stored` is the live Bronze
+ * rows; a file we never stored is nothing to clean.
+ */
+export function filesGoneFromSlack(
+  messages: { channel_id: string; message_ts: string; files?: any[] | null }[],
+  stored: { file_id: string; channel_id: string; message_ts: string }[]
+): string[] {
+  const live = new Set<string>();
+  const tombstoned = new Set<string>();
+  const listedBy = new Map<string, Set<string>>();
+  for (const m of messages) {
+    const ids = new Set<string>();
+    for (const f of m.files ?? []) {
+      if (!f?.id) continue;
+      ids.add(f.id);
+      if (f.mode === "tombstone") tombstoned.add(f.id);
+      else live.add(f.id);
+    }
+    listedBy.set(`${m.channel_id}|${m.message_ts}`, ids);
+  }
+  const gone: string[] = [];
+  for (const row of stored) {
+    if (live.has(row.file_id)) continue;
+    const listed = listedBy.get(`${row.channel_id}|${row.message_ts}`);
+    if (tombstoned.has(row.file_id) || (listed && !listed.has(row.file_id))) gone.push(row.file_id);
+  }
+  return gone;
+}
+
+/**
+ * Pull-based half of "a file was deleted in Slack" (the `file_deleted` webhook is the fast half): soft-delete
+ * the Bronze row of each file the fetched messages show as gone and remove its bytes. Bounded to `limit`
+ * per run; the rest are found again by the next run. Returns counts for the import's report.
+ */
+export async function removeFilesGoneFromSlack(
+  service: SupabaseClient,
+  messages: { channel_id: string; message_ts: string; files?: any[] | null }[],
+  limit = 200
+): Promise<{ gone: number; removed: number; failed: number }> {
+  if (messages.length === 0) return { gone: 0, removed: 0, failed: 0 };
+  const oldest = messages.reduce((min, m) => (m.message_ts < min ? m.message_ts : min), messages[0].message_ts);
+  const stored: { file_id: string; channel_id: string; message_ts: string }[] = await fetchAllBronzeRows(
+    service,
+    "slack_files",
+    "file_id, channel_id, message_ts",
+    (q) => q.is("deleted_at", null).gte("message_ts", oldest).order("file_id")
+  );
+  const gone = filesGoneFromSlack(messages, stored).slice(0, limit);
+  let removed = 0;
+  let failed = 0;
+  for (const fileId of gone) {
+    const result = await removeChatFileBytes(service, fileId, { ignoreReferences: true });
+    if (result === "failed") failed++;
+    else removed++;
+  }
+  return { gone: gone.length, removed, failed };
 }
