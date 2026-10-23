@@ -44,6 +44,11 @@ export function chatFileUrl(messageId: string, fileId: string): string {
   return `/api/chat/files/${encodeURIComponent(messageId)}/${encodeURIComponent(fileId)}`;
 }
 
+/** All of a message's files as one zip. */
+export function chatZipUrl(messageId: string): string {
+  return `/api/chat/files/${encodeURIComponent(messageId)}/zip`;
+}
+
 export function formatFileSize(bytes: number | null): string {
   if (bytes === null) return "";
   if (bytes < 1024) return `${bytes} B`;

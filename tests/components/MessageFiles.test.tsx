@@ -110,7 +110,7 @@ describe("MessageFiles attachments", () => {
     expect(deleteChatFile).toHaveBeenCalledWith("m1", "F2");
   });
 
-  it("copy image falls back to the link, and Download all downloads each file", async () => {
+  it("copy image falls back to the link, and Download all fetches one zip", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
@@ -119,12 +119,11 @@ describe("MessageFiles attachments", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Copy image" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
 
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const hrefs: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { hrefs.push(this.getAttribute("href") ?? ""); });
     await userEvent.click(screen.getByRole("button", { name: "Download all" }));
-    await vi.advanceTimersByTimeAsync(600);
-    expect(click).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+    expect(hrefs).toEqual(["/api/chat/files/m1/zip"]);
+    click.mockRestore();
     vi.unstubAllGlobals();
   });
 });
@@ -169,12 +168,22 @@ describe("MessageFiles without file names", () => {
     expect(screen.getByRole("dialog", { name: "Image" })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     await userEvent.click(screen.getByRole("button", { name: /2 attachments/ }));
     await userEvent.click(screen.getByRole("button", { name: "Download all" }));
-    await vi.advanceTimersByTimeAsync(600);
-    expect(click).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MessageFiles single file", () => {
+  it("Download all downloads the one file directly, not a zip", async () => {
+    const hrefs: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      hrefs.push(this.getAttribute("href") ?? "");
+    });
+    render(<MessageFiles messageId="m1" files={parseChatFiles([{ id: "F9", name: "a.pdf", mimetype: "application/pdf" }])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Download all" }));
+    expect(hrefs).toEqual(["/api/chat/files/m1/F9"]);
+    click.mockRestore();
   });
 });
 
