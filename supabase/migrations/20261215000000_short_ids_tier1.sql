@@ -1574,7 +1574,7 @@ AS $function$
                 concat_ws(' · ', (SELECT p.name FROM programs p WHERE p.id = (subject ->> 'program_id')), subject ->> 'name')
             WHEN 'program_enrollment' THEN
                 (SELECT concat_ws(' · ', p.name, c.name) FROM program_cohorts c JOIN programs p ON p.id = c.program_id
-                  WHERE c.id = (subject ->> 'cohort_id'))
+                  WHERE c.id = (subject ->> 'cohort_id')::uuid)
             WHEN 'prickle_schedule' THEN
                 concat_ws(' · ', (SELECT t.name FROM prickle_types t WHERE t.id = (subject ->> 'type_id')), subject ->> 'month')
             WHEN 'prickle_host_vibe' THEN (SELECT t.name FROM prickle_types t WHERE t.id = (subject ->> 'type_id'))
