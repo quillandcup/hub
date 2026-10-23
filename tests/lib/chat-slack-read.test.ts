@@ -33,6 +33,8 @@ let channel: Record<string, unknown> | null;
 let newest: Record<string, unknown> | null;
 let memberships: unknown[];
 let claim: boolean;
+/** What chat_unread_channel_ids answers; null = the function isn't available (errors or empty). */
+let unread: { data: unknown; error?: { message: string } | null } | null;
 const rpc = vi.fn();
 
 const service = {
@@ -64,7 +66,12 @@ beforeEach(() => {
   mark.mockReset();
   mark.mockResolvedValue({ ok: true });
   rpc.mockReset();
-  rpc.mockImplementation(async (name: string) => (name === "chat_claim_slack_read_pull" ? { data: claim } : { data: null, error: null }));
+  unread = null;
+  rpc.mockImplementation(async (name: string) => {
+    if (name === "chat_claim_slack_read_pull") return { data: claim };
+    if (name === "chat_unread_channel_ids") return unread ?? { data: null, error: null };
+    return { data: null, error: null };
+  });
 });
 
 describe("slackReadCovers", () => {
@@ -140,6 +147,42 @@ describe("pullReadFromSlack", () => {
     await pullReadFromSlack(service, "member-fern", { exceptChannelId: "open" });
     expect(info.mock.calls.map((c) => (c[0] as { channel: string }).channel)).toEqual(["C_UNREAD"]);
     expect(rpc).not.toHaveBeenCalledWith("chat_apply_slack_read", expect.anything());
+  });
+
+  it("asks Slack only about conversations with unread in the Hub, newest first", async () => {
+    memberships = [membership("quiet", "C_QUIET"), membership("older", "C_OLDER"), membership("newest", "C_NEWEST")];
+    unread = { data: [{ channel_id: "newest" }, { channel_id: "older" }], error: null };
+    await expect(pullReadFromSlack(service, "member-fern")).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith("chat_unread_channel_ids", { p_member: "member-fern" });
+    expect(info.mock.calls.map((c) => (c[0] as { channel: string }).channel)).toEqual(["C_NEWEST", "C_OLDER"]);
+  });
+
+  it("makes no Slack call at all when nothing is unread in the Hub", async () => {
+    memberships = [membership("quiet", "C_QUIET")];
+    unread = { data: [], error: null };
+    await expect(pullReadFromSlack(service, "member-fern")).resolves.toBe(true);
+    expect(info).not.toHaveBeenCalled();
+  });
+
+  it("falls back to every conversation when the unread list can't be read", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    memberships = [membership("chan-1", "C_ONE"), membership("chan-2", "C_TWO")];
+    unread = { data: null, error: { message: "boom" } };
+    await pullReadFromSlack(service, "member-fern");
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("chat_unread_channel_ids failed"), "member-fern", "boom");
+  });
+
+  it("says when it stopped at a missing scope or a rate limit", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    memberships = [membership("chan-1", "C_ONE")];
+    info.mockRejectedValueOnce({ data: { error: "missing_scope" } });
+    await pullReadFromSlack(service, "member-fern");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stopped"), "member-fern", "missing_scope");
+
+    info.mockRejectedValueOnce({ code: "slack_webapi_rate_limited_error" });
+    await pullReadFromSlack(service, "member-fern");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stopped"), "member-fern", "rate limited");
   });
 
   it("does nothing when a pull ran recently or the member hasn't connected Slack", async () => {
