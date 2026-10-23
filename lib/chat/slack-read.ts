@@ -96,8 +96,8 @@ interface MembershipRow {
 
 /**
  * Bring the member's Hub read markers up to what they have read in Slack: for each bridged
- * conversation they are in, read Slack's `last_read` with their own token and move the Hub marker
- * forward (never backward). Slack has no push event for this, so it runs when the member comes back
+ * conversation they are in that has unread in the Hub (newest first), read Slack's `last_read` with
+ * their own token and move the Hub marker forward (never backward). Slack has no push event for this, so it runs when the member comes back
  * to the Hub. `exceptChannelId` is the conversation open right now: its marker is left alone so the
  * "New" line on screen doesn't jump. Throttled per member; returns false when nothing was pulled
  * (throttled, not connected, or the connection is unusable), true when the markers were checked.
@@ -129,6 +129,17 @@ export async function pullReadFromSlack(
     targets.push({ channelId: row.channel_id, slackChannelId: channel.slack_channel_id });
   }
 
+  // Slack's marker can only matter where the Hub still shows unread (the Hub marker only moves
+  // forward), so ask about those, most recent first: a few calls instead of one per conversation,
+  // and the badges that matter clear first. If the list can't be read, ask about all of them.
+  const { data: unread, error: unreadError } = await service.rpc("chat_unread_channel_ids", { p_member: memberId });
+  if (unreadError) console.error("chat_unread_channel_ids failed for member %s:", memberId, unreadError.message);
+  if (!unreadError && Array.isArray(unread)) {
+    const order = new Map((unread as { channel_id: string }[]).map((row, index) => [row.channel_id, index]));
+    const unreadTargets = targets.filter((t) => order.has(t.channelId)).sort((a, b) => order.get(a.channelId)! - order.get(b.channelId)!);
+    targets.splice(0, targets.length, ...unreadTargets);
+  }
+
   const slack = userClient(connection.token);
   let stop = false;
   const next = [...targets];
@@ -147,6 +158,8 @@ export async function pullReadFromSlack(
           stop = true;
         } else if (code === "missing_scope" || isRateLimited(error)) {
           stop = true; // every other call would fail the same way
+          // Bounded by the per-member throttle above (one pull per SLACK_READ_PULL_INTERVAL_SECONDS).
+          console.warn("pullReadFromSlack stopped for member %s: %s", memberId, code ?? "rate limited");
         } else if (code !== "not_in_channel" && code !== "channel_not_found") {
           console.error("pullReadFromSlack failed for member %s:", memberId, error);
         }
