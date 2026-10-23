@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareChatUploads, sendChatMessage } from "@/app/(member)/chat/actions";
-import { createClient } from "@/lib/supabase/client";
 import PendingAttachments from "@/components/chat/PendingAttachments";
 import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
 import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/lib/chat/list-events";
 
 /**
@@ -52,7 +52,10 @@ export default function Composer({
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [attached, setAttached] = useState<File[]>([]);
-  const [uploaded, setUploaded] = useState(0);
+  /** Bytes sent so far for each attached file while sending. */
+  const [sentBytes, setSentBytes] = useState<number[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
   const early = Boolean(viewer) && showSent && attached.length === 0;
@@ -75,6 +78,9 @@ export default function Composer({
   });
   const onDrop = useCallback((files: File[]) => latestAttach.current(files, "drop"), []);
   const { dragging, rect } = useFileDrop(() => dropTargetIds.map((id) => document.getElementById(id)), onDrop, !sending);
+  const totalBytes = attached.reduce((n, f) => n + f.size, 0);
+  const totalSent = sentBytes.reduce((n, v) => n + v, 0);
+  const fractions = attached.map((f, i) => (f.size === 0 ? 1 : Math.min(1, (sentBytes[i] ?? 0) / f.size)));
   const dropLabel = threadRootId ? "Upload to thread" : `Upload to ${placeholder.replace(/^Message /, "")}`;
 
   /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
@@ -84,19 +90,27 @@ export default function Composer({
       setError(prepared?.error ?? "Couldn't start the upload. Try again.");
       return null;
     }
-    const storage = createClient().storage.from(SLACK_FILES_BUCKET);
+    const controller = new AbortController();
+    abortRef.current = controller;
     const done: StagedUpload[] = [];
-    setUploaded(0);
+    setSentBytes(attached.map(() => 0));
     for (let i = 0; i < attached.length; i++) {
       const file = attached[i];
       const { path, token } = prepared.uploads[i];
-      const { error: uploadError } = await storage.uploadToSignedUrl(path, token, file, { contentType: file.type || "application/octet-stream" });
-      if (uploadError) {
-        setError(`Couldn't upload ${file.name}. Try again.`);
+      const contentType = file.type || "application/octet-stream";
+      const result = await uploadWithProgress({
+        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, SLACK_FILES_BUCKET, path, token),
+        file,
+        contentType,
+        apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        signal: controller.signal,
+        onProgress: (loaded) => setSentBytes((current) => current.map((v, j) => (j === i ? loaded : v))),
+      });
+      if (!result.ok) {
+        if (result.reason !== "aborted") setError(`Couldn't upload ${file.name}. Try again.`);
         return null;
       }
-      done.push({ path, name: file.name || "file", mimetype: file.type || "application/octet-stream", size: file.size });
-      setUploaded(done.length);
+      done.push({ path, name: file.name || "file", mimetype: contentType, size: file.size });
     }
     return done;
   };
@@ -110,7 +124,7 @@ export default function Composer({
     if (attached.length > 0) {
       const staged = await uploadAttachments();
       if (!staged) {
-        setUploaded(0);
+        setSentBytes([]);
         return setSending(false);
       }
       uploads = staged;
@@ -121,7 +135,7 @@ export default function Composer({
 
     const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
-    setUploaded(0);
+    setSentBytes([]);
     if (!result.ok) {
       if (early) emitListEvent({ kind: "drop", channelId, threadRootId, tempId });
       setText((current) => (current ? `${body}\n${current}` : body));
@@ -180,7 +194,7 @@ export default function Composer({
           }}
           className="block w-full resize-none rounded-t-lg border-0 bg-transparent px-3 py-2 text-sm focus:outline-none"
         />
-        {attached.length > 0 && <PendingAttachments files={attached} disabled={sending} onRemove={(i) => setAttached((current) => current.filter((_, j) => j !== i))} />}
+        {attached.length > 0 && <PendingAttachments files={attached} progress={sending ? fractions : undefined} disabled={sending} onRemove={(i) => setAttached((current) => current.filter((_, j) => j !== i))} />}
         <div className="flex items-center justify-between gap-2 px-2 py-1.5">
           <input
             ref={pickerRef}
@@ -216,10 +230,8 @@ export default function Composer({
       </div>
       {sending && attached.length > 0 && (
         <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <progress aria-label="Upload progress" max={attached.length} value={uploaded} className="h-1.5 flex-1 accent-plum-600" />
-          <span>
-            {uploaded} of {attached.length} uploaded
-          </span>
+          <progress aria-label="Upload progress" max={Math.max(totalBytes, 1)} value={totalSent} className="h-1.5 flex-1 accent-plum-600" />
+          <span>{totalBytes > 0 ? Math.round((totalSent / totalBytes) * 100) : 100}% uploaded</span>
         </div>
       )}
       {error && (

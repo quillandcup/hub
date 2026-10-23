@@ -20,15 +20,14 @@ describe("MessageActions reactions", () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: false, error: "No can do." });
     render(<MessageActions {...props} canReact />);
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
-    await userEvent.click(screen.getByRole("button", { name: "React with :tada:" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "React with :tada:" })[0]);
     expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada");
-    expect(screen.queryByRole("button", { name: "React with :tada:" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
   });
 
   it("closes the picker with Escape", async () => {
     render(<MessageActions {...props} canReact />);
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
-    await userEvent.click(screen.getByRole("button", { name: "More emoji…" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByLabelText("Search emoji")).not.toBeInTheDocument();
   });

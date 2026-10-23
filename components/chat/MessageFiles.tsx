@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { deleteChatFile } from "@/app/(member)/chat/actions";
 import ImageLightbox from "@/components/ImageLightbox";
-import { chatFileUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
+import { chatFileUrl, chatZipUrl, formatFileSize, isInlineImage, type ChatFile } from "@/lib/chat/files";
 
 const iconBtn =
   "inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700";
@@ -132,7 +132,10 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
       else setError(result.error);
     });
   };
-  const downloadAll = () => shown.forEach((f, i) => setTimeout(() => triggerDownload(chatFileUrl(messageId, f.id), f.name), i * 250));
+  const downloadAll = () => {
+    if (shown.length === 1) triggerDownload(chatFileUrl(messageId, shown[0].id), shown[0].name);
+    else triggerDownload(chatZipUrl(messageId), "attachments.zip");
+  };
 
   return (
     <div className="mt-1.5 flex flex-col gap-2" data-testid="message-files">

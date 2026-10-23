@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ReactionPicker, useToggleReaction } from "@/components/chat/ReactionBar";
+import EmojiPicker from "@/components/chat/EmojiPicker";
+import { useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import { MESSAGE_CHANGE_EVENT } from "@/lib/chat/list-events";
 
@@ -150,12 +151,7 @@ export default function MessageActions({
           <Tip>Add reaction</Tip>
           </button>
           {open === "react" && (
-            <ReactionPicker
-              custom={custom}
-              onPick={(name) => toggle(name, () => setOpen(null))}
-              onClose={() => setOpen(null)}
-              className="absolute right-0 top-full z-30 mt-1 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow dark:border-slate-700 dark:bg-slate-900"
-            />
+            <EmojiPicker custom={custom} onPick={(name) => toggle(name, () => setOpen(null))} onClose={() => setOpen(null)} />
           )}
         </div>
       )}

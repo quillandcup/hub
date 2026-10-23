@@ -6,8 +6,8 @@ import "@testing-library/jest-dom/vitest";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
-const uploadToSignedUrl = vi.fn();
-vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl }) } }) }));
+const uploadWithProgress = vi.fn();
+vi.mock("@/lib/chat/upload-progress", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/upload-progress")>()), uploadWithProgress: (...a: unknown[]) => uploadWithProgress(...a) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ sendChatMessage: vi.fn(), retryChatMessage: vi.fn(), prepareChatUploads: vi.fn() }));
 import { prepareChatUploads, retryChatMessage, sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.mocked(sendChatMessage).mockReset();
   vi.mocked(retryChatMessage).mockReset();
   vi.mocked(prepareChatUploads).mockReset();
-  uploadToSignedUrl.mockReset();
+  uploadWithProgress.mockReset();
 });
 
 describe("Composer", () => {
@@ -107,7 +107,7 @@ describe("Composer attachments", () => {
 
   it("uploads attachments straight to storage, then sends the message with them (no text needed)", async () => {
     vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: "staging/d/m-1/cat.gif", token: "tok" }] });
-    uploadToSignedUrl.mockResolvedValue({ error: null });
+    uploadWithProgress.mockResolvedValue({ ok: true });
     vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
 
@@ -117,9 +117,37 @@ describe("Composer attachments", () => {
 
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
     expect(prepareChatUploads).toHaveBeenCalledWith([{ name: "cat.gif", size: 3 }]);
-    expect(uploadToSignedUrl).toHaveBeenCalledWith("staging/d/m-1/cat.gif", "tok", expect.any(File), { contentType: "image/gif" });
+    expect(uploadWithProgress).toHaveBeenCalledWith(expect.objectContaining({ url: expect.stringContaining("/object/upload/sign/slack-files/staging/d/m-1/cat.gif?token=tok"), file: expect.any(File), contentType: "image/gif" }));
     expect(sendChatMessage).toHaveBeenCalledWith("c1", "", undefined, [{ path: "staging/d/m-1/cat.gif", name: "cat.gif", mimetype: "image/gif", size: 3 }]);
     await waitFor(() => expect(screen.queryByRole("list", { name: "Attached files" })).not.toBeInTheDocument());
+  });
+
+  it("shows byte progress overall and on each file while uploading, and stays quiet when aborted", async () => {
+    vi.mocked(prepareChatUploads).mockResolvedValue({
+      ok: true,
+      uploads: [
+        { path: "p1", token: "t" },
+        { path: "p2", token: "t" },
+      ],
+    });
+    let finish!: (r: { ok: true }) => void;
+    uploadWithProgress.mockImplementationOnce(({ onProgress }: { onProgress: (n: number) => void }) => {
+      onProgress(2);
+      return new Promise((r) => (finish = r));
+    });
+    uploadWithProgress.mockResolvedValueOnce({ ok: false, reason: "aborted" });
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await attach(new File(["abcd"], "a.txt", { type: "text/plain" }), new File(["efgh"], "b.txt", { type: "text/plain" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("25% uploaded")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Uploading a.txt" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Uploading b.txt" })).toHaveAttribute("aria-valuenow", "0");
+    finish({ ok: true });
+    await waitFor(() => expect(uploadWithProgress).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(sendChatMessage).not.toHaveBeenCalled();
   });
 
   it("lets an attachment be removed, and takes pasted images", async () => {
@@ -140,7 +168,7 @@ describe("Composer attachments", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("big.mov is over 20 MB");
 
     vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: "p", token: "t" }] });
-    uploadToSignedUrl.mockResolvedValue({ error: { message: "boom" } });
+    uploadWithProgress.mockResolvedValue({ ok: false, reason: "http", status: 500 });
     await attach(cat());
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload cat.gif");

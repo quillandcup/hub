@@ -5,12 +5,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
-import type { ChannelSummary } from "@/lib/chat/load";
+import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
+
+/** How long deletes in a conversation are batched before its count is re-read. */
+const DELETE_RECOUNT_MS = 300;
 
 function Section({
   title,
@@ -103,6 +106,8 @@ function useUnreadCounts(
     const supabase = createClient();
     let cancelled = false;
     let subscription: ReturnType<typeof supabase.channel> | null = null;
+    const stale = new Set<string>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       await authenticateRealtime(supabase);
       if (cancelled) return;
@@ -114,10 +119,34 @@ function useUnreadCounts(
           if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
           setCounts((c) => ({ ...c, [row.channel_id]: Math.min((c[row.channel_id] ?? 0) + 1, 100) }));
         })
+        // A delete is an update that sets deleted_at. The row does not say whether we counted it
+        // (the old row is not sent), so ask the server for those conversations' counts once things
+        // settle; setting rather than decrementing makes repeats and already-read deletes harmless.
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, (payload) => {
+          const row = payload.new as { channel_id: string; thread_root_id: string | null; author_member_id: string | null; deleted_at: string | null };
+          if (!row.deleted_at || row.thread_root_id || row.author_member_id === selfMemberId) return;
+          if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
+          stale.add(row.channel_id);
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            const ids = [...stale];
+            stale.clear();
+            void loadUnreadCounts(supabase)
+              .then((fresh) => {
+                if (cancelled) return;
+                setCounts((c) => ({
+                  ...c,
+                  ...Object.fromEntries(ids.filter((id) => id !== active.current).map((id) => [id, fresh[id] ?? 0])),
+                }));
+              })
+              .catch(() => {});
+          }, DELETE_RECOUNT_MS);
+        })
         .subscribe();
     })();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
       if (subscription) void supabase.removeChannel(subscription);
     };
   }, [selfMemberId]);
