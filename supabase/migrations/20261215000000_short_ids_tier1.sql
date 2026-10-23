@@ -45,20 +45,22 @@ END $$;
 -- 3. The columns that hold these ids -------------------------------------------------------
 -- Every foreign key into a Tier 1 table, plus each table's own id, plus the member-id columns
 -- that have no foreign key.
-CREATE TEMP TABLE sid_cols (tbl text NOT NULL, col text NOT NULL, parent text NOT NULL, PRIMARY KEY (tbl, col)) ON COMMIT DROP;
-INSERT INTO sid_cols
+-- no_fk: a plain id column with no foreign key (history that outlives a deleted row), so a value
+-- with no match in the map is a deleted row's id and stays as it was.
+CREATE TEMP TABLE sid_cols (tbl text NOT NULL, col text NOT NULL, parent text NOT NULL, no_fk boolean NOT NULL DEFAULT false, PRIMARY KEY (tbl, col)) ON COMMIT DROP;
+INSERT INTO sid_cols (tbl, col, parent)
 SELECT DISTINCT c.conrelid::regclass::text, a.attname, p.tbl
 FROM pg_constraint c
 JOIN pg_class pc ON pc.oid = c.confrelid AND pc.relnamespace = 'public'::regnamespace
 JOIN sid_t1 p ON p.tbl = pc.relname
 JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
 WHERE c.contype = 'f';
-INSERT INTO sid_cols SELECT 'public.' || tbl, 'id', tbl FROM sid_t1;
-INSERT INTO sid_cols VALUES
-  ('public.audit_log', 'member_id', 'members'),
-  ('public.audit_log', 'acting_as_member_id', 'members'),
-  ('public.access_events', 'acting_as_member_id', 'members'),
-  ('public.member_activities', 'acting_as_member_id', 'members');
+INSERT INTO sid_cols (tbl, col, parent) SELECT 'public.' || tbl, 'id', tbl FROM sid_t1;
+INSERT INTO sid_cols (tbl, col, parent, no_fk) VALUES
+  ('public.audit_log', 'member_id', 'members', true),
+  ('public.audit_log', 'acting_as_member_id', 'members', true),
+  ('public.access_events', 'acting_as_member_id', 'members', true),
+  ('public.member_activities', 'acting_as_member_id', 'members', true);
 
 DO $$
 BEGIN
@@ -2285,8 +2287,9 @@ BEGIN
     IF n <> r.n THEN RAISE EXCEPTION 'row count changed in %: % -> %', r.tbl, r.n, n; END IF;
   END LOOP;
   FOR r IN SELECT * FROM sid_cols LOOP
-    EXECUTE format('SELECT count(*) FROM %s t WHERE t.%I IS NOT NULL AND t.%I !~ %L', r.tbl, r.col, r.col,
-      '^' || (SELECT prefix FROM sid_t1 WHERE tbl = r.parent) || '_[1-9A-HJ-NP-Za-km-z]{12}$') INTO n;
+    EXECUTE format('SELECT count(*) FROM %s t WHERE t.%I IS NOT NULL AND t.%I !~ %L%s', r.tbl, r.col, r.col,
+      '^' || (SELECT prefix FROM sid_t1 WHERE tbl = r.parent) || '_[1-9A-HJ-NP-Za-km-z]{12}$',
+      CASE WHEN r.no_fk THEN format(' AND t.%I IN (SELECT old FROM sid_map)', r.col) ELSE '' END) INTO n;
     IF n > 0 THEN RAISE EXCEPTION '% rows of % have a % that is not a % id', n, r.tbl, r.col, r.parent; END IF;
   END LOOP;
   IF (SELECT count(*) FROM pg_policies WHERE schemaname IN ('public', 'bronze', 'storage')) <> (SELECT count(*) FROM sid_policies) THEN
