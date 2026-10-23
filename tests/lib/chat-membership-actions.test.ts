@@ -6,6 +6,8 @@ const m = vi.hoisted(() => ({
   loadChannelForMember: vi.fn(),
   invite: vi.fn(),
   kick: vi.fn(),
+  leave: vi.fn(),
+  userToken: vi.fn(),
   slackIds: vi.fn(),
   actionNames: [] as string[],
   role: { current: "member" },
@@ -22,8 +24,10 @@ vi.mock("@/lib/chat/load", () => ({ loadChannelForMember: m.loadChannelForMember
 vi.mock("@/lib/chat/slack-membership", () => ({
   inviteToSlackChannel: m.invite,
   kickFromSlackChannel: m.kick,
+  leaveSlackChannelAsMember: m.leave,
   slackUserIdsFor: m.slackIds,
 }));
+vi.mock("@/lib/slack-connect", () => ({ getSlackUserToken: m.userToken }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     from: () => {
@@ -118,6 +122,10 @@ beforeEach(() => {
   m.invite.mockReset();
   m.invite.mockResolvedValue({ ok: true });
   m.kick.mockReset();
+  m.leave.mockReset();
+  m.leave.mockResolvedValue({ ok: true });
+  m.userToken.mockReset();
+  m.userToken.mockResolvedValue(null);
   m.kick.mockResolvedValue({ ok: true });
   m.slackIds.mockReset();
   m.slackIds.mockResolvedValue(new Map([[GALE, "U_GALE"], [HAZEL, "U_HAZEL"], [FERN, "U_FERN"]]));
@@ -247,6 +255,34 @@ describe("removeChatMember", () => {
     expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_FERN" });
     expect(writes("update")).toEqual([expect.objectContaining({ left_at: expect.any(String) })]);
     expect(m.actionNames).toEqual(["chat_member_removed"]);
+  });
+
+  it("leaves as themselves when they've connected Slack, so a workspace rule on removing people can't stop them", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
+    expect(m.leave).toHaveBeenCalledWith({ channel: "C_SLACK", token: "xoxp-test" });
+    expect(m.kick).not.toHaveBeenCalled();
+    expect(writes("update")).toHaveLength(1);
+  });
+
+  it("falls back to the bot when their own token is no good, and says so when leaving fails otherwise", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
+    m.leave.mockResolvedValue({ ok: false, error: "x", retryWithBot: true });
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
+    expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_FERN" });
+
+    m.kick.mockClear();
+    m.leave.mockResolvedValue({ ok: false, error: "Slack didn't let you leave." });
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: false, error: "Slack didn't let you leave." });
+    expect(m.kick).not.toHaveBeenCalled();
+  });
+
+  it("never uses the removed person's token when staff remove someone else", async () => {
+    m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_GALE" });
+    m.role.current = "admin";
+    await removeChatMember(CHANNEL, GALE);
+    expect(m.userToken).not.toHaveBeenCalled();
+    expect(m.kick).toHaveBeenCalled();
   });
 
   it("keeps them in when Slack won't remove them", async () => {

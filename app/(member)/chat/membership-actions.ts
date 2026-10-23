@@ -4,7 +4,8 @@ import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller, type ChatCaller } from "@/lib/chat/caller";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember } from "@/lib/chat/load";
-import { inviteToSlackChannel, kickFromSlackChannel, slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { inviteToSlackChannel, kickFromSlackChannel, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { getSlackUserToken } from "@/lib/slack-connect";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { clock } from "@/lib/clock";
@@ -171,8 +172,21 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
   if (row.source !== "app") {
     const slackUser = (await slackUserIdsFor(service, [memberId])).get(memberId);
     if (slackUser) {
-      const kicked = await kickFromSlackChannel({ channel: channel.slackChannelId, userId: slackUser });
-      if (!kicked.ok) return kicked;
+      // Leaving yourself goes through your own Slack connection when you have one: the bot's kick can be
+      // refused by a workspace rule on who may remove people, leaving never is.
+      let done = false;
+      if (isSelf) {
+        const own = await getSlackUserToken(service, memberId);
+        if (own) {
+          const left = await leaveSlackChannelAsMember({ channel: channel.slackChannelId, token: own.token });
+          if (!left.ok && !left.retryWithBot) return left;
+          done = left.ok;
+        }
+      }
+      if (!done) {
+        const kicked = await kickFromSlackChannel({ channel: channel.slackChannelId, userId: slackUser });
+        if (!kicked.ok) return kicked;
+      }
     }
   }
 
