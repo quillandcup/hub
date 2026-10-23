@@ -1,6 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
+import { isDeadTokenError } from "@/lib/slack-connect";
 
 /**
  * Adding and removing people in a Slack conversation, for the Hub's members page (docs/SLACK_BRIDGED_CHAT.md,
@@ -55,9 +56,10 @@ function removeProblem(code: string | undefined): string {
   switch (code) {
     case "cant_kick_from_general":
       return "Slack doesn't allow removing people from the workspace's default channel.";
+    case "restricted_action":
+      return "Your Slack workspace limits who can remove people from channels, so Billie Bot can't.";
     case "cant_kick_self":
     case "no_permission":
-    case "restricted_action":
       return "Slack won't let that person be removed from this conversation.";
     case "channel_not_found":
       return "Slack can't find this conversation.";
@@ -112,5 +114,32 @@ export async function kickFromSlackChannel(opts: { channel: string; userId: stri
     }
     console.error("conversations.kick failed:", code ?? error);
     return { ok: false, error: removeProblem(code) };
+  }
+}
+
+/**
+ * A member leaving a conversation as themselves, with their own Slack token (`conversations.leave`). Unlike the
+ * bot's kick it isn't held back by a workspace rule on who may remove people. `retryWithBot` is set when the
+ * token itself is no good (revoked, or connected before it had the scope), so the caller can fall back to the bot.
+ */
+export async function leaveSlackChannelAsMember(opts: {
+  channel: string;
+  token: string;
+  slack?: WebClient;
+}): Promise<SlackMembershipResult & { retryWithBot?: boolean }> {
+  if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
+  try {
+    const slack = opts.slack ?? new WebClient(opts.token);
+    await slack.conversations.leave({ channel: opts.channel });
+    return { ok: true };
+  } catch (error) {
+    const code = slackError(error);
+    if (code === "not_in_channel") return { ok: true };
+    console.error("conversations.leave failed:", code ?? error);
+    if (isDeadTokenError(error) || code === "missing_scope") return { ok: false, error: "Slack didn't let you leave.", retryWithBot: true };
+    if (code === "channel_not_found") return { ok: false, error: "Slack can't find this conversation." };
+    if (code === "is_archived") return { ok: false, error: "This conversation is archived in Slack." };
+    if (code === "cant_leave_general") return { ok: false, error: "Slack doesn't allow leaving the workspace's default channel." };
+    return { ok: false, error: "Slack didn't let you leave. Try again in a moment." };
   }
 }

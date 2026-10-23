@@ -4,13 +4,14 @@ const { writesEnabled } = vi.hoisted(() => ({ writesEnabled: vi.fn(() => true) }
 vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
 vi.mock("@slack/web-api", () => ({ WebClient: vi.fn() }));
 
-import { inviteToSlackChannel, kickFromSlackChannel, slackUserIdsFor } from "@/lib/chat/slack-membership";
+import { inviteToSlackChannel, kickFromSlackChannel, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
 
 const stub = () => {
   const slack = {
     conversations: {
       invite: vi.fn(async () => ({ ok: true })),
       kick: vi.fn(async () => ({ ok: true })),
+      leave: vi.fn(async () => ({ ok: true })),
       info: vi.fn(async () => ({ ok: true, channel: { is_member: true } })),
     },
   };
@@ -127,6 +128,7 @@ describe("kickFromSlackChannel", () => {
 
   it.each([
     ["cant_kick_from_general", "default channel"],
+    ["restricted_action", "limits who can remove people"],
     ["cant_kick_self", "won't let that person be removed"],
     ["no_permission", "won't let that person be removed"],
     ["channel_not_found", "can't find this conversation"],
@@ -146,5 +148,45 @@ describe("kickFromSlackChannel", () => {
     vi.stubEnv("SLACK_BOT_TOKEN", "");
     await expect(kickFromSlackChannel({ channel: "C1", userId: "U1" })).resolves.toEqual({ ok: false, error: "Slack isn't set up to do that." });
     expect(slack.conversations.kick).not.toHaveBeenCalled();
+  });
+});
+
+describe("leaveSlackChannelAsMember", () => {
+  it("leaves as the member", async () => {
+    const slack = stub();
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.leave).toHaveBeenCalledWith({ channel: "C1" });
+  });
+
+  it("counts not being in it as done", async () => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail("not_in_channel"));
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+  });
+
+  it.each(["token_revoked", "invalid_auth", "missing_scope"])("asks the caller to use the bot when the token fails with %s", async (code) => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail(code));
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false, retryWithBot: true });
+  });
+
+  it.each([
+    ["channel_not_found", "can't find this conversation"],
+    ["is_archived", "archived"],
+    ["cant_leave_general", "default channel"],
+    ["something_else", "Try again in a moment"],
+  ])("says what %s means, without falling back", async (code, words) => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail(code));
+    const result = await leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining(words) });
+    expect(result).not.toHaveProperty("retryWithBot");
+  });
+
+  it("won't touch Slack off production", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false, error: expect.stringContaining("live Hub") });
+    expect(slack.conversations.leave).not.toHaveBeenCalled();
   });
 });
