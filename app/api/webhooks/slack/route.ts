@@ -16,6 +16,7 @@ import {
 } from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
+import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -138,6 +139,8 @@ async function processSlackEvent(event: any) {
   try {
     if (eventType === "member_joined_channel" || eventType === "member_left_channel") {
       await applySlackMembershipEvent(supabase, event);
+    } else if (eventType === "file_deleted") {
+      await applyFileDelete(supabase, event);
     } else if (eventType === "emoji_changed") {
       await applySlackEmojiEvent(supabase, event);
     } else if (eventType === "message" && event.subtype === "message_changed") {
@@ -311,6 +314,17 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
   }
   // A deleted message isn't there to fetch.
   triggerSlackProcessing(event.channel, deletedTs, { fillGaps: false });
+}
+
+/**
+ * A file deleted in Slack: soft-delete its Bronze row and remove our copy. The nightly import
+ * finds the same files from the messages it fetches, so a missed event only delays this.
+ */
+async function applyFileDelete(supabase: SupabaseClient, event: any) {
+  const fileId = event.file_id ?? event.file?.id;
+  if (typeof fileId !== "string" || !fileId) return;
+  const result = await removeChatFileBytes(supabase, fileId, { ignoreReferences: true });
+  console.log("Slack file_deleted: %s", result);
 }
 
 /**

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
 import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
+import { sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 import { purgeStagedChatFiles } from "@/lib/chat/staging";
 import { clock } from "@/lib/clock";
 
@@ -121,10 +122,20 @@ export async function POST(request: NextRequest) {
       return 0;
     });
 
+    // Deleted files whose bytes are still in the bucket (a removal that failed earlier).
+    const sweptFiles = await sweepDeletedFileBytes(supabase).catch((error) => {
+      console.error("Error sweeping deleted chat file bytes:", error);
+      return { removed: 0, failed: 1 };
+    });
+    if (sweptFiles.removed > 0 || sweptFiles.failed > 0) {
+      console.log(`Deleted chat files swept: ${sweptFiles.removed} removed, ${sweptFiles.failed} failed`);
+    }
+
     return NextResponse.json({
       success: true,
       processed: {
         purgedStaged,
+        sweptFiles,
         channels: channelResult?.channels ?? 0,
         members: channelResult?.members ?? 0,
         messages,

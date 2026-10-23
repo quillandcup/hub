@@ -87,6 +87,8 @@ settings:
       # Reactions
       - reaction_added
       - reaction_removed
+      # A file deleted in Slack: we remove our copy
+      - file_deleted
       # Who is in each conversation, and custom emoji
       - member_joined_channel
       - member_left_channel

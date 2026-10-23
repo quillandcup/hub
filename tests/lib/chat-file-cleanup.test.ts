@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { removeChatFileBytes, sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
+import { filesGoneFromSlack, removeChatFileBytes, sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 
 type Err = { message: string } | null;
 const s = {
@@ -104,5 +104,27 @@ describe("sweepDeletedFileBytes", () => {
 
   it("does nothing when nothing is pending", async () => {
     await expect(sweepDeletedFileBytes(service)).resolves.toEqual({ removed: 0, failed: 0 });
+  });
+});
+
+describe("removeChatFileBytes for a file Slack deleted", () => {
+  it("ignores message lists that still name it", async () => {
+    s.refs = [{ message_id: "m2" }];
+    await expect(removeChatFileBytes(service, "F1", { ignoreReferences: true })).resolves.toBe("removed");
+    expect(s.removed).toEqual([["F1/a.png"]]);
+  });
+});
+
+describe("filesGoneFromSlack", () => {
+  const row = (file_id: string, message_ts: string) => ({ file_id, channel_id: "C1", message_ts });
+  it("finds tombstones and files dropped from a fetched message, not live or unfetched ones", () => {
+    const messages = [
+      { channel_id: "C1", message_ts: "1.1", files: [{ id: "T", mode: "tombstone" }] },
+      { channel_id: "C1", message_ts: "2.1", files: [{ id: "LIVE" }, {}] },
+      { channel_id: "C1", message_ts: "3.1", files: null },
+      { channel_id: "C1", message_ts: "4.1", files: [{ id: "SHARED" }] },
+    ];
+    const stored = [row("T", "1.1"), row("LIVE", "2.1"), row("DROPPED", "3.1"), row("UNFETCHED", "9.1"), row("SHARED", "3.1")];
+    expect(filesGoneFromSlack(messages, stored)).toEqual(["T", "DROPPED"]);
   });
 });
