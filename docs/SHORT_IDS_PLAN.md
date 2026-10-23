@@ -1,6 +1,9 @@
 # Plan: Short prefixed text IDs instead of UUIDs
 
-Status: **planning only, no code written.** Pick this up from "Next steps".
+Status: **phase 1 (the 17 Tier 1 tables) is live in production** since 2026-10-23 03:43 UTC
+(`20261215000000_short_ids_tier1.sql`, PR #196). Phase 2 (the Tier 2 tables in `public`) and
+Bronze are not started; see "Phases" and "Lessons from the phase 1 run" below. Once
+`npm run storage:move` has emptied `public.storage_path_moves`, a follow-up migration drops it.
 
 ## Goal
 
@@ -492,6 +495,38 @@ change and the migration together (CI pushes migrations before the Vercel deploy
    full db + unit + pgTAP suites.
 5. Update app code and tests; run `pnpm build` (the pre-commit hook does).
 6. Notify the early-access users (one line), run the migration in a quiet window.
+
+## Lessons from the phase 1 run
+
+Things the rehearsals did not catch or that cost a round trip; do them again for phase 2.
+
+- **Reload PostgREST's schema cache by hand.** The migration sets `session_replication_role =
+  replica` so rewriting every id writes no audit rows and fires no triggers. Event triggers do
+  not fire in replica mode either, so the trigger that tells PostgREST to reload after DDL stayed
+  silent: production kept the old function signatures (`p_member_id uuid`) and every RPC with a
+  member id failed ("function does not exist") until `NOTIFY pgrst, 'reload schema'` was run by
+  hand. CI missed it because its PostgREST starts after the migrations. End the next migration
+  with that NOTIFY.
+- **Rehearse with the real app, not only SQL.** Loading a production data copy into a stack
+  with the final schema, applying the migration, then running the app against it and opening a
+  member page would have shown the stale cache. A sign-in for a scratch stack: create a user
+  with the auth admin API, add a `user_profiles` admin row, sign in with a password, and send
+  the session as the `sb-<host>-auth-token` cookie (`base64-` + base64url of the session JSON).
+- **Regenerate generated SQL from the final schema, and fix the generator, not the output.**
+  The function rewrites were generated from the live definitions; a hand fix to one function
+  (a `::uuid` cast on a Tier 2 column) came back the next time the section was regenerated.
+- **Test the seed with triggers on.** `supabase/seed.sql` runs after the migrations with
+  triggers active, so a function the migration broke can fail only there. A local check that
+  runs the migration and the seed in one transaction hides it, because the migration's
+  `SET LOCAL session_replication_role` is still in force; `RESET` it first.
+- **Main moves under you.** Over three days about 20 migrations landed, mostly chat. Each one
+  can add a trigger or function that names a converted column, and each needs the generated
+  function section and the pgTAP fixtures refreshed. Freeze schema-changing merges between the
+  last rehearsal and the run.
+- **Plain id columns without a foreign key** (`audit_log.member_id` and similar) can hold ids of
+  rows that were deleted; those stay as they were, and the in-migration check only insists that
+  ids still present in the map were converted.
+- **Backups:** PITR was off until the night of the run; turn it on before a migration like this.
 
 ## Rule: Tier 2 ids are never exposed
 
