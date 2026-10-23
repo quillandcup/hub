@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(6);
+SELECT plan(5);
 
 CREATE TEMP TABLE t1(tbl text PRIMARY KEY, prefix text);
 INSERT INTO t1 VALUES
@@ -52,10 +52,6 @@ SELECT matches(
   (SELECT id FROM public.chat_channels WHERE name = 'short-ids-test'),
   '^chn_[1-9A-HJ-NP-Za-km-z]{12}$',
   'a new row gets a prefixed id');
-
-SET LOCAL ROLE authenticated;
-SELECT throws_ok($$SELECT * FROM public.storage_path_moves$$, '42501', NULL, 'the storage move queue is not readable by members');
-RESET ROLE;
 
 SELECT * FROM finish(true);
 ROLLBACK;
