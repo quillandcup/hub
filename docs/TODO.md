@@ -1188,6 +1188,17 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 - **Why deferred:** Found while checking a Sentry hydration issue that turned out to be browser extensions; none of these is a known cause of an error, and changing the shared `formatDate*` helpers touches every prickle page.
 - **Where to start:** `grep -rn "toLocale" app components lib`; make `formatDate*` take a zone, defaulting to `ORG_TIMEZONE`.
 
+### Admin member activity tab hits the statement timeout _(Needs Scheduling)_
+- **What is wrong:** `GET /admin/members/[id]/activity` died once with Postgres `57014` (`canceling statement due to statement timeout`, the API role's 8s limit; Sentry issue HUB-8, 2026-10-15, one event, so far). The page loads the feed through `fetchActivityFeed` in `lib/activity-feed.ts`, which calls the SQL functions `count_activity_feed` and `get_activity_feed` over `member_activities` (58,593 rows in prod on 2026-10-23). The Sentry event doesn't say which statement timed out, and nothing else has reproduced it.
+- **Why deferred:** One event, no repro, and the cause may be a cold cache or a member with an unusually long history rather than a missing index. Not worth guessing at.
+- **Where to start:** Run `explain (analyze)` for `get_activity_feed` and `count_activity_feed` against prod (read-only, `verify-against-prod.md`) for the members with the most `member_activities` rows, with and without the default filters. If the count is the slow one, a capped or estimated count may do. Keep HUB-8 open in Sentry until fixed. The same `57014` also showed in the project's events on 2026-10-22 and 2026-10-15 under other issues, so check whether it is recurring.
+
+### `members.joined_at` throws away the time it was given _(Needs Scheduling)_
+- **What is wrong:** The column is `timestamptz`, and its source, `created_at_kajabi`, is a real timestamp, but `app/api/process/members/route.ts` cuts it to a date (`created_at_kajabi.split('T')[0]`) before writing, so every value is midnight UTC (prod, 2026-10-23: 944 of 944 members, none with a time of day). Date-only values then get formatted as if they were instants: shown in Eastern a member can appear to have joined the day before, and the admin at-risk page needed `formatDateOnly` as a workaround.
+- **What it should be:** the instant the member joined, kept as is and shown in the viewer's zone (`formatDateInZone`). Two things mix into it today and need a decision: a staff `hire_date` (a true date) replaces it when earlier, so convert that to the start of that day in `ORG_TIMEZONE` when it is used; and `first_joined_at` / `most_recent_joined_at` (and the `member_join_date_overrides` that correct the first one) are genuine dates, `DATE` columns, and should stay that way.
+- **Why deferred:** Found while fixing date formatting (PR #353). Changing it needs a members reprocess and a look at the 27 files that read `joined_at`, to see which expect a date.
+- **Where to start:** Stop truncating in `app/api/process/members/route.ts` and in `reprocess_members_atomic` (its latest definition is in `supabase/migrations/20261215000000_short_ids_tier1.sql`: read the newest `CREATE OR REPLACE` before editing). Then switch the readers to `formatDateInZone` and drop the `formatDateOnly(member.joined_at)` workaround in `app/(admin)/admin/at-risk/page.tsx`. Add a reprocessability test that a Kajabi time of day survives.
+
 ---
 
 ## CRM Features
