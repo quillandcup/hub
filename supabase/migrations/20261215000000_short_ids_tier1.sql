@@ -101,6 +101,15 @@ JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
 JOIN sid_cols sc ON sc.tbl = c.conrelid::regclass::text AND sc.col = a.attname
 WHERE c.contype = 'c';
 
+-- Triggers that name a converted column (UPDATE OF ..., WHEN ...) block the type change as well.
+CREATE TEMP TABLE sid_triggers AS
+SELECT DISTINCT t.tgrelid::regclass::text AS tbl, t.tgname, pg_get_triggerdef(t.oid) AS def
+FROM pg_trigger t
+JOIN pg_depend d ON d.objid = t.oid AND d.classid = 'pg_trigger'::regclass AND d.refclassid = 'pg_class'::regclass AND d.refobjsubid > 0
+JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+JOIN sid_cols sc ON sc.tbl::regclass = d.refobjid AND sc.col = a.attname
+WHERE NOT t.tgisinternal;
+
 CREATE TEMP TABLE sid_policies AS
 SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
 FROM pg_policies WHERE schemaname IN ('public', 'bronze', 'storage');
@@ -110,6 +119,9 @@ DECLARE r record;
 BEGIN
   FOR r IN SELECT * FROM sid_fks LOOP
     EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', r.tbl, r.conname);
+  END LOOP;
+  FOR r IN SELECT * FROM sid_triggers LOOP
+    EXECUTE format('DROP TRIGGER %I ON %s', r.tgname, r.tbl);
   END LOOP;
   FOR r IN SELECT * FROM sid_checks LOOP
     EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I', r.tbl, r.conname);
@@ -186,15 +198,15 @@ SET LOCAL check_function_bodies = off;
 CREATE TEMP TABLE sid_fn_acl AS
 SELECT p.proname, a.grantee::regrole::text AS grantee
 FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) AND a.privilege_type = 'EXECUTE';
+WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_delete_file','chat_delete_message','chat_edit_message','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','member_interaction_pairs','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) AND a.privilege_type = 'EXECUTE';
 CREATE TEMP TABLE sid_fn_comment AS
 SELECT p.proname, obj_description(p.oid, 'pg_proc') AS comment
-FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) AND obj_description(p.oid, 'pg_proc') IS NOT NULL;
+FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_delete_file','chat_delete_message','chat_edit_message','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','member_interaction_pairs','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) AND obj_description(p.oid, 'pg_proc') IS NOT NULL;
 DO $$
 DECLARE r record;
 BEGIN
   FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p
-           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) LOOP
+           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_delete_file','chat_delete_message','chat_edit_message','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','member_interaction_pairs','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) LOOP
     EXECUTE 'DROP FUNCTION ' || r.sig;
   END LOOP;
 END $$;
@@ -295,26 +307,6 @@ AS $function$
       ELSE 'at_risk'
     END AS engagement_tier
   FROM scored s;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.admin_member_matches_filter(p_filter text, p_status text, p_user_id uuid, p_risk_level text, p_engagement_tier text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'public', 'pg_temp'
-AS $function$
-  SELECT CASE p_filter
-    WHEN 'all' THEN true
-    WHEN 'active' THEN p_status = 'active'
-    WHEN 'on_hiatus' THEN p_status = 'on_hiatus'
-    WHEN 'lead' THEN p_status = 'lead'
-    WHEN 'cancelled' THEN p_status = 'cancelled'
-    WHEN 'unregistered' THEN p_status = 'active' AND p_user_id IS NULL
-    -- At-risk only means something for members who are still around.
-    WHEN 'at_risk' THEN p_risk_level = 'high' AND p_status IN ('active', 'on_hiatus')
-    WHEN 'highly_engaged' THEN p_engagement_tier = 'highly_engaged'
-    ELSE true
-  END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.admin_members_page(p_filter text DEFAULT 'active'::text, p_search text DEFAULT NULL::text, p_sort text DEFAULT 'name'::text, p_direction text DEFAULT 'asc'::text, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0, p_now timestamp with time zone DEFAULT now())
@@ -428,6 +420,103 @@ AS $function$
   SELECT EXISTS (SELECT 1 FROM claimed);
 $function$;
 
+CREATE OR REPLACE FUNCTION public.chat_delete_file(p_message_id text, p_file_id text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_member text := (SELECT current_member_id());
+  v_message chat_messages%ROWTYPE;
+BEGIN
+  IF v_member IS NULL THEN
+    RAISE EXCEPTION 'chat_delete: no_member';
+  END IF;
+  SELECT * INTO v_message FROM chat_messages WHERE id = p_message_id FOR UPDATE;
+  IF NOT FOUND OR v_message.origin <> 'app' OR v_message.author_member_id IS DISTINCT FROM v_member OR v_message.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'chat_delete: not_yours';
+  END IF;
+
+  UPDATE chat_message_contents
+  SET files = NULLIF((SELECT COALESCE(jsonb_agg(f), '[]'::jsonb) FROM jsonb_array_elements(files) f WHERE f->>'id' IS DISTINCT FROM p_file_id), '[]'::jsonb)
+  WHERE message_id = p_message_id AND jsonb_typeof(files) = 'array';
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.chat_delete_message(p_message_id text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_member text := (SELECT current_member_id());
+  v_message chat_messages%ROWTYPE;
+BEGIN
+  IF v_member IS NULL THEN
+    RAISE EXCEPTION 'chat_delete: no_member';
+  END IF;
+  SELECT * INTO v_message FROM chat_messages WHERE id = p_message_id FOR UPDATE;
+  IF NOT FOUND OR v_message.origin <> 'app' OR v_message.author_member_id IS DISTINCT FROM v_member THEN
+    RAISE EXCEPTION 'chat_delete: not_yours';
+  END IF;
+  IF v_message.deleted_at IS NOT NULL THEN
+    RETURN;
+  END IF;
+
+  UPDATE chat_messages SET deleted_at = now() WHERE id = p_message_id;
+
+  -- A deleted reply no longer counts toward its thread.
+  IF v_message.thread_root_id IS NOT NULL THEN
+    UPDATE chat_messages root
+    SET reply_count = s.n, last_reply_at = s.last_at
+    FROM (
+      SELECT count(*) FILTER (WHERE t.deleted_at IS NULL) AS n,
+             max(t.created_at) FILTER (WHERE t.deleted_at IS NULL) AS last_at
+      FROM chat_messages t WHERE t.thread_root_id = v_message.thread_root_id
+    ) s
+    WHERE root.id = v_message.thread_root_id;
+  END IF;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.chat_edit_message(p_message_id text, p_body text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_member text := (SELECT current_member_id());
+  v_message chat_messages%ROWTYPE;
+  v_archived TIMESTAMPTZ;
+  -- btrim alone trims only spaces, so a message ending in a newline would keep it.
+  v_body TEXT := btrim(COALESCE(p_body, ''), E' \t\r\n');
+BEGIN
+  IF v_member IS NULL THEN
+    RAISE EXCEPTION 'chat_edit: no_member';
+  END IF;
+  SELECT * INTO v_message FROM chat_messages WHERE id = p_message_id FOR UPDATE;
+  IF NOT FOUND OR v_message.origin <> 'app' OR v_message.author_member_id IS DISTINCT FROM v_member OR v_message.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'chat_edit: not_yours';
+  END IF;
+  SELECT archived_at INTO v_archived FROM chat_channels WHERE id = v_message.channel_id;
+  IF v_archived IS NOT NULL THEN
+    RAISE EXCEPTION 'chat_edit: archived';
+  END IF;
+  IF v_body = '' THEN
+    RAISE EXCEPTION 'chat_edit: empty';
+  END IF;
+  IF char_length(v_body) > 4000 THEN
+    RAISE EXCEPTION 'chat_edit: too_long';
+  END IF;
+
+  UPDATE chat_message_contents SET body = v_body WHERE message_id = p_message_id;
+  UPDATE chat_messages SET edited_at = now() WHERE id = p_message_id;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.chat_is_channel_member(p_channel_id text)
  RETURNS boolean
  LANGUAGE sql
@@ -508,6 +597,14 @@ $function$;
 
 CREATE OR REPLACE FUNCTION public.chat_post_message(p_channel_id text, p_body text, p_thread_root_id text DEFAULT NULL::text)
  RETURNS text
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  SELECT public.chat_post_message(p_channel_id, p_body, p_thread_root_id, NULL::jsonb);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.chat_post_message(p_channel_id text, p_body text, p_thread_root_id text, p_files jsonb)
+ RETURNS text
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
@@ -515,10 +612,10 @@ AS $function$
 DECLARE
   v_member text := (SELECT current_member_id());
   v_channel chat_channels%ROWTYPE;
-  -- btrim alone trims only spaces, so a message ending in a newline would keep it.
   v_body TEXT := btrim(COALESCE(p_body, ''), E' \t\r\n');
   v_root chat_messages%ROWTYPE;
   v_id text;
+  v_has_files BOOLEAN := p_files IS NOT NULL AND jsonb_typeof(p_files) = 'array' AND jsonb_array_length(p_files) > 0;
 BEGIN
   IF v_member IS NULL THEN
     RAISE EXCEPTION 'chat_post: no_member';
@@ -535,7 +632,18 @@ BEGIN
   IF v_channel.archived_at IS NOT NULL THEN
     RAISE EXCEPTION 'chat_post: archived';
   END IF;
-  IF v_body = '' THEN
+
+  IF p_files IS NOT NULL AND (
+       jsonb_typeof(p_files) <> 'array' OR jsonb_array_length(p_files) > 10
+       OR EXISTS (
+         SELECT 1 FROM jsonb_array_elements(p_files) f
+         WHERE jsonb_typeof(f) <> 'object' OR COALESCE(f->>'id', '') NOT LIKE 'pending-%' OR COALESCE(f->>'name', '') = ''
+       )
+     ) THEN
+    RAISE EXCEPTION 'chat_post: bad_files';
+  END IF;
+
+  IF v_body = '' AND NOT v_has_files THEN
     RAISE EXCEPTION 'chat_post: empty';
   END IF;
   IF char_length(v_body) > 4000 THEN
@@ -544,17 +652,17 @@ BEGIN
 
   IF p_thread_root_id IS NOT NULL THEN
     SELECT * INTO v_root FROM chat_messages WHERE id = p_thread_root_id AND channel_id = p_channel_id;
-    -- One level of threading, like Slack; and the root has to exist in Slack to be replied to.
     IF NOT FOUND OR v_root.thread_root_id IS NOT NULL OR v_root.deleted_at IS NOT NULL OR v_root.slack_ts IS NULL THEN
       RAISE EXCEPTION 'chat_post: bad_thread';
     END IF;
   END IF;
 
-  INSERT INTO chat_messages (channel_id, author_member_id, thread_root_id, origin, created_at, slack_sync_status, posted_via)
-  VALUES (p_channel_id, v_member, p_thread_root_id, 'app', now(), 'pending', 'bot')
+  INSERT INTO chat_messages (channel_id, author_member_id, thread_root_id, origin, created_at, slack_sync_status, posted_via, has_files)
+  VALUES (p_channel_id, v_member, p_thread_root_id, 'app', now(), 'pending', 'bot', v_has_files)
   RETURNING id INTO v_id;
 
-  INSERT INTO chat_message_contents (message_id, body) VALUES (v_id, v_body);
+  INSERT INTO chat_message_contents (message_id, body, files)
+  VALUES (v_id, v_body, CASE WHEN v_has_files THEN p_files END);
 
   IF p_thread_root_id IS NOT NULL THEN
     UPDATE chat_messages SET reply_count = reply_count + 1, last_reply_at = now() WHERE id = p_thread_root_id;
@@ -643,6 +751,7 @@ AS $function$
           WHERE m.channel_id = cm.channel_id
             AND m.thread_root_id IS NULL
             AND m.deleted_at IS NULL
+            AND m.system_subtype IS NULL
             AND m.created_at > COALESCE(cm.last_read_at, cm.joined_at)
             AND m.author_member_id IS DISTINCT FROM cm.member_id
           LIMIT 100
@@ -816,87 +925,6 @@ AS $function$
      OR email = (SELECT auth.jwt() ->> 'email')
   ORDER BY (user_id IS NOT DISTINCT FROM (SELECT auth.uid())) DESC, id
   LIMIT 1;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.find_pending_invite(p_email text)
- RETURNS TABLE(user_id uuid, invited_at timestamp with time zone)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-  SELECT u.id, u.invited_at
-  FROM auth.users u
-  WHERE lower(u.email) = lower(trim(p_email))
-    AND u.invited_at IS NOT NULL
-    AND u.email_confirmed_at IS NULL
-    AND u.deleted_at IS NULL
-  LIMIT 1;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.get_access_sessions(target_user_id uuid, session_gap_minutes integer DEFAULT 30, event_limit integer DEFAULT 2000)
- RETURNS TABLE(session_start timestamp with time zone, session_end timestamp with time zone, event_count integer, pages jsonb, auth_session_id uuid, session_active boolean, auth_session_created_at timestamp with time zone, user_agent text)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-    WITH recent_events AS (
-        SELECT path, is_page, session_id, user_agent, created_at
-        FROM access_events
-        WHERE user_id = target_user_id
-        ORDER BY created_at DESC
-        LIMIT event_limit
-    ),
-    gapped AS (
-        SELECT
-            path,
-            is_page,
-            session_id,
-            user_agent,
-            created_at,
-            created_at - LAG(created_at) OVER (ORDER BY created_at) AS gap
-        FROM recent_events
-    ),
-    grouped AS (
-        SELECT
-            path,
-            is_page,
-            session_id,
-            user_agent,
-            created_at,
-            COUNT(*) FILTER (
-                WHERE gap IS NULL OR gap > make_interval(mins => session_gap_minutes)
-            ) OVER (ORDER BY created_at) AS session_num
-        FROM gapped
-    ),
-    session_groups AS (
-        SELECT
-            MIN(created_at) AS session_start,
-            MAX(created_at) AS session_end,
-            COUNT(*)::integer AS event_count,
-            jsonb_agg(path ORDER BY created_at) FILTER (WHERE is_page) AS pages,
-            -- Most recent non-null session_id seen in this group — a group
-            -- can span a token refresh (same session_id) but should never
-            -- span two different real logins given the 30-min gap already
-            -- splits those into separate groups.
-            (array_agg(session_id ORDER BY created_at DESC) FILTER (WHERE session_id IS NOT NULL))[1] AS auth_session_id,
-            -- Most recent user agent in the visit. Rows from before this
-            -- column existed have none, so older visits return NULL.
-            (array_agg(user_agent ORDER BY created_at DESC) FILTER (WHERE user_agent IS NOT NULL))[1] AS user_agent
-        FROM grouped
-        GROUP BY session_num
-    )
-    SELECT
-        sg.session_start,
-        sg.session_end,
-        sg.event_count,
-        sg.pages,
-        sg.auth_session_id,
-        (s.id IS NOT NULL) AS session_active,
-        s.created_at AS auth_session_created_at,
-        sg.user_agent
-    FROM session_groups sg
-    LEFT JOIN auth.sessions s ON s.id = sg.auth_session_id
-    ORDER BY sg.session_start DESC;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_activity_feed(p_audit_only boolean DEFAULT false, p_kinds text[] DEFAULT NULL::text[], p_actor_user_id uuid DEFAULT NULL::uuid, p_member_id text DEFAULT NULL::text, p_sudo_only boolean DEFAULT false, p_from timestamp with time zone DEFAULT (now() - '30 days'::interval), p_to timestamp with time zone DEFAULT (now() + '00:01:00'::interval), p_offset integer DEFAULT 0, p_limit integer DEFAULT 50, p_session_gap_minutes integer DEFAULT 30, p_entity_types text[] DEFAULT NULL::text[], p_hide_system boolean DEFAULT false, p_hide_slack boolean DEFAULT false)
@@ -1107,26 +1135,6 @@ AS $function$
   ORDER BY d.id;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.get_my_sessions()
- RETURNS TABLE(id uuid, created_at timestamp with time zone, updated_at timestamp with time zone, refreshed_at timestamp with time zone, not_after timestamp with time zone, user_agent text, ip text, is_current boolean)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-    SELECT
-        s.id,
-        s.created_at,
-        s.updated_at,
-        s.refreshed_at,
-        s.not_after,
-        s.user_agent,
-        host(s.ip) AS ip,
-        s.id = (auth.jwt() ->> 'session_id')::uuid AS is_current
-    FROM auth.sessions s
-    WHERE s.user_id = auth.uid()
-    ORDER BY COALESCE(s.refreshed_at, s.updated_at, s.created_at) DESC;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.get_profile_writing(p_member_id text)
  RETURNS jsonb
  LANGUAGE sql
@@ -1166,18 +1174,6 @@ AS $function$
       WHERE b.member_id = p_member_id AND b.project_id IN (SELECT id FROM shown_projects)
     ), '[]'::jsonb)
   ) END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.get_recent_login_sessions(from_date timestamp with time zone, to_date timestamp with time zone)
- RETURNS TABLE(session_id uuid, user_id uuid, email text, created_at timestamp with time zone)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-    SELECT s.id, s.user_id, u.email, s.created_at
-    FROM auth.sessions s
-    JOIN auth.users u ON u.id = s.user_id
-    WHERE s.created_at >= from_date AND s.created_at < to_date;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_record_history(p_entity_types text[], p_entity_id text DEFAULT NULL::text, p_limit integer DEFAULT 200, p_parent_column text DEFAULT NULL::text, p_member_rows boolean DEFAULT false)
@@ -1306,6 +1302,19 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION public.member_interaction_pairs(p_since timestamp with time zone, p_include_private boolean)
+ RETURNS TABLE(member_x text, member_y text, kind text, visibility text, n bigint)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT least(member_a, member_b), greatest(member_a, member_b), mi.kind, mi.visibility, count(*)
+  FROM member_interactions mi
+  WHERE mi.occurred_at >= p_since AND (p_include_private OR mi.visibility = 'public')
+  GROUP BY 1, 2, 3, 4
+  ORDER BY 1, 2, 3, 4;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.mentorship_counts()
  RETURNS TABLE(member_id text, mentored_count integer, first_started_on date, last_started_on date)
  LANGUAGE sql
@@ -1352,33 +1361,6 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.revoke_my_session(target_session_id uuid)
- RETURNS boolean
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-DECLARE
-    deleted_count integer;
-BEGIN
-    DELETE FROM auth.sessions
-    WHERE id = target_session_id
-      AND user_id = auth.uid();
-
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    RETURN deleted_count > 0;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION public.revoke_user_sessions(target_user_id uuid)
- RETURNS void
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-    DELETE FROM auth.sessions WHERE user_id = target_user_id;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.search_chat_messages(p_query text, p_channel_ids text[], p_author_member_ids text[] DEFAULT NULL::text[], p_from timestamp with time zone DEFAULT NULL::timestamp with time zone, p_to timestamp with time zone DEFAULT NULL::timestamp with time zone, p_has_files boolean DEFAULT NULL::boolean, p_in_thread boolean DEFAULT NULL::boolean, p_has_link boolean DEFAULT NULL::boolean, p_has_reaction boolean DEFAULT NULL::boolean, p_limit integer DEFAULT 21, p_offset integer DEFAULT 0)
  RETURNS TABLE(message_id text, rank real)
  LANGUAGE sql
@@ -1404,28 +1386,6 @@ AS $function$
   ORDER BY 2 DESC, m.created_at DESC, m.id
   LIMIT LEAST(GREATEST(p_limit, 1), 101)
   OFFSET GREATEST(p_offset, 0);
-$function$;
-
-CREATE OR REPLACE FUNCTION public.set_mentorship_note(p_mentorship_id uuid, p_note text)
- RETURNS boolean
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-DECLARE
-  updated INTEGER;
-BEGIN
-  IF p_note IS NOT NULL AND char_length(p_note) > 1000 THEN
-    RAISE EXCEPTION 'note too long' USING ERRCODE = '22001';
-  END IF;
-  UPDATE mentorships
-     SET outcome_note = NULLIF(btrim(p_note), '')
-   WHERE id = p_mentorship_id
-     AND status = 'matched'
-     AND (mentor_member_id = current_member_id() OR is_admin());
-  GET DIAGNOSTICS updated = ROW_COUNT;
-  RETURN updated > 0;
-END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.slack_connection_delete_secrets(p_member text)
@@ -1612,7 +1572,7 @@ AS $function$
                 concat_ws(' · ', (SELECT p.name FROM programs p WHERE p.id = (subject ->> 'program_id')), subject ->> 'name')
             WHEN 'program_enrollment' THEN
                 (SELECT concat_ws(' · ', p.name, c.name) FROM program_cohorts c JOIN programs p ON p.id = c.program_id
-                  WHERE c.id = (subject ->> 'cohort_id')::uuid)
+                  WHERE c.id = (subject ->> 'cohort_id'))
             WHEN 'prickle_schedule' THEN
                 concat_ws(' · ', (SELECT t.name FROM prickle_types t WHERE t.id = (subject ->> 'type_id')), subject ->> 'month')
             WHEN 'prickle_host_vibe' THEN (SELECT t.name FROM prickle_types t WHERE t.id = (subject ->> 'type_id'))
@@ -1744,36 +1704,11 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE
- SET search_path TO ''
-AS $function$
-DECLARE
-  claims jsonb := event -> 'claims';
-  user_role text;
-BEGIN
-  BEGIN
-    SELECT p.role INTO user_role
-    FROM public.user_profiles AS p
-    WHERE p.id = (event ->> 'user_id')::uuid;
-  EXCEPTION WHEN OTHERS THEN
-    -- A hook error blocks sign-in and token refresh for everyone. Never do that over a hint:
-    -- leave the claim out and let the proxy fall back to its DB read.
-    RETURN event;
-  END;
-
-  -- No row → JSON null (to_jsonb(NULL) is SQL NULL, which jsonb_set would turn into a NULL event).
-  claims := jsonb_set(claims, '{app_role}', COALESCE(to_jsonb(user_role), 'null'::jsonb));
-  RETURN jsonb_set(event, '{claims}', claims);
-END;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.project_slack_chat_channels(user_member_map jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SET search_path TO 'public'
+ SET plan_cache_mode TO 'force_custom_plan'
 AS $function$
 DECLARE
   channel_count INTEGER;
@@ -1857,7 +1792,7 @@ BEGIN
   LEFT JOIN chat_slack_authors a ON a.slack_user_id = m.user_id
   WHERE m.channel_id = p_channel_id AND m.message_ts = p_message_ts
   ON CONFLICT (channel_id, slack_ts) DO UPDATE SET
-    author_member_id = COALESCE(EXCLUDED.author_member_id, chat_messages.author_member_id),
+    author_member_id = CASE WHEN chat_messages.origin = 'app' THEN chat_messages.author_member_id ELSE EXCLUDED.author_member_id END,
     has_files        = EXCLUDED.has_files,
     edited_at        = EXCLUDED.edited_at,
     deleted_at       = EXCLUDED.deleted_at
@@ -1914,7 +1849,7 @@ BEGIN
   LEFT JOIN chat_slack_authors a ON a.slack_user_id = r.user_id
   WHERE r.channel_id = p_channel_id AND r.message_ts = p_message_ts
   ON CONFLICT (message_id, emoji, slack_user_id) WHERE slack_user_id IS NOT NULL DO UPDATE SET
-    member_id  = COALESCE(EXCLUDED.member_id, chat_reactions.member_id),
+    member_id  = EXCLUDED.member_id,
     deleted_at = EXCLUDED.deleted_at;
 
   RETURN jsonb_build_object('projected', true);
@@ -1925,6 +1860,7 @@ CREATE OR REPLACE FUNCTION public.project_slack_chat_messages(from_date timestam
  RETURNS jsonb
  LANGUAGE plpgsql
  SET search_path TO 'public'
+ SET plan_cache_mode TO 'force_custom_plan'
 AS $function$
 DECLARE
   message_count INTEGER;
@@ -1949,7 +1885,7 @@ BEGIN
     JOIN chat_channels cc ON cc.slack_channel_id = m.channel_id AND NOT cc.bridge_disabled
     WHERE m.occurred_at >= from_date AND m.occurred_at <= to_date
     ON CONFLICT (channel_id, slack_ts) DO UPDATE SET
-      author_member_id = COALESCE(EXCLUDED.author_member_id, chat_messages.author_member_id),
+      author_member_id = CASE WHEN chat_messages.origin = 'app' THEN chat_messages.author_member_id ELSE EXCLUDED.author_member_id END,
       has_files        = EXCLUDED.has_files,
       edited_at        = EXCLUDED.edited_at,
       deleted_at       = EXCLUDED.deleted_at
@@ -2016,7 +1952,7 @@ BEGIN
     JOIN chat_messages cm ON cm.channel_id = cc.id AND cm.slack_ts = r.message_ts
     WHERE r.occurred_at >= from_date AND r.occurred_at <= to_date
     ON CONFLICT (message_id, emoji, slack_user_id) WHERE slack_user_id IS NOT NULL DO UPDATE SET
-      member_id  = COALESCE(EXCLUDED.member_id, chat_reactions.member_id),
+      member_id  = EXCLUDED.member_id,
       deleted_at = EXCLUDED.deleted_at
     RETURNING 1
   )
@@ -2026,277 +1962,11 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public.reprocess_members_atomic(new_data jsonb)
- RETURNS void
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-BEGIN
-  -- Step 1: Clean up stale duplicates created by previous email-change bug.
-  -- Scenario: member X has (kajabi_id=ABC, email=old@x.com) and a stale dup Y
-  -- has (kajabi_id=ABC, email=new@x.com) inserted by the old broken UPSERT.
-  --
-  -- For each such pair, we:
-  --   a) Reassign Y's prickle_attendance and email aliases to X
-  --   b) Delete Y so the UPDATE in Step 2 can safely set X's email to new@x.com.
-
-  -- Step 1a: Reassign attendance from stale duplicates to the canonical member
-  -- (the one whose email does NOT match the incoming data = still has old email)
-  UPDATE prickle_attendance pa
-  SET member_id = original.id
-  FROM members stale
-  JOIN members original
-    ON original.kajabi_id = stale.kajabi_id
-    AND original.id != stale.id
-    AND original.email != stale.email  -- original still has old email
-  JOIN jsonb_array_elements(new_data) nd ON TRUE
-  WHERE pa.member_id = stale.id
-    AND nd.value->>'kajabi_id' IS NOT NULL
-    AND stale.kajabi_id = nd.value->>'kajabi_id'
-    AND stale.email = nd.value->>'email';   -- stale has the NEW (incoming) email
-
-  -- Step 1a': Same for email aliases.
-  UPDATE member_email_aliases mea
-  SET member_id = original.id
-  FROM members stale
-  JOIN members original
-    ON original.kajabi_id = stale.kajabi_id
-    AND original.id != stale.id
-    AND original.email != stale.email
-  JOIN jsonb_array_elements(new_data) nd ON TRUE
-  WHERE mea.member_id = stale.id
-    AND nd.value->>'kajabi_id' IS NOT NULL
-    AND stale.kajabi_id = nd.value->>'kajabi_id'
-    AND stale.email = nd.value->>'email';
-
-  -- Step 1b: Now safe to delete the stale duplicate (no attendance left on it)
-  DELETE FROM members m
-  WHERE EXISTS (
-    SELECT 1 FROM jsonb_array_elements(new_data) nd
-    WHERE nd.value->>'kajabi_id' IS NOT NULL
-      AND m.kajabi_id = nd.value->>'kajabi_id'
-      AND m.email = nd.value->>'email'
-  )
-  AND EXISTS (
-    SELECT 1 FROM members m2
-    WHERE m2.kajabi_id = m.kajabi_id
-      AND m2.id != m.id
-  );
-
-  -- Step 2-pre: Auto-alias the old email when a kajabi_id-matched member's
-  -- email changes. Must run BEFORE Step 2 so m.email still holds the old
-  -- value. If the old email was already an alias of someone else, it now
-  -- belongs to this member (it was this member's own email).
-  INSERT INTO member_email_aliases (member_id, canonical_email, alias_email, source)
-  SELECT DISTINCT ON (lower(m.email))
-    m.id,
-    m.email,
-    lower(m.email),
-    'auto_detected'
-  FROM members m
-  JOIN jsonb_array_elements(new_data) nd(value)
-    ON m.kajabi_id = nd.value->>'kajabi_id'
-    AND nd.value->>'kajabi_id' IS NOT NULL
-    AND lower(m.email) != lower(nd.value->>'email')
-  ORDER BY lower(m.email), m.id
-  ON CONFLICT (alias_email) DO UPDATE
-    SET member_id = EXCLUDED.member_id;
-
-  -- Step 2: Update existing members matched by kajabi_id (handles email changes).
-  UPDATE members m
-  SET
-    email = nd.value->>'email',
-    name = nd.value->>'name',
-    joined_at = (nd.value->>'joined_at')::date,
-    first_joined_at = (nd.value->>'first_joined_at')::date,
-    most_recent_joined_at = (nd.value->>'most_recent_joined_at')::date,
-    total_active_months = COALESCE((nd.value->>'total_active_months')::integer, 0),
-    status = nd.value->>'status',
-    is_trial = COALESCE((nd.value->>'is_trial')::boolean, false),
-    has_trialed = COALESCE((nd.value->>'has_trialed')::boolean, false),
-    plan = nd.value->>'plan',
-    source = nd.value->>'source',
-    staff_role = nd.value->>'staff_role',
-    user_id = COALESCE((nd.value->>'user_id')::uuid, m.user_id),
-    kajabi_id = nd.value->>'kajabi_id',
-    stripe_customer_id = nd.value->>'stripe_customer_id',
-    photo_url = nd.value->>'photo_url',
-    bio = nd.value->>'bio',
-    instagram_url = nd.value->>'instagram_url',
-    facebook_url = nd.value->>'facebook_url',
-    twitter_url = nd.value->>'twitter_url',
-    kajabi_tags = ARRAY(SELECT jsonb_array_elements_text(COALESCE(nd.value->'kajabi_tags', '[]'::jsonb))),
-    updated_at = NOW()
-  FROM jsonb_array_elements(new_data) nd(value)
-  WHERE m.kajabi_id = nd.value->>'kajabi_id'
-    AND nd.value->>'kajabi_id' IS NOT NULL;
-
-  -- Step 3: UPSERT remaining entries by email.
-  -- Covers: staff members (kajabi_id IS NULL) and brand-new Kajabi contacts
-  -- not yet present in the members table.
-  INSERT INTO members (
-    email, name, joined_at, first_joined_at, most_recent_joined_at, total_active_months,
-    status, is_trial, has_trialed, plan, source, staff_role, user_id,
-    kajabi_id, stripe_customer_id,
-    photo_url, bio, instagram_url, facebook_url, twitter_url, kajabi_tags
-  )
-  SELECT
-    value->>'email',
-    value->>'name',
-    (value->>'joined_at')::date,
-    (value->>'first_joined_at')::date,
-    (value->>'most_recent_joined_at')::date,
-    COALESCE((value->>'total_active_months')::integer, 0),
-    value->>'status',
-    COALESCE((value->>'is_trial')::boolean, false),
-    COALESCE((value->>'has_trialed')::boolean, false),
-    value->>'plan',
-    value->>'source',
-    value->>'staff_role',
-    (value->>'user_id')::uuid,
-    value->>'kajabi_id',
-    value->>'stripe_customer_id',
-    value->>'photo_url',
-    value->>'bio',
-    value->>'instagram_url',
-    value->>'facebook_url',
-    value->>'twitter_url',
-    ARRAY(SELECT jsonb_array_elements_text(COALESCE(value->'kajabi_tags', '[]'::jsonb)))
-  FROM jsonb_array_elements(new_data)
-  WHERE value->>'kajabi_id' IS NULL
-     OR NOT EXISTS (
-       SELECT 1 FROM members WHERE kajabi_id = value->>'kajabi_id'
-     )
-  ON CONFLICT (email) DO UPDATE SET
-    name = EXCLUDED.name,
-    joined_at = EXCLUDED.joined_at,
-    first_joined_at = EXCLUDED.first_joined_at,
-    most_recent_joined_at = EXCLUDED.most_recent_joined_at,
-    total_active_months = EXCLUDED.total_active_months,
-    status = EXCLUDED.status,
-    is_trial = EXCLUDED.is_trial,
-    has_trialed = EXCLUDED.has_trialed,
-    plan = EXCLUDED.plan,
-    source = EXCLUDED.source,
-    staff_role = EXCLUDED.staff_role,
-    user_id = COALESCE(EXCLUDED.user_id, members.user_id),
-    kajabi_id = EXCLUDED.kajabi_id,
-    stripe_customer_id = EXCLUDED.stripe_customer_id,
-    photo_url = EXCLUDED.photo_url,
-    bio = EXCLUDED.bio,
-    instagram_url = EXCLUDED.instagram_url,
-    facebook_url = EXCLUDED.facebook_url,
-    twitter_url = EXCLUDED.twitter_url,
-    kajabi_tags = EXCLUDED.kajabi_tags,
-    updated_at = NOW();
-
-  -- Step 4: Apply active gift/direct_stripe overrides — this is what makes
-  -- them stick instead of being reverted by the Kajabi-derived status above
-  -- on every run. 'special' is informational only (nothing branches on it
-  -- for status purposes today). starts_at/expires_at are DATE (see this
-  -- migration), so compared against current_date like hiatus/program cohorts.
-  WITH active_override AS (
-    SELECT DISTINCT ON (member_id) member_id, override_type
-    FROM member_status_overrides
-    WHERE override_type IN ('gift', 'direct_stripe')
-      AND current_date BETWEEN starts_at AND COALESCE(expires_at, 'infinity'::date)
-    ORDER BY member_id, starts_at DESC
-  )
-  UPDATE members m
-  SET status = 'active', updated_at = NOW()
-  FROM active_override ao
-  WHERE ao.member_id = m.id
-    AND m.status IS DISTINCT FROM 'active';
-
-  -- Step 4a: A currently-active program-cohort enrollment (member_program_enrollments
-  -- + program_cohorts — see 20260903000000) forces status='active', the same
-  -- way a 'gift'/'direct_stripe' override does. Placed before 4b (hiatus) so
-  -- hiatus still wins via ordering, same as Step 4.
-  UPDATE members m
-  SET status = 'active', updated_at = NOW()
-  WHERE m.status IS DISTINCT FROM 'active'
-    AND EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND now()::date BETWEEN pc.starts_at AND pc.expires_at
-    );
-
-  -- Step 4b: An active hiatus (member_hiatus_history) always forces
-  -- on_hiatus, overriding whatever Step 4 (or 4a above) just set — hiatus is
-  -- the more restrictive state, and running after them makes it win without
-  -- needing a cross-table tie-break.
-  UPDATE members m
-  SET status = 'on_hiatus', updated_at = NOW()
-  FROM member_hiatus_history hh
-  WHERE hh.member_id = m.id
-    AND current_date BETWEEN hh.start_date AND COALESCE(hh.end_date, 'infinity'::date)
-    AND m.status IS DISTINCT FROM 'on_hiatus';
-
-  -- Step 4c: A member whose program-cohort enrollment(s) have all lapsed
-  -- (cohort expires_at in the past, none currently active) and who is still
-  -- Kajabi-derived 'lead' becomes 'cancelled' rather than reverting to
-  -- 'lead' — they had a real, bounded enrollment window and left, they
-  -- were never "just a lead" who never subscribed. Analogous to old Step 4b
-  -- for '180_program' overrides.
-  UPDATE members m
-  SET status = 'cancelled', updated_at = NOW()
-  WHERE m.status = 'lead'
-    AND EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND pc.expires_at < now()::date
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM member_program_enrollments mpe
-      JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-      WHERE mpe.member_id = m.id
-        AND now()::date BETWEEN pc.starts_at AND pc.expires_at
-    );
-
-  -- Step 4d: total_active_months is computed upstream (route.ts) purely from
-  -- real Kajabi/Stripe subscription stints, which a one-time program-cohort
-  -- purchase never produces — without this, a member Step 4a/4c just
-  -- touched would show 0 active months forever. Derive it from elapsed time
-  -- since each enrollment's cohort starts_at (capped at expires_at, so the
-  -- count freezes at lapse rather than growing after the fact), same
-  -- days/30 floored convention as computeMemberTenure
-  -- (lib/member-tenure.ts). Takes the longest single enrollment window
-  -- (not summed) — same semantics as the old single-override backfill.
-  -- GREATEST guards against ever lowering a value a real stint already
-  -- produced.
-  UPDATE members m
-  SET
-    total_active_months = GREATEST(
-      m.total_active_months,
-      (
-        -- pc.starts_at/expires_at are DATE, so this subtraction is already
-        -- an integer day count (no EXTRACT(EPOCH ...) needed/valid here).
-        SELECT MAX(FLOOR((LEAST(now()::date, pc.expires_at) - pc.starts_at) / 30.0))::integer
-        FROM member_program_enrollments mpe
-        JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-        WHERE mpe.member_id = m.id
-          AND now()::date >= pc.starts_at
-      )
-    ),
-    updated_at = NOW()
-  WHERE EXISTS (
-    SELECT 1 FROM member_program_enrollments mpe
-    JOIN program_cohorts pc ON pc.id = mpe.cohort_id
-    WHERE mpe.member_id = m.id
-      AND now()::date >= pc.starts_at
-  );
-
-  -- Note: We do NOT delete members that aren't in new_data.
-  -- This preserves historical data for members who left or were removed.
-END;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.reprocess_prickle_attendance_atomic(from_date timestamp with time zone, to_date timestamp with time zone, new_pup_data jsonb, new_attendance_data jsonb)
  RETURNS void
  LANGUAGE plpgsql
  SET search_path TO 'public'
+ SET plan_cache_mode TO 'force_custom_plan'
 AS $function$
 BEGIN
   DELETE FROM prickle_attendance
@@ -2434,6 +2104,7 @@ CREATE OR REPLACE FUNCTION public.reprocess_slack_activities_atomic(from_date ti
  RETURNS jsonb
  LANGUAGE plpgsql
  SET search_path TO 'public'
+ SET plan_cache_mode TO 'force_custom_plan'
 AS $function$
 DECLARE
   message_count INTEGER;
@@ -2487,6 +2158,7 @@ BEGIN
     WHERE m.occurred_at >= from_date
       AND m.occurred_at <= to_date
       AND m.deleted_at IS NULL
+      AND NOT public.slack_is_system_message_type(m.message_type)
       AND (hub.author_member_id IS NOT NULL OR user_member_map ? m.user_id)
   ),
   inserted AS (
@@ -2567,7 +2239,7 @@ DO $$
 DECLARE r record;
 BEGIN
   FOR r IN SELECT DISTINCT p.oid::regprocedure AS sig, p.proname FROM pg_proc p
-           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) LOOP
+           WHERE p.pronamespace = 'public'::regnamespace AND p.proname = ANY (ARRAY['add_event_attendee','admin_member_engagement','admin_members_page','chat_apply_slack_read','chat_can_read_content','chat_can_see_channel','chat_claim_slack_read_pull','chat_delete_file','chat_delete_message','chat_edit_message','chat_is_channel_member','chat_mark_message_failed','chat_mark_message_sent','chat_mark_read','chat_post_message','chat_post_message','chat_toggle_reaction','chat_unread_counts','check_prickle_commitment_slot_overlap','count_activity_feed','create_prickle_commitment','current_acting_as_member_id','current_member_id','get_activity_feed','get_hosted_prickle_attendance','get_member_directory','get_profile_writing','get_record_history','has_course_access','match_member_by_name','member_interaction_pairs','mentorship_counts','my_mentorships','remove_event_attendee','search_chat_messages','slack_connection_delete_secrets','slack_connection_revoke','slack_connection_save','slack_connection_tokens','slack_connection_update_tokens','sync_event_badge_awards','upsert_ambiguous_zoom_name']) LOOP
     EXECUTE 'REVOKE ALL ON FUNCTION ' || r.sig || ' FROM PUBLIC, anon, authenticated, service_role';
     EXECUTE 'GRANT EXECUTE ON FUNCTION ' || r.sig || ' TO ' || (SELECT string_agg(CASE WHEN grantee = '-' THEN 'PUBLIC' ELSE grantee END, ', ') FROM sid_fn_acl WHERE proname = r.proname);
   END LOOP;
@@ -2587,6 +2259,9 @@ BEGIN
       (SELECT string_agg(CASE WHEN x = 'public' THEN 'public' ELSE quote_ident(x) END, ', ') FROM unnest(r.roles) x),
       CASE WHEN r.qual IS NULL THEN '' ELSE ' USING (' || r.qual || ')' END,
       CASE WHEN r.with_check IS NULL THEN '' ELSE ' WITH CHECK (' || r.with_check || ')' END);
+  END LOOP;
+  FOR r IN SELECT * FROM sid_triggers LOOP
+    EXECUTE r.def;
   END LOOP;
   FOR r IN SELECT * FROM sid_checks LOOP
     EXECUTE format('ALTER TABLE %s ADD CONSTRAINT %I %s', r.tbl, r.conname, r.def);
