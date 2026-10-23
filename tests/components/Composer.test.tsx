@@ -7,6 +7,7 @@ import "@testing-library/jest-dom/vitest";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const uploadWithProgress = vi.fn();
+import { CHAT_UPLOAD_CONCURRENCY } from "@/lib/chat/upload-pool";
 vi.mock("@/lib/chat/upload-progress", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/upload-progress")>()), uploadWithProgress: (...a: unknown[]) => uploadWithProgress(...a) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ sendChatMessage: vi.fn(), retryChatMessage: vi.fn(), prepareChatUploads: vi.fn() }));
 import { prepareChatUploads, retryChatMessage, sendChatMessage } from "@/app/(member)/chat/actions";
@@ -149,6 +150,58 @@ describe("Composer attachments", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(sendChatMessage).not.toHaveBeenCalled();
   });
+
+  it("uploads several files at once, at most the concurrency limit, and sends them in attached order", async () => {
+    const n = CHAT_UPLOAD_CONCURRENCY + 2;
+    vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: Array.from({ length: n }, (_, i) => ({ path: `p${i}`, token: "t" })) });
+    const finishers: Array<() => void> = [];
+    let running = 0;
+    let peak = 0;
+    uploadWithProgress.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          peak = Math.max(peak, ++running);
+          finishers.push(() => (running--, resolve({ ok: true })));
+        }),
+    );
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await attach(...Array.from({ length: n }, (_, i) => new File(["x"], `f${i}.txt`, { type: "text/plain" })));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(uploadWithProgress).toHaveBeenCalledTimes(CHAT_UPLOAD_CONCURRENCY));
+    // Finish the first started upload last-in-first-out, so completion order differs from attach order.
+    while (finishers.length) {
+      finishers.pop()!();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalled());
+    expect(peak).toBe(CHAT_UPLOAD_CONCURRENCY);
+    const sent = vi.mocked(sendChatMessage).mock.calls[0][3]!;
+    expect(sent.map((u) => u.path)).toEqual(Array.from({ length: n }, (_, i) => `p${i}`));
+  }, 20000);
+
+  it("aborts the other uploads when one fails, names the failed file and sends nothing", async () => {
+    vi.mocked(prepareChatUploads).mockResolvedValue({
+      ok: true,
+      uploads: [
+        { path: "p0", token: "t" },
+        { path: "p1", token: "t" },
+      ],
+    });
+    let signalOfFirst!: AbortSignal;
+    uploadWithProgress.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
+      signalOfFirst = signal;
+      return new Promise((r) => signal.addEventListener("abort", () => r({ ok: false, reason: "aborted" })));
+    });
+    uploadWithProgress.mockResolvedValueOnce({ ok: false, reason: "http", status: 500 });
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await attach(new File(["a"], "a.txt", { type: "text/plain" }), new File(["b"], "b.txt", { type: "text/plain" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't upload b.txt");
+    expect(signalOfFirst.aborted).toBe(true);
+    expect(sendChatMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole("list", { name: "Attached files" })).toBeInTheDocument();
+  }, 20000);
 
   it("lets an attachment be removed, and takes pasted images", async () => {
     render(<Composer channelId="c1" placeholder="Message #hosts" />);
