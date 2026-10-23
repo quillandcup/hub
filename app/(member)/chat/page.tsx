@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
-import { firstParam, isUuid } from "@/lib/chat/format";
+import { firstParam } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { loadChannelForMember } from "@/lib/chat/load";
 
@@ -21,7 +22,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const { identity } = await requireChat();
   const { list } = await searchParams;
   const last = (await cookies()).get(LAST_CHAT_COOKIE)?.value;
-  if (!firstParam(list) && isUuid(last)) {
+  if (!firstParam(list) && isId(last, "chn")) {
     const channel = await loadChannelForMember(await createClient(), last, identity.memberId, identity.isSudo);
     if (channel) redirect(`/chat/${channel.id}`);
   }
