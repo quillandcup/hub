@@ -8,6 +8,7 @@ import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
 import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, type StagedUpload } from "@/lib/chat/staging";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { CHAT_UPLOAD_CONCURRENCY, runPool } from "@/lib/chat/upload-pool";
 import { signedUploadUrl, uploadWithProgress } from "@/lib/chat/upload-progress";
 import { PENDING_ID_PREFIX, emitListEvent, optimisticView, pokeChat } from "@/lib/chat/list-events";
 
@@ -92,27 +93,34 @@ export default function Composer({
     }
     const controller = new AbortController();
     abortRef.current = controller;
-    const done: StagedUpload[] = [];
     setSentBytes(attached.map(() => 0));
-    for (let i = 0; i < attached.length; i++) {
-      const file = attached[i];
-      const { path, token } = prepared.uploads[i];
-      const contentType = file.type || "application/octet-stream";
-      const result = await uploadWithProgress({
-        url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, SLACK_FILES_BUCKET, path, token),
-        file,
-        contentType,
-        apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        signal: controller.signal,
-        onProgress: (loaded) => setSentBytes((current) => current.map((v, j) => (j === i ? loaded : v))),
-      });
-      if (!result.ok) {
-        if (result.reason !== "aborted") setError(`Couldn't upload ${file.name}. Try again.`);
-        return null;
-      }
-      done.push({ path, name: file.name || "file", mimetype: contentType, size: file.size });
+    // Several at once; results keep the order the files were attached in. The first failure aborts the
+    // rest, nothing is sent and the files stay attached to retry. Staged files left behind are swept by
+    // the staging cleanup (lib/chat/staging.ts).
+    const outcome = await runPool(
+      attached,
+      CHAT_UPLOAD_CONCURRENCY,
+      async (file, i, signal) => {
+        const { path, token } = prepared.uploads[i];
+        const contentType = file.type || "application/octet-stream";
+        const result = await uploadWithProgress({
+          url: signedUploadUrl(process.env.NEXT_PUBLIC_SUPABASE_URL!, SLACK_FILES_BUCKET, path, token),
+          file,
+          contentType,
+          apiKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          signal,
+          onProgress: (loaded) => setSentBytes((current) => current.map((v, j) => (j === i ? loaded : v))),
+        });
+        if (!result.ok) return { ok: false as const, error: result.reason };
+        return { ok: true as const, value: { path, name: file.name || "file", mimetype: contentType, size: file.size } };
+      },
+      controller.signal,
+    );
+    if (!outcome.ok) {
+      if (!outcome.aborted && outcome.error !== "aborted") setError(`Couldn't upload ${attached[outcome.index].name}. Try again.`);
+      return null;
     }
-    return done;
+    return outcome.results;
   };
 
   const send = async () => {
