@@ -62,3 +62,12 @@ describe("PendingAttachments with a non-blob object URL", () => {
     expect(screen.queryByRole("button", { name: "Preview cat.png" })).toBeNull();
   });
 });
+
+describe("PendingAttachments upload progress", () => {
+  it("draws a ring per file with its percentage", () => {
+    const files = [new File(["a"], "cat.png", { type: "image/png" }), new File(["b"], "notes.pdf", { type: "application/pdf" })];
+    render(<PendingAttachments files={files} progress={[0.5]} onRemove={vi.fn()} />);
+    expect(screen.getByRole("progressbar", { name: "Uploading cat.png" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Uploading notes.pdf" })).toHaveAttribute("aria-valuenow", "0");
+  });
+});
