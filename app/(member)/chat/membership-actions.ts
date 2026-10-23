@@ -239,9 +239,11 @@ export async function addChatMembers(channelId: string, memberIds: string[]): Pr
 }
 
 export async function joinChatChannel(channelId: string): Promise<MembershipResult> {
-  const caller = await chatCaller();
-  if (!caller) return { ok: false, error: "Changing who is in a conversation isn't available to you yet." };
-  return withAction("chat_channel_joined", () => addMembersImpl(channelId, [caller.identity.memberId]));
+  return withAction("chat_channel_joined", async () => {
+    const caller = await chatCaller();
+    if (!caller) return { ok: false, error: "Changing who is in a conversation isn't available to you yet." };
+    return addMembersImpl(channelId, [caller.identity.memberId]);
+  });
 }
 
 export async function removeChatMember(channelId: string, memberId: string): Promise<MembershipResult> {
