@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(5);
+SELECT plan(6);
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('00000000-0000-4000-a000-00000000fda1', 'System Fern', 'system-fern@example.test', now(), 'active');
@@ -14,6 +14,7 @@ INSERT INTO public.chat_channels (id, kind, visibility, restricted, name, slack_
   ('00000000-0000-4000-a000-00000000fdc1', 'channel', 'public', false, 'system-chan', 'PGTAP_SYS_CHAN');
 
 SELECT ok(public.slack_is_system_message_type('channel_name') AND public.slack_is_system_message_type('group_archive'), 'rename and archive notices are system messages');
+SELECT ok(public.slack_is_system_message_type('channel_join') AND public.slack_is_system_message_type('group_join') AND public.slack_is_system_message_type('channel_leave') AND public.slack_is_system_message_type('group_leave'), 'join and leave notices are system messages');
 SELECT ok(NOT public.slack_is_system_message_type('message') AND NOT public.slack_is_system_message_type(NULL), 'plain messages and null are not');
 
 INSERT INTO bronze.slack_messages (message_ts, channel_id, channel_name, channel_type, user_id, text, message_type, occurred_at, raw_payload) VALUES

@@ -5,7 +5,8 @@
  */
 
 /**
- * Notices Slack posts itself when someone changes a channel ("Ania renamed the channel from X to Y").
+ * Notices Slack posts itself when someone changes a channel ("Ania renamed the channel from X to Y") or
+ * joins or leaves it ("Ania has joined the channel").
  * Kept so the Hub chat shows them, but they are not something a member wrote: activity, engagement
  * and the Wheel of Wonder leave them out. The same list is in chat_messages' system_subtype trigger
  * (20261203000000_chat_system_messages.sql).
@@ -21,6 +22,10 @@ export const SLACK_SYSTEM_SUBTYPES = [
   'group_purpose',
   'group_archive',
   'group_unarchive',
+  'channel_join',
+  'channel_leave',
+  'group_join',
+  'group_leave',
 ] as const
 
 const SYSTEM_SUBTYPES = new Set<string>(SLACK_SYSTEM_SUBTYPES)
@@ -29,7 +34,7 @@ export function isSlackSystemMessage(msg: { subtype?: string }): boolean {
   return !!msg.subtype && SYSTEM_SUBTYPES.has(msg.subtype)
 }
 
-/** Plain messages (no subtype), these subtypes and channel-change notices are kept; joins, leaves etc. are not. */
+/** Plain messages (no subtype), these subtypes and Slack's channel notices (changes, joins, leaves) are kept. */
 const KEPT_SUBTYPES = new Set(['file_share', 'thread_broadcast'])
 
 export function isKeptSlackMessage(msg: { subtype?: string }): boolean {
@@ -138,8 +143,20 @@ export function slackUsersChangedForMembers(
 }
 
 /**
- * One Slack message as the Bronze rows it becomes: the message (unless it is a join, leave or other
- * notice) and one row per reaction user. Shared by the import and the chat's gap-fill, so a message
+ * What a message's Bronze text is. Slack's own text for someone added to a channel is "<@Ania> has joined the
+ * channel" with who added them only in `inviter`, so the notice says it ("<@Ania> was added to the channel by
+ * <@Cody>"); every other message keeps Slack's text. The raw event is kept whole in `raw_payload`.
+ */
+export function slackMessageText(msg: { subtype?: string; text?: string; user?: string; inviter?: string }): string {
+  if ((msg.subtype === 'channel_join' || msg.subtype === 'group_join') && msg.user && msg.inviter && msg.inviter !== msg.user) {
+    return `<@${msg.user}> was added to the channel by <@${msg.inviter}>`
+  }
+  return msg.text || ''
+}
+
+/**
+ * One Slack message as the Bronze rows it becomes: the message (unless it is some other notice) and one row
+ * per reaction user. Shared by the import and the chat's gap-fill, so a message
  * looks the same whichever path stored it. User email and name are filled in by the caller.
  */
 export function addSlackMessage(
@@ -150,7 +167,7 @@ export function addSlackMessage(
   messages: any[],
   reactions: any[]
 ) {
-  // Skip join/leave messages (keep file_share, thread_broadcast)
+  // Skip the notices Slack posts that the chat doesn't show
   if (!isKeptSlackMessage(msg)) {
     return;
   }
@@ -163,7 +180,7 @@ export function addSlackMessage(
     user_id: slackMessageUserId(msg),
     user_email: '', // Will be filled from users map later
     user_name: '', // Will be filled from users map later
-    text: msg.text || '',
+    text: slackMessageText(msg),
     message_type: msg.subtype || 'message',
     thread_ts: msg.thread_ts || null,
     reply_count: msg.reply_count || 0,
