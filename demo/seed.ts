@@ -14,7 +14,7 @@ import path from "node:path";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
-import { DEMO_EVENTS, DEMO_JOIN, DEMO_PASSWORD, PERSONAS } from "./personas";
+import { DEMO_JOIN, DEMO_PASSWORD, PERSONAS, demoEvents } from "./personas";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -77,7 +77,8 @@ export async function seed(now: Date = new Date()) {
   }
 
   // The calendar, as the importer would have stored it.
-  const events = DEMO_EVENTS.map((e) => {
+  const weekdayOfToday = new Date(`${orgDate(0, now)}T12:00:00Z`).getUTCDay();
+  const events = demoEvents(weekdayOfToday).map((e) => {
     const start = zonedTimeToUtc(orgDate(e.dayOffset, now), e.startLocal, ORG_TIMEZONE);
     return {
       google_event_id: `demo-${e.key}`,
@@ -89,12 +90,20 @@ export async function seed(now: Date = new Date()) {
   });
   const { error: eventsError } = await admin.schema("bronze").from("calendar_events").upsert(events, { onConflict: "google_event_id" });
   if (eventsError) throw new Error(`calendar_events: ${eventsError.message}`);
+  // Demo events this seed no longer defines (an older cast, a changed pattern) go; processing then drops their prickles.
+  const keep = new Set(events.map((e) => e.google_event_id));
+  const { data: stale } = await admin.schema("bronze").from("calendar_events").select("google_event_id").like("google_event_id", "demo-%");
+  const gone = (stale ?? []).map((e) => e.google_event_id).filter((id) => !keep.has(id));
+  if (gone.length > 0) {
+    const { error } = await admin.schema("bronze").from("calendar_events").delete().in("google_event_id", gone);
+    if (error) throw new Error(`calendar_events cleanup: ${error.message}`);
+  }
 
   // Bronze -> Silver with the real route (service role authorizes it, as in the API tests).
   const res = await fetch(`${env.appUrl}/api/process/calendar`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env.serviceRoleKey}` },
-    body: JSON.stringify({ fromDate: orgDate(-3, now), toDate: orgDate(7, now) }),
+    body: JSON.stringify({ fromDate: orgDate(-30, now), toDate: orgDate(15, now) }),
   }).catch((e) => {
     throw new Error(`Could not reach the demo app at ${env.appUrl}: start it with \`pnpm demo:app\` (${e.message})`);
   });

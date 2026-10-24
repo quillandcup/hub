@@ -35,6 +35,8 @@ describe("/help", () => {
   it("lists the articles with their summaries and the support address", async () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
     await renderServerPage(HelpPage, undefined);
+    expect(screen.getByRole("heading", { level: 1, name: "Hedgie Help" })).toBeInTheDocument();
+    expect(screen.getByText("How things work in the Hedgie House.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /How to join a prickle/ })).toHaveAttribute("href", "/help/join-a-prickle");
     expect(screen.getByRole("link", { name: "Email support" })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
@@ -62,7 +64,7 @@ describe("/help/[slug]", () => {
     const images = [...container.querySelectorAll("img")].map((i) => i.getAttribute("src"));
     expect(images).toContain("/help/images/join-a-prickle/02-on-air-popover.png");
     expect(images.every((src) => src?.startsWith("/help/images/"))).toBe(true);
-    expect(screen.getByRole("link", { name: "← Help" })).toHaveAttribute("href", "/help");
+    expect(screen.getByRole("link", { name: "← Hedgie Help" })).toHaveAttribute("href", "/help");
     expect(track).toHaveBeenCalledWith("help_article_viewed", { slug: "join-a-prickle" });
   });
 
@@ -74,7 +76,7 @@ describe("/help/[slug]", () => {
   });
 
   it("titles the tab with the article first, then the section", async () => {
-    expect(await generateMetadata(articleProps("join-a-prickle"))).toEqual({ title: "How to join a prickle · Help" });
-    expect(await generateMetadata(articleProps("missing"))).toEqual({ title: "Help" });
+    expect(await generateMetadata(articleProps("join-a-prickle"))).toEqual({ title: "How to join a prickle · Hedgie Help" });
+    expect(await generateMetadata(articleProps("missing"))).toEqual({ title: "Hedgie Help" });
   });
 });

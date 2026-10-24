@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { helpArticlePath, helpImageUrl, isHelpImagePath, isHelpSlug, listHelpArticles, loadHelpArticle, parseHelpArticle } from "@/lib/help";
+import { HELP_ORDER, helpArticlePath, helpImageUrl, isHelpImagePath, isHelpSlug, listHelpArticles, loadHelpArticle, parseHelpArticle } from "@/lib/help";
 
 describe("help slugs and image names", () => {
   it("accepts lowercase topic slugs and rejects anything that could leave the folder", () => {
@@ -41,6 +41,11 @@ describe("parseHelpArticle", () => {
     expect(a.body.startsWith("First line")).toBe(true);
   });
 
+  it("shows a summary as plain text, without link targets or emphasis marks", () => {
+    const a = parseHelpArticle("x", "# T\n\nSee [how to join](/help/join) the **room** with `code` and _care_.");
+    expect(a.summary).toBe("See how to join the room with code and care.");
+  });
+
   it("skips headings, images and lists when picking the summary, and falls back to the slug without a title", () => {
     const a = parseHelpArticle("no-title", "## Only a section\n\n![shot](img:a/b.png)\n\n- a list\n\nThe real summary.");
     expect(a.title).toBe("no-title");
@@ -59,7 +64,7 @@ describe("listing and loading articles", () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("lists markdown files by slug, in order, ignoring other files and bad names", () => {
+  it("lists markdown files by slug, ordered by name when none is ranked, ignoring other files and bad names", () => {
     expect(listHelpArticles(dir).map((a) => [a.slug, a.title])).toEqual([["a-first", "First"], ["b-second", "Second"]]);
   });
 
@@ -81,5 +86,42 @@ describe("listing and loading articles", () => {
       expect(a.title).not.toBe(a.slug);
       expect(a.summary.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the real articles hold together", () => {
+  const articles = listHelpArticles();
+
+  /** The screenshot file names a scene writes, in order: its Nth `shot(page, testInfo, "name")` call saves `NN-name.png`. */
+  function sceneShots(scene: string): string[] | null {
+    const file = path.join("demo", "scenes", `${scene}.spec.ts`);
+    if (!existsSync(file)) return null;
+    const names = [...readFileSync(file, "utf8").matchAll(/shot\(page, testInfo, "([a-z0-9-]+)"\)/g)].map((m) => m[1]);
+    return names.map((name, i) => `${String(i + 1).padStart(2, "0")}-${name}.png`);
+  }
+
+  it("lists every article in the index order, and nothing in the order that has no article", () => {
+    expect(articles.map((a) => a.slug)).toEqual(HELP_ORDER);
+  });
+
+  it("links only to articles that exist", () => {
+    const slugs = new Set(articles.map((a) => a.slug));
+    for (const a of articles) {
+      for (const m of a.body.matchAll(/\]\(\/help\/([a-z0-9-]+)\)/g)) expect(slugs, `${a.slug} links to /help/${m[1]}`).toContain(m[1]);
+    }
+  });
+
+  it("shows only screenshots that a demo scene captures, so a renamed step can't leave a broken image", () => {
+    for (const a of articles) {
+      for (const m of a.body.matchAll(/\(img:([a-z0-9-]+)\/([^)]+)\)/g)) {
+        const shots = sceneShots(m[1]);
+        expect(shots, `${a.slug} uses scene ${m[1]}, which has no demo/scenes/${m[1]}.spec.ts`).not.toBeNull();
+        expect(shots, `${a.slug} uses ${m[1]}/${m[2]}`).toContain(m[2]);
+      }
+    }
+  });
+
+  it("gives every image a description", () => {
+    for (const a of articles) for (const m of a.body.matchAll(/!\[([^\]]*)\]\(img:/g)) expect(m[1].trim().length, a.slug).toBeGreaterThan(0);
   });
 });

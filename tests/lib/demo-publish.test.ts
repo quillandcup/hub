@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { publishPlan } from "@/demo/publish";
+import { publishPlan, referencedImages } from "@/demo/publish";
 
 describe("publishPlan", () => {
   let out: string;
@@ -28,6 +28,19 @@ describe("publishPlan", () => {
     put("join-a-prickle", "desktop-light", "notes.txt");
     put("join-a-prickle", "desktop-light", "Has Spaces.png");
     expect(publishPlan(out)).toEqual([]);
+  });
+
+  it("with a list of wanted images, publishes only those", () => {
+    put("join-a-prickle", "desktop-light", "01-dashboard.png");
+    put("read-the-help", "desktop-light", "01-help-index.png");
+    expect(publishPlan(out, new Set(["join-a-prickle/01-dashboard.png"])).map((u) => u.remote)).toEqual(["join-a-prickle/01-dashboard.png"]);
+  });
+
+  it("reads the wanted images from the articles, so every screenshot an article shows is published", () => {
+    const wanted = referencedImages();
+    expect(wanted.has("join-a-prickle/01-dashboard.png")).toBe(true);
+    expect(wanted.has("plan-your-month/03-commitments.png")).toBe(true);
+    expect([...wanted].every((ref) => !ref.startsWith("read-the-help/"))).toBe(true);
   });
 
   it("plans nothing before any capture exists", () => {

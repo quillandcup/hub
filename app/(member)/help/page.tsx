@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { helpArticlePath, listHelpArticles } from "@/lib/help";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
-export const metadata: Metadata = { title: "Help" };
+export const metadata: Metadata = { title: "Hedgie Help" };
 
 export default async function HelpPage() {
   const user = await getCurrentUser();
@@ -15,8 +15,8 @@ export default async function HelpPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">Help</h1>
-      <p className="mt-1 text-slate-600 dark:text-slate-400">How things work in the Hub.</p>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">Hedgie Help</h1>
+      <p className="mt-1 text-slate-600 dark:text-slate-400">How things work in the Hedgie House.</p>
 
       {articles.length === 0 ? (
         <p className="mt-8 text-slate-500 dark:text-slate-400">No articles yet.</p>
