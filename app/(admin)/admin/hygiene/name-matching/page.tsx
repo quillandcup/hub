@@ -22,36 +22,19 @@ export default async function NameMatchingReportPage() {
     redirect("/login");
   }
 
-  // Get active members with their attendance count, all members, and aliases in parallel
-  const [
-    { data: activeMembers },
-    allMembers,
-    { data: aliases },
-  ] = await Promise.all([
-    supabase
-      .from("members")
-      .select(`
-        id,
-        name,
-        email,
-        prickle_attendance(id)
-      `)
-      .eq("status", "active")
-      .order("name"),
-    createRepos(supabase).members.identities(),
-    supabase
-      .from("member_name_aliases")
-      .select("alias, member_id, source"),
+  // Active members, all members and aliases in parallel
+  const repos = createRepos(supabase);
+  const [activeMembers, allMembers, { data: aliases }] = await Promise.all([
+    repos.members.list({ status: "active", orderBy: "name" }),
+    repos.members.identities(),
+    supabase.from("member_name_aliases").select("alias, member_id, source"),
   ]);
+  const attendedIds = await repos.attendance.membersWhoAttended(activeMembers.map((m) => m.id));
 
   // Filter for members with zero attendance
   const membersWithNoAttendance = activeMembers
-    ?.filter(m => !m.prickle_attendance || m.prickle_attendance.length === 0)
-    .map(m => ({
-      id: m.id,
-      name: m.name,
-      email: m.email,
-    })) || [];
+    .filter((m) => !attendedIds.has(m.id))
+    .map((m) => ({ id: m.id, name: m.name, email: m.email }));
 
   // Get unmatched Zoom attendees - those that don't match any member
   const { data: allZoomNames } = await supabase

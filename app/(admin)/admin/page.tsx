@@ -4,6 +4,7 @@ import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
+import { isAtRisk, summarizeAttendance } from "@/lib/attendance-summary";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -33,37 +34,16 @@ export default async function DashboardPage() {
   // accounts (source='staff', no paying Kajabi subscription) are also
   // excluded — staff who are ALSO paying members keep source='kajabi' and
   // stay eligible.
-  const { data: atRiskMembers } = await supabase
-    .from("members")
-    .select(`
-      id,
-      name,
-      email,
-      source,
-      prickle_attendance(join_time)
-    `)
-    .eq("status", "active");
+  const repos = createRepos(supabase);
+  const [activeRoster, allAttendance] = await Promise.all([repos.members.list({ status: "active" }), repos.attendance.list()]);
+  const summaries = summarizeAttendance(allAttendance);
+  const allAtRisk = activeRoster.filter((m) => isAtRisk(m, summaries.get(m.id), thirtyDaysAgo));
 
-  const isAtRisk = (m: { source: string; prickle_attendance?: { join_time: string }[] | null }) => {
-    if (m.source === "staff") {
-      return false;
-    }
-    // No attendance at all, or no recent attendance
-    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
-      return true;
-    }
-    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
-      new Date(a.join_time) >= thirtyDaysAgo
-    );
-    return !hasRecentAttendance;
-  };
-
-  const atRisk = atRiskMembers?.filter(isAtRisk).length || 0;
+  const atRisk = allAtRisk.length;
 
   // Top 10 most active members (all time)
   // Fetch all attendance records (just member_id) with pagination
-  const attendanceRepo = createRepos(supabase).attendance;
-  const allAttendance = await attendanceRepo.list();
+  const attendanceRepo = repos.attendance;
 
   // Count attendance per member
   const attendanceCounts = new Map<string, number>();
@@ -95,7 +75,7 @@ export default async function DashboardPage() {
     .filter((m): m is { id: string; name: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
-  const atRiskMembersList = atRiskMembers?.filter(isAtRisk).slice(0, 10) || [];
+  const atRiskMembersList = allAtRisk.slice(0, 10);
 
   // Writing Hours Last 30 Days - median per active member
   // One read for the longest window below (8 weeks); the 30-day and 7-day figures are slices of it.
