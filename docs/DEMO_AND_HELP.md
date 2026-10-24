@@ -5,7 +5,7 @@ One mechanism, two outputs: a fictional demo community seeded into a local stack
 1. **Newsletter / showcase** (short term): screenshots and short videos of what's being built, for the RayhausCapital newsletter.
 2. **Member help site** (longer term): app-specific help articles (how to join a prickle, check in, host, find a BFF) whose screenshots are regenerated from the same scenes, so they don't go stale as the UI changes.
 
-Status: the harness and one scene ("How to join a prickle") exist; the `/help` route and articles do not yet (`docs/TODO.md`, "Reproducible demo and help docs").
+Status: the harness, two scenes, the `/help` route and the first article ("How to join a prickle") exist (`docs/TODO.md`, "Reproducible demo and help docs").
 
 ## Layout (proposed)
 
@@ -23,7 +23,8 @@ Commands, run from the repo root:
 1. `pnpm demo:stack up`: a separate local Supabase stack (project `hub-demo`, ports shifted by 2000: API 56321, DB 56322, mail 56324), built from this branch's migrations with no `seed.sql`, so it always matches the schema and never touches the shared dev database. Its config is generated from `supabase/config.toml` (`demo/stack.ts`); URLs and the standard local keys go to the gitignored `demo/.env.demo`. `down` stops it, `reset` deletes its data.
 2. `pnpm demo:app`: the app on port 3100 against that stack.
 3. `pnpm demo:seed`: the fictional community (`demo/personas.ts`), then the app's own `/api/process/calendar`. Safe to run again.
-4. `pnpm demo:capture [--project=desktop-light]`: runs every scene in `demo/scenes/` across the matrix and writes `demo/out/<scene>/<project>/NN-step.png`. `DEMO_VIDEO=1` records video.
+4. `pnpm demo:publish [--prod]`: uploads the desktop light screenshots the articles use (see Decisions). `pnpm demo:stack migrate` applies migrations added since `up`.
+5. `pnpm demo:capture [--project=desktop-light]`: runs every scene in `demo/scenes/` across the matrix and writes `demo/out/<scene>/<project>/NN-step.png`. `DEMO_VIDEO=1` records video.
 
 Notes from the first run: the phone project is Chromium at the iPhone's size and user agent (WebKit isn't installed; add it for Safari-accurate checks); the browser's time zone and locale are pinned to the org's, because members see times in their own zone and the host's would leak in; the Next.js dev badge is hidden in screenshots.
 
@@ -81,7 +82,7 @@ Not everything happens in the browser. Notification scenes also render what memb
 
 - **Help site**: `/help/<topic-slug>` inside the app, gated by sign-in (the proxy checks first; the article pages themselves are built ahead of time and carry normal caching headers, because the content is the same for every member; anything per-member is `private` or `no-store`, and Vercel won't cache a response that varies on `Cookie`). Slugs are stable and named by topic (`join-a-prickle`), not by title, so a reworded title never changes a link; a renamed slug keeps a redirect. Contact is the `SUPPORT_EMAIL` address (`lib/config.ts`), not typed into the page. Not a `help.` or `support.` subdomain: gated content shares the app's session, and a subdomain would need DNS, a rewrite and a cross-subdomain cookie for no benefit. `support.` stays free for a ticketing tool later, and can alias `/help` meanwhile. No attempt to mimic a vendor's URL scheme.
 - **Public pages**: a small set for members who can't sign in (login trouble, how to reach support), with no member data. Any public page gets `noindex` and `robots.txt` rules for crawlers, which are requests, not enforcement. Which pages are public is still open.
-- **Screenshots**: published as build artifacts, not committed.
+- **Screenshots**: not committed. The desktop light captures are uploaded (`pnpm demo:publish`) to the private `help-images` Storage bucket, which has no policies; `/help/images/<scene>/<file>` checks sign-in and streams the file. Articles refer to them as `![alt](img:<scene>/<file>.png)`. Uploading to production writes to production storage, so `pnpm demo:publish --prod` is run by a person after reviewing `demo/out`. Dark and phone variants of article images are not published yet.
 - **CI**: not yet. Get the first slice and the matrix working locally, then decide.
 - **Slack mockups**: local renderer (evaluate `slack-blocks-to-jsx` first), no third-party service.
 - **Where the files live**: member-facing articles in a top-level `help/` directory (images next to them by scene name, or published artifacts), developer docs stay in `docs/`. The route that renders them is `app/(member)/help/`, which reads `help/<slug>.md` at build time (`generateStaticParams`, `react-markdown` and `remark-gfm`, both already dependencies). Because code reads `help/` at build time, it must not count as documentation in `scripts/docs-only.ts`: otherwise a PR that only edits an article skips the build and the deploy, and the change never reaches members. Take it out of the allowlist and update `tests/lib/docs-only.test.ts` in the PR that adds the route (`docs-only-changes.md`).

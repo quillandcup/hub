@@ -22,6 +22,7 @@
     "demo:stack": "tsx demo/stack.ts",
     "demo:app": "dotenv -e demo/.env.demo -- next dev -p 3100",
     "demo:seed": "tsx demo/seed.ts",
+    "demo:publish": "tsx demo/publish.ts",
     "demo:capture": "playwright test --config demo/playwright.config.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",

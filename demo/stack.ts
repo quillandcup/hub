@@ -4,6 +4,7 @@
  * and is always built from this branch's migrations.
  *
  *   pnpm demo:stack up     start it (applies every migration, no seed.sql) and write demo/.env.demo
+ *   pnpm demo:stack migrate apply migrations added since `up` (after pulling, or adding one)
  *   pnpm demo:stack down   stop it (data is kept in its Docker volumes)
  *   pnpm demo:stack reset  stop it and delete its data, so the next `up` starts from migrations
  *
@@ -72,6 +73,9 @@ function main(command: string | undefined) {
     prepare();
     execFileSync("supabase", ["start", "--workdir", workdir, ...EXCLUDED.flatMap((s) => ["-x", s])], { stdio: "inherit" });
     writeEnv();
+  } else if (command === "migrate") {
+    prepare();
+    execFileSync("supabase", ["migration", "up", "--local", "--workdir", workdir], { stdio: "inherit" });
   } else if (command === "down") {
     prepare();
     execFileSync("supabase", ["stop", "--workdir", workdir], { stdio: "inherit" });
@@ -80,7 +84,7 @@ function main(command: string | undefined) {
     execFileSync("supabase", ["stop", "--workdir", workdir, "--no-backup"], { stdio: "inherit" });
     rmSync(envFile, { force: true });
   } else {
-    console.error("Usage: pnpm demo:stack up|down|reset");
+    console.error("Usage: pnpm demo:stack up|migrate|down|reset");
     process.exit(1);
   }
 }
