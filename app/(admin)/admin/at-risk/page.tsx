@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
+import { isAtRisk, summarizeAttendance } from "@/lib/attendance-summary";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -24,50 +26,25 @@ export default async function AtRiskPage() {
   // Get all active members with their attendance. Leads, cancelled, and
   // on-hiatus members are excluded — a hiatus member isn't expected to
   // attend, so including them only inflates the at-risk count.
-  const { data: activeMembers } = await supabase
-    .from("members")
-    .select(`
-      id,
-      name,
-      email,
-      joined_at,
-      source,
-      prickle_attendance(join_time)
-    `)
-    .eq("status", "active")
-    .order("name");
+  const repos = createRepos(supabase);
+  const [activeMembers, attendance] = await Promise.all([
+    repos.members.list({ status: "active", orderBy: "name" }),
+    repos.attendance.list(),
+  ]);
+  const summaries = summarizeAttendance(attendance);
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Filter for at-risk members. Staff-only accounts (source='staff', no
-  // paying Kajabi subscription) are excluded — we're not worried about them
-  // churning. Staff who are ALSO paying members keep source='kajabi' (with
-  // staff_role set) and are still eligible.
-  const atRiskMembers = activeMembers?.filter(m => {
-    if (m.source === "staff") {
-      return false;
-    }
-    // No attendance at all, or no recent attendance
-    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
-      return true;
-    }
-    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
-      new Date(a.join_time) >= thirtyDaysAgo
-    );
-    return !hasRecentAttendance;
-  }) || [];
+  // Staff-only accounts are excluded; staff who also pay keep source='kajabi' and stay eligible.
+  const atRiskMembers = activeMembers.filter((m) => isAtRisk(m, summaries.get(m.id), thirtyDaysAgo));
 
-  // Calculate stats for each member
-  const membersWithStats = atRiskMembers.map(m => {
-    const totalAttendance = m.prickle_attendance?.length || 0;
-    const lastAttendance = m.prickle_attendance && m.prickle_attendance.length > 0
-      ? new Date(Math.max(...m.prickle_attendance.map((a: any) => new Date(a.join_time).getTime())))
-      : null;
-
+  const membersWithStats = atRiskMembers.map((m) => {
+    const summary = summaries.get(m.id);
+    const lastAttendance = summary?.lastJoin ?? null;
     return {
       ...m,
-      totalAttendance,
+      totalAttendance: summary?.count ?? 0,
       lastAttendance,
       daysSinceLastAttendance: lastAttendance
         ? Math.floor((clock.now() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
@@ -141,7 +118,7 @@ export default async function AtRiskPage() {
                         <div>
                           <span className="text-slate-500 dark:text-slate-400">Joined:</span>{" "}
                           <span className="font-semibold">
-                            {formatDateOnly(member.joined_at)}
+                            {formatDateOnly(member.joinedAt)}
                           </span>
                         </div>
                       </div>
