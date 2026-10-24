@@ -3,7 +3,7 @@
 A check-in is a few taps before and after a prickle, answered on the site (the check-in /
 check-out modal, Log Progress, Find a Prickle) or in the Slack DMs. Code: `lib/prickle-checkins.ts`
 (questions and keys), `lib/prickle-checkin-dms.ts` (Slack), `components/writing/CheckinFields.tsx`
-(inputs). Table: `prickle_checkins`, reshaped by migration `20261218000000`.
+(inputs). Table: `prickle_checkins`, reshaped by migration `20261220000000`.
 
 ## Start from the decisions
 
@@ -24,10 +24,12 @@ friction, and lower response rates make every other answer less useful.
    bad, Bad, Okay, Good, Very good) and *How's your energy?* (Very low, Low, Medium, High, Very
    high). Two labeled 5-point scales.
 2. **Name the feeling** *(optional)*: the Feeling Wheel (Willcox, 1982), all three rings. Pick a
-   core feeling, then optionally one of its twelve related feelings (its middle ring, then its
-   outer ring), or search for any word on the wheel (arrow keys and Enter work) and land on it
-   directly. In Slack it's one select grouped by core, so a member picks a core or any of its
-   feelings in one step; Slack's select filters as you type.
+   core feeling, then optionally one of its middle-ring words, each shown with the outer-ring word
+   beside it, or search for any word on the wheel (arrow keys and Enter work) and land on it
+   directly. Searching a common word that isn't on the wheel suggests the closest ones (see
+   "Suggestions for words not on the wheel"). In Slack it's one select grouped by core, so a member
+   picks a core or any of its feelings in one step; Slack's select filters as you type, on the
+   wheel words only.
 3. **Intention**: *What do you need most from this session?* (momentum, deep focus,
    accountability, company, unstuck).
 
@@ -178,6 +180,42 @@ seeking permission. What we found:
 - If we ever do want permission, the routes are Taylor & Francis permissions (the article's
   "Rights & Permissions" link on tandfonline.com) and the ITAA.
 - This is a reading of the situation, not legal advice.
+
+### Suggestions for words not on the wheel
+
+People often reach for words the wheel doesn't have. `EMOTION_SUGGESTIONS` in
+`lib/prickle-checkins.ts` maps common ones to their closest wheel words, best first, and the search
+shows them after any direct matches, labeled with why ("Frustrated · for “stuck” · Mad"):
+
+| Typed | Suggested |
+|---|---|
+| stuck | Frustrated, Discouraged, Helpless (Feelings Wheel 2.0 treats being stuck as frustration; it can also feel like discouragement or helplessness) |
+| hopeless | Discouraged, Helpless, Depressed |
+| stressed | Anxious, Helpless, Frustrated |
+| overwhelmed | Helpless, Anxious |
+| burned out / burnt out / burnout | Sleepy, Apathetic, Inadequate (the three dimensions of burnout in Maslach's model: exhaustion, detachment, reduced efficacy) |
+| motivated | Energetic, Hopeful |
+| calm | Serene, Relaxed |
+| tired | Sleepy |
+| meh / unmotivated | Apathetic, Bored |
+| happy | Cheerful, Delightful |
+
+### Carrying over the first design's check-ins
+
+Migration `20261220000000` converts the check-ins saved under the first design (16 rows, from five
+members, 4-23 October 2026) instead of discarding them:
+- **Intention:** unchanged.
+- **Feelings:** each list's first feeling becomes the wheel word, the same word when it's on the
+  wheel, else its first suggestion above (motivated → Energetic, calm → Serene, tired → Sleepy,
+  meh → Apathetic, stressed → Anxious, stuck → Frustrated; content, anxious, frustrated and lonely
+  are on the wheel). A second feeling, where there was one, is lost: there's one slot now.
+- **Rating:** the 1-5 "how did it go" (Rough .. Great) becomes "Did you get what you came for?"
+  (Not at all .. Completely). Different questions, but both 5-point session outcomes, and every
+  saved rating was a 4 or 5.
+- **Mood scales:** left empty. They're new questions, and estimating them would put invented values
+  into the before/after measurement. The carried-over rows count as partly answered.
+- The conversion runs with the table's triggers off, so members get no "updated check-in" activity
+  entries and `updated_at` keeps its value.
 
 ## Choosing the wheel
 
@@ -341,9 +379,9 @@ churn reasons come from. Track it separately from check-ins.
   else?" rather than editing the wheel.
 - Find a Prickle reuses the check-in's "coming in" questions and carries them to the prickle's
   check-in as a prefill (`prickleHref` / `parseCheckinPrefill`).
-- The check-ins collected before this reshape were discarded rather than mapped (they hadn't
-  been rolled out). Activity-log rows about them (`member_activities`, source
-  `prickle_checkins`) were kept.
+- Log what members search for in the feeling search and what they pick (anonymously: the word and
+  the pick, no member), especially searches with no match, to grow `EMOTION_SUGGESTIONS`. Needs
+  its own table, an admin view and a line on the privacy page; planned as a follow-up.
 
 ## References
 

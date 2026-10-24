@@ -92,6 +92,21 @@ describe("EmotionPicker", () => {
     expect(chip("More specifically, mad", "Frustrated")).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("suggests the closest wheel words for a word that isn't on the wheel, and says why", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+    await user.type(screen.getByRole("combobox", { name: /Search for a feeling/ }), "stuck");
+    const options = screen.getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Frustratedfor “stuck” · Mad",
+      "Discouragedfor “stuck” · Scared",
+      "Helplessfor “stuck” · Scared",
+    ]);
+    await user.click(options[0]);
+    expect(onChange).toHaveBeenLastCalledWith("frustrated");
+  });
+
   it("picks a search result from the keyboard", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

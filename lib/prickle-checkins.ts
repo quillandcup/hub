@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Prickle check-ins: how a member feels coming into a prickle and leaving it, what they came for,
  * and whether they got it. One row per (member, prickle) in prickle_checkins (migration
- * 20261003000000, reshaped by 20261218000000), readable by the member and admins, never hosts or
+ * 20261003000000, reshaped by 20261220000000), readable by the member and admins, never hosts or
  * other members. Clearing every answer soft-deletes the row (deleted_at), so every read filters
  * `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but
  * adding, removing or renaming a key needs a migration (the table's CHECKs list the same keys --
@@ -160,6 +160,85 @@ export function emotionLabel(emotion: Emotion): string {
 export function emotionParentsLabel(emotion: Emotion): string {
   return EMOTION_PATH[emotion].slice(0, -1).map(emotionLabel).join(" › ");
 }
+
+/**
+ * Common words that aren't on the wheel, each with its closest wheel words, best first. Searching
+ * one suggests those (EmotionPicker), and the retired check-in feelings were carried over to their
+ * first suggestion (migration 20261220000000). Grow it from what members search for.
+ * - stuck: being stuck is treated as frustration in Feelings Wheel 2.0; it can also feel like
+ *   discouragement or helplessness.
+ * - burned out: the three dimensions of burnout in Maslach's model, exhaustion, detachment
+ *   (cynicism) and reduced efficacy.
+ */
+export const EMOTION_SUGGESTIONS: Readonly<Record<string, readonly Emotion[]>> = {
+  stuck: ["frustrated", "discouraged", "helpless"],
+  hopeless: ["discouraged", "helpless", "depressed"],
+  stressed: ["anxious", "helpless", "frustrated"],
+  overwhelmed: ["helpless", "anxious"],
+  "burned out": ["sleepy", "apathetic", "inadequate"],
+  "burnt out": ["sleepy", "apathetic", "inadequate"],
+  burnout: ["sleepy", "apathetic", "inadequate"],
+  motivated: ["energetic", "hopeful"],
+  calm: ["serene", "relaxed"],
+  tired: ["sleepy"],
+  meh: ["apathetic", "bored"],
+  unmotivated: ["apathetic", "bored"],
+  happy: ["cheerful", "delightful"],
+};
+
+/** One search result: a wheel word, and the word it was suggested for when it didn't match itself. */
+export interface EmotionSearchResult {
+  emotion: Emotion;
+  suggestedFor?: string;
+}
+
+const SEARCH_LIMIT = 10;
+
+/**
+ * Search the wheel: words whose name (or core's name) contains the term first, then the
+ * suggestions for any common word the term matches (EMOTION_SUGGESTIONS), skipping repeats.
+ */
+export function searchEmotions(term: string): EmotionSearchResult[] {
+  const needle = term.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!needle) return [];
+  const results: EmotionSearchResult[] = EMOTION_KEYS.filter(
+    (e) => e.includes(needle) || EMOTION_CORE[e].includes(needle)
+  ).map((emotion) => ({ emotion }));
+  const seen = new Set(results.map((r) => r.emotion));
+  for (const [word, emotions] of Object.entries(EMOTION_SUGGESTIONS)) {
+    // "stu" and "feeling stuck" both reach "stuck"; a two-letter fragment doesn't.
+    const matches = (needle.length >= 3 && word.startsWith(needle)) || needle.includes(word);
+    if (!matches) continue;
+    for (const emotion of emotions) {
+      if (seen.has(emotion)) continue;
+      seen.add(emotion);
+      results.push({ emotion, suggestedFor: word });
+    }
+  }
+  return results.slice(0, SEARCH_LIMIT);
+}
+
+/**
+ * The feelings the first check-in design offered (migration 20261005000000), each with the wheel
+ * word it was carried over to: the same word when it's on the wheel, else its first suggestion.
+ */
+export const LEGACY_FEELINGS = [
+  "motivated",
+  "calm",
+  "content",
+  "tired",
+  "meh",
+  "stressed",
+  "anxious",
+  "overwhelmed",
+  "frustrated",
+  "stuck",
+  "lonely",
+] as const;
+
+export const LEGACY_FEELING_TO_EMOTION: Readonly<Record<(typeof LEGACY_FEELINGS)[number], Emotion>> = Object.fromEntries(
+  LEGACY_FEELINGS.map((f) => [f, (EMOTION_KEYS as readonly string[]).includes(f) ? (f as Emotion) : EMOTION_SUGGESTIONS[f][0]])
+) as Record<(typeof LEGACY_FEELINGS)[number], Emotion>;
 
 export const NEEDS = [
   { key: "momentum", label: "Momentum", hint: "Get words down" },

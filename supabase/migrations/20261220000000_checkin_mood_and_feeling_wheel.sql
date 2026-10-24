@@ -4,22 +4,25 @@
 --           named on the Feeling Wheel (emotion_before), and the intention (need, unchanged).
 --   after:  did they get what they came for (intention_met, 1-5), the same two mood scales
 --           (pleasant_after, energy_after) and optionally the feeling (emotion_after).
--- The hand-picked feelings lists and the 1-5 "how did it go" rating are dropped. Check-ins hadn't
--- been rolled out yet, so the existing rows are discarded rather than mapped onto the new
--- questions (nothing references prickle_checkins, so TRUNCATE needs no CASCADE).
+-- The hand-picked feelings lists and the 1-5 "how did it go" rating are dropped. Existing
+-- check-ins are carried over to the new questions:
+--   - need is unchanged;
+--   - each feelings list's first feeling becomes the wheel word: the same word when it's on the
+--     wheel, else its first suggestion (LEGACY_FEELING_TO_EMOTION in lib/prickle-checkins.ts;
+--     tests/lib/prickle-checkins.test.ts checks this file's mapping against it);
+--   - the 1-5 rating ("Rough" .. "Great") becomes intention_met ("Not at all" .. "Completely"), a
+--     stand-in: both are 5-point session outcomes;
+--   - the mood scales stay empty: they're new questions, and estimating them would put invented
+--     values into the before/after measurement.
+-- The conversion runs with the table's triggers off, so it neither logs "updated check-in"
+-- activities for members nor touches updated_at.
 -- The emotion key lists must match EMOTION_KEYS in lib/prickle-checkins.ts
 -- (tests/lib/prickle-checkins.test.ts checks this file against it).
 
-TRUNCATE public.prickle_checkins;
+ALTER TABLE public.prickle_checkins DISABLE TRIGGER USER;
 
 ALTER TABLE public.prickle_checkins
   DROP CONSTRAINT IF EXISTS prickle_checkins_check,
-  DROP CONSTRAINT IF EXISTS prickle_checkins_feelings_before_check,
-  DROP CONSTRAINT IF EXISTS prickle_checkins_feelings_after_check,
-  DROP CONSTRAINT IF EXISTS prickle_checkins_session_rating_check,
-  DROP COLUMN IF EXISTS feelings_before,
-  DROP COLUMN IF EXISTS feelings_after,
-  DROP COLUMN IF EXISTS session_rating,
   ADD COLUMN pleasant_before SMALLINT CONSTRAINT prickle_checkins_pleasant_before_check CHECK (pleasant_before BETWEEN 1 AND 5),
   ADD COLUMN energy_before SMALLINT CONSTRAINT prickle_checkins_energy_before_check CHECK (energy_before BETWEEN 1 AND 5),
   ADD COLUMN emotion_before TEXT,
@@ -27,6 +30,40 @@ ALTER TABLE public.prickle_checkins
   ADD COLUMN pleasant_after SMALLINT CONSTRAINT prickle_checkins_pleasant_after_check CHECK (pleasant_after BETWEEN 1 AND 5),
   ADD COLUMN energy_after SMALLINT CONSTRAINT prickle_checkins_energy_after_check CHECK (energy_after BETWEEN 1 AND 5),
   ADD COLUMN emotion_after TEXT;
+
+CREATE OR REPLACE FUNCTION pg_temp.legacy_feeling_to_emotion(feeling TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE feeling
+    WHEN 'motivated' THEN 'energetic'
+    WHEN 'calm' THEN 'serene'
+    WHEN 'content' THEN 'content'
+    WHEN 'tired' THEN 'sleepy'
+    WHEN 'meh' THEN 'apathetic'
+    WHEN 'stressed' THEN 'anxious'
+    WHEN 'anxious' THEN 'anxious'
+    WHEN 'overwhelmed' THEN 'helpless'
+    WHEN 'frustrated' THEN 'frustrated'
+    WHEN 'stuck' THEN 'frustrated'
+    WHEN 'lonely' THEN 'lonely'
+  END
+$$;
+
+UPDATE public.prickle_checkins
+SET emotion_before = pg_temp.legacy_feeling_to_emotion(feelings_before[1]),
+    emotion_after = pg_temp.legacy_feeling_to_emotion(feelings_after[1]),
+    intention_met = session_rating;
+
+-- A row left with no answer at all can't satisfy the new CHECK; none is expected.
+DELETE FROM public.prickle_checkins
+WHERE num_nonnulls(pleasant_before, energy_before, emotion_before, need,
+                   intention_met, pleasant_after, energy_after, emotion_after) = 0;
+
+ALTER TABLE public.prickle_checkins
+  DROP CONSTRAINT IF EXISTS prickle_checkins_feelings_before_check,
+  DROP CONSTRAINT IF EXISTS prickle_checkins_feelings_after_check,
+  DROP COLUMN feelings_before,
+  DROP COLUMN feelings_after,
+  DROP COLUMN session_rating;
 
 ALTER TABLE public.prickle_checkins
   ADD CONSTRAINT prickle_checkins_emotion_before_check CHECK (
@@ -141,3 +178,5 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+ALTER TABLE public.prickle_checkins ENABLE TRIGGER USER;

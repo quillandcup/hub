@@ -6,7 +6,10 @@ import {
   EMOTION_CORE,
   EMOTION_PATH,
   EMOTION_KEYS,
+  EMOTION_SUGGESTIONS,
   EMOTION_WHEEL,
+  LEGACY_FEELING_TO_EMOTION,
+  searchEmotions,
   EMPTY_CHECKIN,
   ENERGY,
   INTENTION_MET,
@@ -93,7 +96,7 @@ describe("the Feeling Wheel", () => {
   // rejected by Postgres or never offered in the UI.
   it("matches the keys allowed by the prickle_checkins migration", () => {
     const sql = fs.readFileSync(
-      path.join(__dirname, "../../supabase/migrations/20261218000000_checkin_mood_and_feeling_wheel.sql"),
+      path.join(__dirname, "../../supabase/migrations/20261220000000_checkin_mood_and_feeling_wheel.sql"),
       "utf8"
     );
     const lists = [...sql.matchAll(/emotion_(?:before|after) IN \(([^)]+)\)/g)].map((m) =>
@@ -110,6 +113,65 @@ describe("the Feeling Wheel", () => {
     );
     const needs = sql.match(/need IN \(([^)]+)\)/);
     expect([...needs![1].matchAll(/'([a-z_]+)'/g)].map((k) => k[1])).toEqual([...NEED_KEYS]);
+  });
+});
+
+describe("searchEmotions", () => {
+  it("finds wheel words, and every word under a core by the core's name", () => {
+    expect(searchEmotions("frus")).toEqual([{ emotion: "frustrated" }]);
+    expect(searchEmotions("peaceful").map((r) => r.emotion)).toContain("serene");
+    expect(searchEmotions("  ")).toEqual([]);
+  });
+
+  it("suggests the closest wheel words for common words that aren't on the wheel, saying why", () => {
+    expect(searchEmotions("stuck")).toEqual([
+      { emotion: "frustrated", suggestedFor: "stuck" },
+      { emotion: "discouraged", suggestedFor: "stuck" },
+      { emotion: "helpless", suggestedFor: "stuck" },
+    ]);
+    expect(searchEmotions("Burned  Out").map((r) => r.emotion)).toEqual(["sleepy", "apathetic", "inadequate"]);
+    // A partial word reaches the suggestion once it's three letters; a phrase containing it does too.
+    expect(searchEmotions("stre").map((r) => r.suggestedFor)).toContain("stressed");
+    expect(searchEmotions("feeling stuck today").map((r) => r.emotion)).toContain("frustrated");
+  });
+
+  it("puts wheel matches first and doesn't repeat a word a suggestion also reaches", () => {
+    const results = searchEmotions("calm");
+    expect(new Set(results.map((r) => r.emotion)).size).toBe(results.length);
+    expect(results[0]).toEqual({ emotion: "serene", suggestedFor: "calm" });
+  });
+
+  it("only suggests words on the wheel", () => {
+    for (const emotions of Object.values(EMOTION_SUGGESTIONS)) {
+      for (const e of emotions) expect(EMOTION_KEYS).toContain(e);
+    }
+  });
+});
+
+describe("carrying over the first design's feelings", () => {
+  it("maps each to the same wheel word, or its first suggestion", () => {
+    expect(LEGACY_FEELING_TO_EMOTION).toEqual({
+      motivated: "energetic",
+      calm: "serene",
+      content: "content",
+      tired: "sleepy",
+      meh: "apathetic",
+      stressed: "anxious",
+      anxious: "anxious",
+      overwhelmed: "helpless",
+      frustrated: "frustrated",
+      stuck: "frustrated",
+      lonely: "lonely",
+    });
+  });
+
+  it("matches the mapping in the migration", () => {
+    const sql = fs.readFileSync(
+      path.join(__dirname, "../../supabase/migrations/20261220000000_checkin_mood_and_feeling_wheel.sql"),
+      "utf8"
+    );
+    const pairs = Object.fromEntries([...sql.matchAll(/WHEN '([a-z]+)' THEN '([a-z]+)'/g)].map((m) => [m[1], m[2]]));
+    expect(pairs).toEqual(LEGACY_FEELING_TO_EMOTION);
   });
 });
 

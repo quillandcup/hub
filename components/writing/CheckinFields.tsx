@@ -3,7 +3,6 @@
 import { Fragment, useId } from "react";
 import EntitySearch from "@/components/EntitySearch";
 import {
-  EMOTION_KEYS,
   EMOTION_PATH,
   EMOTION_QUESTION,
   EMOTION_WHEEL,
@@ -18,6 +17,7 @@ import {
   emotionLabel,
   corePairs,
   emotionParentsLabel,
+  searchEmotions,
   type CheckinInput,
   type Emotion,
   type Need,
@@ -109,7 +109,14 @@ export function MoodPicker({
   );
 }
 
-const EMOTION_SEARCH_ITEMS = EMOTION_KEYS.map((e) => ({ id: e, name: emotionLabel(e), detail: emotionParentsLabel(e) || null }));
+/** Search results for the feeling search: wheel words first, then suggestions, each saying why it's there. */
+function matchEmotions(term: string) {
+  return searchEmotions(term).map(({ emotion, suggestedFor }) => {
+    const core = emotionParentsLabel(emotion);
+    const detail = suggestedFor ? [`for “${suggestedFor}”`, core].filter(Boolean).join(" · ") : core || null;
+    return { id: emotion, name: emotionLabel(emotion), detail };
+  });
+}
 
 /** A row of chips to pick one from (the core feelings). */
 function EmotionRing({
@@ -174,7 +181,7 @@ export function EmotionPicker({
       </legend>
       {!readOnly && (
         <EntitySearch
-          items={EMOTION_SEARCH_ITEMS}
+          match={matchEmotions}
           selectedId={null}
           onSelect={(item) => item && onChange(item.id as Emotion)}
           placeholder="Search for a feeling, e.g. frustrated"

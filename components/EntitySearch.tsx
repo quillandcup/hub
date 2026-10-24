@@ -16,6 +16,8 @@ export type RemoteSearch = (term: string, signal: AbortSignal) => Promise<Search
 interface EntitySearchProps {
   /** The whole list, filtered in the browser. Give this or `search`. */
   items?: SearchItem[];
+  /** Custom matching for `items` (e.g. suggestions for words not in the list); defaults to name or detail containing the term. */
+  match?: (term: string) => SearchItem[];
   /** Server-side search, called (debounced) as the user types. Give this or `items`. */
   search?: RemoteSearch;
   /** Wait this long after the last keystroke before calling `search`. */
@@ -158,6 +160,7 @@ function useRemoteResults(search: RemoteSearch | undefined, term: string, deboun
  */
 export default function EntitySearch({
   items,
+  match,
   search,
   debounceMs = 250,
   selectedId,
@@ -179,12 +182,13 @@ export default function EntitySearch({
   const displayName = selected?.name || selectedName;
 
   const needle = term.toLowerCase();
-  const localMatches =
-    items && term
-      ? items
+  const localMatches = !term
+    ? []
+    : match
+      ? match(term).slice(0, LOCAL_MATCH_LIMIT)
+      : (items ?? [])
           .filter((i) => i.name.toLowerCase().includes(needle) || i.detail?.toLowerCase().includes(needle))
-          .slice(0, LOCAL_MATCH_LIMIT)
-      : [];
+          .slice(0, LOCAL_MATCH_LIMIT);
 
   const remote = useRemoteResults(search, term, debounceMs);
   const matches = search ? remote.results : localMatches;
