@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import CalendarWeekView, { type Prickle } from "@/components/CalendarWeekView";
 import CalendarScrollContainer from "@/components/CalendarScrollContainer";
+import { clock } from "@/lib/clock";
 import { sundayOnOrBefore } from "@/lib/org-week";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
 
@@ -77,9 +78,9 @@ export default function AllPricklesCalendar({
       }
     : undefined;
 
-  const maxWeekStart = startOfWeek(new Date(Date.now() + upcomingWindowDays * 86_400_000), timeZone);
+  const maxWeekStart = startOfWeek(new Date(clock.now() + upcomingWindowDays * 86_400_000), timeZone);
   // First full week inside the lookback window -- the week the cutoff falls in would be half empty.
-  const minWeekStart = addDays(startOfWeek(new Date(Date.now() - lookbackDays * 86_400_000), timeZone), 7);
+  const minWeekStart = addDays(startOfWeek(new Date(clock.now() - lookbackDays * 86_400_000), timeZone), 7);
   const isPrevDisabled = weekStart <= minWeekStart;
   const isNextDisabled = weekStart >= maxWeekStart;
 
