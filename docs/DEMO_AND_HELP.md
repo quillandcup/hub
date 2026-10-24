@@ -70,13 +70,30 @@ A stale article and a broken flow are then the same failure.
 
 **Fidelity of the demo users.** The service role only creates the accounts and rows. The browser then signs in as each demo user through the real auth flow, so every page query runs as that user under RLS, and `requireAdminPage` and the sudo rules apply as they do in production. The service role key never reaches the browser. Demo users are created in the states real people are in (trial member, active, on hiatus, cancelled, big sister, host, admin, signed-in non-member), with `user_profiles`, `members` and membership history written the way the app's own sign-up and processing write them. A scene signs in as the persona the article is about, and a permissions scene checks that a member can't reach `/admin` (`/no-access`) and sees only their own data.
 
+## Page checks (every scene, every size, light and dark)
+
+Each `shot()` also checks the page it just captured (`demo/checks.ts`), so a scene is an accessibility, overflow and console test at all eight size and theme combinations without extra code:
+
+- **a11y and contrast**: axe at WCAG 2.0/2.1 A and AA. Colour contrast is the check that catches a missing dark-mode colour: it runs against the real theme of each run.
+- **overflow**: the page scrolls sideways, or an element sticks out past the screen edge (outside a container that is meant to scroll).
+- **edge**: a dialog, menu, listbox, tooltip or popover is cut off by the screen, is taller than it with no scrolling of its own, or sits within 8 px of a side without being a full-width sheet. This is what catches a modal clipped on a phone.
+- **console**: an error logged, or an uncaught exception.
+
+`demo/selftest/checks.spec.ts` builds small pages that each trip one check (and a clean one that trips none), so a detector that quietly stopped working can't pass for an app with no problems.
+
+**A ratchet, not a wall.** The app has existing findings, so `demo/baseline.json` lists today's (per size and theme, per step) and a run fails only on a **new** one, with the rule, the element and the numbers. Identities leave out row positions, so a list that is one longer today doesn't count as new. After fixing something, `DEMO_CHECKS=report pnpm demo:capture --grep-invert @published && pnpm demo:baseline` shrinks the file; a new finding that is deliberate is added the same way, in a reviewed diff. `DEMO_CHECKS=report` writes the findings without failing and `off` skips the checks.
+
 ## Integration mockups
 
-Not everything happens in the browser. Notification scenes also render what members get elsewhere, from the real message builders (`createNotifier`, `sampleMessages` in `lib/notification-test.ts`) with fictional data:
+Not everything happens in the browser. `demo/scenes/notification-mockups.spec.ts` draws what members receive when the Hub reaches out, for every notification kind (so a new kind appears in it by itself), from the real message code with the demo community's data:
 
-- **Slack**: a local renderer, no third-party service. It takes the same Block Kit JSON the notifier sends and draws it in a Slack-style frame (avatar, app name, timestamp), built as a small component set in the app's own stack and screenshotted by Playwright. Scope it to the block types our messages use today (header, section, context, divider, actions with buttons) and reuse `lib/chat/render.ts` for mrkdwn (`*bold*`, links, `<@U…>` mentions, `&amp;` escapes), which already exists for the chat mirror. Before writing one, evaluate `slack-blocks-to-jsx` (React components that render Block Kit with Slack-like styling and a dark mode; check its license, maintenance, block coverage and fidelity against our messages) and use it inside the frame if it holds up; the other npm packages (`jsx-slack`, `slackblock`, `slack-block-builder`) build Block Kit JSON and don't render it. Either way it will not be pixel-identical to Slack, so keep it honest: a test fails when a message uses a block type the renderer doesn't know, and the first time, compare a mockup with a real screenshot of the same message sent from Admin → Test Notifications. Block Kit Builder stays an optional manual check, with fictional content only, since pasting a message there sends it to Slack.
-- **Email**: the React Email templates in `emails/notifications/`, or the message in Mailpit on the local stack.
-- **Browser push and in-app**: the in-app banner and bell are plain pages; push needs a mock frame.
+- **Slack**: the blocks as the Slack channel assembles them (`slackBlocks()`, including footer links), rendered locally by [slack-blocks-to-jsx](https://github.com/themashcodee/slack-blocks-to-jsx) (MIT; every block type our messages use, with a light and a dark theme) in a direct-message frame with the bot's name and colour read from `slack-app-manifest.yml`. No third-party service: Block Kit Builder would mean sending the message to Slack.
+- **Email**: the React Email template as `renderNotificationEmail()` makes it, with the unsubscribe link a real send adds, inside an email client frame with the real sender.
+- **Browser push** (web push): the payload `pushPayload()` builds, on a laptop, an Android phone and an iPhone. Web push reaches desktop Chrome, Edge, Firefox and Safari and Android Chrome; on iPhone only once the Hub is added to the Home Screen (iOS 16.4 and later), which the iPhone frame says.
+- **In-app**: the bell and banner are part of the app itself, so the other scenes already show it.
+
+Messages come from `sampleMessages(supabase, kind, now, { test: false })` (`lib/notification-test.ts`), the admin test send's builder without its "[Test]" marking. Only the frames are drawn (`demo/mockups/frames.tsx`): the content is the app's, the surroundings plausible rather than pixel-identical to each client. The page checks are off for these pages, since they aren't the app's own. They are captured at every size and theme like any scene.
+
 
 ## Decisions
 

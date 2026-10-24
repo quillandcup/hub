@@ -23,6 +23,7 @@
     "demo:app": "dotenv -e demo/.env.demo -- next dev -p 3100",
     "demo:serve": "dotenv -e demo/.env.demo -- next start -p 3100",
     "demo:seed": "tsx demo/seed.ts",
+    "demo:baseline": "tsx demo/baseline.ts",
     "demo:publish": "tsx demo/publish.ts",
     "demo:capture": "playwright test --config demo/playwright.config.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
@@ -87,6 +88,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@slack/types": "^2.22.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -111,6 +113,7 @@
     "msw": "^2.15.0",
     "playwright": "^1.64.1",
     "postcss": "^8.5.31",
+    "slack-blocks-to-jsx": "^1.2.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",
     "typescript": "^5",
