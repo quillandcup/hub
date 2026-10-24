@@ -762,6 +762,8 @@ The ⋮ in a message's hover bar (`components/chat/MessageActions.tsx`) has only
 
 **Still open:** true virtualisation if a workspace passes tens of thousands of custom emoji; toned emoji inside message text (`:name::skin-tone-N:` still renders untoned); recents live in localStorage per browser, not per member.
 
+**Still open (small UX):** the picker shows "Loading…" instead of its Frequently used row until the big emoji data (`emojibase-data`, a dynamic `import()` in `loadCatalog`) arrives, although recents are just shortcodes and need no catalog to render. Draw the recents (and the custom emoji) right away and load the catalog only for browse and search. Found while fixing a `MessageList` test that raced that import (PR #372). Start at `components/chat/EmojiPicker.tsx` (`catalog` state, the `!catalog` branch near the bottom); a component test can assert the recents render before the catalog resolves.
+
 ### Chat Reply Count Isn't Decremented When A Reply Is Deleted _(Mostly resolved)_
 **Resolved:** `reply_count` and `last_reply_at` already exclude deleted replies in every path (`chat_delete_message`, the reprocess window and the single-message projection in `20261204000000_chat_author_follows_matching.sql`); prod check: 763 thread roots, none mismatched, so no backfill. A deleted root that still has live replies now stays in the feed as "This message was deleted." with its replies link (and heads the thread panel the same way), so the thread is reachable; a deleted message without replies is not shown (`buildMessageViews`, `MessageItem`).
 
