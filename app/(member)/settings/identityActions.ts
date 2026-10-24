@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -62,6 +63,14 @@ async function requireIdentity(): Promise<IdentityContext> {
 
   return { supabase, effectiveIdentity };
 }
+
+/** What name_alias_conflict (migration 20261223000000) can answer, in words for the member. */
+const NAME_ALIAS_CONFLICT_MESSAGES = {
+  own: "That name is already on your list.",
+  own_inactive: "That name is already on your list, switched off. Turn it back on there instead.",
+  other_alias: `Another member already uses that name in Zoom or Slack, so it can't be added here. If it's really yours, email ${SUPPORT_EMAIL}.`,
+  other_name: `That's another member's name, so it can't be added as yours. If it's really what Zoom shows for you, email ${SUPPORT_EMAIL}.`,
+} as const;
 
 function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
   return error?.code === "23505";
@@ -263,6 +272,14 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   if (!trimmed) return { error: "Enter a name first" };
   if (trimmed.length > 200) return { error: "That name is too long" };
 
+  // Members can't read each other's names, so the check runs as the service role, scoped to this one name.
+  const { data: conflict, error: conflictError } = await createServiceRoleClient().rpc("name_alias_conflict", {
+    p_member_id: effectiveIdentity.memberId,
+    p_alias: trimmed,
+  });
+  if (conflictError) return { error: conflictError.message };
+  if (conflict) return { error: NAME_ALIAS_CONFLICT_MESSAGES[conflict as keyof typeof NAME_ALIAS_CONFLICT_MESSAGES] ?? NAME_ALIAS_CONFLICT_MESSAGES.other_alias };
+
   const { error } = await supabase.from("member_name_aliases").insert({
     member_id: effectiveIdentity.memberId,
     alias: trimmed,
@@ -270,11 +287,8 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   });
 
   if (error) {
-    if (isUniqueViolation(error)) {
-      return {
-        error: "That name is already registered as an alias for someone — ask an admin for help if it's actually yours.",
-      };
-    }
+    // Two members adding the same text at once: the check above passed for both.
+    if (isUniqueViolation(error)) return { error: NAME_ALIAS_CONFLICT_MESSAGES.other_alias };
     return { error: error.message };
   }
 
