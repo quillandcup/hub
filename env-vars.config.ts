@@ -84,9 +84,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "NEXT_PUBLIC_SUPABASE_URL",
     group: "Supabase",
-    description: "Supabase project URL. Public by design.",
+    description:
+      "Supabase project URL. Public by design. Also a GitHub variable: the main pipeline's publish job uploads the help screenshots to this project (see docs/DEMO_AND_HELP.md).",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
     name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -99,9 +100,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SUPABASE_SERVICE_ROLE_KEY",
     group: "Supabase",
-    description: "Bypasses RLS. Server-only.",
+    description:
+      "Bypasses RLS. Server-only. Also a GitHub secret: the main pipeline's publish job uses it to upload the help screenshots to production storage (a prefix per build; nothing is overwritten).",
     type: "secret",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
 
   // --- Zoom ----------------------------------------------------------------------------------

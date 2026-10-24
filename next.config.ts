@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
+import { helpImagesVersion } from "./scripts/help-images-version";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
@@ -24,6 +25,9 @@ import appConfig from "./app.config";
 const isPreview = process.env.VERCEL_ENV === "preview";
 
 const nextConfig: NextConfig = {
+  // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
+  // Derived from git at build time, not configuration: "local" outside CI.
+  env: { HELP_IMAGES_VERSION: helpImagesVersion() },
   outputFileTracingRoot: path.join(__dirname),
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   typescript: {

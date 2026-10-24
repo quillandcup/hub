@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { publishPlan, referencedImages } from "@/demo/publish";
+import { missingImages, publishPlan, referencedImages, setsToPrune } from "@/demo/publish";
 
 describe("publishPlan", () => {
   let out: string;
@@ -45,5 +45,49 @@ describe("publishPlan", () => {
 
   it("plans nothing before any capture exists", () => {
     expect(publishPlan(path.join(out, "missing"))).toEqual([]);
+  });
+});
+
+describe("missingImages", () => {
+  const plan = [
+    { local: "a", remote: "scene/01-a.png" },
+    { local: "b", remote: "scene/02-b.png" },
+  ];
+
+  it("lists what an article shows that no scene captured, sorted", () => {
+    expect(missingImages(plan, new Set(["scene/02-b.png", "scene/09-gone.png", "other/01-x.png"]))).toEqual(["other/01-x.png", "scene/09-gone.png"]);
+  });
+
+  it("is empty when every wanted screenshot was captured, even if more were", () => {
+    expect(missingImages(plan, new Set(["scene/01-a.png"]))).toEqual([]);
+  });
+
+  it("holds for the real articles against the real scenes' steps once captured", () => {
+    // With nothing captured, every referenced screenshot is reported (the CI check fails loudly, not silently).
+    expect(missingImages([], referencedImages()).length).toBe(referencedImages().size);
+  });
+});
+
+describe("setsToPrune", () => {
+  const sets = [
+    { name: "aaa", newest: 100 },
+    { name: "bbb", newest: 500 },
+    { name: "ccc", newest: 300 },
+    { name: "ddd", newest: 200 },
+    { name: "eee", newest: 400 },
+  ];
+
+  it("keeps the newest N and deletes the rest", () => {
+    expect(setsToPrune(sets, 3, "bbb").sort()).toEqual(["aaa", "ddd"]);
+  });
+
+  it("never deletes the set the build is paired with, even when it is old", () => {
+    expect(setsToPrune(sets, 2, "aaa").sort()).toEqual(["ccc", "ddd"]);
+  });
+
+  it("keeps at least one set, and deletes nothing when there are fewer sets than the limit", () => {
+    expect(setsToPrune(sets, 0, "bbb").sort()).toEqual(["aaa", "ccc", "ddd", "eee"]);
+    expect(setsToPrune(sets, 10, "bbb")).toEqual([]);
+    expect(setsToPrune([], 5, "x")).toEqual([]);
   });
 });
