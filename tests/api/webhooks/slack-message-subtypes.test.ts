@@ -10,7 +10,7 @@ import { POST } from '@/app/api/webhooks/slack/route'
  *  - edits/deletes (`message_changed`/`message_deleted`, which carry no
  *    `user`) failed slack_messages.user_id NOT NULL and were lost,
  *  - bot/app posts (bot_id, no user) failed the same way,
- *  - joins/leaves were stored although the import skips them.
+ *  - joins/leaves were stored although the import skips them (they are kept now, as system lines).
  */
 // after() callbacks run in the background in production. Track them so send() can wait for them:
 // a late one would otherwise land in the next test, after its vi.clearAllMocks().
@@ -190,7 +190,7 @@ describe('Slack webhook: message subtypes', () => {
     expect((await rows()).map((r) => r.message_type)).toEqual(['file_share', 'thread_broadcast'])
   })
 
-  it.each(['channel_name', 'channel_topic', 'channel_purpose', 'channel_archive', 'channel_unarchive'])(
+  it.each(['channel_name', 'channel_topic', 'channel_purpose', 'channel_archive', 'channel_unarchive', 'channel_join', 'channel_leave'])(
     'stores the %s notice Slack posts itself, so the chat can show it',
     async (subtype) => {
       await send({ type: 'message', subtype, ts: `${nowSec - 30}.000001`, user: 'UAUTHOR', text: 'changed the channel' })
@@ -198,13 +198,13 @@ describe('Slack webhook: message subtypes', () => {
     }
   )
 
-  it.each(['channel_join', 'channel_leave', 'bot_message'])('skips %s, which the import skips too', async (subtype) => {
-    await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'has joined the channel' })
+  it.each(['bot_message'])('skips %s, which the import skips too', async (subtype) => {
+    await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'something' })
     expect(await rows()).toEqual([])
     expect(triggerReprocessing).not.toHaveBeenCalled()
   })
 
-  it('records a join or leave notice as membership history instead of a message', async () => {
+  it('shows a join or leave notice as a message and also records it as membership history', async () => {
     const events = () =>
       supabase
         .schema('bronze')
@@ -214,7 +214,7 @@ describe('Slack webhook: message subtypes', () => {
         .order('occurred_at')
     const joinTs = `${nowSec - 40}.000001`
     const leaveTs = `${nowSec - 20}.000001`
-    // The skip tests above send notices too, which are recorded as history.
+    // The tests above send notices too, which are recorded as history.
     await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     try {
       await send({ type: 'message', subtype: 'channel_join', ts: joinTs, user: 'UAUTHOR', inviter: 'UINVITER', text: 'has joined the channel' })
@@ -225,7 +225,10 @@ describe('Slack webhook: message subtypes', () => {
         { user_id: 'UAUTHOR', event: 'joined', source: 'history_notice', inviter_user_id: 'UINVITER', slack_ts: joinTs },
         { user_id: 'UAUTHOR', event: 'left', source: 'history_notice', inviter_user_id: null, slack_ts: leaveTs },
       ])
-      expect(await rows()).toEqual([])
+      expect(await rows()).toMatchObject([
+        { message_type: 'channel_join', user_id: 'UAUTHOR', text: '<@UAUTHOR> was added to the channel by <@UINVITER>' },
+        { message_type: 'channel_leave', user_id: 'UAUTHOR', text: 'has left the channel' },
+      ])
     } finally {
       await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     }

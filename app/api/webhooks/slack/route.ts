@@ -7,7 +7,7 @@ import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
 import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
-import { isKeptSlackMessage, isSlackSystemMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { isKeptSlackMessage, isSlackSystemMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
   applySlackMembershipEvent,
@@ -149,11 +149,7 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "message" && event.subtype === "message_deleted") {
       await applyMessageDelete(supabase, event);
     } else if (eventType === "message" && !isKeptSlackMessage(event)) {
-      // Topic changes etc. aren't messages: the import skips these too. A
-      // "joined the channel" / "left the channel" notice isn't a message
-      // either, but it is membership history, so it's recorded as that.
-      const notice = slackMemberNoticeEvent(event, event.channel);
-      if (notice) await recordSlackMemberEvents(supabase, [notice]);
+      // Notices the chat doesn't show aren't messages: the import skips these too.
       return;
     } else if (eventType === "message") {
       // UPSERT message to Bronze layer
@@ -162,7 +158,7 @@ async function processSlackEvent(event: any) {
           channel_id: event.channel,
           message_ts: event.ts,
           user_id: slackMessageUserId(event),
-          text: event.text,
+          text: slackMessageText(event),
           message_type: event.subtype || "message",
           thread_ts: event.thread_ts || null,
           occurred_at: slackTsToIso(event.ts),
@@ -180,6 +176,11 @@ async function processSlackEvent(event: any) {
       }
 
       console.log("Slack message upserted:", event.ts);
+
+      // A "joined the channel" / "left the channel" notice is shown as a line in the chat, and is also
+      // membership history, so it's recorded as that too.
+      const notice = slackMemberNoticeEvent(event, event.channel);
+      if (notice) await recordSlackMemberEvents(supabase, [notice]);
 
       // Wheel of Wonder: track messages toward a "confirmed connection"
       // (never counting the bot's own message — Slack message events carry

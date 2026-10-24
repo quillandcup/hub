@@ -196,8 +196,8 @@ describe("fillMessageGap", () => {
     expect(finished(service)).toMatchObject({ error: "message_not_found" });
   });
 
-  it("stores nothing for a message that isn't a message (a join notice)", async () => {
-    const slack = slackStub({ get: slackMessage("100.1", { subtype: "channel_join" }) });
+  it("stores nothing for a message that isn't a message (a pin notice)", async () => {
+    const slack = slackStub({ get: slackMessage("100.1", { subtype: "pinned_item" }) });
     const service = fakeService(answer);
     await expect(fillMessageGap(service, { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toEqual({ claimed: true, messages: 0, reactions: 0, seen: 0 });
     expect(upserted(service, "slack_messages")).toBeUndefined();
