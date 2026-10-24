@@ -38,7 +38,7 @@ const OUTCOME_STYLE: Record<MentorshipOutcome, string> = {
   converted: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   in_trial: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   not_converted: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
-  no_trial: "bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+  no_trial: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
 function getSortValue(row: MentorshipRow, column: SortColumn): SortValue {
@@ -56,7 +56,7 @@ function getSortValue(row: MentorshipRow, column: SortColumn): SortValue {
 
 const SUGGESTED_VOLUNTEERS = 6;
 
-const TH = "px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+const TH = "px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider";
 const INPUT =
   "w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm";
 
@@ -150,7 +150,7 @@ export default function MatchesPanel({
         <div className="@container">
           <div className="grid grid-cols-1 @cards:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">New member</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">New member</label>
             <MemberSearch
               members={members}
               selectedMemberId={newMember?.id ?? null}
@@ -160,7 +160,7 @@ export default function MatchesPanel({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Big sister</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Big sister</label>
             <MemberSearch
               members={members}
               selectedMemberId={mentor?.id ?? null}
@@ -173,7 +173,7 @@ export default function MatchesPanel({
         </div>
         {waiting.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
               Waiting for a big sister, longest first
             </p>
             <div className="flex flex-wrap gap-2">
@@ -189,7 +189,7 @@ export default function MatchesPanel({
                   }`}
                 >
                   <span className="font-medium text-slate-900 dark:text-slate-100">{a.memberName}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  <span className="block text-xs text-slate-600 dark:text-slate-400">
                     {a.kind === "program" && a.programName ? a.programName : KIND_LABEL[a.kind]} · {formatDay(a.arrivedOn)}
                   </span>
                 </button>
@@ -199,7 +199,7 @@ export default function MatchesPanel({
         )}
         {volunteers.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
               Volunteers, best fit first
             </p>
             <div className="flex flex-wrap gap-2">
@@ -216,7 +216,7 @@ export default function MatchesPanel({
                   }`}
                 >
                   <span className="font-medium text-slate-900 dark:text-slate-100">{v.name}</span>
-                  <span className="block text-xs text-slate-500 dark:text-slate-400">
+                  <span className="block text-xs text-slate-600 dark:text-slate-400">
                     {v.openLoad === 0 ? "free now" : `${v.openLoad} new member${v.openLoad === 1 ? "" : "s"} now`}
                     {" · "}
                     {v.lastStartedOn ? `last matched ${formatDay(v.lastStartedOn)}` : "never matched"}
@@ -264,7 +264,7 @@ export default function MatchesPanel({
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No matches yet.
                   </td>
                 </tr>
@@ -281,7 +281,7 @@ export default function MatchesPanel({
                     >
                       {row.newMemberName}
                     </Link>
-                    <div className="text-xs font-normal text-slate-400 dark:text-slate-500">{KIND_LABEL[row.kind]}</div>
+                    <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{KIND_LABEL[row.kind]}</div>
                   </td>
                   <td className="px-6 py-3 text-sm">
                     <Link
@@ -294,14 +294,14 @@ export default function MatchesPanel({
                   <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                     {formatDay(row.startedOn)}
                     {row.trialEndsOn && (
-                      <div className="text-xs text-slate-400 dark:text-slate-500">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
                         trial ends {formatDay(row.trialEndsOn)}
                       </div>
                     )}
                   </td>
                   <td className="px-6 py-3 text-sm">
                     {row.status === "reassigned" ? (
-                      <span className="text-xs text-slate-500 dark:text-slate-400">Reassigned</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">Reassigned</span>
                     ) : (
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLE[row.outcome]}`}
@@ -334,7 +334,7 @@ export default function MatchesPanel({
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="text-xs text-slate-500 hover:underline"
+                          className="text-xs text-slate-600 dark:text-slate-400 hover:underline"
                         >
                           Cancel
                         </button>
@@ -349,7 +349,7 @@ export default function MatchesPanel({
                         className="text-left hover:underline"
                         title="Edit note"
                       >
-                        {row.outcomeNote || <span className="text-slate-400 dark:text-slate-500">Add note</span>}
+                        {row.outcomeNote || <span className="text-slate-500 dark:text-slate-400">Add note</span>}
                       </button>
                     )}
                   </td>

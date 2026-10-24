@@ -91,7 +91,7 @@ export default async function AliasListPage() {
       {/* Alias List */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow border border-slate-200 dark:border-slate-800 overflow-hidden">
         {memberAliases.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">
             No aliases configured yet.{" "}
             <Link href="/admin/hygiene/unmatched-zoom" className="text-plum-600 dark:text-plum-400 hover:underline">
               Add your first alias

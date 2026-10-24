@@ -48,7 +48,7 @@ export default function MemberDirectory({
       </div>
 
       {results.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           No one matches &ldquo;{query}&rdquo;.{" "}
           <button type="button" onClick={() => search("")} data-track="directory-clear-search" className="underline">
             Clear search
@@ -73,11 +73,11 @@ export default function MemberDirectory({
                     {entry.displayName}
                   </Link>
                   {entry.id === viewerMemberId && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(you)</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(you)</span>
                   )}
                   {entry.myNote && (
                     <span
-                      className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0"
+                      className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0"
                       title="You have a private note about this member"
                       aria-label="You have a private note about this member"
                     >
@@ -88,18 +88,18 @@ export default function MemberDirectory({
 
                 {entry.projects.length > 0 && (
                   <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-                    <span className="text-slate-400 dark:text-slate-500">Working on </span>
+                    <span className="text-slate-500 dark:text-slate-400">Working on </span>
                     {entry.projects.join(", ")}
                   </p>
                 )}
 
                 {entry.bio && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{entry.bio}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{entry.bio}</p>
                 )}
 
                 {entry.topics.length > 0 && (
                   <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <span className="text-xs text-slate-400 dark:text-slate-500 mr-0.5">Ask me about</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 mr-0.5">Ask me about</span>
                     {entry.topics.map((topic) => (
                       <button
                         key={topic}

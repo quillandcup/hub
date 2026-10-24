@@ -13,7 +13,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) {
-    return <span className="text-slate-400 text-sm">—</span>;
+    return <span className="text-slate-500 dark:text-slate-400 text-sm">—</span>;
   }
   const W = 80;
   const H = 24;
@@ -58,7 +58,7 @@ function SessionList({ sessions }: { sessions: PrickleSession[] }) {
     <tr>
       <td colSpan={8} className="px-0 py-0 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
         <div className="px-8 py-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
             {sessions.length} session{sessions.length !== 1 ? "s" : ""} — most recent first
           </p>
           <div className="grid gap-2">
@@ -83,7 +83,7 @@ function SessionList({ sessions }: { sessions: PrickleSession[] }) {
                 <div className="flex-1 min-w-0">
                   {s.hostName && (
                     <div className="mb-1">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 mr-1">
                         Host:
                       </span>
                       <span className="text-slate-700 dark:text-slate-200 font-medium">
@@ -92,12 +92,12 @@ function SessionList({ sessions }: { sessions: PrickleSession[] }) {
                     </div>
                   )}
                   {s.attendeeCount === 0 ? (
-                    <p className="text-slate-400 dark:text-slate-500 text-xs italic">
+                    <p className="text-slate-500 dark:text-slate-400 text-xs italic">
                       No attendance recorded
                     </p>
                   ) : (
                     <p className="text-slate-700 dark:text-slate-200 leading-relaxed">
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 mr-1">
                         {s.attendeeCount} attended:
                       </span>
                       {s.attendeeNames.join(", ")}
@@ -207,7 +207,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
       {hasFilters && (
         <div className="px-6 pt-3 pb-0 flex items-center gap-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-600 dark:text-slate-400">
             {table.total} of {rows.length} rows
           </span>
           <button
@@ -270,7 +270,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
                 onClick={() => handleSort("max")}
                 filter={filterInput("max")}
               />
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Trend
               </th>
               <SortableTh
@@ -292,7 +292,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
                     className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
                     onClick={() => toggleExpand(row.groupKey)}
                   >
-                    <td className="pl-4 pr-2 py-4 text-slate-400 dark:text-slate-500 text-sm w-6">
+                    <td className="pl-4 pr-2 py-4 text-slate-500 dark:text-slate-400 text-sm w-6">
                       <span className="inline-block transition-transform duration-150" style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>
                         ▶
                       </span>
@@ -318,7 +318,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
                     <td className="px-6 py-4">
                       <Sparkline values={row.sparkline} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                       {new Date(row.lastSession).toLocaleDateString(undefined, {
                         year: "numeric",
                         month: "short",
@@ -338,7 +338,7 @@ export default function GroupedTable({ rows, groupBy, defaultExpanded }: Props) 
       </div>
 
       {table.total === 0 && rows.length > 0 && (
-        <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
+        <div className="p-8 text-center text-slate-600 dark:text-slate-400 text-sm">
           No rows match current filters.{" "}
           <button
             onClick={() => setFilters({})}

@@ -42,9 +42,9 @@ function LessonRow({ lesson, content, hub }: { lesson: ExplainedLesson; content?
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 text-sm">
       <StateBadge state={lesson.state} />
       <span className="min-w-0 flex-1 font-medium">{lesson.title}</span>
-      <span className="text-xs text-slate-500 dark:text-slate-400">{lesson.reason}</span>
+      <span className="text-xs text-slate-600 dark:text-slate-400">{lesson.reason}</span>
       {content && (
-        <span className="text-xs text-slate-500 dark:text-slate-400" title="From the content step">
+        <span className="text-xs text-slate-600 dark:text-slate-400" title="From the content step">
           text {content.hasText ? "✓" : "–"} · video {content.hasVideo ? "✓" : "–"}
         </span>
       )}
@@ -63,7 +63,7 @@ function ModuleBlock({ module, content, hub, depth }: { module: ExplainedModule;
       <h3 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold">
         <StateBadge state={module.state} />
         <span>{module.title}</span>
-        <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{module.reason}</span>
+        <span className="text-xs font-normal text-slate-600 dark:text-slate-400">{module.reason}</span>
       </h3>
       <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800">
         {module.lessons.map((l) => (
@@ -89,7 +89,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
 
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
-      <Link href="/admin/courses" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
+      <Link href="/admin/courses" className="text-sm text-slate-600 hover:underline dark:text-slate-400">
         ← Courses
       </Link>
       <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>

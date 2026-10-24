@@ -116,7 +116,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
               {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
             </p>
             {access.kind === "open" && access.endsAt && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
             )}
             </div>
           </div>

@@ -654,7 +654,7 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                   <td className="px-4 py-3">
                     <div className="text-sm dark:text-slate-200">{scheduleLabel(s)}</div>
                     {s.carried_forward_from && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
+                      <div className="text-xs text-gray-400 dark:text-slate-400">carried forward from last month</div>
                     )}
                     {s.notes && <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{s.notes}</div>}
                   </td>

@@ -84,7 +84,7 @@ export default async function MergeFixPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Merge & Fix</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Potential duplicate members detected by matching name or email
               </p>
             </div>

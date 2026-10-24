@@ -237,7 +237,7 @@ export default function MemberTimelinePanel({
           <form onSubmit={handleStart} className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 space-y-3">
             <div className="flex flex-wrap gap-3">
               <div>
-                <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="hiatus-start">
+                <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="hiatus-start">
                   Start date
                 </label>
                 <input
@@ -250,7 +250,7 @@ export default function MemberTimelinePanel({
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="hiatus-end">
+                <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="hiatus-end">
                   End date (optional)
                 </label>
                 <input
@@ -263,7 +263,7 @@ export default function MemberTimelinePanel({
               </div>
             </div>
             <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="hiatus-reason">
+              <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="hiatus-reason">
                 Reason (optional)
               </label>
               <input
@@ -276,7 +276,7 @@ export default function MemberTimelinePanel({
               />
             </div>
             <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="hiatus-notes">
+              <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="hiatus-notes">
                 Notes (optional)
               </label>
               <textarea
@@ -307,7 +307,7 @@ export default function MemberTimelinePanel({
         )}
 
         {segments.length === 0 && !showForm ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No membership, hiatus, or program history.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">No membership, hiatus, or program history.</p>
         ) : (
           <div className="space-y-2">
             {segments.map((segment) => {
@@ -322,7 +322,7 @@ export default function MemberTimelinePanel({
                 return (
                   <div
                     key={key}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500"
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400"
                   >
                     <span className="text-sm">
                       {fmt(segment.startDate)} → {segment.endDate ? fmt(segment.endDate) : "Present"}
@@ -346,7 +346,7 @@ export default function MemberTimelinePanel({
                     >
                       <div className="flex flex-wrap gap-3">
                         <div>
-                          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Start date</label>
+                          <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Start date</label>
                           <input
                             type="date"
                             value={editStart}
@@ -356,7 +356,7 @@ export default function MemberTimelinePanel({
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">End date (blank = ongoing)</label>
+                          <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">End date (blank = ongoing)</label>
                           <input
                             type="date"
                             value={editEnd}
@@ -418,7 +418,7 @@ export default function MemberTimelinePanel({
                         <RecordHistoryButton entityType="member_hiatus" entityId={hiatus.id} label="this hiatus" />
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
                           {durationText(segment.startDate, segment.endDate)}
                         </span>
                         {isCurrent && returnPromptId !== hiatus.id && (
@@ -451,7 +451,7 @@ export default function MemberTimelinePanel({
                     </div>
                     {returnPromptId === hiatus.id && (
                       <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50/60 dark:bg-plum-950/20">
-                        <label className="text-xs text-slate-500 dark:text-slate-400" htmlFor={`return-date-${hiatus.id}`}>
+                        <label className="text-xs text-slate-600 dark:text-slate-400" htmlFor={`return-date-${hiatus.id}`}>
                           Return on
                         </label>
                         <input
@@ -470,14 +470,14 @@ export default function MemberTimelinePanel({
                         </button>
                         <button
                           onClick={() => setReturnPromptId(null)}
-                          className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                          className="text-xs text-slate-600 dark:text-slate-400 hover:underline"
                         >
                           Cancel
                         </button>
                       </div>
                     )}
                     {showNotes && (
-                      <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-500 dark:text-slate-500">
+                      <div className="pl-3 pt-1 flex flex-wrap gap-x-2 text-xs text-slate-600 dark:text-slate-400">
                         {hiatus.reason && <span>{hiatus.reason}</span>}
                         {hiatus.notes && <span>{hiatus.notes}</span>}
                       </div>
@@ -503,12 +503,12 @@ export default function MemberTimelinePanel({
                     <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                       active
                     </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
                       {primaryReason}
                       {extraReasons.length > 0 && ` + ${extraReasons.join(" + ")}`}
                     </span>
                   </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 ml-4 shrink-0">
+                  <span className="text-xs text-slate-600 dark:text-slate-400 ml-4 shrink-0">
                     {durationText(segment.startDate, segment.endDate)}
                   </span>
                 </div>

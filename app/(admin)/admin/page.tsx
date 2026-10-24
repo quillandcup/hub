@@ -257,7 +257,7 @@ export default async function DashboardPage() {
                     </div>
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>
                   <div className="text-lg font-bold text-plum-600 dark:text-plum-400">
@@ -283,7 +283,7 @@ export default async function DashboardPage() {
             </p>
             <div className="space-y-3">
               {atRiskMembersList.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
+                <div className="text-center py-8 text-slate-600 dark:text-slate-400">
                   No at-risk members! 🎉
                 </div>
               ) : (
@@ -291,7 +291,7 @@ export default async function DashboardPage() {
                   <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>
                 ))
@@ -312,7 +312,7 @@ function MetricCard({ label, value, description, highlighted }: { label: string;
         {value}
       </div>
       <div className="font-semibold text-slate-900 dark:text-slate-100 mb-1">{label}</div>
-      <div className="text-sm text-slate-500 dark:text-slate-400">{description}</div>
+      <div className="text-sm text-slate-600 dark:text-slate-400">{description}</div>
     </div>
   );
 }

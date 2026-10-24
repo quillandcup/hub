@@ -156,7 +156,7 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Description <span className="text-slate-400 font-normal">(optional)</span>
+            Description <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
           <textarea
             value={description}
@@ -168,7 +168,7 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Cover image <span className="text-slate-400 font-normal">(optional)</span>
+            Cover image <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
           <div className="flex items-start gap-3">
             {coverUrl && (
@@ -187,10 +187,10 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
                 disabled={isUploadingCover}
                 className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
               />
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                 {isUploadingCover ? "Uploading..." : describeBookCoverRequirements()}
               </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Uses the same spec your published book cover will need, so you won&apos;t have to re-upload at publish time.
               </p>
               {coverError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{coverError}</p>}
@@ -200,15 +200,15 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Starting balance <span className="text-slate-400 font-normal">(optional)</span>
+            Starting balance <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
             How much you already had before tracking this project here.
           </p>
           <div className="grid grid-cols-2 gap-2">
             {STARTING_BALANCE_MEASURES.map((measure) => (
               <div key={measure}>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">
+                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">
                   {MEASURE_LABELS[measure]}
                 </label>
                 <input

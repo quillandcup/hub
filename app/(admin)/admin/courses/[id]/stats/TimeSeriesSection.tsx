@@ -32,7 +32,7 @@ export default function TimeSeriesSection({
       <form method="get" action={action} className="mt-3 flex flex-wrap items-end gap-3">
         {staff && <input type="hidden" name="staff" value="1" />}
         <label className="text-sm">
-          <span className="mb-1 block text-slate-500 dark:text-slate-400">Metric</span>
+          <span className="mb-1 block text-slate-600 dark:text-slate-400">Metric</span>
           <select name="metric" defaultValue={series.metric} className={field}>
             {METRICS.map((m) => (
               <option key={m.value} value={m.value}>
@@ -42,7 +42,7 @@ export default function TimeSeriesSection({
           </select>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-slate-500 dark:text-slate-400">Range</span>
+          <span className="mb-1 block text-slate-600 dark:text-slate-400">Range</span>
           <select name="range" defaultValue={preset} className={field}>
             {RANGES.map((r) => (
               <option key={r.value} value={r.value}>
@@ -52,15 +52,15 @@ export default function TimeSeriesSection({
           </select>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-slate-500 dark:text-slate-400">From</span>
+          <span className="mb-1 block text-slate-600 dark:text-slate-400">From</span>
           <input type="date" name="from" defaultValue={series.range.from} className={field} />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-slate-500 dark:text-slate-400">To</span>
+          <span className="mb-1 block text-slate-600 dark:text-slate-400">To</span>
           <input type="date" name="to" defaultValue={series.range.to} className={field} />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-slate-500 dark:text-slate-400">By</span>
+          <span className="mb-1 block text-slate-600 dark:text-slate-400">By</span>
           <select name="by" defaultValue={series.granularity} className={field}>
             {GRANULARITIES.map((g) => (
               <option key={g.value} value={g.value}>
@@ -73,15 +73,15 @@ export default function TimeSeriesSection({
           Apply
         </button>
       </form>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">The From and To dates are used when the range is &ldquo;Custom range&rdquo;.</p>
+      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">The From and To dates are used when the range is &ldquo;Custom range&rdquo;.</p>
 
       <div className="mt-5">
-        <p className="text-sm text-slate-500 dark:text-slate-400">{metric.label}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{metric.label}</p>
         <p data-testid="series-total" className="text-3xl font-semibold tabular-nums">
           {formatMetricValue(series.total, series.unit)}
         </p>
         <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{metric.definition}</p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
           {series.range.from} to {series.range.to}, by {series.granularity}. Each visit counts on the day it began.
         </p>
       </div>

@@ -36,7 +36,7 @@ function heatClass(pct: number): string {
   if (pct >= 75) return "bg-plum-400 text-white"
   if (pct >= 50) return "bg-plum-200 text-slate-700"
   if (pct >= 25) return "bg-plum-100 text-slate-600"
-  if (pct > 0)   return "bg-slate-100 text-slate-400"
+  if (pct > 0)   return "bg-slate-100 text-slate-500"
   return "bg-slate-50 text-slate-300"
 }
 
@@ -144,8 +144,8 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
           const lp = polar(labelR, angle)
           return (
             <g key={slot}>
-              <line x1={t1.x} y1={t1.y} x2={t2.x} y2={t2.y} stroke="currentColor" strokeWidth={1.5} className="text-slate-400 dark:text-slate-500" />
-              <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fontSize={12} fontWeight="600" fill="currentColor" className="text-slate-500 dark:text-slate-400">{label}</text>
+              <line x1={t1.x} y1={t1.y} x2={t2.x} y2={t2.y} stroke="currentColor" strokeWidth={1.5} className="text-slate-500 dark:text-slate-400" />
+              <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fontSize={12} fontWeight="600" fill="currentColor" className="text-slate-600 dark:text-slate-400">{label}</text>
             </g>
           )
         })}
@@ -168,7 +168,7 @@ function ClockHeatmap({ hourCoverage }: { hourCoverage: HourEntry[] }) {
         </div>
       )}
 
-      <p className="text-[10px] text-slate-400 dark:text-slate-500">outer ring = AM · inner ring = PM</p>
+      <p className="text-[10px] text-slate-500 dark:text-slate-400">outer ring = AM · inner ring = PM</p>
     </div>
   )
 }
@@ -186,7 +186,7 @@ function ChartCard({
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
       <h2 className="text-lg font-bold mb-0.5">{title}</h2>
       {subtitle && (
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{subtitle}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">{subtitle}</p>
       )}
       {children}
     </div>
@@ -324,7 +324,7 @@ export default function CommunityStatsCharts({
         subtitle={`% of days since ${sinceLabel} with at least one attended prickle at each hour`}
       >
         <ClockHeatmap hourCoverage={hourCoverage} />
-        <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-400 dark:text-slate-500">
+        <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-500 dark:text-slate-400">
           <span>Less</span>
           {["#f0f4f8", "#f4e5ed", "#dca4c0", "#b65a88", "#8b3e64", "#613048"].map((c) => (
             <div key={c} className="w-4 h-4 rounded border border-slate-200 dark:border-slate-700" style={{ backgroundColor: c }} />

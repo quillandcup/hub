@@ -23,7 +23,7 @@ export default function LessonDownloads({ slug, lessonId, files }: { slug: strin
                   {size && (
                     <>
                       {" "}
-                      <span className="text-xs text-slate-500 dark:text-slate-400">({size})</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">({size})</span>
                     </>
                   )}
                 </span>

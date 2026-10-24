@@ -46,7 +46,7 @@ export default function AddedToCalendarList({ items }: { items: MyCalendarItem[]
               type="button"
               onClick={() => removeItem(item)}
               aria-label={`Remove ${item.label} from your calendar`}
-              className="shrink-0 text-xs text-slate-500 hover:text-rose-700 dark:hover:text-rose-400"
+              className="shrink-0 text-xs text-slate-600 dark:text-slate-400 hover:text-rose-700 dark:hover:text-rose-400"
             >
               Remove
             </button>

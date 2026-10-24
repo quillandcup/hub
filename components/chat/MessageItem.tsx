@@ -54,7 +54,7 @@ export default function MessageItem({
     if (message.replyCount <= 0) return null;
     return (
       <article className="-mx-2 px-2 pb-1 pt-2" id={`m-${message.id}`}>
-        <p className="text-sm italic text-slate-500 dark:text-slate-400">This message was deleted.</p>
+        <p className="text-sm italic text-slate-600 dark:text-slate-400">This message was deleted.</p>
         {!inThread && (
           <Link
             href={`/chat/${channelId}?thread=${message.id}`}
@@ -79,13 +79,13 @@ export default function MessageItem({
   if (message.system && message.contentState === "ok" && message.body !== null) {
     return (
       <article className="py-1.5 flex items-baseline gap-3" id={`m-${message.id}`}>
-        <span aria-hidden="true" className="shrink-0 w-9 text-center text-lg font-semibold leading-none text-slate-400 dark:text-slate-500">
+        <span aria-hidden="true" className="shrink-0 w-9 text-center text-lg font-semibold leading-none text-slate-500 dark:text-slate-400">
           #
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-slate-500 dark:text-slate-400">
+          <p className="text-[13px] text-slate-600 dark:text-slate-400">
             {systemNoticeText(message.body, message.authorName, ctx)}
-            <time dateTime={message.createdAt} title={formatChatTime(message.createdAt, timeZone)} className="ml-3 text-xs text-slate-400 dark:text-slate-500">
+            <time dateTime={message.createdAt} title={formatChatTime(message.createdAt, timeZone)} className="ml-3 text-xs text-slate-500 dark:text-slate-400">
               {clock}
             </time>
           </p>
@@ -106,7 +106,7 @@ export default function MessageItem({
           <time
             dateTime={message.createdAt}
             title={formatChatTime(message.createdAt, timeZone)}
-            className="invisible block whitespace-nowrap pt-0.5 text-right text-[10px] leading-5 text-slate-500 group-hover:visible group-focus-within:visible dark:text-slate-400"
+            className="invisible block whitespace-nowrap pt-0.5 text-right text-[10px] leading-5 text-slate-600 group-hover:visible group-focus-within:visible dark:text-slate-400"
           >
             {clock.replace(/\s?[AP]M$/i, "")}
           </time>
@@ -134,10 +134,10 @@ export default function MessageItem({
             ) : (
               <span className="font-semibold">{message.authorName}</span>
             )}
-            <time dateTime={message.createdAt} className="text-xs text-slate-500 dark:text-slate-400">
+            <time dateTime={message.createdAt} className="text-xs text-slate-600 dark:text-slate-400">
               {clock}
             </time>
-            {message.editedAt && message.contentState === "ok" && <span className="text-xs text-slate-400">(edited)</span>}
+            {message.editedAt && message.contentState === "ok" && <span className="text-xs text-slate-500 dark:text-slate-400">(edited)</span>}
           </header>
         )}
         {compact && message.editedAt && message.contentState === "ok" && <span className="sr-only">(edited)</span>}
@@ -146,10 +146,10 @@ export default function MessageItem({
           <MessageBody message={{ ...message, body: message.body }} ctx={ctx} channelId={channelId} canEdit={canEdit} />
         )}
         {message.contentState === "hidden" && (
-          <p className="mt-0.5 text-sm italic text-slate-500 dark:text-slate-400">You can&apos;t read this message.</p>
+          <p className="mt-0.5 text-sm italic text-slate-600 dark:text-slate-400">You can&apos;t read this message.</p>
         )}
         {message.syncStatus === "pending" && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Sending to Slack…</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Sending to Slack…</p>
         )}
         {message.syncStatus === "failed" && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
@@ -159,7 +159,7 @@ export default function MessageItem({
         )}
         {message.contentState === "ok" && <MessageFiles messageId={message.id} files={message.files} canDelete={message.mine} />}
         {message.hasFiles && message.contentState === "ok" && message.files.length === 0 && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">📎 Includes files the Hub couldn&apos;t load.</p>
         )}
 
         <ReactionBar channelId={channelId} messageId={message.id} reactions={message.reactions} custom={ctx.customEmoji} canReact={reactable} />

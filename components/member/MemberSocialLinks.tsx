@@ -1,4 +1,4 @@
-const LINK_CLASS = "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
+const LINK_CLASS = "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
 
 /**
  * A member's social links as icons, for the full profile and the chat profile panel. Takes URLs that

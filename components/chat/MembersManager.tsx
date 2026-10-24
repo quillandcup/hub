@@ -154,7 +154,7 @@ export default function MembersManager({
                     <span className="flex-1 text-sm">
                       {c.name}
                       {!c.inSlack && (
-                        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">
                           {cantAdd ? "Not in Slack, so can't join a private conversation" : "Not in Slack: only in the Hub"}
                         </span>
                       )}
@@ -173,7 +173,7 @@ export default function MembersManager({
               })}
             </ul>
           )}
-          {searched && results.length === 0 && <p className="mt-2 text-sm text-slate-500">No one to add matches that.</p>}
+          {searched && results.length === 0 && <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">No one to add matches that.</p>}
         </section>
       )}
 
@@ -189,7 +189,7 @@ export default function MembersManager({
       )}
 
       {people.length === 0 ? (
-        <p className="text-sm text-slate-500">No members to show.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No members to show.</p>
       ) : (
         <div className="@container">
           <ul className="grid gap-1 @pair:grid-cols-2">
@@ -209,7 +209,7 @@ export default function MembersManager({
                     disabled={busy}
                     aria-label={`Remove ${p.name}`}
                     onClick={() => setConfirming(p.memberId)}
-                    className="shrink-0 rounded px-2 py-1 text-xs text-slate-500 hover:text-red-600 hover:underline disabled:opacity-60 dark:text-slate-400 dark:hover:text-red-400"
+                    className="shrink-0 rounded px-2 py-1 text-xs text-slate-600 hover:text-red-600 hover:underline disabled:opacity-60 dark:text-slate-400 dark:hover:text-red-400"
                   >
                     Remove
                   </button>

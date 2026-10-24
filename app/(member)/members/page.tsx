@@ -84,7 +84,7 @@ export default async function MemberDirectoryPage({
   return (
     <div className="container mx-auto px-6 py-8 max-w-5xl">
       <h1 className="text-3xl font-bold mb-1">Members</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
         Find a Hedgie by name, what they&apos;re writing, or what they&apos;re happy to chat about.
       </p>
       <MemberDirectory

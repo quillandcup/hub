@@ -90,7 +90,7 @@ export default function FeedbackWidget() {
             <button data-track="feedback-widget-close"
               onClick={() => setIsOpen(false)}
               aria-label="Close"
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
             >
               ✕
             </button>
@@ -123,7 +123,7 @@ export default function FeedbackWidget() {
               className="w-full text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-plum-500"
             />
 
-            <div className="text-xs text-slate-500 dark:text-slate-400" role="status">
+            <div className="text-xs text-slate-600 dark:text-slate-400" role="status">
               {screenshotStatus === "capturing" && "Capturing screenshot…"}
               {screenshotStatus === "captured" && "📸 Screenshot captured — we'll attach it"}
               {screenshotStatus === "failed" && "Couldn't capture a screenshot — sending without one"}

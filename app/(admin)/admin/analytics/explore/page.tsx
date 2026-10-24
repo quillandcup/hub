@@ -132,7 +132,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
                 ))}
                 {groupedRows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={4} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                       No events in this window.
                     </td>
                   </tr>

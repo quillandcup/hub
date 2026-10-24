@@ -120,7 +120,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
       >
         {options.map((tz) =>
           "disabled" in tz && tz.disabled ? (
-            <option key={tz.value} disabled className="text-slate-400 dark:text-slate-500">
+            <option key={tz.value} disabled className="text-slate-500 dark:text-slate-400">
               {tz.label}
             </option>
           ) : (
@@ -142,7 +142,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
           Use current location ({browserTimezone.replace(/_/g, " ")})
         </button>
       )}
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         All times will display in: <span className="font-medium">{current || "Detecting..."}</span>
         {saving && <span className="ml-2 italic">Saving...</span>}
       </p>

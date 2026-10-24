@@ -67,7 +67,7 @@ export default async function MemberNetworkPage({
       <div className="min-h-screen bg-canvas dark:bg-slate-950">
         <main className="container mx-auto px-6 py-8">
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center">
-            <p className="text-slate-500 dark:text-slate-400">
+            <p className="text-slate-600 dark:text-slate-400">
               No active members found.
             </p>
           </div>
@@ -180,7 +180,7 @@ export default async function MemberNetworkPage({
             )}
           </nav>
           {chatMode === "all" && (
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
               Includes private channels and direct messages, which members are told staff can see the activity of (not the content).
             </p>
           )}
@@ -192,7 +192,7 @@ export default async function MemberNetworkPage({
           <NetworkGraph nodes={networkData.nodes} edges={networkData.edges} />
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center">
-            <p className="text-slate-500 dark:text-slate-400">
+            <p className="text-slate-600 dark:text-slate-400">
               No network data available. Import attendance data to see member connections.
             </p>
           </div>

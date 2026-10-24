@@ -362,7 +362,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-600 dark:text-slate-400">Loading...</p>;
   if (!data) return <p className="text-red-600">{error || "Not found"}</p>;
 
   return (

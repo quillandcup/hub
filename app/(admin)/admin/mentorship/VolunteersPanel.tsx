@@ -7,7 +7,7 @@ import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import { addVolunteer, removeVolunteer } from "./actions";
 import { formatDateOnly } from "@/lib/formatters";
 
-const TH = "px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+const TH = "px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider";
 const TD = "px-6 py-3 text-sm text-slate-600 dark:text-slate-400";
 
 function formatDay(dateOnly: string): string {
@@ -109,7 +109,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {volunteers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No volunteers yet.
                   </td>
                 </tr>

@@ -188,7 +188,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-600 dark:text-slate-400">Loading...</p>;
   if (!event) return <p className="text-red-600">{error || "Not found"}</p>;
 
   const visiblePhotos = photos.filter((p) => !p.hidden_at);
@@ -410,7 +410,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             badge automatically.
           </p>
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-500 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             No badge is linked to this event yet -- attendance is just recorded here for now.
           </p>
         )}

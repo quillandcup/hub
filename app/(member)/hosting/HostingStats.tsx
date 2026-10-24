@@ -11,7 +11,7 @@ function formatShortDate(iso: string): string {
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.every((v) => v === 0)) {
-    return <span className="text-slate-400 text-sm">No hosting activity in the last 12 months</span>;
+    return <span className="text-slate-500 dark:text-slate-400 text-sm">No hosting activity in the last 12 months</span>;
   }
   const W = 200;
   const H = 40;
@@ -43,8 +43,8 @@ function Sparkline({ values }: { values: number[] }) {
 function StatTile({ value, label, muted }: { value: string; label: string; muted?: boolean }) {
   return (
     <div className="text-center">
-      <p className={`text-3xl font-bold ${muted ? "text-slate-400 dark:text-slate-500" : ""}`}>{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
+      <p className={`text-3xl font-bold ${muted ? "text-slate-500 dark:text-slate-400" : ""}`}>{value}</p>
+      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{label}</p>
     </div>
   );
 }
@@ -65,12 +65,12 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
   return (
     <div className="@container">
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 @pair:p-6 mb-6">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
           Your Hosting Stats
         </h2>
   
         {totalHosted === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             You haven&apos;t hosted a Prickle yet. Once you do, your hosting history and stats will show up here.
           </p>
         ) : (
@@ -94,7 +94,7 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
                 vertical space on mobile and push the operational schedule manager below the
                 fold, so they're opt-in via disclosure rather than always rendered open. */}
             <details className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
+              <summary className="text-xs text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
                 More stats
               </summary>
   
@@ -113,13 +113,13 @@ export default function HostingStats({ stats }: { stats: HostingStatsData }) {
               </div>
   
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">Hosted per month, last 12 months</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Hosted per month, last 12 months</p>
                 <Sparkline values={monthlyTrend} />
               </div>
   
               {byType.length > 1 && (
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">By prickle type</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">By prickle type</p>
                   <div className="flex flex-wrap gap-1.5">
                     {byType.map((t) => (
                       <span

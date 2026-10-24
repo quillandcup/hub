@@ -93,7 +93,7 @@ export default async function AtRiskPage() {
 
           <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {membersWithStats.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">
                 No at-risk members! 🎉
               </div>
             ) : (
@@ -112,11 +112,11 @@ export default async function AtRiskPage() {
                       </div>
                       <div className="flex gap-4 mt-3 text-sm">
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Total attendance:</span>{" "}
+                          <span className="text-slate-600 dark:text-slate-400">Total attendance:</span>{" "}
                           <span className="font-semibold">{member.totalAttendance}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Joined:</span>{" "}
+                          <span className="text-slate-600 dark:text-slate-400">Joined:</span>{" "}
                           <span className="font-semibold">
                             {formatDateOnly(member.joinedAt)}
                           </span>

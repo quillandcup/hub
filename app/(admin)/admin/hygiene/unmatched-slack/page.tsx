@@ -89,7 +89,7 @@ export default async function UnmatchedSlackUsersPage() {
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           Create aliases to match Slack users to members using search
         </p>
-        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
           Showing all unmatched Slack users, sorted by message activity.
         </p>
       </div>

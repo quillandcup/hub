@@ -128,7 +128,7 @@ export default async function ChatSearchPage({
         <div className="@container">
           <div className="grid gap-3 @pair:grid-cols-4 text-sm">
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">Channel</span>
             <select data-track="chat-search-channel-filter" name="channel" defaultValue={isId(channelParam, "chn") ? channelParam : ""} className={inputClass}>
               <option value="">All conversations</option>
               {searchable.map((c) => (
@@ -139,15 +139,15 @@ export default async function ChatSearchPage({
             </select>
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">From (name)</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">From (name)</span>
             <input type="text" name="author" defaultValue={author} maxLength={100} className={inputClass} />
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">On or after</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">On or after</span>
             <input type="date" name="from" defaultValue={parseDay(sp.from) ? firstParam(sp.from) : ""} className={inputClass} />
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">On or before</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">On or before</span>
             <input type="date" name="to" defaultValue={parseDay(sp.to, 1) ? firstParam(sp.to) : ""} className={inputClass} />
           </label>
         </div>
@@ -161,7 +161,7 @@ export default async function ChatSearchPage({
           </label>
         </div>
       </form>
-      <p className="-mt-3 mb-5 text-xs text-slate-500 dark:text-slate-400">
+      <p className="-mt-3 mb-5 text-xs text-slate-600 dark:text-slate-400">
         Slack search syntax works: <code>&quot;exact phrase&quot;</code>, <code>-word</code>, <code>word*</code>, <code>in:#channel</code>,{" "}
         <code>from:@name</code> or <code>from:me</code>, <code>before:</code>, <code>after:</code>, <code>on:</code>, <code>during:</code> (2026-10-09, 2026-10 or 2026),{" "}
         <code>has:file</code>, <code>has:link</code>, <code>has:reaction</code>, <code>is:thread</code>.
@@ -177,7 +177,7 @@ export default async function ChatSearchPage({
             <ul>
               {page.results.map((r, index) => (
                 <li key={r.message.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                  <p className="pt-3 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="pt-3 text-xs text-slate-600 dark:text-slate-400">
                     <SearchHitLink
                       href={`/chat/${r.channel.id}`}
                       surface="chat_page"

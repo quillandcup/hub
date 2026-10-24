@@ -112,7 +112,7 @@ const CheckIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const iconButton = "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500";
+const iconButton = "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500";
 /** Shown on hover or focus, and always on touch screens, which can't hover. */
 const revealOnHover = "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
 
@@ -495,13 +495,15 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
         type="button"
         onClick={() => openPalette("button")}
         data-track="search-open"
-        className="mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
-        aria-label="Search"
+        className="mr-auto flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 sm:w-80 lg:w-[28rem] xl:w-[36rem]"
+        aria-label="Search pages, members, chat…"
         aria-keyshortcuts="Meta+K Control+K"
       >
         <SearchIcon className="h-4 w-4 flex-shrink-0" />
         <span className="hidden sm:inline flex-1 truncate text-left">Search pages, members, chat…</span>
-        <kbd className="hidden sm:inline rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs">⌘K</kbd>
+        {/* The shortcut hint is drawn with CSS, not text: the shortcut is announced by aria-keyshortcuts, and a visible
+            "⌘K" that is not in the button's name fails WCAG label-in-name. */}
+        <kbd aria-hidden="true" data-hint="⌘K" className="hidden sm:inline rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs after:content-[attr(data-hint)]" />
       </button>
 
       {open && createPortal(
@@ -514,7 +516,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
-              <SearchIcon className={`h-5 w-5 flex-shrink-0 text-slate-400 ${busy ? "animate-pulse" : ""}`} />
+              <SearchIcon className={`h-5 w-5 flex-shrink-0 text-slate-500 ${busy ? "animate-pulse" : ""}`} />
               <input
                 ref={inputRef}
                 value={input}
@@ -527,7 +529,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 spellCheck={false}
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); inputRef.current?.focus(); }} data-track="search-clear" className="flex-shrink-0 px-1 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+                <button type="button" onClick={() => { setInput(""); inputRef.current?.focus(); }} data-track="search-clear" className="flex-shrink-0 px-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
                   Clear
                 </button>
               )}
@@ -641,7 +643,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 </div>
                 {menuOpen && (
                   <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-sm">
-                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">More options</div>
+                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">More options</div>
                     {menuQuick.map((chip) => {
                       const token = chip.token();
                       const on = tokens.includes(token);
@@ -677,7 +679,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                         className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <span>{o.label}</span>
-                        <span className="text-xs text-slate-400">{o.token}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{o.token}</span>
                       </button>
                     ))}
                     {(["after", "before"] as const).map((op) => (
@@ -709,7 +711,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
               {mode === "completion" && (
                 <section className="py-2">
-                  <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{completionTitle}</h3>
+                  <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{completionTitle}</h3>
                   {options === null && <SearchSpinner className="px-4 py-2" />}
                   {(options ?? []).map((o, i) => (
                     <Row
@@ -732,15 +734,15 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
 
               {mode === "history" && (
                 <section className="py-2">
-                  <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent searches</h3>
-                  {recents.length === 0 && <p className="px-4 py-3 text-sm text-slate-500">Your searches will show up here.</p>}
+                  <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Recent searches</h3>
+                  {recents.length === 0 && <p className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">Your searches will show up here.</p>}
                   {recents.map((r, i) => (
                     <div
                       key={r}
                       className={`group flex items-center gap-1 pr-2 ${i === activeIndex ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"}`}
                     >
                       <button type="button" onClick={() => chooseRecent(r, i + 1, "click")} data-track="search-recent-item" className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 sm:py-2 text-left text-sm">
-                        <ClockIcon className="h-5 w-5 flex-shrink-0 text-slate-400" />
+                        <ClockIcon className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" />
                         <span className="min-w-0 flex-1 truncate">{r}</span>
                       </button>
                       <button
@@ -772,7 +774,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                 <>
                   {needsAttention.length > 0 && (
                     <section className="py-2">
-                      <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Needs attention</h3>
+                      <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Needs attention</h3>
                       {needsAttention.map((s) => {
                         flatIndex++;
                         return (
@@ -811,7 +813,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   )}
                   {places.length > 0 && (
                     <section className="border-t border-slate-100 dark:border-slate-800 py-2 first:border-t-0">
-                      <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Recent places</h3>
+                      <h3 className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Recent places</h3>
                       {places.map((p: Place) => {
                         flatIndex++;
                         const rank = needsAttention.length + places.indexOf(p) + 1;
@@ -833,7 +835,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                     </section>
                   )}
                   {needsAttention.length === 0 && places.length === 0 && (
-                    <p className="px-4 py-3 text-sm text-slate-500">
+                    <p className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                       Try <code>in:members cody</code>, <code>from:me in:chat</code> or <code>in:books after:2026</code>.
                     </p>
                   )}
@@ -843,19 +845,19 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
               {mode === "results" && (
                 <>
                   {shown?.unknownKind && (
-                    <p className="px-4 py-3 text-sm text-slate-500">
+                    <p className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                       Can’t search “{shown.unknownKind}”. You can search {SEARCH_KINDS.map((k) => KIND_LABELS[k]).join(", ")}, for example in:members.
                     </p>
                   )}
 
                   {shown && !shown.unknownKind && shown.results.length === 0 && !busy && (
-                    <p className="px-4 py-6 text-sm text-slate-500">Nothing matches “{trimmed}”.</p>
+                    <p className="px-4 py-6 text-sm text-slate-600 dark:text-slate-400">Nothing matches “{trimmed}”.</p>
                   )}
 
                   {shown?.results.map((group) => (
                     <section key={group.kind} className={`border-b border-slate-100 dark:border-slate-800 py-2 last:border-b-0 ${busy ? "opacity-50" : ""}`}>
                       <div className="flex items-center justify-between px-4 pb-1">
-                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{KIND_LABELS[group.kind]}</h3>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">{KIND_LABELS[group.kind]}</h3>
                         {group.hasMore && (
                           <Link
                             href={`${resultsPath}?q=${encodeURIComponent(withKind(trimmed, group.kind))}`}
@@ -895,9 +897,9 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
                   View all results
                 </Link>
               ) : (
-                <span className="text-slate-500">Type to search</span>
+                <span className="text-slate-600 dark:text-slate-400">Type to search</span>
               )}
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 {busy ? "Searching…" : <span className="hidden sm:inline">↑↓ to move · Enter to open · Esc to close</span>}
               </span>
             </div>
@@ -944,10 +946,10 @@ function Row({
       {icon}
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{title}</span>
-        {subtitle && <span className="block truncate text-slate-500">{subtitle}</span>}
+        {subtitle && <span className="block truncate text-slate-600 dark:text-slate-400">{subtitle}</span>}
       </span>
       {right}
-      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-500">Enter</kbd>}
+      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-600 dark:text-slate-400">Enter</kbd>}
     </>
   );
   return href ? (
@@ -979,16 +981,16 @@ function HitRow({ hit, words, active, onOpen }: { hit: SearchHit; words: string[
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">
           <Highlight text={hit.title} words={words} />
-          {hit.badge && <span className="ml-2 rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-normal text-slate-500">{hit.badge}</span>}
+          {hit.badge && <span className="ml-2 rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-normal text-slate-600 dark:text-slate-400">{hit.badge}</span>}
         </span>
         {hit.subtitle && (
-          <span className="block truncate text-slate-500">
+          <span className="block truncate text-slate-600 dark:text-slate-400">
             <Highlight text={hit.subtitle} words={words} />
           </span>
         )}
       </span>
-      {hit.date && <span className="flex-shrink-0 text-xs text-slate-500">{formatHitDate(hit.date)}</span>}
-      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-500">Enter</kbd>}
+      {hit.date && <span className="flex-shrink-0 text-xs text-slate-600 dark:text-slate-400">{formatHitDate(hit.date)}</span>}
+      {active && <kbd className="flex-shrink-0 rounded border border-slate-300 dark:border-slate-600 px-1.5 text-xs text-slate-600 dark:text-slate-400">Enter</kbd>}
     </Link>
   );
 }

@@ -506,7 +506,7 @@ function ScheduleRowActions({
   }
 
   if (locked) {
-    return <span className="text-xs text-slate-400 dark:text-slate-500">Locked</span>;
+    return <span className="text-xs text-slate-500 dark:text-slate-400">Locked</span>;
   }
 
   return (
@@ -617,13 +617,13 @@ function MonthSection({
       </div>
 
       {locked && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           This month is locked — changes apply to next month instead.
         </p>
       )}
 
       {schedules.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">No hosting slots this month.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No hosting slots this month.</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -637,7 +637,7 @@ function MonthSection({
             </div>
             <div className="bg-slate-100 dark:bg-slate-800 rounded-lg py-2">
               <div className="text-lg font-semibold text-slate-600 dark:text-slate-400">{stats.declined}</div>
-              <div className="text-xs text-slate-500 dark:text-slate-500">Declined</div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Declined</div>
             </div>
           </div>
 
@@ -653,7 +653,7 @@ function MonthSection({
                       schedule.status === "confirmed"
                         ? "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
                         : schedule.status === "declined"
-                        ? "bg-slate-100 border-slate-300 text-slate-500 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-500"
+                        ? "bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-400"
                         : "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400"
                     }`}
                   >
@@ -665,7 +665,7 @@ function MonthSection({
 
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+              <tr className="text-left text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                 <SortableTh
                   label="Schedule"
                   className="pb-2 pr-2"
@@ -696,7 +696,7 @@ function MonthSection({
                   <td className="py-2 pr-2 text-slate-900 dark:text-slate-100">
                     {scheduleLabel(s)}
                     {s.carriedForwardFrom && (
-                      <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">(carried forward)</span>
+                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">(carried forward)</span>
                     )}
                   </td>
                   <td className="py-2 pr-2">
@@ -757,7 +757,7 @@ export default function HostingScheduleManager({
       <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
         <p className="text-4xl mb-3">🦔</p>
         <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">Settle in first</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-sm mx-auto">
           {hostEligibilityMessage(hostEligibility)} Until then, enjoy some prickles and get a feel for how they run.
         </p>
       </div>
@@ -773,7 +773,7 @@ export default function HostingScheduleManager({
             <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
               No hosting schedule on file for {monthLabel(nextMonth)}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-sm mx-auto">
               You&apos;ve hosted {calendarHostedCount} prickle{calendarHostedCount === 1 ? "" : "s"}, but your regular
               slots haven&apos;t been added here yet. Request them below, or ask an admin to add them from the
               calendar.
@@ -784,7 +784,7 @@ export default function HostingScheduleManager({
             <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
               Want to host {monthLabel(nextMonth)}?
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-sm mx-auto">
               Most hedgies aren&apos;t hosts — but if you&apos;d like to run a prickle next month, request a slot and
               an admin will confirm it.
             </p>

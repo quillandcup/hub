@@ -15,11 +15,11 @@ const DAY_ORDER = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 
 function AttendanceHint({ row }: { row: PrickleScheduleRow }) {
   if (row.sessionCount === 0) {
-    return <span className="text-slate-400 dark:text-slate-500">New</span>;
+    return <span className="text-slate-500 dark:text-slate-400">New</span>;
   }
   const n = Math.round(row.avgAttendance ?? 0);
   return (
-    <span className="text-slate-500 dark:text-slate-400">
+    <span className="text-slate-600 dark:text-slate-400">
       ~{n} {n === 1 ? "Hedgie" : "Hedgies"}
     </span>
   );
@@ -130,6 +130,7 @@ export default function AllPricklesTable({
       {types.length > 1 && (
         <div className="flex justify-end mb-3">
           <select data-track="all-prickles-table-type-filter"
+            aria-label="Filter by prickle type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
@@ -145,11 +146,11 @@ export default function AllPricklesTable({
       )}
 
       {filteredByDay.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">No prickles match that filter.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No prickles match that filter.</p>
       ) : (
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead>
-            <tr className="text-left text-xs text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <tr className="text-left text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               {selection && (
                 <th className="pb-2 pr-2 font-medium w-8">
                   <span className="sr-only">Commit</span>
@@ -218,7 +219,7 @@ export default function AllPricklesTable({
                       </Link>
                     </td>
                     <td className="py-2 pr-2 text-slate-600 dark:text-slate-300">{row.typeName}</td>
-                    <td className="py-2 pr-2 text-slate-500 dark:text-slate-400">{row.hostName ?? "—"}</td>
+                    <td className="py-2 pr-2 text-slate-600 dark:text-slate-400">{row.hostName ?? "—"}</td>
                     <td className="py-2 text-right">
                       <AttendanceHint row={row} />
                     </td>

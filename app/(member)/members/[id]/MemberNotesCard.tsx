@@ -53,12 +53,12 @@ export default function MemberNotesCard({
       className="bg-white dark:bg-slate-900 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-6 mb-6"
     >
       <div className="flex items-baseline justify-between gap-3 mb-1">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           <label htmlFor="member-note">My notes</label>
         </h2>
-        <span className="text-xs text-slate-400 dark:text-slate-500">🔒 Only you can see this</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">🔒 Only you can see this</span>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+      <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
         Things you want to remember or follow up on with {firstName}.
       </p>
       <textarea
@@ -80,7 +80,7 @@ export default function MemberNotesCard({
           ) : justSaved ? (
             <span className="text-green-600 dark:text-green-400">{savedBody ? "Saved." : "Note deleted."}</span>
           ) : updatedAt && !dirty ? (
-            <span className="text-slate-400 dark:text-slate-500">Last edited {formatSavedAt(updatedAt)}</span>
+            <span className="text-slate-500 dark:text-slate-400">Last edited {formatSavedAt(updatedAt)}</span>
           ) : null}
         </span>
         <button data-track="member-notes-save-note"

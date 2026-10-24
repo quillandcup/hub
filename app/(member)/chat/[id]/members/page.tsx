@@ -55,7 +55,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
           ← Back to {channel.label}
         </Link>
         <h1 className="text-2xl font-bold mt-1">
-          {channel.label} members <span className="text-base font-normal text-slate-500">({people.length})</span>
+          {channel.label} members <span className="text-base font-normal text-slate-600 dark:text-slate-400">({people.length})</span>
         </h1>
       </header>
       <MembersManager

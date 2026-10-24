@@ -46,11 +46,11 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
         </p>
       </div>
 
-      <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+      <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
         The Shelf ({shelf.length})
       </h2>
       {shelf.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">No books yet — be the first!</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No books yet — be the first!</p>
       ) : (
         <div className="@container">
           <div className="grid grid-cols-1 @pair:grid-cols-2 gap-4">
@@ -71,14 +71,14 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
                     {book.title}
                   </a>
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                   by{" "}
                   <Link href={`/members/${book.memberId}`} data-track="bookshelf-open-author" className="hover:underline">
                     {book.memberName}
                   </Link>{" "}
                   · {formatDate(book.publishedDate)}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
                   <span className="capitalize">{book.format}</span>
                   {book.genre && <span>· {book.genre}</span>}
                   {formatPrice(book.price) && <span>· {formatPrice(book.price)}</span>}

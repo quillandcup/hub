@@ -78,7 +78,7 @@ export default async function SlackChannelsPage() {
                 <tr key={c.channel_id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                   <td className="px-6 py-3">
                     <span className="font-medium">#{c.name}</span>
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">
                       {c.is_private ? "Private" : "Public"}
                       {c.is_archived ? " · Archived" : ""}
                     </span>

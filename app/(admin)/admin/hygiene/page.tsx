@@ -585,7 +585,7 @@ export default async function DataHygienePage() {
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
             Pipeline &amp; Sync Health
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             Is data flowing in from Calendar/Zoom/Slack/Kajabi and getting processed on schedule?
           </p>
           <div className="@container">
@@ -730,7 +730,7 @@ export default async function DataHygienePage() {
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
             Identity Matching
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             Is a person who exists in Slack or Zoom correctly linked to a member record?{" "}
             Looking for subscription-status mismatches instead? See{" "}
             <a href="#reconciliation" className="text-plum-600 dark:text-plum-400 hover:underline">
@@ -865,7 +865,7 @@ export default async function DataHygienePage() {
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
             Duplicate &amp; Conflict Detection
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             Does the same person have more than one record — in this app, or in an external system?
           </p>
           <div className="@container">
@@ -936,7 +936,7 @@ export default async function DataHygienePage() {
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-1">
             Data Completeness
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
             Is a real, matched member missing a field this app relies on?
           </p>
           <div className="@container">

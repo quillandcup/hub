@@ -36,7 +36,7 @@ export function TabBar<T extends string>({
             className={`px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
               activeTab === tab.id
                 ? "border-plum-600 text-plum-600 dark:border-plum-400 dark:text-plum-400"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700"
+                : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700"
             }`}
           >
             {tab.label}

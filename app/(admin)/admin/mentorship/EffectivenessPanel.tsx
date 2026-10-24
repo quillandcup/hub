@@ -10,12 +10,12 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow px-5 py-4">
       <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</div>
-      <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-1">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400 mt-1">{label}</div>
     </div>
   );
 }
 
-const TH = "px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+const TH = "px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider";
 const TD = "px-6 py-3 text-sm text-slate-600 dark:text-slate-400";
 
 /** Conversion of trial members by big sister and over time. Counts only trials that have been
@@ -41,7 +41,7 @@ export default function EffectivenessPanel({
         <Stat label="Conversion rate" value={percent(overall.conversionRate)} />
       </div>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 -mt-4">
+      <p className="text-xs text-slate-600 dark:text-slate-400 -mt-4">
         Conversion rate is for trials only: converted ÷ (converted + did not convert), with trials still in progress left
         out. New members who joined without a trial (a direct sign-up, a rejoin, a program) are counted in Matches and
         "No trial" but have nothing to convert. With few trials per big sister, read a single rate as a hint, not a
@@ -69,7 +69,7 @@ export default function EffectivenessPanel({
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {periods.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                  <td colSpan={7} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No matches yet.
                   </td>
                 </tr>
@@ -115,7 +115,7 @@ export default function EffectivenessPanel({
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {mentors.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                  <td colSpan={9} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No matches yet.
                   </td>
                 </tr>

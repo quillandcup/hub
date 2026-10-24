@@ -183,14 +183,14 @@ export default async function MemberProfilePage({
         <div>
           <h1 className="text-3xl font-bold">{displayName}</h1>
           {firstJoinedDate && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Hedgie since {formatMonthYear(firstJoinedDate)}
               {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
               {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
             </p>
           )}
           {lastPrickleAt && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
               Last prickle {formatLastPrickle(lastPrickleAt, now, timeZone)}
             </p>
           )}
@@ -222,7 +222,7 @@ export default async function MemberProfilePage({
 
       {askMeAbout.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Ask me about…</h2>
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Ask me about…</h2>
           <AskMeAboutTopics topics={askMeAbout} />
         </div>
       )}
@@ -249,7 +249,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {earnedBadges.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Badges
           </h2>
           <MemberBadgeChips badges={earnedBadges} bigSistersEnabled={bigSistersEnabled} />
@@ -259,7 +259,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all -- only projects and goals the member opted in via "Show on my profile" */}
       {(writing.projects.length > 0 || writing.goals.length > 0) && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Writing Progress
           </h2>
           {writing.projects.length > 0 && (
@@ -269,12 +269,12 @@ export default async function MemberProfilePage({
                   {project.headline ? (
                     <>
                       <span className="text-3xl font-bold">{project.headline.total.toLocaleString()}</span>
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className="text-slate-600 dark:text-slate-400">
                         {MEASURE_LABELS[project.headline.measure].toLowerCase()} on {project.title}
                       </span>
                     </>
                   ) : (
-                    <span className="text-slate-500 dark:text-slate-400">{project.title}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{project.title}</span>
                   )}
                 </li>
               ))}
@@ -284,7 +284,7 @@ export default async function MemberProfilePage({
             <div className={`space-y-4 ${writing.projects.length > 0 ? "mt-6" : ""}`}>
               {writing.goals.map((goal) => (
                 <div key={goal.id}>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
                   <GoalDisplay goal={goal} />
                 </div>
               ))}
@@ -296,7 +296,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {books.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Published Books
           </h2>
           <ul className="space-y-3">
@@ -325,7 +325,7 @@ export default async function MemberProfilePage({
                     ) : (
                       <p className="text-sm font-medium">{book.title}</p>
                     )}
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                       {formatMonthYear(parseDateOnly(book.published_date))}
                     </p>
                   </div>
@@ -339,7 +339,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {awards.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Awards
           </h2>
           <ul className="space-y-3">
@@ -350,13 +350,13 @@ export default async function MemberProfilePage({
                   <p className="text-sm font-medium">
                     🏆 {award.award_name}
                     {award.category && (
-                      <span className="font-normal text-slate-500 dark:text-slate-400">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">
                         {" "}
                         — {award.category}
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     for &ldquo;{award.work_title}&rdquo; · {formatMonthYear(parseDateOnly(award.award_date))}
                     {safeAwardUrl && (
                       <>

@@ -351,7 +351,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                 direction={sortDirection}
                 onClick={() => handleSort("lastTouchedAt")}
               />
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Instagram
               </th>
             </tr>
@@ -359,7 +359,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-600 dark:text-slate-400">
                   {viewMode === "queue" && doneForToday
                     ? "You're all caught up for today."
                     : viewMode === "queue"
@@ -396,7 +396,7 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                      <span className="text-sm text-slate-600 dark:text-slate-400">
                         {formatLastTouch(lead.lastTouchedAt)}
                       </span>
                       <button

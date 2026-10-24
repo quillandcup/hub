@@ -193,7 +193,7 @@ export default function MessageList({
           </button>
         )}
       </div>
-      {messages.length === 0 && <p className="py-3 text-sm text-slate-500">No messages here yet.</p>}
+      {messages.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No messages here yet.</p>}
       {groupByDay(messages, timeZone, firstUnreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
           {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}

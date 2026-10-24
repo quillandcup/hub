@@ -126,7 +126,7 @@ export default function SlackAliasSearchForm({
           <div className="mt-2 text-2xl font-bold text-plum-600 dark:text-plum-400">
             {users.length}
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             {users.filter((u) => !u.is_deleted).length} active ·{" "}
             {users.filter((u) => u.is_deleted).length} deactivated
           </div>
@@ -134,7 +134,7 @@ export default function SlackAliasSearchForm({
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {users.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               All matched! 🎉
             </div>
           ) : (
@@ -146,11 +146,11 @@ export default function SlackAliasSearchForm({
                     <div className="flex items-center gap-1.5">
                       <div className="font-semibold text-slate-900 dark:text-slate-100">
                         {user.real_name || user.display_name || (
-                          <span className="font-mono text-slate-500">{user.slack_user_id}</span>
+                          <span className="font-mono text-slate-600 dark:text-slate-400">{user.slack_user_id}</span>
                         )}
                       </div>
                       {user.is_deleted ? (
-                        <span className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
                           deactivated
                         </span>
                       ) : (
@@ -160,15 +160,15 @@ export default function SlackAliasSearchForm({
                       )}
                     </div>
                     {user.display_name && user.display_name !== user.real_name && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                      <div className="text-xs text-slate-600 dark:text-slate-400">
                         &quot;{user.display_name}&quot;
                       </div>
                     )}
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
                       {user.message_count} message{user.message_count === 1 ? "" : "s"}
                     </div>
                     {user.email && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                         {user.email}
                       </div>
                     )}

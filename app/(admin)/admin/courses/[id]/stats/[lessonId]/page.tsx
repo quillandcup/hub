@@ -26,11 +26,11 @@ function Tile({ label, value, definition, hint }: { label: string; value: string
     <details className="group rounded-lg bg-white p-4 shadow dark:bg-slate-900">
       <summary className="flex cursor-pointer list-none items-start justify-between gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500">
         <span>
-          <span className="block text-sm text-slate-500 dark:text-slate-400">{label}</span>
+          <span className="block text-sm text-slate-600 dark:text-slate-400">{label}</span>
           <span className="mt-1 block text-3xl font-semibold tabular-nums">{value}</span>
-          {hint && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+          {hint && <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{hint}</span>}
         </span>
-        <span aria-hidden="true" className="mt-1 text-slate-400 transition group-open:rotate-180">
+        <span aria-hidden="true" className="mt-1 text-slate-500 dark:text-slate-400 transition group-open:rotate-180">
           &#9662;
         </span>
       </summary>
@@ -99,7 +99,7 @@ export default async function LessonWatchStatsPage({
 
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
-      <Link href={`${base}${includeStaff ? "?staff=1" : ""}`} className="text-sm text-slate-500 hover:underline dark:text-slate-400">
+      <Link href={`${base}${includeStaff ? "?staff=1" : ""}`} className="text-sm text-slate-600 hover:underline dark:text-slate-400">
         ← Watch stats
       </Link>
       <h1 className="mt-2 text-3xl font-bold">{lesson.title}</h1>
@@ -177,7 +177,7 @@ export default async function LessonWatchStatsPage({
             <div className="@container">
               <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @pair:grid-cols-2">
               <div>
-                <dt className="text-slate-500 dark:text-slate-400">Playback speed (share of time played)</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Playback speed (share of time played)</dt>
                 <dd className="mt-1">
                   <ul>
                     {stats.speeds.map((s) => (
@@ -191,11 +191,11 @@ export default async function LessonWatchStatsPage({
               </div>
               <div className="space-y-3">
                 <div>
-                  <dt className="text-slate-500 dark:text-slate-400">Captions on</dt>
+                  <dt className="text-slate-600 dark:text-slate-400">Captions on</dt>
                   <dd className="mt-1 tabular-nums">{percent(stats.captionsShare)} of the time played</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500 dark:text-slate-400">Played with the tab in the background</dt>
+                  <dt className="text-slate-600 dark:text-slate-400">Played with the tab in the background</dt>
                   <dd className="mt-1 tabular-nums">{percent(stats.backgroundShare)} of the time played</dd>
                 </div>
               </div>

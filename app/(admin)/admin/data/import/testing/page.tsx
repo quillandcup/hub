@@ -45,18 +45,18 @@ export default async function TestingImportPage() {
               <p className="text-slate-600 dark:text-slate-400 mb-3">
                 Import member and subscription data from Kajabi CSV exports, then process to populate members table and track hiatus periods.
               </p>
-              <details className="text-sm text-slate-500 dark:text-slate-400">
+              <details className="text-sm text-slate-600 dark:text-slate-400">
                 <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
                   How to Export from Kajabi
                 </summary>
                 <div className="mt-2 pl-4 space-y-2">
                   <p className="font-semibold text-green-600 dark:text-green-400">Members Export</p>
                   <p className="pl-4"><a href="https://app.kajabi.com/admin/sites/2147577478/contacts?segment_id=members&is_member=true" target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 underline">Open Customers in Kajabi</a> → Select All → Bulk Action "Export"</p>
-                  <p className="text-xs text-slate-400">Expected columns: Name, Email, Products, Tags, Member Created At</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Expected columns: Name, Email, Products, Tags, Member Created At</p>
 
                   <p className="mt-3 font-semibold text-green-600 dark:text-green-400">Subscriptions Export</p>
                   <p className="pl-4">Go to <a href="https://app.kajabi.com/admin/sites/2147577478/payments/subscriptions" target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 underline">Payments → Subscriptions</a> → Click the three dots (...) → Export subscriptions</p>
-                  <p className="text-xs text-slate-400">Expected columns: Customer Name, Customer Email, Status, Created At, Offer Title</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Expected columns: Customer Name, Customer Email, Status, Created At, Offer Title</p>
                 </div>
               </details>
             </div>
@@ -71,7 +71,7 @@ export default async function TestingImportPage() {
               <p className="text-slate-600 dark:text-slate-400 mb-3">
                 Import Slack data from CSV exports, then process it to create member activity records.
               </p>
-              <details className="text-sm text-slate-500 dark:text-slate-400">
+              <details className="text-sm text-slate-600 dark:text-slate-400">
                 <summary className="cursor-pointer font-medium hover:text-slate-700 dark:hover:text-slate-300">
                   How to Export from Slack
                 </summary>
@@ -80,7 +80,7 @@ export default async function TestingImportPage() {
                   <p className="pl-4">Get your token from Slack App settings and add to <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">.env.local</code></p>
                   <p><strong>Step 2: Run export script</strong></p>
                   <p className="pl-4"><code className="bg-slate-100 dark:bg-slate-800 px-1 rounded">npx tsx scripts/export-slack-data.ts 30 exports</code></p>
-                  <p className="text-xs text-slate-400">(exports last 30 days to exports/ directory)</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">(exports last 30 days to exports/ directory)</p>
                   <p><strong>Step 3: Upload the 4 generated CSV files below</strong></p>
                   <p className="pl-4">Files: slack_users.csv, slack_channels.csv, slack_messages.csv, slack_reactions.csv</p>
                 </div>
@@ -96,7 +96,7 @@ export default async function TestingImportPage() {
             <p className="text-slate-600 dark:text-slate-400">
               TODO: Add CSV upload option for Zoom meeting data for testing purposes.
             </p>
-            <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               Use the <Link href="/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based Zoom imports.
             </p>
           </div>
@@ -107,7 +107,7 @@ export default async function TestingImportPage() {
             <p className="text-slate-600 dark:text-slate-400">
               TODO: Add CSV upload option for Google Calendar event data for testing purposes.
             </p>
-            <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               Use the <Link href="/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based calendar sync.
             </p>
           </div>

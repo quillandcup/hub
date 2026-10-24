@@ -113,7 +113,7 @@ export default function AttendanceListTable({
   if (attendance.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-        <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+        <div className="p-12 text-center text-slate-600 dark:text-slate-400">
           No attendance records for this member
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function AttendanceListTable({
                 onClick={() => handleSort("host")}
               />
               {showPills && (
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Check in / out
                 </th>
               )}

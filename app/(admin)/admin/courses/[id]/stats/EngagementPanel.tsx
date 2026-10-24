@@ -91,7 +91,7 @@ export default function EngagementPanel({
     };
   }, [stillUrl]);
 
-  if (n === 0) return <p className="text-sm text-slate-500 dark:text-slate-400">Nobody has watched this video yet.</p>;
+  if (n === 0) return <p className="text-sm text-slate-600 dark:text-slate-400">Nobody has watched this video yet.</p>;
 
   const plotH = framesOn ? PLOT_H.frames : PLOT_H.plain;
   const plotTop = MARGIN.top;
@@ -247,7 +247,7 @@ export default function EngagementPanel({
         )}
       </div>
 
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
         Three counts of each moment, each stricter than the last: every pass over it, then plays (visits, so a rewind inside one is still one), then different people. One person watching a part twice in a visit is 2, 1, 1; coming back another day is 2, 2, 1.
       </p>
 
@@ -255,7 +255,7 @@ export default function EngagementPanel({
         <summary className="cursor-pointer text-plum-700 dark:text-plum-300">Table view</summary>
         <div className="mt-2 max-h-64 overflow-y-auto">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+            <thead className="sticky top-0 bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="py-1 pr-3 font-medium">Moment</th>
                 <th className="py-1 pr-3 text-right font-medium">Times watched</th>

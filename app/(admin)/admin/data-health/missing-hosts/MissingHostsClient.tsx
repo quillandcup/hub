@@ -289,14 +289,14 @@ export default function MissingHostsClient() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-slate-400">Data Quality Issues</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalUnexpected}</p>
-                <p className="text-sm text-gray-500 dark:text-slate-500">prickles requiring hosts</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">prickles requiring hosts</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-slate-400">Expected (No Host Required)</p>
                 <p className="text-2xl font-bold text-gray-600 dark:text-slate-400">
                   {expectedUnhosted.reduce((sum, s) => sum + s.missing_host_count, 0)}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-slate-500">prickles intentionally unhosted</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">prickles intentionally unhosted</p>
               </div>
             </div>
 

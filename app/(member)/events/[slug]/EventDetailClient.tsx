@@ -49,7 +49,7 @@ export default function EventDetailClient({
   return (
     <div className="mt-4 space-y-6">
       <div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+        <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
         </p>
         <h1 className="text-2xl font-bold mt-0.5">{event.title}</h1>
@@ -64,7 +64,7 @@ export default function EventDetailClient({
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-4">
           {event.focus && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Focus
               </h2>
               <p>{event.focus}</p>
@@ -72,7 +72,7 @@ export default function EventDetailClient({
           )}
           {event.description && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 About
               </h2>
               <p className="whitespace-pre-wrap">{event.description}</p>
@@ -80,7 +80,7 @@ export default function EventDetailClient({
           )}
           {event.agenda && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Agenda
               </h2>
               <p className="whitespace-pre-wrap">{event.agenda}</p>
@@ -88,7 +88,7 @@ export default function EventDetailClient({
           )}
           {event.results && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Results
               </h2>
               <p className="whitespace-pre-wrap">{event.results}</p>
@@ -113,7 +113,7 @@ export default function EventDetailClient({
         </div>
 
         {photos.length === 0 ? (
-          <p className="text-slate-500">No photos yet.</p>
+          <p className="text-slate-600 dark:text-slate-400">No photos yet.</p>
         ) : (
           <div className="@container">
             <div className="grid grid-cols-2 @pair:grid-cols-4 gap-2">

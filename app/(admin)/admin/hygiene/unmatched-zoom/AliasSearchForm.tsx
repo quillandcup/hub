@@ -200,11 +200,11 @@ export default function AliasSearchForm({
                     <span className="font-mono text-plum-600 dark:text-plum-400">
                       {match.zoomName}
                     </span>
-                    <span className="mx-2 text-slate-400">→</span>
+                    <span className="mx-2 text-slate-500 dark:text-slate-400">→</span>
                     <span className="font-semibold text-slate-900 dark:text-slate-100">
                       {match.memberName}
                     </span>
-                    <span className="text-slate-500 text-xs ml-2">
+                    <span className="text-slate-600 dark:text-slate-400 text-xs ml-2">
                       ({match.memberEmail})
                     </span>
                   </div>
@@ -235,7 +235,7 @@ export default function AliasSearchForm({
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {availableZoomNames.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               All matched! 🎉
             </div>
           ) : (
@@ -259,7 +259,7 @@ export default function AliasSearchForm({
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
                       {attendee.zoomName.length} chars •{" "}
                       <button
                         onClick={() => handleViewPrickles(attendee.zoomName)}
@@ -269,7 +269,7 @@ export default function AliasSearchForm({
                       </button>
                     </div>
                     {attendee.emails.length > 0 && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                         {attendee.emails.join(", ")}
                       </div>
                     )}
@@ -323,11 +323,11 @@ export default function AliasSearchForm({
         title={`Prickles for "${selectedZoomName}"`}
       >
         {loadingPrickles ? (
-          <div className="text-center text-slate-500 py-8">Loading...</div>
+          <div className="text-center text-slate-600 dark:text-slate-400 py-8">Loading...</div>
         ) : prickles.length === 0 ? (
           <div className="text-center py-8">
-            <div className="text-slate-500 mb-4">No prickles found</div>
-            <div className="text-sm text-slate-400 max-w-md mx-auto">
+            <div className="text-slate-600 dark:text-slate-400 mb-4">No prickles found</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
               This Zoom name appeared in meetings that weren&apos;t processed into prickles yet.
               Try reprocessing attendance data to include these meetings.
             </div>

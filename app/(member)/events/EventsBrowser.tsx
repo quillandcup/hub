@@ -152,7 +152,7 @@ export default function EventsBrowser({
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+    <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
       {children}
     </h2>
   );
@@ -163,7 +163,7 @@ function EventGrid({ heading, events, empty }: { heading: string; events: EventR
     <section className="mb-8">
       <SectionHeading>{heading}</SectionHeading>
       {events.length === 0 ? (
-        <p className="text-sm text-slate-500">{empty}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">{empty}</p>
       ) : (
         <div className="@container">
           <div className="grid grid-cols-1 @pair:grid-cols-2 @columns:grid-cols-3 gap-4">
@@ -194,7 +194,7 @@ function EventCard({ event }: { event: EventRow }) {
         )}
       </div>
       <div className="p-4">
-        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+        <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
         </p>
         <h3 className="font-semibold mt-0.5">{event.title}</h3>
@@ -202,7 +202,7 @@ function EventCard({ event }: { event: EventRow }) {
           {fmtDateRange(event.starts_at, event.ends_at)}
           {event.location ? ` · ${event.location}` : ""}
         </p>
-        {event.focus && <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{event.focus}</p>}
+        {event.focus && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{event.focus}</p>}
       </div>
     </Link>
   );
@@ -233,7 +233,7 @@ function EducationalSection({
     >
       <SectionHeading>Upcoming educational prickles</SectionHeading>
       {prickles.length === 0 ? (
-        <p className="text-sm text-slate-500">No educational prickles on the calendar right now.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No educational prickles on the calendar right now.</p>
       ) : (
         <ul>
           {prickles.map((p) => (
@@ -244,11 +244,11 @@ function EducationalSection({
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{p.title || p.typeName}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                     {p.hostName ? `Hosted by ${hostShortName(p.hostName)}` : "No host listed"}
                   </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 text-right">
+                <p className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0 text-right">
                   {withSecondary(fmtPrickleTime(p.startTime, timeZone), p.startTime, timeZone)}
                 </p>
               </Link>

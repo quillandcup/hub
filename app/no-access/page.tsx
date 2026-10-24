@@ -28,7 +28,7 @@ export default function NoAccessPage() {
         >
           Go to your dashboard
         </Link>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
           Think you should have a membership? Email{" "}
           <a href={`mailto:${SUPPORT_EMAIL}`} className="text-plum-600 dark:text-plum-400 hover:underline">
             {SUPPORT_EMAIL}

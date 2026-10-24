@@ -332,7 +332,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
 
           {introFallback?.starterText ? (
             <div className="mb-4 text-left">
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
                 I couldn&apos;t start a chat for you two, so here&apos;s something to open with:
               </p>
               <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
@@ -346,7 +346,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
               Billie will start a chat with you both and break the ice.
             </p>
           )}
@@ -393,7 +393,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
         </div>
       )}
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-sm">
+      <p className="text-xs text-slate-500 dark:text-slate-400 text-center max-w-sm">
         The Wheel of Wonder leans toward Hedgies who haven&apos;t connected much yet, so newer or
         quieter folks turn up as matches more often. Posting, reacting, and showing up to a
         Prickle is still the fastest way to build connections on your own.{" "}

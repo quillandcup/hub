@@ -30,11 +30,11 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
       <span className="min-w-0 flex-1">
         <span className={`block text-sm ${current ? "font-semibold" : "font-medium"}`}>{lesson.title}</span>
         {completed && <span className="sr-only"> (completed)</span>}
-        {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500 dark:text-slate-400">{lesson.excerpt}</span>}
+        {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-600 dark:text-slate-400">{lesson.excerpt}</span>}
         {comingSoon ? (
-          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
+          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
         ) : (
-          duration && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{duration}</span>
+          duration && <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{duration}</span>
         )}
       </span>
       <span
@@ -49,7 +49,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
   );
   const base = "flex items-center gap-3 rounded-lg p-2";
   if ((comingSoon && !previewComingSoon) || !canOpen) {
-    return <li className={`${base} text-slate-500 dark:text-slate-400`}>{content}</li>;
+    return <li className={`${base} text-slate-600 dark:text-slate-400`}>{content}</li>;
   }
   return (
     <li>
@@ -73,7 +73,7 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
       <Heading className={`flex items-center gap-2 ${depth === 0 ? "text-lg font-semibold" : "text-base font-semibold"}`}>
         {node.module.title}
         {comingSoon && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(node.module.state)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(node.module.state)}</span>
         )}
       </Heading>
       <ul className="mt-2 space-y-1">

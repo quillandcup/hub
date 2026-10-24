@@ -36,7 +36,7 @@ function Person({
             {partner.name}
           </Link>
         </MemberHoverCard>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{caption}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400">{caption}</p>
       </div>
       {slackLink && (
         <a data-track="big-sister-say-hi-on-slack"
@@ -51,7 +51,7 @@ function Person({
 }
 
 const CARD = "bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6";
-const HEADING = "text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4";
+const HEADING = "text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4";
 
 /**
  * The member's own Big Sister matches: their big sister if they're new, and the new members they

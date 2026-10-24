@@ -61,7 +61,7 @@ export default function PendingAttachments({
               ) : (
                 <div className="flex h-16 max-w-48 flex-col justify-center rounded-lg border border-slate-200 px-3 text-xs dark:border-slate-700">
                   <span className="truncate font-medium">{f.name || "file"}</span>
-                  <span className="text-slate-500 dark:text-slate-400">{formatFileSize(f.size)}</span>
+                  <span className="text-slate-600 dark:text-slate-400">{formatFileSize(f.size)}</span>
                 </div>
               )}
               {progress && <ProgressRing fraction={progress[i] ?? 0} name={f.name || "file"} />}

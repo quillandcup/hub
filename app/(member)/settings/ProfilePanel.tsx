@@ -25,7 +25,7 @@ const SAVE_CLASS =
 /** Under each bio/link field: how to hide it, plus a one-click "Remove" while it has a value. */
 function ClearHint({ value, noun, onClear }: { value: string; noun: string; onClear: () => void }) {
   return (
-    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
       <span>Leave blank to hide your {noun} from your profile.</span>
       {value.trim() && (
         <button
@@ -189,7 +189,7 @@ export function ProfilePanel() {
             <label htmlFor="profile-bio" className="text-sm font-medium text-slate-900 dark:text-slate-100">
               Bio
             </label>
-            <span className="text-xs text-slate-400 dark:text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               {bioInput.trim().length}/{MAX_BIO_LENGTH}
             </span>
           </div>
@@ -216,7 +216,7 @@ export function ProfilePanel() {
             maxTags={MAX_TOPICS}
             maxTagLength={MAX_TOPIC_LENGTH}
           />
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Topics you&apos;re happy to chat about. Press Enter or comma after each one.
           </p>
         </div>
@@ -240,7 +240,7 @@ export function ProfilePanel() {
               <ClearHint value={instagramInput} noun="Instagram" onClear={() => setInstagramInput("")} />
             </>
           ) : (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               Instagram isn&apos;t set up for your account yet. Email{" "}
               <a data-track="settings-profile-contact-support" href={`mailto:${SUPPORT_EMAIL}`} className="underline">
                 {SUPPORT_EMAIL}
@@ -301,7 +301,7 @@ export function ProfilePanel() {
           />
           <span>
             Show me in &ldquo;Who&apos;s coming&rdquo;
-            <span className="block text-xs text-slate-500 dark:text-slate-400">
+            <span className="block text-xs text-slate-600 dark:text-slate-400">
               On an upcoming prickle&apos;s page, other members see your name if you committed to it or added it to your
               calendar. Untick to stay off those lists; you still see yourself.
             </span>

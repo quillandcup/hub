@@ -92,13 +92,13 @@ export default async function WheelOfWonderAdminPage() {
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
             A match is confirmed once both people have replied in the shared Slack room and their combined
             message count reaches {CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD}.
           </div>
           <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {matches.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">No spins yet.</div>
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">No spins yet.</div>
             ) : (
               matches.map((match) => {
                 const spinner = oneMember(match.spinner);
@@ -120,7 +120,7 @@ export default async function WheelOfWonderAdminPage() {
                         ) : (
                           "Unknown member"
                         )}
-                        <span className="text-slate-400 dark:text-slate-600 mx-2">→</span>
+                        <span className="text-slate-500 dark:text-slate-600 mx-2">→</span>
                         {matched ? (
                           <Link
                             href={`/admin/members/${matched.id}`}
@@ -138,7 +138,7 @@ export default async function WheelOfWonderAdminPage() {
                           <> &middot; confirmed {new Date(match.confirmed_at).toLocaleString()}</>
                         )}
                       </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         Messages: {spinner?.name ?? "spinner"} {match.spinner_message_count} &middot;{" "}
                         {matched?.name ?? "matched"} {match.matched_message_count}
                       </div>

@@ -38,7 +38,7 @@ export default function TimeSeriesChart({
 }) {
   const [active, setActive] = useState<number | null>(null);
   const n = points.length;
-  if (n === 0) return <p className="text-sm text-slate-500 dark:text-slate-400">Nothing in this range.</p>;
+  if (n === 0) return <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this range.</p>;
 
   const peak = Math.max(...points.map((p) => p.value));
   // Percent charts always read from 0 to a round value of at least 10%, so a quiet range doesn't look dramatic.
@@ -125,7 +125,7 @@ export default function TimeSeriesChart({
             className="pointer-events-none absolute top-2 z-10 w-48 rounded-md border border-slate-200 bg-white p-2 text-xs shadow-md dark:border-slate-700 dark:bg-slate-900"
             style={tooltipOnRight ? { left: `${(x(active) / W) * 100 + 2}%` } : { right: `${100 - (x(active) / W) * 100 + 2}%` }}
           >
-            <p className="text-slate-500 dark:text-slate-400">{granularityLabel === "day" ? hovered.label : `${granularityLabel === "week" ? "Week of" : ""} ${hovered.label}`.trim()}</p>
+            <p className="text-slate-600 dark:text-slate-400">{granularityLabel === "day" ? hovered.label : `${granularityLabel === "week" ? "Week of" : ""} ${hovered.label}`.trim()}</p>
             <p className="mt-1 flex items-center justify-between gap-2">
               <span className="text-slate-600 dark:text-slate-400">{metricLabel}</span>
               <strong className="text-slate-900 dark:text-slate-100">{formatMetricValue(hovered.value, unit)}</strong>
@@ -143,7 +143,7 @@ export default function TimeSeriesChart({
         <summary className="cursor-pointer text-plum-700 dark:text-plum-300">Table view</summary>
         <div className="mt-2 max-h-64 overflow-y-auto">
           <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+            <thead className="sticky top-0 bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="py-1 pr-3 font-medium">{granularityLabel === "day" ? "Day" : granularityLabel === "week" ? "Week of" : "Month"}</th>
                 <th className="py-1 pr-3 text-right font-medium">{metricLabel}</th>

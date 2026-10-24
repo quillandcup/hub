@@ -2,7 +2,7 @@ import type { HeatBucket } from "@/lib/courses/watch-stats";
 
 /** A small engagement graph for a table row: the plays area only, no axes. The lesson's own page has the full chart. */
 export default function EngagementSparkline({ buckets, label }: { buckets: HeatBucket[]; label: string }) {
-  if (buckets.length === 0) return <span className="text-slate-400">No views</span>;
+  if (buckets.length === 0) return <span className="text-slate-500 dark:text-slate-400">No views</span>;
   const w = 120;
   const h = 28;
   const max = Math.max(...buckets.map((b) => b.timesWatched), 1);

@@ -66,7 +66,7 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
 
       <div className="divide-y divide-slate-200 dark:divide-slate-800">
         {remaining.length === 0 ? (
-          <div className="p-12 text-center text-slate-500">All resolved! 🎉</div>
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">All resolved! 🎉</div>
         ) : (
           remaining.map((entry) => (
             <div key={entry.zoomName} className="p-4">
@@ -74,7 +74,7 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                 <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
                   &quot;{entry.zoomName}&quot;
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
+                <span className="text-xs text-slate-600 dark:text-slate-400">
                   {entry.occurrenceCount} occurrence{entry.occurrenceCount !== 1 ? "s" : ""} · last
                   seen {formatDateInZone(entry.lastSeenAt, timeZone)}
                 </span>

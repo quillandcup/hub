@@ -176,11 +176,11 @@ export default async function MyPricklesPage({
               label: MY_PRICKLES_TAB_LABELS.upcoming,
               content: (
                 <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-                  <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+                  <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
                     For You — Next {UPCOMING_WINDOW_DAYS} Days
                   </h2>
                   {displayedUpcoming.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
                       No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
                       <Link data-track="my-prickles-see-the-full-schedule" href="/my-prickles/all" className="text-plum-600 dark:text-plum-400 hover:underline">
                         See the full schedule →
@@ -201,7 +201,7 @@ export default async function MyPricklesPage({
                         />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
-                        <p className="text-xs text-slate-400 mt-3">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                           Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
                           <Link data-track="my-prickles-see-all-prickles"
                             href="/my-prickles/all"

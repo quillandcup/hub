@@ -96,7 +96,7 @@ function CountBadge({ count, active }: { count: number; active: boolean }) {
   return (
     <span
       className={`ml-1.5 inline-block min-w-[1.25rem] rounded-full px-1.5 text-xs tabular-nums ${
-        active ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+        active ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
       }`}
     >
       {count}

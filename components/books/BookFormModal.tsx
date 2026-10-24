@@ -271,7 +271,7 @@ export default function BookFormModal({
                 disabled={isUploadingCover}
                 className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
               />
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                 {isUploadingCover ? "Uploading..." : describeBookCoverRequirements()}
               </p>
               {coverError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{coverError}</p>}

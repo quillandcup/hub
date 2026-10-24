@@ -72,10 +72,10 @@ export default function AllPricklesView({
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
             All Prickles
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             The full recurring weekly schedule — also known as Prickle Times. Times shown in your timezone.
           </p>
         </div>

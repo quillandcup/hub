@@ -352,13 +352,13 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                     direction={sortDirection}
                     onClick={() => handleSort("created")}
                   />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 {segments.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                    <td colSpan={4} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                       No segments yet.
                     </td>
                   </tr>
@@ -367,7 +367,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                   <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.memberCount}</td>
-                    <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                       {formatDateInZone(s.created_at, timeZone)}
                     </td>
                     <td className="px-6 py-4">
@@ -397,7 +397,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
           </p>
         </div>
         {flagsLoading ? (
-          <div className="p-6 text-sm text-slate-500 dark:text-slate-400">Loading...</div>
+          <div className="p-6 text-sm text-slate-600 dark:text-slate-400">Loading...</div>
         ) : (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {flags.map((f) => (
@@ -405,7 +405,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</div>
-                    <div className="text-xs text-slate-400 dark:text-slate-500 font-mono">{f.key}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">{f.key}</div>
                   </div>
                   <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
                     <input
@@ -419,7 +419,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {f.segments.length === 0 ? (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">No segments targeted</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">No segments targeted</span>
                   ) : (
                     f.segments.map((s) => (
                       <span
@@ -487,7 +487,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                 >
                   {inviting ? "Inviting..." : "Bulk Invite"}
                 </button>
-                <button onClick={closeSegment} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
+                <button onClick={closeSegment} className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Close">
                   ✕
                 </button>
               </div>
@@ -496,7 +496,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
             {detailError && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{detailError}</p>}
 
             <div className="mb-4">
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Add members</label>
+              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Add members</label>
               <MultiMemberSearch
                 members={allMembers.filter((m) => !members.some((sm) => sm.id === m.id))}
                 selectedMemberIds={selectedIds}
@@ -514,7 +514,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
 
             {addResults && (
               <div className="mb-4">
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Add results:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Add results:</p>
                 <ul className="flex flex-wrap gap-1">
                   {addResults.map((r) => (
                     <li key={r.email} className={`px-2 py-0.5 rounded text-xs font-medium ${RESULT_COLORS[r.status]}`}>
@@ -527,7 +527,7 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
 
             {inviteResults && (
               <div className="mb-4">
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Invite results:</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Invite results:</p>
                 <ul className="flex flex-wrap gap-1">
                   {inviteResults.map((r) => (
                     <li
@@ -543,18 +543,18 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
             )}
 
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Members</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Members</p>
               {detailLoading ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Loading...</p>
               ) : members.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">No members yet.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No members yet.</p>
               ) : (
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
                   {members.map((m) => (
                     <li key={m.id} className="py-2 flex items-center justify-between">
                       <div>
                         <div className="text-sm text-slate-900 dark:text-slate-100">{m.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{m.email}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">{m.email}</div>
                       </div>
                       <button
                         onClick={() => removeMember(m.id)}

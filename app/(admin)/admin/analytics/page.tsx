@@ -189,7 +189,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               {((topClicks.data ?? []) as TopClickRow[]).map((row) => (
                 <tr key={`${row.label}|${row.element}`} className="border-t border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
                   <td className="px-3 py-2">
-                    {row.label === "(unlabelled)" ? <span className="text-slate-500">(unlabelled)</span> : <span className="font-mono text-xs">{row.label}</span>}
+                    {row.label === "(unlabelled)" ? <span className="text-slate-600 dark:text-slate-400">(unlabelled)</span> : <span className="font-mono text-xs">{row.label}</span>}
                   </td>
                   <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{row.element ?? ""}</td>
                   <td className="px-3 py-2 text-right">{row.events}</td>
@@ -200,7 +200,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {(topClicks.data ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No clicks in this window.
                   </td>
                 </tr>
@@ -275,7 +275,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {judged.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No control has been seen by {minVisits}+ visits and for {minAgeDays}+ days yet.
                   </td>
                 </tr>
@@ -284,7 +284,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
           </table>
         </div>
         {held > 0 && (
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
             {held} {held === 1 ? "control is" : "controls are"} held back: seen by fewer than {minVisits} visits, or first seen less than {minAgeDays} days ago.
           </p>
         )}
@@ -323,7 +323,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {actions.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No actions recorded in this window.
                   </td>
                 </tr>
@@ -364,7 +364,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {notifications.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No notifications recorded in this window.
                   </td>
                 </tr>
@@ -399,7 +399,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {(summary.data ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No events yet in this window.
                   </td>
                 </tr>

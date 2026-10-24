@@ -138,7 +138,7 @@ export default function MemberDetails({
           >
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
               {memberMetrics?.engagementScore || 0}
-              <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> / 100</span>
+              <span className="text-xs font-normal text-slate-600 dark:text-slate-400"> / 100</span>
             </span>
           </StatItem>
           {member.status === "active" && (
@@ -215,7 +215,7 @@ export default function MemberDetails({
                   <SummaryStat label="Channels" value={slackSummary.channels} />
                 </>
               ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">No Slack activity yet.</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">No Slack activity yet.</p>
               )}
             </SummaryCard>
           </div>
@@ -273,7 +273,7 @@ export default function MemberDetails({
             </p>
             <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
             {activityFeed.total === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
             ) : (
               <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout />
             )}
@@ -287,7 +287,7 @@ export default function MemberDetails({
 function StatItem({ label, info, children }: { label: string; info?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+      <span className="flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400">
         {label}
         {info && <InfoTip label={`About ${label}`}>{info}</InfoTip>}
       </span>
@@ -328,7 +328,7 @@ function SummaryCard({
 function SummaryStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</div>
       <div className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{value}</div>
     </div>
   );

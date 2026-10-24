@@ -141,7 +141,7 @@ export default function SidePanel({
           data-track="chat-side-panel-close"
           scroll={false}
           aria-label={`Close ${title.toLowerCase()}`}
-          className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           ✕
         </Link>

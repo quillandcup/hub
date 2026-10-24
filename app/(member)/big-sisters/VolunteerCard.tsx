@@ -30,7 +30,7 @@ export default function VolunteerCard({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-      <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+      <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
         Be a Big Sister
       </h2>
       {blockedReason && !volunteering ? (
@@ -42,7 +42,7 @@ export default function VolunteerCard({
               ? "You're on the list. We'll match you with a new member when it's your turn, and you'll get a message when we do."
               : "Happy to show a new member around for their first weeks? Add yourself to the list and we'll match you when it's your turn. You can step off any time."}
           </p>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" htmlFor="bs-note">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1" htmlFor="bs-note">
             Anything we should know? (optional, only staff see it)
           </label>
           <input
@@ -75,7 +75,7 @@ export default function VolunteerCard({
               </button>
             )}
           </div>
-          {readOnly && <p className="mt-3 text-xs text-slate-500">Viewing as a member is read-only.</p>}
+          {readOnly && <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">Viewing as a member is read-only.</p>}
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         </>
       )}

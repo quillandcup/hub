@@ -145,7 +145,7 @@ export default function MessageBody({
           >
             Cancel
           </button>
-          <span className="text-slate-400">Enter to save, Esc to cancel</span>
+          <span className="text-slate-500 dark:text-slate-400">Enter to save, Esc to cancel</span>
         </div>
         {error && (
           <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">

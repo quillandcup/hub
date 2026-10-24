@@ -75,7 +75,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
                     {member.kajabi_id}
                   </a>
                 ) : (
-                  <span className="text-xs text-slate-400">—</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">—</span>
                 )}
               </td>
             </tr>

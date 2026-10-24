@@ -137,7 +137,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
           /* Radio selection + absorb display */
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">
                 Select primary (keep)
               </p>
               <div className="space-y-2">
@@ -160,7 +160,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{m.name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{m.email}</p>
                     </div>
                     {primaryId === m.id && (
                       <span className="ml-auto text-xs font-medium text-plum-600 dark:text-plum-400 flex-shrink-0">Keep</span>
@@ -172,7 +172,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
 
             {secondary && (
               <div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1.5">
                   Absorb & delete (duplicate)
                 </p>
                 <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-950/30">
@@ -181,11 +181,11 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm truncate">{secondary.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{secondary.email}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{secondary.email}</p>
                   </div>
                   <button
                     onClick={handleChangeSecondary}
-                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0"
+                    className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0"
                   >
                     Change
                   </button>
@@ -198,7 +198,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
           <>
             {/* Primary */}
             <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1.5">
                 Keep (primary)
               </p>
               <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-plum-200 dark:border-plum-700 bg-plum-50 dark:bg-plum-950/30">
@@ -207,14 +207,14 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                 </div>
                 <div className="min-w-0">
                   <p className="font-medium text-sm truncate">{primaryMember.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{primaryMember.email}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{primaryMember.email}</p>
                 </div>
               </div>
             </div>
 
             {/* Secondary search */}
             <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1.5">
                 Absorb & delete (duplicate)
               </p>
               <div className="relative">
@@ -240,13 +240,13 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
                         className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors"
                       >
                         <p className="text-sm font-medium">{m.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{m.email}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">{m.email}</p>
                       </button>
                     ))}
                   </div>
                 )}
                 {query.trim().length >= 2 && !loading && results.length === 0 && (
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No members found</p>
+                  <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">No members found</p>
                 )}
               </div>
             </div>
@@ -277,7 +277,7 @@ export default function MergeMemberModal({ primaryMember, isOpen, onClose }: Mer
         )}
 
         {externalLoading && secondary && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Checking external accounts...</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">Checking external accounts...</p>
         )}
 
         {!externalLoading && secondary && hasExternalNotes(externalStatusById[secondary.id]) && (() => {

@@ -61,7 +61,7 @@ export function MergeExternalNotice({
     <div>
       <p className="font-semibold mb-1">
         {secondary.name}{" "}
-        <span className="font-normal text-slate-500 dark:text-slate-400">({secondary.email})</span>
+        <span className="font-normal text-slate-600 dark:text-slate-400">({secondary.email})</span>
       </p>
       <ul className="space-y-1 ml-2">
         {secondaryStatus.kajabi_id && (

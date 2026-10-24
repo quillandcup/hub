@@ -29,7 +29,7 @@ import {
 export function chipClass(selected: boolean, disabled = false): string {
   const base = "px-3 py-1 rounded-full text-sm border transition-colors";
   if (selected) return `${base} bg-plum-600 border-plum-600 text-white`;
-  if (disabled) return `${base} border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed`;
+  if (disabled) return `${base} border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed`;
   return `${base} border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-plum-400`;
 }
 
@@ -177,7 +177,7 @@ export function EmotionPicker({
   return (
     <fieldset>
       <legend className={legendClass}>
-        {EMOTION_QUESTION} <span className="text-slate-400 font-normal">(optional)</span>
+        {EMOTION_QUESTION} <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
       </legend>
       {!readOnly && (
         <EntitySearch
@@ -231,7 +231,7 @@ export function EmotionPicker({
           ))}
         </div>
       )}
-      <p className="mt-1.5 text-xs text-slate-400">{EMOTION_WHEEL_CREDIT}</p>
+      <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{EMOTION_WHEEL_CREDIT}</p>
     </fieldset>
   );
 }

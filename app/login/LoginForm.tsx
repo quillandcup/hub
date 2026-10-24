@@ -136,7 +136,7 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
           {/* Shown only once SLACK_TEAM_ID and SLACK_APP_ID are set, i.e. the Slack app is live. */}
           {slackHomeUrl && (
             <div className="mt-6">
-              <div className="flex items-center gap-3 mb-6 text-sm text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-3 mb-6 text-sm text-slate-600 dark:text-slate-400">
                 <span className="flex-1 border-t border-slate-200 dark:border-slate-700" />
                 or
                 <span className="flex-1 border-t border-slate-200 dark:border-slate-700" />

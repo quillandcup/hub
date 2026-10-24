@@ -70,7 +70,7 @@ function ModuleRow({ slug, node, completed, openable }: { slug: string; node: Ou
       <Thumbnail url={first?.thumbnail_url} />
       <span>
         <span className="block font-medium leading-snug">{node.module.title}</span>
-        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
+        <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
           {done} of {lessons.length} {lessons.length === 1 ? "lesson" : "lessons"} done
         </span>
       </span>
@@ -116,7 +116,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         </PageBanner>
       )}
       <div className="@container mx-auto w-full max-w-4xl px-6 py-6">
-        <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
+        <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
               <Link data-track="course-module-breadcrumb-course" href={`/courses/${slug}`} className="hover:underline">
@@ -141,7 +141,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
         <section className="mt-4 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="text-3xl font-bold leading-tight">{node.module.title}</h1>
-            <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
+            <span className="shrink-0 text-sm text-slate-600 dark:text-slate-400">
               {done} of {lessons.length} {lessons.length === 1 ? "lesson" : "lessons"} done
             </span>
           </div>

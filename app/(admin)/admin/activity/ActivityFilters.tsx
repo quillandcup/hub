@@ -145,7 +145,7 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
             onSelect={(member) => go({ memberId: member?.id ?? null, ...(member ? { view: "all" as const } : {}) })}
             placeholder="Search members..."
           />
-          <span className="block mt-1 text-xs text-slate-500">What they did, and what staff did for them or as them</span>
+          <span className="block mt-1 text-xs text-slate-600 dark:text-slate-400">What they did, and what staff did for them or as them</span>
         </label>
         <label className="block text-sm text-slate-600 dark:text-slate-400">
           <span className="block mb-1">Staff member</span>
@@ -156,7 +156,7 @@ export default function ActivityFilters(props: ActivityFiltersProps) {
             onSelect={(user) => go({ actorUserId: user?.id ?? null })}
             placeholder="Search staff..."
           />
-          <span className="block mt-1 text-xs text-slate-500">Only what this admin or assistant did</span>
+          <span className="block mt-1 text-xs text-slate-600 dark:text-slate-400">Only what this admin or assistant did</span>
         </label>
       </div>
       </div>

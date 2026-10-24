@@ -202,7 +202,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             className="w-16 h-24 object-cover rounded flex-shrink-0 bg-slate-100 dark:bg-slate-800"
           />
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
               Published
             </h2>
             <a data-track="project-buy-book"
@@ -213,7 +213,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             >
               {project.book.title}
             </a>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
               <span className="capitalize">{project.book.format}</span>
               {project.book.genre && <span>· {project.book.genre}</span>}
               {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
@@ -256,7 +256,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               📖
             </div>
           )}
-          <p className="flex-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="flex-1 text-sm text-slate-600 dark:text-slate-400">
             {project.coverUrl
               ? "Not published yet."
               : "No cover yet — add one from Edit details, or wait until you publish."}
@@ -273,7 +273,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
       {project.goals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Goals</h2>
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Goals</h2>
           {project.goals.map((goal) =>
             editingGoal?.id === goal.id ? (
               <GoalForm
@@ -320,7 +320,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                       setEditingGoal(goal);
                       setShowNewGoal(false);
                     }}
-                    className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     aria-label="Edit goal"
                   >
                     ✏️
@@ -328,7 +328,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                   <button data-track="project-delete-goal"
                     type="button"
                     onClick={() => handleDeleteGoal(goal.id)}
-                    className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                    className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
                     aria-label="Delete goal"
                   >
                     🗑️
@@ -342,7 +342,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
       {archivedGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Past goals</h2>
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Past goals</h2>
           {archivedGoals.map((goal) => (
             <div key={goal.id}>
               <GoalDisplay goal={goal} />
@@ -377,11 +377,11 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       {entries.length > 0 && <ProjectCharts entries={entries} />}
 
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide p-5 pb-0">
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide p-5 pb-0">
           Entries
         </h2>
         {entries.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400 p-5">
+          <p className="text-sm text-slate-600 dark:text-slate-400 p-5">
             No entries yet -- log your first one above.
           </p>
         ) : (
@@ -391,21 +391,21 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
               <tr>
                 <SortableTh
                   label="Date"
-                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide"
                   active={sortColumn === "date"}
                   direction={sortDirection}
                   onClick={() => handleSort("date")}
                 />
                 <SortableTh
                   label="Amount"
-                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide"
                   active={sortColumn === "amount"}
                   direction={sortDirection}
                   onClick={() => handleSort("amount")}
                 />
                 <SortableTh
                   label="Note"
-                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide"
+                  className="px-5 pt-3 pb-1 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide"
                   active={sortColumn === "note"}
                   direction={sortDirection}
                   onClick={() => handleSort("note")}
@@ -418,15 +418,15 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             <tbody>
               {table.rows.map((entry) => (
                 <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800 first:border-0">
-                  <td className="px-5 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">{entry.entryDate}</td>
+                  <td className="px-5 py-3 whitespace-nowrap text-slate-600 dark:text-slate-400">{entry.entryDate}</td>
                   <td className="px-5 py-3">
                     <span className="font-medium text-slate-900 dark:text-slate-100">
                       {entry.mode === "set_total" ? "=" : entry.amount >= 0 ? "+" : ""}
                       {entry.amount.toLocaleString()}
                     </span>{" "}
-                    <span className="text-slate-500 dark:text-slate-400">{MEASURE_LABELS[entry.measure]}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{MEASURE_LABELS[entry.measure]}</span>
                   </td>
-                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">
+                  <td className="px-5 py-3 text-slate-600 dark:text-slate-400 truncate max-w-xs">
                     {entry.prickleId && (
                       <Link data-track="project-open-prickle"
                         href={`/prickles/${entry.prickleId}`}
@@ -441,7 +441,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                         {entry.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                            className="px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                           >
                             {tag}
                           </span>
@@ -453,7 +453,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     <button data-track="project-edit-entry"
                       type="button"
                       onClick={() => setEditingEntry(entry)}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mr-3"
+                      className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 mr-3"
                       aria-label="Edit entry"
                     >
                       ✏️
@@ -461,7 +461,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
                     <button data-track="project-delete-entry"
                       type="button"
                       onClick={() => handleDelete(entry.id)}
-                      className="text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                      className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
                       aria-label="Delete entry"
                     >
                       🗑️
@@ -643,7 +643,7 @@ export function GoalForm({
 
       <div>
         <label htmlFor="goal-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-          Title <span className="text-slate-400 font-normal">(optional)</span>
+          Title <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
         </label>
         <input
           id="goal-title"
@@ -658,7 +658,7 @@ export function GoalForm({
 
       <div>
         <label htmlFor="goal-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-          Description <span className="text-slate-400 font-normal">(optional)</span>
+          Description <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
         </label>
         <textarea
           id="goal-description"
@@ -725,7 +725,7 @@ export function GoalForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Start date <span className="text-slate-400 font-normal">(optional)</span>
+              Start date <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
             </label>
             <input
               type="date"
@@ -736,7 +736,7 @@ export function GoalForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              End date <span className="text-slate-400 font-normal">(optional, enables a pace line)</span>
+              End date <span className="text-slate-500 dark:text-slate-400 font-normal">(optional, enables a pace line)</span>
             </label>
             <input
               type="date"
@@ -749,7 +749,7 @@ export function GoalForm({
       ) : (
         <div>
           <label htmlFor="goal-habit-threshold" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Threshold per period <span className="text-slate-400 font-normal">(optional -- blank means &quot;logged anything counts&quot;)</span>
+            Threshold per period <span className="text-slate-500 dark:text-slate-400 font-normal">(optional -- blank means &quot;logged anything counts&quot;)</span>
           </label>
           <input
             id="goal-habit-threshold"
@@ -777,7 +777,7 @@ export function GoalForm({
             className="rounded"
           />
           <span aria-hidden="true">{STAR_ON}</span>
-          Pin to my dashboard <span className="text-slate-400">(only you see your dashboard)</span>
+          Pin to my dashboard <span className="text-slate-500 dark:text-slate-400">(only you see your dashboard)</span>
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
           <input data-track="project-goal-show-on-profile"
@@ -787,7 +787,7 @@ export function GoalForm({
             className="rounded"
           />
           <span aria-hidden="true">{PROFILE_PUBLIC}</span>
-          Show on my profile <span className="text-slate-400">(other members can see this goal)</span>
+          Show on my profile <span className="text-slate-500 dark:text-slate-400">(other members can see this goal)</span>
         </label>
       </div>
 
@@ -798,7 +798,7 @@ export function GoalForm({
           <button data-track="project-mark-as-done"
             type="button"
             onClick={onArchive}
-            className="text-sm text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
+            className="text-sm text-slate-600 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400"
             title="Mark as done (keeps the record, removes from active goals)"
           >
             ✅ Mark as done
