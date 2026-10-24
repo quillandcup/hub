@@ -38,13 +38,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/api/zoom/prickles/route.ts",
     "lib/badges.ts",
     "lib/calendar-feed.ts",
-    "lib/educational-prickles.ts",
-    "lib/hosted-prickles.ts",
-    "lib/live-room.ts",
     "lib/notification-test.ts",
     "lib/prickle-schedules.ts",
     "lib/search/universal.ts",
-    "lib/upcoming-prickles.ts",
   ],
   members: [
     "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",

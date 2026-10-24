@@ -6,13 +6,6 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 const BATCH_SIZE = 1000;
 
-type HostedPrickleRow = {
-  id: string;
-  start_time: string;
-  end_time: string;
-  prickle_types: { name: string } | null;
-};
-
 export interface FetchHostedPrickleOptions {
   now?: Date;
   /** When true, also returns the distinct attendee count per hosted prickle. Aggregated in
@@ -94,37 +87,25 @@ export async function fetchHostedPrickleRecords(
   // CI pushes migrations before deploying, so the RPC always exists; an error is a real failure.
   if (includeAttendeeCounts) return fetchHostedPrickleAttendance(supabase, memberId, nowIso);
 
-  let hostedPrickles: HostedPrickleRow[] = [];
-  {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickles")
-        .select("id, start_time, end_time, prickle_types:type_id(name)")
-        .eq("host", memberId)
-        .lte("start_time", nowIso)
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (batch && batch.length > 0) {
-        hostedPrickles = hostedPrickles.concat(batch as unknown as HostedPrickleRow[]);
-        offset += batch.length;
-        hasMore = batch.length === BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  const repos = createRepos(supabase);
+  // Everything from the beginning of time up to now: the prickles the member hosted that have started.
+  const hostedPrickles = await repos.prickles.startingBetween({
+    from: new Date(0).toISOString(),
+    to: nowIso,
+    inclusiveEnd: true,
+    hostId: memberId,
+  });
 
   if (hostedPrickles.length === 0) return [];
 
   const prickleIds = hostedPrickles.map((p) => p.id);
-  const earliestJoinByPrickle = await createRepos(supabase).attendance.earliestJoinByPrickle(memberId, prickleIds);
+  const earliestJoinByPrickle = await repos.attendance.earliestJoinByPrickle(memberId, prickleIds);
 
   return hostedPrickles.map((p) => ({
     prickleId: p.id,
-    typeName: p.prickle_types?.name ?? "Prickle",
-    startTime: p.start_time,
-    endTime: p.end_time,
+    typeName: p.type?.name ?? "Prickle",
+    startTime: p.startTime,
+    endTime: p.endTime,
     earliestJoinTime: earliestJoinByPrickle.get(p.id) ?? null,
   }));
 }
