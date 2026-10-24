@@ -243,6 +243,12 @@ become close to dead code. Remove them (routes, modal, button, their tests in
 have been checked and fixed, or after a set period with no use; whichever comes first.
 Check the `audit_log`/activity feed for recent use before deleting.
 
+### Refresh Admin Member Pages After Moving Aliases
+**Resolved:** the split and move-aliases routes call `revalidatePath` for the source and
+target members, and `SplitMemberModal` calls `router.refresh()` before navigating (a route
+handler's `revalidatePath` doesn't clear the client router cache). The stale Identity tab
+symptom was never reproduced, so the cache was the suspected cause, not a confirmed one.
+
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 

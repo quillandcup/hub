@@ -4,7 +4,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SplitMemberModal from "@/app/(admin)/admin/members/[id]/SplitMemberModal";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 const member = { id: "m1", name: "Wren Holloway", email: "wren@example.com" };
 const nameAliases = [{ id: "n1", alias: "Ivy Marsh", source: "zoom", active: true }];
@@ -51,6 +52,8 @@ describe("SplitMemberModal submit", () => {
       emailAliasIds: ["e1"],
     });
     expect(onClose).toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalled();
   });
 
   it("shows the server's error and stays open", async () => {
@@ -102,6 +105,8 @@ describe("SplitMemberModal move to existing member", () => {
       emailAliasIds: ["e1"],
     });
     expect(onClose).toHaveBeenCalled();
+    expect(router.refresh).toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalled();
   });
 
   it("shows the error when the move fails", async () => {
