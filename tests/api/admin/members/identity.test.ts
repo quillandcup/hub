@@ -13,6 +13,7 @@ vi.mock("@/lib/kajabi/client", () => ({
 
 // The route reads the member before its edit and again after it; members come from the
 // repository, so each read answers with the next record a test queued (the last one repeats).
+const memberWrites: Record<string, unknown>[] = [];
 let memberReads: ({ id: string; name: string; email: string; displayName: string | null; kajabiId: string | null } | null)[] = [];
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
@@ -23,6 +24,10 @@ vi.mock("@/lib/data/repos", async () => {
       members: {
         byId: async () => (memberReads.length > 1 ? memberReads.shift()! : memberReads[0]),
         byEmail: async () => null,
+        // Writes are recorded, not applied.
+        setName: async (id: string, name: string, options?: object) => (memberWrites.push({ id, name, ...options }), true),
+        setDisplayName: async (id: string, displayName: string | null) => (memberWrites.push({ id, displayName }), true),
+        setEmail: async (id: string, email: string) => (memberWrites.push({ id, email }), { ok: true }),
       },
     }),
   };
@@ -42,6 +47,7 @@ function makeSupabaseMock({
   aliases = [] as any[],
   updatedMember = { name: "Erica Haraldsen", display_name: null } as any,
 } = {}) {
+  memberWrites.length = 0;
   memberReads = [
     member && { id: member.id, name: member.name, email: member.email ?? "member@example.test", displayName: null, kajabiId: member.kajabi_id ?? null },
     updatedMember && { id: member?.id ?? "member-1", name: updatedMember.name, email: updatedMember.email ?? "member@example.test", displayName: updatedMember.display_name ?? null, kajabiId: member?.kajabi_id ?? null },
@@ -120,7 +126,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(updateContactMock).toHaveBeenCalledWith("kj-1", { name: "Erica Haraldsen" });
-    expect(mock.__update).toHaveBeenCalledWith(expect.objectContaining({ name: "Erica Haraldsen" }));
+    expect(memberWrites).toEqual([expect.objectContaining({ name: "Erica Haraldsen" })]);
   });
 
   it("returns 502 and leaves the DB untouched when the Kajabi push fails", async () => {
@@ -134,7 +140,7 @@ describe("PATCH /api/admin/members/[id]", () => {
     );
 
     expect(response.status).toBe(502);
-    expect(mock.__update).not.toHaveBeenCalled();
+    expect(memberWrites).toEqual([]);
   });
 
   it("keeps the old name as a pen name and sets it as the default display name", async () => {
@@ -151,9 +157,7 @@ describe("PATCH /api/admin/members/[id]", () => {
       { member_id: "member-1", alias: "Edy Hackett", source: "admin" },
       { onConflict: "alias" }
     );
-    expect(mock.__update).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Erica Haraldsen", display_name: "Edy Hackett" })
-    );
+    expect(memberWrites).toEqual([expect.objectContaining({ name: "Erica Haraldsen", displayName: "Edy Hackett" })]);
   });
 
   it("rejects a displayName that isn't one of the member's aliases", async () => {
@@ -166,7 +170,7 @@ describe("PATCH /api/admin/members/[id]", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(mock.__update).not.toHaveBeenCalled();
+    expect(memberWrites).toEqual([]);
   });
 
   it("returns 409 when a new pen name collides with another member's alias", async () => {
@@ -192,6 +196,6 @@ describe("PATCH /api/admin/members/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(updateContactMock).not.toHaveBeenCalled();
-    expect(mock.__update).toHaveBeenCalled();
+    expect(memberWrites).toHaveLength(1);
   });
 });
