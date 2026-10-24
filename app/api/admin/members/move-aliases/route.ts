@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse, after } from "next/server";
 
 export const maxDuration = 300;
@@ -94,6 +95,10 @@ export async function POST(request: NextRequest) {
         console.error("[admin] Reprocessing attendance after moving aliases failed:", err);
       }
     });
+
+    // Admin member pages are path tabs: refresh every tab of both members.
+    revalidatePath(`/admin/members/${from.id}`, "layout");
+    revalidatePath(`/admin/members/${to.id}`, "layout");
 
     return NextResponse.json({
       success: true,

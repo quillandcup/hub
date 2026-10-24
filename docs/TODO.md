@@ -243,14 +243,6 @@ become close to dead code. Remove them (routes, modal, button, their tests in
 have been checked and fixed, or after a set period with no use; whichever comes first.
 Check the `audit_log`/activity feed for recent use before deleting.
 
-### Refresh Admin Member Pages After Moving Aliases
-After "Move ticked names and emails to ..." in the Split dialog, the source member's
-Identity tab kept showing the moved email for a short while before it disappeared. The
-alias is deleted before the route responds, so this is probably the client router cache
-holding the previous page render rather than the database lagging, but that isn't
-confirmed. If it is, the split and move-aliases routes should `revalidatePath` the source
-member's page (and the target's) so the next visit is fresh.
-
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 
