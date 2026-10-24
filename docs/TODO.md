@@ -998,7 +998,9 @@ The demo scenes' page checks (`demo/checks.ts`, docs/DEMO_AND_HELP.md) found exi
 - **`select` without an accessible name** (the All Prickles type filter and one more): add a label or `aria-label`.
 - **`aria-hidden` content that can be focused** (an off-canvas panel): hide it from focus too, or don't render it.
 - **Visible text not part of the accessible name** and a **scrollable region without keyboard access** (a `max-h-[500px]` list): one each.
-No overflow, cut-off dialog or console-error findings yet.
+No overflow, cut-off dialog, covered-control or console-error findings yet, including after scrolling every area (the member app scrolls inside `main`).
+- **To look at:** on a phone, the host request form's week calendar (`app/(member)/hosting/HostingCalendarPicker.tsx`) shows Sunday to Wednesday and the rest sits off to the side in a container that scrolls sideways. The overflow check allows that on purpose, so it isn't a finding, but with no visible cue it may be hard to know Thursday to Saturday exist. Check on a real phone; a scroll hint, a narrower grid or a day picker would fix it.
+- An inactive tab link (`border-transparent` tabs) is 4.26 against the 4.5 needed; it only shows below the fold on a phone, which the scroll-through now reveals.
 
 **Why deferred:** found while building the checks, and fixing contrast touches shared colour classes across many screens, so it deserves its own pass and visual review. **Where to start:** run `DEMO_CHECKS=report pnpm demo:capture --grep-invert @published`, read the `*.findings.json` files under `demo/out/` (rule, element, ratio), fix by shared class (theme colours in `tailwind.config.ts`, `components/SortableTh.tsx`), then `pnpm demo:baseline` and commit the smaller file. More scenes mean more screens checked, so expect new ones to appear as they are added.
 

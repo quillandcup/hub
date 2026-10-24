@@ -21,7 +21,7 @@ help/         the articles (markdown), one per topic, images by scene name
 Commands, run from the repo root:
 
 1. `pnpm demo:stack up`: a separate local Supabase stack (project `hub-demo`, ports shifted by 2000: API 56321, DB 56322, mail 56324), built from this branch's migrations with no `seed.sql`, so it always matches the schema and never touches the shared dev database. Its config is generated from `supabase/config.toml` (`demo/stack.ts`); URLs and the standard local keys go to the gitignored `demo/.env.demo`. `down` stops it, `reset` deletes its data.
-2. `pnpm demo:app`: the app on port 3100 against that stack.
+2. `pnpm demo:app`: the app on port 3100 against that stack (dev server). For production-mode runs, which is what CI checks, `pnpm demo:build` then `pnpm demo:serve`: they build into `.next-demo`, so the pre-commit build (which rewrites `.next`) can't pull files out from under a running server. (Next adds `.next-demo` to `tsconfig.json`'s `include` when it builds there; that edit is local, so leave it out of a commit.)
 3. `pnpm demo:seed`: the fictional community (`demo/personas.ts`), then the app's own `/api/process/calendar`. Safe to run again.
 4. `pnpm demo:publish [--verify | --prod]`: uploads the desktop light screenshots the articles use into the current set, or with `--verify` only checks they were all captured (see Decisions). `pnpm demo:stack migrate` applies migrations added since `up`.
 5. `pnpm demo:capture [--project=desktop-light]`: runs every scene in `demo/scenes/` across the matrix and writes `demo/out/<scene>/<project>/NN-step.png`. `DEMO_VIDEO=1` records video.
@@ -77,7 +77,10 @@ Each `shot()` also checks the page it just captured (`demo/checks.ts`), so a sce
 - **a11y and contrast**: axe at WCAG 2.0/2.1 A and AA. Colour contrast is the check that catches a missing dark-mode colour: it runs against the real theme of each run.
 - **overflow**: the page scrolls sideways, or an element sticks out past the screen edge (outside a container that is meant to scroll).
 - **edge**: a dialog, menu, listbox, tooltip or popover is cut off by the screen, is taller than it with no scrolling of its own, or sits within 8 px of a side without being a full-width sheet. This is what catches a modal clipped on a phone.
+- **covered**: no control is still under a fixed or sticky bar (or any other element) after it has been scrolled to the middle of the screen. Content passing under a footer while it scrolls is normal; the last item under a footer, the first under a header (they can't be centred), or a bar tall enough to cover the middle is a control a person can never reach.
 - **console**: an error logged, or an uncaught exception.
+
+**Scrolling.** The member app is a full-height shell whose `main` scrolls; the window never does. So before checking, every scrolling area is scrolled through, top to bottom in screen-sized steps and back (`scrollThroughPage`): that lays out everything below the fold, which axe needs to report it consistently, and it makes lazy-loaded content appear. A whole-page capture (`shot(page, testInfo, "name", { fullPage: true })`, used for the weekly schedule and the host request form) grows the viewport to fit what the page scrolls inside itself, up to 7000 px, because Playwright's own `fullPage` only knows the window and would add nothing here. The default capture stays what is on the screen, as a member sees it.
 
 `demo/selftest/checks.spec.ts` builds small pages that each trip one check (and a clean one that trips none), so a detector that quietly stopped working can't pass for an app with no problems.
 

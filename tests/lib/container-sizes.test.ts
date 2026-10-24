@@ -12,7 +12,7 @@ import config from "@/tailwind.config";
 const sizes = Object.keys(((config.theme as { extend?: { containers?: Record<string, string> } }).extend ?? {}).containers ?? {});
 
 const root = path.resolve(__dirname, "../..");
-const skippedDirs = new Set(["node_modules", ".next", ".git", ".vercel", "coverage", "playwright-report", "test-results"]);
+const skippedDirs = new Set(["node_modules", ".next", ".next-demo", ".git", ".vercel", "coverage", "playwright-report", "test-results"]);
 const thisFile = path.join(root, "tests/lib/container-sizes.test.ts");
 
 /** Every code file in the repo (not just app and components: emails, lib, scripts, tests...), so a class can't hide elsewhere. */
