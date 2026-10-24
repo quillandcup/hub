@@ -36,8 +36,8 @@ describe("MessageItem actions menu", () => {
     expect(screen.getByText(/can't read this message/)).toBeInTheDocument();
   });
 
-  it("does not let the viewer change someone else's, a Slack-origin or an unsynced message", () => {
-    for (const extra of [{ mine: false }, { fromHub: false }, { syncStatus: "failed" as const }]) {
+  it("does not let the viewer change someone else's, a Slack notice or an unsynced message", () => {
+    for (const extra of [{ mine: false }, { system: true }, { syncStatus: "failed" as const }]) {
       cleanup();
       mount(base(extra));
       expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();

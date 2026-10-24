@@ -187,7 +187,7 @@ export default function MessageItem({
           custom={ctx.customEmoji}
           canReact={reactable}
           canReply={!inThread}
-          canChange={canEdit && message.mine && message.fromHub && message.syncStatus === null && message.contentState === "ok"}
+          canChange={canEdit && message.mine && !message.system && message.syncStatus === null && message.contentState === "ok"}
         />
       )}
     </article>
