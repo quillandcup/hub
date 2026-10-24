@@ -78,6 +78,17 @@ SELECT EXISTS(SELECT 1 FROM attendance WHERE member_id = 'alice' AND prickle_id 
 
 **DO NOT**: Add unique constraint on `(member_id, prickle_id)` or deduplicate attendance records
 
+### Data Access Layer (repositories)
+
+**RULE**: A table that has a repository in `lib/data/` is queried only through it: no `.from("<table>")` in pages, actions, routes or other lib code. Today: `prickle_attendance` (`lib/data/attendance.ts`). `tests/lib/data-access-layer.test.ts` fails on a new direct query and lists the files still to move (an allowlist that only shrinks; remove a file's line when you move its queries).
+
+- **One interface per aggregate, two implementations.** `AttendanceRepository` is what callers depend on; `SupabaseAttendanceRepository` runs the queries (typed with `Db`, i.e. `SupabaseClient<Database>` from `lib/data/database.types.ts`), `InMemoryAttendanceRepository` is the twin for tests, demos and typed seed data. `createRepos(db)` (`lib/data/repos.ts`) builds them over one client; `getRepos()` (user, RLS, sudo header) and `getServiceRepos()` (service role) are in `lib/data/server.ts`. The client you pass decides the privilege.
+- **Callers take the repository, not the client**, so their tests pass the in-memory twin instead of faking PostgREST call shapes. Leaf lib functions take `attendance: AttendanceRepository`; big functions that still take a `supabase` client build `createRepos(supabase)` inside until they are converted.
+- **Business rules live in the repository once**: distinct prickles vs. attendance records, pagination past 1000 rows (with a stable `.order("id")`), id chunking for `.in(...)`. Methods return domain-shaped data (`Set`, `Map`, `AttendanceLink`), not PostgREST rows, and throw on a database error instead of returning an empty result.
+- **Both implementations pass one contract suite** (`tests/helpers/attendance-contract.ts`, run by `tests/lib/data/` against the twin and `tests/api/data/` against the real database). A new method goes in the interface, both classes and the contract.
+- **Adding a repository**: interface + Supabase class + in-memory class in `lib/data/<aggregate>.ts`, add it to `Repos`/`createRepos`, a contract suite run both ways, and add the table to `REPOSITORY_TABLES` in the guard test with the files still querying it.
+- **Types**: `pnpm types:gen` regenerates `lib/data/database.types.ts` from the local database after a migration (`supabase start` with all migrations applied); commit the result. `Row<"table">` from `lib/data/db.ts` gives a row type. The shared clients in `lib/supabase/` are still untyped (typing them surfaces ~430 compile errors, see `docs/TODO.md`), so only repositories get compile-time column checks for now.
+
 ### Member Identity Resolution
 
 **RULE**: Member-facing pages (`app/(member)/`) must use `getEffectiveIdentity` to resolve the current member, not `supabase.auth.getUser()` alone.

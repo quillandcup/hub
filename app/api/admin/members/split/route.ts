@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse, after } from "next/server";
 
@@ -90,13 +91,7 @@ export async function POST(request: NextRequest) {
   const moveEmailIds = (emailRows ?? []).filter((r) => r.alias_email !== newEmail).map((r) => r.id);
 
   // Oldest attendance of the original member bounds the reprocess.
-  const { data: earliest } = await supabase
-    .from("prickle_attendance")
-    .select("join_time")
-    .eq("member_id", original.id)
-    .order("join_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const earliestJoinTime = await createRepos(supabase).attendance.firstJoinTime(original.id);
 
   try {
     if (emailAlias) await run(supabase.from("member_email_aliases").delete().eq("id", emailAlias.id));
@@ -123,7 +118,7 @@ export async function POST(request: NextRequest) {
 
     // Re-file Zoom attendance (all the way back) against the new aliases. Slack
     // activity and members catch up on their next scheduled runs.
-    const from = earliest?.join_time ? new Date(earliest.join_time) : new Date(Date.now() - 90 * 86_400_000);
+    const from = earliestJoinTime ? new Date(earliestJoinTime) : new Date(Date.now() - 90 * 86_400_000);
     after(async () => {
       try {
         await triggerAttendanceReprocessing({ from, to: new Date() });

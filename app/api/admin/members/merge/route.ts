@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 // Throws on a Supabase error instead of letting the merge carry on: the
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   try {
     // Transfer simple foreign keys in parallel
     await Promise.all([
-      run(supabase.from("prickle_attendance").update({ member_id: primaryId }).eq("member_id", secondaryId)),
+      createRepos(supabase).attendance.reassign(secondaryId, primaryId),
       run(supabase.from("member_activities").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       run(supabase.from("member_hiatus_history").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       run(supabase.from("member_status_overrides").update({ member_id: primaryId }).eq("member_id", secondaryId)),

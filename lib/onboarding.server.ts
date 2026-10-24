@@ -10,6 +10,7 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SLACK_WORKSPACE_URL } from "@/lib/config";
 import { isNewcomer } from "@/lib/newcomer";
+import { createRepos } from "@/lib/data/repos";
 import { loadAttendedMemberIds, loadIntroChannelId, loadIntroducedMemberIds } from "@/lib/newcomer-signals";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
@@ -50,7 +51,7 @@ async function loadNewcomerSignals(
 
   const [introduced, attended, channelId, upcoming] = await Promise.all([
     loadIntroducedMemberIds(supabase, [memberId]),
-    loadAttendedMemberIds(supabase, [memberId]),
+    loadAttendedMemberIds(createRepos(supabase).attendance, [memberId]),
     // bronze is admin-read-only; the intro channel's id is public to the workspace, so read just that.
     loadIntroChannelId(createServiceRoleClient()),
     loadCalendarFeedPrickleIds(supabase, memberId, now, now),
