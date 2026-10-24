@@ -16,6 +16,7 @@ export type MemberSeed = {
   staffRole?: string | null;
   kajabiId?: string | null;
   stripeCustomerId?: string | null;
+  photoUrl?: string | null;
   joinedAt?: string;
   firstJoinedAt?: string | null;
   mostRecentJoinedAt?: string | null;

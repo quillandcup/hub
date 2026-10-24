@@ -16,27 +16,7 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    // Paginate active members
-    const activeMembers: { id: string; name: string; email: string }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("members")
-          .select("id, name, email")
-          .eq("status", "active")
-          .order("name")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          activeMembers.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const activeMembers = await createRepos(supabase).members.identities({ status: "active" });
 
     // Paginate all Zoom attendee records
     const allZoomNames: { name: string; email: string | null }[] = [];
@@ -62,25 +42,8 @@ export async function GET(request: NextRequest) {
     // Paginate prickle attendance to find all matched member IDs
     const matchedMemberIds = new Set((await createRepos(supabase).attendance.attendedPrickleIdsByMember()).keys());
 
-    // Paginate all members (including inactive) for Zoom name matching
-    const allMembers: { id: string; name: string; email: string }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("members")
-          .select("id, name, email")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          allMembers.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // All members (including inactive) for Zoom name matching
+    const allMembers = await createRepos(supabase).members.identities();
 
     // Filter for members with zero attendance
     const membersWithNoAttendance = activeMembers

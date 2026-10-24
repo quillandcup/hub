@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
@@ -46,22 +47,18 @@ export async function POST(request: NextRequest) {
     console.log(`Projecting Slack chat from ${fromDate} to ${toDate}`);
 
     // STEP 1: Load reference data upfront (members and aliases can exceed 1000 rows)
-    const members: { id: string; name: string; email: string }[] = [];
+    const members = await createRepos(supabase).members.identities();
     const aliases: { alias: string; member_id: string; source: "zoom" | "slack" }[] = [];
     for (let offset = 0; ; offset += BATCH_SIZE) {
-      const [{ data: m, error: me }, { data: a, error: ae }] = await Promise.all([
-        supabase.from("members").select("id, name, email").range(offset, offset + BATCH_SIZE - 1),
-        supabase
-          .from("member_name_aliases")
-          .select("alias, member_id, source")
-          .eq("active", true)
-          .range(offset, offset + BATCH_SIZE - 1),
-      ]);
-      if (me) throw me;
+      const { data: a, error: ae } = await supabase
+        .from("member_name_aliases")
+        .select("alias, member_id, source")
+        .eq("active", true)
+        .order("id")
+        .range(offset, offset + BATCH_SIZE - 1);
       if (ae) throw ae;
-      members.push(...(m ?? []));
       aliases.push(...(a ?? []));
-      if ((m?.length ?? 0) < BATCH_SIZE && (a?.length ?? 0) < BATCH_SIZE) break;
+      if ((a?.length ?? 0) < BATCH_SIZE) break;
     }
     const { data: slackUsers, error: usersError } = await supabase
       .schema("bronze")

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -21,11 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify member exists
-    const { data: member } = await supabase
-      .from("members")
-      .select("id")
-      .eq("id", member_id)
-      .single();
+    const member = await createRepos(supabase).members.byId(member_id);
 
     if (!member) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });

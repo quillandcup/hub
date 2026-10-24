@@ -1,5 +1,6 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { fetchAllRows, chunk } from "@/lib/supabase/paginate";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -46,11 +47,7 @@ export async function POST(
   );
   const memberIds = memberLinks.map((m) => m.member_id);
 
-  let segmentMembers: { id: string; email: string }[] = [];
-  for (const idBatch of chunk(memberIds, 500)) {
-    const { data } = await supabase.from("members").select("id, email").in("id", idBatch);
-    segmentMembers = segmentMembers.concat(data ?? []);
-  }
+  const segmentMembers = await createRepos(supabase).members.byIds(memberIds);
 
   // GoTrue's admin listUsers doesn't support filtering by email, so pull the
   // full user list once (mirrors the pattern in GET /api/admin/users) and

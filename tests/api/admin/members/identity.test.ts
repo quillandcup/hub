@@ -11,6 +11,23 @@ vi.mock("@/lib/kajabi/client", () => ({
   createKajabiClient: () => ({ updateContact: updateContactMock }),
 }));
 
+// The route reads the member before its edit and again after it; members come from the
+// repository, so each read answers with the next record a test queued (the last one repeats).
+let memberReads: ({ id: string; name: string; email: string; displayName: string | null; kajabiId: string | null } | null)[] = [];
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({
+      ...actual.createRepos(db),
+      members: {
+        byId: async () => (memberReads.length > 1 ? memberReads.shift()! : memberReads[0]),
+        byEmail: async () => null,
+      },
+    }),
+  };
+});
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
 function makeRequest(body: Record<string, unknown>) {
@@ -25,9 +42,10 @@ function makeSupabaseMock({
   aliases = [] as any[],
   updatedMember = { name: "Erica Haraldsen", display_name: null } as any,
 } = {}) {
-  const memberSingle = vi.fn().mockResolvedValue({ data: member, error: null });
-  const memberEq = vi.fn(() => ({ single: memberSingle }));
-  const memberSelect = vi.fn(() => ({ eq: memberEq }));
+  memberReads = [
+    member && { id: member.id, name: member.name, email: member.email ?? "member@example.test", displayName: null, kajabiId: member.kajabi_id ?? null },
+    updatedMember && { id: member?.id ?? "member-1", name: updatedMember.name, email: updatedMember.email ?? "member@example.test", displayName: updatedMember.display_name ?? null, kajabiId: member?.kajabi_id ?? null },
+  ];
 
   const updateResult = updateError ? { error: { message: updateError } } : { error: null };
   const updateEq = vi.fn().mockResolvedValue(updateResult);
@@ -49,18 +67,10 @@ function makeSupabaseMock({
   };
   const aliasSelect = vi.fn(() => aliasChain);
 
-  const finalMemberSingle = vi.fn().mockResolvedValue({ data: updatedMember, error: null });
-  const finalMemberEq = vi.fn(() => ({ single: finalMemberSingle }));
-
-  let memberSelectCallCount = 0;
 
   const from = vi.fn((table: string) => {
     if (table === "members") {
-      memberSelectCallCount++;
-      if (memberSelectCallCount === 1) {
-        return { select: memberSelect, update, upsert, insert };
-      }
-      return { select: vi.fn(() => ({ eq: finalMemberEq })), update, upsert, insert };
+      return { update, upsert, insert };
     }
     if (table === "member_name_aliases") {
       return { select: aliasSelect, upsert, insert };

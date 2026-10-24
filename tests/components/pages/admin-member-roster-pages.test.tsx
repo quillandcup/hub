@@ -24,7 +24,15 @@ vi.mock("@/app/(admin)/admin/hygiene/ambiguous-names/AmbiguousNamesResolver", ()
   default: ({ entries }: { entries: unknown[] }) => <pre data-testid="entries">{JSON.stringify(entries)}</pre>,
 }));
 
+vi.mock("@/app/(admin)/admin/hygiene/merge-fix/MergeFixClient", () => ({
+  default: ({ duplicateGroups }: { duplicateGroups: { members: Record<string, unknown>[] }[] }) => (
+    <pre data-testid="groups">{JSON.stringify(duplicateGroups.map((g) => g.members.map((m) => ({ id: m.id, stripe: m.stripe_customer_id, active: m.stripe_active }))))}</pre>
+  ),
+}));
+
 import SegmentsPage from "@/app/(admin)/admin/segments/page";
+import MergeFixPage from "@/app/(admin)/admin/hygiene/merge-fix/page";
+import MissingMemberDataPage from "@/app/(admin)/admin/hygiene/missing-member-data/page";
 import AmbiguousNamesPage from "@/app/(admin)/admin/hygiene/ambiguous-names/page";
 
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", userId: "user-secret", staffRole: "admin" };
@@ -68,5 +76,49 @@ describe("ambiguous Zoom names page", () => {
     // Candidates that no longer exist are left out; the rest are id, name and email only.
     expect(entries[0].candidates.map((c: { id: string }) => c.id).sort()).toEqual([ADA.id, FERN.id, BEA.id].sort());
     expect(entries[0].candidates.find((c: { id: string }) => c.id === FERN.id)).toEqual({ id: FERN.id, name: FERN.name, email: FERN.email });
+  });
+});
+
+describe("merge and fix page", () => {
+  it("finds members sharing an email and carries their Stripe customer and subscription standing", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAB1", name: "Wren Holloway", email: "wren@example.test", stripeCustomerId: "cus_1" },
+          { id: "mbr_AAAAAAAAAAB2", name: "Wren H", email: "wren@example.test" },
+          BEA,
+        ],
+      }),
+    );
+    useFakeSupabase({ "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "cus_1" }] } });
+
+    await renderServerPage(MergeFixPage, {});
+
+    const groups = JSON.parse(screen.getByTestId("groups").textContent!);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toEqual(expect.arrayContaining([{ id: "mbr_AAAAAAAAAAB1", stripe: "cus_1", active: true }, { id: "mbr_AAAAAAAAAAB2", stripe: null, active: false }]));
+  });
+});
+
+describe("missing member data page", () => {
+  it("lists active members with no Stripe customer, by name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { ...FERN, stripeCustomerId: "cus_fern" },
+          { ...BEA, kajabiId: "kaj-bea" },
+          { ...ADA, status: "cancelled" },
+          { id: "mbr_AAAAAAAAAAB3", name: "Zed Example", email: "zed@example.test" },
+        ],
+      }),
+    );
+    useFakeSupabase({});
+
+    await renderServerPage(MissingMemberDataPage, {});
+
+    expect(screen.getByText("Bea Example")).toBeInTheDocument();
+    expect(screen.getByText("Zed Example")).toBeInTheDocument();
+    expect(screen.queryByText("Fern Example")).not.toBeInTheDocument(); // has a Stripe customer
+    expect(screen.queryByText("Ada Example")).not.toBeInTheDocument(); // not active
   });
 });

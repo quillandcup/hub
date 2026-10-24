@@ -131,13 +131,13 @@ export default async function PrickleKindInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [prickles, membersRaw] = await Promise.all([
+  const [prickles, members] = await Promise.all([
     fetchPricklesForType(supabase, prickleType.id, from, to),
-    supabase.from("members").select("id, name"),
+    createRepos(supabase).members.identities(),
   ]);
 
   const memberNameMap = new Map<string, string>(
-    (membersRaw.data ?? []).map((m) => [m.id, m.name])
+    members.map((m) => [m.id, m.name])
   );
 
   const prickleIds = prickles.map((p) => p.id);

@@ -6,16 +6,22 @@ vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
 
+vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members)));
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
 const FROM = { id: "from-1" };
 const TO = { id: "to-1", email: "Ivy@Example.com" };
 
+// The members the route finds, in the in-memory repository; a test can leave one out.
+let members: { id: string; name: string; email: string }[] = [];
+
 type Call = { table: string; op: string; payload?: unknown; filters: [string, string, unknown][] };
 
 function makeSupabaseMock(opts: { noAttendance?: boolean; failOn?: { table: string; op: string }; missing?: string } = {}) {
   const calls: Call[] = [];
+  members = [FROM, TO].filter((m) => m.id !== opts.missing).map((m) => ({ id: m.id, name: m.id, email: "email" in m ? String(m.email) : `${m.id}@example.test` }));
   const from = vi.fn((table: string) => {
     const call: Call = { table, op: "select", filters: [] };
     const builder: any = {

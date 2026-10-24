@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { chunk } from "@/lib/supabase/paginate";
 import { NextRequest, NextResponse } from "next/server";
@@ -50,11 +51,7 @@ export async function POST(
 
   // Resolve emails -> member_id in batches (matches the existing
   // apply-aliases pattern of looking members up by email).
-  let matchedMembers: { id: string; email: string }[] = [];
-  for (const batch of chunk(emails, 500)) {
-    const { data } = await supabase.from("members").select("id, email").in("email", batch);
-    matchedMembers = matchedMembers.concat(data ?? []);
-  }
+  const matchedMembers = await createRepos(supabase).members.byEmails(emails);
   const memberByEmail = new Map(matchedMembers.map((m) => [m.email.toLowerCase(), m]));
 
   const { data: existingLinks } = await supabase

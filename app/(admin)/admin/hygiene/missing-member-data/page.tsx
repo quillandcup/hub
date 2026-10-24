@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -14,12 +15,9 @@ export default async function MissingMemberDataPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const { data: missingStripe } = await supabase
-    .from("members")
-    .select("id, name, email, kajabi_id")
-    .eq("status", "active")
-    .is("stripe_customer_id", null)
-    .order("name");
+  const missingStripe = (await createRepos(supabase).members.list({ status: "active", orderBy: "name" }))
+    .filter((m) => m.stripeCustomerId === null)
+    .map((m) => ({ id: m.id, name: m.name, email: m.email, kajabi_id: m.kajabiId }));
 
   return (
     <div className="p-6">

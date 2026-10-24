@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getVolunteerEligibility, volunteerEligibilityMessage } from "@/lib/big-sister-volunteers";
@@ -28,14 +29,10 @@ async function setBigSisterAvailabilityImpl(available: boolean, note?: string): 
       .is("deleted_at", null);
     if (error) return { error: error.message };
   } else {
-    const { data: member } = await supabase
-      .from("members")
-      .select("first_joined_at, most_recent_joined_at")
-      .eq("id", identity.memberId)
-      .maybeSingle();
+    const member = await createRepos(supabase).members.byId(identity.memberId);
     if (!member) return { error: "No member record" };
     const eligibility = getVolunteerEligibility(
-      { firstJoinedAt: member.first_joined_at, mostRecentJoinedAt: member.most_recent_joined_at },
+      { firstJoinedAt: member.firstJoinedAt, mostRecentJoinedAt: member.mostRecentJoinedAt },
       new Date()
     );
     if (!eligibility.eligible) return { error: volunteerEligibilityMessage(eligibility) };

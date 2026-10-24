@@ -14,18 +14,13 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Fetch dashboard metrics
-  const { data: memberStats, error: memberStatsError } = await supabase
-    .from("members")
-    .select("status");
+  const memberRepo = createRepos(supabase).members;
+  const memberStatusCounts = await memberRepo.countsByStatus();
 
-  if (memberStatsError) {
-    console.error("Dashboard: failed to fetch member stats", memberStatsError);
-  }
-
-  const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
-  const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
-  const leads = memberStats?.filter(m => m.status === "lead").length || 0;
-  const cancelled = memberStats?.filter(m => m.status === "cancelled").length || 0;
+  const activeMembers = memberStatusCounts.get("active") ?? 0;
+  const onHiatus = memberStatusCounts.get("on_hiatus") ?? 0;
+  const leads = memberStatusCounts.get("lead") ?? 0;
+  const cancelled = memberStatusCounts.get("cancelled") ?? 0;
   const totalMembers = activeMembers + onHiatus; // Exclude leads and cancelled (never-converted / former members)
 
   const now = new Date();
@@ -83,12 +78,9 @@ export default async function DashboardPage() {
     .map(([memberId]) => memberId);
 
   // Fetch member details for top 10
-  const { data: topMembers } = await supabase
-    .from("members")
-    .select("id, name, email")
-    .in("id", topMemberIds);
+  const topMembers = await memberRepo.byIds(topMemberIds);
 
-  const memberMap = new Map(topMembers?.map(m => [m.id, m]) || []);
+  const memberMap = new Map(topMembers.map(m => [m.id, m]));
 
   const topAttendeesData = topMemberIds
     .map(memberId => {
@@ -120,13 +112,10 @@ export default async function DashboardPage() {
   });
 
   // Get all active member IDs to include zeros for members who didn't attend
-  const { data: activeMemberIds } = await supabase
-    .from("members")
-    .select("id")
-    .eq("status", "active");
+  const activeMemberIds = await memberRepo.identities({ status: "active" });
 
   const hoursArray: number[] = [];
-  activeMemberIds?.forEach(member => {
+  activeMemberIds.forEach(member => {
     hoursArray.push(hoursByMember.get(member.id) || 0);
   });
 

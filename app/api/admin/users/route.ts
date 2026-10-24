@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
@@ -16,29 +17,8 @@ function getServiceClient() {
 // frontend offer every unlinked member as a link target. Paginate to avoid
 // silently truncating to the first 1000 rows.
 async function fetchAllMembers(supabase: SupabaseClient) {
-  const allMembers: { id: string; name: string; email: string; user_id: string | null }[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch, error } = await supabase
-      .from("members")
-      .select("id, name, email, user_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allMembers.push(...batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allMembers;
+  const members = await createRepos(supabase).members.list();
+  return members.map((m) => ({ id: m.id, name: m.name, email: m.email, user_id: m.userId }));
 }
 
 export async function GET(request: NextRequest) {
