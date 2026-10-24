@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -29,7 +30,6 @@ import {
 
 import { withAction } from "@/lib/analytics/server";
 const BATCH_SIZE = 1000;
-const PRICKLE_ID_BATCH = 100;
 /** How far ahead createCommitment looks for a real prickle in each requested slot. */
 const SLOT_LOOKAHEAD_DAYS = 21;
 
@@ -186,21 +186,9 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
   ).map(toSlotPrickle);
 
   // Only prickles that have started can have attendance; batched by id, each batch paginated.
-  let attendanceRows: { prickle_id: string }[] = [];
   const prickleIds = prickles.filter((p) => new Date(p.startTime).getTime() <= now.getTime()).map((p) => p.id);
-  for (let i = 0; i < prickleIds.length; i += PRICKLE_ID_BATCH) {
-    const idBatch = prickleIds.slice(i, i + PRICKLE_ID_BATCH);
-    const rowsBatch = await fetchAllPaginated<{ prickle_id: string }>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id")
-        .eq("member_id", memberId)
-        .in("prickle_id", idBatch)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    );
-    attendanceRows = attendanceRows.concat(rowsBatch);
-  }
+  const attendedIds = await createRepos(supabase).attendance.attendedAmong(memberId, prickleIds);
+  const attendanceRows = [...attendedIds].map((prickle_id) => ({ prickle_id }));
   const attended = buildAttendedSet(attendanceRows);
   // Slots are stored in the schedule's timezone; labels show the member's own. "browser" can't
   // be resolved server-side, so it falls back to the schedule's timezone (always named in labels).

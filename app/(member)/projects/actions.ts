@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -934,15 +935,10 @@ export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> 
   );
   if (onDate.length === 0) return [];
 
-  const { data: attendance } = await supabase
-    .from("prickle_attendance")
-    .select("prickle_id")
-    .eq("member_id", effectiveIdentity.memberId)
-    .in(
-      "prickle_id",
-      onDate.map((p) => p.id)
-    );
-  const attendedIds = new Set(((attendance ?? []) as { prickle_id: string }[]).map((a) => a.prickle_id));
+  const attendedIds = await createRepos(supabase).attendance.attendedAmong(
+    effectiveIdentity.memberId,
+    onDate.map((p) => p.id)
+  );
 
   return sortPrickleOptions(
     onDate.map((p) => ({

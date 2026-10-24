@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -59,27 +60,8 @@ async function fetchAllPrickles(
 async function fetchAllAttendance(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<AttendanceRow[]> {
-  const BATCH = 1000;
-  const rows: AttendanceRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data } = await supabase
-      .from("prickle_attendance")
-      .select("prickle_id, member_id")
-      .range(offset, offset + BATCH - 1);
-
-    if (data && data.length > 0) {
-      rows.push(...data);
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const links = await createRepos(supabase).attendance.list();
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 // ---------------------------------------------------------------------------

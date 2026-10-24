@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -67,24 +68,8 @@ async function fetchAttendanceForPrickleIds(
   supabase: SupabaseClient,
   prickleIds: string[]
 ): Promise<HistoricalAttendanceRow[]> {
-  if (prickleIds.length === 0) return [];
-
-  const CHUNK = 500;
-  const rows: HistoricalAttendanceRow[] = [];
-
-  for (let i = 0; i < prickleIds.length; i += CHUNK) {
-    const idsChunk = prickleIds.slice(i, i + CHUNK);
-    const chunkRows = await fetchAllPaginated<HistoricalAttendanceRow>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id")
-        .in("prickle_id", idsChunk)
-        .range(offset, offset + BATCH_SIZE - 1)
-    );
-    rows.push(...chunkRows);
-  }
-
-  return rows;
+  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 interface RawRatedCheckin {

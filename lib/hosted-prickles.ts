@@ -1,10 +1,10 @@
+import { createRepos } from "@/lib/data/repos";
 import type { createClient } from "@/lib/supabase/server";
 import type { HostedPrickleRecord } from "@/lib/hosting-stats";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 const BATCH_SIZE = 1000;
-const PRICKLE_ID_BATCH = 100;
 
 type HostedPrickleRow = {
   id: string;
@@ -118,31 +118,7 @@ export async function fetchHostedPrickleRecords(
   if (hostedPrickles.length === 0) return [];
 
   const prickleIds = hostedPrickles.map((p) => p.id);
-  const earliestJoinByPrickle = new Map<string, string>();
-
-  for (let i = 0; i < prickleIds.length; i += PRICKLE_ID_BATCH) {
-    const idBatch = prickleIds.slice(i, i + PRICKLE_ID_BATCH);
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, join_time")
-        .eq("member_id", memberId)
-        .in("prickle_id", idBatch)
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (batch && batch.length > 0) {
-        for (const row of batch as { prickle_id: string; join_time: string }[]) {
-          const existing = earliestJoinByPrickle.get(row.prickle_id);
-          if (!existing || row.join_time < existing) earliestJoinByPrickle.set(row.prickle_id, row.join_time);
-        }
-        offset += batch.length;
-        hasMore = batch.length === BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  const earliestJoinByPrickle = await createRepos(supabase).attendance.earliestJoinByPrickle(memberId, prickleIds);
 
   return hostedPrickles.map((p) => ({
     prickleId: p.id,

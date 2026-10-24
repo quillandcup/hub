@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos"
 import type { createClient } from "@/lib/supabase/server"
 import {
   computePrickleStreaks,
@@ -190,18 +191,7 @@ async function fetchPrickles(
 
 /** Every attendance row (multiple per member/prickle is normal -- leave/rejoin) for these prickles. */
 async function fetchAttendanceForPrickles(supabase: SupabaseClient, prickleIds: string[]): Promise<PastAttendance[]> {
-  type Row = { prickle_id: string; member_id: string; join_time: string }
-  const rows = await fetchInChunks(prickleIds, PRICKLE_ID_BATCH, (chunk) =>
-    fetchAllPaginated<Row>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id, join_time")
-        .in("prickle_id", chunk)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    )
-  )
-  return rows.map((r) => ({ prickleId: r.prickle_id, memberId: r.member_id, joinTime: r.join_time }))
+  return createRepos(supabase).attendance.forPrickles(prickleIds)
 }
 
 /** All-time count of already-started prickles hosted by each of `hostIds`. Only the `host` column

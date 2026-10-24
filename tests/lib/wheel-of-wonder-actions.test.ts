@@ -40,6 +40,12 @@ vi.mock("@/lib/supabase/service", () => ({
   }),
 }));
 
+// Attendance goes through its repository (lib/data/); this test has none, so it gets the in-memory twin.
+vi.mock("@/lib/data/repos", async () => {
+  const { InMemoryAttendanceRepository } = await import("@/lib/data/attendance");
+  return { createRepos: () => ({ attendance: new InMemoryAttendanceRepository() }) };
+});
+
 import { introduceOnSlack, spinWheel } from "@/app/(member)/wheel-of-wonder/actions";
 
 describe("Wheel of Wonder actions", () => {

@@ -14,25 +14,15 @@ import { describe, expect, it } from "vitest";
  */
 const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_attendance: [
-    "app/(admin)/admin/insights/prickles/[kind]/page.tsx",
-    "app/(admin)/admin/insights/prickles/page.tsx",
     "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
-    "app/(admin)/admin/members/network/page.tsx",
-    "app/(admin)/admin/page.tsx",
     "app/(admin)/admin/prickles/[id]/page.tsx",
     "app/(admin)/admin/stats/page.tsx",
     "app/(member)/members/[id]/page.tsx",
     "app/(member)/my-prickles/MyPricklesPage.tsx",
-    "app/(member)/my-prickles/commitment-actions.ts",
-    "app/(member)/prickle-picker/actions.ts",
     "app/(member)/prickles/[id]/page.tsx",
     "app/(member)/projects/actions.ts",
     "app/(member)/streaks/page.tsx",
-    "app/(member)/wheel-of-wonder/actions.ts",
     "app/api/members/network/route.ts",
-    "app/api/reports/name-matching/route.ts",
-    "lib/hosted-prickles.ts",
-    "lib/prickle-checkin-dms.ts",
     "lib/upcoming-prickles.ts",
   ],
 };

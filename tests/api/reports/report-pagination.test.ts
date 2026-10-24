@@ -120,11 +120,13 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/reports/name-matching/route.ts'), 'utf-8'
       )
-      // All four large-table queries must use while-loop pagination
+      // The three other large-table queries paginate in the route with a while loop
       const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(4)
+      expect(whileCount).toBeGreaterThanOrEqual(3)
       expect(content).toContain('from("zoom_attendees")')
-      expect(content).toContain('from("prickle_attendance")')
+      // prickle_attendance goes through its repository, which paginates (tests/api/data/)
+      expect(content).toContain('attendance.attendedPrickleIdsByMember()')
+      expect(content).not.toContain('from("prickle_attendance")')
       // Must not use the old single-shot pattern for these tables
       expect(content).not.toMatch(/const\s*\{\s*data:\s*allZoomNames\s*\}/)
       expect(content).not.toMatch(/const\s*\{\s*data:\s*matchedAttendance\s*\}/)
