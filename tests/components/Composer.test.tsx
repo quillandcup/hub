@@ -123,6 +123,21 @@ describe("Composer attachments", () => {
     await waitFor(() => expect(screen.queryByRole("list", { name: "Attached files" })).not.toBeInTheDocument());
   });
 
+  it("cancels while the uploads are still being prepared: nothing is uploaded or sent", async () => {
+    let prepared!: (r: { ok: true; uploads: { path: string; token: string }[] }) => void;
+    vi.mocked(prepareChatUploads).mockReturnValue(new Promise((r) => (prepared = r)));
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    await attach(cat());
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    prepared({ ok: true, uploads: [{ path: "p1", token: "t" }] });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeEnabled());
+    expect(uploadWithProgress).not.toHaveBeenCalled();
+    expect(sendChatMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Preview cat.gif" })).toBeInTheDocument();
+  });
+
   it("cancels an upload in progress: aborts it, sends nothing, keeps the files and the text", async () => {
     vi.mocked(prepareChatUploads).mockResolvedValue({ ok: true, uploads: [{ path: "p1", token: "t" }] });
     let signal!: AbortSignal;
