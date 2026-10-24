@@ -21,6 +21,38 @@ export const PERSONAS: Persona[] = [
   { key: "regular2", name: "Rowan Demo", email: "rowan.demo@example.com", role: "member", joinedDaysAgo: 90 },
 ];
 
+/** How often someone comes to a prickle they could attend (0 to 1): what makes streaks, "~4 Hedgies" and show-up rates look lived in. */
+export const ATTENDANCE_RATE: Record<string, number> = {
+  "marlowe.example@example.com": 0.4,
+  "hazel.hosting@example.com": 0.85,
+  "jules.sample@example.com": 0.6,
+  "rowan.demo@example.com": 0.5,
+};
+
+/**
+ * Members who fill the room but never sign in, so no screen is a community of five. Invented names,
+ * example.com addresses; `rate` is how often each comes to a prickle they could attend.
+ */
+export interface FillerMember {
+  name: string;
+  email: string;
+  joinedDaysAgo: number;
+  rate: number;
+}
+
+export const FILLER_MEMBERS: FillerMember[] = [
+  { name: "Wren Placeholder", email: "wren.placeholder@example.com", joinedDaysAgo: 540, rate: 0.7 },
+  { name: "Sage Sample", email: "sage.sample@example.com", joinedDaysAgo: 330, rate: 0.55 },
+  { name: "Linden Example", email: "linden.example@example.com", joinedDaysAgo: 280, rate: 0.45 },
+  { name: "Ash Fictional", email: "ash.fictional@example.com", joinedDaysAgo: 210, rate: 0.65 },
+  { name: "Briar Demo", email: "briar.demo@example.com", joinedDaysAgo: 150, rate: 0.3 },
+  { name: "Juniper Test", email: "juniper.test@example.com", joinedDaysAgo: 120, rate: 0.5 },
+  { name: "Thistle Mockup", email: "thistle.mockup@example.com", joinedDaysAgo: 75, rate: 0.6 },
+  { name: "Fern Imaginary", email: "fern.imaginary@example.com", joinedDaysAgo: 60, rate: 0.35 },
+  { name: "Clover Sketch", email: "clover.sketch@example.com", joinedDaysAgo: 45, rate: 0.5 },
+  { name: "Maple Pretend", email: "maple.pretend@example.com", joinedDaysAgo: 40, rate: 0.25 },
+];
+
 export function persona(key: string): Persona {
   const p = PERSONAS.find((x) => x.key === key);
   if (!p) throw new Error(`No demo persona "${key}"`);
