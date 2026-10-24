@@ -20,6 +20,8 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 
 import { GET as externalStatus } from "@/app/api/admin/members/external-status/route";
 import { GET as kajabiGrants } from "@/app/api/analyze/kajabi-grants/route";
+import { GET as memberNetwork } from "@/app/api/members/network/route";
+import { POST as linkSlackAlias } from "@/app/api/aliases/slack/route";
 
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", status: "active", kajabiId: "kaj-ada", stripeCustomerId: "cus_ada" };
 const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", email: "Fern@Example.test", status: "cancelled", kajabiId: null, stripeCustomerId: null };
@@ -100,5 +102,55 @@ describe("GET /api/analyze/kajabi-grants", () => {
     signedIn = true;
     tables = { "bronze.kajabi_offers": { data: [] } };
     expect(await (await call()).json()).toEqual({ grants: [] });
+  });
+});
+
+describe("GET /api/members/network", () => {
+  const prickleRow = (id: string, memberId: string, prickleId: string) => ({ id, memberId, prickleId, joinTime: "2026-09-01T15:00:00Z", leaveTime: "2026-09-01T16:00:00Z" });
+
+  it("connects active members by the prickles they shared, scaled to the smaller attendance", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [ADA, { ...FERN, id: "mbr_AAAAAAAAAAA3", status: "active" }, { id: "mbr_AAAAAAAAAAA4", name: "Gone Example", email: "gone@example.test", status: "cancelled" }],
+        attendance: [
+          prickleRow("a1", ADA.id, "prkl_1"),
+          prickleRow("a2", "mbr_AAAAAAAAAAA3", "prkl_1"),
+          prickleRow("a3", ADA.id, "prkl_2"),
+          prickleRow("a4", "mbr_AAAAAAAAAAA3", "prkl_2"),
+          prickleRow("a5", ADA.id, "prkl_3"),
+        ],
+      }),
+    );
+
+    const { nodes, edges } = await (await memberNetwork(new NextRequest("http://localhost/api/members/network"))).json();
+
+    expect(nodes.map((n: { name: string }) => n.name)).toEqual(["Ada Example", "Fern Example"]); // by name, active only
+    expect(nodes.find((n: { id: string }) => n.id === ADA.id).totalPrickles).toBe(3);
+    expect(edges).toEqual([expect.objectContaining({ weight: 2, normalizedWeight: 100 })]); // 2 shared of the smaller member's 2
+  });
+
+  it("is for signed-in admins, and empty when nobody is active", async () => {
+    signedIn = false;
+    expect((await memberNetwork(new NextRequest("http://localhost/api/members/network"))).status).toBe(401);
+    signedIn = true;
+    repos = createInMemoryRepos();
+    expect(await (await memberNetwork(new NextRequest("http://localhost/api/members/network"))).json()).toEqual({ nodes: [], edges: [] });
+  });
+});
+
+describe("POST /api/aliases/slack", () => {
+  const post = (body: unknown) =>
+    linkSlackAlias(new NextRequest("http://localhost/api/aliases/slack", { method: "POST", body: JSON.stringify(body) }));
+
+  it("needs both a member and a Slack user", async () => {
+    expect((await post({ member_id: ADA.id })).status).toBe(400);
+  });
+
+  it("404s for a member that doesn't exist, and for a Slack user that doesn't", async () => {
+    expect((await post({ member_id: "mbr_ZZZZZZZZZZZZ", slack_user_id: "U1" })).status).toBe(404);
+    tables = { "bronze.slack_users": { data: [] } };
+    const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Slack user not found" });
   });
 });
