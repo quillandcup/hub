@@ -196,17 +196,20 @@ const MEMBER = { memberId: "member-1", memberName: "Member One", memberEmail: "m
 const BASE_ANSWERS = { windowDays: 7, timeOfDay: "any" as const, vibe: "any" as const, purpose: "any" as const, withMemberIds: [] };
 
 describe("getWizardRecommendations", () => {
-  it("rejects unknown feelings before querying anything", async () => {
+  it("rejects a feeling that isn't on the wheel before querying anything", async () => {
     const fake = makeQueryFake({});
     vi.mocked(createClient).mockResolvedValue(fake.client as any);
     vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
 
-    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["hangry" as any] });
-    expect(result).toEqual({ error: "Invalid feelings" });
+    const result = await getWizardRecommendations({
+      ...BASE_ANSWERS,
+      mood: { pleasant: 2, energy: 4, emotion: "hangry" as any },
+    });
+    expect(result).toEqual({ error: "Invalid feeling" });
     expect(fake.client.from).not.toHaveBeenCalled();
   });
 
-  it("ranks with the member's own rated check-ins from similar times", async () => {
+  it("ranks with how well each series met the member's intention at similar times", async () => {
     const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
     const fake = makeQueryFake({
       prickle_types: [{ id: "t1", name: "Heads Down", purpose: "writing", solo_task_friendly: true }],
@@ -218,21 +221,21 @@ describe("getWizardRecommendations", () => {
       prickle_host_vibes: [],
       prickle_attendance: [],
       prickle_checkins: [
-        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
-        { feelings_before: ["anxious"], need: null, session_rating: 5, prickles: { type_id: "t1", host: "host-b" } },
-        { feelings_before: ["calm"], need: null, session_rating: 1, prickles: { type_id: "t1", host: "host-a" } },
+        { pleasant_before: 2, energy_before: 4, emotion_before: null, need: null, intention_met: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { pleasant_before: 2, energy_before: 5, emotion_before: null, need: null, intention_met: 5, prickles: { type_id: "t1", host: "host-b" } },
+        { pleasant_before: 5, energy_before: 1, emotion_before: null, need: null, intention_met: 1, prickles: { type_id: "t1", host: "host-a" } },
       ],
     });
     vi.mocked(createClient).mockResolvedValue(fake.client as any);
     vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
 
-    const result = await getWizardRecommendations({ ...BASE_ANSWERS, feelings: ["stressed"], need: null });
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, mood: { pleasant: 2, energy: 4, emotion: null }, need: null });
     if ("error" in result) throw new Error(result.error);
 
     expect(result.recommendations[0].hostId).toBe("host-b");
     expect(result.recommendations[0].personal).toEqual({ sessions: 2, avgRating: 5 });
     expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "eq", args: ["member_id", "member-1"] });
-    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "not", args: ["session_rating", "is", null] });
+    expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "not", args: ["intention_met", "is", null] });
     expect(fake.calls).toContainEqual({ table: "prickle_checkins", method: "is", args: ["deleted_at", null] });
   });
 });

@@ -51,7 +51,7 @@ describe("UpcomingPrickleRow check-in pill", () => {
   });
 
   it("shows a finished check-in as done", () => {
-    renderRow(10 * 60 * 1000, { feelingsBefore: ["calm"], need: "company", sessionRating: null, feelingsAfter: [] });
+    renderRow(10 * 60 * 1000, { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "company", intentionMet: null, pleasantAfter: null, energyAfter: null, emotionAfter: null });
     expect(screen.getByRole("link", { name: "Checked in ✓" })).toBeInTheDocument();
   });
 

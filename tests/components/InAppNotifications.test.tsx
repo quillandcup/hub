@@ -36,7 +36,7 @@ const CHECKIN: InAppNotification = {
 const CHECKOUT: InAppNotification = {
   id: "n2",
   kind: "prickle_checkout",
-  text: "Checking out of Sprint: how did it go?",
+  text: "Checking out of Sprint: did you get what you came for?",
   url: "/prickles/p2",
   createdAt: "2026-10-04T09:00:00Z",
   read: false,

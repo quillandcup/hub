@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PrickleCheckModal from "@/components/writing/PrickleCheckModal";
 import { getCheckModalData, saveCheckinHalf, type CheckModalData } from "@/app/(member)/prickles/checkin-actions";
 import { logProgress } from "@/app/(member)/projects/actions";
+import {
+  EMPTY_CHECKIN,
+  ENERGY_QUESTION,
+  INTENTION_MET_QUESTION,
+  PLEASANTNESS_QUESTION,
+} from "@/lib/prickle-checkins";
+
+/** A labeled point (or wheel feeling) inside the question group named `question`. */
+const option = async (question: string | RegExp, label: string) =>
+  within(await screen.findByRole("group", { name: question })).getByRole("button", { name: label });
+const WHEEL = /Name the feeling/;
 
 vi.mock("@/app/(member)/prickles/checkin-actions", () => ({
   getCheckModalData: vi.fn(),
@@ -49,25 +60,43 @@ beforeEach(() => {
 });
 
 describe("PrickleCheckModal check-in", () => {
-  it("asks how they were feeling coming in and what they needed, and saves just that half", async () => {
+  it("asks mood, the feeling from the wheel and the intention, and saves just that half", async () => {
     const user = userEvent.setup();
     const { onSaved, onClose } = renderModal("checkin");
-    await user.click(await screen.findByRole("button", { name: "Calm" }));
-    await user.click(screen.getByRole("button", { name: /Momentum/ }));
-    expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
+    await user.click(await option(PLEASANTNESS_QUESTION, "Bad"));
+    await user.click(await option(ENERGY_QUESTION, "Very low"));
+    await user.click(await option(WHEEL, "Sad"));
+    await user.click(await option(/More specifically, sad/, "Lonely"));
+    await user.selectOptions(screen.getByLabelText(/My intention/), "company");
+    expect(screen.queryByRole("group", { name: INTENTION_MET_QUESTION })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkin", { feelingsBefore: ["calm"], need: "momentum" });
+    const answers = { pleasantBefore: 2, energyBefore: 1, emotionBefore: "lonely", need: "company" };
+    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkin", answers);
     expect(logProgress).not.toHaveBeenCalled();
-    expect(onSaved).toHaveBeenCalledWith("p1", expect.objectContaining({ feelingsBefore: ["calm"], need: "momentum" }));
+    expect(onSaved).toHaveBeenCalledWith("p1", expect.objectContaining(answers));
+  });
+
+  it("drills into the wheel and back out", async () => {
+    const user = userEvent.setup();
+    renderModal("checkin");
+    await user.click(await option(WHEEL, "Joyful"));
+    await user.click(await option(/More specifically, joyful/, "Playful"));
+    expect(await option(/More specifically, joyful/, "Playful")).toHaveAttribute("aria-pressed", "true");
+    // Picking the specific feeling again goes back to the core; the core again clears it.
+    await user.click(await option(/More specifically, joyful/, "Playful"));
+    expect(await option(WHEEL, "Joyful")).toHaveAttribute("aria-pressed", "true");
+    await user.click(await option(WHEEL, "Joyful"));
+    expect(await option(WHEEL, "Joyful")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("group", { name: /More specifically/ })).not.toBeInTheDocument();
   });
 
   it("shows a join link after saving a check-in when the prickle has one", async () => {
     const user = userEvent.setup();
     vi.mocked(getCheckModalData).mockResolvedValue(data({ join: { url: "https://zoom.us/j/123", meetingId: "880 7170 2629", passcode: "thriving" } }));
     const { onClose } = renderModal("checkin");
-    await user.click(await screen.findByRole("button", { name: "Calm" }));
+    await user.click(await option(PLEASANTNESS_QUESTION, "Good"));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     const link = await screen.findByRole("link", { name: "Join the prickle" });
@@ -84,18 +113,24 @@ describe("PrickleCheckModal check-in", () => {
         half="checkin"
         onClose={() => {}}
         onSaved={() => {}}
-        prefill={{ feelingsBefore: ["stressed"], need: "company", sessionRating: null, feelingsAfter: [] }}
+        prefill={{ ...EMPTY_CHECKIN, pleasantBefore: 2, emotionBefore: "anxious", need: "company" }}
       />
     );
-    expect(await screen.findByRole("button", { name: "Stressed" })).toHaveAttribute("aria-pressed", "true");
+    expect(await option(PLEASANTNESS_QUESTION, "Bad")).toHaveAttribute("aria-pressed", "true");
+    expect(await option(/More specifically, scared/, "Anxious")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText(/My intention/)).toHaveValue("company");
   });
 });
 
 describe("PrickleCheckModal check-out", () => {
-  it("shows five stars side by side and a numeric question per project, worded for its measure", async () => {
+  it("asks got-what-you-came-for, mood and the feeling, and a numeric question per project, worded for its measure", async () => {
     renderModal("checkout");
-    expect(await screen.findByText("How did it go?")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /\d of 5/ })).toHaveLength(5);
+    const met = within(await screen.findByRole("group", { name: INTENTION_MET_QUESTION }));
+    expect(met.getAllByRole("button").map((b) => b.textContent)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely"]);
+    expect(screen.getByRole("group", { name: PLEASANTNESS_QUESTION })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: ENERGY_QUESTION })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: WHEEL })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/My intention/)).not.toBeInTheDocument();
     const words = screen.getByLabelText(NOVEL_QUESTION);
     expect(words).toHaveAttribute("type", "number");
     expect(screen.getByLabelText(/How many scenes did you write on Memoir/)).toBeInTheDocument();
@@ -104,13 +139,19 @@ describe("PrickleCheckModal check-out", () => {
   it("saves the check-out answers, then logs only the amounts that were filled in", async () => {
     const user = userEvent.setup();
     const { onClose } = renderModal("checkout");
-    await user.click(await screen.findByRole("button", { name: /4 of 5/ }));
-    await user.click(screen.getByRole("button", { name: "Tired" }));
+    await user.click(await option(INTENTION_MET_QUESTION, "Mostly"));
+    await user.click(await option(PLEASANTNESS_QUESTION, "Good"));
+    await user.click(await option(ENERGY_QUESTION, "Medium"));
     await user.type(screen.getByLabelText(NOVEL_QUESTION), "450");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkout", { sessionRating: 4, feelingsAfter: ["tired"] });
+    expect(saveCheckinHalf).toHaveBeenCalledWith("p1", "checkout", {
+      intentionMet: 4,
+      pleasantAfter: 4,
+      energyAfter: 3,
+      emotionAfter: null,
+    });
     expect(logProgress).toHaveBeenCalledTimes(1);
     expect(logProgress).toHaveBeenCalledWith({
       projectId: "proj-1",
@@ -145,7 +186,7 @@ describe("PrickleCheckModal check-out", () => {
       })
     );
     renderModal("checkout");
-    await screen.findByText("How did it go?");
+    await screen.findByRole("group", { name: INTENTION_MET_QUESTION });
     expect(screen.queryByLabelText(NOVEL_QUESTION)).not.toBeInTheDocument();
     expect(screen.getByText(/\+500 words/)).toBeInTheDocument();
   });

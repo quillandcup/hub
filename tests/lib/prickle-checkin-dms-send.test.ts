@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
+
+const checkinRow = (answers: Partial<CheckinInput>) => ({ id: "c1", member_id: "m1", prickle_id: "p1", ...checkinToRow({ ...EMPTY_CHECKIN, ...answers }) });
 
 // End-to-end through the real senders with Supabase, Slack and the calendar loader faked: what
 // matters here is how many DMs go out, not what the queries look like.
@@ -132,7 +135,7 @@ describe("prickle check-in route", () => {
 
   it("skips a member who already answered every check-in question", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ pleasantBefore: 2, energyBefore: 2, need: "company" })] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
@@ -144,17 +147,18 @@ describe("prickle check-in route", () => {
 
   it("asks the check-in questions, starting from answers already saved", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: "company", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ pleasantBefore: 4, need: "company" })] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
     await POST(cronRequest());
 
-    const [feelings, need] = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(feelings.block_id).toBe("prickle_checkin:p1:feelings_before");
-    expect(feelings.accessory.initial_options).toBeUndefined();
-    expect(need.block_id).toBe("prickle_checkin:p1:need");
-    expect(need.accessory.initial_option.value).toBe("company");
+    const blocks = sendSlackDM.mock.calls[0][0].blocks!;
+    const block = (field: string) => blocks.find((b: any) => b.block_id === `prickle_checkin:p1:${field}`);
+    expect(block("pleasant_before").elements.find((e: any) => e.style === "primary").value).toBe("4");
+    expect(block("energy_before").elements.some((e: any) => e.style === "primary")).toBe(false);
+    expect(block("emotion_before").accessory.initial_option).toBeUndefined();
+    expect(block("need").accessory.initial_option.value).toBe("company");
   });
 
   it("skips a member who turned check-ins off, without logging it", async () => {
@@ -260,7 +264,7 @@ describe("prickle check-in route", () => {
     });
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 1 });
-    expect(sendSlackDM.mock.calls[0][0].text).toBe("Checking out of Progress Prickle: how did it go?");
+    expect(sendSlackDM.mock.calls[0][0].text).toBe("Checking out of Progress Prickle: did you get what you came for?");
     // Later ticks see the log row and leave it alone.
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
   });
@@ -327,9 +331,13 @@ describe("sendCheckoutDMs", () => {
     const { slackUserId, blocks } = sendSlackDM.mock.calls[0][0];
     expect(slackUserId).toBe("U-m1");
     expect(blocks!.map((b: any) => b.block_id)).toEqual([
-      undefined, // rating question
-      "prickle_checkin:p1:session_rating",
-      "prickle_checkin:p1:feelings_after",
+      undefined, // got-what-you-came-for question
+      "prickle_checkin:p1:intention_met",
+      undefined,
+      "prickle_checkin:p1:pleasant_after",
+      undefined,
+      "prickle_checkin:p1:energy_after",
+      "prickle_checkin:p1:emotion_after",
       "quick_log:p1:proj1:words",
       "quick_log:p1:proj2:scenes",
       "prickle_dismiss:checkout:p1",
@@ -362,7 +370,7 @@ describe("sendCheckoutDMs", () => {
 
   it("skips an attendee who answered both questions and logged every project", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
       writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
     });
 
@@ -372,7 +380,7 @@ describe("sendCheckoutDMs", () => {
 
   it("still sends a fully answered check-out for a project not yet logged, asking only about that one", async () => {
     setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m1", "proj2", "scenes", "Memoir")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
       writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
     });
 
@@ -384,13 +392,14 @@ describe("sendCheckoutDMs", () => {
 
   it("shows answers the attendee already saved", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: null, session_rating: 4, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, emotionAfter: "proud" })] },
     });
 
     await checkout();
-    const [, rating, feelingsAfter] = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(rating.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
-    expect(feelingsAfter.accessory.initial_options).toBeUndefined();
+    const blocks = sendSlackDM.mock.calls[0][0].blocks!;
+    const block = (field: string) => blocks.find((b: any) => b.block_id === `prickle_checkin:p1:${field}`);
+    expect(block("intention_met").elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
+    expect(block("emotion_after").accessory.initial_option.value).toBe("proud");
   });
 
   it("doesn't prompt the same attendee twice for one prickle", async () => {
@@ -414,15 +423,15 @@ describe("tryRecordCheckinDM", () => {
 
 describe("sendTestCheckinDM", () => {
   const PRICKLE_REF = { id: "p1", typeName: "Progress Prickle" };
-  const answered = {
-    id: "c1",
-    member_id: "m1",
-    prickle_id: "p1",
-    feelings_before: ["tired"],
+  const answered = checkinRow({
+    pleasantBefore: 2,
+    energyBefore: 1,
+    emotionBefore: "sleepy",
     need: "company",
-    session_rating: 4,
-    feelings_after: ["calm"],
-  };
+    intentionMet: 4,
+    pleasantAfter: 4,
+    energyAfter: 3,
+  });
 
   function setup(extra: FakeTables = {}) {
     fake = createFakeSupabase({
@@ -445,8 +454,8 @@ describe("sendTestCheckinDM", () => {
     expect(dm.slackUserId).toBe("U-m1");
     expect(dm.text).toMatch(/^\[Test\] Ready for Progress Prickle/);
     expect(dm.blocks![0].elements[0].text).toMatch(/Test send/);
-    expect(dm.blocks![1].block_id).toBe("prickle_checkin:p1:feelings_before");
-    expect(dm.blocks![1].accessory.initial_options.map((o: any) => o.value)).toEqual(["tired"]);
+    const emotion = dm.blocks!.find((b: any) => b.block_id === "prickle_checkin:p1:emotion_before");
+    expect(emotion.accessory.initial_option.value).toBe("sleepy");
     expect(loggedAny()).toBe(false);
   });
 
@@ -456,10 +465,12 @@ describe("sendTestCheckinDM", () => {
     expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"] });
 
     const dm = sendSlackDM.mock.calls[0][0];
-    expect(dm.text).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(dm.text).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
     expect(dm.blocks!.map((b: any) => b.block_id).filter(Boolean)).toEqual([
-      "prickle_checkin:p1:session_rating",
-      "prickle_checkin:p1:feelings_after",
+      "prickle_checkin:p1:intention_met",
+      "prickle_checkin:p1:pleasant_after",
+      "prickle_checkin:p1:energy_after",
+      "prickle_checkin:p1:emotion_after",
       "quick_log:p1:proj1:words",
       "prickle_dismiss:checkout:p1",
     ]);
@@ -494,7 +505,7 @@ describe("sendTestCheckinDM", () => {
     });
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe("alice@example.com");
-    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
     expect(email.html).toContain("Unsubscribe from");
   });
 

@@ -24,7 +24,7 @@ import {
   type GoalCandidate,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
-import { MAX_FEELINGS, type CheckinInput } from "@/lib/prickle-checkins";
+import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 const TYPE = "type-progress";
@@ -229,122 +229,155 @@ describe("replaceAnsweredBlock", () => {
   });
 });
 
-const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
+const EMPTY = EMPTY_CHECKIN;
+const ids = (blocks: any[]) => blocks.map((b) => b.block_id);
+const picked = (row: any) => row.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value);
 
 describe("buildCheckinBlocks", () => {
-  it("asks how they're feeling coming in (up to the cap) and what they need, linking the prickle", () => {
-    const [feelings, need, , footer] = buildCheckinBlocks("p1", "Progress Prickle", null);
-    expect(feelings.text.text).toContain("*Progress Prickle* starts in about 20 minutes");
-    expect(feelings.accessory).toMatchObject({
-      type: "multi_static_select",
-      action_id: CHECKIN_ANSWER_ACTION_ID,
-      max_selected_items: MAX_FEELINGS,
-    });
-    expect(feelings.accessory.options.map((o: any) => o.value)).toContain("tired");
-    expect(need.accessory.type).toBe("static_select");
-    expect(need.accessory.options[0]).toEqual({ text: { type: "plain_text", text: "Momentum · Get words down" }, value: "momentum" });
-    expect(footer.elements[0].text).toContain("/my-prickles/history?checkin=p1|check-in for this prickle>");
+  it("asks mood on two labeled scales, the feeling from the wheel, then the intention, linking the prickle", () => {
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", null);
+    expect(ids(blocks)).toEqual([
+      undefined,
+      "prickle_checkin:p1:pleasant_before",
+      undefined,
+      "prickle_checkin:p1:energy_before",
+      "prickle_checkin:p1:emotion_before",
+      "prickle_checkin:p1:need",
+      "prickle_dismiss:checkin:p1",
+      undefined,
+    ]);
+    expect(blocks[0].text.text).toBe("*Progress Prickle* starts in about 20 minutes. Overall, how do you feel?");
+    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Very bad", "Bad", "Okay", "Good", "Very good"]);
+    expect(blocks[1].elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
+    expect(blocks[3].elements.map((e: any) => e.text.text)).toEqual(["Very low", "Low", "Medium", "High", "Very high"]);
+
+    expect(blocks[4].text.text).toBe("Name the feeling \n_(Feeling Wheel by Gloria Willcox)_");
+    const wheel = blocks[4].accessory;
+    expect(wheel).toMatchObject({ type: "static_select", action_id: CHECKIN_ANSWER_ACTION_ID });
+    expect(wheel.option_groups.map((g: any) => g.label.text)).toEqual(["Mad", "Scared", "Joyful", "Powerful", "Peaceful", "Sad"]);
+    expect(wheel.option_groups.flatMap((g: any) => g.options)).toHaveLength(78);
+    expect(wheel.option_groups[0].options.slice(0, 5)).toEqual([
+      { text: { type: "plain_text", text: "Mad" }, value: "mad" },
+      { text: { type: "plain_text", text: "Hurt" }, value: "hurt" },
+      { text: { type: "plain_text", text: "Jealous" }, value: "jealous" },
+      { text: { type: "plain_text", text: "Hostile" }, value: "hostile" },
+      { text: { type: "plain_text", text: "Selfish" }, value: "selfish" },
+    ]);
+    // The core, then its pairs (each middle-ring word, then the outer-ring word beside it): 13 per group.
+    expect(wheel.option_groups[0].options).toHaveLength(13);
+
+    expect(blocks[5].text.text).toContain("Choose your intention");
+    expect(blocks[5].accessory.options[0]).toEqual({ text: { type: "plain_text", text: "Momentum · Get words down" }, value: "momentum" });
+    expect(blocks[7].elements[0].text).toContain("/my-prickles/history?checkin=p1|check-in for this prickle>");
   });
 
   it("starts from the saved answers", () => {
-    const [feelings, need] = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, feelingsBefore: ["tired", "stuck"], need: "unstuck" });
-    expect(feelings.accessory.initial_options.map((o: any) => o.value)).toEqual(["tired", "stuck"]);
-    expect(need.accessory.initial_option.value).toBe("unstuck");
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, pleasantBefore: 2, emotionBefore: "lonely", need: "unstuck" });
+    expect(picked(blocks[1])).toEqual(["2"]);
+    expect(picked(blocks[3])).toEqual([]);
+    expect(blocks[4].accessory.initial_option.value).toBe("lonely");
+    expect(blocks[5].accessory.initial_option.value).toBe("unstuck");
   });
 });
 
 describe("buildCheckoutBlocks", () => {
-  it("asks how it went as five star buttons, then how they feel now, then the progress questions", () => {
+  it("asks got-what-you-came-for, then mood and the feeling again, then the progress questions", () => {
     const blocks = buildCheckoutBlocks(
       "p1",
       "Progress Prickle",
-      { ...EMPTY, sessionRating: 4 },
+      { ...EMPTY, intentionMet: 4, energyAfter: 2 },
       [{ projectId: "a", projectTitle: "Novel", measure: "words" }],
       "Monday Progress Prickle with Jenn P"
     );
-    expect(blocks.map((b) => b.block_id)).toEqual([
+    expect(ids(blocks)).toEqual([
       undefined,
-      "prickle_checkin:p1:session_rating",
-      "prickle_checkin:p1:feelings_after",
+      "prickle_checkin:p1:intention_met",
+      undefined,
+      "prickle_checkin:p1:pleasant_after",
+      undefined,
+      "prickle_checkin:p1:energy_after",
+      "prickle_checkin:p1:emotion_after",
       "quick_log:p1:a:words",
       "prickle_dismiss:checkout:p1",
       undefined,
     ]);
-    const stars = blocks[1];
-    expect(stars.type).toBe("actions");
-    expect(stars.elements.map((e: any) => e.text.text)).toEqual(["★", "★★", "★★★", "★★★★", "★★★★★"]);
-    expect(stars.elements.map((e: any) => e.value)).toEqual(["1", "2", "3", "4", "5"]);
-    expect(stars.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
-    expect(blocks[3].label.text).toContain("during Monday Progress Prickle with Jenn P?");
-    expect(blocks[4].elements[0]).toMatchObject({ action_id: "prickle_dismiss", value: "checkout:p1" });
-    expect(blocks[5].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
-    expect(blocks[2].accessory.initial_options).toBeUndefined();
+    expect(blocks[0].text.text).toBe("Checking out of *Progress Prickle*: Did you get what you came for?");
+    expect(blocks[1].elements.map((e: any) => e.text.text)).toEqual(["Not at all", "A little", "Somewhat", "Mostly", "Completely"]);
+    expect(picked(blocks[1])).toEqual(["4"]);
+    expect(picked(blocks[5])).toEqual(["2"]);
+    expect(blocks[6].accessory.initial_option).toBeUndefined();
+    expect(blocks[7].label.text).toContain("during Monday Progress Prickle with Jenn P?");
+    expect(blocks[8].elements[0]).toMatchObject({ action_id: "prickle_dismiss", value: "checkout:p1" });
+    expect(blocks[9].elements[0].text).toContain("/my-prickles/history?checkout=p1|check-out for this prickle>");
+  });
+
+  it("stays within Slack's 50-block limit with a quick-log per project", () => {
+    const prompts = Array.from({ length: 10 }, (_, i) => ({ projectId: `p${i}`, projectTitle: `P${i}`, measure: "words" as const }));
+    expect(buildCheckoutBlocks("p1", "Progress Prickle", null, prompts).length).toBeLessThanOrEqual(50);
   });
 });
 
 describe("parseCheckinAnswer", () => {
-  it("reads a multi-select, including one cleared to nothing", () => {
-    const action = { action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:feelings_after" };
-    expect(parseCheckinAnswer({ ...action, selected_options: [{ value: "calm" }] })).toEqual({
+  it("reads a select, including one cleared to nothing", () => {
+    const action = { action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:emotion_after" };
+    expect(parseCheckinAnswer({ ...action, selected_option: { value: "hopeful" } })).toEqual({
       prickleId: "p1",
-      field: "feelings_after",
-      values: ["calm"],
+      field: "emotion_after",
+      values: ["hopeful"],
     });
-    expect(parseCheckinAnswer({ ...action, selected_options: [] })?.values).toEqual([]);
+    expect(parseCheckinAnswer(action)?.values).toEqual([]);
   });
 
-  it("reads a single select", () => {
-    expect(
-      parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:session_rating", selected_option: { value: "3" } })
-    ).toEqual({ prickleId: "p1", field: "session_rating", values: ["3"] });
-  });
-
-  it("reads a star button, whose action id carries its rating", () => {
+  it("reads a scale button, whose action id carries its point", () => {
     expect(
       parseCheckinAnswer({
         action_id: `${CHECKIN_ANSWER_ACTION_ID}:5`,
-        block_id: "prickle_checkin:p1:session_rating",
+        block_id: "prickle_checkin:p1:intention_met",
         type: "button",
         value: "5",
       })
-    ).toEqual({ prickleId: "p1", field: "session_rating", values: ["5"] });
+    ).toEqual({ prickleId: "p1", field: "intention_met", values: ["5"] });
   });
 
-  it("ignores other actions and unknown fields", () => {
+  it("ignores other actions, unknown fields and the retired questions", () => {
     expect(parseCheckinAnswer({ action_id: QUICK_LOG_ACTION_ID, block_id: "prickle_checkin:p1:need" })).toBeNull();
     expect(parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:host" })).toBeNull();
     expect(parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "quick_log:p1:need" })).toBeNull();
+    expect(parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:feelings_before" })).toBeNull();
+    expect(parseCheckinAnswer({ action_id: CHECKIN_ANSWER_ACTION_ID, block_id: "prickle_checkin:p1:session_rating" })).toBeNull();
   });
 });
 
 describe("applyCheckinAnswer", () => {
-  it("replaces only the answered field", () => {
-    const base: CheckinInput = { feelingsBefore: ["tired"], need: "company", sessionRating: 2, feelingsAfter: [] };
-    expect(applyCheckinAnswer(base, "session_rating", ["4"])).toEqual({ ...base, sessionRating: 4 });
-    expect(applyCheckinAnswer(base, "feelings_before", [])).toEqual({ ...base, feelingsBefore: [] });
-    expect(applyCheckinAnswer(base, "need", ["company"])).toEqual({ ...base, need: "company" });
+  it("replaces only the answered field, as a number for scales", () => {
+    const base: CheckinInput = { ...EMPTY, need: "company", pleasantBefore: 2 };
+    expect(applyCheckinAnswer(base, "pleasant_before", ["4"])).toEqual({ ...base, pleasantBefore: 4 });
+    expect(applyCheckinAnswer(base, "intention_met", ["5"])).toEqual({ ...base, intentionMet: 5 });
+    expect(applyCheckinAnswer(base, "emotion_before", ["anxious"])).toEqual({ ...base, emotionBefore: "anxious" });
+    expect(applyCheckinAnswer(base, "need", [])).toEqual({ ...base, need: null });
   });
 });
 
 describe("withSavedAnswer", () => {
-  it("highlights the picked star and clears the previous one", () => {
-    const blocks = buildCheckoutBlocks("p1", "Progress Prickle", { ...EMPTY, sessionRating: 2 }, []);
-    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "session_rating", values: ["5"] })!;
-    const row = updated.find((b) => b.block_id === "prickle_checkin:p1:session_rating");
-    expect(row.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["5"]);
+  it("highlights the picked point in its own row and clears the previous one", () => {
+    const blocks = buildCheckoutBlocks("p1", "Progress Prickle", { ...EMPTY, intentionMet: 2, pleasantAfter: 3 }, []);
+    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "intention_met", values: ["5"] })!;
+    const row = (field: string) => updated.find((b) => b.block_id === `prickle_checkin:p1:${field}`);
+    expect(picked(row("intention_met"))).toEqual(["5"]);
+    expect(picked(row("pleasant_after"))).toEqual(["3"]);
   });
 
   it("writes the pick into that question only", () => {
     const blocks = buildCheckinBlocks("p1", "Progress Prickle", null);
-    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "need", values: ["company"] })!;
-    expect(updated[1].accessory.initial_option.value).toBe("company");
-    expect(updated[0]).toBe(blocks[0]);
+    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "emotion_before", values: ["proud"] })!;
+    expect(updated[4].accessory.initial_option).toEqual({ text: { type: "plain_text", text: "Proud" }, value: "proud" });
+    expect(updated[5]).toBe(blocks[5]);
   });
 
-  it("drops the initial value when a multi-select is cleared", () => {
-    const blocks = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, feelingsBefore: ["tired"] });
-    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "feelings_before", values: [] })!;
-    expect(updated[0].accessory.initial_options).toBeUndefined();
+  it("drops the initial value when a select is cleared", () => {
+    const blocks = buildCheckinBlocks("p1", "Progress Prickle", { ...EMPTY, need: "company" });
+    const updated = withSavedAnswer(blocks, { prickleId: "p1", field: "need", values: [] })!;
+    expect(updated[5].accessory.initial_option).toBeUndefined();
   });
 });
 
@@ -363,21 +396,27 @@ describe("saveCheckinAnswer", () => {
 
   it("merges the answer into the saved check-in", async () => {
     const fake = createFakeSupabase({
-      prickle_checkins: { data: [{ feelings_before: ["tired"], need: "company", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinToRow({ ...EMPTY, pleasantBefore: 2, need: "company" })] },
     });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] })).toBeNull();
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "energy_before", values: ["4"] })).toBeNull();
     const [upsert] = writes(fake);
     expect(upsert.args).toEqual([
-      { member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: 4, feelings_after: [], saved_via: "slack", deleted_at: null },
+      {
+        member_id: "m1",
+        prickle_id: "p1",
+        ...checkinToRow({ ...EMPTY, pleasantBefore: 2, energyBefore: 4, need: "company" }),
+        saved_via: "slack",
+        deleted_at: null,
+      },
       { onConflict: "member_id,prickle_id" },
     ]);
   });
 
   it("soft-deletes the check-in when clearing leaves nothing", async () => {
     const fake = createFakeSupabase({
-      prickle_checkins: { data: [{ feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinToRow({ ...EMPTY, emotionBefore: "sleepy" })] },
     });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "feelings_before", values: [] })).toBeNull();
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "emotion_before", values: [] })).toBeNull();
     const [update] = writes(fake);
     expect(update.method).toBe("update");
     expect(update.args[0]).toEqual({ deleted_at: expect.any(String), saved_via: "slack" });
@@ -385,13 +424,13 @@ describe("saveCheckinAnswer", () => {
 
   it("writes nothing for a cleared answer with no check-in yet", async () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "feelings_after", values: [] })).toBeNull();
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "emotion_after", values: [] })).toBeNull();
     expect(writes(fake)).toEqual([]);
   });
 
   it("rejects an unknown option without writing", async () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid need");
+    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid intention");
     expect(writes(fake)).toEqual([]);
   });
 });
@@ -404,7 +443,7 @@ describe("in-app notifications", () => {
 
   it("resolves the in-app check-in once a DM answer completes it", async () => {
     const fake = createFakeSupabase({
-      prickle_checkins: { data: [{ feelings_before: ["tired"], need: null, session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinToRow({ ...EMPTY, pleasantBefore: 2, energyBefore: 3 })] },
     });
     expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] })).toBeNull();
     expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkin", ref: "p1" }]);
@@ -412,8 +451,17 @@ describe("in-app notifications", () => {
 
   it("leaves both unresolved while the answers are partial", async () => {
     const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "session_rating", values: ["4"] });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "intention_met", values: ["4"] });
     expect(cleared(fake)).toEqual([]);
+  });
+
+  it("resolves the in-app check-out once got-what-you-came-for and mood are in", async () => {
+    const fake = createFakeSupabase({
+      prickle_checkins: { data: [checkinToRow({ ...EMPTY, intentionMet: 4, pleasantAfter: 4 })] },
+    });
+    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "energy_after", values: ["3"] });
+    expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkout", ref: "p1" }]);
   });
 
   it("ties the messages to the prickle, time-sensitive on its timing", () => {

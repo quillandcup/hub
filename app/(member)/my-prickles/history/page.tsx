@@ -10,7 +10,7 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 /**
  * Attendance History. ?checkin=<prickle id> or ?checkout=<prickle id> opens that prickle's
  * check-in / check-out modal (the links in Slack DMs, notifications and the prickle page);
- * ?feel= and ?need= carry "coming in" answers from Find a Prickle to pre-fill the check-in.
+ * ?pleasant=, ?energy=, ?emotion= and ?need= carry "coming in" answers from Find a Prickle to pre-fill the check-in.
  */
 export default async function AttendanceHistoryPage({ searchParams }: PageProps<"/my-prickles/history">) {
   const params = await searchParams;

@@ -50,7 +50,7 @@ describe('UsersClient invite form', () => {
     expect(send).toBeDisabled()
 
     await user.type(screen.getByPlaceholderText('Search members by name or email...'), 'ali')
-    await user.click(await screen.findByRole('button', { name: /Alice Author/ }))
+    await user.click(await screen.findByRole('option', { name: /Alice Author/ }))
 
     // Picking an option selects it without submitting the form
     expect(postedBodies()).toEqual([])
@@ -63,8 +63,8 @@ describe('UsersClient invite form', () => {
   it('only offers members not already linked to a user', async () => {
     const user = await openInviteForm()
     await user.type(screen.getByPlaceholderText('Search members by name or email...'), 'example.com')
-    expect(await screen.findByRole('button', { name: /Alice Author/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Bob Linked/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /Alice Author/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Bob Linked/ })).not.toBeInTheDocument()
   })
 
   it('can still invite a non-member by email', async () => {

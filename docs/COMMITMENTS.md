@@ -310,8 +310,9 @@ Keep it to **one tap**, with an optional second step. For attended occurrences:
    `pickQuickLogMeasure`). It writes `writing_progress_entries` with `prickle_id` set and mirrors to
    `member_activities`. If the member has no writing project, link to
    `/projects` → `LogProgressModal` with `prickleId` prefilled instead.
-2. **Optional**: how it went and how they feel now. The check-out DM already asks both and saves
-   them to the member's check-in (`prickle_checkins.session_rating` and `feelings_after`), so a
+2. **Optional**: did they get what they came for, and how they feel now. The check-out DM already
+   asks both and saves them to the member's check-in (`prickle_checkins.intention_met` and
+   `pleasant_after`/`energy_after`, see `docs/CHECKINS.md`), so a
    per-commitment journal can read them from there by `prickle_id` rather than from a new table.
    A free-text "what did you work on?" would be a new `prickle_checkins` column.
 3. **Missed weeks**: a single reason chip ("schedule conflict", "forgot", "not feeling it", "other")

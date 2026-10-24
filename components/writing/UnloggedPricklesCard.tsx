@@ -13,7 +13,7 @@ interface UnloggedPricklesCardProps {
 }
 
 /**
- * Dashboard prompt to check out of prickles attended recently: how it went, how they feel and how
+ * Dashboard prompt to check out of prickles attended recently: did they get what they came for, how they feel and how
  * much they wrote, in the same modal as Attendance History's "Check out →". A prickle drops off
  * once it's checked out or has progress logged against it.
  */

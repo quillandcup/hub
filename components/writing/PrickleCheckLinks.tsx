@@ -47,7 +47,7 @@ export default function PrickleCheckLinks({ prickleId, hasStarted, checkin, entr
       </div>
       <div className="flex gap-2">
         <Link data-track="prickle-check-links-check-in"
-          href={checkinHref(prickleId, "checkin", prefill?.feelingsBefore ?? [], prefill?.need ?? null)}
+          href={checkinHref(prickleId, "checkin", prefill ?? {})}
           className={checkedIn ? done : todo}
         >
           {checkedIn ? "Checked in ✓" : "Check in →"}

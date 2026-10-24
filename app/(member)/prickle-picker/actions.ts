@@ -18,13 +18,14 @@ import {
   type PickerRecommendation,
   type PurposePreference,
   type TimeOfDay,
+  type MoodNow,
   type Vibe,
   type VibePreference,
   PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
 import { getHostVibeTypes } from "@/lib/host-vibes";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN, validateCheckin, type Emotion, type Need } from "@/lib/prickle-checkins";
 
 import { withAction } from "@/lib/analytics/server";
 const BATCH_SIZE = 1000;
@@ -38,8 +39,8 @@ export interface WizardAnswers {
   vibe: VibePreference;
   purpose: PurposePreference;
   withMemberIds: string[];
-  /** "How are you feeling?" step; both optional. */
-  feelings?: Feeling[];
+  /** "How are you feeling?" step; all optional. */
+  mood?: MoodNow;
   need?: Need | null;
 }
 
@@ -73,14 +74,16 @@ async function fetchAttendanceForPrickleIds(
 }
 
 interface RawRatedCheckin {
-  feelings_before: string[] | null;
+  pleasant_before: number | null;
+  energy_before: number | null;
+  emotion_before: string | null;
   need: string | null;
-  session_rating: number;
+  intention_met: number;
   prickles: { type_id: string | null; host: string | null } | { type_id: string | null; host: string | null }[];
 }
 
 /**
- * Every check-in the member rated, keyed to its prickle's series -- the personal history the
+ * Every check-in where the member said whether they got what they came for, keyed to its prickle's series -- the personal history the
  * picker weighs against how they feel now. All time, not just HISTORY_MONTHS: check-ins are
  * sparse and a series' character changes slowly.
  */
@@ -88,10 +91,10 @@ async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string):
   const rows = await fetchAllPaginated<RawRatedCheckin>((offset) =>
     supabase
       .from("prickle_checkins")
-      .select("feelings_before, need, session_rating, prickles!inner(type_id, host)")
+      .select("pleasant_before, energy_before, emotion_before, need, intention_met, prickles!inner(type_id, host)")
       .eq("member_id", memberId)
       .is("deleted_at", null)
-      .not("session_rating", "is", null)
+      .not("intention_met", "is", null)
       .order("id")
       .range(offset, offset + BATCH_SIZE - 1)
   );
@@ -99,9 +102,11 @@ async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string):
     const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
     return {
       seriesKey: seriesKeyFor(prickle?.type_id ?? null, prickle?.host ?? null),
-      feelingsBefore: (r.feelings_before ?? []) as Feeling[],
+      pleasantBefore: r.pleasant_before,
+      energyBefore: r.energy_before,
+      emotionBefore: (r.emotion_before ?? null) as Emotion | null,
       need: (r.need ?? null) as Need | null,
-      sessionRating: r.session_rating,
+      intentionMet: r.intention_met,
     };
   });
 }
@@ -122,11 +127,21 @@ export async function getWizardRecommendations(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const feelings = answers.feelings ?? [];
+  const mood: MoodNow = {
+    pleasant: answers.mood?.pleasant ?? null,
+    energy: answers.mood?.energy ?? null,
+    emotion: answers.mood?.emotion ?? null,
+  };
   const need = answers.need ?? null;
-  // Same rules as a saved check-in's "coming in" answers (known keys, at most 2 feelings).
-  const feelingsError = validateCheckin({ feelingsBefore: feelings, need, sessionRating: null, feelingsAfter: [] });
-  if (feelingsError) return { error: feelingsError };
+  // Same rules as a saved check-in's "coming in" answers.
+  const moodError = validateCheckin({
+    ...EMPTY_CHECKIN,
+    pleasantBefore: mood.pleasant,
+    energyBefore: mood.energy,
+    emotionBefore: mood.emotion,
+    need,
+  });
+  if (moodError) return { error: moodError };
 
   const timezonePref = await getUserTimezonePreference();
   const timezone = timezonePref === "browser" ? DEFAULT_TIMEZONE : timezonePref;
@@ -202,7 +217,7 @@ export async function getWizardRecommendations(
       purpose: answers.purpose,
       withMemberIds: answers.withMemberIds,
       timezone,
-      feelings,
+      mood,
       need,
     },
     undefined,

@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
+import { checkinToRow, EMPTY_CHECKIN } from "@/lib/prickle-checkins";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 
@@ -92,9 +93,9 @@ describe("getUnloggedRecentPrickles", () => {
       writing_progress_entries: [{ prickle_id: "p-logged" }],
       prickle_checkout_dismissals: [{ prickle_id: "p-dismissed" }],
       prickle_checkins: [
-        { prickle_id: "p-checked-out", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] },
+        { prickle_id: "p-checked-out", ...checkinToRow({ ...EMPTY_CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 }) },
         // Only the check-in half answered: still owed a check-out.
-        { prickle_id: "p-checked-in", feelings_before: ["calm"], need: "company", session_rating: null, feelings_after: [] },
+        { prickle_id: "p-checked-in", ...checkinToRow({ ...EMPTY_CHECKIN, pleasantBefore: 3, energyBefore: 3, need: "company" }) },
       ],
     });
 

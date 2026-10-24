@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PrickleWizard from "@/app/(member)/prickle-picker/PrickleWizard";
 import { getWizardRecommendations } from "@/app/(member)/prickle-picker/actions";
 import type { PickerRecommendation } from "@/lib/prickle-picker";
+import { ENERGY_QUESTION, PLEASANTNESS_QUESTION } from "@/lib/prickle-checkins";
+
+const option = (question: string | RegExp, label: string) =>
+  within(screen.getByRole("group", { name: question })).getByRole("button", { name: label });
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -86,25 +90,26 @@ describe("PrickleWizard", () => {
     expect(screen.getByText("Anyone you're hoping to see there?")).toBeInTheDocument();
   });
 
-  it("submits feelings and need, and fills in the mood the need points at when none was chosen", async () => {
+  it("submits mood, feeling and intention, and fills in the room vibe the intention points at when none was chosen", async () => {
     vi.mocked(getWizardRecommendations).mockResolvedValue({ recommendations: [sampleRecommendation] });
     render(<PrickleWizard members={members} />);
 
     await goToLastStep();
-    await userEvent.click(screen.getByRole("button", { name: "Stressed" }));
-    await userEvent.click(screen.getByRole("button", { name: "Lonely" }));
-    expect(screen.getByRole("button", { name: "Calm" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "Company" }));
+    await userEvent.click(option(PLEASANTNESS_QUESTION, "Bad"));
+    await userEvent.click(option(ENERGY_QUESTION, "Low"));
+    await userEvent.click(option(/Name the feeling/, "Sad"));
+    await userEvent.click(option(/More specifically, sad/, "Lonely"));
+    await userEvent.selectOptions(screen.getByLabelText(/My intention/), "company");
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
     // Company points at a chatty room.
     expect(getWizardRecommendations).toHaveBeenCalledWith(
-      expect.objectContaining({ feelings: ["stressed", "lonely"], need: "company", vibe: "chatty" })
+      expect.objectContaining({ mood: { pleasant: 2, energy: 2, emotion: "lonely" }, need: "company", vibe: "chatty" })
     );
     // Links carry the answers so the prickle's check-in card starts pre-filled.
     expect(await screen.findByRole("link", { name: /Jan/ })).toHaveAttribute(
       "href",
-      "/prickles/p1?feel=stressed%2Clonely&need=company"
+      "/prickles/p1?pleasant=2&energy=2&emotion=lonely&need=company"
     );
   });
 
@@ -117,13 +122,13 @@ describe("PrickleWizard", () => {
     await next();
     await next();
     await next();
-    await userEvent.click(screen.getByRole("button", { name: "Company" }));
+    await userEvent.selectOptions(screen.getByLabelText(/My intention/), "company");
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
     expect(getWizardRecommendations).toHaveBeenCalledWith(expect.objectContaining({ vibe: "focused" }));
   });
 
-  it("shows how the member rated a series when they felt similar", async () => {
+  it("shows how well a series met the member's intention when they felt similar", async () => {
     vi.mocked(getWizardRecommendations).mockResolvedValue({
       recommendations: [{ ...sampleRecommendation, personal: { sessions: 3, avgRating: 4.3 } }],
     });
@@ -131,7 +136,7 @@ describe("PrickleWizard", () => {
     await goToLastStep();
     await userEvent.click(screen.getByRole("button", { name: /show me prickles/i }));
 
-    expect(await screen.findByText("You rated it Good on average (3 similar sessions)")).toBeInTheDocument();
+    expect(await screen.findByText("Got what you came for: Mostly on average (3 similar sessions)")).toBeInTheDocument();
   });
 
   it("submits the selected answers and renders results", async () => {
