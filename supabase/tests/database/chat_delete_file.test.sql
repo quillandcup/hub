@@ -1,5 +1,5 @@
 -- pgTAP tests for 20261208000000_chat_delete_file.sql: an author removes one file from their own
--- message (the others stay; a message written in Slack counts, see 20261224000000); someone else, a
+-- message (the others stay; a message written in Slack counts, see 20261226000000); someone else, a
 -- deleted message and a notice Slack posted are refused. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
