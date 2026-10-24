@@ -432,10 +432,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     (heartbeat): EnvVarSpec => ({
       name: heartbeat.envVar,
       group: "Analytics & Monitoring",
-      description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. Also a GitHub secret, so the deploy job can mask it in the log (\`checkly deploy\` prints every ping URL). See lib/cron-heartbeats.ts.`,
+      description: `Checkly heartbeat ping URL for ${heartbeat.path}, copied from the Checkly monitor after \`checkly deploy\`. Unset = no ping. Production only so manual preview runs don't mask a missed production run. See lib/cron-heartbeats.ts.`,
       // Not a credential, but anyone holding it can fake a successful run.
       type: "secret",
-      destinations: [{ kind: "vercel", target: "production" }, { kind: "github" }],
+      destinations: [{ kind: "vercel", target: "production" }],
     })
   ),
 
