@@ -99,8 +99,21 @@ describe("updateChatMessageInSlack", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("refuses someone else's message, one from Slack, a deleted one and an unknown one", async () => {
-    for (const change of [{ author_member_id: "member-gale" }, { origin: "slack" }, { deleted_at: "2026-10-01T00:00:00Z" }]) {
+  it("edits a message written in Slack as the member, with Slack's own text and no old blocks, and without the Hub's tag", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    await expect(updateChatMessageInSlack(service, { ...EDIT, body: "*fixed* <@U1> & more" })).resolves.toEqual({ ok: true });
+    expect(update).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100", text: "*fixed* <@U1> & more", blocks: [] }, "xoxp-fern");
+  });
+
+  it("needs the member's own Slack connection for a message written in Slack", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    getSlackUserToken.mockResolvedValueOnce(null);
+    await expect(updateChatMessageInSlack(service, EDIT)).resolves.toEqual({ ok: false, error: expect.stringMatching(/^Connect Slack in Settings/) });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("refuses someone else's message, a notice Slack posted, a deleted one and an unknown one", async () => {
+    for (const change of [{ author_member_id: "member-gale" }, { system_subtype: "channel_join" }, { deleted_at: "2026-10-01T00:00:00Z" }]) {
       row = { ...ROW, ...change };
       await expect(updateChatMessageInSlack(service, EDIT)).resolves.toEqual({ ok: false, error: "That message can't be edited." });
     }
@@ -150,10 +163,19 @@ describe("deleteChatMessageInSlack", () => {
     await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: true });
   });
 
-  it("refuses someone else's message and one from Slack, and explains a dead token or a refusal", async () => {
+  it("deletes a message written in Slack as the member, and needs their connection to", async () => {
+    row = { ...ROW, origin: "slack", posted_via: null };
+    await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: true });
+    expect(remove).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100" }, "xoxp-fern");
+
+    getSlackUserToken.mockResolvedValueOnce(null);
+    await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: false, error: expect.stringMatching(/^Connect Slack in Settings/) });
+  });
+
+  it("refuses someone else's message and a notice Slack posted, and explains a dead token or a refusal", async () => {
     row = { ...ROW, author_member_id: "member-gale" };
     await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: false, error: "That message can't be deleted." });
-    row = { ...ROW, origin: "slack" };
+    row = { ...ROW, system_subtype: "channel_join" };
     await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toMatchObject({ ok: false });
 
     row = { ...ROW, posted_via: "user_token" };

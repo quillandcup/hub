@@ -34,7 +34,7 @@ export default function MessageBody({
   const [deleted, setDeleted] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
-  const changeable = canEdit && message.mine && message.fromHub && message.syncStatus === null && !isPendingId(message.id);
+  const changeable = canEdit && message.mine && !message.system && message.syncStatus === null && !isPendingId(message.id);
   const text = saved && saved.from === message.body ? saved.text : message.body;
 
   useEffect(() => {

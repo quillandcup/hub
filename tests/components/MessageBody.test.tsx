@@ -45,7 +45,7 @@ describe("MessageBody", () => {
 
     for (const [message, canEdit] of [
       [mine({ mine: false }), true], // someone else's
-      [mine({ fromHub: false }), true], // written in Slack
+      [mine({ system: true }), true], // a notice Slack posted
       [mine({ syncStatus: "failed" }), true], // not in Slack yet
       [mine({ id: "pending-1" }), true], // not saved yet
       [mine(), false], // no preview, sudo, archived
