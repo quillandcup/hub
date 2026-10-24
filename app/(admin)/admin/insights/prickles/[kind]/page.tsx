@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -58,35 +59,8 @@ async function fetchAttendanceForPrickles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   prickleIds: string[]
 ): Promise<AttendanceRow[]> {
-  if (prickleIds.length === 0) return [];
-
-  const BATCH_IDS = 500;
-  const rows: AttendanceRow[] = [];
-
-  for (let i = 0; i < prickleIds.length; i += BATCH_IDS) {
-    const chunk = prickleIds.slice(i, i + BATCH_IDS);
-    const PAGE = 1000;
-    let offset = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id")
-        .in("prickle_id", chunk)
-        .range(offset, offset + PAGE - 1);
-
-      if (data && data.length > 0) {
-        rows.push(...data);
-        offset += data.length;
-        hasMore = data.length === PAGE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
-
-  return rows;
+  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 // ---------------------------------------------------------------------------

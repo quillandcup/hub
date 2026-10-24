@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -66,30 +67,13 @@ export default async function DashboardPage() {
 
   // Top 10 most active members (all time)
   // Fetch all attendance records (just member_id) with pagination
-  let allAttendance: any[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (batch && batch.length > 0) {
-      allAttendance = allAttendance.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const attendanceRepo = createRepos(supabase).attendance;
+  const allAttendance = await attendanceRepo.list();
 
   // Count attendance per member
   const attendanceCounts = new Map<string, number>();
   allAttendance.forEach((a) => {
-    attendanceCounts.set(a.member_id, (attendanceCounts.get(a.member_id) || 0) + 1);
+    attendanceCounts.set(a.memberId, (attendanceCounts.get(a.memberId) || 0) + 1);
   });
 
   // Get top 10 member IDs
@@ -122,17 +106,17 @@ export default async function DashboardPage() {
   const atRiskMembersList = atRiskMembers?.filter(isAtRisk).slice(0, 10) || [];
 
   // Writing Hours Last 30 Days - median per active member
-  const { data: last30DaysAttendance } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, leave_time, member_id")
-    .gte("join_time", thirtyDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  // One read for the longest window below (8 weeks); the 30-day and 7-day figures are slices of it.
+  const eightWeeksAgo = new Date();
+  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
+  const recentAttendance = await attendanceRepo.joinedBetween(eightWeeksAgo.toISOString(), now.toISOString());
+  const last30DaysAttendance = recentAttendance.filter((a) => new Date(a.joinTime) >= thirtyDaysAgo);
 
   // Calculate hours per member
   const hoursByMember = new Map<string, number>();
-  last30DaysAttendance?.forEach(record => {
-    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
-    hoursByMember.set(record.member_id, (hoursByMember.get(record.member_id) || 0) + duration);
+  last30DaysAttendance.forEach(record => {
+    const duration = (new Date(record.leaveTime).getTime() - new Date(record.joinTime).getTime()) / (1000 * 60 * 60);
+    hoursByMember.set(record.memberId, (hoursByMember.get(record.memberId) || 0) + duration);
   });
 
   // Get all active member IDs to include zeros for members who didn't attend
@@ -160,18 +144,10 @@ export default async function DashboardPage() {
   const avgHours = hoursArray.length > 0 ? totalHours / hoursArray.length : 0;
 
   // Weekly Attendance (last 8 weeks)
-  const eightWeeksAgo = new Date();
-  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
-  const { data: weeklyAttendanceData } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, member_id")
-    .gte("join_time", eightWeeksAgo.toISOString())
-    .lte("join_time", now.toISOString());
-
   // Group by week - track both total attendance and unique members
   const weeklyAttendance = new Map<string, { count: number; uniqueMembers: Set<string> }>();
-  weeklyAttendanceData?.forEach((record) => {
-    const date = new Date(record.join_time);
+  recentAttendance.forEach((record) => {
+    const date = new Date(record.joinTime);
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay()); // Sunday
     weekStart.setHours(0, 0, 0, 0);
@@ -180,11 +156,11 @@ export default async function DashboardPage() {
     const existing = weeklyAttendance.get(weekKey);
     if (existing) {
       existing.count++;
-      existing.uniqueMembers.add(record.member_id);
+      existing.uniqueMembers.add(record.memberId);
     } else {
       weeklyAttendance.set(weekKey, {
         count: 1,
-        uniqueMembers: new Set([record.member_id])
+        uniqueMembers: new Set([record.memberId])
       });
     }
   });
@@ -198,18 +174,14 @@ export default async function DashboardPage() {
     .sort((a, b) => a.week.localeCompare(b.week));
 
   // Daily Writing Hours (last 30 days)
-  const { data: dailyAttendanceData } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, leave_time")
-    .gte("join_time", thirtyDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  const dailyAttendanceData = last30DaysAttendance;
 
   // Group by day
   const dailyHours = new Map<string, number>();
-  dailyAttendanceData?.forEach((record) => {
-    const date = new Date(record.join_time);
+  dailyAttendanceData.forEach((record) => {
+    const date = new Date(record.joinTime);
     const dayKey = date.toISOString().split('T')[0];
-    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
+    const duration = (new Date(record.leaveTime).getTime() - new Date(record.joinTime).getTime()) / (1000 * 60 * 60);
     dailyHours.set(dayKey, (dailyHours.get(dayKey) || 0) + duration);
   });
 
@@ -221,13 +193,9 @@ export default async function DashboardPage() {
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
 
-  const { data: weeklyAttendees } = await supabase
-    .from("prickle_attendance")
-    .select("member_id")
-    .gte("join_time", sevenDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  const weeklyAttendees = recentAttendance.filter((a) => new Date(a.joinTime) >= sevenDaysAgo);
 
-  const uniqueWeeklyAttendees = new Set(weeklyAttendees?.map(a => a.member_id) || []).size;
+  const uniqueWeeklyAttendees = new Set(weeklyAttendees.map((a) => a.memberId)).size;
   const weeklyEngagementRate = activeMembers > 0
     ? Math.round((uniqueWeeklyAttendees / activeMembers) * 100)
     : 0;

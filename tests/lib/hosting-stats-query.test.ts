@@ -9,6 +9,12 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+// Attendance goes through its repository (lib/data/); this test has none, so it gets the in-memory twin.
+vi.mock("@/lib/data/repos", async () => {
+  const { InMemoryAttendanceRepository } = await import("@/lib/data/attendance");
+  return { createRepos: () => ({ attendance: new InMemoryAttendanceRepository() }) };
+});
+
 vi.mock("@/lib/sudo", () => ({
   getEffectiveIdentity: vi.fn(),
 }));
@@ -41,14 +47,6 @@ function makeSupabaseMock(prickleRows: { id: string; start_time: string; prickle
         return obj;
       });
       obj.range = vi.fn(() => Promise.resolve({ data: prickleRows }));
-      return obj;
-    }
-    if (table === "prickle_attendance") {
-      const obj: any = {};
-      obj.select = vi.fn(() => obj);
-      obj.eq = vi.fn(() => obj);
-      obj.in = vi.fn(() => obj);
-      obj.range = vi.fn(() => Promise.resolve({ data: [] }));
       return obj;
     }
     throw new Error(`Unexpected table in test: ${table}`);

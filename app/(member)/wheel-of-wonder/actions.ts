@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -94,12 +95,9 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
       // matchSlackUsersToMembers needs the full member roster (with email) to
       // resolve email/name matches, not just the id/photo fields above.
       supabase.from("members").select("id, name, email"),
-      fetchAllPaginated<{ member_id: string; prickle_id: string }>((offset) =>
-        supabase
-          .from("prickle_attendance")
-          .select("member_id, prickle_id")
-          .range(offset, offset + BATCH_SIZE - 1)
-      ),
+      createRepos(supabase)
+        .attendance.list()
+        .then((links) => links.map((l) => ({ member_id: l.memberId, prickle_id: l.prickleId }))),
       fetchAllPaginated<{ member_id: string }>((offset) =>
         supabase
           .from("member_activities")

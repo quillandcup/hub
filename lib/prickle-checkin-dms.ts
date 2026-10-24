@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import {
   PROGRESS_QUESTION_MEASURES,
   progressMeasureFor,
@@ -721,19 +722,12 @@ export function planCheckoutDMs<P extends RecentPrickle>(
 
 /** prickleId -> member ids with attendance for it. */
 async function loadAttendees(supabase: any, prickleIds: string[]): Promise<Map<string, Set<string>>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("prickle_attendance")
-      .select("id, member_id, prickle_id")
-      .in("prickle_id", prickleIds)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
+  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
   const result = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const set = result.get(r.prickle_id) ?? new Set<string>();
-    set.add(r.member_id);
-    result.set(r.prickle_id, set);
+  for (const link of links) {
+    const set = result.get(link.prickleId) ?? new Set<string>();
+    set.add(link.memberId);
+    result.set(link.prickleId, set);
   }
   return result;
 }

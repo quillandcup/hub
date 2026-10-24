@@ -68,8 +68,57 @@ export function defineAttendanceContract(name: string, setup: () => AttendanceCo
 
       expect(links).toHaveLength(3);
       expect(links.filter((l) => l.memberId === ctx.memberIds[0] && l.prickleId === ctx.prickleIds[0])).toHaveLength(2);
-      expect(links).toContainEqual({ memberId: ctx.memberIds[1], prickleId: ctx.prickleIds[1] });
+      expect(links).toContainEqual({ memberId: ctx.memberIds[1], prickleId: ctx.prickleIds[1], joinTime: expect.any(String) });
+      expect(links.map((l) => new Date(l.joinTime).getTime()).sort()).toEqual([at(0), at(1), at(30)].map((t) => Date.parse(t)));
       expect(await ctx.repo().forPrickles([])).toEqual([]);
+    });
+
+    it("lists every record, including ones for prickles nobody asked about", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 1, prickle: 2, join: at(50) },
+      ]);
+
+      const mine = (await ctx.repo().list()).filter((l) => ctx.memberIds.includes(l.memberId));
+
+      expect(mine.map((l) => [l.memberId, l.prickleId])).toEqual(
+        expect.arrayContaining([
+          [ctx.memberIds[0], ctx.prickleIds[0]],
+          [ctx.memberIds[1], ctx.prickleIds[2]],
+        ]),
+      );
+      expect(mine).toHaveLength(2);
+    });
+
+    it("tells which of the prickles one member attended, and when they first joined each", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(1) },
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 0, prickle: 2, join: at(50) },
+        { member: 1, prickle: 1, join: at(30) },
+      ]);
+      const ids = [ctx.prickleIds[0], ctx.prickleIds[1]];
+
+      expect(await ctx.repo().attendedAmong(ctx.memberIds[0], ids)).toEqual(new Set([ctx.prickleIds[0]]));
+      const earliest = await ctx.repo().earliestJoinByPrickle(ctx.memberIds[0], ids);
+      expect([...earliest.keys()]).toEqual([ctx.prickleIds[0]]);
+      expect(new Date(earliest.get(ctx.prickleIds[0])!)).toEqual(new Date(at(0)));
+      expect(await ctx.repo().attendedAmong(ctx.memberIds[0], [])).toEqual(new Set());
+    });
+
+    it("returns records that began in a window, inclusive at both ends", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0), leave: at(1) },
+        { member: 1, prickle: 0, join: at(5), leave: at(7) },
+        { member: 2, prickle: 0, join: at(10), leave: at(11) },
+        { member: 2, prickle: 1, join: at(30) },
+      ]);
+
+      const spans = (await ctx.repo().joinedBetween(at(0), at(10))).filter((s) => ctx.memberIds.includes(s.memberId));
+
+      expect(spans.map((s) => s.memberId).sort()).toEqual([...ctx.memberIds].sort());
+      const second = spans.find((s) => s.memberId === ctx.memberIds[1])!;
+      expect(new Date(second.leaveTime)).toEqual(new Date(at(7)));
     });
 
     it("says which members attended anything", async () => {

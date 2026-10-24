@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -79,13 +80,10 @@ export default async function MemberNetworkPage({
   }
 
   // Get all attendance records
-  const { data: attendance } = await supabase
-    .from("prickle_attendance")
-    .select(`
-      member_id,
-      prickle_id
-    `)
-    .order("prickle_id");
+  const attendance = (await createRepos(supabase).attendance.list()).map((l) => ({
+    member_id: l.memberId,
+    prickle_id: l.prickleId,
+  }));
 
   // Group attendance by prickle to find co-attendees
   const prickleAttendees = new Map<string, Set<string>>();

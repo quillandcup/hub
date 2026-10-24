@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -59,24 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Paginate prickle attendance to find all matched member IDs
-    const matchedMemberIds = new Set<string>();
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("prickle_attendance")
-          .select("member_id")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          for (const row of batch) matchedMemberIds.add(row.member_id);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const matchedMemberIds = new Set((await createRepos(supabase).attendance.attendedPrickleIdsByMember()).keys());
 
     // Paginate all members (including inactive) for Zoom name matching
     const allMembers: { id: string; name: string; email: string }[] = [];
