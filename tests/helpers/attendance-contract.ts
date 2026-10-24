@@ -1,12 +1,22 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { AttendanceRepository } from "@/lib/data/attendance";
+import type { PrickleDetail } from "@/lib/data/prickles";
 
 /** A seeded record, naming members and prickles by position in the context's id lists. */
+export type ContractMember = { id: string; name: string; displayName: string | null; email: string };
+
 export type SeedRecord = { member: 0 | 1 | 2; prickle: 0 | 1 | 2; join: string; leave?: string };
 
 export type AttendanceContractContext = {
   memberIds: readonly [string, string, string];
   prickleIds: readonly [string, string, string];
+  /** What the joins should report for each member: member 0 has a pen name, 1 has none, 2 hosts prickle 0. */
+  members: readonly [ContractMember, ContractMember, ContractMember];
+  /**
+   * What the joins should report for each prickle: 0 is a "writing" prickle hosted by member 2,
+   * 1 a "social" prickle with no host, 2 a "writing" one with no host; they start an hour apart, in that order.
+   */
+  prickles: readonly [PrickleDetail, PrickleDetail, PrickleDetail];
   /** The repository under test, over exactly the records passed to the last `seed`. */
   repo: () => AttendanceRepository;
   /** Replace all records for the context's members and prickles with these. */
@@ -168,6 +178,109 @@ export function defineAttendanceContract(name: string, setup: () => AttendanceCo
       expect(await ctx.repo().countForMember(ctx.memberIds[0])).toBe(0);
       expect(await ctx.repo().countForMember(ctx.memberIds[2])).toBe(2);
       expect(await ctx.repo().countForMember(ctx.memberIds[1])).toBe(1);
+    });
+
+    it("gives the member's records newest first, each with its prickle, type and host joined in", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 0, prickle: 1, join: at(30) },
+        { member: 1, prickle: 2, join: at(50) },
+      ]);
+
+      const mine = await ctx.repo().forMemberWithPrickles(ctx.memberIds[0]);
+
+      expect(mine.map((a) => a.prickleId)).toEqual([ctx.prickleIds[1], ctx.prickleIds[0]]);
+      expect(mine[1].prickle).toEqual(ctx.prickles[0]);
+      expect(mine[1].prickle?.host).toMatchObject({ id: ctx.memberIds[2] });
+      expect(mine[0].prickle).toEqual(ctx.prickles[1]);
+      expect(mine[0].prickle?.host).toBeNull();
+      expect(new Date(mine[0].joinTime)).toEqual(new Date(at(30)));
+    });
+
+    it("limits a member's records to prickles of a purpose, or that started since a time", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 0, prickle: 1, join: at(1) },
+        { member: 0, prickle: 2, join: at(2) },
+      ]);
+
+      const writing = await ctx.repo().forMemberWithPrickles(ctx.memberIds[0], { purpose: "writing" });
+      const recent = await ctx.repo().forMemberWithPrickles(ctx.memberIds[0], { prickleStartedSince: ctx.prickles[1].startTime });
+      const both = await ctx.repo().forMemberWithPrickles(ctx.memberIds[0], {
+        purpose: "writing",
+        prickleStartedSince: ctx.prickles[1].startTime,
+      });
+
+      expect(writing.map((a) => a.prickleId).sort()).toEqual([ctx.prickleIds[0], ctx.prickleIds[2]].sort());
+      expect(recent.map((a) => a.prickleId).sort()).toEqual([ctx.prickleIds[1], ctx.prickleIds[2]].sort());
+      expect(both.map((a) => a.prickleId)).toEqual([ctx.prickleIds[2]]);
+      expect(both[0].prickle).toEqual(ctx.prickles[2]);
+    });
+
+    it("lists a prickle's attendees earliest first with their names, and emails only when asked for", async () => {
+      await ctx.seed([
+        { member: 1, prickle: 0, join: at(2) },
+        { member: 0, prickle: 0, join: at(1) },
+        { member: 2, prickle: 1, join: at(0) },
+      ]);
+
+      const publicView = await ctx.repo().attendeesOf(ctx.prickleIds[0]);
+      const adminView = await ctx.repo().attendeesOf(ctx.prickleIds[0], { includeEmail: true });
+
+      expect(publicView.map((a) => a.memberId)).toEqual([ctx.memberIds[0], ctx.memberIds[1]]);
+      expect(publicView[0]).toMatchObject({ name: ctx.members[0].name, displayName: ctx.members[0].displayName, email: null });
+      expect(publicView[1]).toMatchObject({ name: ctx.members[1].name, displayName: null, email: null });
+      expect(adminView.map((a) => [a.memberId, a.email])).toEqual([
+        [ctx.memberIds[0], ctx.members[0].email],
+        [ctx.memberIds[1], ctx.members[1].email],
+      ]);
+      expect(new Date(adminView[0].joinTime)).toEqual(new Date(at(1)));
+    });
+
+    it("lists the other members at a set of prickles, never the member's own records", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 1, prickle: 0, join: at(1) },
+        { member: 2, prickle: 1, join: at(2) },
+        { member: 1, prickle: 2, join: at(3) },
+      ]);
+
+      const others = await ctx.repo().coAttendees(ctx.memberIds[0], [ctx.prickleIds[0], ctx.prickleIds[1]]);
+
+      expect(others.map((a) => [a.memberId, a.prickleId]).sort()).toEqual(
+        [
+          [ctx.memberIds[1], ctx.prickleIds[0]],
+          [ctx.memberIds[2], ctx.prickleIds[1]],
+        ].sort(),
+      );
+      expect(others.find((a) => a.memberId === ctx.memberIds[1])).toMatchObject({ name: ctx.members[1].name, email: null });
+      expect(await ctx.repo().coAttendees(ctx.memberIds[0], [])).toEqual([]);
+    });
+
+    it("names the attendee on records that began in a window", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 1, prickle: 0, join: at(5) },
+        { member: 2, prickle: 0, join: at(40) },
+      ]);
+
+      const found = (await ctx.repo().attendeesJoinedBetween(at(0), at(10))).filter((a) => ctx.memberIds.includes(a.memberId));
+
+      expect(found.map((a) => a.memberId).sort()).toEqual([ctx.memberIds[0], ctx.memberIds[1]].sort());
+      expect(found.find((a) => a.memberId === ctx.memberIds[0])).toMatchObject({ name: ctx.members[0].name, displayName: ctx.members[0].displayName });
+    });
+
+    it("finds a member's latest join, up to a time if given", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 0, prickle: 1, join: at(30) },
+        { member: 0, prickle: 2, join: at(60) },
+      ]);
+
+      expect(new Date((await ctx.repo().lastJoinTime(ctx.memberIds[0]))!)).toEqual(new Date(at(60)));
+      expect(new Date((await ctx.repo().lastJoinTime(ctx.memberIds[0], { before: at(45) }))!)).toEqual(new Date(at(30)));
+      expect(await ctx.repo().lastJoinTime(ctx.memberIds[0], { before: at(-1) })).toBeNull();
+      expect(await ctx.repo().lastJoinTime(ctx.memberIds[1])).toBeNull();
     });
 
     it("pages through more than a thousand records", async () => {

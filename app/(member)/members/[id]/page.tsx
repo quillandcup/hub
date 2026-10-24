@@ -124,20 +124,12 @@ export default async function MemberProfilePage({
   // member's upcoming calendar prickles grouped into recurring slots in the viewer's timezone.
   // "Last prickle" is the member's most recent join, shown in the header instead of stats.
   const now = new Date()
-  const [totalPricklesAttended, hostedRecords, hostingSlots, { data: lastAttendance }] = await Promise.all([
+  const [totalPricklesAttended, hostedRecords, hostingSlots, lastPrickleAt] = await Promise.all([
     getAttendedPrickleCount(createRepos(supabase).attendance, id),
     fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
     getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
-    supabase
-      .from("prickle_attendance")
-      .select("join_time")
-      .eq("member_id", id)
-      .lte("join_time", now.toISOString())
-      .order("join_time", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    createRepos(supabase).attendance.lastJoinTime(id, { before: now.toISOString() }),
   ])
-  const lastPrickleAt: string | null = lastAttendance?.join_time ?? null
   const hostingSummary = computePublicHostingSummary(hostedRecords)
 
   const earnedBadges = await getMemberBadges(

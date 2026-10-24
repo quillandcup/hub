@@ -67,7 +67,16 @@ export interface PrickleRepository {
 
 const TYPE_COLUMNS = "id, name, normalized_name, purpose, requires_host, solo_task_friendly";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
-const DETAIL_SELECT = `id, type_id, host_id:host, title, start_time, end_time, source, calendar_event_id, prickle_type:prickle_types(${TYPE_COLUMNS}), host:prickle_host(id, name, display_name)`;
+const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, start_time, end_time, source, calendar_event_id";
+const HOST_EMBED = "host:prickle_host(id, name, display_name)";
+const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
+
+/**
+ * The select for a prickle with its type and host, to embed under another table (attendance).
+ * `inner` drops rows whose prickle or type doesn't match the filters the caller adds.
+ */
+export const prickleEmbed = (inner: boolean) =>
+  `prickles${inner ? "!inner" : ""}(${PRICKLE_COLUMNS}, prickle_type:prickle_types${inner ? "!inner" : ""}(${TYPE_COLUMNS}), ${HOST_EMBED})`;
 
 type TypeRow = {
   id: string;
@@ -78,7 +87,7 @@ type TypeRow = {
   solo_task_friendly: boolean;
 };
 type HostRow = { id: string; name: string; display_name: string | null };
-type DetailRow = {
+export type DetailRow = {
   id: string;
   type_id: string | null;
   host_id: string | null;
@@ -92,7 +101,7 @@ type DetailRow = {
 };
 
 // PostgREST returns an embedded to-one relation as an object, but typed clients may see an array.
-const one = <T>(value: T | T[] | null | undefined): T | null => (Array.isArray(value) ? (value[0] ?? null) : (value ?? null));
+export const one = <T>(value: T | T[] | null | undefined): T | null => (Array.isArray(value) ? (value[0] ?? null) : (value ?? null));
 
 const toType = (row: TypeRow): PrickleType => ({
   id: row.id,
@@ -103,7 +112,7 @@ const toType = (row: TypeRow): PrickleType => ({
   soloTaskFriendly: row.solo_task_friendly,
 });
 
-function toDetail(row: DetailRow): PrickleDetail {
+export function toDetail(row: DetailRow): PrickleDetail {
   const type = one(row.prickle_type);
   const host = one(row.host);
   return {
@@ -195,18 +204,23 @@ export class SupabasePrickleRepository implements PrickleRepository {
 const byStartThenId = (a: PrickleDetail, b: PrickleDetail) =>
   a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
+/** A prickle with its type and host joined in from an in-memory dataset. */
+export function prickleDetail(data: InMemoryDataset, prickle: Prickle): PrickleDetail {
+  const type = data.prickleTypes.find((t) => t.id === prickle.typeId) ?? null;
+  const host = prickle.hostId ? data.members.find((m) => m.id === prickle.hostId) : undefined;
+  return {
+    ...prickle,
+    type: type ? { ...type } : null,
+    host: host ? { id: host.id, name: host.name, displayName: host.displayName ?? null } : null,
+  };
+}
+
 /** In-memory twin over an `InMemoryDataset`, joining types and hosts from it. */
 export class InMemoryPrickleRepository implements PrickleRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
   private detail(prickle: Prickle): PrickleDetail {
-    const type = this.data.prickleTypes.find((t) => t.id === prickle.typeId) ?? null;
-    const host = prickle.hostId ? this.data.members.find((m) => m.id === prickle.hostId) : undefined;
-    return {
-      ...prickle,
-      type: type ? { ...type } : null,
-      host: host ? { id: host.id, name: host.name, displayName: host.displayName ?? null } : null,
-    };
+    return prickleDetail(this.data, prickle);
   }
 
   async byId(id: string) {

@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { attendedPrickleRow } from "@/lib/attendance-view";
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -73,7 +75,7 @@ export default async function MyPricklesPage({
   const [
     ranked,
     scheduleOverview,
-    { data: attendance },
+    attendedPrickles,
     { data: prickleTypes },
     schedules,
     { data: lockRows },
@@ -87,13 +89,7 @@ export default async function MyPricklesPage({
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
-    supabase
-      .from("prickle_attendance")
-      .select(
-        `id, join_time, leave_time, prickles(id, host:prickle_host(id, name), start_time, end_time, prickle_types(name))`
-      )
-      .eq("member_id", memberId)
-      .order("join_time", { ascending: false }),
+    createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
     getMySchedules(),
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
@@ -295,7 +291,7 @@ export default async function MyPricklesPage({
               content: (
                 <MemberCalendarClient
                   memberId={memberId}
-                  attendance={attendance || []}
+                  attendance={attendedPrickles.map(attendedPrickleRow)}
                   defaultTimezone={tzPref}
                   memberBasePath="/members"
                   initialView="list"

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos"
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
@@ -175,44 +176,21 @@ export default async function StreaksPage() {
   const memberId = effectiveIdentity.memberId
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
-  // Paginate all of this member's attendance with prickle type info
-  const BATCH_SIZE = 1000
-  type MyRecord = {
-    prickle_id: string
-    join_time: string
-    prickles: { start_time: string; prickle_types: { name: string } | null } | null
-  }
-  let myAttendance: MyRecord[] = []
-  {
-    let offset = 0
-    let hasMore = true
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, join_time, prickles(start_time, prickle_types(name))")
-        .eq("member_id", memberId)
-        .range(offset, offset + BATCH_SIZE - 1)
-      if (batch && batch.length > 0) {
-        myAttendance = myAttendance.concat(batch as unknown as MyRecord[])
-        offset += batch.length
-        hasMore = batch.length === BATCH_SIZE
-      } else {
-        hasMore = false
-      }
-    }
-  }
+  // All of this member's attendance, with each prickle's type
+  const repos = createRepos(supabase)
+  const myAttendance = await repos.attendance.forMemberWithPrickles(memberId)
 
   // Overall streaks
-  const overall = computeStreaks(myAttendance.map((r) => r.join_time), new Date(), timeZone)
+  const overall = computeStreaks(myAttendance.map((r) => r.joinTime), new Date(), timeZone)
 
   // Prickle type streaks
   const rankedPrickleStreaks: PrickleStreak[] = computePrickleStreaks(
     myAttendance
-      .filter((r) => r.prickles?.prickle_types?.name && r.prickles?.start_time)
+      .filter((r) => r.prickle?.type?.name && r.prickle?.startTime)
       .map((r) => ({
-        prickleTypeName: r.prickles!.prickle_types!.name,
-        joinTime: r.join_time,
-        prickleStartTime: r.prickles!.start_time,
+        prickleTypeName: r.prickle!.type!.name,
+        joinTime: r.joinTime,
+        prickleStartTime: r.prickle!.startTime,
       })),
     new Date(),
     timeZone
@@ -222,44 +200,17 @@ export default async function StreaksPage() {
     STREAK_LIST_LIMIT
   )
 
-  // Sister streaks — fetch co-attendance in batches of 100 prickle IDs
-  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickle_id))]
-  type CoRecord = {
-    member_id: string
-    prickle_id: string
-    join_time: string
-    members: { name: string; display_name: string | null } | null
-  }
-  let coAttendance: CoRecord[] = []
-  const PRICKLE_BATCH = 100
-  for (let i = 0; i < myPrickleIds.length; i += PRICKLE_BATCH) {
-    const prickleBatch = myPrickleIds.slice(i, i + PRICKLE_BATCH)
-    let offset = 0
-    let hasMore = true
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
-        .in("prickle_id", prickleBatch)
-        .neq("member_id", memberId)
-        .range(offset, offset + BATCH_SIZE - 1)
-      if (batch && batch.length > 0) {
-        coAttendance = coAttendance.concat(batch as unknown as CoRecord[])
-        offset += batch.length
-        hasMore = batch.length === BATCH_SIZE
-      } else {
-        hasMore = false
-      }
-    }
-  }
+  // Sister streaks — everyone else at the prickles this member attended
+  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickleId))]
+  const coAttendance = await repos.attendance.coAttendees(memberId, myPrickleIds)
 
   const rankedSisterStreaks: SisterStreak[] = computeSisterStreaks(
-    myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
+    myAttendance.map((r) => ({ prickleId: r.prickleId, joinTime: r.joinTime })),
     coAttendance.map((r) => ({
-      memberId: r.member_id,
-      memberName: r.members ? getMemberDisplayName(r.members) : "Unknown",
-      prickleId: r.prickle_id,
-      joinTime: r.join_time,
+      memberId: r.memberId,
+      memberName: r.name ? getMemberDisplayName({ name: r.name, display_name: r.displayName }) : "Unknown",
+      prickleId: r.prickleId,
+      joinTime: r.joinTime,
     })),
     new Date(),
     timeZone
@@ -282,10 +233,10 @@ export default async function StreaksPage() {
   // Map prickle_id → display info for shared prickle links
   const prickleMap = new Map<string, PrickleInfo>()
   for (const r of myAttendance) {
-    if (r.prickles?.start_time && !prickleMap.has(r.prickle_id)) {
-      prickleMap.set(r.prickle_id, {
-        startTime: r.prickles.start_time,
-        typeName: r.prickles.prickle_types?.name ?? "Prickle",
+    if (r.prickle?.startTime && !prickleMap.has(r.prickleId)) {
+      prickleMap.set(r.prickleId, {
+        startTime: r.prickle.startTime,
+        typeName: r.prickle.type?.name ?? "Prickle",
       })
     }
   }

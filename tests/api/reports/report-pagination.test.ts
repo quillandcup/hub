@@ -230,10 +230,12 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/members/network/route.ts'), 'utf-8'
       )
-      // Both members and prickle_attendance queries must use pagination loops
+      // The members query paginates in the route; prickle_attendance goes through its repository,
+      // which paginates (tests/api/data/attendance-repository.test.ts)
       const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(2)
-      expect(content).toContain('from("prickle_attendance")')
+      expect(whileCount).toBeGreaterThanOrEqual(1)
+      expect(content).toContain('attendance.list()')
+      expect(content).not.toContain('from("prickle_attendance")')
       expect(content).toContain('from("members")')
       expect(content).toContain('.range(offset, offset + 999)')
       // Must not have the old single-shot pattern

@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { attendeeRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -118,15 +120,8 @@ export default async function PrickleDetailPage({
   // Attendee emails are admin-only: members can't read other members' rows (RLS), so a member
   // viewer gets names from the public member_directory via the attendance_member computed
   // relationship, and never receives emails.
-  const { data: attendanceRecords } = await supabase
-    .from("prickle_attendance")
-    .select(
-      isActingAsAdmin
-        ? "id, join_time, leave_time, confidence_score, member_id, members!inner(id, name, email)"
-        : "id, join_time, leave_time, confidence_score, member_id, members:attendance_member!inner(id, name)"
-    )
-    .eq("prickle_id", id)
-    .order("join_time", { ascending: true });
+  const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: isActingAsAdmin });
+  const attendanceRecords = attendeeList.map(attendeeRow);
 
   const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
   const hostId = host?.id;
@@ -135,7 +130,7 @@ export default async function PrickleDetailPage({
 
   if (hostId) {
     // Records are ordered by join_time, so the first match is the host's earliest join.
-    const hostAttendance = attendanceRecords?.find((a: any) => a.member_id === hostId);
+    const hostAttendance = attendanceRecords.find((a) => a.member_id === hostId);
     const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
     hostMissing = hostStatus === "missing";
     hostLate = hostStatus === "late";
@@ -235,7 +230,7 @@ export default async function PrickleDetailPage({
       console.error("[prickles] Loading who's coming failed", { prickleId: prickle.id, error });
     }
   }
-  const attended = ((attendanceRecords ?? []) as unknown as { member_id: string }[]).some(
+  const attended = attendanceRecords.some(
     (a) => a.member_id === effectiveIdentity?.memberId
   );
   const checkLinks =
@@ -266,7 +261,7 @@ export default async function PrickleDetailPage({
           {checkLinks}
           <PrickleDetails
             prickle={prickle}
-            attendanceRecords={attendanceRecords || []}
+            attendanceRecords={attendanceRecords}
             hostMissing={hostMissing}
             hostLate={hostLate}
             userTimezonePreference={userTimezone}

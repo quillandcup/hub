@@ -13,18 +13,7 @@ import { describe, expect, it } from "vitest";
  * shrinks. New files can't join it. Add a table here when its repository lands.
  */
 const REPOSITORY_TABLES: Record<string, string[]> = {
-  prickle_attendance: [
-    "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
-    "app/(admin)/admin/prickles/[id]/page.tsx",
-    "app/(admin)/admin/stats/page.tsx",
-    "app/(member)/members/[id]/page.tsx",
-    "app/(member)/my-prickles/MyPricklesPage.tsx",
-    "app/(member)/prickles/[id]/page.tsx",
-    "app/(member)/projects/actions.ts",
-    "app/(member)/streaks/page.tsx",
-    "app/api/members/network/route.ts",
-    "lib/upcoming-prickles.ts",
-  ],
+  prickle_attendance: [],
   prickles: [
     "app/(admin)/admin/calendar/page.tsx",
     "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx",

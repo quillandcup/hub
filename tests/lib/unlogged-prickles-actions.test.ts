@@ -9,7 +9,16 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn().mockResolvedValue("UTC") }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// Attendance comes from its repository; the other tables are still faked below.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import type { Prickle } from "@/lib/data/prickles";
 import { dismissUnloggedPrickle, getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -42,8 +51,23 @@ function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown =
   return calls;
 }
 
-function attended(id: string, start: string) {
-  return { prickle_id: id, prickles: { id, start_time: start, host: null, prickle_types: { name: "Sprint" } } };
+const SPRINT = { id: "ptyp-sprint", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const social = { ...SPRINT, id: "ptyp-social", name: "Social Hour", normalizedName: "social-hour", purpose: "social" };
+
+/** A prickle of `type` the member (member-1) attended, starting at `start`. */
+function attended(id: string, start: string, type = SPRINT) {
+  const prickle: Prickle = { id, typeId: type.id, hostId: null, title: null, startTime: start, endTime: start, source: "calendar", calendarEventId: null };
+  return { prickle, attendance: { id: `att-${id}`, memberId: "member-1", prickleId: id, joinTime: start, leaveTime: start } };
+}
+
+function attendedDataset(rows: ReturnType<typeof attended>[]) {
+  return createInMemoryRepos(
+    new InMemoryDataset({
+      prickleTypes: [SPRINT, social],
+      prickles: rows.map((r) => r.prickle),
+      attendance: rows.map((r) => r.attendance),
+    }),
+  );
 }
 
 beforeEach(() => {
@@ -55,8 +79,16 @@ beforeEach(() => {
 describe("getUnloggedRecentPrickles", () => {
   it("leaves out prickles the member logged, dismissed or checked out of", async () => {
     const recent = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+    repos = attendedDataset([
+      attended("p-open", recent(5)),
+      attended("p-logged", recent(4)),
+      attended("p-dismissed", recent(3)),
+      attended("p-checked-out", recent(2)),
+      attended("p-checked-in", recent(1)),
+      attended("p-social", recent(1), social), // not a writing prickle: never asked about
+      attended("p-long-ago", recent(24 * 60)), // older than the lookback
+    ]);
     const calls = makeQueryFake({
-      prickle_attendance: [attended("p-open", recent(5)), attended("p-logged", recent(4)), attended("p-dismissed", recent(3)), attended("p-checked-out", recent(2)), attended("p-checked-in", recent(1))],
       writing_progress_entries: [{ prickle_id: "p-logged" }],
       prickle_checkout_dismissals: [{ prickle_id: "p-dismissed" }],
       prickle_checkins: [
