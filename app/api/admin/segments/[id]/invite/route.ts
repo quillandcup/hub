@@ -74,11 +74,7 @@ export async function POST(
 
     // Best-effort link, matching POST /api/admin/users — only sets it if
     // the member doesn't already have a linked auth user.
-    await supabase
-      .from("members")
-      .update({ user_id: data.user.id })
-      .eq("id", member.id)
-      .is("user_id", null);
+    await createRepos(supabase).members.linkAuthUser(member.id, data.user.id, { onlyIfUnlinked: true }).catch(() => {});
 
     results.push({ email, status: "invited" });
   }

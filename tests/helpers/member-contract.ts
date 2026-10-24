@@ -264,5 +264,100 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
 
       expect(await ctx.repo().countByStatus("on_hiatus")).toBe(before + 2);
     });
+
+    it("creates a member and deletes one", async () => {
+      await ctx.seed([]);
+      const email = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
+
+      const id = await ctx.repo().create({ name: "Hope Example", email, joinedAt: "2026-02-03", status: "cancelled", source: "kajabi" });
+
+      expect(await ctx.repo().byId(id)).toMatchObject({ id, name: "Hope Example", email, status: "cancelled", source: "kajabi" });
+      await ctx.repo().delete(id);
+      expect(await ctx.repo().byId(id)).toBeNull();
+    });
+
+    it("sets names, stamping the self-service change only when asked", async () => {
+      const [ada] = await ctx.seed([{ name: "Ada Example", displayName: "Penny Quill" }]);
+
+      expect(await ctx.repo().setName(ada, "Ada Renamed")).toBe(true);
+      expect((await ctx.repo().profile(ada))?.selfServiceNameChangedAt).toBeNull();
+      expect(await ctx.repo().setName(ada, "Ada Selfmade", { selfService: true })).toBe(true);
+      expect(await ctx.repo().profile(ada)).toMatchObject({ name: "Ada Selfmade", displayName: "Penny Quill" });
+      expect((await ctx.repo().profile(ada))?.selfServiceNameChangedAt).not.toBeNull();
+      expect(await ctx.repo().setName(ada, "Ada Final", { displayName: "Ada Selfmade" })).toBe(true);
+      expect(await ctx.repo().byId(ada)).toMatchObject({ name: "Ada Final", displayName: "Ada Selfmade" });
+      expect(await ctx.repo().setName("mbr_ZZZZZZZZZZZZ", "Nobody")).toBe(false);
+    });
+
+    it("sets and clears display names, clearing by name only when it matches", async () => {
+      const [ada] = await ctx.seed([{ name: "Ada Example" }]);
+
+      expect(await ctx.repo().setDisplayName(ada, "Penny Quill")).toBe(true);
+      await ctx.repo().clearDisplayNameIfEquals(ada, "Someone Else");
+      expect((await ctx.repo().byId(ada))?.displayName).toBe("Penny Quill");
+      await ctx.repo().clearDisplayNameIfEquals(ada, "Penny Quill");
+      expect((await ctx.repo().byId(ada))?.displayName).toBeNull();
+      await ctx.repo().setDisplayName(ada, "Penny Quill");
+      expect(await ctx.repo().setDisplayName(ada, null)).toBe(true);
+      expect((await ctx.repo().byId(ada))?.displayName).toBeNull();
+      expect(await ctx.repo().setDisplayName("mbr_ZZZZZZZZZZZZ", "X")).toBe(false);
+    });
+
+    it("sets a birthday", async () => {
+      const [ada] = await ctx.seed([{ name: "Ada Example" }]);
+
+      expect(await ctx.repo().setBirthday(ada, 7, 21)).toBe(true);
+      expect(await ctx.repo().profile(ada)).toMatchObject({ birthdayMonth: 7, birthdayDay: 21 });
+      expect(await ctx.repo().setBirthday("mbr_ZZZZZZZZZZZZ", 7, 21)).toBe(false);
+    });
+
+    it("changes an email unless another member has it", async () => {
+      const [ada, fern] = await ctx.seed([{ name: "Ada Example" }, { name: "Fern Example" }]);
+      const fresh = `fresh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.test`;
+
+      expect(await ctx.repo().setEmail(ada, fresh)).toEqual({ ok: true });
+      expect((await ctx.repo().byId(ada))?.email).toBe(fresh);
+      expect(await ctx.repo().setEmail(fern, fresh)).toEqual({ ok: false, reason: "taken" });
+      expect((await ctx.repo().byId(fern))?.email).toBe(ctx.emailOf(fern));
+    });
+
+    it("sets a status", async () => {
+      const [ada] = await ctx.seed([{ name: "Ada Example" }]);
+
+      await ctx.repo().setStatus(ada, "cancelled");
+
+      expect((await ctx.repo().byId(ada))?.status).toBe("cancelled");
+    });
+
+    it("links and unlinks auth users", async () => {
+      const [ada, fern, gale] = await ctx.seed([
+        { name: "Ada Example" },
+        { name: "Fern Example", user: 1 },
+        { name: "Gale Example" },
+      ]);
+
+      await ctx.repo().linkAuthUser(ada, ctx.authUserIds[0], { onlyIfUnlinked: true });
+      expect((await ctx.repo().byId(ada))?.userId).toBe(ctx.authUserIds[0]);
+      await ctx.repo().unlinkAuthUser(ctx.authUserIds[0]);
+      expect((await ctx.repo().byId(ada))?.userId).toBeNull();
+
+      await ctx.repo().linkAuthUser(fern, ctx.authUserIds[0], { onlyIfUnlinked: true });
+      expect((await ctx.repo().byId(fern))?.userId).toBe(ctx.authUserIds[1]); // already linked: left alone
+
+      await ctx.repo().linkAuthUserByEmail(ctx.emailOf(gale), ctx.authUserIds[0]);
+      expect((await ctx.repo().byId(gale))?.userId).toBe(ctx.authUserIds[0]);
+      await ctx.repo().linkAuthUserByEmail(ctx.emailOf(fern), ctx.authUserIds[0]); // has an account: left alone
+      expect((await ctx.repo().byId(fern))?.userId).toBe(ctx.authUserIds[1]);
+    });
+
+    it("copies external ids onto a member, only the ones given", async () => {
+      const [ada] = await ctx.seed([{ name: "Ada Example", kajabiId: "kaj-keep" }]);
+      const before = await ctx.repo().byId(ada);
+
+      await ctx.repo().setExternalIds(ada, {});
+      await ctx.repo().setExternalIds(ada, { stripeCustomerId: "cus_merged", userId: ctx.authUserIds[1] });
+
+      expect(await ctx.repo().byId(ada)).toMatchObject({ kajabiId: before?.kajabiId, stripeCustomerId: "cus_merged", userId: ctx.authUserIds[1] });
+    });
   });
 }

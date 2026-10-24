@@ -55,10 +55,11 @@ function makeSupabaseMock({
   const selectEq = vi.fn(() => ({ single, maybeSingle: single }));
   const select = vi.fn(() => ({ eq: selectEq }));
 
-  const updateSingle = vi
+  // The members repository awaits update().eq().select("id") and counts the rows that came back.
+  const updateSelect = vi
     .fn()
-    .mockResolvedValue(updateError ? { data: null, error: { message: updateError } } : { data: { id: "member-1" }, error: null });
-  const updateEq = vi.fn(() => ({ select: vi.fn(() => ({ single: updateSingle })) }));
+    .mockResolvedValue(updateError ? { data: null, error: { message: updateError } } : { data: [{ id: "member-1" }], error: null });
+  const updateEq = vi.fn(() => ({ select: updateSelect }));
   const update = vi.fn(() => ({ eq: updateEq }));
 
   const from = vi.fn(() => ({ select, update }));
@@ -144,10 +145,10 @@ describe("updateRealName", () => {
 describe("setDisplayName", () => {
   function makeMock({
     alias = { id: "a1" } as { id: string } | null,
-    updateResult = { data: { id: "member-1" }, error: null } as { data: unknown; error: { message: string } | null },
+    updateResult = { data: [{ id: "member-1" }], error: null } as { data: unknown; error: { message: string } | null },
   } = {}) {
     const update = vi.fn(() => ({
-      eq: () => ({ select: () => ({ single: () => Promise.resolve(updateResult) }) }),
+      eq: () => ({ select: () => Promise.resolve(updateResult) }),
     }));
     const aliasChain: any = {
       select: () => aliasChain,
@@ -218,7 +219,7 @@ describe("setCustomDisplayName", () => {
       eq: () => ({ eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "a1" }, error: null }) }) }) }),
     }));
     const memberUpdate = vi.fn(() => ({
-      eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "member-1" }, error: null }) }) }),
+      eq: () => ({ select: () => Promise.resolve({ data: [{ id: "member-1" }], error: null }) }),
     }));
     // The member's own name is read through the members repository, which uses maybeSingle.
     const memberSelect = () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { name: IDENTITY.memberName }, error: null }) }) });

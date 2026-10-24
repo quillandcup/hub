@@ -105,11 +105,7 @@ export async function POST(request: NextRequest) {
   // an ordinary invited member indefinitely. Best-effort: a missing member
   // row (e.g. inviting a staff-only email) is not an error here.
   if (data.user.email) {
-    await supabase
-      .from("members")
-      .update({ user_id: data.user.id })
-      .eq("email", data.user.email)
-      .is("user_id", null);
+    await createRepos(supabase).members.linkAuthUserByEmail(data.user.email, data.user.id).catch(() => {});
   }
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } });
