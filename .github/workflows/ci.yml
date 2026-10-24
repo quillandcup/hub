@@ -338,6 +338,14 @@ jobs:
           supabase status || true
           exit 1
 
+      # lib/data/database.types.ts is generated from the migrated schema (`pnpm types:gen`). A
+      # migration without regenerated types leaves the typed repositories checking against the old
+      # schema, so regenerate here and fail on any difference. `types:gen` runs the CLI version
+      # pinned in package.json (tests/lib/supabase-cli-version.test.ts keeps it equal to
+      # SUPABASE_CLI_VERSION above): the generator's formatting differs between versions.
+      - name: Check the generated database types are current
+        run: pnpm types:check
+
       # Most tests/api/** call route handlers in-process (tests/helpers/api-fetch.ts) so their
       # coverage is counted. Only tests/api/smoke/ goes over HTTP, to the built app started here,
       # to cover Next's own routing, proxy and body parsing. Locally those tests use a server
