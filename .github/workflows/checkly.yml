@@ -68,10 +68,30 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6.1.0
       - run: pnpm install --frozen-lockfile
-      # `checkly deploy` prints each heartbeat's ping URL, and anyone holding one can mark that job
-      # healthy. The logs are public, so redact the secret part of the URL before it reaches them.
-      # (`bash` runs with pipefail, so a failed deploy still fails the step.)
-      - run: pnpm exec checkly deploy --force 2>&1 | sed -E 's#(ping\.checklyhq\.com/)[0-9a-fA-F-]+#\1***#g'
+      # `checkly deploy` prints every heartbeat's ping URL, and anyone holding one can mark that job
+      # healthy. The logs are public, so register each URL for masking before the deploy runs. The
+      # values are GitHub secrets (env-vars.config.ts), already masked by GitHub; the explicit lines
+      # make that visible and survive a switch to a plain variable. A new heartbeat needs its line
+      # here (tests/lib/workflow-heartbeat-masking.test.ts checks), and its first deploy prints the
+      # URL before it can be a secret: copy it into .env.prod and sync it to GitHub too.
+      - name: Mask heartbeat ping URLs
+        run: |
+          [ -z "$CHECKLY_HEARTBEAT_RECONCILE_CALENDAR" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_RECONCILE_CALENDAR"
+          [ -z "$CHECKLY_HEARTBEAT_RECONCILE_ZOOM" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_RECONCILE_ZOOM"
+          [ -z "$CHECKLY_HEARTBEAT_RECONCILE_SLACK" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_RECONCILE_SLACK"
+          [ -z "$CHECKLY_HEARTBEAT_RECONCILE_MEMBERS" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_RECONCILE_MEMBERS"
+          [ -z "$CHECKLY_HEARTBEAT_RECONCILE_LOGINS" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_RECONCILE_LOGINS"
+          [ -z "$CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES"
+          [ -z "$CHECKLY_HEARTBEAT_MEMBER_REMINDERS" ] || echo "::add-mask::$CHECKLY_HEARTBEAT_MEMBER_REMINDERS"
+        env:
+          CHECKLY_HEARTBEAT_RECONCILE_CALENDAR: ${{ secrets.CHECKLY_HEARTBEAT_RECONCILE_CALENDAR }}
+          CHECKLY_HEARTBEAT_RECONCILE_ZOOM: ${{ secrets.CHECKLY_HEARTBEAT_RECONCILE_ZOOM }}
+          CHECKLY_HEARTBEAT_RECONCILE_SLACK: ${{ secrets.CHECKLY_HEARTBEAT_RECONCILE_SLACK }}
+          CHECKLY_HEARTBEAT_RECONCILE_MEMBERS: ${{ secrets.CHECKLY_HEARTBEAT_RECONCILE_MEMBERS }}
+          CHECKLY_HEARTBEAT_RECONCILE_LOGINS: ${{ secrets.CHECKLY_HEARTBEAT_RECONCILE_LOGINS }}
+          CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES: ${{ secrets.CHECKLY_HEARTBEAT_PRE_PRICKLE_NUDGES }}
+          CHECKLY_HEARTBEAT_MEMBER_REMINDERS: ${{ secrets.CHECKLY_HEARTBEAT_MEMBER_REMINDERS }}
+      - run: pnpm exec checkly deploy --force
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
