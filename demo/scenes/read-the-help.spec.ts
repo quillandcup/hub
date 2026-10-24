@@ -1,7 +1,8 @@
 import { expect, shot, test } from "../fixtures";
 
 /** The help itself: the index, then every article, with its screenshots arriving through the signed-in image route. Needs `pnpm demo:publish` first. */
-test("a member opens each help article and sees its screenshots", async ({ page, signInAs }, testInfo) => {
+// Tagged @published (it reads the published screenshot set, so it runs against a stack that has one; CI captures before publishing and skips it with --grep-invert).
+test("a member opens each help article and sees its screenshots @published", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
 
   // From the question mark in the top bar, as a member would.

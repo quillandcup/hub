@@ -21,6 +21,7 @@
     "test:pgtap": "scripts/test-pgtap.sh",
     "demo:stack": "tsx demo/stack.ts",
     "demo:app": "dotenv -e demo/.env.demo -- next dev -p 3100",
+    "demo:serve": "dotenv -e demo/.env.demo -- next start -p 3100",
     "demo:seed": "tsx demo/seed.ts",
     "demo:publish": "tsx demo/publish.ts",
     "demo:capture": "playwright test --config demo/playwright.config.ts",

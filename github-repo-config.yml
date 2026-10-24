@@ -59,3 +59,7 @@ rulesets:
               integration_id: 15368
             - context: Coverage report
               integration_id: 15368
+            # Captures the demo scenes and fails when a help article shows a screenshot no scene produces
+            # (ci.yml, docs/DEMO_AND_HELP.md). Skipped, and so passing, on a docs-only change.
+            - context: Help screenshots
+              integration_id: 15368

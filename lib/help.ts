@@ -12,6 +12,17 @@ import path from "node:path";
 export const HELP_IMAGES_BUCKET = "help-images";
 
 /**
+ * The screenshot set this build shows: the bucket holds one folder per set, named by an id derived from the
+ * source that produces the screens (scripts/help-images-version.ts), baked in by next.config.ts. "local" in dev.
+ */
+export const HELP_IMAGES_VERSION = process.env.HELP_IMAGES_VERSION || "local";
+
+/** Where an article image lives in the bucket for this build's set. */
+export function helpImageObjectPath(scene: string, file: string, version: string = HELP_IMAGES_VERSION): string {
+  return `${version}/${scene}/${file}`;
+}
+
+/**
  * The order articles appear in the index, from first steps to hosting. A new article is added here on purpose
  * (a test fails until it is); any article not listed sorts after these, by name.
  */

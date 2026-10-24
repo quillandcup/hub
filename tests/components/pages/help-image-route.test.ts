@@ -25,7 +25,7 @@ describe("GET /help/images/[scene]/[file]", () => {
     expect(res.headers.get("cache-control")).toBe("private, max-age=3600");
     expect(await res.text()).toBe("png-bytes");
     expect(from).toHaveBeenCalledWith("help-images");
-    expect(download).toHaveBeenCalledWith("join-a-prickle/01-dashboard.png");
+    expect(download).toHaveBeenCalledWith("local/join-a-prickle/01-dashboard.png");
   });
 
   it("refuses a signed-out visitor without touching storage", async () => {
