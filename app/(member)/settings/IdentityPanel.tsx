@@ -387,10 +387,11 @@ export function IdentityPanel() {
       <div data-tour="identity-names">
         <h3 id="identity-pen-names" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Other names you go by, such as a pen name or a different name in Zoom or Slack. These only match your
-          attendance; they don&apos;t change the name shown in the community. Add
-          one here if your attendance isn&apos;t showing up because you joined under a name other than your
-          Real Name above. Once added, you can choose one as your Display Name above.
+          Your prickle attendance is counted by the name Zoom shows for you. The simplest fix is to change your
+          name in Zoom to match your Real Name above. If you&apos;d rather join as something else, such as a pen
+          name or a nickname, add that name here (exactly as Zoom shows it) so your attendance still counts. These
+          only match your attendance; they don&apos;t change the name shown in the community. Once added, you can
+          choose one as your Display Name above.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.nameAliases.length === 0 && (

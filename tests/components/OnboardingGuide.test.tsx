@@ -101,7 +101,7 @@ describe("OnboardingGuide", () => {
     const stops = [
       ["basics", "Looks right", "Your Display Name"],
       ["display-name", "My display name looks right", "Pen names and Zoom/Slack names"],
-      ["names", "My names look right", "Other email addresses"],
+      ["names", "My Zoom name is set", "Other email addresses"],
       ["emails", "My emails look right", "Your birthday"],
     ];
     const marked: string[] = [];
