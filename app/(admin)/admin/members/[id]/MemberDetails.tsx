@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { clock } from "@/lib/clock";
 import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
 import { MemberStatusBadge } from "@/components/MemberStatusBadge";
@@ -91,7 +92,7 @@ export default function MemberDetails({
   const isRejoin = !!(member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at);
   const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null;
   const daysSinceRejoin = mostRecentJoinedDate
-    ? Math.floor((Date.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((clock.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
     : Infinity;
   const showWelcomeBack = isRejoin && daysSinceRejoin <= 30;
 

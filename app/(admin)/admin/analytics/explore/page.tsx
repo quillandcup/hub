@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -34,7 +35,7 @@ export default async function ExploreUsagePage({ searchParams }: { searchParams:
   const steps = parseSteps(params.step);
   const breakdown = parseBreakdown(params.breakdown, params.bfilter);
   const audience = parseAudience(params);
-  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  const since = new Date(clock.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
   const [funnel, grouped] = await Promise.all([

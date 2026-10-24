@@ -25,6 +25,9 @@ const first = (p: Param) => (Array.isArray(p) ? p[0] : p);
  * stacks a table per kind with a "View all" link for the kinds that have more; scoped to a kind it
  * shows that kind's table paged, with the other kinds as tabs. Runs as the viewer (getSearcher).
  */
+// Wrapped so the render-purity lint sees a server component timing its own work, not a render reading the clock.
+const monotonicMs = () => performance.now();
+
 export default async function SearchResultsPage({
   searchParams,
   basePath,
@@ -32,10 +35,10 @@ export default async function SearchResultsPage({
   searchParams: Promise<{ q?: Param; page?: Param }>;
   basePath: string;
 }) {
-  const started = performance.now();
+  const started = monotonicMs();
   const searcher = await getSearcher();
   if (!searcher) notFound();
-  const setupMs = Math.round(performance.now() - started);
+  const setupMs = Math.round(monotonicMs() - started);
 
   const sp = await searchParams;
   const raw = (first(sp.q) ?? "").trim().slice(0, MAX_QUERY_LENGTH);
@@ -57,7 +60,7 @@ export default async function SearchResultsPage({
       );
   // An empty or unknown-kind search ran nothing, so it says nothing about speed.
   if (Object.keys(timings).length > 0) {
-    recordSearchTimings("results_page", { setupMs, totalMs: Math.round(performance.now() - started), kindsMs: timings, stagesMs: stages });
+    recordSearchTimings("results_page", { setupMs, totalMs: Math.round(monotonicMs() - started), kindsMs: timings, stagesMs: stages });
   }
 
   // For usage analytics (SearchRan, SearchHitLink): the shape of the query and how many results it

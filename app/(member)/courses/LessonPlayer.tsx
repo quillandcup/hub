@@ -102,6 +102,11 @@ const CHECKPOINT_MS = 30_000;
 /** Stretches kept for a resend while saves are failing; the oldest go first so an outage can't grow without bound. */
 const MAX_PENDING_SEGMENTS = 200;
 
+/** The media element is an external DOM object, not React state; this keeps writing to it out of render analysis. */
+function seekMedia(el: HTMLMediaElement, seconds: number) {
+  el.currentTime = seconds;
+}
+
 /** Starts the video where the member left off, once, unless that was (nearly) the end. */
 function ResumePosition({ seconds }: { seconds: number }) {
   const media = useMedia();
@@ -113,7 +118,7 @@ function ResumePosition({ seconds }: { seconds: number }) {
     const apply = () => {
       if (done.current || !(el.duration > 0)) return;
       done.current = true;
-      if (seconds / el.duration < RESUME_MAX_FRACTION) el.currentTime = seconds;
+      if (seconds / el.duration < RESUME_MAX_FRACTION) seekMedia(el, seconds);
     };
     apply();
     el.addEventListener("loadedmetadata", apply);

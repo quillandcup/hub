@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -86,7 +87,7 @@ export default async function OutreachPage() {
     supabase,
     "outreach_touches",
     "touched_at",
-    (q) => q.gte("touched_at", new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
+    (q) => q.gte("touched_at", new Date(clock.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
   );
   const todayET = etDate(new Date().toISOString());
   const todayTouchCount = recentTouches.filter((t) => etDate(t.touched_at) === todayET).length;

@@ -574,10 +574,10 @@ function MonthSection({
     defaultSort: null,
   });
   const { sortColumn, sortDirection, handleSort } = table;
-  const monthStart = new Date(`${month}T00:00:00Z`);
-  const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
 
   const pills = useMemo(() => {
+    const monthStart = new Date(`${month}T00:00:00Z`);
+    const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
     return schedules.flatMap((s) =>
       generateScheduleInstanceDates(
         {

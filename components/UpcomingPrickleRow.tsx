@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { clock } from "@/lib/clock";
 import { WithSecondaryTime } from "@/components/SecondaryTimezone"
 import { hostShortName } from "@/lib/formatters"
 import ReasonBadges from "@/components/ReasonBadges"
@@ -43,7 +44,7 @@ export default function UpcomingPrickleRow({
   checkinDismissed = false,
   calendar = null,
   tourTarget = false,
-  now = Date.now(),
+  now = clock.now(),
 }: {
   prickle: UpcomingPrickle
   reasons: HighlightReason[]

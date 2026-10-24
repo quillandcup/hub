@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -54,7 +55,7 @@ export default async function ChatGapFillsPage() {
     : { data: [] };
   const names = new Map((channels ?? []).map((c) => [c.slack_channel_id as string, c.kind === "channel" ? `#${c.name}` : "Group message"]));
 
-  const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  const dayAgo = clock.now() - 24 * 60 * 60 * 1000;
   const recent = fills.filter((f) => Date.parse(f.started_at) >= dayAgo);
   const recovered = recent.reduce((n, f) => n + f.messages_recovered + f.reactions_recovered, 0);
   const failed = recent.filter((f) => f.error).length;

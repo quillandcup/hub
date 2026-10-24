@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -79,11 +79,7 @@ export default function EventsClient() {
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/events");
@@ -95,7 +91,12 @@ export default function EventsClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

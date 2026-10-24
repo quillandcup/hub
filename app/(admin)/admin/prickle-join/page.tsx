@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -16,7 +17,7 @@ const when = (iso: string) =>
 export default async function PrickleJoinPage() {
   await requireAdminPage();
   const settings = await loadPrickleJoinSettings(await createClient());
-  const now = Date.now();
+  const now = clock.now();
   const current = joinAt(settings);
 
   return (

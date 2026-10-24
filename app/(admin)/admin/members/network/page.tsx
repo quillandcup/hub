@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clock } from "@/lib/clock";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
@@ -127,7 +128,7 @@ export default async function MemberNetworkPage({
   const chatPairs =
     chatMode === "off"
       ? []
-      : await loadChatPairs(supabase, new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000), chatMode === "all");
+      : await loadChatPairs(supabase, new Date(clock.now() - windowDays * 24 * 60 * 60 * 1000), chatMode === "all");
   const edges = buildNetworkEdges({
     prickleConnections: connections,
     prickleTotals: memberPrickleCounts,
