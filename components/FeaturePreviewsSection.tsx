@@ -55,7 +55,7 @@ export function FeaturePreviewsSection({
 
   return (
     <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
-      <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+      <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
         Feature Previews
       </h3>
       <div className="space-y-1">

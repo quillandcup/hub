@@ -74,7 +74,7 @@ export default async function MembersPage({
           </div>
 
           {/* Result count */}
-          <div className="px-6 py-3 text-sm text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+          <div className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
             {total} {total === 1 ? "member" : "members"}
             {search && (
               <>
@@ -87,7 +87,7 @@ export default async function MembersPage({
           <PagedMembersTable members={members as MemberRow[]} total={total} page={page} pageSize={pageSize} />
 
           {members.length === 0 && (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               No members found
             </div>
           )}

@@ -214,7 +214,7 @@ export default async function PrickleKindInsightsPage({
                 max={today}
                 className="border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
-              <span className="text-slate-500">to</span>
+              <span className="text-slate-600 dark:text-slate-400">to</span>
               <input
                 type="date"
                 name="to"
@@ -259,7 +259,7 @@ export default async function PrickleKindInsightsPage({
               </Link>
             </div>
             {groupBy === "host" && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Note: uses first listed host from calendar; multi-host sessions are a TODO
               </span>
             )}
@@ -267,7 +267,7 @@ export default async function PrickleKindInsightsPage({
         </div>
 
         {grouped.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-600 dark:text-slate-400">
             No sessions found
             {(from || to) && (
               <span>
@@ -287,7 +287,7 @@ export default async function PrickleKindInsightsPage({
         )}
 
         {prickles.length > 0 && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 text-right">
+          <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
             {prickles.length} session{prickles.length !== 1 ? "s" : ""} •{" "}
             {attendance.length} attendance record{attendance.length !== 1 ? "s" : ""}
           </p>

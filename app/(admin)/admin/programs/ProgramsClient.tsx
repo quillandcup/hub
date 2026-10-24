@@ -115,7 +115,7 @@ export default function ProgramsClient() {
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-600 dark:text-slate-400">Loading...</p>;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">

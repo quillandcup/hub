@@ -154,7 +154,7 @@ export default async function SearchResultsPage({
               </div>
               <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-left text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     <tr>
                       <th className="px-3 py-2 font-medium">{columns.title}</th>
                       {columns.subtitle && <th className="px-3 py-2 font-medium">{columns.subtitle}</th>}

@@ -86,7 +86,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
           >
             Open Google Photos picker
           </a>
-          <p className="text-sm text-slate-500 dark:text-slate-500">Waiting for you to finish picking…</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Waiting for you to finish picking…</p>
         </>
       )}
 
@@ -101,7 +101,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
                   style={{ width: `${Math.round(((progress.imported + progress.skipped) / Math.max(progress.total, 1)) * 100)}%` }}
                 />
               </div>
-              <p className="text-sm text-slate-500 dark:text-slate-500 mt-2">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
                 {progress.imported} of {progress.total} imported
                 {progress.skipped > 0 ? ` (${progress.skipped} already imported)` : ""}
               </p>

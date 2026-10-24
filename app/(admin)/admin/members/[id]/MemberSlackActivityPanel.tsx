@@ -166,7 +166,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                   </button>
                 ))}
                 {slackStats.channels.length > 10 && (
-                  <span className="px-3 py-1 text-slate-500 dark:text-slate-400 text-sm">
+                  <span className="px-3 py-1 text-slate-600 dark:text-slate-400 text-sm">
                     +{slackStats.channels.length - 10} more
                   </span>
                 )}
@@ -183,28 +183,28 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                   <tr>
                     <SortableTh
                       label="Type"
-                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
                       active={sortColumn === "type"}
                       direction={sortDirection}
                       onClick={() => handleSort("type")}
                     />
                     <SortableTh
                       label="Channel"
-                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
                       active={sortColumn === "channel"}
                       direction={sortDirection}
                       onClick={() => handleSort("channel")}
                     />
                     <SortableTh
                       label="Content"
-                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
                       active={sortColumn === "content"}
                       direction={sortDirection}
                       onClick={() => handleSort("content")}
                     />
                     <SortableTh
                       label="Date"
-                      className="px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                      className="px-6 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider"
                       active={sortColumn === "date"}
                       direction={sortDirection}
                       onClick={() => handleSort("date")}
@@ -275,7 +275,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                           </p>
                         </td>
                         <td className="px-6 py-3 whitespace-nowrap">
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="text-xs text-slate-600 dark:text-slate-400">
                             {occurred.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             <span className="ml-1">
                               {occurred.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
@@ -308,14 +308,14 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
       ) : (
         <div className="p-12 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
-            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-8 h-8 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
           </div>
           <p className="text-slate-600 dark:text-slate-400 font-medium mb-1">
             No Slack Activity
           </p>
-          <p className="text-sm text-slate-500 dark:text-slate-500">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             This member hasn't posted messages or reactions in Slack yet
           </p>
         </div>

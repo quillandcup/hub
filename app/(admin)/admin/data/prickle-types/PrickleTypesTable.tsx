@@ -40,7 +40,7 @@ function SoloTaskFriendlyBadge({ soloTaskFriendly }: { soloTaskFriendly: boolean
       Yes
     </span>
   ) : (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
       No
     </span>
   );
@@ -90,7 +90,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
             {th("Description", "description")}
             {th("Purpose", "purpose")}
             {th("BYO-Task Friendly", "soloTaskFriendly")}
-            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Actions
             </th>
           </tr>
@@ -106,7 +106,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
               </td>
               <td className="px-6 py-4 max-w-xs">
                 <div className="text-sm text-slate-600 dark:text-slate-400 truncate" title={type.description ?? ""}>
-                  {type.description ?? <span className="text-slate-400 dark:text-slate-600 italic">—</span>}
+                  {type.description ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}
                 </div>
               </td>
               <td className="px-6 py-4">

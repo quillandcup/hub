@@ -194,7 +194,7 @@ export default function PrickleDetails({
               ) : (
                 <>{formatTime(startTime)} - {formatTime(endTime)}</>
               )}
-              <span className="text-slate-500 dark:text-slate-400 ml-2">({durationMinutes} min)</span>
+              <span className="text-slate-600 dark:text-slate-400 ml-2">({durationMinutes} min)</span>
             </p>
           </div>
           <div>
@@ -229,7 +229,7 @@ export default function PrickleDetails({
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-xl font-bold">{hasStarted ? `Attendees (${uniqueMembers})` : "Who's coming"}</h2>
           {attendanceRecords.length > uniqueMembers && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               {attendanceRecords.length} total records (some members left and rejoined)
             </p>
           )}
@@ -279,7 +279,7 @@ export default function PrickleDetails({
                           {member.name}
                         </Link>
                         {showMemberEmails && (
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="text-xs text-slate-600 dark:text-slate-400">
                             {member.email}
                           </div>
                         )}
@@ -325,7 +325,7 @@ export default function PrickleDetails({
                       {entry.name}
                     </Link>
                     {entry.isYou && (
-                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">
                         {entry.hiddenFromOthers ? "You (hidden from others)" : "You"}
                       </span>
                     )}
@@ -333,18 +333,18 @@ export default function PrickleDetails({
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
               {(["host", "committed", "calendar"] as const)
                 .filter((reason) => roster.entries.some((e) => e.reason === reason))
                 .map((reason) => `${ROSTER_REASONS[reason].icon} ${ROSTER_REASONS[reason].label}`)
                 .join(" · ")}
             </p>
             {roster.total > roster.entries.length && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                 and {roster.total - roster.entries.length} more
               </p>
             )}
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
               Don&apos;t want to be listed?{" "}
               <Link data-track="prickle-change-it-in-your-profile" href="/settings/profile" className="underline">
                 Change it in your profile settings
@@ -353,7 +353,7 @@ export default function PrickleDetails({
             </p>
           </div>
         ) : (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">
             {hasStarted ? "No attendance records for this Prickle" : "Stay tuned to see who attends!"}
           </div>
         )}

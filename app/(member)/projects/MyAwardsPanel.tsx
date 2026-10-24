@@ -47,7 +47,7 @@ export default function MyAwardsPanel({ initialAwards, myBooks }: MyAwardsPanelP
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           My Awards
         </h2>
         <button data-track="project-awards-add-an-award"
@@ -60,7 +60,7 @@ export default function MyAwardsPanel({ initialAwards, myBooks }: MyAwardsPanelP
       </div>
 
       {initialAwards.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           Won something? A contest, a competition, an anthology feature — let us know so we can celebrate it.
         </p>
       ) : (
@@ -70,9 +70,9 @@ export default function MyAwardsPanel({ initialAwards, myBooks }: MyAwardsPanelP
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                   🏆 {award.awardName}
-                  {award.category && <span className="font-normal text-slate-500 dark:text-slate-400"> — {award.category}</span>}
+                  {award.category && <span className="font-normal text-slate-600 dark:text-slate-400"> — {award.category}</span>}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                   for &ldquo;{award.workTitle}&rdquo; · {formatDate(award.awardDate)}
                 </p>
               </div>

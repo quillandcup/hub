@@ -197,7 +197,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
             <span aria-hidden="true">🦔</span>
             Getting started
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-600 dark:text-slate-400">
             {doneCount} of {total} done {expanded ? "▾" : "▴"}
           </span>
         </button>
@@ -229,7 +229,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                       <p
                         className={`text-sm ${
                           step.done
-                            ? "text-slate-400 dark:text-slate-500 line-through"
+                            ? "text-slate-500 dark:text-slate-400 line-through"
                             : "font-medium text-slate-900 dark:text-slate-100"
                         }`}
                       >
@@ -252,7 +252,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                       )}
                       {isCurrent && (
                         <>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{step.summary}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{step.summary}</p>
                           {step.externalHref ? (
                             <div className="flex flex-wrap items-center gap-3 mt-2">
                               <a data-track="onboarding-open-slack"
@@ -323,7 +323,7 @@ export default function OnboardingGuide({ initialState }: { initialState: Onboar
                 type="button"
                 disabled={isPending}
                 onClick={() => run(dismissOnboarding)}
-                className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                className="text-xs text-slate-600 dark:text-slate-400 hover:underline"
               >
                 Close the tour
               </button>

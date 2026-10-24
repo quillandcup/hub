@@ -103,7 +103,7 @@ export default function MemberBadgesPanel({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">No badges yet.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">No badges yet.</p>
       )}
 
       {error && (
@@ -115,7 +115,7 @@ export default function MemberBadgesPanel({
       {awardableBadgeTypes.length > 0 && (
         <form onSubmit={handleAward} className="flex flex-wrap items-end gap-3 mb-6" aria-label="Award badge">
           <div>
-            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="badge-award-type">
+            <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="badge-award-type">
               Award badge
             </label>
             <select
@@ -132,7 +132,7 @@ export default function MemberBadgesPanel({
             </select>
           </div>
           <div>
-            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="badge-award-date">
+            <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="badge-award-date">
               Date
             </label>
             <input
@@ -144,7 +144,7 @@ export default function MemberBadgesPanel({
             />
           </div>
           <div className="flex-1 min-w-[10rem]">
-            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="badge-award-note">
+            <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="badge-award-note">
               Note (optional)
             </label>
             <input
@@ -168,7 +168,7 @@ export default function MemberBadgesPanel({
 
       {awards.length > 0 && (
         <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-2">
             Award history
           </h3>
           <ul className="space-y-1.5">
@@ -176,15 +176,15 @@ export default function MemberBadgesPanel({
               <li key={award.id} className="flex items-center justify-between text-sm gap-3">
                 <span className="text-slate-700 dark:text-slate-300 truncate">
                   {award.badgeTypeIcon} {award.badgeTypeName}
-                  <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{award.occurredAt}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">{award.occurredAt}</span>
                   {award.note && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">— {award.note}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">— {award.note}</span>
                   )}
                 </span>
                 {award.eventId ? (
                   <Link
                     href={`/admin/events/${award.eventId}`}
-                    className="text-xs text-slate-500 dark:text-slate-400 hover:underline flex-shrink-0"
+                    className="text-xs text-slate-600 dark:text-slate-400 hover:underline flex-shrink-0"
                     title="Revoking this means removing the attendee on the event page"
                   >
                     via {award.eventTitle ?? "event"}

@@ -399,17 +399,17 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{otherNode.name}</span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">
                             {conn.prickles ?? conn.weight} Prickles
                           </span>
                         </div>
                         {(conn.prickles ?? conn.weight) > 0 && (
-                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                             {conn.normalizedWeight}% of attendance overlap
                           </div>
                         )}
                         {conn.chatByKind && Object.keys(conn.chatByKind).length > 0 && (
-                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                             Chat: {describeChat(conn.chatByKind)}
                             {conn.chatPrivate ? ` (${conn.chatPrivate} private)` : ""}
                           </div>

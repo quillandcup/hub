@@ -90,7 +90,7 @@ export default function EditPrickleTypeForm({
             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             required
           />
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Current normalized name: <span className="font-mono">{prickleType.normalized_name}</span>
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function EditPrickleTypeForm({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Used by the Prickle Picker to filter recommendations by purpose.
           </p>
         </div>
@@ -141,7 +141,7 @@ export default function EditPrickleTypeForm({
             />
             Good for bring-your-own-task time
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Can a hedgie zone out on an unrelated task (especially non-writing work) here? Turn this off for
             structured/participatory sessions (workshops, sprints, pitches, educational) and very chatty ones
             (Craft & Chat) — being writing-purpose doesn&apos;t automatically make a slot friendly for this.

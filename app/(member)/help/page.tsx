@@ -19,7 +19,7 @@ export default async function HelpPage() {
       <p className="mt-1 text-slate-600 dark:text-slate-400">How things work in the Hedgie House.</p>
 
       {articles.length === 0 ? (
-        <p className="mt-8 text-slate-500 dark:text-slate-400">No articles yet.</p>
+        <p className="mt-8 text-slate-600 dark:text-slate-400">No articles yet.</p>
       ) : (
         <ul className="mt-8 divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           {articles.map((a) => (

@@ -255,7 +255,7 @@ export default function Composer({
         </div>
       </div>
       {sending && attached.length > 0 && (
-        <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
           <progress aria-label="Upload progress" max={Math.max(totalBytes, 1)} value={totalSent} className="h-1.5 flex-1 accent-plum-600" />
           <span>{totalBytes > 0 ? Math.round((totalSent / totalBytes) * 100) : 100}% uploaded</span>
           <button

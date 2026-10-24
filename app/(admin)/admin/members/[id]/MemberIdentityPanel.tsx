@@ -210,7 +210,7 @@ export default function MemberIdentityPanel({
 
       <div className="mb-6">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           {hasKajabiId
             ? "Changing this updates the contact's email in Kajabi. The old email is kept as an alias."
             : "This member has no linked Kajabi contact — the email updates locally only. The old email is kept as an alias."}
@@ -235,7 +235,7 @@ export default function MemberIdentityPanel({
         </form>
 
         <h4 className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Other emails</h4>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
           Zoom, Slack, Stripe and Kajabi records under these addresses count as this member.
         </p>
         {emailAliases.length > 0 ? (
@@ -247,7 +247,7 @@ export default function MemberIdentityPanel({
               >
                 <span className="text-slate-700 dark:text-slate-300 break-all">
                   {alias.alias_email}
-                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                  <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {emailSourceLabel(alias.source)}
                     {!alias.active && " · inactive"}
                   </span>
@@ -257,7 +257,7 @@ export default function MemberIdentityPanel({
                   onClick={() => handleToggleEmailAlias(alias)}
                   disabled={togglingEmailAliasId === alias.id}
                   aria-label={`${alias.active ? "Deactivate" : "Reactivate"} ${alias.alias_email}`}
-                  className="text-xs text-slate-500 hover:text-plum-700 dark:hover:text-plum-300 disabled:opacity-50 shrink-0"
+                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-plum-700 dark:hover:text-plum-300 disabled:opacity-50 shrink-0"
                 >
                   {alias.active ? "Deactivate" : "Reactivate"}
                 </button>
@@ -265,7 +265,7 @@ export default function MemberIdentityPanel({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">No other emails on file.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">No other emails on file.</p>
         )}
         <form onSubmit={handleAddEmailAlias} className="flex gap-2 max-w-md">
           <input
@@ -290,7 +290,7 @@ export default function MemberIdentityPanel({
 
       <div className="mb-6">
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Legal Name</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           {hasKajabiId
             ? "Changing this updates the contact's name in Kajabi."
             : "This member has no linked Kajabi contact — the name updates locally only."}
@@ -327,7 +327,7 @@ export default function MemberIdentityPanel({
 
       <div>
         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           The default pen name is shown to the community instead of the legal name above.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
@@ -360,7 +360,7 @@ export default function MemberIdentityPanel({
                   className="flex items-center gap-2 hover:underline disabled:no-underline"
                 >
                   {alias.alias}
-                  <span className="text-xs text-slate-400 dark:text-slate-500">{sourceLabel(alias.source)}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{sourceLabel(alias.source)}</span>
                   {isDefault && <span className="text-xs font-medium">· default</span>}
                 </button>
                 <button
@@ -369,7 +369,7 @@ export default function MemberIdentityPanel({
                   disabled={removingAliasId === alias.id}
                   aria-label={`Remove pen name ${alias.alias}`}
                   title="Remove pen name"
-                  className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                  className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                 >
                   ×
                 </button>
@@ -377,7 +377,7 @@ export default function MemberIdentityPanel({
             );
           })}
           {nameAliases.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No pen names on file yet.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">No pen names on file yet.</p>
           )}
         </div>
         <form onSubmit={handleAddPenName} className="flex gap-2 max-w-md">

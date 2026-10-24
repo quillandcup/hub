@@ -107,8 +107,8 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
 
   return (
     <Modal isOpen onClose={onClose} title={data ? `${title}: ${data.prickleTitle}` : title} maxWidth="lg">
-      {data === undefined && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
-      {data === null && <p className="text-sm text-slate-500 dark:text-slate-400">Couldn&apos;t load this prickle.</p>}
+      {data === undefined && <p className="text-sm text-slate-600 dark:text-slate-400">Loading…</p>}
+      {data === null && <p className="text-sm text-slate-600 dark:text-slate-400">Couldn&apos;t load this prickle.</p>}
       {data && savedCheckin && data.join && (
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">Checked in. Ready to join?</p>
@@ -138,7 +138,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
       )}
       {data && !savedCheckin && (
         <form onSubmit={handleSave} className="space-y-5">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {readOnly
               ? "Read-only while browsing as this member."
               : "Optional. Over time it shows which prickles help you most, depending on how you're feeling and what you need."}
@@ -155,7 +155,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
           )}
 
           {isCheckout && !data.hasStarted && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Available once the prickle starts.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Available once the prickle starts.</p>
           )}
 
           {isCheckout && data.hasStarted && (

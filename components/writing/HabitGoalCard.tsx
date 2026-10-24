@@ -33,15 +33,15 @@ export default function HabitGoalCard({
         <span className="flex items-center gap-1">
           <span aria-hidden>🔥</span>
           <strong className="text-slate-900 dark:text-slate-100">{currentStreak}</strong>
-          <span className="text-slate-500 dark:text-slate-400">{periodLabel} streak</span>
+          <span className="text-slate-600 dark:text-slate-400">{periodLabel} streak</span>
         </span>
-        <span className="text-slate-500 dark:text-slate-400">
+        <span className="text-slate-600 dark:text-slate-400">
           Longest: <strong className="text-slate-900 dark:text-slate-100">{longestStreak}</strong>
         </span>
-        <span className="text-slate-500 dark:text-slate-400">
+        <span className="text-slate-600 dark:text-slate-400">
           Typical: <strong className="text-slate-900 dark:text-slate-100">{typicalStreak.toFixed(1)}</strong>
         </span>
-        <span className="text-slate-500 dark:text-slate-400">
+        <span className="text-slate-600 dark:text-slate-400">
           Hit rate: <strong className="text-slate-900 dark:text-slate-100">{Math.round(hitRatePercent)}%</strong>
         </span>
       </div>

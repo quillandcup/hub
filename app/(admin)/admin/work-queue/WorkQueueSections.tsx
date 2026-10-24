@@ -109,7 +109,7 @@ function QueueRow({ item, busyKey, onMarkDone, onOptOut, onPostpone, onExtend }:
       <td className="px-6 py-4 whitespace-nowrap">
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${meta.badgeClass}`}>{item.label}</span>
         {item.queueType === "hiatus_nudge" && (
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Expected back: {item.expectedReturnDate ? fmt(item.expectedReturnDate) : "Indefinite"}
           </div>
         )}
@@ -300,7 +300,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
       <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">
-            {meta.title} <span className="text-slate-400 dark:text-slate-500 font-normal">({items.length})</span>
+            {meta.title} <span className="text-slate-500 dark:text-slate-400 font-normal">({items.length})</span>
           </h2>
           {undoable && (
             <button
@@ -343,7 +343,7 @@ function QueueSection({ items }: { items: WorkQueueItem[] }) {
                 direction={sortDirection}
                 onClick={() => handleSort("event")}
               />
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Action
               </th>
             </tr>
@@ -383,7 +383,7 @@ export default function WorkQueueSections({
   if (allEmpty) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center">
-        <p className="text-slate-500 dark:text-slate-400">Nothing in the queue right now. 🎉</p>
+        <p className="text-slate-600 dark:text-slate-400">Nothing in the queue right now. 🎉</p>
       </div>
     );
   }

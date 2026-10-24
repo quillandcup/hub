@@ -162,7 +162,7 @@ export default async function ChatChannelPage({
             </Link>
             <h1 className="text-2xl font-bold">{channel.label}</h1>
             {channel.archived && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">This channel is archived in Slack.</p>
             )}
           </div>
           {people.length > 0 && (
@@ -238,7 +238,7 @@ export default async function ChatChannelPage({
       )}
       {panelOpen && !rootView && profileId && (
         <SidePanel id="chat-profile-panel" title="Profile" closeHref={closeHref}>
-          {memberCard ? <ProfileCard member={memberCard} /> : <p className="py-6 text-sm text-slate-500">This member isn&apos;t available.</p>}
+          {memberCard ? <ProfileCard member={memberCard} /> : <p className="py-6 text-sm text-slate-600 dark:text-slate-400">This member isn&apos;t available.</p>}
         </SidePanel>
       )}
     </div>

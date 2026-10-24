@@ -90,7 +90,7 @@ export default async function UnmatchedEventsPage() {
         <UnmatchedEventsTable eventGroups={eventGroups} prickleTypes={prickleTypes || []} />
 
         {eventGroups.length === 0 && (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">
             No unmatched events! All calendar events have been categorized. 🎉
           </div>
         )}

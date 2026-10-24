@@ -70,7 +70,7 @@ export function SecondaryTimezoneSwitcher({ initialTimezone }: { initialTimezone
           </select>
         </div>
       )}
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         Shown in parentheses beside your primary time zone. Prickles are announced in Eastern time, so many members pick it: 4:00 AM (7:00 AM ET).
         {saving && <span className="ml-2 italic">Saving...</span>}
       </p>

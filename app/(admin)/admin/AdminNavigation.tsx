@@ -22,7 +22,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
         <Link
           href="/dashboard"
           onClick={onNavigate}
-          className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
           title={collapsed ? "My View" : undefined}
         >
           <span>←</span>
@@ -73,7 +73,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
           if (section.collapsible && !collapsed) {
             return (
               <details key={section.name} className="mb-6 group" open={containsActiveItem}>
-                <summary className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                <summary className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
                   <span className="inline-block transition-transform group-open:rotate-90">▸</span>
                   {section.name}
                 </summary>
@@ -85,7 +85,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, onNavigate }: NavLinks
           return (
             <div key={section.name} className="mb-6">
               {!collapsed && (
-                <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+                <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
                   {section.name}
                 </h2>
               )}
@@ -139,9 +139,10 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
-          <h1 className="text-lg font-bold text-slate-500 dark:text-slate-400">
+          <h1 className="text-lg font-bold text-slate-600 dark:text-slate-400">
             ⚙️ Admin
           </h1>
           <button
@@ -170,7 +171,7 @@ export default function AdminNavigation({ enabledFeatures }: AdminNavigationProp
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           {!collapsed && (
-            <h1 className="text-lg font-bold text-slate-500 dark:text-slate-400">
+            <h1 className="text-lg font-bold text-slate-600 dark:text-slate-400">
               ⚙️ Admin
             </h1>
           )}

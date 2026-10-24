@@ -22,7 +22,7 @@ export default function ResubscriptionsChart({ data }: Props) {
 
   if (trimmedData.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
+      <div className="h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">
         No resubscription data yet
       </div>
     );

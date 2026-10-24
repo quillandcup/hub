@@ -67,14 +67,14 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
       <main className="container mx-auto px-6 py-8">
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
           <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
               {recipients.length} {recipients.length === 1 ? "recipient" : "recipients"}
             </h2>
             {badgeType.is_automatic && !linkedProgram && badgeType.key !== "hedgie_mentor" && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">Computed automatically</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Computed automatically</span>
             )}
             {badgeType.key === "hedgie_mentor" && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Counted from Big Sister matches —{" "}
                 <Link href="/admin/mentorship" className="text-plum-600 dark:text-plum-400 hover:underline">
                   manage matches
@@ -82,7 +82,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
               </span>
             )}
             {linkedProgram && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Granted when a cohort ends —{" "}
                 <Link
                   href={`/admin/programs/${linkedProgram.id}`}
@@ -93,7 +93,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
               </span>
             )}
             {linkedEvent && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Granted by attendance —{" "}
                 <Link href={`/admin/events/${linkedEvent.id}`} className="text-plum-600 dark:text-plum-400 hover:underline">
                   manage attendees
@@ -105,7 +105,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
           {!badgeType.is_automatic && !badgeType.event_id && <AwardBadgeForm badgeTypeId={badgeType.id} />}
 
           {recipients.length === 0 ? (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               No members have earned this badge yet.
             </div>
           ) : (

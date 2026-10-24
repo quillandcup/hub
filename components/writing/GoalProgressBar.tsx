@@ -41,9 +41,9 @@ export default function GoalProgressBar({
       <div className="flex items-baseline justify-between text-sm mb-1">
         <span className="text-slate-600 dark:text-slate-400">
           {current.toLocaleString()} / {target.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()}
-          {endDate && <span className="text-slate-400"> by {endDate}</span>}
+          {endDate && <span className="text-slate-500 dark:text-slate-400"> by {endDate}</span>}
         </span>
-        <span className="text-slate-400 text-xs">{Math.round(percent)}%</span>
+        <span className="text-slate-500 dark:text-slate-400 text-xs">{Math.round(percent)}%</span>
       </div>
       <div className="relative h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
         <div className={`absolute inset-y-0 left-0 rounded-full ${barColor}`} style={{ width: `${clampedPercent}%` }} />
@@ -58,7 +58,7 @@ export default function GoalProgressBar({
       {status === "achieved" ? (
         <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">Achieved!</p>
       ) : status === "ended" ? (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Ended</p>
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Ended</p>
       ) : (
         onPace !== null && (
           <p className={`mt-1 text-xs ${onPace ? "text-plum-600 dark:text-plum-400" : "text-amber-600 dark:text-amber-400"}`}>

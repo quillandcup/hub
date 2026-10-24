@@ -260,7 +260,7 @@ export default async function MemberDetailPage({
                   </div>
                   <div className="group relative inline-block">
                     <svg
-                      className="w-4 h-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
+                      className="w-4 h-4 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"

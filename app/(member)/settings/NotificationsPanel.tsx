@@ -79,7 +79,7 @@ export function NotificationsPanel({ initial }: { initial: NotificationSettings 
               >
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-slate-900 dark:text-slate-100">{kind.label}</div>
-                  <div className="text-slate-500 dark:text-slate-400">{kind.description}</div>
+                  <div className="text-slate-600 dark:text-slate-400">{kind.description}</div>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   {NOTIFICATION_CHANNELS.filter((c) => initial.channels.includes(c.id)).map((channel) => {

@@ -29,7 +29,7 @@ function Section({
   if (channels.length === 0) return null;
   return (
     <div className="mb-4">
-      <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
+      <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
       <ul className="space-y-0.5">
         {channels.map((c) => {
           const active = pathname === `/chat/${c.id}`;
@@ -237,8 +237,8 @@ export default function ChatSidebar({
       <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} unread={counts} />
       <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} unread={counts} />
       <Section title="Archived" channels={shown.filter((c) => c.archived)} pathname={pathname} unread={counts} />
-      {channels.length === 0 && <p className="px-3 text-sm text-slate-500">No conversations yet.</p>}
-      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-500">No channels match.</p>}
+      {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
+      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
     </nav>
   );
 }

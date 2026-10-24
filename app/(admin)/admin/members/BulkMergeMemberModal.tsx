@@ -79,7 +79,7 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
         </p>
 
         <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">
             Select primary (keep)
           </p>
           <div className="space-y-2">
@@ -102,7 +102,7 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
                 />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{m.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{m.email}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 truncate">{m.email}</p>
                 </div>
                 {primaryId === m.id && (
                   <span className="ml-auto text-xs font-medium text-plum-600 dark:text-plum-400 flex-shrink-0">Keep</span>
@@ -129,7 +129,7 @@ export default function BulkMergeMemberModal({ members, isOpen, onClose }: BulkM
         )}
 
         {externalLoading && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">Checking external accounts...</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">Checking external accounts...</p>
         )}
 
         {!externalLoading && externalStatus && primary && secondaries.some(s => hasExternalNotes(externalStatus[s.id])) && (() => {

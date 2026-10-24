@@ -26,7 +26,7 @@ function InfoTooltip({ text }: { text: string }) {
     <div className="relative inline-block ml-2">
       <button
         type="button"
-        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+        className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
       >

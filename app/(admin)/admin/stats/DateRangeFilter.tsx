@@ -51,7 +51,7 @@ export default function DateRangeFilter({ from, to }: { from: string; to: string
         ))}
         <span className="text-slate-300 dark:text-slate-600 select-none">|</span>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-500">From</label>
+          <label className="text-sm text-slate-600 dark:text-slate-400">From</label>
           <input
             type="date"
             value={from}
@@ -62,7 +62,7 @@ export default function DateRangeFilter({ from, to }: { from: string; to: string
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-500">To</label>
+          <label className="text-sm text-slate-600 dark:text-slate-400">To</label>
           <input
             type="date"
             value={to}

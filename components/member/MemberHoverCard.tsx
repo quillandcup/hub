@@ -43,7 +43,7 @@ function CardBody({ card }: { card: MemberHoverCardData }) {
         <div className="min-w-0">
           <p className="truncate font-semibold text-slate-900 dark:text-slate-100">{card.name}</p>
           {card.firstJoinedAt && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Hedgie since {monthYear(card.firstJoinedAt)}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Hedgie since {monthYear(card.firstJoinedAt)}</p>
           )}
         </div>
       </div>
@@ -250,8 +250,8 @@ export default function MemberHoverCard({
             style={{ position: "fixed", width: CARD_WIDTH, left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden" }}
             className="z-50 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           >
-            {!loaded && <p className="text-slate-500 dark:text-slate-400">Loading…</p>}
-            {loaded && "error" in loaded && <p className="text-slate-500 dark:text-slate-400">{loaded.error}</p>}
+            {!loaded && <p className="text-slate-600 dark:text-slate-400">Loading…</p>}
+            {loaded && "error" in loaded && <p className="text-slate-600 dark:text-slate-400">{loaded.error}</p>}
             {loaded && "card" in loaded && <CardBody card={loaded.card} />}
           </div>,
           document.body

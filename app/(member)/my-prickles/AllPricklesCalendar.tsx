@@ -114,6 +114,7 @@ export default function AllPricklesCalendar({
         </div>
         {types.length > 1 && (
           <select data-track="all-prickles-calendar-type-filter"
+            aria-label="Filter by prickle type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"

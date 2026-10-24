@@ -122,7 +122,7 @@ export default async function ExternalConflictsPage() {
     <div className="p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
-          <Link href="/admin/hygiene" className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+          <Link href="/admin/hygiene" className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
             ← Data Hygiene
           </Link>
         </div>
@@ -235,7 +235,7 @@ export default async function ExternalConflictsPage() {
                 renderEntry={(entry) => (
                   <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
                     {entry.externalId}
-                    {entry.name && <span className="ml-1 text-slate-400 dark:text-slate-500">({entry.name})</span>}
+                    {entry.name && <span className="ml-1 text-slate-500 dark:text-slate-400">({entry.name})</span>}
                   </span>
                 )}
               />
@@ -294,7 +294,7 @@ function ConflictRow({
               {group.memberName ?? group.canonicalEmail}
             </span>
           )}
-          <p className="text-xs text-slate-500 dark:text-slate-400">{group.canonicalEmail}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">{group.canonicalEmail}</p>
         </div>
         <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold flex-shrink-0">
           {group.entries.length} accounts
@@ -304,7 +304,7 @@ function ConflictRow({
         {group.entries.map((entry, i) => (
           <div key={i} className="flex items-center gap-3 text-xs">
             <span className="text-slate-300 dark:text-slate-600">•</span>
-            <span className="text-slate-500 dark:text-slate-400 min-w-[180px] truncate">{entry.email}</span>
+            <span className="text-slate-600 dark:text-slate-400 min-w-[180px] truncate">{entry.email}</span>
             {renderEntry(entry)}
           </div>
         ))}

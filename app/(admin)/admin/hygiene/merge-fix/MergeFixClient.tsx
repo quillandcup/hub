@@ -98,7 +98,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
         <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
           No duplicates found
         </h2>
-        <p className="text-slate-500 dark:text-slate-400">
+        <p className="text-slate-600 dark:text-slate-400">
           All members have unique names and emails.
         </p>
       </div>
@@ -113,7 +113,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
             All caught up
           </h2>
-          <p className="text-slate-500 dark:text-slate-400">
+          <p className="text-slate-600 dark:text-slate-400">
             You&apos;ve dismissed all suggestions.
           </p>
         </div>
@@ -128,7 +128,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
       <div className="mt-8">
         <button
           onClick={() => setShowDismissed((v) => !v)}
-          className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
         >
           {showDismissed ? "Hide" : "Show"} {dismissedGroups.length} dismissed suggestion{dismissedGroups.length !== 1 ? "s" : ""}
         </button>
@@ -141,7 +141,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                 className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
               >
                 <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                     {group.reason}
                   </span>
                   <ConfidenceBadge confidence={group.confidence} />
@@ -167,10 +167,10 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                             {member.name}
                           </Link>
                           {j === 0 && (
-                            <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                           {member.email}
                         </p>
                       </div>
@@ -181,7 +181,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                 <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                   <button
                     onClick={() => undismiss(group)}
-                    className="px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                   >
                     Restore
                   </button>
@@ -222,7 +222,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
             className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
           >
             <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                 {group.reason}
               </span>
               <ConfidenceBadge confidence={group.confidence} />
@@ -248,10 +248,10 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         {member.name}
                       </Link>
                       {j === 0 && (
-                        <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                       {member.email}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -266,7 +266,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           member.stripe_active
                             ? "bg-plum-100 text-plum-700 dark:bg-plum-900/30 dark:text-plum-400"
-                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                         }`}>
                           {member.stripe_active ? "active in Stripe" : "in Stripe"}
                         </span>
@@ -280,7 +280,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
             <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => dismiss(group)}
-                className="px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               >
                 Dismiss
               </button>

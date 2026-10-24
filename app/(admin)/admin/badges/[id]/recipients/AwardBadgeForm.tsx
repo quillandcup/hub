@@ -58,7 +58,7 @@ export default function AwardBadgeForm({ badgeTypeId }: { badgeTypeId: string })
       )}
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3" aria-label="Award badge">
         <div className="flex-1 min-w-[14rem]">
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Member</label>
+          <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">Member</label>
           <MemberSearch
             members={allMembers}
             selectedMemberId={member?.id ?? null}
@@ -67,7 +67,7 @@ export default function AwardBadgeForm({ badgeTypeId }: { badgeTypeId: string })
           />
         </div>
         <div>
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="award-date">
+          <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="award-date">
             Date
           </label>
           <input
@@ -79,7 +79,7 @@ export default function AwardBadgeForm({ badgeTypeId }: { badgeTypeId: string })
           />
         </div>
         <div className="flex-1 min-w-[10rem]">
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1" htmlFor="award-note">
+          <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1" htmlFor="award-note">
             Note (optional)
           </label>
           <input

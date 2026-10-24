@@ -398,7 +398,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
               Cancel
             </button>
           </form>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
             {inviteByEmail ? "Inviting someone who's already a member? " : "Not a member (e.g. staff-only)? "}
             <button
               type="button"
@@ -457,7 +457,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     direction={sortDirection}
                     onClick={() => handleSort("created")}
                   />
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -474,7 +474,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
                           {user.email}
                           {isCurrentUser && (
-                            <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">(you)</span>
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">(you)</span>
                           )}
                         </div>
                       </td>
@@ -499,7 +499,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         {isEditing ? (
                           <div className="flex flex-col gap-2">
                             <div>
-                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Member</label>
+                              <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">Member</label>
                               <MemberSearch
                                 members={memberOptions}
                                 selectedMemberId={editMemberId}
@@ -509,7 +509,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               />
                             </div>
                             {user.staffName && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
                                 Staff role ({user.staffRole ? STAFF_ROLE_LABELS[user.staffRole] : ""}) is set on the staff record, not here.
                               </p>
                             )}
@@ -533,7 +533,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                               </a>
                             ) : null}
                             {!user.staffName && !user.memberId && (
-                              <span className="text-xs text-slate-400 dark:text-slate-500">None</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">None</span>
                             )}
                           </div>
                         )}
@@ -556,7 +556,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {user.features.length === 0 ? (
-                              <span className="text-xs text-slate-400 dark:text-slate-500">None</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">None</span>
                             ) : (
                               user.features.map((key) => {
                                 const feature = FEATURE_PREVIEWS.find((f) => f.key === key);
@@ -575,7 +575,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                        <span className="text-sm text-slate-600 dark:text-slate-400">
                           {formatDateInZone(user.createdAt, timeZone)}
                         </span>
                       </td>
@@ -637,7 +637,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(null)}
-                                      className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                                      className="text-xs text-slate-600 dark:text-slate-400 hover:underline"
                                     >
                                       Cancel
                                     </button>
@@ -698,7 +698,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
               )}
               <button
                 onClick={closeHistory}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 aria-label="Close"
               >
                 ✕
@@ -711,7 +711,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
           )}
 
           {historyLoading && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Loading...</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Loading...</p>
           )}
 
           {historyError && (
@@ -719,7 +719,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
           )}
 
           {!historyLoading && !historyError && historySessions.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No recorded activity yet.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">No recorded activity yet.</p>
           )}
 
           {!historyLoading && !historyError && historySessions.length > 0 && (
@@ -743,7 +743,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                     )}
                   </div>
                   {(session.auth_session_created_at || session.user_agent) && (
-                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
                       {session.auth_session_created_at &&
                         `Logged in ${formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}`}
                       {session.auth_session_created_at && session.user_agent && " · "}
@@ -757,12 +757,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       <ul className="space-y-0.5">
                         {summarizePages(session.pages).map(({ label, count }) => (
                           <li key={label}>
-                            {label} <span className="text-slate-400">×{count}</span>
+                            {label} <span className="text-slate-500 dark:text-slate-400">×{count}</span>
                           </li>
                         ))}
                       </ul>
                       <details className="mt-1">
-                        <summary className="cursor-pointer text-slate-500">In order</summary>
+                        <summary className="cursor-pointer text-slate-600 dark:text-slate-400">In order</summary>
                         <ol className="mt-1 list-decimal list-inside space-y-0.5 font-mono">
                           {session.pages.map((path, j) => (
                             <li key={j}>{path}</li>
@@ -771,7 +771,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </details>
                     </div>
                   ) : (
-                    <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">No pages recorded</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No pages recorded</p>
                   )}
                 </li>
               ))}

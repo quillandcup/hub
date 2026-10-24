@@ -26,7 +26,7 @@ export default async function AdminCoursesPage() {
 
       <div className="overflow-x-auto rounded-lg bg-white shadow dark:bg-slate-900">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+          <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 dark:border-slate-800 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Course</th>
               <th className="px-4 py-3">In the Hub</th>
@@ -43,12 +43,12 @@ export default async function AdminCoursesPage() {
                     {c.title}
                   </Link>
                 </td>
-                <td className="px-4 py-3">{c.published ? <span>Published</span> : <span className="text-slate-500 dark:text-slate-400">Not published</span>}</td>
+                <td className="px-4 py-3">{c.published ? <span>Published</span> : <span className="text-slate-600 dark:text-slate-400">Not published</span>}</td>
                 <td className="px-4 py-3">
                   {c.published ? (
                     <>
                       {accessLabel(c.published.accessDuration)}
-                      {c.published.launchAt && <span className="block text-xs text-slate-500 dark:text-slate-400">opens {formatCourseDate(c.published.launchAt)}</span>}
+                      {c.published.launchAt && <span className="block text-xs text-slate-600 dark:text-slate-400">opens {formatCourseDate(c.published.launchAt)}</span>}
                     </>
                   ) : (
                     "–"

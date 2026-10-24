@@ -68,7 +68,7 @@ export default async function BadgesPage() {
         {CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((cat) => (
           <div key={cat} className="bg-white dark:bg-slate-900 rounded-lg shadow">
             <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                 {CATEGORY_LABELS[cat] ?? cat}
               </h2>
             </div>
@@ -88,25 +88,25 @@ export default async function BadgesPage() {
                             {type.name}
                           </span>
                           {type.is_automatic && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                               Automatic
                             </span>
                           )}
                           {type.has_levels && typeLevels.length > 0 && (
-                            <span className="text-xs text-slate-400 dark:text-slate-500">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               {typeLevels.map((l) => l.name).join(" → ")}
                             </span>
                           )}
                         </div>
                         {type.description && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                             {type.description}
                           </p>
                         )}
                       </div>
                     </Link>
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
                         {type.is_automatic
                           ? "computed automatically"
                           : `${awardCountByType.get(type.id) ?? 0} awarded`}

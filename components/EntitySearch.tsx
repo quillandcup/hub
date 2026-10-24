@@ -226,13 +226,13 @@ export default function EntitySearch({
         <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-sm text-slate-900 dark:text-slate-100">
           <div className="flex-1 min-w-0">
             <div className={`truncate ${selectedDetail ? "font-medium" : ""}`}>{displayName}</div>
-            {selectedDetail && <div className="truncate text-xs text-slate-500 dark:text-slate-400">{selectedDetail}</div>}
+            {selectedDetail && <div className="truncate text-xs text-slate-600 dark:text-slate-400">{selectedDetail}</div>}
           </div>
           <button
             data-track="entity-search-select"
             type="button"
             onClick={() => handleSelect(null)}
-            className="ml-2 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300"
+            className="ml-2 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-300"
             title="Clear selection"
             aria-label="Clear selection"
           >
@@ -268,7 +268,7 @@ export default function EntitySearch({
           className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {loading ? (
-            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400" role="status">
+            <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400" role="status">
               Searching...
             </div>
           ) : failed ? (
@@ -276,7 +276,7 @@ export default function EntitySearch({
               {remote.error}
             </div>
           ) : empty ? (
-            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">{emptyText}</div>
+            <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-400">{emptyText}</div>
           ) : (
             <ul {...combobox.listboxProps} aria-busy={search ? remote.loading : undefined}>
               {matches.map((item, i) => (

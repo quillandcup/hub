@@ -199,7 +199,7 @@ export default function NotificationInbox({
                 <th className="w-8 px-2 py-3">
                   <span className="sr-only">Unread</span>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Notification
                 </th>
                 <SortableTh label="Type" {...table.sortProps("kind")} />
@@ -209,7 +209,7 @@ export default function NotificationInbox({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {table.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={editing ? 5 : 4} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                  <td colSpan={editing ? 5 : 4} className="px-6 py-8 text-center text-slate-600 dark:text-slate-400">
                     {filter === "unread" ? "Nothing unread." : "No notifications yet."}
                   </td>
                 </tr>
@@ -262,7 +262,7 @@ export default function NotificationInbox({
                     <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
                       {notificationKindLabel(n.kind)}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-3 text-slate-500 dark:text-slate-400">
+                    <td className="whitespace-nowrap px-6 py-3 text-slate-600 dark:text-slate-400">
                       <time
                         dateTime={n.createdAt}
                         title={new Date(n.createdAt).toLocaleString()}

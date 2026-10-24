@@ -32,7 +32,7 @@ const results = {
 async function open(isAdmin = false) {
   const user = userEvent.setup();
   render(<SearchPalette resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin} />);
-  await user.click(screen.getByRole("button", { name: "Search" }));
+  await user.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
   return user;
 }
 
@@ -331,5 +331,33 @@ describe("SearchPalette", () => {
     await user.click(screen.getByRole("button", { name: "cody" }));
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("cody");
     await waitFor(() => expect(searchPalette).toHaveBeenCalledWith("cody"));
+  });
+});
+
+describe("SearchPalette button name", () => {
+  it("contains the text printed on the button, so voice control and screen readers agree with the screen", () => {
+    render(<SearchPalette resultsPath="/search" isAdmin={false} />);
+    const button = screen.getByRole("button", { name: /Search pages, members, chat/ });
+    expect(button).toHaveTextContent("Search pages, members, chat…");
+    expect(button).toHaveAccessibleName("Search pages, members, chat…");
+    // The shortcut hint is drawn by CSS, so it is not visible text that the name would have to include.
+    expect(button).not.toHaveTextContent("⌘K");
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K");
+  });
+});
+
+describe("SearchPalette Clear button", () => {
+  it("appears once something is typed, empties the box and returns the cursor to it", async () => {
+    const user = await open();
+    const box = screen.getByRole("textbox", { name: "Search" });
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+
+    await user.type(box, "pizza");
+    expect(box).toHaveValue("pizza");
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(box).toHaveValue("");
+    expect(box).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
   });
 });

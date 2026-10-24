@@ -231,12 +231,12 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                   </Link>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                  <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <MemberStatusBadge status={member.status} />
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                   {member.member_metrics?.last_attended_at
                     ? formatDateInZone(member.member_metrics.last_attended_at, timeZone)
                     : "Never"}

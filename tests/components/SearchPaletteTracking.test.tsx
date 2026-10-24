@@ -39,7 +39,7 @@ const callsOf = (name: string) => track.mock.calls.filter((c) => c[0] === name).
 async function openPalette() {
   const user = userEvent.setup();
   render(<SearchPalette resultsPath="/search" isAdmin={false} />);
-  await user.click(screen.getByRole("button", { name: "Search" }));
+  await user.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
   return user;
 }
 
@@ -76,7 +76,7 @@ describe("a search", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     // fireEvent, not userEvent: Testing Library's async helpers wait on a real timer, which is faked here.
     render(<SearchPalette resultsPath="/search" isAdmin={false} />);
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
     fireEvent.change(box(), { target: { value: "fern from:me" } });
 
     await vi.advanceTimersByTimeAsync(200);
@@ -107,7 +107,7 @@ describe("a search", () => {
     await user.keyboard("{Escape}");
     expect(callsOf("search_ran")).toHaveLength(1);
 
-    await user.click(screen.getByRole("button", { name: "Search" }));
+    await user.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
     await screen.findByRole("heading", { name: "Members" });
     await user.keyboard("{Escape}");
     expect(callsOf("search_ran")).toHaveLength(1);
@@ -124,7 +124,7 @@ describe("a search", () => {
     expect(callsOf("search_result_clicked")).toEqual([{ surface: "palette", kind: "chat", rank: 3, via: "click" }]);
 
     track.mockClear();
-    await user.click(screen.getByRole("button", { name: "Search" }));
+    await user.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
     await user.click(box());
     await user.keyboard("{ArrowDown}{Enter}");
     expect(callsOf("search_result_clicked")).toEqual([{ surface: "palette", kind: "members", rank: 1, via: "enter" }]);

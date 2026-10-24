@@ -97,7 +97,7 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
               couldn&apos;t.
             </li>
           </ol>
-          <div className="text-sm text-slate-500 dark:text-slate-400 space-y-2">
+          <div className="text-sm text-slate-600 dark:text-slate-400 space-y-2">
             <p>
               Your projects, progress, starting balances, covers, and goals come over. Nothing in TrackBear is
               changed or deleted.
@@ -163,14 +163,14 @@ function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDon
           {created.covers > 0 && <li>{plural(created.covers, "cover")}</li>}
         </ul>
         {alreadyTotal > 0 && (
-          <p className="mt-2 text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-slate-600 dark:text-slate-400">
             Skipped as already imported: {plural(alreadyImported.projects, "project")},{" "}
             {plural(alreadyImported.entries, "progress entry", "progress entries")},{" "}
             {plural(alreadyImported.goals, "goal")}.
           </p>
         )}
         {result.updated.goalDetails > 0 && (
-          <p className="mt-2 text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-slate-600 dark:text-slate-400">
             Added TrackBear titles and descriptions to {plural(result.updated.goalDetails, "previously imported goal")}.
           </p>
         )}

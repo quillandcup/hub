@@ -135,7 +135,7 @@ export default async function CalendarPage({
             </Link>
             {isNextDisabled ? (
               <span
-                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed"
                 aria-disabled="true"
               >
                 Next →

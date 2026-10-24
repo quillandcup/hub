@@ -139,7 +139,7 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
 
   return (
     <div className="mt-1.5 flex flex-col gap-2" data-testid="message-files">
-      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
         <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
           {shown.length} {shown.length === 1 ? "attachment" : "attachments"}
           <span aria-hidden="true">{open ? "▾" : "▸"}</span>
@@ -169,7 +169,7 @@ export default function MessageFiles({ messageId, files, canDelete = false }: { 
             >
               <span aria-hidden="true">📎</span>
               <span className="truncate">{f.name ?? "File"}</span>
-              {f.size !== null && <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{formatFileSize(f.size)}</span>}
+              {f.size !== null && <span className="shrink-0 text-xs text-slate-600 dark:text-slate-400">{formatFileSize(f.size)}</span>}
             </a>
           ))}
         </>

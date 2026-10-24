@@ -58,20 +58,20 @@ export default function ViewerList({
                     <span className="rounded bg-slate-100 px-1.5 text-xs tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-300">{percent(s.coveredFraction)}</span>
                   </span>
                 </span>
-                <span aria-hidden="true" className="text-slate-400 transition group-open:rotate-180">
+                <span aria-hidden="true" className="text-slate-500 dark:text-slate-400 transition group-open:rotate-180">
                   &#9662;
                 </span>
               </summary>
               <dl className="grid grid-cols-[6rem_1fr] gap-y-1 border-t border-slate-100 p-3 text-sm dark:border-slate-800">
-                <dt className="text-slate-500 dark:text-slate-400">Device</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Device</dt>
                 <dd>{describeDevice(s.userAgent)}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Location</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Location</dt>
                 <dd>{s.location?.place ?? "Not recorded"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">IP</dt>
+                <dt className="text-slate-600 dark:text-slate-400">IP</dt>
                 <dd className="tabular-nums">{s.location?.ip ?? "Not recorded"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Played</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Played</dt>
                 <dd className="tabular-nums">{s.played ? `${formatClock(s.watchedSeconds)} of video time` : "Not played"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Covered</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Covered</dt>
                 <dd>{describeCoverage(s.intervals, durationSeconds)}</dd>
               </dl>
             </details>
@@ -83,7 +83,7 @@ export default function ViewerList({
           <Link href={more} data-track="admin-watch-stats-load-more" className="text-plum-700 underline dark:text-plum-300">
             Load more
           </Link>
-          <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">
+          <span className="ml-3 text-sm text-slate-600 dark:text-slate-400">
             Showing {rows.length} of {sessions.length}
           </span>
         </p>

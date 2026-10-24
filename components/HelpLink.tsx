@@ -8,7 +8,7 @@ export default function HelpLink({ href }: { href: string }) {
       data-track="help-link"
       aria-label="Help"
       title="Help"
-      className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+      className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
     >
       <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" focusable="false">
         <path

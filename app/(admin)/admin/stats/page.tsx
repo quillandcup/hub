@@ -87,7 +87,7 @@ function StatCard({
       <div className="text-3xl mb-2">{emoji}</div>
       <div className="text-4xl font-bold text-plum-600 dark:text-plum-400 tabular-nums">{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
-      {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</div>}
     </div>
   )
 }
@@ -133,7 +133,7 @@ export default async function CommunityStatsPage({
     <div className="container mx-auto px-6 py-8 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Community Stats</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
           Quill &amp; Cup · {fromLabel} – {toLabel}
         </p>
         <DateRangeFilter from={from} to={to} />

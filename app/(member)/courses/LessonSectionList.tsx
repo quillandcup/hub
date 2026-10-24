@@ -18,7 +18,7 @@ function Row({ slug, lesson, number, completed, current, openable }: { slug: str
   const thumbnail = safeUrl(lesson.thumbnail_url);
   const content = (
     <>
-      <span aria-hidden="true" className="text-center text-sm text-slate-400">
+      <span aria-hidden="true" className="text-center text-sm text-slate-500 dark:text-slate-400">
         {current ? <span className="text-plum-400">▶</span> : number}
       </span>
       {thumbnail ? (
@@ -78,7 +78,7 @@ export default function LessonSectionList({ slug, section, completed, currentLes
     <nav aria-label="Lessons in this section" className="bg-neutral-800/60 pb-5 text-slate-100">
       <div className="flex items-baseline justify-between gap-3 px-5 py-4">
         <h2 className="font-semibold leading-snug">{node.module.title}</h2>
-        <span className="shrink-0 text-xs font-semibold text-slate-400">
+        <span className="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">
           {lessons.length} {lessons.length === 1 ? "Lesson" : "Lessons"}
         </span>
       </div>

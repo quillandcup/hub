@@ -139,7 +139,7 @@ export default function AttendanceMonthGrid({
                           );
                         })}
                         {att.length > 3 && (
-                          <div className="text-xs text-slate-500 dark:text-slate-400 px-1.5">
+                          <div className="text-xs text-slate-600 dark:text-slate-400 px-1.5">
                             +{att.length - 3} more
                           </div>
                         )}
@@ -184,7 +184,7 @@ export default function AttendanceMonthGrid({
                         {withSecondary(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)} ({duration} min)
                       </div>
                       {prickle.host && (
-                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                           Host:{" "}
                           <Link data-track="attendance-grid-open-host"
                             href={`${memberBasePath}/${prickle.host.id}`}
@@ -205,7 +205,7 @@ export default function AttendanceMonthGrid({
 
         {selectedDay && selectedAtt.length === 0 && (
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-            <p className="text-center text-slate-500 dark:text-slate-400">
+            <p className="text-center text-slate-600 dark:text-slate-400">
               No attendance recorded for {formatDate(selectedDay)}
             </p>
           </div>

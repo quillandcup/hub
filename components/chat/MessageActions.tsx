@@ -132,7 +132,7 @@ export default function MessageActions({
       className={`absolute -top-3 right-2 z-20 ${visible} items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5 shadow dark:border-slate-700 dark:bg-slate-900`}
     >
       {copied && (
-        <span role="status" className="px-2 text-xs text-slate-500 dark:text-slate-400">
+        <span role="status" className="px-2 text-xs text-slate-600 dark:text-slate-400">
           {copied} copied
         </span>
       )}

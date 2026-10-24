@@ -97,8 +97,8 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
             {videos.map((v) => (
               <li key={v.mediaId} className="flex flex-wrap items-center gap-x-3 py-1.5">
                 <span className="min-w-0 flex-1">{v.lessonTitles.join(", ")}</span>
-                {minutes(v.durationSeconds) > 0 && <span className="text-xs text-slate-500 dark:text-slate-400">{minutes(v.durationSeconds)} min</span>}
-                <span className="text-xs text-slate-500 dark:text-slate-400">{statusText(v)}</span>
+                {minutes(v.durationSeconds) > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">{minutes(v.durationSeconds)} min</span>}
+                <span className="text-xs text-slate-600 dark:text-slate-400">{statusText(v)}</span>
               </li>
             ))}
           </ul>
@@ -170,8 +170,8 @@ export default function CourseVideosPanel({ slug, videos: all }: { slug: string 
                       />
                     )}
                     <span className="min-w-0 flex-1">{v.lessonTitles.join(", ")}</span>
-                    {minutes(v.durationSeconds) > 0 && <span className="text-xs text-slate-500 dark:text-slate-400">{minutes(v.durationSeconds)} min</span>}
-                    <span className="text-xs text-slate-500 dark:text-slate-400">{statusText(v)}</span>
+                    {minutes(v.durationSeconds) > 0 && <span className="text-xs text-slate-600 dark:text-slate-400">{minutes(v.durationSeconds)} min</span>}
+                    <span className="text-xs text-slate-600 dark:text-slate-400">{statusText(v)}</span>
                   </li>
                 ))}
               </ul>

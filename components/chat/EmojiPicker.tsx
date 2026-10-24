@@ -212,7 +212,7 @@ export default function EmojiPicker({
   const section = (id: TabId, label: string, names: string[], via: "recent" | "browse") =>
     names.length > 0 && (
       <section key={id} data-section={id} aria-label={label}>
-        <h3 className="sticky top-0 bg-white px-1 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">{label}</h3>
+        <h3 className="sticky top-0 bg-white px-1 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-900 dark:text-slate-400">{label}</h3>
         <div role="group" aria-label={label}>
           {chunks(names).map((chunk, i) => (
             <div
@@ -269,7 +269,7 @@ export default function EmojiPicker({
           type="button"
           aria-label="Close"
           onClick={onClose}
-          className="mr-2 h-10 w-10 shrink-0 rounded text-xl text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 sm:hidden"
+          className="mr-2 h-10 w-10 shrink-0 rounded text-xl text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 sm:hidden"
         >
           &times;
         </button>
@@ -318,7 +318,7 @@ export default function EmojiPicker({
         ) : searching ? (
           standardHits.length + customHits.length === 0 ? (
             catalog || customHits.length ? (
-              <p className="p-2 text-sm text-slate-500 dark:text-slate-400">No emoji match &ldquo;{query.trim()}&rdquo;.</p>
+              <p className="p-2 text-sm text-slate-600 dark:text-slate-400">No emoji match &ldquo;{query.trim()}&rdquo;.</p>
             ) : null
           ) : (
             <div role="group" aria-label="Search results" className="flex flex-wrap pt-1">
@@ -329,7 +329,7 @@ export default function EmojiPicker({
         ) : (
           <>
             {section("recent", "Frequently used", recents, "recent")}
-            {!catalog && <p className="p-2 text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
+            {!catalog && <p className="p-2 text-sm text-slate-600 dark:text-slate-400">Loading…</p>}
             {CATEGORIES.map((c) =>
               section(
                 c.id,

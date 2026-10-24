@@ -40,7 +40,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
         {navGroups("member", enabledFeatures).map((group) => (
           <div key={group.name} className="mb-6">
             {!collapsed && (
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
                 {group.name}
               </h2>
             )}
@@ -70,7 +70,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
             href="/admin"
             data-track="nav-admin-portal"
             onClick={onNavigate}
-            className="flex items-center justify-center gap-2 px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="flex items-center justify-center gap-2 px-2 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             title="Admin Portal"
           >
             <span className="text-base flex-shrink-0">⚙️</span>
@@ -122,6 +122,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-hidden={!mobileOpen}
+        inert={!mobileOpen}
       >
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <Wordmark className="text-lg" />

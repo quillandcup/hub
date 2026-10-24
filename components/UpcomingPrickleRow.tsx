@@ -66,12 +66,12 @@ export default function UpcomingPrickleRow({
       <div className="flex items-center justify-between gap-3">
         <Link href={`/prickles/${prickle.id}`} data-track="upcoming-prickle-open" className="min-w-0 flex-1 block">
           <p className="text-sm font-medium truncate">{prickle.typeName}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {prickle.hostName ? `Hosted by ${hostShortName(prickle.hostName)}` : "No host listed"}
           </p>
         </Link>
         <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
+          <p className="text-xs text-slate-600 dark:text-slate-400 text-right">
             <WithSecondaryTime text={formatUpcomingTime(prickle.startTime, timeZone)} instant={prickle.startTime} timeZone={timeZone} />
           </p>
           {calendar && (
@@ -92,7 +92,7 @@ export default function UpcomingPrickleRow({
               data-track="upcoming-prickle-check-in"
               className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
                 checkedIn
-                  ? "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
+                  ? "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
                   : "border-plum-300 dark:border-plum-700 text-plum-700 dark:text-plum-300 hover:bg-plum-50 dark:hover:bg-plum-950"
               }`}
             >

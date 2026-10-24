@@ -319,7 +319,7 @@ export default function CalendarWeekView({
                     <span className="@pair:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
                     <span className="hidden @pair:inline">{dayNames[day.getDay()]}</span>
                   </div>
-                  <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
+                  <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-600 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
                   </div>
                 </div>
@@ -336,7 +336,7 @@ export default function CalendarWeekView({
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
                   return (
-                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 @pair:p-2 text-[10px] @pair:text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
+                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 @pair:p-2 text-[10px] @pair:text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
                       <span className="@pair:hidden">{displayHour}{period[0]}</span>
                       <span className="hidden @pair:inline">{displayHour} {period}</span>
                     </div>

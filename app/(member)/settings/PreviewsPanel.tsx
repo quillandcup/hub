@@ -43,7 +43,7 @@ export function PreviewsPanel({ enabledFeatures }: { enabledFeatures: FeatureKey
             <li key={feature.key} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{feature.name}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{feature.description}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{feature.description}</p>
               </div>
               <button
                 role="switch"

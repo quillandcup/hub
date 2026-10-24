@@ -25,3 +25,21 @@ describe("AdminNavigation", () => {
     expect(screen.queryByRole("button", { name: "Close navigation menu" })).not.toBeInTheDocument();
   });
 });
+
+describe("AdminNavigation drawer and keyboard focus", () => {
+  it("takes the closed drawer out of the tab order and the accessibility tree, and puts it back when opened", async () => {
+    render(
+      <>
+        <MobileMenuButton />
+        <AdminNavigation enabledFeatures={[]} />
+      </>
+    );
+    const drawer = () => document.querySelector("aside.fixed") as HTMLElement;
+    expect(drawer()).toHaveAttribute("aria-hidden", "true");
+    expect(drawer()).toHaveAttribute("inert");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(drawer()).toHaveAttribute("aria-hidden", "false");
+    expect(drawer()).not.toHaveAttribute("inert");
+  });
+});

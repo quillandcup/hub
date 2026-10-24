@@ -244,7 +244,7 @@ export default function MemberCalendarClient({
                   disabled={isPrevDisabled}
                   className={`px-3 py-2 rounded-lg transition-colors ${
                     isPrevDisabled
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed"
                       : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                   }`}
                 >
@@ -261,7 +261,7 @@ export default function MemberCalendarClient({
                   disabled={isNextDisabled}
                   className={`px-3 py-2 rounded-lg transition-colors ${
                     isNextDisabled
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed"
                       : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
                   }`}
                 >

@@ -90,7 +90,7 @@ export default async function ActivityLogPage({
       />
 
       {feed.total === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           Nothing in this window. Try a longer range{filters.view === "audit" ? " or switch to Everything" : ""}.
         </p>
       ) : (

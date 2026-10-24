@@ -31,7 +31,7 @@ export default function MemberHostingCard({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-      <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+      <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
         Hosting
       </h2>
 
@@ -40,14 +40,14 @@ export default function MemberHostingCard({
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
               <p className="text-2xl font-bold">{summary.totalHosted}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 {summary.totalHosted === 1 ? "prickle hosted" : "prickles hosted"}
               </p>
             </div>
             {summary.firstHostedAt && (
               <div className="text-center">
                 <p className="text-2xl font-bold">{formatMonthYear(summary.firstHostedAt, timeZone)}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">hosting since</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">hosting since</p>
               </div>
             )}
           </div>
@@ -68,7 +68,7 @@ export default function MemberHostingCard({
 
       {slots.length > 0 && (
         <div className={summary.totalHosted > 0 ? "mt-4 pt-4 border-t border-slate-100 dark:border-slate-800" : ""}>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">Join {firstName} at</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Join {firstName} at</p>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {slots.map((slot) => (
               <li key={slot.seriesKey}>
@@ -80,9 +80,9 @@ export default function MemberHostingCard({
                     <span className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-plum-600 dark:group-hover:text-plum-400">
                       {slot.upcomingCount > 1 ? `${slot.dayOfWeek}s` : slot.dayOfWeek} · {slot.timeLabel}
                     </span>
-                    <span className="text-slate-500 dark:text-slate-400"> — {slot.typeName}</span>
+                    <span className="text-slate-600 dark:text-slate-400"> — {slot.typeName}</span>
                   </span>
-                  <span className="flex-shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                  <span className="flex-shrink-0 text-xs text-slate-500 dark:text-slate-400">
                     next {formatShortDate(slot.nextOccurrenceStart, timeZone)} →
                   </span>
                 </Link>

@@ -65,16 +65,16 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
             {plan.files.map((f) => (
               <li key={f.kajabiFileId} className="flex flex-wrap items-center gap-x-3 py-1.5">
                 <span className="min-w-0 flex-1">
-                  {f.filename} <span className="text-xs text-slate-500 dark:text-slate-400">· {f.lessonTitle}</span>
+                  {f.filename} <span className="text-xs text-slate-600 dark:text-slate-400">· {f.lessonTitle}</span>
                   {f.draft && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">Draft</span>}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{STATE_TEXT[f.state]}</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">{STATE_TEXT[f.state]}</span>
               </li>
             ))}
             {plan.stale.map((f) => (
               <li key={f.id} className="flex flex-wrap items-center gap-x-3 py-1.5">
                 <span className="min-w-0 flex-1">{f.filename}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">No longer listed: will be removed</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">No longer listed: will be removed</span>
               </li>
             ))}
           </ul>

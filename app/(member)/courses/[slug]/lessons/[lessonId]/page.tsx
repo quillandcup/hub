@@ -42,7 +42,7 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
         direction === "next" ? "@pair:text-right" : ""
       }`}
     >
-      <span className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <span className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {direction === "previous" ? "← Previous" : "Next →"}
       </span>
       <span className="mt-1 block font-medium group-hover:text-plum-700 dark:group-hover:text-plum-300">{lesson.title}</span>
@@ -58,7 +58,7 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
 function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null; hideOnWide: boolean }) {
   const base = "rounded-lg px-4 py-2 text-sm font-medium";
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
-  const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
+  const disabled = "cursor-not-allowed bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-600";
   return (
     <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "@outline:hidden" : ""}`}>
       {previous ? (
@@ -162,7 +162,7 @@ export default async function LessonPage({
       )}
 
       <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
-        <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
+        <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
               <Link data-track="lesson-breadcrumb-course" href={`/courses/${view.course.slug}`} className="hover:underline">
@@ -206,7 +206,7 @@ export default async function LessonPage({
               <details className="group mt-3 overflow-hidden rounded-2xl bg-neutral-900 @outline:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm font-semibold text-slate-100 [&::-webkit-details-marker]:hidden">
                   <span>Lessons in this section</span>
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                     {section.lessons.length} {section.lessons.length === 1 ? "Lesson" : "Lessons"}
                     <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m5 8 5 5 5-5" />
@@ -242,7 +242,7 @@ export default async function LessonPage({
                 </div>
               )}
               <p className="mt-8 text-center text-sm">
-                <Link data-track="lesson-id-view-the-full-course-outline" href={`/courses/${view.course.slug}`} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+                <Link data-track="lesson-id-view-the-full-course-outline" href={`/courses/${view.course.slug}`} className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
                   View the full course outline
                 </Link>
               </p>

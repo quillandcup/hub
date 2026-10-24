@@ -179,7 +179,7 @@ export default async function PrickleInsightsPage({
                 max={today}
                 className="border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
-              <span className="text-slate-500">to</span>
+              <span className="text-slate-600 dark:text-slate-400">to</span>
               <input
                 type="date"
                 name="to"
@@ -198,7 +198,7 @@ export default async function PrickleInsightsPage({
         </div>
 
         {stats.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-600 dark:text-slate-400">
             No prickle data found
             {(from || to) && (
               <span>

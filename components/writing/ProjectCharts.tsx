@@ -77,7 +77,7 @@ export default function ProjectCharts({ entries }: ProjectChartsProps) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Stats</h2>
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Stats</h2>
         {measuresWithEntries.length > 1 && (
           <select
             value={activeMeasure}
@@ -126,7 +126,7 @@ export default function ProjectCharts({ entries }: ProjectChartsProps) {
             </div>
           ))}
         </div>
-        <p className="text-xs text-slate-400 mt-2">Last {HEATMAP_WEEKS} weeks</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Last {HEATMAP_WEEKS} weeks</p>
       </div>
     </div>
   );

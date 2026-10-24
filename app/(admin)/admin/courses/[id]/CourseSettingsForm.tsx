@@ -90,7 +90,7 @@ export default function CourseSettingsForm({
           {message.text}
         </p>
       )}
-      <p className="basis-full text-xs text-slate-500 dark:text-slate-400">
+      <p className="basis-full text-xs text-slate-600 dark:text-slate-400">
         Anyone who bought before the opening date gets access starting that day, and their access length runs from then.
       </p>
     </form>

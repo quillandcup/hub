@@ -142,7 +142,7 @@ export default async function OutreachPage() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               No leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo; yet.
             </div>
           ) : (

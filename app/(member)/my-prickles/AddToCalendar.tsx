@@ -134,7 +134,7 @@ export function AddPrickleToCalendar({
           aria-label={triggerLabel}
           title={added ? "In your calendar" : "Add to my calendar"}
           className={`p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 ${
-            added ? "text-plum-600 dark:text-plum-400" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            added ? "text-plum-600 dark:text-plum-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           }`}
         >
           <CalendarGlyph added={added} />
@@ -173,7 +173,7 @@ export function AddPrickleToCalendar({
           >
             <CheckMark on={added} />
             <span>
-              Just this one <span className="text-slate-500 dark:text-slate-400">· {nextLabel}</span>
+              Just this one <span className="text-slate-600 dark:text-slate-400">· {nextLabel}</span>
             </span>
           </button>
           <button
@@ -188,7 +188,7 @@ export function AddPrickleToCalendar({
             <CheckMark on={!!shown.weeklyItemId} />
             <span>Every week</span>
           </button>
-          <p className="px-2 pt-1.5 pb-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 mt-1">
+          <p className="px-2 pt-1.5 pb-1 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 mt-1">
             Shows up in your synced calendar.{" "}
             <Link data-track="add-to-calendar-sync-setup" href={SYNC_HINT_HREF} className="text-plum-600 dark:text-plum-400 hover:underline">
               Set up sync
@@ -234,7 +234,7 @@ export function AddEventToCalendar({ eventId, itemId: savedItemId }: { eventId: 
           <CalendarGlyph added={!!itemId} />
           {itemId ? "In my calendar · Remove" : "Add to my calendar"}
         </button>
-        <Link data-track="add-to-calendar-sync-hint" href={SYNC_HINT_HREF} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">
+        <Link data-track="add-to-calendar-sync-hint" href={SYNC_HINT_HREF} className="text-xs text-slate-600 dark:text-slate-400 hover:underline">
           Set up calendar sync
         </Link>
       </div>

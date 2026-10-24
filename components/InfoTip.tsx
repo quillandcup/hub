@@ -7,7 +7,7 @@ export function InfoTip({ children, label = "More info" }: { children: ReactNode
       <button
         type="button"
         aria-label={label}
-        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
+        className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path

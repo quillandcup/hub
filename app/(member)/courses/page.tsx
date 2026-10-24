@@ -15,7 +15,7 @@ export default async function CoursesPage() {
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
       <h1 className="mb-2 text-3xl font-bold">Courses</h1>
-      <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-8 text-sm text-slate-600 dark:text-slate-400">
         Your courses, with where you are in each one.
       </p>
 
@@ -88,7 +88,7 @@ export default async function CoursesPage() {
                         >
                           <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
                         </div>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                           {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
                         </p>
                         <Link data-track="courses-start-course"
