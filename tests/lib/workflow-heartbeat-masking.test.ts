@@ -51,3 +51,11 @@ describe("workflow steps masking CHECKLY_HEARTBEAT_* values", () => {
     expect(unmaskedHeartbeats([{ run, env }])).toEqual([]);
   });
 });
+
+describe("checkly deploy log redaction", () => {
+  it("pipes the deploy output through a redaction of the ping URLs", () => {
+    const wf = parse(fs.readFileSync(path.join(process.cwd(), ".github/workflows/checkly.yml"), "utf8")) as Workflow;
+    const deploy = (wf.jobs?.["checkly-deploy"]?.steps ?? []).find((s) => (s.run ?? "").includes("checkly deploy"));
+    expect(deploy?.run).toMatch(/checkly deploy[^|]*\|\s*sed .*ping\\\.checklyhq\\\.com/);
+  });
+});

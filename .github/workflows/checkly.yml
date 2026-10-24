@@ -68,7 +68,10 @@ jobs:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v6.1.0
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec checkly deploy --force
+      # `checkly deploy` prints each heartbeat's ping URL, and anyone holding one can mark that job
+      # healthy. The logs are public, so redact the secret part of the URL before it reaches them.
+      # (`bash` runs with pipefail, so a failed deploy still fails the step.)
+      - run: pnpm exec checkly deploy --force 2>&1 | sed -E 's#(ping\.checklyhq\.com/)[0-9a-fA-F-]+#\1***#g'
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
