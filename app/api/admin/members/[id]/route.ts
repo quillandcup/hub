@@ -4,6 +4,7 @@ import { createKajabiClient } from "@/lib/kajabi/client";
 import { refreshKajabiContactInBronze } from "@/lib/kajabi/contact-refresh";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -52,6 +53,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!trimmed) return NextResponse.json({ error: "Name can't be empty" }, { status: 400 });
 
     if (trimmed !== member.name) {
+      // Keeping the old name as a pen name must not take it from someone else (the upsert below
+      // would reassign it): check before anything is changed in Kajabi.
+      if (keepOldNameAsPenName) {
+        const checked = await findNameAliasConflict(member.id, member.name);
+        if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 500 });
+        if (checked.conflict && checked.conflict.kind !== "own" && checked.conflict.kind !== "own_inactive") {
+          return NextResponse.json({ error: adminNameAliasConflictMessage(member.name, checked.conflict) }, { status: 409 });
+        }
+      }
+
       if (member.kajabi_id) {
         try {
           await createKajabiClient().updateContact(member.kajabi_id, { name: trimmed });
@@ -79,6 +90,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (typeof newPenName === "string" && newPenName.trim()) {
+    const checked = await findNameAliasConflict(member.id, newPenName.trim());
+    if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 500 });
+    if (checked.conflict) {
+      return NextResponse.json({ error: adminNameAliasConflictMessage(newPenName.trim(), checked.conflict) }, { status: 409 });
+    }
+
     const { error: insertError } = await supabase
       .from("member_name_aliases")
       .insert({ member_id: member.id, alias: newPenName.trim(), source: "admin" });

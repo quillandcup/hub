@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -22,6 +23,20 @@ export async function POST(request: NextRequest) {
         { error: "matches array is required" },
         { status: 400 }
       );
+    }
+
+    // Check every name first (all or nothing): one that is already someone's, or is another
+    // member's real name, would take that member's attendance.
+    const checks = await Promise.all(
+      matches.map((match: any) => findNameAliasConflict(match.memberId, match.zoomName))
+    );
+    const problems: string[] = [];
+    checks.forEach((checked, i) => {
+      if ("error" in checked) problems.push(checked.error);
+      else if (checked.conflict) problems.push(adminNameAliasConflictMessage(matches[i].zoomName, checked.conflict));
+    });
+    if (problems.length > 0) {
+      return NextResponse.json({ error: problems.join(" ") }, { status: 409 });
     }
 
     // Insert aliases
