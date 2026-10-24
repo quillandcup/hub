@@ -16,7 +16,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps<"/help/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const article = loadHelpArticle(slug);
-  return { title: article ? `${article.title} · Help` : "Help" };
+  return { title: article ? `${article.title} · Hedgie Help` : "Hedgie Help" };
 }
 
 export default async function HelpArticlePage({ params }: PageProps<"/help/[slug]">) {
@@ -31,7 +31,7 @@ export default async function HelpArticlePage({ params }: PageProps<"/help/[slug
     <div className="max-w-3xl mx-auto p-6">
       <HelpArticleViewed slug={article.slug} />
       <Link href="/help" className="text-sm text-plum-700 dark:text-plum-300 hover:underline">
-        ← Help
+        ← Hedgie Help
       </Link>
       <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100 font-serif">{article.title}</h1>
       <div className="mt-6">

@@ -80,7 +80,7 @@ export default async function MemberLayout({
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
-          <AppHeader resultsPath="/search" isAdmin={isAdmin}>
+          <AppHeader resultsPath="/search" isAdmin={isAdmin} helpHref="/help">
             <UserMenu
               userEmail={effectiveIdentity.memberName}
               memberId={effectiveIdentity.memberId}

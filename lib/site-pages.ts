@@ -33,7 +33,7 @@ export interface SitePage {
   feature?: FeatureKey;
 }
 
-export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community", "Help"] as const;
+export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community"] as const;
 export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooling, folded by default. */ collapsible?: boolean }[] = [
   { name: "Overview" },
   { name: "Member Programs" },
@@ -96,10 +96,10 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
   member({ title: "Bookshelf", href: "/bookshelf", section: "Community", nav: { icon: "🐚" }, keywords: ["library", "books"] }),
   member({ title: "Events", href: "/events", section: "Community", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
-  member({ title: "Help", href: "/help", section: "Help", nav: { icon: "❓", activeFor: ["/help/"] }, keywords: ["how to", "guide", "support", "docs"] }),
 
-  // Member pages the sidebar doesn't link
+  // Member pages the sidebar doesn't link (Hedgie Help is the question mark in the top bar)
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
+  member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
 
   // Tabs

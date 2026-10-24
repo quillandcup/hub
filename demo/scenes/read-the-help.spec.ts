@@ -4,8 +4,10 @@ import { expect, shot, test } from "../fixtures";
 test("a member opens each help article and sees its screenshots", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
 
-  await page.goto("/help");
-  await expect(page.getByRole("heading", { name: "Help", level: 1 })).toBeVisible();
+  // From the question mark in the top bar, as a member would.
+  await page.goto("/dashboard");
+  await page.getByRole("banner").getByRole("link", { name: "Help" }).click();
+  await expect(page.getByRole("heading", { name: "Hedgie Help", level: 1 })).toBeVisible();
   await shot(page, testInfo, "help-index");
 
   const hrefs = await page.locator('main a[href^="/help/"]').evaluateAll((links) => links.map((a) => a.getAttribute("href") ?? ""));
