@@ -244,12 +244,10 @@ have been checked and fixed, or after a set period with no use; whichever comes 
 Check the `audit_log`/activity feed for recent use before deleting.
 
 ### Refresh Admin Member Pages After Moving Aliases
-After "Move ticked names and emails to ..." in the Split dialog, the source member's
-Identity tab kept showing the moved email for a short while before it disappeared. The
-alias is deleted before the route responds, so this is probably the client router cache
-holding the previous page render rather than the database lagging, but that isn't
-confirmed. If it is, the split and move-aliases routes should `revalidatePath` the source
-member's page (and the target's) so the next visit is fresh.
+**Resolved:** the split and move-aliases routes call `revalidatePath` for the source and
+target members, and `SplitMemberModal` calls `router.refresh()` before navigating (a route
+handler's `revalidatePath` doesn't clear the client router cache). The stale Identity tab
+symptom was never reproduced, so the cache was the suspected cause, not a confirmed one.
 
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation

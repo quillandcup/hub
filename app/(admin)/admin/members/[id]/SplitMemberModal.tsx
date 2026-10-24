@@ -62,6 +62,8 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Move failed");
       onClose();
+      // Drop the cached render of this (source) member's pages before leaving.
+      router.refresh();
       router.push(`/admin/members/${moveTarget.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Move failed");
@@ -94,6 +96,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
         throw new Error(json.error || "Split failed");
       }
       onClose();
+      router.refresh();
       router.push(`/admin/members/${json.memberId}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Split failed");
