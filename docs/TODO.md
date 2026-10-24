@@ -193,7 +193,9 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Add the Tier 1 promotion step (readable prefix, migration, tier list) to the PR checklist.
 
 ### Mask the Checkly Heartbeat Ping URLs in CI Logs
-The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy. CI can print them in deploy logs. Register each with GitHub's log masking (`echo "::add-mask::$VALUE"`) at the top of the steps that use them (`checkly.yml`), so they show as `***`.
+The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy.
+
+**Resolved:** no workflow reads them today (they are Vercel production variables only; `checkly.yml` only gets `CHECKLY_API_KEY`), so there was nothing to mask yet. `tests/lib/workflow-heartbeat-masking.test.ts` now fails if a workflow step uses a `CHECKLY_HEARTBEAT_*` variable without that step or an earlier one registering it with `echo "::add-mask::$VALUE"` (guard with `[ -n "$VALUE" ]` for empty values).
 
 ### Log Member Merges So They Can Be Undone Exactly _(Needs Scheduling)_
 A merge (`POST /api/admin/members/merge`) re-points everything from the absorbed member to
