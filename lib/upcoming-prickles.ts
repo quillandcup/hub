@@ -52,8 +52,6 @@ const BATCH_SIZE = 1000
 // covers "last 2 occurrences" even through a skipped week or two. Shared with
 // the recommendation lookback so one past-prickle fetch serves both.
 const SISTER_LOOKBACK_DAYS = RECOMMENDATION_LOOKBACK_DAYS
-// Prickle IDs per `.in()` filter -- keeps the request URL well under limits.
-const PRICKLE_ID_BATCH = 100
 const HOST_ID_BATCH = 100
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
@@ -88,11 +86,6 @@ async function fetchInChunks<T>(ids: string[], chunkSize: number, fetchChunk: (c
   for (let i = 0; i < ids.length; i += chunkSize) chunks.push(ids.slice(i, i + chunkSize))
   const results = await Promise.all(chunks.map(fetchChunk))
   return results.flat()
-}
-
-function unwrapOne<T>(ref: T | T[] | null | undefined): T | null {
-  if (Array.isArray(ref)) return ref[0] ?? null
-  return ref ?? null
 }
 
 function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string; startHour: number } {
@@ -524,21 +517,9 @@ export async function getRankedUpcomingPrickles(
   // history (for prickle streaks + sister-streak co-attendance), and the
   // recent past prickles (for sister-likely-attending + community
   // recommendation signals), plus this member's active commitments. ----
-  type MyRecord = {
-    prickle_id: string
-    join_time: string
-    prickles: { start_time: string; type_id: string | null; prickle_types: { name: string } | null } | null
-  }
   const [upcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
     fetchPrickles(supabase, windowStart, windowEnd, timeZone, true),
-    fetchAllPaginated<MyRecord>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id, join_time, prickles(start_time, type_id, prickle_types(name))")
-        .eq("member_id", memberId)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     fetchPrickles(supabase, lookbackStart, windowStart, timeZone, false),
     fetchActiveCommitments(supabase, memberId),
     fetchCalendarItems(supabase, memberId),
@@ -548,26 +529,10 @@ export async function getRankedUpcomingPrickles(
   // attended (sister streaks), all attendance on the recent past prickles
   // (slot vibrancy, regulars, recent host punctuality, sister-likely), and
   // all-time hosted counts for the upcoming hosts. ----
-  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickle_id))]
+  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickleId))]
   const upcomingHostIds = [...new Set(upcoming.map((p) => p.hostId).filter((id): id is string => !!id))]
-  type CoRecord = {
-    member_id: string
-    prickle_id: string
-    join_time: string
-    members: { name: string; display_name: string | null } | { name: string; display_name: string | null }[] | null
-  }
   const [coAttendance, pastAttendance, hostedCounts] = await Promise.all([
-    fetchInChunks(myPrickleIds, PRICKLE_ID_BATCH, (chunk) =>
-      fetchAllPaginated<CoRecord>((offset) =>
-        supabase
-          .from("prickle_attendance")
-          .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
-          .in("prickle_id", chunk)
-          .neq("member_id", memberId)
-          .order("id")
-          .range(offset, offset + BATCH_SIZE - 1)
-      )
-    ),
+    createRepos(supabase).attendance.coAttendees(memberId, myPrickleIds),
     upcoming.length > 0 ? fetchAttendanceForPrickles(supabase, pastPrickles.map((p) => p.id)) : Promise.resolve([]),
     fetchHostedCounts(supabase, upcomingHostIds, windowStart),
   ])
@@ -576,11 +541,11 @@ export async function getRankedUpcomingPrickles(
   // does this member currently have an active streak on? ----
   const prickleStreaks: PrickleStreak[] = computePrickleStreaks(
     myAttendance
-      .filter((r) => r.prickles?.prickle_types?.name && r.prickles?.start_time)
+      .filter((r) => r.prickle?.type?.name && r.prickle?.startTime)
       .map((r) => ({
-        prickleTypeName: r.prickles!.prickle_types!.name,
-        joinTime: r.join_time,
-        prickleStartTime: r.prickles!.start_time,
+        prickleTypeName: r.prickle!.type!.name,
+        joinTime: r.joinTime,
+        prickleStartTime: r.prickle!.startTime,
       })),
     now,
     timeZone
@@ -597,16 +562,13 @@ export async function getRankedUpcomingPrickles(
 
   // ---- Sister streaks: members with an active co-attendance streak. ----
   const sisterStreaks: SisterStreak[] = computeSisterStreaks(
-    myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
-    coAttendance.map((r) => {
-      const member = unwrapOne(r.members)
-      return {
-        memberId: r.member_id,
-        memberName: member ? getMemberDisplayName(member) : "Unknown",
-        prickleId: r.prickle_id,
-        joinTime: r.join_time,
-      }
-    }),
+    myAttendance.map((r) => ({ prickleId: r.prickleId, joinTime: r.joinTime })),
+    coAttendance.map((r) => ({
+      memberId: r.memberId,
+      memberName: r.name ? getMemberDisplayName({ name: r.name, display_name: r.displayName }) : "Unknown",
+      prickleId: r.prickleId,
+      joinTime: r.joinTime,
+    })),
     now,
     timeZone
   )
@@ -702,14 +664,14 @@ export async function getRankedUpcomingPrickles(
       candidates.set(p.id, { id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.startTime })
     }
     for (const r of myAttendance) {
-      if (!r.prickles || candidates.has(r.prickle_id)) continue
-      const { start_time, type_id } = r.prickles
-      candidates.set(r.prickle_id, { id: r.prickle_id, typeId: type_id, startTime: start_time, endTime: start_time })
+      if (!r.prickle || candidates.has(r.prickleId)) continue
+      const { startTime, typeId } = r.prickle
+      candidates.set(r.prickleId, { id: r.prickleId, typeId, startTime, endTime: startTime })
     }
     commitmentByPrickleId = computeCommitmentSignals(
       commitments,
       [...candidates.values()],
-      new Set(myAttendance.map((r) => r.prickle_id)),
+      new Set(myAttendance.map((r) => r.prickleId)),
       now
     )
   }

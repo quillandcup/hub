@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { attendeeRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -78,18 +80,8 @@ export default async function AdminPrickleDetailPage({
     );
   }
 
-  const { data: attendanceRecords } = await supabase
-    .from("prickle_attendance")
-    .select(`
-      id,
-      join_time,
-      leave_time,
-      confidence_score,
-      member_id,
-      members!inner(id, name, email)
-    `)
-    .eq("prickle_id", id)
-    .order("join_time", { ascending: true });
+  const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: true });
+  const attendanceRecords = attendeeList.map(attendeeRow);
 
   const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
   const hostId = host?.id;
@@ -98,7 +90,7 @@ export default async function AdminPrickleDetailPage({
 
   if (hostId) {
     // Records are ordered by join_time, so the first match is the host's earliest join.
-    const hostAttendance = attendanceRecords?.find((a: any) => a.member_id === hostId);
+    const hostAttendance = attendanceRecords.find((a) => a.member_id === hostId);
     const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
     hostMissing = hostStatus === "missing";
     hostLate = hostStatus === "late";
@@ -175,7 +167,7 @@ export default async function AdminPrickleDetailPage({
         <div className="max-w-4xl mx-auto space-y-6">
           <PrickleDetails
             prickle={prickle}
-            attendanceRecords={attendanceRecords || []}
+            attendanceRecords={attendanceRecords}
             hostMissing={hostMissing}
             hostLate={hostLate}
             userTimezonePreference={userTimezone}

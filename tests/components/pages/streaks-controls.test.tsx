@@ -7,7 +7,9 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
+import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -15,6 +17,12 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ from: () => ({ select: () => ({ data: [] }) }) }) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "UTC" }));
+// Attendance comes from its repository: the member's one attendance, with the prickle's type for the shared-prickle link.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 let SISTER = {
   memberId: "member-gale",
@@ -38,14 +46,17 @@ beforeEach(() => {
   SISTER = { ...SISTER, currentStreak: 3 };
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
+  repos = createInMemoryRepos(
+    new InMemoryDataset({
+      prickleTypes: [{ id: "ptyp-1", name: "Morning Writing", normalizedName: "morning-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false }],
+      prickles: [
+        { id: "prickle-1", typeId: "ptyp-1", hostId: null, title: null, startTime: "2026-11-02T15:00:00Z", endTime: "2026-11-02T16:00:00Z", source: "calendar", calendarEventId: null },
+      ],
+      attendance: [{ id: "att-1", memberId: MEMBER_IDENTITY.memberId, prickleId: "prickle-1", joinTime: "2026-11-02T15:00:00Z", leaveTime: "2026-11-02T16:00:00Z" }],
+    }),
+  );
   useFakeSupabase({
     members: { data: { photo_url: null } },
-    // This member's own attendance, with the prickle's details for the shared-prickle link. The
-    // co-attendance query (it excludes the member) has nothing to add: the streak is stubbed.
-    prickle_attendance: (q: FakeQuery) =>
-      q.calls.some((c) => c.method === "neq")
-        ? { data: [] }
-        : { data: [{ prickle_id: "prickle-1", join_time: "2026-11-02T15:00:00Z", prickles: { start_time: "2026-11-02T15:00:00Z", prickle_types: { name: "Morning Writing" } } }] },
     member_directory: () => ({ data: [{ id: "member-gale", photo_url: galePhoto }] }),
   });
 });

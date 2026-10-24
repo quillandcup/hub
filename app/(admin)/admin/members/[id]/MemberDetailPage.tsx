@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { attendedPrickleRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { withMentionNames } from "@/lib/chat/names";
@@ -79,23 +81,7 @@ export default async function MemberDetailPage({
     .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
-  const { data: attendance } = await supabase
-    .from("prickle_attendance")
-    .select(`
-      id,
-      join_time,
-      leave_time,
-      confidence_score,
-      prickles(
-        id,
-        host:members(id, name),
-        start_time,
-        end_time,
-        prickle_types(name)
-      )
-    `)
-    .eq("member_id", id)
-    .order("join_time", { ascending: false });
+  const attendance = (await createRepos(supabase).attendance.forMemberWithPrickles(id)).map(attendedPrickleRow);
 
   // Compute real engagement metrics from member_activities — the mirror of
   // this member's prickle attendance (unbounded, for lastAttendedAt/
@@ -366,7 +352,7 @@ export default async function MemberDetailPage({
           key={tab}
           initialTab={tab}
           member={member}
-          attendanceRecords={attendance || []}
+          attendanceRecords={attendance}
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
           activityFilters={activityFilters}

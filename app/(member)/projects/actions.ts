@@ -154,27 +154,22 @@ async function fetchWritingPrickleAttendance(
   memberId: string,
   timeZone: string
 ): Promise<PrickleAttendanceRow[]> {
-  const { data } = await supabase
-    .from("prickle_attendance")
-    .select("prickles!inner(id, start_time, prickle_types!inner(purpose))")
-    .eq("member_id", memberId)
-    .eq("prickles.prickle_types.purpose", "writing");
+  const attended = await createRepos(supabase).attendance.forMemberWithPrickles(memberId, { purpose: "writing" });
 
-  return ((data ?? []) as any[])
-    .map((r) => {
-      const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-      if (!prickle?.id || !prickle?.start_time) return null;
-      return {
-        prickleId: prickle.id as string,
+  return attended.flatMap((record) => {
+    if (!record.prickle) return [];
+    return [
+      {
+        prickleId: record.prickle.id,
         localDate: new Intl.DateTimeFormat("en-CA", {
           timeZone,
           year: "numeric",
           month: "2-digit",
           day: "2-digit",
-        }).format(new Date(prickle.start_time as string)),
-      };
-    })
-    .filter((r): r is PrickleAttendanceRow => r !== null);
+        }).format(new Date(record.prickle.startTime)),
+      },
+    ];
+  });
 }
 
 export async function getMyProjects(): Promise<WritingProjectRow[]> {
@@ -987,15 +982,11 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const { supabase, effectiveIdentity } = ctx;
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
-  const [{ data: attendance }, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
-    supabase
-      .from("prickle_attendance")
-      .select(
-        "prickle_id, prickles!inner(id, start_time, host:prickle_host(name), prickle_types!inner(name, purpose))"
-      )
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("prickles.prickle_types.purpose", "writing")
-      .gte("prickles.start_time", since),
+  const [attendance, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
+    createRepos(supabase).attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
+      purpose: "writing",
+      prickleStartedSince: since,
+    }),
     supabase
       .from("writing_progress_entries")
       .select("prickle_id")
@@ -1011,7 +1002,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   ]);
 
   // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
-  const attendedIds = ((attendance ?? []) as unknown as { prickle_id: string }[]).map((a) => a.prickle_id);
+  const attendedIds = attendance.map((a) => a.prickleId);
   const { data: checkins } =
     attendedIds.length === 0
       ? { data: [] }
@@ -1029,10 +1020,13 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();
-  for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
-    const p = one(row.prickles);
+  for (const { prickle: p } of attendance) {
     if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
-    byId.set(p.id, { id: p.id, label: labelForPrickle(p, timeZone), startTime: p.start_time, attended: true });
+    const label = formatPrickleLabel(
+      { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host?.name ?? null },
+      timeZone
+    );
+    byId.set(p.id, { id: p.id, label, startTime: p.startTime, attended: true });
   }
   return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
 }

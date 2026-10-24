@@ -1,8 +1,8 @@
 import type { AttendanceRow } from "./attendance";
 import type { Prickle, PrickleType } from "./prickles";
 
-/** A member as the in-memory repositories need them: names for hosts and attendees. */
-export type MemberSeed = { id: string; name: string; displayName?: string | null };
+/** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
+export type MemberSeed = { id: string; name: string; displayName?: string | null; email?: string | null };
 
 /**
  * The typed tables behind the in-memory repositories. Joins (a prickle's type and host, an

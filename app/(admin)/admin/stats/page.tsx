@@ -15,6 +15,8 @@ import {
   type AttRow,
 } from "@/lib/community-stats"
 import { requireAdminPage } from "@/lib/admin-auth"
+import { createRepos } from "@/lib/data/repos"
+import { statsAttendanceRow } from "@/lib/attendance-view"
 
 export const metadata: Metadata = {
   title: "Community Stats",
@@ -64,27 +66,9 @@ async function fetchAllAttendance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   since: string,
   until: string
-) {
-  const rows: AttRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id, prickle_id, join_time, leave_time, members(name)")
-      .gte("join_time", since)
-      .lte("join_time", until)
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as AttRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
+): Promise<AttRow[]> {
+  const records = await createRepos(supabase).attendance.attendeesJoinedBetween(since, until)
+  return records.map(statsAttendanceRow)
 }
 
 function StatCard({
