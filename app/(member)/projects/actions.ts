@@ -30,7 +30,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
+import { CHECKIN_COLUMNS, checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
 import {
   formatPrickleLabel,
   localDateOf,
@@ -1017,7 +1017,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
       ? { data: [] }
       : await supabase
           .from("prickle_checkins")
-          .select("prickle_id, feelings_before, need, session_rating, feelings_after")
+          .select(`prickle_id, ${CHECKIN_COLUMNS}`)
           .eq("member_id", effectiveIdentity.memberId)
           .in("prickle_id", attendedIds)
           .is("deleted_at", null);

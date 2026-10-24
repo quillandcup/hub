@@ -30,11 +30,11 @@ export const maxDuration = 60;
  * Prickle check-in and check-out DMs, both to members with an active writing goal (any measure);
  * answers save to their check-in (lib/prickle-checkin-dms.ts). Each tick:
  * - Check-ins: ~15-30 min before an upcoming writing prickle on the member's calendar feed
- *   (hosting, a commitment, or added by hand), how they're feeling coming in and what they need.
+ *   (hosting, a commitment, or added by hand), how they're feeling coming in and their intention for it.
  *   See planCheckinDMs.
  * - Check-outs: 5 minutes after a writing prickle ends, or 10 minutes after an early leaver
  *   leaves, from live Zoom presence; failing that, once its attendance is imported (after the
- *   Zoom meeting ends). How it went, how they feel now, and progress. See sendCheckoutDMs.
+ *   Zoom meeting ends). Did they get what they came for, mood, the feeling, and progress. See sendCheckoutDMs.
  * At most one of each per member per prickle.
  */
 export async function POST(request: NextRequest) {

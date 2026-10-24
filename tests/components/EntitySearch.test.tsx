@@ -17,8 +17,46 @@ describe("EntitySearch", () => {
     const onSelect = vi.fn();
     render(<EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />);
     await userEvent.type(screen.getByPlaceholderText("Search"), "bramble@");
-    await userEvent.click(await screen.findByRole("button", { name: /Bramble Admin/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Bramble Admin/ }));
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
+  });
+
+  it("is a combobox you can drive from the keyboard: arrows move (wrapping), Enter picks", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />);
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "example");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("option", { name: /Fern Quillsby/ })).toHaveAttribute("aria-selected", "true");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: /Fern Quillsby/ }).id);
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(screen.getByRole("option", { name: /Fern Quillsby/ })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("option", { name: /Bramble Admin/ })).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1]);
+  });
+
+  it("picks the only match on Enter, and Escape clears the search without bubbling", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onOuterKey = vi.fn();
+    render(
+      <div onKeyDown={(e) => e.key === "Escape" && onOuterKey()}>
+        <EntitySearch items={ITEMS} selectedId={null} onSelect={onSelect} placeholder="Search" />
+      </div>
+    );
+    const input = screen.getByRole("combobox", { name: "Search" });
+    await user.type(input, "zzz{Escape}");
+    expect(input).toHaveValue("");
+    expect(onOuterKey).not.toHaveBeenCalled();
+
+    await user.type(input, "fern{Enter}");
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0]);
   });
 
   it("leaves no close timer pending once it unmounts after a blur", () => {
@@ -57,7 +95,7 @@ describe("wrappers feed it their own data", () => {
     const onSelect = vi.fn();
     render(<MemberSearch members={members} selectedMemberId={null} onSelect={onSelect} placeholder="Members" />);
     await userEvent.type(screen.getByPlaceholderText("Members"), "fern");
-    await userEvent.click(await screen.findByRole("button", { name: /Fern Quillsby/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Fern Quillsby/ }));
     expect(onSelect).toHaveBeenCalledWith(members[0]);
   });
 
@@ -67,7 +105,7 @@ describe("wrappers feed it their own data", () => {
     render(<StaffSearch staff={staff} selectedUserId={null} onSelect={onSelect} placeholder="Staff" />);
     await userEvent.type(screen.getByPlaceholderText("Staff"), "bram");
     expect(await screen.findByText("bramble@example.test · admin")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Bramble Admin/ }));
+    await userEvent.click(screen.getByRole("option", { name: /Bramble Admin/ }));
     expect(onSelect).toHaveBeenCalledWith(staff[0]);
   });
 });

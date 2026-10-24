@@ -94,7 +94,7 @@ describe("searchSuggestions", () => {
       { priority: 1, prickle: { id: "p1", typeName: "Morning Writing", startTime: soon } },
       { priority: 1, prickle: { id: "p2", typeName: "Answered", startTime: soon } },
     ]);
-    getMyCheckins.mockResolvedValue({ p2: { feelingsBefore: ["calm"], need: "momentum", sessionRating: null, feelingsAfter: [] } });
+    getMyCheckins.mockResolvedValue({ p2: { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "momentum", intentionMet: null, pleasantAfter: null, energyAfter: null, emotionAfter: null } });
     getUnloggedRecentPrickles.mockResolvedValue([{ id: "p9", label: "Sunday Sprint", startTime: "x", attended: true }]);
     getSearcher.mockResolvedValue(searcher());
     const { needsAttention } = await searchSuggestions();

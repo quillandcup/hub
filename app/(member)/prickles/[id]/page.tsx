@@ -66,7 +66,7 @@ export default async function PrickleDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ feel?: string | string[]; need?: string | string[] }>;
+  searchParams?: Promise<{ pleasant?: string | string[]; energy?: string | string[]; emotion?: string | string[]; need?: string | string[] }>;
 }) {
   const { id } = await params;
   // "Coming in" answers carried from Find a Prickle, to pre-fill an unsaved check-in.

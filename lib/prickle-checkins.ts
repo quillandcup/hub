@@ -1,63 +1,165 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Prickle check-ins: how a member felt coming into a prickle, what they needed from it, and how
- * it went. One row per (member, prickle) in prickle_checkins (migration 20261003000000, trimmed by 20261005000000),
- * readable by the member and admins, never hosts or other members. Clearing every answer
- * soft-deletes the row (deleted_at), so every read filters `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but adding,
- * removing or renaming a key needs a migration (the table's CHECKs list the same keys --
- * tests/lib/prickle-checkins.test.ts fails if they drift).
+ * Prickle check-ins: how a member feels coming into a prickle and leaving it, what they came for,
+ * and whether they got it. One row per (member, prickle) in prickle_checkins (migration
+ * 20261003000000, reshaped by 20261218000000), readable by the member and admins, never hosts or
+ * other members. Clearing every answer soft-deletes the row (deleted_at), so every read filters
+ * `deleted_at IS NULL`. The keys below are what's stored; labels can be reworded freely, but
+ * adding, removing or renaming a key needs a migration (the table's CHECKs list the same keys --
+ * tests/lib/prickle-checkins.test.ts fails if they drift). Why these questions: docs/CHECKINS.md.
  */
+
+/** A labeled point on a 1-5 scale. Every point is labeled: that's what makes the answers comparable. */
+export interface ScalePoint {
+  value: number;
+  label: string;
+}
 
 /**
- * Energy x pleasantness groups. Never stored: derived from the feeling via FEELING_GROUP, so
- * regrouping applies to past check-ins too. Recommendations pool by group until a single
- * feeling has enough data; the UI only uses groups to space the options, without naming them.
+ * Mood, measured on the two axes of the circumplex model of affect (Russell, 1980): how good or
+ * bad you feel (pleasantness, or valence) and how much energy you have (arousal). The same
+ * questions before and after a prickle, so the difference is the session's effect on mood.
+ * Pleasantness is asked in everyday words, "very bad" to "very good", the anchors of the Feeling
+ * Scale (Hardy & Rejeski, 1989), a single-item valence measure; see docs/CHECKINS.md.
  */
-export type FeelingGroup = "charged_up" | "steady" | "running_low" | "wound_up";
+export const PLEASANTNESS: readonly ScalePoint[] = [
+  { value: 1, label: "Very bad" },
+  { value: 2, label: "Bad" },
+  { value: 3, label: "Okay" },
+  { value: 4, label: "Good" },
+  { value: 5, label: "Very good" },
+];
 
-export const FEELINGS = [
-  { key: "motivated", label: "Motivated", group: "charged_up" },
-  { key: "calm", label: "Calm", group: "steady" },
-  { key: "content", label: "Content", group: "steady" },
-  { key: "tired", label: "Tired", group: "running_low" },
-  { key: "meh", label: "Meh / unmotivated", group: "running_low" },
-  { key: "stressed", label: "Stressed", group: "wound_up" },
-  { key: "anxious", label: "Anxious", group: "wound_up" },
-  { key: "overwhelmed", label: "Overwhelmed", group: "wound_up" },
-  { key: "frustrated", label: "Frustrated", group: "wound_up" },
-  // Don't fit the energy/pleasantness grid, so they never pool: each is a signal on its own
-  // (e.g. lonely points straight at the social prickles).
-  { key: "stuck", label: "Stuck", group: null },
-  { key: "lonely", label: "Lonely", group: null },
-] as const satisfies readonly { key: string; label: string; group: FeelingGroup | null }[];
+export const ENERGY: readonly ScalePoint[] = [
+  { value: 1, label: "Very low" },
+  { value: 2, label: "Low" },
+  { value: 3, label: "Medium" },
+  { value: 4, label: "High" },
+  { value: 5, label: "Very high" },
+];
 
-export type Feeling = (typeof FEELINGS)[number]["key"];
+/** Check-out: "Did you get what you came for?", against the intention chosen at check-in. */
+export const INTENTION_MET: readonly ScalePoint[] = [
+  { value: 1, label: "Not at all" },
+  { value: 2, label: "A little" },
+  { value: 3, label: "Somewhat" },
+  { value: 4, label: "Mostly" },
+  { value: 5, label: "Completely" },
+];
 
-export const FEELING_KEYS: readonly Feeling[] = FEELINGS.map((f) => f.key);
+export const PLEASANTNESS_QUESTION = "Overall, how do you feel?";
+export const ENERGY_QUESTION = "How's your energy?";
+export const INTENTION_MET_QUESTION = "Did you get what you came for?";
+export const EMOTION_QUESTION = "Name the feeling";
 
-export const FEELING_GROUP: Record<Feeling, FeelingGroup | null> = Object.fromEntries(
-  FEELINGS.map((f) => [f.key, f.group])
-) as Record<Feeling, FeelingGroup | null>;
+export const SCALE_MIN = 1;
+export const SCALE_MAX = 5;
 
-/** Feelings in display order, split into their groups (ungrouped ones last, together). */
-export const FEELING_DISPLAY_GROUPS: (typeof FEELINGS)[number][][] = (() => {
-  const groups: (typeof FEELINGS)[number][][] = [];
-  let current: (typeof FEELINGS)[number][] = [];
-  let currentGroup: FeelingGroup | null | undefined;
-  for (const f of FEELINGS) {
-    if (current.length > 0 && f.group !== currentGroup) {
-      groups.push(current);
-      current = [];
-    }
-    current.push(f);
-    currentGroup = f.group;
-  }
-  if (current.length > 0) groups.push(current);
-  return groups;
-})();
+/**
+ * The Feeling Wheel, all three rings: six core feelings (three pleasant, three unpleasant), each
+ * with two rings of related secondary feelings, six in the middle ring and six in the outer one,
+ * in the wheel's own order (clockwise from Mad). In the original each middle-ring segment spans
+ * two outer slots, one named word and one left blank for people's own words (p. 275), so each
+ * middle word has one named outer partner (corePairs) and the picker shows them as pairs. A pick
+ * is a core or one of its twelve feelings (two levels, not three).
+ * Source: Gloria Willcox (1982), "The Feeling Wheel: A Tool for Expanding Awareness of Emotions
+ * and Increasing Spontaneity and Intimacy," Transactional Analysis Journal 12(4), 274-276,
+ * doi:10.1177/036215378201200411. Words checked against the wheel printed in the article (p. 276);
+ * "Sexy" is replaced by "Vibrant", as some reproductions do. Chosen over
+ * research-derived taxonomies for being familiar, balanced and even (docs/CHECKINS.md has the
+ * comparison, sources, and the decision to attribute rather than seek permission).
+ *
+ * It's offered whole, never hand-picked, so every answer rolls up to exactly one core and no
+ * part of the wheel is over- or under-represented. Optional: the mood scales above carry the
+ * measurement; this is for naming the feeling. A member can stop at the core, or search for a
+ * word and land on it directly (EmotionPicker, the Slack select's type-ahead).
+ */
+export const EMOTION_WHEEL = [
+  {
+    key: "mad",
+    label: "Mad",
+    middle: ["hurt", "hostile", "angry", "rage", "hateful", "critical"],
+    outer: ["jealous", "selfish", "frustrated", "furious", "irritated", "skeptical"],
+  },
+  {
+    key: "scared",
+    label: "Scared",
+    middle: ["rejected", "confused", "helpless", "submissive", "insecure", "anxious"],
+    outer: ["bewildered", "discouraged", "insignificant", "weak", "foolish", "embarrassed"],
+  },
+  {
+    key: "joyful",
+    label: "Joyful",
+    middle: ["excited", "vibrant", "energetic", "playful", "creative", "aware"],
+    outer: ["daring", "fascinating", "stimulating", "amused", "extravagant", "delightful"],
+  },
+  {
+    key: "powerful",
+    label: "Powerful",
+    middle: ["proud", "respected", "appreciated", "hopeful", "important", "faithful"],
+    outer: ["cheerful", "satisfied", "valuable", "worthwhile", "intelligent", "confident"],
+  },
+  {
+    key: "peaceful",
+    label: "Peaceful",
+    middle: ["nurturing", "trusting", "loving", "intimate", "thoughtful", "content"],
+    outer: ["thankful", "sentimental", "serene", "responsive", "relaxed", "pensive"],
+  },
+  {
+    key: "sad",
+    label: "Sad",
+    middle: ["sleepy", "bored", "lonely", "depressed", "ashamed", "guilty"],
+    outer: ["apathetic", "inferior", "inadequate", "miserable", "stupid", "bashful"],
+  },
+] as const;
 
-export const MAX_FEELINGS = 2;
+/** How the wheel is credited wherever it's shown. */
+export const EMOTION_WHEEL_CREDIT = "Feeling Wheel by Gloria Willcox (1982)";
+
+type WheelCore = (typeof EMOTION_WHEEL)[number];
+export type EmotionCore = WheelCore["key"];
+export type Emotion = EmotionCore | WheelCore["middle"][number] | WheelCore["outer"][number];
+
+/**
+ * A core's middle-ring feelings, each with the outer-ring feeling beside it on the wheel (the nth
+ * middle word sits next to the nth outer word): [["rage", "furious"], ...].
+ */
+export function corePairs(core: (typeof EMOTION_WHEEL)[number]): readonly (readonly [Emotion, Emotion])[] {
+  return core.middle.map((m, i) => [m, core.outer[i]] as const);
+}
+
+/** A core's twelve feelings, pair by pair: middle, its outer partner, the next middle, ... */
+export function coreFeelings(core: (typeof EMOTION_WHEEL)[number]): readonly Emotion[] {
+  return corePairs(core).flat();
+}
+
+/** Every storable emotion: the cores, then every middle-ring feeling, then every outer one, each in wheel order. */
+export const EMOTION_KEYS: readonly Emotion[] = [
+  ...EMOTION_WHEEL.map((c) => c.key),
+  ...EMOTION_WHEEL.flatMap((c) => c.middle),
+  ...EMOTION_WHEEL.flatMap((c) => c.outer),
+];
+
+/** Each emotion's path from the core: [core] for a core, [core, feeling] otherwise. */
+export const EMOTION_PATH: Record<Emotion, readonly Emotion[]> = Object.fromEntries([
+  ...EMOTION_WHEEL.map((c) => [c.key, [c.key]]),
+  ...EMOTION_WHEEL.flatMap((c) => coreFeelings(c).map((f) => [f, [c.key, f]])),
+]) as Record<Emotion, readonly Emotion[]>;
+
+/** The core each emotion rolls up to (a core rolls up to itself). */
+export const EMOTION_CORE: Record<Emotion, EmotionCore> = Object.fromEntries(
+  EMOTION_KEYS.map((e) => [e, EMOTION_PATH[e][0]])
+) as Record<Emotion, EmotionCore>;
+
+export function emotionLabel(emotion: Emotion): string {
+  return emotion.charAt(0).toUpperCase() + emotion.slice(1);
+}
+
+/** Where an emotion sits on the wheel: its core, e.g. "Mad" for furious; empty for a core. */
+export function emotionParentsLabel(emotion: Emotion): string {
+  return EMOTION_PATH[emotion].slice(0, -1).map(emotionLabel).join(" › ");
+}
 
 export const NEEDS = [
   { key: "momentum", label: "Momentum", hint: "Get words down" },
@@ -83,19 +185,13 @@ export const NEED_VIBE: Record<Need, "focused" | "balanced" | "chatty" | null> =
 
 export const NEED_KEYS: readonly Need[] = NEEDS.map((n) => n.key);
 
-export const SESSION_RATINGS = [
-  { value: 1, label: "Rough" },
-  { value: 2, label: "Meh" },
-  { value: 3, label: "OK" },
-  { value: 4, label: "Good" },
-  { value: 5, label: "Great" },
-] as const;
-
 /**
  * A prickle check-in has two halves, asked at different times, in Slack DMs
  * (lib/prickle-checkin-dms.ts) and on the site alike:
- * - Check-in, coming in: how they're feeling (feelingsBefore) and what they need (need).
- * - Check-out, afterwards: how it went (sessionRating) and how they feel now (feelingsAfter).
+ * - Check-in, coming in: mood (pleasantBefore, energyBefore), optionally the feeling named on
+ *   the wheel (emotionBefore), and their intention for the session (need).
+ * - Check-out, afterwards: did they get what they came for (intentionMet), mood again
+ *   (pleasantAfter, energyAfter) and optionally the feeling (emotionAfter).
  * Both are stored on the same prickle_checkins row.
  *
  * On the site, both halves live in the check-in / check-out modal opened from the Attendance
@@ -105,62 +201,120 @@ export const SESSION_RATINGS = [
  * own timing (check-in ~20 min before, check-out 5 min after the end or 10 min after leaving early).
  */
 export interface CheckinInput {
-  feelingsBefore: Feeling[];
+  pleasantBefore: number | null;
+  energyBefore: number | null;
+  emotionBefore: Emotion | null;
   need: Need | null;
-  sessionRating: number | null;
-  feelingsAfter: Feeling[];
+  intentionMet: number | null;
+  pleasantAfter: number | null;
+  energyAfter: number | null;
+  emotionAfter: Emotion | null;
+}
+
+export const EMPTY_CHECKIN: CheckinInput = {
+  pleasantBefore: null,
+  energyBefore: null,
+  emotionBefore: null,
+  need: null,
+  intentionMet: null,
+  pleasantAfter: null,
+  energyAfter: null,
+  emotionAfter: null,
+};
+
+/** Which answers belong to each half, so a half can be saved without touching the other. */
+export const CHECKIN_HALF_FIELDS = {
+  checkin: ["pleasantBefore", "energyBefore", "emotionBefore", "need"],
+  checkout: ["intentionMet", "pleasantAfter", "energyAfter", "emotionAfter"],
+} as const satisfies Record<"checkin" | "checkout", readonly (keyof CheckinInput)[]>;
+
+/** `base` with one half's answers replaced by `answers` (missing ones cleared). */
+export function withHalf(base: CheckinInput, half: "checkin" | "checkout", answers: Partial<CheckinInput>): CheckinInput {
+  const next = { ...base } as Record<keyof CheckinInput, unknown>;
+  for (const field of CHECKIN_HALF_FIELDS[half]) next[field] = answers[field] ?? null;
+  return next as unknown as CheckinInput;
+}
+
+/** One half's answers, e.g. to save just that half. */
+export function halfOf(c: CheckinInput, half: "checkin" | "checkout"): Partial<CheckinInput> {
+  return Object.fromEntries(CHECKIN_HALF_FIELDS[half].map((f) => [f, c[f]]));
 }
 
 export function isEmptyCheckin(c: CheckinInput): boolean {
-  return c.feelingsBefore.length === 0 && c.need === null && c.sessionRating === null && c.feelingsAfter.length === 0;
+  return (Object.keys(EMPTY_CHECKIN) as (keyof CheckinInput)[]).every((k) => c[k] === null);
 }
+
+const SCALE_FIELDS = ["pleasantBefore", "energyBefore", "intentionMet", "pleasantAfter", "energyAfter"] as const;
 
 /** Validates untrusted input (server actions are public POST endpoints); returns an error message or null. */
 export function validateCheckin(input: unknown): string | null {
   if (!input || typeof input !== "object") return "Invalid check-in";
   const c = input as Record<string, unknown>;
-  for (const field of ["feelingsBefore", "feelingsAfter"] as const) {
-    const value = c[field];
-    if (!Array.isArray(value)) return "Invalid feelings";
-    if (value.length > MAX_FEELINGS) return `Pick up to ${MAX_FEELINGS} feelings`;
-    if (new Set(value).size !== value.length) return "Invalid feelings";
-    if (!value.every((v) => (FEELING_KEYS as readonly unknown[]).includes(v))) return "Invalid feelings";
+  for (const field of SCALE_FIELDS) {
+    const v = c[field];
+    if (v !== null && !(typeof v === "number" && Number.isInteger(v) && v >= SCALE_MIN && v <= SCALE_MAX)) {
+      return "Invalid rating";
+    }
   }
-  if (c.need !== null && !(NEED_KEYS as readonly unknown[]).includes(c.need)) return "Invalid need";
-  if (
-    c.sessionRating !== null &&
-    !(typeof c.sessionRating === "number" && Number.isInteger(c.sessionRating) && c.sessionRating >= 1 && c.sessionRating <= 5)
-  ) {
-    return "Invalid rating";
+  for (const field of ["emotionBefore", "emotionAfter"] as const) {
+    if (c[field] !== null && !(EMOTION_KEYS as readonly unknown[]).includes(c[field])) return "Invalid feeling";
   }
+  if (c.need !== null && !(NEED_KEYS as readonly unknown[]).includes(c.need)) return "Invalid intention";
   return null;
 }
 
 /**
- * Whether the check-in half is fully answered. A partly answered check-in is still offered, to
- * finish it (the Slack check-in DM is sent for one too).
+ * Whether the check-in half is answered: mood and intention (naming the feeling is optional). A
+ * partly answered check-in is still offered, to finish it (the Slack check-in DM is sent for one too).
  */
 export function checkinAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.feelingsBefore.length > 0 && saved.need !== null;
+  return !!saved && saved.pleasantBefore !== null && saved.energyBefore !== null && saved.need !== null;
 }
 
-/** Same for the check-out half. */
+/** Same for the check-out half: got what they came for, and mood. */
 export function checkoutAnswered(saved: CheckinInput | null): boolean {
-  return !!saved && saved.sessionRating !== null && saved.feelingsAfter.length > 0;
+  return !!saved && saved.intentionMet !== null && saved.pleasantAfter !== null && saved.energyAfter !== null;
+}
+
+/** The prickle_checkins columns holding the answers, for selects. */
+export const CHECKIN_COLUMNS =
+  "pleasant_before, energy_before, emotion_before, need, intention_met, pleasant_after, energy_after, emotion_after";
+
+export interface CheckinRow {
+  pleasant_before: number | null;
+  energy_before: number | null;
+  emotion_before: string | null;
+  need: string | null;
+  intention_met: number | null;
+  pleasant_after: number | null;
+  energy_after: number | null;
+  emotion_after: string | null;
 }
 
 /** A prickle_checkins row's answers (live rows only: callers filter `deleted_at IS NULL`). */
-export function checkinFromRow(row: {
-  feelings_before: string[] | null;
-  need: string | null;
-  session_rating: number | null;
-  feelings_after: string[] | null;
-}): CheckinInput {
+export function checkinFromRow(row: CheckinRow): CheckinInput {
   return {
-    feelingsBefore: (row.feelings_before ?? []) as Feeling[],
+    pleasantBefore: row.pleasant_before ?? null,
+    energyBefore: row.energy_before ?? null,
+    emotionBefore: (row.emotion_before ?? null) as Emotion | null,
     need: (row.need ?? null) as Need | null,
-    sessionRating: row.session_rating ?? null,
-    feelingsAfter: (row.feelings_after ?? []) as Feeling[],
+    intentionMet: row.intention_met ?? null,
+    pleasantAfter: row.pleasant_after ?? null,
+    energyAfter: row.energy_after ?? null,
+    emotionAfter: (row.emotion_after ?? null) as Emotion | null,
+  };
+}
+
+export function checkinToRow(c: CheckinInput): CheckinRow {
+  return {
+    pleasant_before: c.pleasantBefore,
+    energy_before: c.energyBefore,
+    emotion_before: c.emotionBefore,
+    need: c.need,
+    intention_met: c.intentionMet,
+    pleasant_after: c.pleasantAfter,
+    energy_after: c.energyAfter,
+    emotion_after: c.emotionAfter,
   };
 }
 
@@ -190,10 +344,7 @@ export async function writeCheckin(
     {
       member_id: memberId,
       prickle_id: prickleId,
-      feelings_before: checkin.feelingsBefore,
-      need: checkin.need,
-      session_rating: checkin.sessionRating,
-      feelings_after: checkin.feelingsAfter,
+      ...checkinToRow(checkin),
       saved_via: via,
       deleted_at: null,
     },
@@ -202,27 +353,26 @@ export async function writeCheckin(
   return error ?? null;
 }
 
-/** Toggles a feeling in a selection capped at MAX_FEELINGS; at the cap, a new pick is ignored. */
-export function toggleFeeling(selected: Feeling[], feeling: Feeling): Feeling[] {
-  if (selected.includes(feeling)) return selected.filter((f) => f !== feeling);
-  if (selected.length >= MAX_FEELINGS) return selected;
-  return [...selected, feeling];
+/** The "coming in" answers Find a Prickle carries to a prickle's check-in, so it starts pre-filled. */
+export type CheckinPrefill = Pick<CheckinInput, "pleasantBefore" | "energyBefore" | "emotionBefore" | "need">;
+
+function prefillParams(prefill: Partial<CheckinPrefill>): URLSearchParams {
+  const params = new URLSearchParams();
+  if (prefill.pleasantBefore) params.set("pleasant", String(prefill.pleasantBefore));
+  if (prefill.energyBefore) params.set("energy", String(prefill.energyBefore));
+  if (prefill.emotionBefore) params.set("emotion", prefill.emotionBefore);
+  if (prefill.need) params.set("need", prefill.need);
+  return params;
 }
 
 /**
  * Where a member checks in or out of a prickle: its row on My Prickles' Attendance History, with
  * the check-in / check-out modal open. Slack DMs, notifications and the prickle page link here.
- * `feelings` / `need` carry "coming in" answers (e.g. from Find a Prickle) to pre-fill the check-in.
+ * `prefill` carries "coming in" answers (e.g. from Find a Prickle) to pre-fill the check-in.
  */
-export function checkinHref(
-  prickleId: string,
-  half: "checkin" | "checkout",
-  feelings: Feeling[] = [],
-  need: Need | null = null
-): string {
+export function checkinHref(prickleId: string, half: "checkin" | "checkout", prefill: Partial<CheckinPrefill> = {}): string {
   const params = new URLSearchParams({ [half]: prickleId });
-  if (feelings.length > 0) params.set("feel", feelings.join(","));
-  if (need) params.set("need", need);
+  for (const [k, v] of prefillParams(prefill)) params.set(k, v);
   return `/my-prickles/history?${params.toString()}`;
 }
 
@@ -231,28 +381,29 @@ export function checkinHref(
  * them on to its check-in link (checkinHref), so the check-in starts pre-filled. Nothing is saved
  * until the member saves.
  */
-export function prickleHref(prickleId: string, feelings: Feeling[], need: Need | null): string {
-  const params = new URLSearchParams();
-  if (feelings.length > 0) params.set("feel", feelings.join(","));
-  if (need) params.set("need", need);
-  const query = params.toString();
+export function prickleHref(prickleId: string, prefill: Partial<CheckinPrefill>): string {
+  const query = prefillParams(prefill).toString();
   return `/prickles/${prickleId}${query ? `?${query}` : ""}`;
 }
 
-/**
- * Reads prickleHref's query back into a check-in prefill. Unknown keys are dropped and feelings
- * capped at MAX_FEELINGS; null when nothing usable is left.
- */
-export function parseCheckinPrefill(params: {
-  feel?: string | string[];
-  need?: string | string[];
-}): CheckinInput | null {
-  const feelRaw = Array.isArray(params.feel) ? params.feel[0] : params.feel;
-  const needRaw = Array.isArray(params.need) ? params.need[0] : params.need;
-  const feelings = [...new Set((feelRaw ?? "").split(","))]
-    .filter((f): f is Feeling => (FEELING_KEYS as readonly string[]).includes(f))
-    .slice(0, MAX_FEELINGS);
-  const need = (NEED_KEYS as readonly string[]).includes(needRaw ?? "") ? (needRaw as Need) : null;
-  if (feelings.length === 0 && need === null) return null;
-  return { feelingsBefore: feelings, need, sessionRating: null, feelingsAfter: [] };
+type Param = string | string[] | undefined;
+const first = (p: Param) => (Array.isArray(p) ? p[0] : p);
+
+function scaleParam(p: Param): number | null {
+  const n = Number(first(p));
+  return Number.isInteger(n) && n >= SCALE_MIN && n <= SCALE_MAX ? n : null;
+}
+
+/** Reads prickleHref's query back into a check-in prefill. Invalid values are dropped; null when nothing usable is left. */
+export function parseCheckinPrefill(params: { pleasant?: Param; energy?: Param; emotion?: Param; need?: Param }): CheckinInput | null {
+  const emotionRaw = first(params.emotion) ?? "";
+  const needRaw = first(params.need) ?? "";
+  const prefill: CheckinPrefill = {
+    pleasantBefore: scaleParam(params.pleasant),
+    energyBefore: scaleParam(params.energy),
+    emotionBefore: (EMOTION_KEYS as readonly string[]).includes(emotionRaw) ? (emotionRaw as Emotion) : null,
+    need: (NEED_KEYS as readonly string[]).includes(needRaw) ? (needRaw as Need) : null,
+  };
+  if (Object.values(prefill).every((v) => v === null)) return null;
+  return { ...EMPTY_CHECKIN, ...prefill };
 }

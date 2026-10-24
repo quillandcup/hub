@@ -1,6 +1,6 @@
 import { buildAttendanceMap, getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { FEELING_GROUP, type Feeling, type Need } from "@/lib/prickle-checkins";
+import { EMOTION_CORE, type Emotion, type Need } from "@/lib/prickle-checkins";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,12 +49,25 @@ export interface HostVibeRow {
   notes: string | null;
 }
 
-/** One of the member's own rated check-ins, keyed to the prickle series it was for. */
+/**
+ * One of the member's own checked-out check-ins, keyed to the prickle series it was for: how they
+ * came in, and whether they got what they came for (intentionMet, 1-5) -- the outcome the picker
+ * learns from.
+ */
 export interface PersonalCheckin {
   seriesKey: string;
-  feelingsBefore: Feeling[];
+  pleasantBefore: number | null;
+  energyBefore: number | null;
+  emotionBefore: Emotion | null;
   need: Need | null;
-  sessionRating: number;
+  intentionMet: number;
+}
+
+/** How the member feels coming in, from Find a Prickle's "How are you feeling?" step; null = didn't say. */
+export interface MoodNow {
+  pleasant: number | null;
+  energy: number | null;
+  emotion: Emotion | null;
 }
 
 export interface PickerAnswers {
@@ -74,8 +87,8 @@ export interface PickerAnswers {
   withMemberIds: string[];
   /** IANA timezone used only for time-of-day bucketing */
   timezone: string;
-  /** How the member feels coming in (up to 2); empty = didn't say. */
-  feelings?: Feeling[];
+  /** How the member feels coming in; omitted = didn't say. */
+  mood?: MoodNow;
   /** What they need from the session; null = didn't say. */
   need?: Need | null;
 }
@@ -95,8 +108,8 @@ export interface PickerRecommendation {
   sessionCount: number;
   coAttendanceRate: number | null;
   /**
-   * The member's own ratings of this series from times they felt similar (see
-   * similarCheckins), or null when there are fewer than MIN_PERSONAL_SESSIONS of them.
+   * How well this series met the member's intention (intention_met, 1-5) at times they came in
+   * similar (see similarCheckins), or null when there are fewer than MIN_PERSONAL_SESSIONS of them.
    */
   personal: { sessions: number; avgRating: number } | null;
   /**
@@ -120,10 +133,10 @@ export const INFERRED_VIBE_THRESHOLDS = { focusedMax: 3, chattyMin: 8 };
 
 const WEIGHT_CO_ATTENDANCE = 3;
 const WEIGHT_VIBE = 1.5;
-// Per rating point above (or below) the member's own average rating, so a series they rate a
-// full point higher than usual when feeling like this outweighs a tagged vibe match.
+// Per point above (or below) the member's own average "got what I came for", so a series that
+// serves them a full point better than usual when feeling like this outweighs a tagged vibe match.
 const WEIGHT_PERSONAL = 2;
-/** Similar rated sessions needed before a series' personal history counts at all. */
+/** Similar checked-out sessions needed before a series' personal history counts at all. */
 export const MIN_PERSONAL_SESSIONS = 2;
 
 /** How far back the picker looks at attendance and hosting (and so which prickle types a host
@@ -221,22 +234,29 @@ function scoreConfidence(sessionCount: number): number {
   return Math.min(sessionCount, 10) * 0.02;
 }
 
+/** How far apart two moods can be on each 1-5 axis and still count as feeling alike. */
+export const SIMILAR_MOOD_DISTANCE = 1;
+
 /**
- * The member's check-ins from times they felt like they do now: the same need, or a feeling in
- * the same group (an ungrouped feeling only matches itself). With no feelings or need given,
- * every check-in counts.
+ * The member's check-ins from times they came in like they are now: the same intention, a mood
+ * within SIMILAR_MOOD_DISTANCE on both axes, or a feeling from the same core of the Feeling Wheel (EMOTION_CORE).
+ * With nothing given, every check-in counts.
  */
-export function similarCheckins(
-  checkins: PersonalCheckin[],
-  feelings: Feeling[],
-  need: Need | null
-): PersonalCheckin[] {
-  if (feelings.length === 0 && need === null) return checkins;
-  const groups = new Set(feelings.map((f) => FEELING_GROUP[f]).filter((g) => g !== null));
+export function similarCheckins(checkins: PersonalCheckin[], mood: MoodNow | null, need: Need | null): PersonalCheckin[] {
+  const pleasant = mood?.pleasant ?? null;
+  const energy = mood?.energy ?? null;
+  const core = mood?.emotion ? EMOTION_CORE[mood.emotion] : null;
+  const hasMood = pleasant !== null && energy !== null;
+  if (!hasMood && core === null && need === null) return checkins;
   return checkins.filter(
     (c) =>
       (need !== null && c.need === need) ||
-      c.feelingsBefore.some((f) => feelings.includes(f) || (FEELING_GROUP[f] !== null && groups.has(FEELING_GROUP[f])))
+      (hasMood &&
+        c.pleasantBefore !== null &&
+        c.energyBefore !== null &&
+        Math.abs(c.pleasantBefore - pleasant) <= SIMILAR_MOOD_DISTANCE &&
+        Math.abs(c.energyBefore - energy) <= SIMILAR_MOOD_DISTANCE) ||
+      (core !== null && c.emotionBefore !== null && EMOTION_CORE[c.emotionBefore] === core)
   );
 }
 
@@ -287,14 +307,14 @@ export function getPrickleRecommendations(
   const withMemberIds = new Set(answers.withMemberIds);
   const recommendations: PickerRecommendation[] = [];
 
-  // Personal history is relative to the member's own average rating, so someone who rates
-  // everything "Good" and someone who rates everything "OK" are compared to themselves.
+  // Personal history is relative to the member's own average, so someone who always answers
+  // "Mostly" and someone who always answers "Somewhat" are compared to themselves.
   const memberAvgRating =
-    personalCheckins.length > 0 ? mean(personalCheckins.map((c) => c.sessionRating)) : null;
+    personalCheckins.length > 0 ? mean(personalCheckins.map((c) => c.intentionMet)) : null;
   const similarBySeries = new Map<string, number[]>();
-  for (const c of similarCheckins(personalCheckins, answers.feelings ?? [], answers.need ?? null)) {
+  for (const c of similarCheckins(personalCheckins, answers.mood ?? null, answers.need ?? null)) {
     if (!similarBySeries.has(c.seriesKey)) similarBySeries.set(c.seriesKey, []);
-    similarBySeries.get(c.seriesKey)!.push(c.sessionRating);
+    similarBySeries.get(c.seriesKey)!.push(c.intentionMet);
   }
 
   for (const [seriesKey, seriesCandidates] of candidatesBySeries) {

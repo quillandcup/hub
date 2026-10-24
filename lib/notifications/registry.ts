@@ -43,14 +43,14 @@ export const NOTIFICATION_KINDS = [
     id: "prickle_checkin",
     category: "Prickles",
     label: "Prickle check-ins",
-    description: "Sent about 20 minutes before each writing prickle on your calendar: how you're feeling coming in.",
+    description: "Sent about 20 minutes before each writing prickle on your calendar: how you're feeling coming in and what you need from it.",
     defaultChannels: ["slack", "in_app", "web_push"],
   },
   {
     id: "prickle_checkout",
     category: "Prickles",
     label: "Prickle check-outs",
-    description: "Sent after each writing prickle you attended: how it went, and a quick progress log for your goals.",
+    description: "Sent after each writing prickle you attended: did you get what you came for, how you feel now, and a quick progress log for your goals.",
     defaultChannels: ["slack", "in_app", "web_push"],
   },
   {

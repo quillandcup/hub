@@ -2,7 +2,7 @@ import { track } from "@/lib/analytics/client";
 import { templateRoute } from "@/lib/analytics/route";
 
 const INTERACTIVE =
-  'a[href], button, summary, [role="button"], [role="link"], [role="menuitem"], [role="tab"], input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"], select';
+  'a[href], button, summary, [role="button"], [role="link"], [role="menuitem"], [role="tab"], [role="option"], input[type="submit"], input[type="button"], input[type="checkbox"], input[type="radio"], select';
 
 const MAX_LABEL = 40;
 

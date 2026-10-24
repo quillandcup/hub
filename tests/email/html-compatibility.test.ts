@@ -39,7 +39,7 @@ async function buildTemplates(): Promise<EmailTemplate[]> {
   const notifications = await Promise.all(
     NOTIFICATION_KINDS.map(async ({ id }): Promise<EmailTemplate> => {
       const { subject, html } = await renderNotificationEmail(id, {
-        text: "Ready for Morning Writing in ~20 min? Check in: how are you feeling coming in?",
+        text: "Ready for Morning Writing in ~20 min? Check in: how are you feeling, and what do you need from it?",
         url: `${APP_URL}/prickles/00000000-0000-0000-0000-000000000000/checkin`,
         footerLinks: [
           { label: "Notification settings", url: `${APP_URL}/settings/notifications` },

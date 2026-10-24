@@ -5,7 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { checkinFromRow, validateCheckin, writeCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import {
+  CHECKIN_COLUMNS,
+  checkinFromRow,
+  EMPTY_CHECKIN,
+  validateCheckin,
+  withHalf,
+  writeCheckin,
+  type CheckinInput,
+} from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -30,7 +38,7 @@ export async function getMyCheckin(prickleId: string): Promise<CheckinInput | nu
   const supabase = await createClient();
   const { data } = await supabase
     .from("prickle_checkins")
-    .select("feelings_before, need, session_rating, feelings_after")
+    .select(CHECKIN_COLUMNS)
     .eq("member_id", identity.memberId)
     .eq("prickle_id", prickleId)
     .is("deleted_at", null)
@@ -52,7 +60,7 @@ export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
   for (let offset = 0; ; offset += CHECKINS_BATCH) {
     const { data } = await supabase
       .from("prickle_checkins")
-      .select("id, prickle_id, feelings_before, need, session_rating, feelings_after")
+      .select(`id, prickle_id, ${CHECKIN_COLUMNS}`)
       .eq("member_id", identity.memberId)
       .is("deleted_at", null)
       .order("id")
@@ -187,7 +195,7 @@ export async function getCheckinForLogging(
 
 /**
  * Save (or, when every answer is cleared, soft-delete) the signed-in member's check-in for a prickle.
- * Refused in sudo: a check-in is the member's own feelings, so nobody records them on someone's
+ * Refused in sudo: a check-in is the member's own answers, so nobody records them on someone's
  * behalf (RLS also keeps writes owner-only, resolving the member from the session).
  */
 async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<SaveCheckinResult> {
@@ -217,8 +225,8 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
 export type CheckinHalf = "checkin" | "checkout";
 
 /**
- * Saves one half of the check-in (check-in: feelings coming in + need; check-out: rating + feelings
- * after), merged into what's saved now so the other half, answered meanwhile in Slack or another
+ * Saves one half of the check-in (check-in: mood, feeling and intention; check-out: got what they
+ * came for, mood and feeling), merged into what's saved now so the other half, answered meanwhile in Slack or another
  * tab, isn't overwritten.
  */
 async function saveCheckinHalfImpl(
@@ -227,17 +235,8 @@ async function saveCheckinHalfImpl(
   answers: Partial<CheckinInput>
 ): Promise<SaveCheckinResult> {
   if (half !== "checkin" && half !== "checkout") return { error: "Invalid check-in" };
-  const latest = (await getMyCheckin(prickleId)) ?? {
-    feelingsBefore: [],
-    need: null,
-    sessionRating: null,
-    feelingsAfter: [],
-  };
-  const merged: CheckinInput =
-    half === "checkin"
-      ? { ...latest, feelingsBefore: answers.feelingsBefore ?? [], need: answers.need ?? null }
-      : { ...latest, sessionRating: answers.sessionRating ?? null, feelingsAfter: answers.feelingsAfter ?? [] };
-  return saveCheckinImpl(prickleId, merged);
+  const latest = (await getMyCheckin(prickleId)) ?? EMPTY_CHECKIN;
+  return saveCheckinImpl(prickleId, withHalf(latest, half, answers ?? {}));
 }
 
 /** The check-in/out modal lives on My Prickles' history tab; the prickle page shows a summary. */

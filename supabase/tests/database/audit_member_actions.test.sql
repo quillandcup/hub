@@ -135,8 +135,8 @@ VALUES ('00000000-0000-4000-a000-00000000f2d1', '00000000-0000-4000-a000-0000000
 
 SELECT set_config('request.jwt.claims', '', true);
 -- A Slack answer: only the "coming in" half. Then a second answer to the same half, which must not log again.
-INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before, saved_via)
-VALUES ('00000000-0000-4000-a000-00000000f201', '00000000-0000-4000-a000-00000000f2d1', ARRAY['calm'], 'slack');
+INSERT INTO public.prickle_checkins (member_id, prickle_id, emotion_before, saved_via)
+VALUES ('00000000-0000-4000-a000-00000000f201', '00000000-0000-4000-a000-00000000f2d1', 'peaceful', 'slack');
 UPDATE public.prickle_checkins SET need = 'company'
  WHERE member_id = '00000000-0000-4000-a000-00000000f201' AND prickle_id = '00000000-0000-4000-a000-00000000f2d1';
 SELECT is(
@@ -147,7 +147,7 @@ SELECT is(
 );
 
 -- The check-out half, from the web.
-UPDATE public.prickle_checkins SET session_rating = 4, saved_via = 'web'
+UPDATE public.prickle_checkins SET intention_met = 4, saved_via = 'web'
  WHERE member_id = '00000000-0000-4000-a000-00000000f201' AND prickle_id = '00000000-0000-4000-a000-00000000f2d1';
 SELECT is(
   (SELECT string_agg(activity_type || ':' || (data ->> 'via'), ',' ORDER BY activity_type)
@@ -162,7 +162,7 @@ SELECT is(
 );
 SELECT is(
   (SELECT count(*)::int FROM public.member_activities
-    WHERE prickle_id = '00000000-0000-4000-a000-00000000f2d1' AND (data::text LIKE '%calm%' OR data::text LIKE '%company%')),
+    WHERE prickle_id = '00000000-0000-4000-a000-00000000f2d1' AND (data::text LIKE '%peaceful%' OR data::text LIKE '%company%')),
   0,
   'the member''s answers never reach the activity log'
 );
@@ -171,7 +171,7 @@ SELECT is(
 -- past the 10-minute fold window first).
 UPDATE public.member_activities SET occurred_at = now() - interval '1 hour'
  WHERE prickle_id = '00000000-0000-4000-a000-00000000f2d1';
-UPDATE public.prickle_checkins SET feelings_before = ARRAY['tired'], saved_via = 'slack'
+UPDATE public.prickle_checkins SET emotion_before = 'sleepy', saved_via = 'slack'
  WHERE member_id = '00000000-0000-4000-a000-00000000f201' AND prickle_id = '00000000-0000-4000-a000-00000000f2d1';
 UPDATE public.prickle_checkins SET need = 'momentum'
  WHERE member_id = '00000000-0000-4000-a000-00000000f201' AND prickle_id = '00000000-0000-4000-a000-00000000f2d1';

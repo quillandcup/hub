@@ -12,15 +12,13 @@ const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { checkinHref, type CheckinInput } from "@/lib/prickle-checkins";
-import { FeelingPicker, RatingPicker } from "@/components/writing/CheckinFields";
+import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
+import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 
-const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
-
-type Checkout = Pick<CheckinInput, "sessionRating" | "feelingsAfter">;
+type Checkout = Partial<CheckinInput>;
 
 function checkoutOf(c: CheckinInput | null): Checkout {
-  return { sessionRating: c?.sessionRating ?? null, feelingsAfter: c?.feelingsAfter ?? [] };
+  return halfOf(c ?? EMPTY_CHECKIN, "checkout");
 }
 
 interface LogProgressModalProps {
@@ -85,7 +83,7 @@ export default function LogProgressModal({
 
   // The selected prickle's check-out, so logging from anywhere asks how it went. The check-in
   // lives in the check-in modal on Attendance History (linked below). Saved with the entry; hidden in sudo, where nobody
-  // records feelings on a member's behalf.
+  // records answers on a member's behalf.
   const [checkinFor, setCheckinFor] = useState<string | null>(null);
   const [savedCheckout, setSavedCheckout] = useState<Checkout>(checkoutOf(null));
   const [checkoutDraft, setCheckoutDraft] = useState<Checkout>(checkoutOf(null));
@@ -348,17 +346,7 @@ export default function LogProgressModal({
                 Edit check-in ↗
               </Link>
             </div>
-            <RatingPicker
-              label="How did it go?"
-              value={checkoutDraft.sessionRating}
-              onChange={(sessionRating) => updateCheckout({ sessionRating })}
-            />
-            <FeelingPicker
-              label="Feeling now…"
-              selected={checkoutDraft.feelingsAfter}
-              onChange={(feelingsAfter) => updateCheckout({ feelingsAfter })}
-              readOnly={false}
-            />
+            <CheckinHalfFields half="checkout" value={{ ...EMPTY_CHECKIN, ...checkoutDraft }} onChange={updateCheckout} />
           </section>
         )}
 

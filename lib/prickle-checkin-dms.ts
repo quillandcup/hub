@@ -17,24 +17,32 @@ import {
   checkinFromRow,
   checkinHref,
   checkoutAnswered,
-  FEELINGS,
+  CHECKIN_COLUMNS,
+  coreFeelings,
+  EMOTION_QUESTION,
+  EMOTION_WHEEL,
+  emotionLabel,
+  EMPTY_CHECKIN,
+  ENERGY,
+  ENERGY_QUESTION,
+  INTENTION_MET,
+  INTENTION_MET_QUESTION,
   isEmptyCheckin,
-  MAX_FEELINGS,
   NEEDS,
-  SESSION_RATINGS,
+  PLEASANTNESS,
+  PLEASANTNESS_QUESTION,
   validateCheckin,
   writeCheckin,
   type CheckinInput,
-  type Feeling,
-  type Need,
+  type ScalePoint,
 } from "@/lib/prickle-checkins";
 
 /**
  * Prickle check-in and check-out DMs: Slack's way into the same check-in as the prickle page
  * (lib/prickle-checkins.ts, prickle_checkins). ~20 min before a prickle on their calendar, a
- * member with an active writing goal gets a check-in DM (how they're feeling coming in, what they
- * need); after it, each such attendee gets a check-out DM (how it went, how they feel now, plus a
- * progress quick-log per goal). Each answer saves straight into their check-in.
+ * member with an active writing goal gets a check-in DM (mood, the feeling, their intention); after
+ * it, each such attendee gets a check-out DM (did they get what they came for, mood, the feeling,
+ * plus a progress quick-log per goal). Each answer saves straight into their check-in.
  */
 
 const BATCH_SIZE = 1000;
@@ -306,9 +314,30 @@ export function parseQuickLogAnswer(action: any): QuickLogAnswer | null {
 export const CHECKIN_ANSWER_ACTION_ID = "prickle_checkin_answer";
 
 /** The check-in answers a DM can ask, by prickle_checkins column. */
-export type CheckinField = "feelings_before" | "need" | "session_rating" | "feelings_after";
+export type CheckinField =
+  | "pleasant_before"
+  | "energy_before"
+  | "emotion_before"
+  | "need"
+  | "intention_met"
+  | "pleasant_after"
+  | "energy_after"
+  | "emotion_after";
 
-const CHECKIN_FIELDS: readonly CheckinField[] = ["feelings_before", "need", "session_rating", "feelings_after"];
+/** Each DM field's CheckinInput key. */
+const FIELD_KEY = {
+  pleasant_before: "pleasantBefore",
+  energy_before: "energyBefore",
+  emotion_before: "emotionBefore",
+  need: "need",
+  intention_met: "intentionMet",
+  pleasant_after: "pleasantAfter",
+  energy_after: "energyAfter",
+  emotion_after: "emotionAfter",
+} as const satisfies Record<CheckinField, keyof CheckinInput>;
+
+const CHECKIN_FIELDS = Object.keys(FIELD_KEY) as CheckinField[];
+const SCALE_FIELDS: readonly CheckinField[] = ["pleasant_before", "energy_before", "intention_met", "pleasant_after", "energy_after"];
 
 /** block_id for a check-in question: the prickle rides along so the answer knows where to save. */
 const checkinBlockId = (prickleId: string, field: CheckinField) => `prickle_checkin:${prickleId}:${field}`;
@@ -317,32 +346,33 @@ const plain = (text: string) => ({ type: "plain_text", text });
 
 type SlackOption = { text: { type: string; text: string }; value: string };
 
-const FEELING_OPTIONS: SlackOption[] = FEELINGS.map((f) => ({ text: plain(f.label), value: f.key }));
 const NEED_OPTIONS: SlackOption[] = NEEDS.map((n) => ({ text: plain(`${n.label} · ${n.hint}`), value: n.key }));
 
-/** Each field's Slack options, so a saved answer can be shown as the select's initial value. */
-/** Select fields only: the rating is a row of star buttons (ratingBlocks), not a select. */
-const FIELD_OPTIONS: Partial<Record<CheckinField, SlackOption[]>> = {
-  feelings_before: FEELING_OPTIONS,
-  need: NEED_OPTIONS,
-  feelings_after: FEELING_OPTIONS,
-};
+/**
+ * The Feeling Wheel as one grouped select: a group per core feeling, the core itself first, then
+ * its middle and outer rings (78 options, under Slack's 100). One pick at any depth, like the
+ * site's search; Slack's select filters as you type.
+ */
+const EMOTION_GROUPS = EMOTION_WHEEL.map((c) => ({
+  label: plain(c.label),
+  options: [
+    { text: plain(c.label), value: c.key },
+    ...coreFeelings(c).map((f) => ({ text: plain(emotionLabel(f)), value: f })),
+  ],
+}));
+const EMOTION_OPTIONS: SlackOption[] = EMOTION_GROUPS.flatMap((g) => g.options);
 
-const isMultiField = (field: CheckinField) => field === "feelings_before" || field === "feelings_after";
+/** Select fields' options, so a saved answer can be shown as the select's initial value (scales are button rows). */
+const FIELD_OPTIONS: Partial<Record<CheckinField, SlackOption[]>> = {
+  need: NEED_OPTIONS,
+  emotion_before: EMOTION_OPTIONS,
+  emotion_after: EMOTION_OPTIONS,
+};
 
 /** The saved answer for `field` as option values; unanswered is []. */
 function savedValues(checkin: CheckinInput | null, field: CheckinField): string[] {
-  if (!checkin) return [];
-  switch (field) {
-    case "feelings_before":
-      return checkin.feelingsBefore;
-    case "feelings_after":
-      return checkin.feelingsAfter;
-    case "need":
-      return checkin.need ? [checkin.need] : [];
-    case "session_rating":
-      return checkin.sessionRating === null ? [] : [String(checkin.sessionRating)];
-  }
+  const value = checkin?.[FIELD_KEY[field]] ?? null;
+  return value === null ? [] : [String(value)];
 }
 
 /**
@@ -353,27 +383,18 @@ function savedValues(checkin: CheckinInput | null, field: CheckinField): string[
 function withInitial(accessory: any, field: CheckinField, values: string[]): any {
   const rest = { ...accessory };
   delete rest.initial_option;
-  delete rest.initial_options;
-  const selected = (FIELD_OPTIONS[field] ?? []).filter((o) => values.includes(o.value));
-  if (selected.length === 0) return rest;
-  return isMultiField(field) ? { ...rest, initial_options: selected } : { ...rest, initial_option: selected[0] };
+  const selected = (FIELD_OPTIONS[field] ?? []).find((o) => values.includes(o.value));
+  return selected ? { ...rest, initial_option: selected } : rest;
 }
 
-function checkinQuestion(prickleId: string, field: CheckinField, question: string, saved: CheckinInput | null): any {
-  const accessory = isMultiField(field)
-    ? {
-        type: "multi_static_select",
-        action_id: CHECKIN_ANSWER_ACTION_ID,
-        placeholder: plain(`Pick up to ${MAX_FEELINGS}`),
-        max_selected_items: MAX_FEELINGS,
-        options: FIELD_OPTIONS[field],
-      }
-    : {
-        type: "static_select",
-        action_id: CHECKIN_ANSWER_ACTION_ID,
-        placeholder: plain("Pick one"),
-        options: FIELD_OPTIONS[field],
-      };
+function selectQuestion(prickleId: string, field: CheckinField, question: string, placeholder: string, saved: CheckinInput | null): any {
+  const isEmotion = field === "emotion_before" || field === "emotion_after";
+  const accessory = {
+    type: "static_select",
+    action_id: CHECKIN_ANSWER_ACTION_ID,
+    placeholder: plain(placeholder),
+    ...(isEmotion ? { option_groups: EMOTION_GROUPS } : { options: FIELD_OPTIONS[field] }),
+  };
   return {
     type: "section",
     block_id: checkinBlockId(prickleId, field),
@@ -383,24 +404,34 @@ function checkinQuestion(prickleId: string, field: CheckinField, question: strin
 }
 
 /**
- * "How did it go?" as five star buttons side by side (Slack has no rating element): the question,
- * then one row of buttons, the saved rating's button highlighted. Each button's value is its
- * rating; the row's block_id is the usual check-in one so the answer saves like any other.
+ * A labeled 1-5 question as a row of buttons (Slack has no scale element): the question, then the
+ * row, the saved point's button highlighted. Each button's value is its point; the row's block_id
+ * is the usual check-in one so the answer saves like any other.
  */
-function ratingBlocks(prickleId: string, question: string, saved: CheckinInput | null): any[] {
+function scaleBlocks(prickleId: string, field: CheckinField, points: readonly ScalePoint[], question: string, saved: CheckinInput | null): any[] {
+  const current = savedValues(saved, field)[0];
   return [
     { type: "section", text: { type: "mrkdwn", text: question } },
     {
       type: "actions",
-      block_id: checkinBlockId(prickleId, "session_rating"),
-      elements: SESSION_RATINGS.map((r) => ({
+      block_id: checkinBlockId(prickleId, field),
+      elements: points.map((p) => ({
         type: "button",
-        action_id: `${CHECKIN_ANSWER_ACTION_ID}:${r.value}`,
-        text: plain("★".repeat(r.value)),
-        value: String(r.value),
-        ...(saved?.sessionRating === r.value ? { style: "primary" } : {}),
+        action_id: `${CHECKIN_ANSWER_ACTION_ID}:${p.value}`,
+        text: plain(p.label),
+        value: String(p.value),
+        ...(current === String(p.value) ? { style: "primary" } : {}),
       })),
     },
+  ];
+}
+
+/** Mood (both scales) and the optional feeling, the same before and after. */
+function moodBlocks(prickleId: string, when: "before" | "after", intro: string, saved: CheckinInput | null): any[] {
+  return [
+    ...scaleBlocks(prickleId, `pleasant_${when}`, PLEASANTNESS, `${intro}${PLEASANTNESS_QUESTION}`, saved),
+    ...scaleBlocks(prickleId, `energy_${when}`, ENERGY, ENERGY_QUESTION, saved),
+    selectQuestion(prickleId, `emotion_${when}`, `${EMOTION_QUESTION} \n_(Feeling Wheel by Gloria Willcox)_`, "Type or pick a feeling", saved),
   ];
 }
 
@@ -420,11 +451,11 @@ function checkinFooter(prickleId: string, kind: "checkin" | "checkout" = "checki
 // same thing in Slack and on the site.
 export { checkinAnswered, checkoutAnswered };
 
-/** The check-in DM, before a prickle: how they're feeling coming in and what they need. */
+/** The check-in DM, before a prickle: mood, the feeling, then their intention. */
 export function buildCheckinBlocks(prickleId: string, typeName: string, saved: CheckinInput | null): any[] {
   return [
-    checkinQuestion(prickleId, "feelings_before", `*${typeName}* starts in about 20 minutes. How are you feeling coming in?`, saved),
-    checkinQuestion(prickleId, "need", "What do you need most from this session?", saved),
+    ...moodBlocks(prickleId, "before", `*${typeName}* starts in about 20 minutes. `, saved),
+    selectQuestion(prickleId, "need", "Choose your intention: what do you need most from this session?", "Choose your intention", saved),
     dismissBlock("checkin", prickleId),
     checkinFooter(prickleId),
   ];
@@ -502,7 +533,7 @@ export async function loadDismissedPairs(supabase: any, half: CheckinHalfKind, p
   return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
 }
 
-/** The check-out DM, after a prickle: how it went, how they feel now, then the progress quick-log. */
+/** The check-out DM, after a prickle: got what they came for, mood, the feeling, then the progress quick-log. */
 export function buildCheckoutBlocks(
   prickleId: string,
   typeName: string,
@@ -511,8 +542,8 @@ export function buildCheckoutBlocks(
   prickleTitle: string = typeName
 ): any[] {
   return [
-    ...ratingBlocks(prickleId, `Checking out of *${typeName}*: how did it go?`, saved),
-    checkinQuestion(prickleId, "feelings_after", "How are you feeling now?", saved),
+    ...scaleBlocks(prickleId, "intention_met", INTENTION_MET, `Checking out of *${typeName}*: ${INTENTION_MET_QUESTION}`, saved),
+    ...moodBlocks(prickleId, "after", "And now: ", saved),
     ...buildQuickLogBlocks(prickleTitle, prickleId, prompts),
     dismissBlock("checkout", prickleId),
     checkinFooter(prickleId, "checkout"),
@@ -522,13 +553,13 @@ export function buildCheckoutBlocks(
 export interface CheckinAnswer {
   prickleId: string;
   field: CheckinField;
-  /** Selected option values: up to MAX_FEELINGS for feelings (none when cleared), one otherwise. */
+  /** The selected option or button value, or none when a select was cleared. */
   values: string[];
 }
 
 /** Reads a check-in answer out of a Slack block_actions action; null if it isn't one. */
 export function parseCheckinAnswer(action: any): CheckinAnswer | null {
-  // Selects use the bare action id; each rating star button appends its value (action ids are unique per block).
+  // Selects use the bare action id; each scale button appends its value (action ids are unique per block).
   if (action?.action_id !== CHECKIN_ANSWER_ACTION_ID && !String(action?.action_id).startsWith(`${CHECKIN_ANSWER_ACTION_ID}:`)) {
     return null;
   }
@@ -541,18 +572,11 @@ export function parseCheckinAnswer(action: any): CheckinAnswer | null {
   return { prickleId, field: field as CheckinField, values };
 }
 
-/** `checkin` with one answer replaced. Unknown keys are left for validateCheckin to reject. */
+/** `checkin` with one answer replaced. Unknown values are left for validateCheckin to reject. */
 export function applyCheckinAnswer(checkin: CheckinInput, field: CheckinField, values: string[]): CheckinInput {
-  switch (field) {
-    case "feelings_before":
-      return { ...checkin, feelingsBefore: values as Feeling[] };
-    case "feelings_after":
-      return { ...checkin, feelingsAfter: values as Feeling[] };
-    case "need":
-      return { ...checkin, need: (values[0] ?? null) as Need | null };
-    case "session_rating":
-      return { ...checkin, sessionRating: values[0] === undefined ? null : Number(values[0]) };
-  }
+  const raw = values[0];
+  const value = raw === undefined ? null : SCALE_FIELDS.includes(field) ? Number(raw) : raw;
+  return { ...checkin, [FIELD_KEY[field]]: value } as CheckinInput;
 }
 
 /** After an answer, the DM's blocks with that question showing what was saved. */
@@ -562,7 +586,7 @@ export function withSavedAnswer(blocks: any[] | undefined, answer: CheckinAnswer
   return blocks.map((b) => {
     if (b.block_id !== blockId) return b;
     if (b.accessory) return { ...b, accessory: withInitial(b.accessory, answer.field, answer.values) };
-    // The star row: highlight the picked button only.
+    // A scale row: highlight the picked button only.
     if (Array.isArray(b.elements)) {
       return {
         ...b,
@@ -576,8 +600,6 @@ export function withSavedAnswer(blocks: any[] | undefined, answer: CheckinAnswer
   });
 }
 
-const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
-
 /** Saved check-ins for these members and prickles, keyed `${memberId}:${prickleId}`. */
 export async function loadCheckins(
   supabase: any,
@@ -589,7 +611,7 @@ export async function loadCheckins(
   const rows = await fetchAllPaginated<any>((offset) =>
     supabase
       .from("prickle_checkins")
-      .select("id, member_id, prickle_id, feelings_before, need, session_rating, feelings_after")
+      .select(`id, member_id, prickle_id, ${CHECKIN_COLUMNS}`)
       .in("member_id", memberIds)
       .in("prickle_id", prickleIds)
       .is("deleted_at", null)
@@ -610,7 +632,7 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
   const { prickleId, field, values } = answer;
   const { data: existing, error: readError } = await supabase
     .from("prickle_checkins")
-    .select("feelings_before, need, session_rating, feelings_after")
+    .select(CHECKIN_COLUMNS)
     .eq("member_id", memberId)
     .eq("prickle_id", prickleId)
     .is("deleted_at", null)
@@ -764,11 +786,10 @@ async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds
  * Check-out DMs, run from the same 5-minute cron as the check-ins
  * (app/api/internal/prickle-checkins/route.ts) over `prickles`: started writing prickles from the
  * last CHECKOUT_LOOKBACK_MS. Each member due one (dueCheckoutMembers) with any active writing
- * goal gets one DM: how it went,
- * how they feel now, and a progress dropdown per goal in that goal's measure (words, chapters,
+ * goal gets one DM: did they get what they came for, mood, the feeling, and a progress dropdown per goal in that goal's measure (words, chapters,
  * scenes...) -- or, for a prickles goal, the output attendance tracking can't capture. A project
- * they've already logged progress against for this prickle gets no dropdown, and with both
- * questions answered too, no DM. Returns the number of DMs sent.
+ * they've already logged progress against for this prickle gets no dropdown, and with the
+ * check-out answered too (checkoutAnswered), no DM. Returns the number of DMs sent.
  */
 export async function sendCheckoutDMs(
   supabase: any,
@@ -879,7 +900,7 @@ export function checkinMessage(
 ): OutboundMessage {
   const blocks = [...buildCheckinBlocks(prickle.id, prickle.typeName, saved), ...joinSlackBlocks(join)];
   return {
-    text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling coming in?`,
+    text: `${test ? "[Test] " : ""}Ready for ${prickle.typeName} in ~20 min? Check in: how are you feeling, and what do you need from it?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkin")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
@@ -896,7 +917,7 @@ export function checkoutMessage(
 ): OutboundMessage {
   const blocks = buildCheckoutBlocks(prickle.id, prickle.typeName, saved, prompts, prickle.title ?? prickle.typeName);
   return {
-    text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: how did it go?`,
+    text: `${test ? "[Test] " : ""}Checking out of ${prickle.typeName}: did you get what you came for?`,
     url: `${APP_URL}${checkinHref(prickle.id, "checkout")}`,
     slackBlocks: test ? [TEST_BANNER, ...blocks] : blocks,
     ref: prickle.id,
