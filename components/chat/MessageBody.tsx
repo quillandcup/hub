@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import MentionTextarea from "@/components/chat/MentionTextarea";
 import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { useRouter } from "next/navigation";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
@@ -33,7 +34,7 @@ export default function MessageBody({
   // What the member just saved (or deleted), shown until the server's copy catches up.
   const [saved, setSaved] = useState<{ from: string; text: string } | null>(null);
   const [deleted, setDeleted] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
   // The names the box shows for a Slack-written message's mentions and links, to put back as Slack's markup on save.
   const shownTokens = useRef<EditableText["tokens"]>(new Map());
 
@@ -47,8 +48,9 @@ export default function MessageBody({
       if (d?.messageId !== message.id) return;
       setError(null);
       if (d.what === "edit") {
-        // A message written in Slack is Slack's own markup: show people and channels by name. A Hub message is plain text.
-        const editable = message.fromHub ? { text, tokens: new Map<string, string>() } : toEditableText(text, ctx);
+        // People and channels are shown by name. A message written in Slack is all Slack markup (links, entities);
+        // one written in the Hub is plain text with just those tokens.
+        const editable = toEditableText(text, ctx, { plain: message.fromHub });
         shownTokens.current = editable.tokens;
         setDraft(editable.text);
         setMode("edit");
@@ -65,7 +67,7 @@ export default function MessageBody({
   const save = async () => {
     const typed = draft.trim();
     if (!typed || busy) return;
-    const next = message.fromHub ? typed : fromEditableText(typed, shownTokens.current);
+    const next = fromEditableText(typed, shownTokens.current, { plain: message.fromHub });
     if (next === text) return setMode("view");
     setBusy(true);
     setError(null);
@@ -102,14 +104,16 @@ export default function MessageBody({
         <label className="sr-only" htmlFor={`edit-${message.id}`}>
           Edit message
         </label>
-        <textarea
+        <MentionTextarea
           id={`edit-${message.id}`}
-          ref={boxRef}
+          channelId={channelId}
+          textareaRef={boxRef}
+          tokens={shownTokens}
           autoFocus
           value={draft}
           rows={3}
           maxLength={4000}
-          onChange={(e) => setDraft(e.target.value)}
+          onValueChange={setDraft}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               setMode("view");

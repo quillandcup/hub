@@ -10,6 +10,8 @@ const uploadWithProgress = vi.fn();
 import { CHAT_UPLOAD_CONCURRENCY } from "@/lib/chat/upload-pool";
 vi.mock("@/lib/chat/upload-progress", async (orig) => ({ ...(await orig<typeof import("@/lib/chat/upload-progress")>()), uploadWithProgress: (...a: unknown[]) => uploadWithProgress(...a) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ sendChatMessage: vi.fn(), retryChatMessage: vi.fn(), prepareChatUploads: vi.fn() }));
+vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
+import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { prepareChatUploads, retryChatMessage, sendChatMessage } from "@/app/(member)/chat/actions";
 import Composer from "@/components/chat/Composer";
 import RetryButton from "@/components/chat/RetryButton";
@@ -20,6 +22,8 @@ beforeEach(() => {
   URL.revokeObjectURL = vi.fn();
   refresh.mockReset();
   vi.mocked(sendChatMessage).mockReset();
+  vi.mocked(suggestMentions).mockReset();
+  vi.mocked(suggestMentions).mockResolvedValue([]);
   vi.mocked(retryChatMessage).mockReset();
   vi.mocked(prepareChatUploads).mockReset();
   uploadWithProgress.mockReset();
@@ -34,6 +38,40 @@ describe("Composer", () => {
     await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "Hello there", undefined, []));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.getByRole("textbox")).toHaveValue("");
+  });
+
+  it("sends a picked person and channel as Slack mentions, and shows them by name while it sends", async () => {
+    vi.mocked(suggestMentions).mockImplementation(async (_c, trigger) =>
+      trigger === "@" ? [{ label: "@Ania Ray", token: "<@U1>", photoUrl: null }] : [{ label: "#general", token: "<#C1>", photoUrl: null }]
+    );
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: true, id: "m1" });
+    const events: unknown[] = [];
+    const { subscribeListEvents } = await import("@/lib/chat/list-events");
+    const off = subscribeListEvents((e) => events.push(e));
+    render(<Composer channelId="c1" placeholder="Message #hosts" viewer={{ memberId: "member-fern", name: "Fern", photoUrl: null }} showSent />);
+
+    const box = screen.getByRole("textbox", { name: "Message #hosts" });
+    await userEvent.type(box, "ping @ani");
+    await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
+    await userEvent.type(box, "see #gen");
+    await userEvent.click(await screen.findByRole("option", { name: "#general" }));
+    await userEvent.type(box, "a < b & c{Enter}");
+
+    await waitFor(() => expect(sendChatMessage).toHaveBeenCalledWith("c1", "ping <@U1> see <#C1> a < b & c", undefined, []));
+    expect(JSON.stringify(events)).toContain("ping <@U1|Ania Ray> see <#C1|general> a < b & c");
+    off();
+  });
+
+  it("keeps what was typed, names and all, when the send is refused", async () => {
+    vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Ania Ray", token: "<@U1>", photoUrl: null }]);
+    vi.mocked(sendChatMessage).mockResolvedValue({ ok: false, error: "This conversation is archived." });
+    render(<Composer channelId="c1" placeholder="Message #hosts" />);
+    const box = screen.getByRole("textbox");
+    await userEvent.type(box, "hi @ani");
+    await userEvent.click(await screen.findByRole("option", { name: /Ania Ray/ }));
+    await userEvent.type(box, "there{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("archived");
+    expect(box).toHaveValue("hi @Ania Ray there");
   });
 
   it("starts a new line on Shift+Enter instead of sending", async () => {

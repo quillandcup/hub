@@ -108,6 +108,10 @@ afterEach(() => {
 describe("escapeForSlack / hubMessageMetadata", () => {
   it("escapes the three characters mrkdwn treats as syntax, so plain Hub text can't mention or link", () => {
     expect(escapeForSlack("<!channel> a & b")).toBe("&lt;!channel&gt; a &amp; b");
+    // A mention or channel the member picked stays a real one; every other angle-bracket form is text.
+    expect(escapeForSlack("hi <@U123ABC> in <#C0GEN1> <!here> <https://x.test|link> <@lower>")).toBe(
+      "hi <@U123ABC> in <#C0GEN1> &lt;!here&gt; &lt;https://x.test|link&gt; &lt;@lower&gt;"
+    );
   });
 
   it("marks a post with our message id", () => {

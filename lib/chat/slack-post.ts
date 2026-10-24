@@ -13,9 +13,15 @@ import { sendChatFilesToSlack } from "@/lib/chat/slack-upload";
  * ts Slack returns. Service role.
  */
 
-/** Hub text is plain; Slack's mrkdwn treats these three characters as syntax. */
+/**
+ * Hub text is plain; Slack's mrkdwn treats these three characters as syntax. The one markup a Hub message
+ * carries is a mention or channel the member picked (`<@U123>`, `<#C123>`), kept so Slack makes it a real one;
+ * anything else in angle brackets, `<!channel>` and links included, is escaped like the rest.
+ */
 export function escapeForSlack(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text.replace(/<(@[A-Z0-9]+|#[A-Z0-9]+)>|[&<>]/g, (match, token?: string) =>
+    token ? match : match === "&" ? "&amp;" : match === "<" ? "&lt;" : "&gt;"
+  );
 }
 
 /** Marks our own posts, so Slack's event for one is recognised as ours (chat_adopt_posted_message). */
