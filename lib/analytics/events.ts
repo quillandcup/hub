@@ -138,6 +138,9 @@ export const EVENTS = {
   onair_join_clicked: { live: bool(), room_size: int() },
   onair_prickle_clicked: { room_size: int() },
   onair_member_clicked: { room_size: int() },
+
+  /** A help article (help/<slug>.md) was opened. `slug` is the file name, chosen by us, never typed by a member. */
+  help_article_viewed: { slug: text(60) },
 } satisfies Record<string, Record<string, Spec>>;
 
 export type EventName = keyof typeof EVENTS;

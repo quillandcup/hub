@@ -38,7 +38,8 @@ export async function seed(now: Date = new Date()) {
       id = data.user.id;
       userIdByEmail.set(p.email, id);
     }
-    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, role: p.role });
+    // A zone already chosen, so the "Change time zone?" prompt stays out of screenshots.
+    const { error: profileError } = await admin.from("user_profiles").upsert({ id, email: p.email, role: p.role, timezone_preference: ORG_TIMEZONE });
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
   }
 
@@ -53,6 +54,15 @@ export async function seed(now: Date = new Date()) {
   }));
   const { error: membersError } = await admin.from("members").upsert(members, { onConflict: "email" });
   if (membersError) throw new Error(`members: ${membersError.message}`);
+
+  // The Getting started tour is for new members; the demo members have put it away so it doesn't cover the page.
+  const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", members.map((m) => m.email));
+  if (seededError) throw new Error(`members: ${seededError.message}`);
+  const dismissedAt = now.toISOString();
+  const { error: onboardingError } = await admin
+    .from("member_onboarding")
+    .upsert((seeded ?? []).map((m) => ({ member_id: m.id, dismissed_at: dismissedAt })), { onConflict: "member_id" });
+  if (onboardingError) throw new Error(`member_onboarding: ${onboardingError.message}`);
 
   // The Zoom room members see under "On air" (append-only: add only when the demo's isn't the latest).
   const { data: latest } = await admin.from("prickle_join_settings").select("join_url").order("effective_from", { ascending: false }).limit(1);

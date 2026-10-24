@@ -13,6 +13,12 @@ describe("isDocsOnly", () => {
     expect(isDocsOnly(["README.md", ".github/workflows/ci.yml"])).toBe(false);
   });
 
+  it("treats the member help articles as code, because the app reads them at build time", () => {
+    expect(isDocsOnly(["help/join-a-prickle.md"])).toBe(false);
+    expect(isDocsOnly(["docs/TODO.md", "help/join-a-prickle.md"])).toBe(false);
+    expect(isDocsOnly(["docs/help/notes.md"])).toBe(true);
+  });
+
   it("does not treat look-alike paths as docs", () => {
     expect(isDocsOnly(["app/docs/page.tsx"])).toBe(false);
     expect(isDocsOnly(["docs.ts"])).toBe(false);

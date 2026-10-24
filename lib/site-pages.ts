@@ -33,7 +33,7 @@ export interface SitePage {
   feature?: FeatureKey;
 }
 
-export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community"] as const;
+export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community", "Help"] as const;
 export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooling, folded by default. */ collapsible?: boolean }[] = [
   { name: "Overview" },
   { name: "Member Programs" },
@@ -96,6 +96,7 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
   member({ title: "Bookshelf", href: "/bookshelf", section: "Community", nav: { icon: "🐚" }, keywords: ["library", "books"] }),
   member({ title: "Events", href: "/events", section: "Community", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
+  member({ title: "Help", href: "/help", section: "Help", nav: { icon: "❓", activeFor: ["/help/"] }, keywords: ["how to", "guide", "support", "docs"] }),
 
   // Member pages the sidebar doesn't link
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
