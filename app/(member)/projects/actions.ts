@@ -923,19 +923,16 @@ export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> 
 
   // A UTC window wide enough for any timezone offset, narrowed to the local date below.
   const dayStartUtc = new Date(`${date}T00:00:00Z`).getTime();
-  const { data: prickles } = await supabase
-    .from("prickles")
-    .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
-    .gte("start_time", new Date(dayStartUtc - DAY_MS).toISOString())
-    .lt("start_time", new Date(dayStartUtc + 2 * DAY_MS).toISOString())
-    .order("start_time", { ascending: true });
+  const repos = createRepos(supabase);
+  const prickles = await repos.prickles.startingBetween({
+    from: new Date(dayStartUtc - DAY_MS).toISOString(),
+    to: new Date(dayStartUtc + 2 * DAY_MS).toISOString(),
+  });
 
-  const onDate = ((prickles ?? []) as unknown as RawEmbeddedPrickle[]).filter(
-    (p) => localDateOf(p.start_time, timeZone) === date
-  );
+  const onDate = prickles.filter((p) => localDateOf(p.startTime, timeZone) === date);
   if (onDate.length === 0) return [];
 
-  const attendedIds = await createRepos(supabase).attendance.attendedAmong(
+  const attendedIds = await repos.attendance.attendedAmong(
     effectiveIdentity.memberId,
     onDate.map((p) => p.id)
   );
@@ -943,8 +940,8 @@ export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> 
   return sortPrickleOptions(
     onDate.map((p) => ({
       id: p.id,
-      label: labelForPrickle(p, timeZone),
-      startTime: p.start_time,
+      label: formatPrickleLabel({ startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host?.name ?? null }, timeZone),
+      startTime: p.startTime,
       attended: attendedIds.has(p.id),
     }))
   );

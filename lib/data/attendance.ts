@@ -1,5 +1,6 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db } from "./db";
+import { InMemoryDataset } from "./in-memory";
 
 /** Ids per `.in(...)` filter, so the request URL stays under the length limit even with long ids. */
 const ID_CHUNK_SIZE = 100;
@@ -198,10 +199,15 @@ const toLink = (row: AttendanceRow): AttendanceLink => ({
  * prickles, several records per prickle allowed); seed it with typed `AttendanceRow`s.
  */
 export class InMemoryAttendanceRepository implements AttendanceRepository {
-  private rows: AttendanceRow[];
+  private readonly data: InMemoryDataset;
 
-  constructor(rows: AttendanceRow[] = []) {
-    this.rows = rows.map((row) => ({ ...row }));
+  /** Seed with attendance rows alone, or share an `InMemoryDataset` with the other in-memory repositories. */
+  constructor(source: AttendanceRow[] | InMemoryDataset = []) {
+    this.data = Array.isArray(source) ? new InMemoryDataset({ attendance: source }) : source;
+  }
+
+  private get rows(): AttendanceRow[] {
+    return this.data.attendance;
   }
 
   async countForMember(memberId: string) {
