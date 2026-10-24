@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
@@ -49,11 +50,11 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Load reference data in parallel
     const [
-      { data: members },
+      members,
       { data: aliases },
       { data: slackUsers },
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
+      createRepos(supabase).members.identities(),
       supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       supabase.schema('bronze').from("slack_users").select("user_id, email, real_name"),
     ]);
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     // STEP 2: Match Slack users to members (in memory)
     const userToMemberMap = await matchSlackUsersToMembers(
       slackUsers || [],
-      members || [],
+      members,
       aliases || [],
       await loadVerifiedSlackLinks(supabase)
     );

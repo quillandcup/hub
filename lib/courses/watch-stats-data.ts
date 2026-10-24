@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
 import { buildOutline, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
@@ -47,11 +48,7 @@ async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>
   if (error) throw new Error(`user_profiles read failed: ${error.message}`);
   const ids = (admins ?? []).map((a) => a.id as string);
   const staff = new Set<string>();
-  for (const batch of inBatches(ids)) {
-    const { data, error: memberError } = await supabase.from("members").select("id").in("user_id", batch);
-    if (memberError) throw new Error(`members read failed: ${memberError.message}`);
-    for (const m of data ?? []) staff.add(m.id as string);
-  }
+  for (const memberId of (await createRepos(supabase).members.idsByUserId(ids)).values()) staff.add(memberId);
   return staff;
 }
 
@@ -126,13 +123,9 @@ export async function loadCourseWatchStats(
   const names = new Map<string, string>();
   const userIds = new Map<string, string>();
   const memberIds = [...new Set([...sessionsByVideo.values()].flatMap((list) => list.map((x) => x.memberId)))];
-  for (const batch of inBatches(memberIds)) {
-    const { data, error: namesError } = await supabase.from("members").select("id, name, user_id").in("id", batch);
-    if (namesError) throw new Error(`members read failed: ${namesError.message}`);
-    for (const m of data ?? []) {
-      names.set(m.id as string, (m.name as string | null) ?? "Unknown member");
-      if (m.user_id) userIds.set(m.id as string, m.user_id as string);
-    }
+  for (const m of await createRepos(supabase).members.byIds(memberIds)) {
+    names.set(m.id, m.name ?? "Unknown member");
+    if (m.userId) userIds.set(m.id, m.userId);
   }
 
   // Where each shown visit came from: the member's latest located access event before it, in one call.

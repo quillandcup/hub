@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+import { createRepos } from '@/lib/data/repos'
 import { createClient } from '@/lib/supabase/server'
 import type { AuthUser } from '@/lib/auth'
 import { SUDO_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
@@ -46,11 +47,7 @@ const resolveEffectiveIdentity = cache(async (
         .single()
 
       if (profile?.role === 'admin') {
-        const { data: member } = await supabase
-          .from('members')
-          .select('id, name, email')
-          .eq('id', parsed.memberId)
-          .single()
+        const member = await createRepos(supabase).members.byId(parsed.memberId)
 
         if (member) {
           return {
@@ -71,21 +68,9 @@ const resolveEffectiveIdentity = cache(async (
   // supabase/migrations/20260831180000_add_alias_self_service.sql, which
   // backs alias-management RLS. Email is only a fallback for accounts that
   // predate that link being set.
-  const { data: byUserId } = await supabase
-    .from('members')
-    .select('id, name, email')
-    .eq('user_id', realUserId)
-    .maybeSingle()
-
-  const member = byUserId ?? (realUserEmail
-    ? (
-        await supabase
-          .from('members')
-          .select('id, name, email')
-          .eq('email', realUserEmail)
-          .maybeSingle()
-      ).data
-    : null)
+  const members = createRepos(supabase).members
+  const member =
+    (await members.byUserId(realUserId)) ?? (realUserEmail ? await members.byEmail(realUserEmail) : null)
 
   if (!member) return null
 

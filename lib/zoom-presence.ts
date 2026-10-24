@@ -1,4 +1,5 @@
-import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import { createRepos } from "@/lib/data/repos";
+import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 
 /**
  * Live Zoom presence from the participant joined/left webhooks (bronze.zoom_participant_events,
@@ -189,9 +190,7 @@ export async function loadPresenceByMember(
   if (events.length === 0) return result;
 
   const [members, aliases, emailAliases] = await Promise.all([
-    fetchAllPaginated<Member>((offset) =>
-      supabase.from("members").select("id, name, email").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).members.identities(),
     fetchAllPaginated<MemberAlias>((offset) =>
       supabase
         .from("member_name_aliases")
