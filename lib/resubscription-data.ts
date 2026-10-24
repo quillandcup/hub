@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { detectResubscriptions } from "@/lib/resubscription-detection";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
@@ -97,25 +98,7 @@ export async function fetchResubscriptionsData(
   }
 
   // Fetch silver members
-  type Member = { id: string; name: string; email: string; status: string };
-  const allMembers: Member[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("members")
-      .select("id, name, email, status")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      allMembers.push(...(batch as Member[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allMembers = await createRepos(supabase).members.list();
 
   // Fetch email aliases and build the standard reverse alias map
   const emailAliases: MemberEmailAlias[] = [];

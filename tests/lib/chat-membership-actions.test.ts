@@ -75,6 +75,24 @@ vi.mock("@/lib/supabase/service", () => ({
   }),
 }));
 
+// Who is an active member comes from the members repository, here in memory: `world.active` are
+// active, everyone else the world mentions is cancelled.
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => {
+      const ids = [...new Set([FERN, GALE, HAZEL, ...world.active, ...world.directory.map((d) => d.id)])];
+      return actual.createInMemoryRepos(
+        new InMemoryDataset({
+          members: ids.map((id) => ({ id, name: id, email: `${id}@example.test`, status: world.active.includes(id) ? "active" : "cancelled" })),
+        }),
+      );
+    },
+  };
+});
+
 import { addChatMembers, joinChatChannel, removeChatMember, searchMembersToAdd } from "@/app/(member)/chat/membership-actions";
 
 const CHANNEL = "chn_AAAAAAAAAAC1";
@@ -117,7 +135,6 @@ beforeEach(() => {
       if (q.calls.some((c) => c.method === "in" && c.args[0] === "member_id")) return { data: world.present.map((member_id) => ({ member_id })) };
       return { data: world.membershipRow };
     }
-    if (q.table === "members") return { data: world.active.map((id) => ({ id })) };
     if (q.table === "member_directory") return { data: world.directory };
     return { data: null };
   };

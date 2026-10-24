@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical, type ConflictGroup, type ConflictEntry } from "@/lib/external-conflicts";
@@ -48,7 +49,7 @@ export default async function ExternalConflictsPage() {
       .select("stripe_customer_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("slack_users")
       .select("user_id, email, real_name, display_name").eq("is_bot", false).neq("user_id", SLACKBOT_USER_ID).range(from, to)),
-    supabase.from("members").select("id, name, email").then(r => r.data ?? []),
+    createRepos(supabase).members.identities(),
     supabase.schema("bronze").from("stripe_subscriptions")
       .select("stripe_customer_id, status")
       .in("status", ["active", "trialing", "past_due"]).then(r => r.data ?? []),
@@ -62,7 +63,7 @@ export default async function ExternalConflictsPage() {
 
   // Member and Kajabi customer lookups
   const memberByEmail = new Map<string, { id: string; name: string }>();
-  for (const m of members ?? []) memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: m.name });
+  for (const m of members) memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: m.name });
 
   const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
   const activeSubsByStripeCustomer = new Map<string, number>();

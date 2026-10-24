@@ -36,7 +36,7 @@ export default async function DataHygienePage() {
     { count: calendarPricklesWithHost },
     { count: calendarPricklesMissingHost },
     { count: totalZoomAttendees },
-    { count: totalMembers },
+    totalMembers,
     { count: totalAliases },
     { data: ambiguousNameRows },
     { data: slackUsersForMatching },
@@ -51,7 +51,7 @@ export default async function DataHygienePage() {
     { data: lastKajabiSync },
     { data: lastKajabiProcessing },
     { count: missingStripeCount },
-    { data: membersForDuplicates },
+    membersForDuplicates,
     { data: slackChannelsForAccessCheck },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
@@ -68,7 +68,7 @@ export default async function DataHygienePage() {
       .is("host", null)
       .eq("prickle_types.requires_host", true),
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
-    supabase.from("members").select("*", { count: "exact", head: true }),
+    createRepos(supabase).members.count(),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
@@ -148,7 +148,7 @@ export default async function DataHygienePage() {
       .eq("status", "active")
       .is("stripe_customer_id", null),
     // Members for duplicate detection (limit 1000; members table stays small)
-    supabase.from("members").select("id, name, email, status").order("name"),
+    createRepos(supabase).members.list({ orderBy: "name" }),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
     supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, is_mpim, imported_at"),
   ]);
@@ -157,7 +157,7 @@ export default async function DataHygienePage() {
   // zoom_email is NULL, so the same bare name can produce several rows.
   const ambiguousNamesCount = new Set((ambiguousNameRows ?? []).map((a) => a.zoom_name)).size;
 
-  const duplicateGroups = detectDuplicates(membersForDuplicates ?? []);
+  const duplicateGroups = detectDuplicates(membersForDuplicates);
   const duplicateCount = duplicateGroups.length;
   const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck ?? []);
 
@@ -215,8 +215,8 @@ export default async function DataHygienePage() {
   // Otherwise orphaned count will include unmatched attendee time ranges that never get processed
 
   // Load members and aliases for matching (same as processing does)
-  const [{ data: membersForMatching }, { data: aliasesForMatching }] = await Promise.all([
-    supabase.from("members").select("id, name, email"),
+  const [membersForMatching, { data: aliasesForMatching }] = await Promise.all([
+    createRepos(supabase).members.identities(),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
   ]);
 
@@ -224,7 +224,7 @@ export default async function DataHygienePage() {
   // /api/reports/unmatched-slack-users and the unmatched-slack hygiene page
   const slackMatchedUserIds = await matchSlackUsersToMembers(
     slackUsersForMatching || [],
-    membersForMatching || [],
+    membersForMatching,
     aliasesForMatching || []
   );
   const ignoredSlackUserIds = new Set((ignoredSlackUsers || []).map(u => u.user_id));
@@ -236,7 +236,7 @@ export default async function DataHygienePage() {
   // catches members who never joined Slack (no slack_users row to be
   // "unmatched" in the first place), which the check above can't see.
   const slackMatchedMemberIds = new Set(slackMatchedUserIds.values());
-  const membersWithoutSlackCount = (membersForDuplicates || []).filter(
+  const membersWithoutSlackCount = membersForDuplicates.filter(
     m => m.status === "active" && !slackMatchedMemberIds.has(m.id)
   ).length;
 
@@ -266,7 +266,7 @@ export default async function DataHygienePage() {
   const meetingTimeWindows = new Map<string, { start: Date; end: Date }>();
   allAttendeesForMatching?.forEach(m => {
     // Skip unmatched attendees (use centralized matching logic)
-    if (!matchAttendeeToMember(m.name, m.email, membersForMatching || [], aliasesForMatching || [])) return;
+    if (!matchAttendeeToMember(m.name, m.email, membersForMatching, aliasesForMatching || [])) return;
 
     const existing = meetingTimeWindows.get(m.meeting_uuid);
     const joinTime = new Date(m.join_time);
@@ -373,7 +373,7 @@ export default async function DataHygienePage() {
   ]);
   const unmatchedZoomNamesCount = computeUnmatchedZoomNames(
     allAttendeesForMatching,
-    membersForMatching || [],
+    membersForMatching,
     aliasesForMatching || [],
     (ignoredZoomNamesForCount || []).map(r => r.zoom_name),
     staffForZoomCount || []

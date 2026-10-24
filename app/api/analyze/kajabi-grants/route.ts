@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { NextRequest, NextResponse } from "next/server";
@@ -78,11 +79,8 @@ export async function GET(request: NextRequest) {
     const emailByCustomerId = new Map((kajabiCustomers ?? []).map((c) => [c.kajabi_customer_id, c.email]));
 
     const emails = [...new Set([...emailByCustomerId.values()].filter(Boolean))];
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, name, email, status")
-      .in("email", emails);
-    const memberByEmail = new Map((members ?? []).map((m) => [m.email?.toLowerCase(), m]));
+    const members = await createRepos(supabase).members.byEmails(emails);
+    const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
     const grants = grantedPurchases.map((p) => {
       const email = emailByCustomerId.get(p.kajabi_customer_id) ?? null;

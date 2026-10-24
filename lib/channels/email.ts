@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { renderNotificationEmail } from "@/emails/notifications";
 import { sendEmail } from "@/lib/email";
 import { oneClickUnsubscribeUrl, signUnsubscribeToken, unsubscribePageUrl } from "@/lib/email-unsubscribe";
@@ -5,7 +6,6 @@ import { isNotificationKind, notificationKind } from "@/lib/notifications/regist
 import type { ChannelAdapter } from "./types";
 
 // Keeps each `.in("id", ...)` URL well under PostgREST's length limit.
-const MEMBER_ID_CHUNK = 200;
 
 /**
  * Email from the Hub, to the address on the member's record. The body is the kind's React Email
@@ -20,15 +20,12 @@ export const emailChannel: ChannelAdapter = {
   id: "email",
   async resolveAddresses(supabase, memberIds) {
     const addresses = new Map<string, string>();
-    for (let i = 0; i < memberIds.length; i += MEMBER_ID_CHUNK) {
-      const { data, error } = await supabase
-        .from("members")
-        .select("id, email")
-        .in("id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
-      if (error) console.error("[email] Loading member addresses failed", error);
-      for (const row of data ?? []) {
-        if (row.email) addresses.set(row.id, row.email);
+    try {
+      for (const member of await createRepos(supabase).members.byIds(memberIds)) {
+        if (member.email) addresses.set(member.id, member.email);
       }
+    } catch (error) {
+      console.error("[email] Loading member addresses failed", error);
     }
     return addresses;
   },

@@ -24,6 +24,7 @@ defineMemberContract("InMemoryMemberRepository", () => {
           status: m.status ?? "active",
           userId: m.user === undefined ? null : authUserIds[m.user],
           staffRole: m.staffRole ?? null,
+          kajabiId: m.kajabiId ?? null,
           firstJoinedAt: m.firstJoinedAt ?? null,
         };
       });

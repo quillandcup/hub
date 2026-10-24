@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { NextRequest, NextResponse } from "next/server";
@@ -25,20 +26,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const [
-      { data: members },
+      members,
       { data: nameAliases },
       { data: emailAliases },
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email, status"),
+      createRepos(supabase).members.list(),
       supabase.from("member_name_aliases").select("alias, member_id, source"),
       supabase.from("member_email_aliases").select("alias_email, canonical_email"),
     ]);
 
     const memberStatusMap = new Map(
-      (members ?? []).map((m) => [m.id, m.status as string])
+      members.map((m) => [m.id, m.status])
     );
     const zoomAliases = (nameAliases ?? []).filter((a) => a.source === "zoom");
-    const memberList = (members ?? []).map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    const memberList = members.map((m) => ({ id: m.id, name: m.name, email: m.email }));
 
     // Paginate zoom_attendees for the last 90 days
     const attendees: Array<{ name: string; email: string | null; meeting_uuid: string }> = [];

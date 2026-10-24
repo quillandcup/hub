@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AmbiguousNamesResolver from "./AmbiguousNamesResolver";
@@ -13,15 +14,15 @@ export default async function AmbiguousNamesPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const [{ data: ambiguousRows }, { data: allMembers }] = await Promise.all([
+  const [{ data: ambiguousRows }, allMembers] = await Promise.all([
     supabase
       .from("ambiguous_zoom_names")
       .select("zoom_name, candidate_member_ids, occurrence_count, last_seen_at")
       .eq("status", "unresolved"),
-    supabase.from("members").select("id, name, email").order("name"),
+    createRepos(supabase).members.identities(),
   ]);
 
-  const membersById = new Map((allMembers ?? []).map((m) => [m.id, m]));
+  const membersById = new Map(allMembers.map((m) => [m.id, { id: m.id, name: m.name, email: m.email }]));
 
   // Group by zoom_name only -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
   // zoom_email is NULL (Postgres treats each NULL as distinct), so the same bare

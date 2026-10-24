@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { localDateFor, normalizeTime, SCHEDULE_TIMEZONE, slotTimeForInstant } from "@/lib/commitments";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -135,23 +136,19 @@ export async function loadPrickleRoster(
     Promise.all(
       chunks(memberIds).map(async (ids) => (await service.from("member_roster_opt_outs").select("member_id").in("member_id", ids)).data ?? [])
     ),
-    Promise.all(
-      chunks(memberIds).map(
-        async (ids) => (await service.from("members").select("id, name, display_name, status").in("id", ids)).data ?? []
-      )
-    ),
+    createRepos(service).members.byIds(memberIds),
   ]);
   const hiddenIds = new Set(hidden.flat().map((r: { member_id: string }) => r.member_id));
 
   const entries: RosterEntry[] = [];
-  for (const m of members.flat() as { id: string; name: string; display_name: string | null; status: string }[]) {
+  for (const m of members) {
     if (m.status === "cancelled") continue;
     const isYou = m.id === viewerMemberId;
     const reason = reasonByMember.get(m.id)!;
     // The host is named on the page anyway, so opting out doesn't apply to hosting.
     const isHidden = hiddenIds.has(m.id) && reason !== "host";
     if (isHidden && !isYou) continue;
-    entries.push({ memberId: m.id, name: getMemberDisplayName(m), reason, isYou, hiddenFromOthers: isHidden });
+    entries.push({ memberId: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.displayName }), reason, isYou, hiddenFromOthers: isHidden });
   }
 
   // The host, then you, then those who committed (a firmer sign-up), then alphabetically.

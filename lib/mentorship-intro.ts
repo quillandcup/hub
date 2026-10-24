@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { APP_URL } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -42,13 +43,8 @@ export async function sendMatchIntroductions(
   try {
     if (!isMentorshipActive(match.startedOn, today)) return;
 
-    const { data: rows } = await service
-      .from("members")
-      .select("id, name, display_name")
-      .in("id", [match.mentorMemberId, match.newMemberId]);
-    const names = new Map(
-      (rows ?? []).map((m: { id: string; name: string; display_name: string | null }) => [m.id, getMemberDisplayName(m)])
-    );
+    const rows = await createRepos(service).members.byIds([match.mentorMemberId, match.newMemberId]);
+    const names = new Map(rows.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
     const mentorName = names.get(match.mentorMemberId);
     const newMemberName = names.get(match.newMemberId);
     if (!mentorName || !newMemberName) return;

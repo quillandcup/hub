@@ -14,6 +14,8 @@ export type MemberSeed = {
   /** The Supabase Auth user this member signs in as. */
   userId?: string | null;
   staffRole?: string | null;
+  kajabiId?: string | null;
+  stripeCustomerId?: string | null;
   joinedAt?: string;
   firstJoinedAt?: string | null;
   mostRecentJoinedAt?: string | null;

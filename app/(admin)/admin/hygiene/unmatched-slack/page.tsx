@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SlackAliasSearchForm from "./SlackAliasSearchForm";
@@ -15,12 +16,12 @@ export default async function UnmatchedSlackUsersPage() {
   // Load reference data
   const [
     { data: slackUsers },
-    { data: allMembers },
+    allMembers,
     { data: aliases },
     { data: ignoredUsers },
   ] = await Promise.all([
     supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted").neq("user_id", SLACKBOT_USER_ID),
-    supabase.from("members").select("id, name, email").order("name"),
+    createRepos(supabase).members.identities(),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_slack_users").select("user_id"),
   ]);

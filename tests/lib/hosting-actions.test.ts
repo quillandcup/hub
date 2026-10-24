@@ -20,6 +20,16 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+// Join dates and the hosted count come from the members and prickles repositories (in memory);
+// makeSupabaseMock sets them up from its arguments.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { requestToHost, updateMySchedule, withdrawMySchedule } from "@/app/(member)/hosting/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -66,6 +76,32 @@ function makeSupabaseMock({
   const updateEqEq = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
   const update = vi.fn((_updates: Record<string, unknown>) => ({ eq: vi.fn(() => ({ eq: updateEqEq })) }));
 
+  const people = [IDENTITY, SUDO_IDENTITY];
+  repos = createInMemoryRepos(
+    new InMemoryDataset({
+      members: memberJoin
+        ? people.map((p) => ({
+            id: p.memberId,
+            name: p.memberName,
+            email: p.memberEmail,
+            firstJoinedAt: memberJoin.first_joined_at,
+            mostRecentJoinedAt: memberJoin.most_recent_joined_at,
+          }))
+        : [],
+      // Prickles the acting member already hosts (an exemption from the one-month rule).
+      prickles: Array.from({ length: hostedCount }, (_, i) => ({
+        id: `prkl_${String(i).padStart(12, "A")}`,
+        typeId: null,
+        hostId: IDENTITY.memberId,
+        title: null,
+        startTime: "2026-01-01T15:00:00Z",
+        endTime: "2026-01-01T16:00:00Z",
+        source: "calendar",
+        calendarEventId: null,
+      })),
+    }),
+  );
+
   const from = vi.fn((table: string) => {
     if (table === "prickle_types") {
       return chain({ data: { requires_host: requiresHost } });
@@ -75,12 +111,6 @@ function makeSupabaseMock({
     }
     if (table === "prickle_schedules") {
       return { ...chain({ data: existingRow, count: confirmedScheduleCount }), insert, update };
-    }
-    if (table === "members") {
-      return chain({ data: memberJoin ? [{ id: IDENTITY.memberId, ...memberJoin }, { id: SUDO_IDENTITY.memberId, ...memberJoin }] : [], error: null });
-    }
-    if (table === "prickles") {
-      return chain({ data: null, count: hostedCount });
     }
     throw new Error(`Unexpected table in test: ${table}`);
   });
