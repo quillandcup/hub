@@ -45,3 +45,20 @@ describe("toEditableText / fromEditableText", () => {
     expect(fromEditableText("hi @Ania Ray <b> & co", editable.tokens)).toBe("hi <@U1> &lt;b&gt; &amp; co");
   });
 });
+
+describe("plain (a message written in the Hub)", () => {
+  const round = (body: string) => {
+    const editable = toEditableText(body, names, { plain: true });
+    return { shown: editable.text, back: fromEditableText(editable.text, editable.tokens, { plain: true }) };
+  };
+
+  it("names only people and channels, and leaves everything else exactly as written", () => {
+    const body = "a < b && c &amp; d <@U1> <#C1> <!here> <https://x.test|link>";
+    expect(round(body)).toEqual({ shown: "a < b && c &amp; d @Ania Ray #general <!here> <https://x.test|link>", back: body });
+  });
+
+  it("doesn't escape what is typed", () => {
+    const editable = toEditableText("hi <@U1>", names, { plain: true });
+    expect(fromEditableText("hi @Ania Ray: 1 < 2 & 3", editable.tokens, { plain: true })).toBe("hi <@U1>: 1 < 2 & 3");
+  });
+});

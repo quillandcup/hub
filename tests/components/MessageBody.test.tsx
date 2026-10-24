@@ -9,6 +9,8 @@ import type { ChatMessageView } from "@/lib/chat/load";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
+vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
+import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import MessageBody from "@/components/chat/MessageBody";
 import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
@@ -31,6 +33,8 @@ beforeEach(() => {
   cleanup();
   refresh.mockReset();
   vi.mocked(editChatMessage).mockReset();
+  vi.mocked(suggestMentions).mockReset();
+  vi.mocked(suggestMentions).mockResolvedValue([]);
   vi.mocked(deleteChatMessage).mockReset();
 });
 
@@ -96,6 +100,18 @@ describe("MessageBody", () => {
       );
     });
 
+    it("adds a person picked while editing as a real mention, next to the ones that were there", async () => {
+      vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Sam Lee", token: "<@U2>", photoUrl: null }]);
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1> &amp; co"), true, NAMED);
+      fire("edit");
+      const box = screen.getByRole("textbox", { name: "Edit message" });
+      await userEvent.type(box, " and @sa");
+      await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
+      await userEvent.type(box, "{Enter}");
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> &amp; co and <@U2>"));
+    });
+
     it("escapes what is typed for Slack, and saves nothing when the text is unchanged", async () => {
       vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
       mount(slackWritten("hi <@U1>"), true, NAMED);
@@ -107,6 +123,20 @@ describe("MessageBody", () => {
       await userEvent.type(screen.getByRole("textbox"), " a < b & c{Enter}");
       await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> a &lt; b &amp; c"));
     });
+  });
+
+  it("edits a Hub message as plain text with its people by name, and adds a picked person as a token", async () => {
+    vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Sam Lee", token: "<@U2>", photoUrl: null }]);
+    vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+    const named: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" } };
+    mount({ ...mine(), body: "a < b & <@U1>" }, true, named);
+    fire("edit");
+    const box = screen.getByRole("textbox", { name: "Edit message" });
+    expect(box).toHaveValue("a < b & @Ania Ray");
+    await userEvent.type(box, " @sa");
+    await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
+    await userEvent.type(box, "{Enter}");
+    await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "a < b & <@U1> <@U2>"));
   });
 
   it("falls back to a page refresh when no live conversation is open", async () => {

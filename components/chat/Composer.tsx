@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareChatUploads, sendChatMessage } from "@/app/(member)/chat/actions";
+import MentionTextarea from "@/components/chat/MentionTextarea";
+import { fromEditableText } from "@/lib/chat/render";
 import PendingAttachments from "@/components/chat/PendingAttachments";
 import { useFileDrop } from "@/components/chat/useFileDrop";
 import { track } from "@/lib/analytics/client";
@@ -57,7 +59,9 @@ export default function Composer({
   const [sentBytes, setSentBytes] = useState<number[]>([]);
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
-  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  // People and channels picked in the box (shown name to Slack markup), turned into markup when sending.
+  const mentionTokens = useRef(new Map<string, string>());
   const pickerRef = useRef<HTMLInputElement>(null);
   const early = Boolean(viewer) && showSent && attached.length === 0;
 
@@ -131,8 +135,12 @@ export default function Composer({
   };
 
   const send = async () => {
-    const body = text.trim();
-    if ((!body && attached.length === 0) || sending) return;
+    const typed = text.trim();
+    if ((!typed && attached.length === 0) || sending) return;
+    const body = fromEditableText(typed, mentionTokens.current, { plain: true });
+    // The message shown while it sends can't look the names up, so it carries them (`<@U1|Ania Ray>`).
+    const labelled = new Map([...mentionTokens.current].map(([shown, token]) => [shown, token.replace(/>$/, `|${shown.slice(1)}>`)]));
+    const shownBody = fromEditableText(typed, labelled, { plain: true });
     setError(null);
     setSending(true);
     let uploads: StagedUpload[] = [];
@@ -146,19 +154,20 @@ export default function Composer({
     }
     setText("");
     const tempId = `${PENDING_ID_PREFIX}${crypto.randomUUID()}`;
-    if (early) emitListEvent({ kind: "add", channelId, threadRootId, view: optimisticView({ id: tempId, body, viewer: viewer! }) });
+    if (early) emitListEvent({ kind: "add", channelId, threadRootId, view: optimisticView({ id: tempId, body: shownBody, viewer: viewer! }) });
 
     const result = await sendChatMessage(channelId, body, threadRootId, uploads).catch(() => ({ ok: false as const, error: "Something went wrong. Try again." }));
     setSending(false);
     setSentBytes([]);
     if (!result.ok) {
       if (early) emitListEvent({ kind: "drop", channelId, threadRootId, tempId });
-      setText((current) => (current ? `${body}\n${current}` : body));
+      setText((current) => (current ? `${typed}\n${current}` : typed));
       setError(result.error);
       return;
     }
     setAttached([]);
-    if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body, viewer: viewer! }) });
+    mentionTokens.current = new Map();
+    if (early) emitListEvent({ kind: "swap", channelId, threadRootId, tempId, view: optimisticView({ id: result.id, body: shownBody, viewer: viewer! }) });
     // Bring the conversation up to date: just its newest messages when it is open here, else the page.
     if (!pokeChat(channelId)) router.refresh();
     boxRef.current?.focus();
@@ -186,14 +195,16 @@ export default function Composer({
         {placeholder}
       </label>
       <div className="rounded-lg border border-slate-300 bg-white focus-within:border-plum-500 dark:border-slate-700 dark:bg-slate-900">
-        <textarea
+        <MentionTextarea
           id={`composer-${threadRootId ?? channelId}`}
-          ref={boxRef}
+          channelId={channelId}
+          textareaRef={boxRef}
+          tokens={mentionTokens}
           value={text}
           rows={2}
           maxLength={4000}
           placeholder={placeholder}
-          onChange={(e) => setText(e.target.value)}
+          onValueChange={setText}
           onPaste={(e) => {
             const pasted = [...e.clipboardData.files];
             if (pasted.length === 0) return;
