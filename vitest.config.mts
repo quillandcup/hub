@@ -73,6 +73,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
+          // Unit tests run in a zone far from UTC and Eastern so a test (or code) that leans on the
+          // machine's zone fails here instead of passing in CI (UTC) and breaking on a laptop. To
+          // check another zone, run with UNIT_TEST_TZ=<zone> pnpm test:unit.
+          env: { TZ: process.env.UNIT_TEST_TZ ?? 'Pacific/Auckland' },
           include: [
             'tests/lib/**/*.test.ts',
             'tests/components/**/*.test.ts',

@@ -35,6 +35,15 @@ function dateKey(date: Date, timezone: string): string {
   });
 }
 
+// A grid cell is a Date at the host's local midnight standing for a calendar day. Its key is that
+// local day, not the instant converted to `timezone` (which shifts the day whenever the host zone
+// differs from the display zone). Same "MM/DD/YYYY" shape as dateKey, so the two compare.
+function cellKey(date: Date): string {
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${date.getFullYear()}`;
+}
+
 export default function AttendanceMonthGrid({
   attendance,
   timezone,
@@ -66,17 +75,10 @@ export default function AttendanceMonthGrid({
   });
 
   const getDay = (date: Date | null) =>
-    date ? (byDate.get(dateKey(date, timezone)) ?? []) : [];
+    date ? (byDate.get(cellKey(date)) ?? []) : [];
 
-  const isToday = (date: Date | null) => {
-    if (!date) return false;
-    const t = new Date();
-    return (
-      date.getDate() === t.getDate() &&
-      date.getMonth() === t.getMonth() &&
-      date.getFullYear() === t.getFullYear()
-    );
-  };
+  const todayKey = dateKey(new Date(), timezone);
+  const isToday = (date: Date | null) => !!date && cellKey(date) === todayKey;
 
   const fmt = (date: Date, opts: Intl.DateTimeFormatOptions) =>
     date.toLocaleString("en-US", { timeZone: timezone, ...opts });

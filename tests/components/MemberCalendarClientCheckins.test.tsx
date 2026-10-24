@@ -14,7 +14,7 @@ vi.mock("@/components/writing/PrickleCheckModal", () => ({
 Element.prototype.scrollIntoView = vi.fn();
 
 const NOW = new Date();
-const join = new Date(NOW.getFullYear(), NOW.getMonth(), 1, 12).toISOString();
+const join = new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), 1, 12)).toISOString();
 const ATTENDANCE = [
   {
     id: "a1",
