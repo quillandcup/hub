@@ -1,3 +1,4 @@
+import { createRepos } from '@/lib/data/repos'
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service';
@@ -22,10 +23,10 @@ import type { FeatureKey } from '@/lib/features';
 export const getUserFeaturePreviews = cache(async (userId: string): Promise<FeatureKey[]> => {
   const supabase = await createClient();
 
-  const [{ data: globalFlags }, { data: previews }, { data: member }] = await Promise.all([
+  const [{ data: globalFlags }, { data: previews }, member] = await Promise.all([
     supabase.from('feature_flags').select('feature_key').eq('enabled_globally', true),
     supabase.from('user_feature_previews').select('feature_key').eq('user_id', userId),
-    supabase.from('members').select('id').eq('user_id', userId).maybeSingle(),
+    createRepos(supabase).members.byUserId(userId),
   ]);
 
   const enabled = new Set<string>();
@@ -66,14 +67,14 @@ export async function membersWithFeature(supabase: any, key: FeatureKey, memberI
   const unique = [...new Set(memberIds)];
   if (unique.length === 0) return enabled;
 
-  const [{ data: flag }, memberBatches, { data: segmentLinks }] = await Promise.all([
+  const [{ data: flag }, userIdByMember, { data: segmentLinks }] = await Promise.all([
     supabase.from('feature_flags').select('enabled_globally').eq('feature_key', key).maybeSingle(),
-    Promise.all(chunks(unique).map((ids) => supabase.from('members').select('id, user_id').in('id', ids))),
+    createRepos(supabase).members.userIdsByMemberId(unique),
     supabase.from('feature_flag_segments').select('segment_id').eq('feature_key', key),
   ]);
-  const withAccounts: { id: string; user_id: string }[] = memberBatches
-    .flatMap((r: any) => r.data ?? [])
-    .filter((m: any) => m.user_id);
+  const withAccounts: { id: string; user_id: string }[] = [...userIdByMember]
+    .filter((entry): entry is [string, string] => entry[1] !== null)
+    .map(([id, user_id]) => ({ id, user_id }));
   if (flag?.enabled_globally) return new Set(withAccounts.map((m) => m.id));
 
   const memberByUser = new Map(withAccounts.map((m) => [m.user_id, m.id]));

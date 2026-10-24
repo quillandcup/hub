@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "@/lib/member-matching";
@@ -296,8 +297,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const [{ data: members }, { data: aliases }, { data: emailAliases }] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
+    const [members, { data: aliases }, { data: emailAliases }] = await Promise.all([
+      createRepos(supabase).members.identities(),
       supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
     ]);
@@ -333,7 +334,7 @@ export async function POST(request: NextRequest) {
       // for time windows where only unmatched attendees were present,
       // resulting in 0-attendee PUPs
       const matchedAttendeesForWindow = attendees.filter(a => {
-        const match = matchAttendeeToMember(a.name, a.email, members || [], aliases || [], (emailAliases as MemberEmailAlias[]) || []);
+        const match = matchAttendeeToMember(a.name, a.email, members, aliases || [], (emailAliases as MemberEmailAlias[]) || []);
         return match !== null;
       });
 
@@ -416,7 +417,7 @@ export async function POST(request: NextRequest) {
 
       for (const attendee of attendees) {
         // Match attendee to member using centralized logic
-        const match = matchAttendeeToMember(attendee.name, attendee.email, members || [], aliases || [], (emailAliases as MemberEmailAlias[]) || []);
+        const match = matchAttendeeToMember(attendee.name, attendee.email, members, aliases || [], (emailAliases as MemberEmailAlias[]) || []);
 
         if (!match) {
           skippedUnmatched++;

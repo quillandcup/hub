@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription } from "@/lib/prickle-types";
@@ -94,12 +95,12 @@ export async function POST(request: NextRequest) {
 
     // STEP 1b: Load all reference data in parallel
     const [
-      { data: members },
+      members,
       { data: aliases },
       { data: prickleTypes },
       { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email").eq("status", "active"),
+      createRepos(supabase).members.identities({ status: "active" }),
       supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
@@ -117,14 +118,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`Loaded ${allEvents.length} events, ${members?.length || 0} members, ${prickleTypes?.length || 0} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
+    console.log(`Loaded ${allEvents.length} events, ${members.length} members, ${prickleTypes?.length || 0} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
 
     // Build lookup maps for fast matching
     const membersByEmail = new Map(
-      members?.map((m) => [m.email.toLowerCase(), m]) || []
+      members.map((m) => [m.email.toLowerCase(), m])
     );
     const membersByNormalizedName = new Map(
-      members?.map((m) => [normalizeName(m.name), m]) || []
+      members.map((m) => [normalizeName(m.name), m])
     );
     // Build alias map with lowercase keys for case-insensitive matching
     // Aliases are disambiguation rules and should be flexible
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
         const match = matchAttendeeToMember(
           hostNameToMatch,
           hostEmailToMatch,
-          members || [],
+          members,
           aliases || [],
           [],
           true // Skip email matching - we only have the name from event title
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest) {
         if (match && 'member_id' in match) {
           hostId = match.member_id;
           // Update suggested name to matched member's name
-          const matchedMember = members?.find(m => m.id === match.member_id);
+          const matchedMember = members.find(m => m.id === match.member_id);
           if (matchedMember) {
             suggestedHostName = matchedMember.name;
           }

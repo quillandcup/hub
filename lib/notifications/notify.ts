@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/channels";
 import { APP_URL } from "@/lib/config";
 import * as Sentry from "@sentry/nextjs";
@@ -148,10 +149,8 @@ export async function createNotifier(
 async function loadUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
   const userIds = new Map<string, string>();
   try {
-    for (let i = 0; i < memberIds.length; i += MEMBER_ID_CHUNK) {
-      const { data, error } = await supabase.from("members").select("id, user_id").in("id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
-      if (error) throw error;
-      for (const row of data ?? []) if (row.user_id) userIds.set(row.id, row.user_id);
+    for (const [memberId, userId] of await createRepos(supabase).members.userIdsByMemberId(memberIds)) {
+      if (userId) userIds.set(memberId, userId);
     }
   } catch (error) {
     console.error("[notifications] Loading user ids for the usage log failed", error instanceof Error ? error.message : error);

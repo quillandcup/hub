@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { matchSlackUsersToMembers, type SlackUser } from "@/lib/slack-matching";
 import { normalizeName, type Member } from "@/lib/member-matching";
 import * as Sentry from "@sentry/nextjs";
@@ -35,15 +36,15 @@ async function buildSlackUserIdToMemberIdMap(
   supabase: any,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
-  const [allMembersResult, aliases, slackUsersResult] = await Promise.all([
-    supabase.from("members").select("id, name, email"),
+  const [allMembers, aliases, slackUsersResult] = await Promise.all([
+    createRepos(supabase).members.identities(),
     fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
       supabase.from("member_name_aliases").select("member_id, alias, source").range(offset, offset + BATCH_SIZE - 1)
     ),
     supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
   ]);
 
-  const members = (allMembersResult.data ?? []) as Member[];
+  const members: Member[] = allMembers;
   const slackUsers = (slackUsersResult.data ?? []) as SlackUser[];
   const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);
   const safe = new Map<string, string>();
