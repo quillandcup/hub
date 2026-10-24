@@ -15,7 +15,7 @@ demo/
   scenes/          one Playwright spec per help article or feature
   playwright.config.ts
   out/             captured screenshots and videos (gitignored)
-docs/help/         the articles (markdown), one per topic, images by scene name
+help/         the articles (markdown), one per topic, images by scene name
 ```
 
 Commands: `pnpm demo:seed` (reset the demo data on the local stack), `pnpm demo:capture [scene]` (run scenes, write `demo/out/<scene>/NN-step.png`), `pnpm demo:video` (same scenes with video on).
@@ -38,7 +38,7 @@ Commands: `pnpm demo:seed` (reset the demo data on the local stack), `pnpm demo:
 
 ## Help articles
 
-- Static markdown in `docs/help/`, first pass covering the topics members already get in Kajabi's "Hedgie Help!" section (how to join a prickle, planning your month, hosting a PUP, becoming a host, running a prickle, if you can't host, the BFF program, suggesting a webinar or coaching topic, submitting a daily coaching video).
+- Static markdown in `help/`, first pass covering the topics members already get in Kajabi's "Hedgie Help!" section (how to join a prickle, planning your month, hosting a PUP, becoming a host, running a prickle, if you can't host, the BFF program, suggesting a webinar or coaching topic, submitting a daily coaching video).
 - Kajabi stays the source of the existing lessons; none of their text is copied into the repo. Read the relevant lesson there when drafting its Hub version, for tone and for the non-app parts (prickle types, etiquette, hosting norms). Its steps predate the Hub: joining is described through Slack's `#prickle-times` posts, a shared Zoom link and password, and a monthly "Prickle Times" spreadsheet, so every app-specific step is rewritten against the real screens. Of the ten "Hedgie Help!" lessons, two are drafts (what to expect in the BFF program, suggesting a webinar or coaching topic; the second is empty), and the daily coaching video lesson is a short video page.
 - Publishing is a later decision (a `/help` route in the app, a static site such as Trackbear's help site, or Kajabi itself). Markdown plus images is portable to all three.
 - Images are fictional by construction, but still review them before committing: a screenshot is the likeliest place for real data to leak.
@@ -77,3 +77,4 @@ Not everything happens in the browser. Notification scenes also render what memb
 - **Screenshots**: published as build artifacts, not committed.
 - **CI**: not yet. Get the first slice and the matrix working locally, then decide.
 - **Slack mockups**: local renderer (evaluate `slack-blocks-to-jsx` first), no third-party service.
+- **Where the files live**: member-facing articles in a top-level `help/` directory (images next to them by scene name, or published artifacts), developer docs stay in `docs/`. The route that renders them is `app/(member)/help/`, which reads `help/<slug>.md` at build time (`generateStaticParams`, `react-markdown` and `remark-gfm`, both already dependencies). Because code reads `help/` at build time, it must not count as documentation in `scripts/docs-only.ts`: otherwise a PR that only edits an article skips the build and the deploy, and the change never reaches members. Take it out of the allowlist and update `tests/lib/docs-only.test.ts` in the PR that adds the route (`docs-only-changes.md`).
