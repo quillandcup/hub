@@ -3,7 +3,7 @@ import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import BadgeTypeForm from "../../BadgeTypeForm";
+import BadgeTypeForm, { type Category } from "../../BadgeTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export async function generateMetadata({
@@ -72,7 +72,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
               name: badgeType.name,
               description: badgeType.description ?? "",
               icon: badgeType.icon,
-              category: badgeType.category,
+              category: badgeType.category as Category, // a check constraint limits the column to these
               hasLevels: badgeType.has_levels,
               levels: (levels ?? []).map((l) => ({
                 level: l.level,

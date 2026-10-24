@@ -9,6 +9,7 @@ import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
+import type { Database } from '@/lib/data/database.types'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -20,7 +21,7 @@ export async function updateSession(request: NextRequest) {
   const userAgent = request.headers.get('user-agent')
   const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

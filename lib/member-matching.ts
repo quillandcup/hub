@@ -16,7 +16,8 @@ export interface Member {
 export interface MemberAlias {
   member_id: string;
   alias: string;
-  source: 'zoom' | 'slack';
+  /** 'zoom' or 'slack' (the column is plain text with a check constraint). */
+  source: string;
 }
 
 export interface MemberEmailAlias {

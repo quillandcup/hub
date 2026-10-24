@@ -5,6 +5,8 @@
  * Documentation: https://help.kajabi.com/api-reference/introduction
  */
 
+import { asJson } from "@/lib/data/json";
+
 const KAJABI_API_BASE = 'https://api.kajabi.com';
 
 export interface KajabiContact {
@@ -125,7 +127,7 @@ export function toKajabiContactBronzeRecord(contact: KajabiContact, importTimest
     created_at_kajabi: contact.attributes.created_at,
     updated_at_kajabi: contact.attributes.updated_at,
     imported_at: importTimestamp,
-    data: contact,
+    data: asJson(contact),
   };
 }
 

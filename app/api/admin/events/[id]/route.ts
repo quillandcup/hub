@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import type { Update } from "@/lib/data/db";
 
 export async function GET(
   request: NextRequest,
@@ -80,7 +81,7 @@ export async function PATCH(
       google_photos_album_url,
     } = body;
 
-    const updates: Record<string, unknown> = {};
+    const updates: Update<"events"> = {};
     if (slug !== undefined) updates.slug = slug;
     if (title !== undefined) updates.title = title;
     if (event_type !== undefined) updates.event_type = event_type;

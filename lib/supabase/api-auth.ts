@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 import { NextRequest } from "next/server";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
@@ -26,7 +27,7 @@ export async function createApiAuth(request: NextRequest) {
     authHeader && cronSecret && serviceRoleKey && authHeader === `Bearer ${cronSecret}`;
 
   if (isServiceRole || isCron) {
-    const supabase = createDirectClient(
+    const supabase = createDirectClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       serviceRoleKey!,
       { auth: { autoRefreshToken: false, persistSession: false } }

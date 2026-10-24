@@ -20,6 +20,7 @@ import { computeHostingStats, type HostingStats } from "@/lib/hosting-stats";
 import { fetchHostedPrickleRecords } from "@/lib/hosted-prickles";
 import { fetchHostEligibilityByMember, hostEligibilityMessage, type HostEligibility } from "@/lib/host-eligibility";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { Update } from "@/lib/data/db";
 
 import { withAction } from "@/lib/analytics/server";
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
@@ -375,7 +376,7 @@ async function updateMyScheduleImpl(
     return { error: "This month is locked -- ask an admin to unlock it" };
   }
 
-  const updates: Record<string, unknown> = { updated_by: user.id, updated_at: new Date().toISOString() };
+  const updates: Update<"prickle_schedules"> = { updated_by: user.id, updated_at: new Date().toISOString() };
   if (patch.dayOfWeek !== undefined) updates.day_of_week = patch.dayOfWeek;
   if (patch.recurrenceAnchorDate !== undefined) updates.recurrence_anchor_date = patch.recurrenceAnchorDate;
   if (patch.weekOfMonth !== undefined) updates.week_of_month = patch.weekOfMonth;

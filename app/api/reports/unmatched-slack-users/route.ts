@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Paginate slack_messages to get complete activity counts per user
-    const slackMessages: { user_id: string }[] = [];
+    const slackMessages: { user_id: string | null }[] = [];
     {
       let offset = 0;
       let hasMore = true;
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     // Count messages per user
     const messageCountByUser = new Map<string, number>();
     for (const msg of slackMessages || []) {
-      messageCountByUser.set(msg.user_id, (messageCountByUser.get(msg.user_id) || 0) + 1);
+      if (msg.user_id) messageCountByUser.set(msg.user_id, (messageCountByUser.get(msg.user_id) || 0) + 1);
     }
 
     // Find unmatched users (not matched, not ignored, not bots)

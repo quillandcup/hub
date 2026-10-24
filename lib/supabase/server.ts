@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies, headers } from 'next/headers'
+import type { Database } from '@/lib/data/database.types'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 
 export async function createClient() {
@@ -21,7 +22,7 @@ export async function createClient() {
   // name the caller and the caller to be an admin.
   const actingAs = actingAsHeaderValue(cookieStore.get(SUDO_COOKIE_NAME)?.value)
 
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

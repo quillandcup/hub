@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         console.error(`Error rebuilding member interactions (${window.from.toISOString()} to ${window.to.toISOString()}):`, error);
         throw error;
       }
-      for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] += data?.[key] ?? 0;
+      for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] += (data as Record<string, number> | null)?.[key] ?? 0;
     }
 
     console.log(

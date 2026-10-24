@@ -7,6 +7,7 @@ import { getArrivals } from "@/lib/arrivals";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendMatchIntroductions } from "@/lib/mentorship-intro";
 import { isId } from "@/lib/ids";
+import type { Update } from "@/lib/data/db";
 
 const BASE_PATH = "/admin/mentorship";
 
@@ -70,7 +71,7 @@ export async function updateMentorship(
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
 
-  const update: Record<string, unknown> = {};
+  const update: Update<"mentorships"> = {};
   if (changes.outcomeNote !== undefined) update.outcome_note = changes.outcomeNote?.trim() || null;
   if (changes.status !== undefined) {
     if (changes.status !== "matched" && changes.status !== "reassigned") return { error: "Unknown status." };

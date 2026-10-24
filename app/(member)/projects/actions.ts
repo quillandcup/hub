@@ -3,6 +3,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
+import type { Update } from "@/lib/data/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -686,8 +687,8 @@ async function publishProjectImpl(
     project_id: projectId,
     title: book.title.trim(),
     description: book.description?.trim() || null,
-    cover_url: safeUrl(book.coverUrl),
-    purchase_url: safeUrl(book.purchaseUrl),
+    cover_url: safeUrl(book.coverUrl)!, // validated above
+    purchase_url: safeUrl(book.purchaseUrl)!,
     published_date: book.publishedDate,
     price: book.price ?? null,
     genre: book.genre?.trim() || null,
@@ -835,7 +836,7 @@ export async function updateEntry(
   });
   if (validationError) return { error: validationError };
 
-  const updates: Record<string, unknown> = {};
+  const updates: Update<"writing_progress_entries"> = {};
   if (patch.entryDate !== undefined) updates.entry_date = patch.entryDate;
   if (patch.measure !== undefined) updates.measure = patch.measure;
   if (patch.mode !== undefined) updates.mode = patch.mode;
@@ -1384,7 +1385,7 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
       .from("writing_progress_entries")
       .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
       .eq("member_id", effectiveIdentity.memberId)
-      .in("project_id", projectIds),
+      .in("project_id", projectIds.filter((id): id is string => id !== null)),
     getMyPrickleAttendance(),
   ]);
 

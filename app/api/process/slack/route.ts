@@ -109,8 +109,8 @@ export async function POST(request: NextRequest) {
           throw error;
         }
 
-        messages += result?.messages ?? 0;
-        reactions += result?.reactions ?? 0;
+        messages += (result as { messages?: number; reactions?: number } | null)?.messages ?? 0;
+        reactions += (result as { messages?: number; reactions?: number } | null)?.reactions ?? 0;
       }
 
       console.log(

@@ -12,7 +12,7 @@ export const SLACKBOT_USER_ID = 'USLACKBOT';
 export interface SlackUser {
   user_id: string;
   email: string | null;
-  real_name: string;
+  real_name: string | null;
 }
 
 export interface SlackMatchResult {

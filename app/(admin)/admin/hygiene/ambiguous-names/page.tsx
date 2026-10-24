@@ -35,12 +35,13 @@ export default async function AmbiguousNamesPage() {
     const existing = groups.get(row.zoom_name);
     if (existing) {
       existing.occurrenceCount += row.occurrence_count ?? 0;
-      if (row.last_seen_at > existing.lastSeenAt) existing.lastSeenAt = row.last_seen_at;
+      const seen = row.last_seen_at ?? "";
+      if (seen > existing.lastSeenAt) existing.lastSeenAt = seen;
       for (const id of row.candidate_member_ids ?? []) existing.candidateIds.add(id);
     } else {
       groups.set(row.zoom_name, {
         occurrenceCount: row.occurrence_count ?? 0,
-        lastSeenAt: row.last_seen_at,
+        lastSeenAt: row.last_seen_at ?? "",
         candidateIds: new Set<string>(row.candidate_member_ids ?? []),
       });
     }

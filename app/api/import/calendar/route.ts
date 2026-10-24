@@ -3,6 +3,7 @@ import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { NextRequest, NextResponse } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 
 // Extend timeout for syncing large calendars
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   // The authenticated (cookie-based) client silently fails on bronze schema SELECT and UPDATE
   // even though UPSERT works — the root cause is undiagnosed but consistent. Since this is
   // an admin-only route, service role is appropriate and correct throughout.
-  const supabase = createDirectClient(
+  const supabase = createDirectClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }

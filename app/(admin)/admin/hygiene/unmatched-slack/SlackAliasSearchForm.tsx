@@ -10,7 +10,7 @@ interface UnmatchedSlackUser {
   real_name: string | null;
   display_name: string | null;
   message_count: number;
-  is_deleted?: boolean;
+  is_deleted?: boolean | null;
 }
 
 interface Member {

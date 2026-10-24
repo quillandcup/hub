@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const names = Array.from(new Set((data || []).map((o) => o.name).filter(Boolean))).sort((a, b) =>
+  const names = Array.from(new Set((data || []).map((o) => o.name).filter((n): n is string => !!n))).sort((a, b) =>
     a.localeCompare(b)
   );
 

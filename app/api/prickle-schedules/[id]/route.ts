@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import type { Update } from "@/lib/data/db";
 
 export async function PATCH(
   request: NextRequest,
@@ -32,7 +33,7 @@ export async function PATCH(
       return NextResponse.json({ error: "status must be one of: proposed, confirmed, declined" }, { status: 400 });
     }
 
-    const updates: Record<string, unknown> = {
+    const updates: Update<"prickle_schedules"> = {
       updated_by: user.id !== "service-role" ? user.id : null,
       updated_at: new Date().toISOString(),
     };

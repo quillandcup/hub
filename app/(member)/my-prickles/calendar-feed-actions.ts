@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { refresh, revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Insert } from "@/lib/data/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -159,7 +160,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
       const prickle = first(row.prickles as NameRef) as
         | { start_time: string; prickle_types: NameRef }
         | null;
-      if (!prickle || new Date(prickle.start_time).getTime() < now) continue;
+      if (!prickle || !row.prickle_id || new Date(prickle.start_time).getTime() < now) continue;
       const prickleTypeName = first(prickle.prickle_types)?.name ?? "Prickle";
       items.push({
         id: row.id,
@@ -168,6 +169,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
         prickleId: row.prickle_id,
       });
     } else if (row.kind === "slot") {
+      if (row.type_id === null || row.day_of_week === null || row.start_time_local === null || row.timezone === null) continue;
       const slot = { typeId: row.type_id, dayOfWeek: row.day_of_week, startTimeLocal: row.start_time_local, timezone: row.timezone };
       items.push({
         id: row.id,
@@ -177,7 +179,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
       });
     } else {
       const event = first(row.events as NameRef) as { title: string; starts_at: string; ends_at: string } | null;
-      if (!event || event.ends_at < today) continue;
+      if (!event || !row.event_id || event.ends_at < today) continue;
       items.push({
         id: row.id,
         kind: "event",
@@ -200,7 +202,7 @@ function revalidateCalendarViews() {
 }
 
 /** Insert one item for the acting member; an item they already have counts as success. */
-async function addItem(row: Record<string, unknown>): Promise<ItemResult> {
+async function addItem(row: Omit<Insert<"calendar_feed_items">, "member_id" | "created_by">): Promise<ItemResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not signed in" };
   const memberId = (await getEffectiveIdentity(user))?.memberId;

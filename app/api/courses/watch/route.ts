@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
   const memberId = caller.identity.memberId;
+  const videoId = lesson.video_id; // narrowed above; kept for the closures below
 
   // The player appeared: one "viewed" marker per player session (its client id is the session id, so a resend is ignored).
   if (batch.viewed) {
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       batch.segments.map((s) => ({
         client_segment_id: s.id,
         member_id: memberId,
-        video_id: lesson.video_id,
+        video_id: videoId,
         session_id: batch.sessionId,
         start_seconds: s.start,
         end_seconds: s.end,

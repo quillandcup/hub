@@ -4,6 +4,7 @@ import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { syncKajabiCourses } from "@/lib/courses/sync";
 import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
 
 /**
  * Sync data from Kajabi API
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         created_at_kajabi: customer.attributes.created_at,
         updated_at_kajabi: customer.attributes.updated_at,
         imported_at: importTimestamp,
-        data: customer,
+        data: asJson(customer),
       }));
 
       const { error: customersError } = await supabase
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         effective_start_at: purchase.attributes.effective_start_at,
         deactivated_at: purchase.attributes.deactivated_at,
         imported_at: importTimestamp,
-        data: purchase,
+        data: asJson(purchase),
       }));
 
       const { error: purchasesError } = await supabase
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
         status: offer.attributes.status,
         trial_period_days: offer.attributes.trial_period_days,
         imported_at: importTimestamp,
-        data: offer,
+        data: asJson(offer),
       }));
 
       const { error: offersError } = await supabase

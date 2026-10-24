@@ -2,11 +2,12 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createServiceClient(url, key, {
+  return createServiceClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
@@ -103,11 +104,13 @@ export async function POST(request: NextRequest) {
   // (app/api/process/members) or manual admin linking, leaving it null for
   // an ordinary invited member indefinitely. Best-effort: a missing member
   // row (e.g. inviting a staff-only email) is not an error here.
-  await supabase
-    .from("members")
-    .update({ user_id: data.user.id })
-    .eq("email", data.user.email)
-    .is("user_id", null);
+  if (data.user.email) {
+    await supabase
+      .from("members")
+      .update({ user_id: data.user.id })
+      .eq("email", data.user.email)
+      .is("user_id", null);
+  }
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } });
 }
