@@ -17,7 +17,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-import { getPricklesOnDate } from "@/app/(member)/projects/actions";
+import { getMyPrickleAttendance, getPricklesOnDate } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -86,5 +86,28 @@ describe("getPricklesOnDate", () => {
 
     expect(await getPricklesOnDate("2026-10-25")).toEqual([]);
     expect(attendedAmong).not.toHaveBeenCalled();
+  });
+});
+
+describe("getMyPrickleAttendance", () => {
+  it("reduces the member's writing-prickle attendance to local dates, leaving out other purposes and other members", async () => {
+    const social = { ...TYPE, id: "ptyp_AAAAAAAAAAA2", name: "Social Hour", normalizedName: "social-hour", purpose: "social" };
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        prickleTypes: [TYPE, social],
+        prickles: [
+          prickle("prkl_AAAAAAAAAAA1", "2026-10-20T23:30:00Z"),
+          { ...prickle("prkl_AAAAAAAAAAA2", "2026-10-21T15:00:00Z"), typeId: social.id },
+          prickle("prkl_AAAAAAAAAAA3", "2026-10-22T15:00:00Z"),
+        ],
+        attendance: [
+          row("a1", IDENTITY.memberId, "prkl_AAAAAAAAAAA1"),
+          row("a2", IDENTITY.memberId, "prkl_AAAAAAAAAAA2"), // social: not counted
+          row("a3", "mbr_AAAAAAAAAAA9", "prkl_AAAAAAAAAAA3"), // someone else's
+        ],
+      }),
+    );
+
+    expect(await getMyPrickleAttendance()).toEqual([{ prickleId: "prkl_AAAAAAAAAAA1", localDate: "2026-10-20" }]);
   });
 });
