@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailPage, pushPage, slackPage } from "@/demo/mockups/frames";
+import { emailPage, pushPage, slackMobilePage, slackPage } from "@/demo/mockups/frames";
 import type { OutboundMessage } from "@/lib/channels/types";
 import { notificationKind } from "@/lib/notifications/registry";
 
@@ -23,6 +23,29 @@ describe("slackPage", () => {
     );
     expect(html).toContain("Bold");
     expect(html).toContain("Notification settings");
+  });
+});
+
+describe("slackMobilePage", () => {
+  it("draws the same message on a phone-width screen, with the app's header and message box, in either theme", () => {
+    const html = slackMobilePage(message, "dark");
+    expect(html).toContain("Ready for Sprint Prickle in ~20 min?");
+    expect(html).toContain("Open in the Hub");
+    expect(html).toContain("width:390px");
+    expect(html).toContain("Message Billie Bot (Hedgie Hub)"); // the message box
+    expect(html).toContain('class="dark"');
+    expect(slackMobilePage(message, "light")).toContain('class="light"');
+  });
+
+  it("shows a message's own blocks and its footer links, and lets a long message run past the nominal screen height", () => {
+    const html = slackMobilePage(
+      { ...message, slackBlocks: [{ type: "section", text: { type: "mrkdwn", text: "*Bold* body" } }], footerLinks: [{ label: "Notification settings", url: "https://hub.example.test/settings" }] },
+      "light",
+    );
+    expect(html).toContain("Bold");
+    expect(html).toContain("Notification settings");
+    expect(html).toContain("min-height:760px");
+    expect(html).not.toMatch(/[^-]height:760px/);
   });
 });
 

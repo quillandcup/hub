@@ -51,6 +51,29 @@ export function slackPage(message: OutboundMessage, theme: Theme): string {
   return page("Slack", css, body, theme);
 }
 
+/**
+ * The same message in Slack's phone app: a phone-width screen with a status bar, the conversation header, the
+ * message at phone text size and the message box below. The blocks and their wrapping are the real ones (the
+ * buttons wrap as they do on a narrow screen); the app chrome is drawn, not Slack's own. The screen grows to show
+ * the whole message instead of cutting it off, since a mockup should show all of it.
+ */
+export function slackMobilePage(message: OutboundMessage, theme: Theme): string {
+  const blocks = slackBlocks(message);
+  const dark = theme === "dark";
+  const c = dark ? { bg: "#1a1d21", bar: "#121016", line: "#2c2d30", text: "#d1d2d3", muted: "#9b9b9d", field: "#222529" } : { bg: "#ffffff", bar: "#f8f8f8", line: "#e3e3e3", text: "#1d1c1d", muted: "#6a6a6b", field: "#f2f2f2" };
+  const css = `${SLACK_CSS}
+  [data-frame]{width:390px;border-radius:44px;overflow:hidden;background:${c.bg};color:${c.text};border:10px solid #101114;display:flex;flex-direction:column;min-height:760px}
+  .status{display:flex;justify-content:space-between;padding:14px 26px 6px;font:600 15px ${FONT};background:${c.bar}}
+  .hd{display:flex;align-items:center;gap:10px;padding:8px 14px 10px;background:${c.bar};border-bottom:1px solid ${c.line};font:700 17px ${FONT}}
+  .hd .back{font-weight:400;font-size:22px;color:${c.muted}}.hd small{display:block;font:400 12px ${FONT};color:${c.muted}}
+  .pane{flex:1;padding:14px 12px;font-size:15px}
+  .compose{margin:8px 12px 16px;padding:11px 14px;border-radius:12px;background:${c.field};color:${c.muted};font:15px ${FONT}}`;
+  const body = `<div data-frame><div class="status"><span>10:42</span><span>5G ▮▮▮</span></div><div class="hd"><span class="back">‹</span><div>${BOT_NAME}<small>App</small></div></div><div class="pane">${renderToStaticMarkup(
+    <Message blocks={blocks} name={BOT_NAME} logo={BOT_LOGO} time={new Date("2026-10-24T14:42:00Z")} theme={theme} />,
+  )}</div><div class="compose">Message ${BOT_NAME}</div></div>`;
+  return page("Slack on a phone", css, body, theme);
+}
+
 /** An email client around the rendered email, with its subject, sender and unsubscribe link as the real send has them. */
 export async function emailPage(kind: NotificationEmailKind, message: OutboundMessage): Promise<string> {
   const unsubscribe = { label: `Unsubscribe from “${notificationKind(kind).label}” emails`, url: unsubscribePageUrl("sample-token") };

@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, shot, test } from "../fixtures";
 import { loadDemoEnv } from "../env";
-import { emailPage, pushPage, slackPage, type PushDevice } from "../mockups/frames";
+import { emailPage, pushPage, slackMobilePage, slackPage, type PushDevice } from "../mockups/frames";
 import { sampleMessages } from "@/lib/notification-test";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { APP_URL } from "@/lib/config";
@@ -33,6 +33,10 @@ test("every notification kind, as members receive it", async ({ page }, testInfo
       await page.setContent(slackPage(message, theme));
       await expect(frame()).toBeVisible();
       await shot(page, testInfo, `slack-${label}`, { element: frame(), ...noChecks });
+
+      await page.setContent(slackMobilePage(message, theme));
+      await expect(frame()).toBeVisible();
+      await shot(page, testInfo, `slack-phone-${label}`, { element: frame(), ...noChecks });
 
       await page.setContent(await emailPage(kind.id, message));
       await expect(frame()).toBeVisible();
