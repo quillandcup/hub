@@ -7,6 +7,10 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+// The picker fetches the full emoji data when it opens, and only draws its grid once that is in.
+// Reading the real (large) file raced the test's next query when the machine was busy.
+vi.mock("emojibase-data/en/data.json", () => ({ default: [] }));
+vi.mock("emojibase-data/en/shortcodes/iamcal.json", () => ({ default: {} }));
 vi.mock("@/app/(member)/chat/actions", () => ({ loadOlderChat: vi.fn(), toggleChatReaction: vi.fn() }));
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import MessageList from "@/components/chat/MessageList";
@@ -197,7 +201,7 @@ describe("MessageList days and hover", () => {
     vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: true });
     render(<MessageList channelId="c1" views={[view(1)]} ctx={CTX} olderBefore={null} canReact />);
     await userEvent.click(screen.getByRole("button", { name: "Add reaction…" }));
-    await userEvent.click(screen.getByRole("button", { name: "React with :tada:" }));
+    await userEvent.click(await screen.findByRole("button", { name: "React with :tada:" }));
     expect(toggleChatReaction).toHaveBeenCalledWith("m1", "tada");
   });
 });
