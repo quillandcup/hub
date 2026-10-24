@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fromEditableText, toEditableText, type EditableText } from "@/lib/chat/render";
 import { useRouter } from "next/navigation";
 import ChatText, { type ChatTextContext } from "@/components/chat/ChatText";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
@@ -33,6 +34,8 @@ export default function MessageBody({
   const [saved, setSaved] = useState<{ from: string; text: string } | null>(null);
   const [deleted, setDeleted] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
+  // The names the box shows for a Slack-written message's mentions and links, to put back as Slack's markup on save.
+  const shownTokens = useRef<EditableText["tokens"]>(new Map());
 
   const changeable = canEdit && message.mine && !message.system && message.syncStatus === null && !isPendingId(message.id);
   const text = saved && saved.from === message.body ? saved.text : message.body;
@@ -44,21 +47,25 @@ export default function MessageBody({
       if (d?.messageId !== message.id) return;
       setError(null);
       if (d.what === "edit") {
-        setDraft(text);
+        // A message written in Slack is Slack's own markup: show people and channels by name. A Hub message is plain text.
+        const editable = message.fromHub ? { text, tokens: new Map<string, string>() } : toEditableText(text, ctx);
+        shownTokens.current = editable.tokens;
+        setDraft(editable.text);
         setMode("edit");
       } else setMode("confirm-delete");
     };
     window.addEventListener(MESSAGE_CHANGE_EVENT, onChange);
     return () => window.removeEventListener(MESSAGE_CHANGE_EVENT, onChange);
-  }, [changeable, message.id, text]);
+  }, [changeable, message.id, message.fromHub, text, ctx]);
 
   const catchUp = () => {
     if (!pokeChat(channelId)) router.refresh();
   };
 
   const save = async () => {
-    const next = draft.trim();
-    if (!next || busy) return;
+    const typed = draft.trim();
+    if (!typed || busy) return;
+    const next = message.fromHub ? typed : fromEditableText(typed, shownTokens.current);
     if (next === text) return setMode("view");
     setBusy(true);
     setError(null);

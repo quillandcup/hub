@@ -20,7 +20,7 @@ const mine = (extra: Partial<ChatMessageView> = {}): ChatMessageView & { body: s
   ...extra,
   body: "first draft",
 });
-const mount = (message = mine(), canEdit = true) => render(<MessageBody message={message} ctx={CTX} channelId="c1" canEdit={canEdit} />);
+const mount = (message = mine(), canEdit = true, ctx: ChatTextContext = CTX) => render(<MessageBody message={message} ctx={ctx} channelId="c1" canEdit={canEdit} />);
 
 const fire = (what: "edit" | "delete", messageId = "m1") =>
   act(() => {
@@ -76,6 +76,37 @@ describe("MessageBody", () => {
     expect(poked).toHaveBeenCalledTimes(1);
     expect(refresh).not.toHaveBeenCalled();
     off();
+  });
+
+  describe("a message written in Slack", () => {
+    const NAMED: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" }, channelNames: { C1: "general" } };
+    const slackWritten = (body: string) => ({ ...mine({ fromHub: false }), body });
+
+    it("shows people, channels and links by name in the edit box, and sends Slack's markup back", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more"), true, NAMED);
+
+      fire("edit");
+      const box = screen.getByRole("textbox", { name: "Edit message" });
+      expect(box).toHaveValue("hi @Ania Ray in #general, see the doc & more");
+
+      await userEvent.type(box, " thanks{Enter}");
+      await waitFor(() =>
+        expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more thanks")
+      );
+    });
+
+    it("escapes what is typed for Slack, and saves nothing when the text is unchanged", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1>"), true, NAMED);
+      fire("edit");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(editChatMessage).not.toHaveBeenCalled();
+
+      fire("edit");
+      await userEvent.type(screen.getByRole("textbox"), " a < b & c{Enter}");
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> a &lt; b &amp; c"));
+    });
   });
 
   it("falls back to a page refresh when no live conversation is open", async () => {
