@@ -31,6 +31,9 @@ const MEMBERS = [
   { id: "m-retreat", name: "Retreat Example", email: "retreat@example.test" }, // only a retreat plan: not a membership
   { id: "m-hiatus", name: "Hiatus Example", email: "hiatus@example.test" }, // on hiatus, nothing else
   { id: "m-none", name: "Nothing Example", email: "none@example.test" }, // no data anywhere
+  { id: "m-pastdue", name: "Past Due Example", email: "pastdue@example.test" }, // past due in Stripe: still active until cancelled
+  { id: "m-canceled", name: "Canceled Example", email: "canceled@example.test" }, // cancelled in Stripe, inactive in Kajabi
+  { id: "m-multi", name: "Multi Example", email: "multi@example.test" }, // two Kajabi customers, one under an old aliased email
 ];
 
 const MEMBERSHIP_PRODUCT = "prod_membership";
@@ -53,12 +56,18 @@ beforeEach(() => {
       data: [
         { kajabi_purchase_id: "p1", kajabi_customer_id: "kc-paying", kajabi_offer_id: "off-1", deactivated_at: "2026-09-01T00:00:00Z", imported_at: "2026-10-01T00:00:00Z" },
         { kajabi_purchase_id: "p2", kajabi_customer_id: "kc-kajabi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-02T00:00:00Z" },
+        // m-multi: the deactivated purchase comes first, but the live one under the other customer is the one that counts.
+        { kajabi_purchase_id: "p3", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-08-01T00:00:00Z", imported_at: "2026-10-03T00:00:00Z" },
+        { kajabi_purchase_id: "p4", kajabi_customer_id: "kc-multi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-04T00:00:00Z" },
+        { kajabi_purchase_id: "p5", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-07-01T00:00:00Z", imported_at: "2026-10-05T00:00:00Z" },
       ],
     },
     "bronze.kajabi_customers": {
       data: [
         { kajabi_customer_id: "kc-paying", email: "paying@example.test" },
         { kajabi_customer_id: "kc-kajabi", email: "KAJABI@example.test" },
+        { kajabi_customer_id: "kc-multi", email: "multi@example.test" },
+        { kajabi_customer_id: "kc-multi-old", email: "multi.old@example.test" },
       ],
     },
     "bronze.stripe_products": { data: [{ stripe_product_id: MEMBERSHIP_PRODUCT, name: "Quill & Cup Membership" }] },
@@ -67,6 +76,8 @@ beforeEach(() => {
         { stripe_customer_id: "cus_paying", email: "other@example.test", data: { metadata: { kjb_member_id: "kj-paying" } } }, // matched by Kajabi id
         { stripe_customer_id: "cus_paused", email: "paused@example.test", data: {} }, // matched by email
         { stripe_customer_id: "cus_retreat", email: "retreat@example.test", data: {} },
+        { stripe_customer_id: "cus_pastdue", email: "pastdue@example.test", data: {} },
+        { stripe_customer_id: "cus_canceled", email: "canceled@example.test", data: {} },
       ],
     },
     "bronze.stripe_subscriptions": {
@@ -74,11 +85,13 @@ beforeEach(() => {
         sub("sub_paying", "cus_paying"),
         sub("sub_paused", "cus_paused", { pause_collection: { behavior: "void" } }),
         sub("sub_retreat", "cus_retreat", {}, "prod_retreat"),
+        sub("sub_pastdue", "cus_pastdue", { status: "past_due" }),
+        sub("sub_canceled", "cus_canceled", { status: "canceled" }),
       ],
     },
     member_status_overrides: { data: [{ id: "ov-1", member_id: "m-gift", override_type: "gift", reason: "180 program", notes: null, starts_at: "2026-01-01", expires_at: null }] },
     member_hiatus_history: { data: [{ member_id: "m-hiatus", start_date: "2020-01-01", end_date: null }] },
-    member_email_aliases: { data: [] },
+    member_email_aliases: { data: [{ canonical_email: "multi@example.test", alias_email: "multi.old@example.test" }] },
   };
 });
 
@@ -102,11 +115,16 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
     expect(byId["m-paused"]).toMatchObject({ expected_kajabi_state: "inactive", actual_kajabi_state: "inactive", stripe_state: "paused", has_discrepancy: false });
     // Someone on hiatus has data even with nothing else.
     expect(byId["m-hiatus"]).toMatchObject({ is_on_hiatus: true, has_discrepancy: false });
+    // Past due is still active until it is cancelled; a cancelled subscription expects nothing.
+    expect(byId["m-pastdue"]).toMatchObject({ expected_kajabi_state: "active", stripe_state: "past_due", has_discrepancy: true });
+    expect(byId["m-canceled"]).toMatchObject({ expected_kajabi_state: "inactive", stripe_state: "canceled", has_discrepancy: false });
+    // Two Kajabi customers for one person (the old one under an aliased email): the live purchase wins.
+    expect(byId["m-multi"]).toMatchObject({ actual_kajabi_state: "active", expected_kajabi_state: "inactive", has_discrepancy: true });
     // A retreat payment plan is not a membership subscription, and a member with nothing anywhere is left out.
     expect(byId["m-retreat"]).toBeUndefined();
     expect(byId["m-none"]).toBeUndefined();
 
-    expect(summary).toMatchObject({ total_members: 5, active_in_stripe: 1, paused_in_stripe: 1, active_in_kajabi: 1, total_overrides: 1, discrepancies: 3 });
+    expect(summary).toMatchObject({ total_members: 8, active_in_stripe: 1, paused_in_stripe: 1, active_in_kajabi: 2, total_overrides: 1, discrepancies: 5 });
   });
 
   it("includes every subscription when Stripe has no membership product configured", async () => {
