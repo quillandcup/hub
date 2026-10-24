@@ -926,6 +926,13 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Reproducible demo and help docs _(Needs Scheduling)_
+A fictional demo community plus Playwright scenes that capture screenshots and clips, for the RayhausCapital newsletter now and member help articles later. Design in `docs/DEMO_AND_HELP.md`; nothing is built.
+
+**Why deferred:** the design needs a few decisions first (where the help site lives, whether PNGs are committed). **Where to start:** `demo/seed` building Bronze and Local rows and running `/api/process/*`, a Playwright setup project that signs in the demo users, then one scene (How to join a prickle) end to end. Playwright is already a devDependency; there are no browser tests yet (see the chat day-marker entry below).
+
+**Still open:** no generated database types, so seed rows are untyped (`supabase gen types typescript --local`); the Kajabi "Hedgie Help!" lessons describe the pre-Hub Slack/Zoom/spreadsheet workflow and need rewriting against the app.
+
 ### Chat composer: byte-level upload progress
 Dropping files on the profile panel now attaches them to the conversation composer (the composer is given drop target ids explicitly: `dropTargetIds` on `components/chat/Composer.tsx`, ids set in `app/(member)/chat/[id]/page.tsx`). **Resolved:** drop on the profile panel, explicit drop targets, sent-image lightbox, `chat_delete_file` pgTAP test, and a progress bar while sending, now in bytes across all files with a ring on each thumbnail (XHR upload to the signed URL, `lib/chat/upload-progress.ts`). **Still open:** no cancel button while uploading (the x on a file is disabled during a send). **Resolved:** files upload in parallel (up to `CHAT_UPLOAD_CONCURRENCY` at a time, `lib/chat/upload-pool.ts`); one failure aborts the rest and keeps the files attached, and staged leftovers are swept by the staging cleanup.
 
