@@ -345,3 +345,19 @@ describe("SearchPalette button name", () => {
     expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K");
   });
 });
+
+describe("SearchPalette Clear button", () => {
+  it("appears once something is typed, empties the box and returns the cursor to it", async () => {
+    const user = await open();
+    const box = screen.getByRole("textbox", { name: "Search" });
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+
+    await user.type(box, "pizza");
+    expect(box).toHaveValue("pizza");
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(box).toHaveValue("");
+    expect(box).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+  });
+});

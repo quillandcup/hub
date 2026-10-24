@@ -36,7 +36,7 @@ function heatClass(pct: number): string {
   if (pct >= 75) return "bg-plum-400 text-white"
   if (pct >= 50) return "bg-plum-200 text-slate-700"
   if (pct >= 25) return "bg-plum-100 text-slate-600"
-  if (pct > 0)   return "bg-slate-100 text-slate-500"
+  if (pct > 0)   return "bg-slate-100 text-slate-400"
   return "bg-slate-50 text-slate-300"
 }
 

@@ -57,4 +57,16 @@ describe("HostingStats", () => {
     expect(container.firstElementChild).toHaveClass("@container");
     expect(container.firstElementChild!.firstElementChild).toHaveClass("p-4", "@pair:p-6");
   });
+
+  it("says so when there was no hosting in the last 12 months, instead of drawing an empty chart", () => {
+    // Someone who hosted a couple of years ago and not since: they have stats, but the trend has nothing to draw.
+    const stats = computeHostingStats(
+      [{ prickleId: "old", typeName: "P", startTime: "2024-03-01T10:00:00Z", earliestJoinTime: "2024-03-01T10:00:00Z" }],
+      new Date("2026-06-15T00:00:00Z")
+    );
+    expect(stats.monthlyTrend.every((n) => n === 0)).toBe(true);
+    render(<HostingStats stats={stats} />);
+
+    expect(screen.getByText("No hosting activity in the last 12 months")).toBeInTheDocument();
+  });
 });
