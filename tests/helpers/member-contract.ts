@@ -11,6 +11,10 @@ export type MemberSeedRecord = {
   user?: 0 | 1;
   staffRole?: string;
   firstJoinedAt?: string;
+  stripeCustomerId?: string;
+  bio?: string;
+  instagramUrl?: string;
+  birthday?: [month: number, day: number];
 };
 
 export type MemberContractContext = {
@@ -128,6 +132,95 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
 
       expect((await ctx.repo().byUserId(ctx.authUserIds[1]))?.id).toBe(fern);
       expect(await ctx.repo().byUserId(ctx.unusedUserId)).toBeNull();
+    });
+
+    it("reads a member's profile and identity settings", async () => {
+      const [ada, fern] = await ctx.seed([
+        { name: "Ada Example", displayName: "Penny Quill", kajabiId: "kaj-9", bio: "Writes at dawn.", instagramUrl: "https://instagram.com/ada", birthday: [3, 14] },
+        { name: "Fern Example" },
+      ]);
+
+      const profile = await ctx.repo().profile(ada);
+
+      expect(profile).toMatchObject({
+        id: ada,
+        name: "Ada Example",
+        displayName: "Penny Quill",
+        email: ctx.emailOf(ada),
+        bio: "Writes at dawn.",
+        instagramUrl: "https://instagram.com/ada",
+        facebookUrl: null,
+        twitterUrl: null,
+        birthdayMonth: 3,
+        birthdayDay: 14,
+        selfServiceNameChangedAt: null,
+      });
+      expect(profile?.kajabiId).toMatch(/^kaj-9/);
+      expect(await ctx.repo().profile(fern)).toMatchObject({ bio: null, birthdayMonth: null, birthdayDay: null });
+      expect(await ctx.repo().profile("mbr_ZZZZZZZZZZZZ")).toBeNull();
+    });
+
+    it("searches names and emails: every word, any case, with wildcards typed as plain characters", async () => {
+      const [ada, fern, gale] = await ctx.seed([
+        { name: "Zyxel Ada Quill" },
+        { name: "Zyxel Fern Moss", status: "cancelled" },
+        { name: "Zyxel Gale 100%" },
+      ]);
+      const ours = new Set([ada, fern, gale]);
+      const found = async (query: Parameters<ReturnType<typeof ctx.repo>["search"]>[0]) =>
+        (await ctx.repo().search(query)).filter((m) => ours.has(m.id)).map((m) => m.id);
+
+      expect(await found({ words: ["zyxel"] })).toEqual([ada, fern, gale]); // by name
+      expect(await found({ words: ["ZYXEL", "fern"] })).toEqual([fern]); // every word
+      expect(await found({ words: ["zyxel", "nobody"] })).toEqual([]);
+      expect(await found({ words: ["zyxel"], status: "active" })).toEqual([ada, gale]);
+      expect(await found({ words: ["100%"] })).toEqual([gale]);
+      expect(await found({ words: ["z_xel"] })).toEqual([]); // _ is not a wildcard
+      expect(await found({ words: [ctx.emailOf(ada).toUpperCase()] })).toEqual([ada]); // by email, any case
+    });
+
+    it("matches an email exactly or by what it contains, ignoring case", async () => {
+      const [ada, fern] = await ctx.seed([{ name: "Ada Example" }, { name: "Fern Example" }]);
+      const found = async (query: Parameters<ReturnType<typeof ctx.repo>["search"]>[0]) =>
+        (await ctx.repo().search(query)).map((m) => m.id).filter((id) => [ada, fern].includes(id));
+
+      expect(await found({ emailEquals: ctx.emailOf(ada).toUpperCase() })).toEqual([ada]);
+      expect(await found({ emailEquals: ctx.emailOf(ada).slice(0, -3) })).toEqual([]); // not a prefix match
+      expect(await found({ emailContains: ctx.emailOf(fern).slice(2, -2).toUpperCase() })).toEqual([fern]);
+    });
+
+    it("pages a search by name", async () => {
+      const ids = await ctx.seed([{ name: "Qwv Cleo" }, { name: "Qwv Abe" }, { name: "Qwv Bea" }]);
+
+      const first = await ctx.repo().search({ words: ["qwv"], limit: 2 });
+      const rest = await ctx.repo().search({ words: ["qwv"], limit: 2, offset: 2 });
+
+      expect(first.map((m) => m.name)).toEqual(["Qwv Abe", "Qwv Bea"]);
+      expect(rest.map((m) => m.name)).toEqual(["Qwv Cleo"]);
+      expect(ids).toHaveLength(3);
+    });
+
+    it("says when Kajabi processing last touched a Kajabi member", async () => {
+      const startedAt = Date.now() - 60_000;
+      await ctx.seed([{ name: "Ada Example", kajabiId: "kaj-1" }]);
+
+      const last = await ctx.repo().lastKajabiProcessedAt();
+
+      expect(last).not.toBeNull();
+      expect(new Date(last!).getTime()).toBeGreaterThanOrEqual(startedAt);
+    });
+
+    it("counts members of a status with no Stripe customer", async () => {
+      await ctx.seed([]);
+      const before = await ctx.repo().countWithoutStripeCustomer("on_hiatus");
+
+      await ctx.seed([
+        { name: "Ada Example", status: "on_hiatus" },
+        { name: "Fern Example", status: "on_hiatus", stripeCustomerId: "cus_1" },
+        { name: "Gale Example" },
+      ]);
+
+      expect(await ctx.repo().countWithoutStripeCustomer("on_hiatus")).toBe(before + 1);
     });
 
     it("finds a member by exact email", async () => {

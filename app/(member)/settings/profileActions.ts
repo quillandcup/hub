@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -160,12 +161,22 @@ async function loadKajabiProfileSnapshot(
   };
 }
 
+/** The member's own columns, as `{ data, error }` like the other loaders here (a failed read is an error, not "no member"). */
 async function loadMember(ctx: Ctx) {
-  return ctx.service
-    .from("members")
-    .select("email, kajabi_id, bio, instagram_url, facebook_url, twitter_url")
-    .eq("id", ctx.effectiveIdentity.memberId)
-    .single();
+  try {
+    const profile = await createRepos(ctx.service).members.profile(ctx.effectiveIdentity.memberId);
+    const data = profile && {
+      email: profile.email,
+      kajabi_id: profile.kajabiId,
+      bio: profile.bio,
+      instagram_url: profile.instagramUrl,
+      facebook_url: profile.facebookUrl,
+      twitter_url: profile.twitterUrl,
+    };
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: { message: err instanceof Error ? err.message : "Couldn't load your profile" } };
+  }
 }
 
 /** Read through the caller's own session, so RLS scopes it to their row (or an admin's sudo target). */

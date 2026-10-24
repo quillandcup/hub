@@ -45,7 +45,8 @@ function makeSupabaseMock({
   updateError?: string;
 }) {
   const single = vi.fn().mockResolvedValue({ data: currentMember, error: null });
-  const selectEq = vi.fn(() => ({ single }));
+  // The members repository reads with maybeSingle; .single() stays for the pen-name lookups.
+  const selectEq = vi.fn(() => ({ single, maybeSingle: single }));
   const select = vi.fn(() => ({ eq: selectEq }));
 
   const updateSingle = vi
@@ -212,7 +213,8 @@ describe("setCustomDisplayName", () => {
     const memberUpdate = vi.fn(() => ({
       eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: "member-1" }, error: null }) }) }),
     }));
-    const memberSelect = () => ({ eq: () => ({ single: () => Promise.resolve({ data: { name: IDENTITY.memberName } }) }) });
+    // The member's own name is read through the members repository, which uses maybeSingle.
+    const memberSelect = () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { name: IDENTITY.memberName }, error: null }) }) });
     const from = vi.fn((table: string) =>
       table === "member_name_aliases"
         ? Object.assign(aliasChain, { insert, update: aliasUpdate })

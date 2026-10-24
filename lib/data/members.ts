@@ -25,6 +25,36 @@ export type Member = MemberIdentity & {
   mostRecentJoinedAt: string | null;
 };
 
+/** What a member keeps about themselves: the profile and identity settings columns. */
+export type MemberProfile = {
+  id: string;
+  name: string;
+  displayName: string | null;
+  email: string;
+  kajabiId: string | null;
+  bio: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  twitterUrl: string | null;
+  birthdayMonth: number | null;
+  birthdayDay: number | null;
+  /** Set once the member has used their one self-service name change. */
+  selfServiceNameChangedAt: string | null;
+};
+
+/** Which members a search matches; all given conditions must hold. Results are ordered by name. */
+export type MemberSearch = {
+  /** Each word must appear, in any case, in the name or the email. */
+  words?: string[];
+  /** The email, ignoring case, is exactly this. */
+  emailEquals?: string;
+  /** The email contains this, in any case. */
+  emailContains?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+};
+
 /**
  * Everything the app asks of `members`. Scans are paginated here (a members table past 1000 rows
  * is silently truncated by a bare select), and lookups by id or auth user are chunked.
@@ -46,6 +76,14 @@ export interface MemberRepository {
   byIds(ids: string[]): Promise<Member[]>;
   /** The member who signs in as this Supabase Auth user. */
   byUserId(userId: string): Promise<Member | null>;
+  /** The member's profile and identity-settings columns. */
+  profile(id: string): Promise<MemberProfile | null>;
+  /** Members matching the search, by name (then id). */
+  search(query: MemberSearch): Promise<Member[]>;
+  /** When Kajabi processing last touched a Kajabi member's row, or null if there are none. */
+  lastKajabiProcessedAt(): Promise<string | null>;
+  /** How many members of this status have no Stripe customer id. */
+  countWithoutStripeCustomer(status: string): Promise<number>;
   /** The member with exactly this email (case-sensitive, as stored), if any. */
   byEmail(email: string): Promise<Member | null>;
   /** Auth user id -> member id, for the auth users that have a member. */
@@ -97,6 +135,36 @@ const toMember = (row: MemberRow): Member => ({
   mostRecentJoinedAt: row.most_recent_joined_at,
 });
 
+const PROFILE_COLUMNS =
+  "id, name, display_name, email, kajabi_id, bio, instagram_url, facebook_url, twitter_url, birthday_month, birthday_day, self_service_name_changed_at";
+type ProfileRow = IdentityRow & {
+  kajabi_id: string | null;
+  bio: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  twitter_url: string | null;
+  birthday_month: number | null;
+  birthday_day: number | null;
+  self_service_name_changed_at: string | null;
+};
+
+const toProfile = (row: ProfileRow): MemberProfile => ({
+  ...toIdentity(row),
+  kajabiId: row.kajabi_id,
+  bio: row.bio,
+  instagramUrl: row.instagram_url,
+  facebookUrl: row.facebook_url,
+  twitterUrl: row.twitter_url,
+  birthdayMonth: row.birthday_month,
+  birthdayDay: row.birthday_day,
+  selfServiceNameChangedAt: row.self_service_name_changed_at,
+});
+
+/** A typed word with the characters that mean something to PostgREST's filter syntax or to LIKE turned into spaces. */
+const neutralize = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
+/** Text for ILIKE to match literally: its own wildcards escaped. */
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 export class SupabaseMemberRepository implements MemberRepository {
   constructor(private readonly db: Db) {}
 
@@ -135,6 +203,50 @@ export class SupabaseMemberRepository implements MemberRepository {
       found.push(...rows.map(toMember));
     }
     return found;
+  }
+
+  async profile(id: string): Promise<MemberProfile | null> {
+    const { data, error } = await this.db.from("members").select(PROFILE_COLUMNS).eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toProfile(data as unknown as ProfileRow) : null;
+  }
+
+  async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch): Promise<Member[]> {
+    let query = this.db.from("members").select(MEMBER_COLUMNS);
+    for (const word of words) {
+      const clean = neutralize(word);
+      if (clean) query = query.or(`name.ilike."%${clean}%",email.ilike."%${clean}%"`);
+    }
+    if (emailEquals !== undefined) query = query.ilike("email", escapeLike(emailEquals));
+    if (emailContains !== undefined) query = query.ilike("email", `%${escapeLike(emailContains)}%`);
+    if (status !== undefined) query = query.eq("status", status);
+    query = query.order("name").order("id");
+    if (limit !== undefined) query = query.range(offset, offset + limit - 1);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as MemberRow[]).map(toMember);
+  }
+
+  async lastKajabiProcessedAt(): Promise<string | null> {
+    const { data, error } = await this.db
+      .from("members")
+      .select("updated_at")
+      .not("kajabi_id", "is", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.updated_at ?? null;
+  }
+
+  async countWithoutStripeCustomer(status: string): Promise<number> {
+    const { count, error } = await this.db
+      .from("members")
+      .select("id", { count: "exact", head: true })
+      .eq("status", status)
+      .is("stripe_customer_id", null);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
   }
 
   async byId(id: string): Promise<Member | null> {
@@ -253,6 +365,46 @@ export class InMemoryMemberRepository implements MemberRepository {
 
   async count() {
     return this.data.members.length;
+  }
+
+  async profile(id: string) {
+    const m = this.data.members.find((x) => x.id === id);
+    if (!m) return null;
+    return {
+      id: m.id,
+      name: m.name,
+      displayName: m.displayName ?? null,
+      email: m.email ?? "",
+      kajabiId: m.kajabiId ?? null,
+      bio: m.bio ?? null,
+      instagramUrl: m.instagramUrl ?? null,
+      facebookUrl: m.facebookUrl ?? null,
+      twitterUrl: m.twitterUrl ?? null,
+      birthdayMonth: m.birthdayMonth ?? null,
+      birthdayDay: m.birthdayDay ?? null,
+      selfServiceNameChangedAt: m.selfServiceNameChangedAt ?? null,
+    };
+  }
+
+  async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch) {
+    const matches = (text: string, word: string) => text.toLowerCase().includes(neutralize(word).toLowerCase());
+    const found = this.all()
+      .filter((m) => words.every((w) => !neutralize(w) || matches(m.name, w) || matches(m.email, w)))
+      .filter((m) => emailEquals === undefined || m.email.toLowerCase() === emailEquals.toLowerCase())
+      .filter((m) => emailContains === undefined || m.email.toLowerCase().includes(emailContains.toLowerCase()))
+      .filter((m) => status === undefined || m.status === status)
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return limit === undefined ? found : found.slice(offset, offset + limit);
+  }
+
+  async lastKajabiProcessedAt() {
+    const times = this.data.members.filter((m) => m.kajabiId).map((m) => m.updatedAt).filter((t): t is string => !!t);
+    if (times.length === 0) return null;
+    return times.reduce((latest, t) => (new Date(t) > new Date(latest) ? t : latest));
+  }
+
+  async countWithoutStripeCustomer(status: string) {
+    return this.all().filter((m) => m.status === status && m.stripeCustomerId === null).length;
   }
 
   async byEmails(emails: string[]) {

@@ -54,6 +54,11 @@ defineMemberContract("SupabaseMemberRepository", () => ({
       user_id: m.user === undefined ? null : authUserIds[m.user],
       staff_role: m.staffRole ?? null,
       kajabi_id: m.kajabiId ? `${m.kajabiId}-${RUN}-${i}` : null,
+      stripe_customer_id: m.stripeCustomerId ? `${m.stripeCustomerId}-${RUN}-${i}` : null,
+      bio: m.bio ?? null,
+      instagram_url: m.instagramUrl ?? null,
+      birthday_month: m.birthday?.[0] ?? null,
+      birthday_day: m.birthday?.[1] ?? null,
       first_joined_at: m.firstJoinedAt ?? null,
     }));
     const ids: string[] = [];

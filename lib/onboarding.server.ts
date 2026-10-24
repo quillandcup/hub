@@ -140,7 +140,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
     membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
-    supabase.from("members").select("birthday_month, birthday_day").eq("id", memberId).maybeSingle(),
+    createRepos(supabase).members.profile(memberId),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
   ]);
@@ -163,7 +163,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hostedRecently: hostedRecently > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
-      hasBirthday: birthday.data?.birthday_month != null && birthday.data?.birthday_day != null,
+      hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,
       slackConnect: slackStatus ? { connected: slackStatus.connected } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,

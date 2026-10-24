@@ -1,5 +1,6 @@
 "use client";
 
+import { SupabaseMemberRepository } from "@/lib/data/members";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -199,29 +200,16 @@ export default function MissingHostsClient() {
   async function loadMembers() {
     const supabase = createClient();
 
-    const members: Member[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch, error } = await supabase
-        .from("members")
-        .select("id, name, email")
-        .eq("status", "active")
-        .order("name")
-        .range(offset, offset + 999);
-
-      if (error) {
-        console.error("Error loading members:", error);
-        return;
-      }
-
-      if (batch && batch.length > 0) {
-        members.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === 1000;
-      } else {
-        hasMore = false;
-      }
+    let members: Member[];
+    try {
+      members = (await new SupabaseMemberRepository(supabase).list({ status: "active", orderBy: "name" })).map(({ id, name, email }) => ({
+        id,
+        name,
+        email,
+      }));
+    } catch (error) {
+      console.error("Error loading members:", error);
+      return;
     }
 
     setMembers(members);

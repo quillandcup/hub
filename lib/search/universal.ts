@@ -6,6 +6,7 @@
  * Chat reuses searchChat (full text, via search_chat_messages). Word matching is `ilike` on the
  * few fields each kind shows: these tables are small. A prickle's title is its own only when the host named it; otherwise it is computed.
  */
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPrickleTitle } from "@/lib/formatters";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
@@ -110,11 +111,13 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
 
   if (staff) {
     // Full members table: email and status are searchable and shown.
-    let query = ctx.supabase.from("members").select("id, name, email, status, joined_at");
-    query = matchEach(query, words, ["name", "email"]);
-    if (q.email) query = query.ilike("email", pattern(q.email).replace(/^"|"$/g, ""));
-    if (q.status) query = query.eq("status", q.status);
-    const { data } = await query.order("name").range(offset, offset + limit);
+    const data = await createRepos(ctx.supabase).members.search({
+      words,
+      emailContains: q.email || undefined,
+      status: q.status || undefined,
+      limit: limit + 1, // one extra, to know if there are more
+      offset,
+    });
     const { rows, hasMore } = finish(data, limit);
     return {
       kind: "members",

@@ -101,7 +101,11 @@ function makeServiceClient({
   const upsert = vi.fn(async () => ({ error: bronzeUpsertError }));
   const membersUpdate = vi.fn();
   const membersUpsert = vi.fn();
-  const membersEq = vi.fn(() => ({ single: async () => ({ data: member, error: null }) }));
+  const membersEq = vi.fn(() => ({
+    single: async () => ({ data: member, error: null }),
+    // The members repository reads with maybeSingle.
+    maybeSingle: async () => ({ data: member, error: null }),
+  }));
   const from = vi.fn((table: string) => {
     if (table === "members") return { select: () => ({ eq: membersEq }), update: membersUpdate, upsert: membersUpsert };
     if (table === "member_email_aliases") {

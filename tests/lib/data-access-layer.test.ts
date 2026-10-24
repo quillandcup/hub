@@ -48,13 +48,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   ],
   members: [
     "app/(admin)/admin/at-risk/page.tsx",
-    "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx",
     "app/(admin)/admin/hygiene/name-matching/page.tsx",
-    "app/(admin)/admin/hygiene/page.tsx",
     "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
     "app/(admin)/admin/page.tsx",
     "app/(member)/settings/identityActions.ts",
-    "app/(member)/settings/profileActions.ts",
     "app/api/admin/aliases/[id]/route.ts",
     "app/api/admin/members/[id]/route.ts",
     "app/api/admin/members/merge/route.ts",
@@ -63,10 +60,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/api/admin/users/[id]/route.ts",
     "app/api/admin/users/route.ts",
     "app/api/health/route.ts",
-    "app/api/members/route.ts",
     "lib/member-status.ts",
-    "lib/onboarding.server.ts",
-    "lib/search/universal.ts",
   ],
 };
 
