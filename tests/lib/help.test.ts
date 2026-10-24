@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { helpImageUrl, isHelpImagePath, isHelpSlug, listHelpArticles, loadHelpArticle, parseHelpArticle } from "@/lib/help";
+import { helpArticlePath, helpImageUrl, isHelpImagePath, isHelpSlug, listHelpArticles, loadHelpArticle, parseHelpArticle } from "@/lib/help";
 
 describe("help slugs and image names", () => {
   it("accepts lowercase topic slugs and rejects anything that could leave the folder", () => {
@@ -23,6 +23,13 @@ describe("help slugs and image names", () => {
     for (const src of ["https://example.com/x.png", "img:../x.png", "img:a/b/c.png", "/help/images/a/x.png", "img:a/x.svg"]) {
       expect(helpImageUrl(src)).toBeNull();
     }
+  });
+});
+
+describe("helpArticlePath", () => {
+  it("puts a valid slug under /help and refuses anything that could change the target", () => {
+    expect(helpArticlePath("join-a-prickle")).toBe("/help/join-a-prickle");
+    for (const bad of ["", "../admin", "javascript:alert(1)", "a/b", "//evil.example", "A"]) expect(helpArticlePath(bad)).toBeNull();
   });
 });
 

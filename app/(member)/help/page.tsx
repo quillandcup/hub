@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { listHelpArticles } from "@/lib/help";
+import { helpArticlePath, listHelpArticles } from "@/lib/help";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
 export const metadata: Metadata = { title: "Help" };
@@ -24,7 +24,7 @@ export default async function HelpPage() {
         <ul className="mt-8 divide-y divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           {articles.map((a) => (
             <li key={a.slug}>
-              <Link href={`/help/${a.slug}`} className="block px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <Link href={helpArticlePath(a.slug) ?? "/help"} className="block px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <span className="font-semibold text-slate-900 dark:text-slate-100">{a.title}</span>
                 {a.summary && <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">{a.summary}</span>}
               </Link>

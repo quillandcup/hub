@@ -25,6 +25,12 @@ export function isHelpSlug(value: string): boolean {
   return SLUG.test(value);
 }
 
+/** The path of an article, rebuilt from the validated slug (letters, digits and hyphens only) under a fixed prefix; null for anything else. */
+export function helpArticlePath(slug: string): string | null {
+  const match = SLUG.exec(slug);
+  return match ? `/help/${match[0]}` : null;
+}
+
 /** An image name from the URL: a scene folder and a file, nothing that could climb out of the bucket. */
 export function isHelpImagePath(scene: string, file: string): boolean {
   return SLUG.test(scene) && /^[a-z0-9][a-z0-9-]*\.(png|jpe?g|webp)$/.test(file);
