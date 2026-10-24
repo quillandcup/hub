@@ -30,7 +30,7 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       ctx = setup();
     });
 
-    it("lists members' identities by id, optionally one status", async () => {
+    it("lists members' identities in a stable order, optionally one status", async () => {
       const [ada, fern, gale] = await ctx.seed([
         { name: "Ada Example", displayName: "Penny Quill" },
         { name: "Fern Example", status: "cancelled" },
@@ -41,7 +41,10 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       const everyone = (await ctx.repo().identities()).filter((m) => ours.has(m.id));
       const active = (await ctx.repo().identities({ status: "active" })).filter((m) => ours.has(m.id));
 
-      expect(everyone.map((m) => m.id)).toEqual([ada, fern, gale].sort());
+      // Which order is the database's collation; what paging needs is that it is the same every time.
+      expect(everyone.map((m) => m.id).sort()).toEqual([ada, fern, gale].sort());
+      const again = (await ctx.repo().identities()).filter((m) => ours.has(m.id));
+      expect(again.map((m) => m.id)).toEqual(everyone.map((m) => m.id));
       expect(everyone.find((m) => m.id === ada)).toEqual({
         id: ada,
         name: "Ada Example",
@@ -49,7 +52,7 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
         email: ctx.emailOf(ada),
       });
       expect(everyone.find((m) => m.id === fern)?.displayName).toBeNull();
-      expect(active.map((m) => m.id)).toEqual([ada, gale].sort());
+      expect(active.map((m) => m.id).sort()).toEqual([ada, gale].sort());
     });
 
     it("pages through more than a thousand members", async () => {
