@@ -13,10 +13,11 @@ export const test = base.extend<{ signInAs: (personaKey: string) => Promise<void
       await context.addCookies(await sessionCookies(personaKey));
       const theme = testInfo.project.use.colorScheme === "dark" ? "dark" : "light";
       await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
-      // Next's dev-mode badge isn't part of the product; keep it out of screenshots.
+      // Next's dev-mode badge, the feedback bubble and the environment label aren't what a help article or a
+      // showcase is about; keep them out of screenshots.
       await page.addInitScript(() => {
         const hide = document.createElement("style");
-        hide.textContent = "nextjs-portal { display: none !important; }";
+        hide.textContent = "nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }";
         document.addEventListener("DOMContentLoaded", () => document.head.appendChild(hide));
       });
     });

@@ -4,9 +4,10 @@
  *
  *   pnpm demo:seed
  *
- * Inputs are written (auth users, members, calendar events, the join link) and `/api/process/calendar` makes
- * the prickles. Members are written directly for now: production derives them from Kajabi imports (see
- * docs/TODO.md, "Reproducible demo and help docs"). Safe to run again.
+ * Inputs are written (auth users, members, calendar events, Zoom attendance, the join link) and the app's own
+ * `/api/process/calendar` and `/api/process/attendance` make the prickles and who attended them. Members are
+ * written directly for now: production derives them from Kajabi imports (see docs/TODO.md, "Reproducible demo
+ * and help docs"). Safe to run again.
  */
 import { createClient } from "@supabase/supabase-js";
 import { fileURLToPath } from "node:url";
@@ -14,7 +15,8 @@ import path from "node:path";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
-import { DEMO_JOIN, DEMO_PASSWORD, PERSONAS, demoEvents } from "./personas";
+import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
+import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -44,14 +46,19 @@ export async function seed(now: Date = new Date()) {
   }
 
   // Members: active, linked to their account. The admin is staff without a member record.
-  const members = PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({
-    name: p.name,
-    email: p.email,
-    status: "active",
-    source: "kajabi",
-    user_id: userIdByEmail.get(p.email),
-    joined_at: new Date(now.getTime() - (p.joinedDaysAgo ?? 0) * 86_400_000).toISOString(),
-  }));
+  const joinedAt = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000);
+  const members = [
+    ...PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({
+      name: p.name,
+      email: p.email,
+      status: "active",
+      source: "kajabi",
+      user_id: userIdByEmail.get(p.email),
+      joined_at: joinedAt(p.joinedDaysAgo ?? 0).toISOString(),
+    })),
+    // Members who fill the room but never sign in (no account).
+    ...FILLER_MEMBERS.map((f) => ({ name: f.name, email: f.email, status: "active", source: "kajabi", user_id: null, joined_at: joinedAt(f.joinedDaysAgo).toISOString() })),
+  ];
   const { error: membersError } = await admin.from("members").upsert(members, { onConflict: "email" });
   if (membersError) throw new Error(`members: ${membersError.message}`);
 
@@ -109,6 +116,29 @@ export async function seed(now: Date = new Date()) {
   });
   if (!res.ok) throw new Error(`/api/process/calendar ${res.status}: ${await res.text()}`);
   console.log("Seeded:", await res.json());
+
+  // Who came to the prickles that have ended: Zoom's record (Bronze), replaced on every run, then the real
+  // attendance processing. The prickles must exist first, so this runs after the calendar is processed.
+  const people = [
+    ...PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({ name: p.name, email: p.email, joinedAt: joinedAt(p.joinedDaysAgo ?? 0), rate: ATTENDANCE_RATE[p.email] ?? 0.5 })),
+    ...FILLER_MEMBERS.map((f) => ({ name: f.name, email: f.email, joinedAt: joinedAt(f.joinedDaysAgo), rate: f.rate })),
+  ];
+  const slots = events.map((e) => ({ key: e.google_event_id.slice("demo-".length), summary: e.summary, start: new Date(e.start_time), end: new Date(e.end_time) }));
+  const zoom = admin.schema("bronze").from("zoom_attendees");
+  const { error: clearError } = await zoom.delete().like("topic", `${DEMO_TOPIC_PREFIX}%`);
+  if (clearError) throw new Error(`zoom_attendees clear: ${clearError.message}`);
+  const rows = attendanceRows(slots, people, now, DEMO_JOIN.meetingId.replace(/\s/g, ""));
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin.schema("bronze").from("zoom_attendees").insert(rows.slice(i, i + 500));
+    if (error) throw new Error(`zoom_attendees: ${error.message}`);
+  }
+  const attendance = await fetch(`${env.appUrl}/api/process/attendance`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.serviceRoleKey}` },
+    body: JSON.stringify({ fromDate: orgDate(-30, now), toDate: orgDate(1, now) }),
+  });
+  if (!attendance.ok) throw new Error(`/api/process/attendance ${attendance.status}: ${await attendance.text()}`);
+  console.log(`Attendance: ${rows.length} Zoom rows processed`, await attendance.json());
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

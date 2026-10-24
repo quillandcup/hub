@@ -37,7 +37,7 @@ export function EnvironmentIndicator() {
   const commitSha = config.deployment.commitSha?.slice(0, 7);
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div data-environment-indicator className="fixed bottom-4 right-4 z-50">
       <div
         className={`${colorClass} text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium`}
       >

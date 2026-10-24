@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(11);
+SELECT plan(12);
 
 SELECT ok(NOT has_function_privilege('anon', 'chat_edit_message(text, text)', 'EXECUTE') AND NOT has_function_privilege('anon', 'chat_delete_message(text)', 'EXECUTE'), 'anon can do neither');
 SELECT ok(has_function_privilege('authenticated', 'chat_edit_message(text, text)', 'EXECUTE') AND has_function_privilege('authenticated', 'chat_delete_message(text)', 'EXECUTE'), 'authenticated can do both');
@@ -27,16 +27,18 @@ INSERT INTO public.chat_channels (id, kind, visibility, restricted, name, slack_
   ('chn_AAAAAAAAfdc2', 'channel', 'public', false, 'ed-old', 'PGTAP_ED_OLD', now());
 
 -- d1 Fern's Hub root; d2 Fern's Hub reply to it; d3 Gale's Hub message; d4 Fern's message written in Slack;
--- d5 Fern's Hub message in the archived conversation.
+-- d5 Fern's Hub message in the archived conversation; d6 a notice Slack posted about Fern.
 INSERT INTO public.chat_messages (id, channel_id, author_member_id, thread_root_id, origin, slack_ts, created_at, reply_count) VALUES
   ('msg_AAAAAAAAfdd1', 'chn_AAAAAAAAfdc1', 'mbr_AAAAAAAAfdA1', NULL, 'app', '4.1', '2020-01-01', 1),
   ('msg_AAAAAAAAfdd2', 'chn_AAAAAAAAfdc1', 'mbr_AAAAAAAAfdA1', 'msg_AAAAAAAAfdd1', 'app', '4.2', '2020-01-02', 0),
   ('msg_AAAAAAAAfdd3', 'chn_AAAAAAAAfdc1', 'mbr_AAAAAAAAfdA2', NULL, 'app', '4.3', '2020-01-03', 0),
   ('msg_AAAAAAAAfdd4', 'chn_AAAAAAAAfdc1', 'mbr_AAAAAAAAfdA1', NULL, 'slack', '4.4', '2020-01-04', 0),
-  ('msg_AAAAAAAAfdd5', 'chn_AAAAAAAAfdc2', 'mbr_AAAAAAAAfdA1', NULL, 'app', '4.5', '2020-01-05', 0);
+  ('msg_AAAAAAAAfdd5', 'chn_AAAAAAAAfdc2', 'mbr_AAAAAAAAfdA1', NULL, 'app', '4.5', '2020-01-05', 0),
+  ('msg_AAAAAAAAfdd6', 'chn_AAAAAAAAfdc1', 'mbr_AAAAAAAAfdA1', NULL, 'slack', '4.6', '2020-01-06', 0);
+UPDATE public.chat_messages SET system_subtype = 'channel_join' WHERE id = 'msg_AAAAAAAAfdd6';
 INSERT INTO public.chat_message_contents (message_id, body) VALUES
   ('msg_AAAAAAAAfdd1', 'root'), ('msg_AAAAAAAAfdd2', 'reply'),
-  ('msg_AAAAAAAAfdd3', 'gale'), ('msg_AAAAAAAAfdd4', 'slack'), ('msg_AAAAAAAAfdd5', 'old');
+  ('msg_AAAAAAAAfdd3', 'gale'), ('msg_AAAAAAAAfdd4', 'slack'), ('msg_AAAAAAAAfdd5', 'old'), ('msg_AAAAAAAAfdd6', 'joined');
 UPDATE public.chat_messages SET last_reply_at = '2020-01-02' WHERE id = 'msg_AAAAAAAAfdd1';
 
 CREATE TEMP TABLE result(label text, value text) ON COMMIT DROP;
@@ -61,6 +63,8 @@ SELECT public.pgtap_try('edit slack', $$ SELECT chat_edit_message('msg_AAAAAAAAf
 SELECT public.pgtap_try('edit archived', $$ SELECT chat_edit_message('msg_AAAAAAAAfdd5', 'too late') $$);
 SELECT public.pgtap_try('delete others', $$ SELECT chat_delete_message('msg_AAAAAAAAfdd3') $$);
 SELECT public.pgtap_try('delete slack', $$ SELECT chat_delete_message('msg_AAAAAAAAfdd4') $$);
+SELECT public.pgtap_try('edit notice', $$ SELECT chat_edit_message('msg_AAAAAAAAfdd6', 'mine now') $$);
+SELECT public.pgtap_try('delete notice', $$ SELECT chat_delete_message('msg_AAAAAAAAfdd6') $$);
 SELECT public.pgtap_try('delete reply', $$ SELECT chat_delete_message('msg_AAAAAAAAfdd2') $$);
 SELECT public.pgtap_try('delete reply again', $$ SELECT chat_delete_message('msg_AAAAAAAAfdd2') $$);
 SELECT public.pgtap_try('edit deleted', $$ SELECT chat_edit_message('msg_AAAAAAAAfdd2', 'back') $$);
@@ -77,9 +81,14 @@ SELECT is(
   'an empty or over-long edit is refused, like a post'
 );
 SELECT is(
-  (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('edit others', 'edit slack', 'delete others', 'delete slack')),
+  (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('edit others', 'edit notice', 'delete others', 'delete notice')),
   'chat_delete: not_yours,chat_delete: not_yours,chat_edit: not_yours,chat_edit: not_yours',
-  'someone else''s message or one written in Slack is neither editable nor deletable from the Hub'
+  'someone else''s message or a notice Slack posted is neither editable nor deletable from the Hub'
+);
+SELECT is(
+  (SELECT string_agg(value, ',' ORDER BY label) FROM result WHERE label IN ('edit slack', 'delete slack')),
+  'ok,ok',
+  'a message the member wrote in Slack is theirs to edit and delete from the Hub'
 );
 SELECT is((SELECT value FROM result WHERE label = 'edit archived'), 'chat_edit: archived', 'an archived conversation takes no edits');
 SELECT is(
