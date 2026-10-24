@@ -81,7 +81,7 @@ Each `shot()` also checks the page it just captured (`demo/checks.ts`), so a sce
 
 `demo/selftest/checks.spec.ts` builds small pages that each trip one check (and a clean one that trips none), so a detector that quietly stopped working can't pass for an app with no problems.
 
-**A ratchet, not a wall.** The app has existing findings, so `demo/baseline.json` lists today's (per size and theme, per step) and a run fails only on a **new** one, with the rule, the element and the numbers. Identities leave out row positions, so a list that is one longer today doesn't count as new. After fixing something, `DEMO_CHECKS=report pnpm demo:capture --grep-invert @published && pnpm demo:baseline` shrinks the file; a new finding that is deliberate is added the same way, in a reviewed diff. `DEMO_CHECKS=report` writes the findings without failing and `off` skips the checks.
+**A ratchet, not a wall.** The app has existing findings, so `demo/baseline.json` lists today's (per size and theme, per step) and a run fails only on a **new** one: a finding known at any size in the same theme counts as known, because axe is not consistent about elements below the fold on a short screen, while a new element or rule still fails, with the rule, the element and the numbers. Identities leave out row positions, so a list that is one longer today doesn't count as new. After fixing something, `DEMO_CHECKS=report pnpm demo:capture --grep-invert @published && pnpm demo:baseline` shrinks the file; a new finding that is deliberate is added the same way, in a reviewed diff. `DEMO_CHECKS=report` writes the findings without failing and `off` skips the checks.
 
 ## Integration mockups
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { boxFindingToFinding, consoleKey, stableTarget, withoutIds } from "@/demo/checks";
+import { boxFindingToFinding, consoleKey, knownKeys, stableTarget, withoutIds } from "@/demo/checks";
 import { buildBaseline } from "@/demo/baseline";
 
 describe("stableTarget", () => {
@@ -27,6 +27,29 @@ describe("record ids in findings", () => {
     expect(withoutIds("data_table_rows")).toBe("data_table_rows");
     expect(withoutIds("prkl_short")).toBe("prkl_short");
     expect(withoutIds("prkl_0OIlinvalidchr")).toBe("prkl_0OIlinvalidchr");
+  });
+});
+
+describe("knownKeys", () => {
+  const baseline = {
+    "desktop-light": { "s/01-a": ["k1", "k2"] },
+    "tablet-light": { "s/01-a": ["k2", "k3"] },
+    "phone-dark": { "s/01-a": ["d1"], "s/02-b": ["d2"] },
+  };
+
+  it("counts a finding known at any size in the same theme as known", () => {
+    expect([...knownKeys(baseline, "phone-light", "s/01-a")].sort()).toEqual(["k1", "k2", "k3"]);
+  });
+
+  it("keeps the themes apart: a light finding is not known in dark, or the other way round", () => {
+    expect([...knownKeys(baseline, "desktop-dark", "s/01-a")]).toEqual(["d1"]);
+    expect(knownKeys(baseline, "desktop-light", "s/01-a").has("d1")).toBe(false);
+  });
+
+  it("is per step, and empty for a step or theme with nothing known", () => {
+    expect([...knownKeys(baseline, "phone-dark", "s/02-b")]).toEqual(["d2"]);
+    expect(knownKeys(baseline, "phone-light", "s/02-b").size).toBe(0);
+    expect(knownKeys({}, "phone-light", "s/01-a").size).toBe(0);
   });
 });
 

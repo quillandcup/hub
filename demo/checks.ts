@@ -34,6 +34,21 @@ export interface BoxFinding {
 /** What is known today and fails nothing: project (size and theme) -> `scene/step` -> finding keys. See demo/baseline.ts. */
 export type Baseline = Record<string, Record<string, string[]>>;
 
+/**
+ * The finding keys already known for a step. A finding known at ANY size in the same theme counts as known: axe
+ * isn't consistent about elements below the fold on a short screen (a stat that is reported at tablet width may
+ * not be at phone width on one run and be on the next), and that is not a new problem. A genuinely new element or
+ * rule isn't in any size's list, so it still fails.
+ */
+export function knownKeys(baseline: Baseline, project: string, step: string): Set<string> {
+  const theme = project.endsWith("-dark") ? "-dark" : "-light";
+  const known = new Set<string>();
+  for (const [name, steps] of Object.entries(baseline)) {
+    if (name.endsWith(theme)) for (const key of steps[step] ?? []) known.add(key);
+  }
+  return known;
+}
+
 /** A console message with urls, numbers and ids squeezed out, so the same error on another run has the same identity. */
 export function consoleKey(message: string): string {
   return `console:${withoutIds(message).replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8,}|\d+/gi, "#").slice(0, 120)}`;

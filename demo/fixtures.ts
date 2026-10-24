@@ -2,7 +2,7 @@ import { test as base, expect, type Locator, type Page, type TestInfo } from "pl
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { sessionCookies } from "./auth";
-import { consoleKey, pageFindings, type Baseline, type Finding } from "./checks";
+import { consoleKey, knownKeys, pageFindings, type Baseline, type Finding } from "./checks";
 
 /**
  * `signInAs("member")` signs the page in as a demo persona and pins the theme to the project's colour scheme,
@@ -92,7 +92,7 @@ export async function shot(page: Page, testInfo: TestInfo, name: string, options
   writeFileSync(path.join(dir, `${step}.findings.json`), JSON.stringify(findings, null, 2));
   if (mode === "report") return;
 
-  const known = new Set(loadBaseline()[testInfo.project.name]?.[`${scene}/${step}`] ?? []);
+  const known = knownKeys(loadBaseline(), testInfo.project.name, `${scene}/${step}`);
   const fresh = findings.filter((f) => !known.has(f.key));
   expect.soft(fresh.map((f) => `${f.key}: ${f.detail}`), `new page problems at ${scene}/${step} (${testInfo.project.name})`).toEqual([]);
 }
