@@ -10,7 +10,14 @@ import type { Page } from "playwright/test";
  *    that is meant to scroll);
  *  - edge: a dialog, menu or popover is cut off by the screen, is taller than it with no scrolling of its own,
  *    or sits closer than EDGE_MARGIN to a side without being a full-width sheet;
+ *  - covered: no control is still under a fixed or sticky bar, or any other element, after it has been scrolled to the
+ *    middle of the screen (a button the user can never reach because the footer is in the way);
  *  - console: an error was logged, or the page threw (collected by the fixture, not here).
+ *
+ * The member app scrolls inside its own area (`main`), not the window, so before checking, every scrolling area
+ * is scrolled through (`scrollThroughPage`): that lays out and loads everything below the fold, which axe needs to
+ * report it consistently, and it makes lazy content appear. A full-page capture has to grow the viewport for the
+ * same reason (`tallViewportHeight`): Playwright's own fullPage only knows the window.
  *
  * A finding has a stable `key` (what and where, no pixel values) so the known ones can be listed in
  * demo/baseline.json and only NEW ones fail a run. See docs/DEMO_AND_HELP.md.
@@ -26,7 +33,7 @@ export interface Finding {
 
 /** What the page-side script reports; kept as plain data so it is testable without a browser. */
 export interface BoxFinding {
-  kind: "page-scrolls-sideways" | "sticks-out" | "dialog-cut-off" | "dialog-too-tall" | "dialog-near-edge";
+  kind: "page-scrolls-sideways" | "sticks-out" | "dialog-cut-off" | "dialog-too-tall" | "dialog-near-edge" | "control-covered";
   selector: string;
   detail: string;
 }
@@ -72,11 +79,72 @@ export function boxFindingToFinding(f: BoxFinding): Finding {
   return { check, key: `${check}:${f.kind}:${stableTarget(f.selector)}`, detail: f.detail };
 }
 
+/** Runs in the page. Scrolls every scrolling area top to bottom in screen-sized steps and back, so everything below the fold is laid out and lazy content has loaded. */
+export async function scrollEverything(): Promise<number> {
+  const tick = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)));
+  const areas: HTMLElement[] = [];
+  const root = document.scrollingElement as HTMLElement | null;
+  if (root && root.scrollHeight > root.clientHeight + 4) areas.push(root);
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+    if (el === root || el.clientHeight < 120 || el.scrollHeight <= el.clientHeight + 4) continue;
+    if (/(auto|scroll)/.test(getComputedStyle(el).overflowY)) areas.push(el);
+  }
+  for (const el of areas) {
+    const step = Math.max(200, Math.floor(el.clientHeight * 0.8));
+    for (let y = 0; y < el.scrollHeight; y += step) {
+      el.scrollTop = y;
+      await tick();
+    }
+    el.scrollTop = el.scrollHeight;
+    await tick();
+    el.scrollTop = 0;
+  }
+  await tick();
+  return areas.length;
+}
+
+/** Runs in the page. How tall the viewport must be to show the whole page: its height plus what the tallest scrolling area hides, capped. */
+export function tallestViewport(cap: number): number {
+  const root = document.scrollingElement as HTMLElement | null;
+  let hidden = root ? Math.max(0, root.scrollHeight - root.clientHeight) : 0;
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+    if (el === root || el.clientHeight < 120) continue;
+    if (/(auto|scroll)/.test(getComputedStyle(el).overflowY)) hidden = Math.max(hidden, el.scrollHeight - el.clientHeight);
+  }
+  return Math.min(window.innerHeight + Math.max(0, hidden), cap);
+}
+
+/** Largest height a full-page capture will grow the viewport to: past this a page is cut, not stretched without limit. */
+export const TALL_VIEWPORT_CAP = 7000;
+
+/**
+ * Screenshot the whole page, including what the page scrolls inside itself: the viewport grows to fit, the
+ * screenshot is taken, the viewport goes back. Playwright's `fullPage` only grows with the window's scroll height,
+ * which for an app shell that scrolls an inner area is the screen's height.
+ */
+export async function captureWholePage(page: Page, path: string): Promise<void> {
+  const original = page.viewportSize();
+  const height = await page.evaluate(tallestViewport, TALL_VIEWPORT_CAP);
+  if (!original || height <= original.height + 1) {
+    await page.screenshot({ path, animations: "disabled" });
+    return;
+  }
+  await page.setViewportSize({ width: original.width, height });
+  await page.waitForTimeout(250);
+  try {
+    await page.screenshot({ path, animations: "disabled" });
+  } finally {
+    await page.setViewportSize(original);
+    await page.waitForTimeout(100);
+  }
+}
+
 /** Runs in the page. Self-contained: no imports, no closures over Node values (it is serialised into the browser). */
-export function measureBoxes(edgeMargin: number): BoxFinding[] {
+export async function measureBoxes(edgeMargin: number): Promise<BoxFinding[]> {
   const out: BoxFinding[] = [];
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
+  const tick = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 50)));
 
   const selectorOf = (el: Element): string => {
     const parts: string[] = [];
@@ -133,11 +201,52 @@ export function measureBoxes(edgeMargin: number): BoxFinding[] {
       out.push({ kind: "dialog-near-edge", selector: sel, detail: `${Math.round(r.left)}px from the left, ${Math.round(vw - r.right)}px from the right (wants ${edgeMargin}px)` });
     }
   }
+
+  // Covered controls. Content passing under a fixed bar while it scrolls is normal; what matters is a control that is
+  // STILL covered when it has been scrolled to the middle of the screen. That is the last item under a footer, the
+  // first under a header (they can't be centred), or a bar tall enough to cover the middle. Each control is scrolled
+  // to the centre and the point under it asked what is on top.
+  const overlays = "[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[aria-modal=true],dialog[open],[data-feedback-widget],[data-environment-indicator],nextjs-portal";
+  const interactive = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=link], [role=tab], [role=menuitem]";
+  const covered = new Set<string>();
+  const modalOpen = !!document.querySelector("[aria-modal=true],dialog[open]");
+  if (!modalOpen) {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(interactive))) {
+      if (covered.size >= 8) break;
+      if ((el as HTMLButtonElement).disabled || el.getAttribute("aria-hidden") === "true" || !visible(el)) continue;
+      if (el.closest(overlays)) continue;
+      const before = el.getBoundingClientRect();
+      if (before.width < 4 || before.height < 4) continue;
+      el.scrollIntoView({ block: "center", inline: "nearest" });
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      if (cx < 0 || cy < 0 || cx > vw || cy > vh) continue; // hidden by a clipping container, not by an overlay
+      const top = document.elementFromPoint(cx, cy);
+      if (!top || el.contains(top) || top.contains(el) || top.closest(overlays)) continue;
+      if (el instanceof HTMLInputElement && el.labels && Array.from(el.labels).some((l) => l === top || l.contains(top))) continue;
+      const sel = selectorOf(el);
+      if (covered.has(sel)) continue;
+      covered.add(sel);
+      out.push({ kind: "control-covered", selector: sel, detail: `even scrolled to the middle of the screen it is under ${selectorOf(top)}, so it can't be reached` });
+    }
+  }
+  // Put every scrolling area back at the top.
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollTop > 0 && el.clientHeight >= 120) el.scrollTop = 0;
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+  await tick();
   return out;
+}
+
+/** Scroll every scrolling area through, from the outside (before a screenshot or a check). */
+export async function scrollThroughPage(page: Page): Promise<void> {
+  await page.evaluate(scrollEverything);
 }
 
 export async function pageFindings(page: Page): Promise<Finding[]> {
   const findings: Finding[] = [];
+  // Everything below the fold laid out, and lazy content loaded, before axe and the box checks look.
+  await scrollThroughPage(page);
 
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   for (const v of axe.violations) {

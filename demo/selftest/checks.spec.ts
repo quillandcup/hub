@@ -1,5 +1,6 @@
 import { expect, test } from "playwright/test";
-import { pageFindings } from "../checks";
+import { readFileSync } from "node:fs";
+import { TALL_VIEWPORT_CAP, captureWholePage, pageFindings, scrollThroughPage, tallestViewport } from "../checks";
 
 /**
  * The page checks themselves, against small pages built here: each problem they claim to catch is shown to be
@@ -55,4 +56,74 @@ test("a dialog too close to the side is found, with a margin or edge to edge it 
   expect(kinds(await pageFindings(p))).not.toContain("edge:dialog-near-edge");
   await p.setContent(page(dialog("left:0;right:0")));
   expect(kinds(await pageFindings(p))).not.toContain("edge:dialog-near-edge");
+});
+
+// The member app is a full-height shell whose `main` scrolls; the window itself never does. These pages are that shape.
+const shell = (inner: string, extra = "") =>
+  page(`<div style="height:100vh;overflow:hidden;position:relative"><main style="height:100%;overflow:auto">${inner}</main>${extra}</div>`);
+
+test("scrolling through loads content that appears only when scrolled to, in an inner scrolling area", async ({ page: p }) => {
+  await p.setContent(
+    shell('<div style="height:3000px"></div><div id="lazy">far below</div>') +
+      '<script>new IntersectionObserver((e)=>{if(e[0].isIntersecting)document.getElementById("lazy").textContent="loaded"}).observe(document.getElementById("lazy"))</script>',
+  );
+  expect(await p.locator("#lazy").textContent()).toBe("far below");
+  await scrollThroughPage(p);
+  expect(await p.locator("#lazy").textContent()).toBe("loaded");
+  expect(await p.evaluate(() => document.querySelector("main")!.scrollTop)).toBe(0);
+});
+
+test("a whole-page capture grows the viewport to fit an inner scrolling area, then puts it back", async ({ page: p }, testInfo) => {
+  const before = p.viewportSize()!;
+  await p.setContent(shell('<div style="height:3000px;background:linear-gradient(#fff,#bbb)"></div>'));
+  expect(await p.evaluate(tallestViewport, TALL_VIEWPORT_CAP)).toBeGreaterThanOrEqual(3000);
+
+  const file = testInfo.outputPath("whole-page.png");
+  await captureWholePage(p, file);
+  expect(p.viewportSize()).toEqual(before);
+  const pixelHeight = readFileSync(file).readUInt32BE(20); // a PNG's height, from its header
+  const scale = await p.evaluate(() => window.devicePixelRatio);
+  expect(pixelHeight).toBeGreaterThanOrEqual(Math.round(3000 * scale));
+});
+
+test("a very long page is cut at the cap, not stretched without limit", async ({ page: p }) => {
+  await p.setContent(shell('<div style="height:50000px"></div>'));
+  expect(await p.evaluate(tallestViewport, TALL_VIEWPORT_CAP)).toBe(TALL_VIEWPORT_CAP);
+});
+
+test("a page that fits the screen is captured as it is", async ({ page: p }, testInfo) => {
+  const before = p.viewportSize()!;
+  await p.setContent(page("<h1>Short</h1>"));
+  await captureWholePage(p, testInfo.outputPath("short.png"));
+  expect(p.viewportSize()).toEqual(before);
+});
+
+const BUTTONS = Array.from({ length: 40 }, (_, i) => `<button style="display:block;height:40px;margin:8px 0">Item ${i}</button>`).join("");
+const BAR = '<div role="contentinfo" style="position:fixed;left:0;right:0;bottom:0;height:90px;background:#ddd">bar</div>';
+const BAR_IN_SHELL = '<div role="contentinfo" style="position:absolute;left:0;right:0;bottom:0;height:90px;background:#ddd">bar</div>';
+
+test("a control still under a fixed bar at the end of the page is found; room for it clears it", async ({ page: p }) => {
+  await p.setContent(page(`${BUTTONS}${BAR}`));
+  expect(kinds(await pageFindings(p))).toContain("edge:control-covered");
+  await p.setContent(page(`<div style="padding-bottom:120px">${BUTTONS}</div>${BAR}`));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+});
+
+test("the same, when the page scrolls inside a shell", async ({ page: p }) => {
+  await p.setContent(shell(BUTTONS, BAR_IN_SHELL));
+  expect(kinds(await pageFindings(p))).toContain("edge:control-covered");
+  await p.setContent(shell(`<div style="padding-bottom:120px">${BUTTONS}</div>`, BAR_IN_SHELL));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+});
+
+test("a control under a fixed bar at the top of the page is found", async ({ page: p }) => {
+  await p.setContent(page(`<button style="margin-top:10px">First</button><div style="height:400px"></div><div role="banner" style="position:fixed;top:0;left:0;right:0;height:80px;background:#ddd">header</div>`));
+  expect(kinds(await pageFindings(p))).toContain("edge:control-covered");
+});
+
+test("content passing under a fixed bar while scrolling is not a finding; an open dialog over the page isn't either", async ({ page: p }) => {
+  await p.setContent(page(`<div style="padding:100px 0 120px">${BUTTONS}</div>${BAR}`));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+  await p.setContent(page(`${BUTTONS}<div role="dialog" aria-modal="true" aria-label="Open" style="position:fixed;inset:16px;background:#eee">dialog</div>`));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
 });

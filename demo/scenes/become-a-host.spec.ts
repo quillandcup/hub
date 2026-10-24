@@ -16,5 +16,5 @@ test("a member sees when they can host, and a host requests a slot", async ({ pa
   await expect(page.getByText("How often will you host?")).toBeVisible();
   await page.getByRole("button", { name: "Every week" }).click();
   await expect(page.getByText("Loading calendar")).toHaveCount(0);
-  await shot(page, testInfo, "request-form");
+  await shot(page, testInfo, "request-form", { fullPage: true });
 });

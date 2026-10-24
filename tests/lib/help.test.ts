@@ -92,11 +92,11 @@ describe("listing and loading articles", () => {
 describe("the real articles hold together", () => {
   const articles = listHelpArticles();
 
-  /** The screenshot file names a scene writes, in order: its Nth `shot(page, testInfo, "name")` call saves `NN-name.png`. */
+  /** The screenshot file names a scene writes, in order: its Nth `shot(page, testInfo, "name"[, options])` call saves `NN-name.png`. */
   function sceneShots(scene: string): string[] | null {
     const file = path.join("demo", "scenes", `${scene}.spec.ts`);
     if (!existsSync(file)) return null;
-    const names = [...readFileSync(file, "utf8").matchAll(/shot\(page, testInfo, "([a-z0-9-]+)"\)/g)].map((m) => m[1]);
+    const names = [...readFileSync(file, "utf8").matchAll(/shot\(page, testInfo, "([a-z0-9-]+)"(?:,[^)]*)?\)/g)].map((m) => m[1]);
     return names.map((name, i) => `${String(i + 1).padStart(2, "0")}-${name}.png`);
   }
 

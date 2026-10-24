@@ -8,7 +8,7 @@ test("a member commits to regular prickle times", async ({ page, signInAs }, tes
 
   await page.goto("/my-prickles/all");
   await expect(page.getByText("The full recurring weekly schedule")).toBeVisible();
-  await shot(page, testInfo, "all-prickles");
+  await shot(page, testInfo, "all-prickles", { fullPage: true });
 
   await page.getByRole("button", { name: /Make a commitment/ }).click();
   await expect(page.getByText("Nothing picked yet.")).toBeVisible();

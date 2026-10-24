@@ -2,7 +2,7 @@ import { test as base, expect, type Locator, type Page, type TestInfo } from "pl
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { sessionCookies } from "./auth";
-import { consoleKey, knownKeys, pageFindings, type Baseline, type Finding } from "./checks";
+import { captureWholePage, consoleKey, knownKeys, pageFindings, scrollThroughPage, type Baseline, type Finding } from "./checks";
 
 /**
  * `signInAs("member")` signs the page in as a demo persona and pins the theme to the project's colour scheme,
@@ -68,6 +68,13 @@ export interface ShotOptions {
   element?: Locator;
   /** Run the page checks (default). Off for pages that aren't the app's own, like a mockup of a Slack message. */
   checks?: boolean;
+  /**
+   * Capture the whole page, including what the app scrolls inside itself (the member app scrolls `main`, not the
+   * window, so Playwright's own fullPage would add nothing). The viewport grows to fit, up to a cap, then goes back.
+   * For long pages and for articles that should show everything; the default is what is on the screen, as a member
+   * would see it.
+   */
+  fullPage?: boolean;
 }
 
 /** Screenshot the page as the next numbered step of the scene, then run the page checks on that state. */
@@ -79,7 +86,10 @@ export async function shot(page: Page, testInfo: TestInfo, name: string, options
   const dir = path.join("demo", "out", scene, testInfo.project.name);
   mkdirSync(dir, { recursive: true });
   if (options.element) await options.element.screenshot({ path: path.join(dir, `${step}.png`), animations: "disabled" });
-  else await page.screenshot({ path: path.join(dir, `${step}.png`), animations: "disabled" });
+  else if (options.fullPage) {
+    await scrollThroughPage(page); // lazy content loads as it comes into view, so it is in the picture
+    await captureWholePage(page, path.join(dir, `${step}.png`));
+  } else await page.screenshot({ path: path.join(dir, `${step}.png`), animations: "disabled" });
 
   const mode = process.env.DEMO_CHECKS ?? "enforce";
   if (mode === "off" || options.checks === false) return;
