@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createRepos } from "@/lib/data/repos"
 import { buildAttendanceMap } from "@/lib/scheduled-prickle-stats"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 
@@ -187,21 +188,12 @@ export async function getPrickleScheduleOverview(
     bucket.set(key, list)
   }
 
-  // Historical attendance, batched by prickle ID (see CLAUDE.md pagination rule).
   const historicalIds = [...historicalBySlot.values()].flat().map((p) => p.id)
-  let attendance: { prickle_id: string; member_id: string }[] = []
-  const ID_BATCH = 500
-  for (let i = 0; i < historicalIds.length; i += ID_BATCH) {
-    const idsChunk = historicalIds.slice(i, i + ID_BATCH)
-    const rows = await fetchAllPaginated<{ prickle_id: string; member_id: string }>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id")
-        .in("prickle_id", idsChunk)
-        .range(offset, offset + BATCH_SIZE - 1)
-    )
-    attendance = attendance.concat(rows)
-  }
+  // Historical attendance for those prickles (chunked and paginated inside the repository).
+  const attendance = (await createRepos(supabase).attendance.forPrickles(historicalIds)).map((link) => ({
+    prickle_id: link.prickleId,
+    member_id: link.memberId,
+  }))
   const attendanceMap = buildAttendanceMap(attendance)
 
   const rows: PrickleScheduleRow[] = []

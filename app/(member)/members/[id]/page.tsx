@@ -14,6 +14,7 @@ import { getProfileWriting } from "@/app/(member)/projects/actions"
 import { MEASURE_LABELS } from "@/lib/writing-projects"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
+import { createRepos } from "@/lib/data/repos"
 import MemberBadgeChips from "@/components/member/MemberBadgeChips"
 import MemberSocialLinks from "@/components/member/MemberSocialLinks"
 import AskMeAboutTopics from "@/components/member/AskMeAboutTopics"
@@ -124,7 +125,7 @@ export default async function MemberProfilePage({
   // "Last prickle" is the member's most recent join, shown in the header instead of stats.
   const now = new Date()
   const [totalPricklesAttended, hostedRecords, hostingSlots, { data: lastAttendance }] = await Promise.all([
-    getAttendedPrickleCount(supabase, id),
+    getAttendedPrickleCount(createRepos(supabase).attendance, id),
     fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
     getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
     supabase

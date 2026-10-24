@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse, after } from "next/server";
 
@@ -67,13 +68,7 @@ export async function POST(request: NextRequest) {
   const redundantEmailIds = (emailRows ?? []).filter((r) => r.alias_email.toLowerCase() === targetEmail).map((r) => r.id);
   const moveEmailIds = (emailRows ?? []).filter((r) => r.alias_email.toLowerCase() !== targetEmail).map((r) => r.id);
 
-  const { data: earliest } = await supabase
-    .from("prickle_attendance")
-    .select("join_time")
-    .eq("member_id", from.id)
-    .order("join_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const earliestJoinTime = await createRepos(supabase).attendance.firstJoinTime(from.id);
 
   try {
     if (redundantEmailIds.length) {
@@ -86,7 +81,7 @@ export async function POST(request: NextRequest) {
       await run(supabase.from("member_email_aliases").update({ member_id: to.id }).in("id", moveEmailIds));
     }
 
-    const rangeStart = earliest?.join_time ? new Date(earliest.join_time) : new Date(Date.now() - 90 * 86_400_000);
+    const rangeStart = earliestJoinTime ? new Date(earliestJoinTime) : new Date(Date.now() - 90 * 86_400_000);
     after(async () => {
       try {
         await triggerAttendanceReprocessing({ from: rangeStart, to: new Date() });

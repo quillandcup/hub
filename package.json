@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
+    "types:gen": "supabase gen types typescript --local --schema public --schema bronze > lib/data/database.types.ts",
+    "types:check": "pnpm types:gen && git diff --exit-code -- lib/data/database.types.ts",
     "tunnel": "tsx --env-file-if-exists=.env.local scripts/tunnel.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseDateOnly } from "@/lib/member-tenure";
+import type { AttendanceRepository } from "@/lib/data/attendance";
+import { createRepos } from "@/lib/data/repos";
 
 export interface BadgeType {
   id: string;
@@ -605,67 +607,24 @@ async function getPublishedBookCountsByMember(
   return countsByMember;
 }
 
-/** Distinct prickle_id count attended by a single member, from `prickle_attendance` -- the
- * per-member counterpart to getAttendedPrickleCountsByMember, for pages that only need one
- * member's count rather than a bulk scan. Mirrors the DISTINCT-prickle_id rule in CLAUDE.md (a
- * member can have multiple attendance rows per prickle from leaving/rejoining). */
+/** Distinct prickles attended by a single member -- the per-member counterpart to
+ * getAttendedPrickleCountsByMember, for pages that only need one member's count rather than a
+ * bulk scan. Distinct, not records: a member can have several attendance records per prickle
+ * from leaving/rejoining (CLAUDE.md). */
 export async function getAttendedPrickleCount(
-  supabase: SupabaseClient,
+  attendance: AttendanceRepository,
   memberId: string
 ): Promise<number> {
-  const prickleIds = new Set<string>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("prickle_id")
-      .eq("member_id", memberId)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { prickle_id: string }[]) {
-        prickleIds.add(row.prickle_id);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return prickleIds.size;
+  return (await attendance.attendedPrickleIds(memberId)).size;
 }
 
-/** Distinct prickle_id count attended per member, from `prickle_attendance` -- the bulk
- * counterpart to the per-member total_sessions figure, one paginated scan instead of N. Mirrors
- * the DISTINCT-prickle_id rule in CLAUDE.md (a member can have multiple attendance rows per
- * prickle from leaving/rejoining). */
+/** Distinct prickles attended per member -- the bulk counterpart to the per-member
+ * total_sessions figure, one paginated scan instead of N. */
 async function getAttendedPrickleCountsByMember(
-  supabase: SupabaseClient
+  attendance: AttendanceRepository
 ): Promise<Map<string, number>> {
-  const prickleIdsByMember = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id, prickle_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { member_id: string; prickle_id: string }[]) {
-        const prickleIds = prickleIdsByMember.get(row.member_id) ?? new Set<string>();
-        prickleIds.add(row.prickle_id);
-        prickleIdsByMember.set(row.member_id, prickleIds);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
   const countsByMember = new Map<string, number>();
-  for (const [memberId, prickleIds] of prickleIdsByMember) {
+  for (const [memberId, prickleIds] of await attendance.attendedPrickleIdsByMember()) {
     countsByMember.set(memberId, prickleIds.size);
   }
   return countsByMember;
@@ -799,7 +758,7 @@ export async function getBadgeRecipients(
   let mentorshipByMember = new Map<string, MentorshipCount>();
   switch (badgeType.key) {
     case "prickle_milestones":
-      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(supabase);
+      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(createRepos(supabase).attendance);
       break;
     case "hostess":
       hostedQuarterCountsByMember = await getHostedQuarterCountsByMember(supabase);

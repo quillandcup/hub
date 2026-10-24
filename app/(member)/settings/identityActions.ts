@@ -8,6 +8,7 @@ import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import { createRepos } from "@/lib/data/repos";
 
 import { withAction } from "@/lib/analytics/server";
 export interface NameAliasRow {
@@ -71,7 +72,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const [memberResult, nameAliasResult, emailAliasResult, attendanceResult] = await Promise.all([
+  const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
     supabase
       .from("members")
       .select("name, display_name, email, birthday_month, birthday_day, kajabi_id, self_service_name_changed_at")
@@ -87,10 +88,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
       .select("id, alias_email, source, active, created_at")
       .eq("member_id", effectiveIdentity.memberId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("prickle_attendance")
-      .select("id", { count: "exact", head: true })
-      .eq("member_id", effectiveIdentity.memberId),
+    createRepos(supabase).attendance.countForMember(effectiveIdentity.memberId),
   ]);
 
   return {
@@ -113,7 +111,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
       active: row.active,
       createdAt: row.created_at,
     })),
-    hasAttendanceHistory: (attendanceResult.count ?? 0) > 0,
+    hasAttendanceHistory: attendanceCount > 0,
     nameChangeLocked: memberResult.data?.self_service_name_changed_at != null,
   };
 }

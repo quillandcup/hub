@@ -1,4 +1,5 @@
 import { SLACK_INTRO_CHANNEL } from "@/lib/config";
+import type { AttendanceRepository } from "@/lib/data/attendance";
 
 /**
  * What a newcomer has (or hasn't) done yet, read from the member's own data so the Getting started
@@ -60,48 +61,16 @@ export async function loadIntroducedMemberIds(supabase: any, memberIds: string[]
 }
 
 /** Which of these members have attended at least one prickle. */
-export async function loadAttendedMemberIds(supabase: any, memberIds: string[]): Promise<Set<string>> {
-  const attended = new Set<string>();
-  for (const chunk of chunks(memberIds)) {
-    const ids = await fetchAllMemberIds((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("member_id")
-        .in("member_id", chunk)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    );
-    for (const id of ids) attended.add(id);
-  }
-  return attended;
+export function loadAttendedMemberIds(attendance: AttendanceRepository, memberIds: string[]): Promise<Set<string>> {
+  return attendance.membersWhoAttended(memberIds);
 }
 
 /**
  * memberId -> when they last attended a prickle, for those who ever have. Attendance rows are
  * per join, so a member has several; the latest join counts.
  */
-export async function loadLastAttendanceByMember(supabase: any, memberIds: string[]): Promise<Map<string, Date>> {
-  const last = new Map<string, Date>();
-  for (const chunk of chunks(memberIds)) {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await supabase
-        .from("prickle_attendance")
-        .select("member_id, join_time")
-        .in("member_id", chunk)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1);
-      for (const row of (data ?? []) as { member_id: string; join_time: string }[]) {
-        const joined = new Date(row.join_time);
-        const seen = last.get(row.member_id);
-        if (!seen || joined > seen) last.set(row.member_id, joined);
-      }
-      offset += data?.length ?? 0;
-      hasMore = (data?.length ?? 0) === BATCH_SIZE;
-    }
-  }
-  return last;
+export function loadLastAttendanceByMember(attendance: AttendanceRepository, memberIds: string[]): Promise<Map<string, Date>> {
+  return attendance.lastJoinByMember(memberIds);
 }
 
 /** Slack channel id of the intro channel, or null when the workspace has no such channel (yet). Bronze is admin-only, so pass a service-role client. */

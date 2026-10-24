@@ -5,6 +5,7 @@ import type { NotificationKindId } from "@/lib/notifications/registry";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import { daysSinceJoined, isNewcomer } from "@/lib/newcomer";
 import { resolveSlackUserIds } from "@/lib/slack-member-ids";
+import { createRepos } from "@/lib/data/repos";
 import { loadIntroChannelId, loadIntroducedMemberIds, loadLastAttendanceByMember } from "@/lib/newcomer-signals";
 import { loadCalendarPrickleIdsByMember } from "@/lib/prickle-checkin-dms";
 import type { OutboundMessage } from "@/lib/channels";
@@ -245,7 +246,7 @@ export async function sendMemberReminders(
 
   const [introduced, lastAttendance, log, channelId, zones] = await Promise.all([
     loadIntroducedMemberIds(supabase, newcomers.map((m) => m.id)),
-    loadLastAttendanceByMember(supabase, memberIds),
+    loadLastAttendanceByMember(createRepos(supabase).attendance, memberIds),
     loadNudgeLog(supabase, memberIds),
     loadIntroChannelId(supabase),
     loadMemberTimeZones(supabase, members),

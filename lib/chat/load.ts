@@ -6,6 +6,7 @@ import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -153,7 +154,7 @@ export async function loadMemberCard(supabase: SupabaseClient, memberId: string)
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
   ]);
   if (!m) return null;
-  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(supabase, memberId), m.first_joined_at ?? null);
+  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
   return {
     id: m.id,
     name: m.display_name || m.name,

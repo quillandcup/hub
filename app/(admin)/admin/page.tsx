@@ -31,11 +31,6 @@ export default async function DashboardPage() {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Total attendance records
-  const { count: totalAttendance } = await supabase
-    .from("prickle_attendance")
-    .select("*", { count: "exact", head: true });
-
   // At-risk: active members with no attendance in last 30 days. Leads,
   // cancelled, and on-hiatus members are excluded — a hiatus member isn't
   // expected to attend, so including them only inflates the count. Staff-only

@@ -7,6 +7,7 @@ import {
   loadLastAttendanceByMember,
 } from "@/lib/newcomer-signals";
 import { SLACK_INTRO_CHANNEL } from "@/lib/config";
+import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
 
 const eqs = (query: FakeQuery) => query.calls.filter((c) => c.method === "eq").map((c) => c.args);
 const inIds = (query: FakeQuery) => query.calls.find((c) => c.method === "in")?.args[1] as string[] | undefined;
@@ -60,26 +61,30 @@ describe("loadIntroducedMemberIds", () => {
   });
 });
 
+const attended = (rows: { memberId: string; joinTime: string }[]) =>
+  new InMemoryAttendanceRepository(rows.map((r, i) => ({ id: `att_${i}`, prickleId: "prkl_AAAAAAAAAAA1", leaveTime: r.joinTime, ...r })));
+
 describe("loadAttendedMemberIds", () => {
   it("returns members with any prickle attendance", async () => {
-    const fake = createFakeSupabase({ prickle_attendance: forMembers([{ member_id: "m2" }, { member_id: "m2" }]) });
+    const repo = attended([
+      { memberId: "m2", joinTime: "2026-09-01T15:00:00Z" },
+      { memberId: "m2", joinTime: "2026-09-02T15:00:00Z" },
+    ]);
 
-    expect(await loadAttendedMemberIds(fake, ["m1", "m2"])).toEqual(new Set(["m2"]));
+    expect(await loadAttendedMemberIds(repo, ["m1", "m2"])).toEqual(new Set(["m2"]));
   });
 });
 
 describe("loadLastAttendanceByMember", () => {
   it("keeps each member's latest join across their attendance rows", async () => {
-    const fake = createFakeSupabase({
-      prickle_attendance: forMembers([
-        { member_id: "m1", join_time: "2026-09-01T15:00:00Z" },
-        { member_id: "m1", join_time: "2026-10-05T15:00:00Z" },
-        { member_id: "m1", join_time: "2026-09-20T15:00:00Z" },
-        { member_id: "m2", join_time: "2026-08-01T15:00:00Z" },
-      ]),
-    });
+    const repo = attended([
+      { memberId: "m1", joinTime: "2026-09-01T15:00:00Z" },
+      { memberId: "m1", joinTime: "2026-10-05T15:00:00Z" },
+      { memberId: "m1", joinTime: "2026-09-20T15:00:00Z" },
+      { memberId: "m2", joinTime: "2026-08-01T15:00:00Z" },
+    ]);
 
-    const last = await loadLastAttendanceByMember(fake, ["m1", "m2", "m3"]);
+    const last = await loadLastAttendanceByMember(repo, ["m1", "m2", "m3"]);
 
     expect(last.get("m1")).toEqual(new Date("2026-10-05T15:00:00Z"));
     expect(last.get("m2")).toEqual(new Date("2026-08-01T15:00:00Z"));
