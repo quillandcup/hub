@@ -85,7 +85,7 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   );
   if (open.length === 0) return { live: false, count: 0, members: [], guests: 0, prickle: null, join };
 
-  const [members, aliases, emailAliases, prickleRows] = await Promise.all([
+  const [members, aliases, emailAliases, running] = await Promise.all([
     createRepos(supabase)
       .members.identities()
       .then((rows) => rows.map((m) => ({ id: m.id, name: m.name, email: m.email, display_name: m.displayName }))),
@@ -105,14 +105,7 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
         .order("id")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
-    supabase
-      .from("prickles")
-      .select("id, title, host:prickle_host(id, name), prickle_types:type_id(name)")
-      .lte("start_time", now.toISOString())
-      .gt("end_time", now.toISOString())
-      .order("start_time")
-      .limit(1)
-      .then((r: any) => r.data ?? []),
+    createRepos(supabase).prickles.inProgressAt(now.toISOString()),
   ]);
 
   const byId = new Map(members.map((m) => [m.id, m]));
@@ -131,15 +124,12 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   }
   inRoom.sort((a, b) => a.name.localeCompare(b.name));
 
-  const row = prickleRows[0];
-  const host = Array.isArray(row?.host) ? row.host[0] : row?.host;
-  const type = Array.isArray(row?.prickle_types) ? row.prickle_types[0] : row?.prickle_types;
   return {
     live: true,
     count: inRoom.length + guests,
     members: inRoom,
     guests,
-    prickle: row ? { id: row.id, title: row.title || type?.name || "Prickle", hostName: host?.name ?? null } : null,
+    prickle: running ? { id: running.id, title: running.title || running.type?.name || "Prickle", hostName: running.host?.name ?? null } : null,
     join,
   };
 }

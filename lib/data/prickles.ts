@@ -63,6 +63,15 @@ export interface PrickleRepository {
   countHostedBy(memberId: string, options?: { since?: string }): Promise<number>;
   /** How many prickles came from this source (e.g. "calendar"). */
   countBySource(source: string): Promise<number>;
+  /** The prickle running at this instant (ISO; started at or before it, not yet ended), the earliest-starting one; null if none. */
+  inProgressAt(instant: string): Promise<PrickleDetail | null>;
+  /** How many prickles each of these members hosted among those that started before `before` (ISO); every member asked about is present, 0 if none. */
+  hostedCounts(hostIds: string[], before: string): Promise<Map<string, number>>;
+  /**
+   * Prickles of the type with this normalized name that are not over by `from` and start no later than
+   * `to` (ISO): running at `from` or starting by `to`. Oldest first, at most `limit`.
+   */
+  ofTypeActiveBetween(options: { normalizedName: string; from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
 }
 
 const TYPE_COLUMNS = "id, name, normalized_name, purpose, requires_host, solo_task_friendly";
@@ -199,9 +208,56 @@ export class SupabasePrickleRepository implements PrickleRepository {
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
+
+  async inProgressAt(instant: string): Promise<PrickleDetail | null> {
+    const { data, error } = await this.db
+      .from("prickles")
+      .select(DETAIL_SELECT)
+      .lte("start_time", instant)
+      .gt("end_time", instant)
+      .order("start_time")
+      .order("id")
+      .limit(1);
+    if (error) throw new Error(error.message);
+    const row = (data ?? [])[0];
+    return row ? toDetail(row as unknown as DetailRow) : null;
+  }
+
+  async hostedCounts(hostIds: string[], before: string): Promise<Map<string, number>> {
+    const counts = new Map<string, number>(hostIds.map((id) => [id, 0]));
+    for (const hostChunk of chunk(hostIds, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<{ host: string }>(
+        (from, to) =>
+          this.db.from("prickles").select("host").in("host", hostChunk).lt("start_time", before).order("id").range(from, to) as unknown as PromiseLike<{
+            data: { host: string }[] | null;
+            error: { message: string } | null;
+          }>,
+      );
+      for (const row of rows) counts.set(row.host, (counts.get(row.host) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  async ofTypeActiveBetween({ normalizedName, from, to, limit }: { normalizedName: string; from: string; to: string; limit: number }): Promise<PrickleDetail[]> {
+    const { data: types, error: typeError } = await this.db.from("prickle_types").select("id").eq("normalized_name", normalizedName);
+    if (typeError) throw new Error(typeError.message);
+    const typeIds = (types ?? []).map((t) => t.id);
+    if (typeIds.length === 0) return [];
+    const { data, error } = await this.db
+      .from("prickles")
+      .select(DETAIL_SELECT)
+      .in("type_id", typeIds)
+      .gte("end_time", from)
+      .lte("start_time", to)
+      .order("start_time")
+      .order("id")
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
+  }
 }
 
-const byStartThenId = (a: PrickleDetail, b: PrickleDetail) =>
+const byStartThenId = (a: Prickle, b: Prickle) =>
   a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 /** A prickle with its type and host joined in from an in-memory dataset. */
@@ -257,5 +313,33 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async countBySource(source: string) {
     return this.data.prickles.filter((p) => p.source === source).length;
+  }
+
+  async inProgressAt(instant: string) {
+    const at = new Date(instant).getTime();
+    const running = this.data.prickles
+      .filter((p) => new Date(p.startTime).getTime() <= at && new Date(p.endTime).getTime() > at)
+      .sort(byStartThenId);
+    return running[0] ? this.detail(running[0]) : null;
+  }
+
+  async hostedCounts(hostIds: string[], before: string) {
+    const cutoff = new Date(before).getTime();
+    const counts = new Map<string, number>(hostIds.map((id) => [id, 0]));
+    for (const p of this.data.prickles) {
+      if (p.hostId && counts.has(p.hostId) && new Date(p.startTime).getTime() < cutoff) counts.set(p.hostId, counts.get(p.hostId)! + 1);
+    }
+    return counts;
+  }
+
+  async ofTypeActiveBetween({ normalizedName, from, to, limit }: { normalizedName: string; from: string; to: string; limit: number }) {
+    const typeIds = new Set(this.data.prickleTypes.filter((t) => t.normalizedName === normalizedName).map((t) => t.id));
+    const start = new Date(from).getTime();
+    const end = new Date(to).getTime();
+    return this.data.prickles
+      .filter((p) => p.typeId !== null && typeIds.has(p.typeId) && new Date(p.endTime).getTime() >= start && new Date(p.startTime).getTime() <= end)
+      .sort(byStartThenId)
+      .slice(0, limit)
+      .map((p) => this.detail(p));
   }
 }

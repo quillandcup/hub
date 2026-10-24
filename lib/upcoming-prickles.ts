@@ -52,7 +52,6 @@ const BATCH_SIZE = 1000
 // covers "last 2 occurrences" even through a skipped week or two. Shared with
 // the recommendation lookback so one past-prickle fetch serves both.
 const SISTER_LOOKBACK_DAYS = RECOMMENDATION_LOOKBACK_DAYS
-const HOST_ID_BATCH = 100
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
 
@@ -78,14 +77,6 @@ async function fetchAllPaginated<T>(
     }
   }
   return all
-}
-
-/** Runs `fetchChunk` over `ids` in `.in()`-sized chunks, in parallel, and concatenates. */
-async function fetchInChunks<T>(ids: string[], chunkSize: number, fetchChunk: (chunk: string[]) => Promise<T[]>) {
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += chunkSize) chunks.push(ids.slice(i, i + chunkSize))
-  const results = await Promise.all(chunks.map(fetchChunk))
-  return results.flat()
 }
 
 function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string; startHour: number } {
@@ -166,29 +157,6 @@ async function fetchPrickles(
 /** Every attendance row (multiple per member/prickle is normal -- leave/rejoin) for these prickles. */
 async function fetchAttendanceForPrickles(supabase: SupabaseClient, prickleIds: string[]): Promise<PastAttendance[]> {
   return createRepos(supabase).attendance.forPrickles(prickleIds)
-}
-
-/** All-time count of already-started prickles hosted by each of `hostIds`. Only the `host` column
- * is selected, so even a long hosting history is a small payload. */
-async function fetchHostedCounts(
-  supabase: SupabaseClient,
-  hostIds: string[],
-  before: string
-): Promise<Map<string, number>> {
-  const rows = await fetchInChunks(hostIds, HOST_ID_BATCH, (chunk) =>
-    fetchAllPaginated<{ host: string }>((offset) =>
-      supabase
-        .from("prickles")
-        .select("host")
-        .in("host", chunk)
-        .lt("start_time", before)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    )
-  )
-  const counts = new Map<string, number>(hostIds.map((id) => [id, 0]))
-  for (const r of rows) counts.set(r.host, (counts.get(r.host) ?? 0) + 1)
-  return counts
 }
 
 /**
@@ -534,7 +502,7 @@ export async function getRankedUpcomingPrickles(
   const [coAttendance, pastAttendance, hostedCounts] = await Promise.all([
     createRepos(supabase).attendance.coAttendees(memberId, myPrickleIds),
     upcoming.length > 0 ? fetchAttendanceForPrickles(supabase, pastPrickles.map((p) => p.id)) : Promise.resolve([]),
-    fetchHostedCounts(supabase, upcomingHostIds, windowStart),
+    createRepos(supabase).prickles.hostedCounts(upcomingHostIds, windowStart),
   ])
 
   // ---- Prickle streaks: which recurring series (type + day-of-week + hour)

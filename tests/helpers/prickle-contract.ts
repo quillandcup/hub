@@ -134,5 +134,55 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
 
       expect(found.map((p) => p.id).sort()).toEqual([...ids].sort());
     });
+
+    it("finds the prickle running at an instant: started, not ended, the earliest first", async () => {
+      const [early, , late] = await ctx.seed([
+        { start: at(0), end: at(4) },
+        { start: at(5), end: at(6) },
+        { start: at(2), end: at(8) },
+      ]);
+
+      expect((await ctx.repo().inProgressAt(at(3)))?.id).toBe(early); // two overlap: the earlier start
+      expect((await ctx.repo().inProgressAt(at(4)))?.id).toBe(late); // the first ended exactly now
+      expect((await ctx.repo().inProgressAt(at(0)))?.id).toBe(early); // starting now counts
+      expect(await ctx.repo().inProgressAt(at(9))).toBeNull();
+    });
+
+    it("counts how many prickles each member hosted before a moment, with zero for members who hosted none", async () => {
+      await ctx.seed([
+        { host: 0, start: at(0) },
+        { host: 0, start: at(1) },
+        { host: 0, start: at(10) },
+        { host: 1, start: at(2) },
+        { start: at(3) },
+      ]);
+
+      const counts = await ctx.repo().hostedCounts([ctx.hosts[0].id, ctx.hosts[1].id, "mbr_ZZZZZZZZZZZZ"], at(5));
+
+      expect(counts.get(ctx.hosts[0].id)).toBe(2); // the one at 10 hasn't started
+      expect(counts.get(ctx.hosts[1].id)).toBe(1);
+      expect(counts.get("mbr_ZZZZZZZZZZZZ")).toBe(0);
+      expect(await ctx.repo().hostedCounts([], at(5))).toEqual(new Map());
+    });
+
+    it("lists prickles of a type by its normalized name that are running or start within a window, oldest first, capped", async () => {
+      const [over, running, soon, later, otherType] = await ctx.seed([
+        { type: 0, start: at(0), end: at(1) },
+        { type: 0, start: at(2), end: at(6) },
+        { type: 0, start: at(7), end: at(8) },
+        { type: 0, start: at(20), end: at(21) },
+        { type: 1, start: at(3), end: at(4) },
+      ]);
+      const window = { normalizedName: ctx.types[0].normalizedName, from: at(5), to: at(10), limit: 10 };
+
+      const found = await ctx.repo().ofTypeActiveBetween(window);
+      const capped = await ctx.repo().ofTypeActiveBetween({ ...window, limit: 1 });
+
+      expect(found.map((p) => p.id)).toEqual([running, soon]); // not the one that ended, the later one, or the other type
+      expect(found[0].type).toEqual(ctx.types[0]);
+      expect(capped.map((p) => p.id)).toEqual([running]);
+      expect(await ctx.repo().ofTypeActiveBetween({ ...window, normalizedName: "no such type" })).toEqual([]);
+      expect([over, later, otherType]).toHaveLength(3);
+    });
   });
 }
