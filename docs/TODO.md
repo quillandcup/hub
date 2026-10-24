@@ -192,10 +192,8 @@ Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand
 - Possible shortcut: a runtime guard in the link / notification helpers that rejects an id whose prefix is not a Tier 1 prefix.
 - Add the Tier 1 promotion step (readable prefix, migration, tier list) to the PR checklist.
 
-### Mask the Checkly Heartbeat Ping URLs in CI Logs
-The `CHECKLY_HEARTBEAT_*` values are ping URLs: anyone who has one can mark that job as healthy.
-
-**Resolved:** no workflow reads them today (they are Vercel production variables only; `checkly.yml` only gets `CHECKLY_API_KEY`), so there was nothing to mask yet. `tests/lib/workflow-heartbeat-masking.test.ts` now fails if a workflow step uses a `CHECKLY_HEARTBEAT_*` variable without that step or an earlier one registering it with `echo "::add-mask::$VALUE"` (guard with `[ -n "$VALUE" ]` for empty values).
+### Rotate the Checkly Heartbeat Ping URLs _(Needs Scheduling)_
+`checkly deploy` printed every heartbeat's ping URL into the public CI logs ("Ping URL of heartbeat check ... is https://ping.checklyhq.com/<id>"), and anyone holding one can mark that job healthy. **Resolved:** each ping URL is also a GitHub secret now (`env-vars.config.ts`), and the deploy job registers it with `::add-mask::` before `checkly deploy` runs (`checkly.yml`; `tests/lib/workflow-heartbeat-masking.test.ts` checks every heartbeat is covered). A brand-new heartbeat's first deploy still prints its URL, since it isn't a secret yet. **Still open:** the URLs already in old run logs stay valid. Rotating means recreating each heartbeat monitor (rename its logical id in `lib/cron-heartbeats.ts` so Checkly issues a new URL), copying the new URLs into `.env.prod` and `pnpm env:sync`, then deleting old runs' logs (`gh run delete`) if wanted. Do it together with the pre-prickle-nudges rename below, which already needs a new monitor.
 
 ### Log Member Merges So They Can Be Undone Exactly _(Needs Scheduling)_
 A merge (`POST /api/admin/members/merge`) re-points everything from the absorbed member to
