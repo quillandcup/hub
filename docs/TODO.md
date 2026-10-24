@@ -252,6 +252,12 @@ before navigating; whether that is needed is unknown. The routes do not call `re
 (move an alias, then open the source member's Identity tab); if it still happens, capture
 what the page shows and when, and check whether the alias row is gone at that moment.
 
+### Env Sync Never Deletes: Removed Variables Linger in GitHub, Vercel and Vault _(Needs Scheduling)_
+`env-vars.config.ts` is the source of truth for what exists, but the sync scripts only add and overwrite (`scripts/sync-to-github.ts`, `scripts/sync-to-vercel.ts`, which removes a Vercel var only to replace it, and `scripts/sync-vault-secrets.ts`). Take a variable out of the config, or drop a destination from it, and the copy already synced stays where it is until someone deletes it by hand. This came up when the Checkly heartbeat URLs were briefly given a GitHub destination (PR #371, reverted in #378): seven GitHub secrets were left behind and had to be deleted manually. Config as code that can't say "this should no longer exist" has the problem Terraform solves with its state file.
+- **Fix:** let each sync compute the diff between the config and what the destination holds. List the destination's names (`gh secret list` / `gh variable list`, `vercel env ls`, the Vault secret names), and report names that are present but not declared for it. Start with a read-only `--prune-check` that prints them (and fails in CI), then an explicit `--prune` that deletes them after a confirmation. Never delete by default: other things share these places (secrets set by hand, Vercel's own `VERCEL_*` and integration-managed vars, Supabase vault entries owned by Supabase), so scope to an allowlist or a naming convention, or keep a committed list of names the sync owns (the state file).
+- **Also check:** GitHub Actions secrets and variables are separate lists (a `type` change from secret to config leaves the old kind behind), and Vercel has per-target copies.
+- **Docs:** `docs/ENV_MANAGEMENT.md` and `.claude/rules/new-env-var.md` should say that removing a variable means running the prune, until it exists, deleting it by hand in each destination.
+
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
 
