@@ -47,7 +47,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "lib/upcoming-prickles.ts",
   ],
   members: [
-    "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
     "app/api/health/route.ts",
   ],
 };

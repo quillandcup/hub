@@ -15,6 +15,7 @@ export type MemberSeedRecord = {
   bio?: string;
   instagramUrl?: string;
   birthday?: [month: number, day: number];
+  totalActiveMonths?: number;
 };
 
 export type MemberContractContext = {
@@ -358,6 +359,28 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       await ctx.repo().setExternalIds(ada, { stripeCustomerId: "cus_merged", userId: ctx.authUserIds[1] });
 
       expect(await ctx.repo().byId(ada)).toMatchObject({ kajabiId: before?.kajabiId, stripeCustomerId: "cus_merged", userId: ctx.authUserIds[1] });
+    });
+
+    it("reads what the admin member page shows, and null for no such member", async () => {
+      const [ada] = await ctx.seed([
+        { name: "Ada Example", displayName: "Penny Quill", status: "on_hiatus", kajabiId: "kaj-3", stripeCustomerId: "cus_3", firstJoinedAt: "2025-03-04", totalActiveMonths: 7 },
+      ]);
+
+      const view = await ctx.repo().adminView(ada);
+
+      expect(view).toMatchObject({
+        id: ada,
+        name: "Ada Example",
+        displayName: "Penny Quill",
+        email: ctx.emailOf(ada),
+        status: "on_hiatus",
+        mostRecentJoinedAt: null,
+        totalActiveMonths: 7,
+      });
+      expect(view?.kajabiId).toMatch(/^kaj-3/);
+      expect(view?.stripeCustomerId).toMatch(/^cus_3/);
+      expect(view?.firstJoinedAt).toMatch(/^2025-03-04/);
+      expect(await ctx.repo().adminView("mbr_ZZZZZZZZZZZZ")).toBeNull();
     });
   });
 }

@@ -42,6 +42,20 @@ export type MemberProfile = {
   selfServiceNameChangedAt: string | null;
 };
 
+/** What the admin member page shows about a member; not the whole row (no raw import payload). */
+export type AdminMember = {
+  id: string;
+  name: string;
+  displayName: string | null;
+  email: string;
+  status: string;
+  kajabiId: string | null;
+  stripeCustomerId: string | null;
+  firstJoinedAt: string | null;
+  mostRecentJoinedAt: string | null;
+  totalActiveMonths: number;
+};
+
 /** Which members a search matches; all given conditions must hold. Results are ordered by name. */
 export type MemberSearch = {
   /** Each word must appear, in any case, in the name or the email. */
@@ -87,6 +101,8 @@ export interface MemberRepository {
   byUserId(userId: string): Promise<Member | null>;
   /** The member's profile and identity-settings columns. */
   profile(id: string): Promise<MemberProfile | null>;
+  /** The columns the admin member page shows, or null if there is no such member. */
+  adminView(id: string): Promise<AdminMember | null>;
   /** Members matching the search, by name (then id). */
   search(query: MemberSearch): Promise<Member[]>;
   /** When Kajabi processing last touched a Kajabi member's row, or null if there are none. */
@@ -247,6 +263,28 @@ export class SupabaseMemberRepository implements MemberRepository {
     const { data, error } = await this.db.from("members").select(PROFILE_COLUMNS).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
     return data ? toProfile(data as unknown as ProfileRow) : null;
+  }
+
+  async adminView(id: string): Promise<AdminMember | null> {
+    const { data, error } = await this.db
+      .from("members")
+      .select("id, name, display_name, email, status, kajabi_id, stripe_customer_id, first_joined_at, most_recent_joined_at, total_active_months")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    return {
+      id: data.id,
+      name: data.name,
+      displayName: data.display_name,
+      email: data.email,
+      status: data.status,
+      kajabiId: data.kajabi_id,
+      stripeCustomerId: data.stripe_customer_id,
+      firstJoinedAt: data.first_joined_at,
+      mostRecentJoinedAt: data.most_recent_joined_at,
+      totalActiveMonths: data.total_active_months,
+    };
   }
 
   async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch): Promise<Member[]> {
@@ -501,6 +539,24 @@ export class InMemoryMemberRepository implements MemberRepository {
       birthdayMonth: m.birthdayMonth ?? null,
       birthdayDay: m.birthdayDay ?? null,
       selfServiceNameChangedAt: m.selfServiceNameChangedAt ?? null,
+    };
+  }
+
+  async adminView(id: string): Promise<AdminMember | null> {
+    const m = this.all().find((x) => x.id === id);
+    if (!m) return null;
+    const seed = this.data.members.find((x) => x.id === id)!;
+    return {
+      id: m.id,
+      name: m.name,
+      displayName: m.displayName,
+      email: m.email,
+      status: m.status,
+      kajabiId: m.kajabiId,
+      stripeCustomerId: m.stripeCustomerId,
+      firstJoinedAt: m.firstJoinedAt,
+      mostRecentJoinedAt: m.mostRecentJoinedAt,
+      totalActiveMonths: seed.totalActiveMonths ?? 0,
     };
   }
 

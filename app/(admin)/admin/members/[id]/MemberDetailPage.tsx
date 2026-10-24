@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import MemberDetails from "./MemberDetails";
+import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -31,8 +31,7 @@ import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
-  const { data } = await supabase.from("members").select("*").eq("id", id).single();
-  return data;
+  return createRepos(supabase).members.adminView(id);
 });
 
 /** generateMetadata for the member page (Overview) or one of its tab routes: the member's name, then the tab. */
@@ -107,22 +106,17 @@ export default async function MemberDetailPage({
 
   const metrics =
     computeMemberEngagementMetrics(allPrickleAttended ?? [], [id], now, activitiesForMetrics).get(id) ?? null;
-  const member = {
+  const member: MemberView = {
     ...memberRow,
-    member_metrics: metrics
+    metrics: metrics
       ? {
-          last_attended_at: metrics.lastAttendedAt,
-          prickles_last_30_days: metrics.pricklesLast30Days,
-          total_prickles: metrics.totalPrickles,
-          engagement_score: metrics.engagementScore,
+          lastAttendedAt: metrics.lastAttendedAt,
+          pricklesLast30Days: metrics.pricklesLast30Days,
+          totalPrickles: metrics.totalPrickles,
+          engagementScore: metrics.engagementScore,
         }
       : null,
-    member_engagement: metrics
-      ? {
-          risk_level: metrics.riskLevel,
-          engagement_tier: metrics.engagementTier,
-        }
-      : null,
+    engagement: metrics ? { riskLevel: metrics.riskLevel } : null,
   };
 
   // Fetch member name aliases
@@ -221,7 +215,7 @@ export default async function MemberDetailPage({
   const userTimezone = await getUserTimezonePreference();
 
   const [earnedBadges, { data: awardableBadgeTypes }, { data: rawAwards }] = await Promise.all([
-    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.first_joined_at),
+    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.firstJoinedAt),
     supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).is("event_id", null).order("name"),
     supabase
       .from("member_badges")
@@ -300,11 +294,11 @@ export default async function MemberDetailPage({
               />
             </div>
             <div className="mt-1 flex flex-col gap-1">
-              {(member.kajabi_id || member.stripe_customer_id) && (
+              {(member.kajabiId || member.stripeCustomerId) && (
                 <div className="flex items-center gap-3 text-xs">
-                  {member.kajabi_id && (
+                  {member.kajabiId && (
                     <a
-                      href={`https://app.kajabi.com/admin/contacts/${member.kajabi_id}`}
+                      href={`https://app.kajabi.com/admin/contacts/${member.kajabiId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
@@ -315,12 +309,12 @@ export default async function MemberDetailPage({
                       Kajabi
                     </a>
                   )}
-                  {member.kajabi_id && member.stripe_customer_id && (
+                  {member.kajabiId && member.stripeCustomerId && (
                     <span className="text-slate-300 dark:text-slate-600">|</span>
                   )}
-                  {member.stripe_customer_id && (
+                  {member.stripeCustomerId && (
                     <a
-                      href={`https://dashboard.stripe.com/customers/${member.stripe_customer_id}`}
+                      href={`https://dashboard.stripe.com/customers/${member.stripeCustomerId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"

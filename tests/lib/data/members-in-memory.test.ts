@@ -32,6 +32,7 @@ defineMemberContract("InMemoryMemberRepository", () => {
           birthdayDay: m.birthday?.[1] ?? null,
           updatedAt: new Date().toISOString(),
           firstJoinedAt: m.firstJoinedAt ?? null,
+          totalActiveMonths: m.totalActiveMonths ?? 0,
         };
       });
       data = new InMemoryDataset({ members: seeded });
