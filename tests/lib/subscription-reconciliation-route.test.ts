@@ -118,6 +118,15 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
     expect(members.find((m: { member_id: string }) => m.member_id === "m-retreat")).toMatchObject({ stripe_state: "paying" });
   });
 
+  it("answers with nothing when no system has any data", async () => {
+    tables = Object.fromEntries(Object.keys(tables).map((key) => [key, { data: [] }]));
+
+    const { members, summary } = await (await call()).json();
+
+    expect(members).toEqual([]);
+    expect(summary).toMatchObject({ total_members: 0, active_in_stripe: 0, paused_in_stripe: 0, active_in_kajabi: 0, total_overrides: 0, discrepancies: 0 });
+  });
+
   it("reports a failed products read as a server error", async () => {
     tables["bronze.kajabi_offers"] = { error: { message: "offers read failed" } };
     vi.spyOn(console, "error").mockImplementation(() => {});
