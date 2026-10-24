@@ -44,6 +44,7 @@ function makeClient(result: (table: string, op: string) => { data?: unknown; err
       eq: (col: string, val: unknown) => (call.filters.push(["eq", col, val]), builder),
       order: () => builder,
       single: () => Promise.resolve(resolveWith()),
+      maybeSingle: () => Promise.resolve(resolveWith()), // the members repository reads with maybeSingle
       then: (resolve: (v: unknown) => unknown) => resolve(resolveWith()),
     };
     return builder;

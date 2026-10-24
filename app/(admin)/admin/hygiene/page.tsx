@@ -49,8 +49,8 @@ export default async function DataHygienePage() {
     { data: lastSlackReactionSync },
     { data: lastSlackProcessing },
     { data: lastKajabiSync },
-    { data: lastKajabiProcessing },
-    { count: missingStripeCount },
+    lastKajabiProcessedAt,
+    missingStripeCount,
     membersForDuplicates,
     { data: slackChannelsForAccessCheck },
   ] = await Promise.all([
@@ -136,17 +136,9 @@ export default async function DataHygienePage() {
       .single(),
     // Last Kajabi processing (silver — reprocess_members_atomic unconditionally touches
     // updated_at for every kajabi-sourced member on each run)
-    supabase
-      .from("members")
-      .select("updated_at")
-      .not("kajabi_id", "is", null)
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).members.lastKajabiProcessedAt(),
     // Active members missing Stripe customer ID
-    supabase.from("members").select("*", { count: "exact", head: true })
-      .eq("status", "active")
-      .is("stripe_customer_id", null),
+    createRepos(supabase).members.countWithoutStripeCustomer("active"),
     // Members for duplicate detection (limit 1000; members table stays small)
     createRepos(supabase).members.list({ orderBy: "name" }),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
@@ -723,8 +715,8 @@ export default async function DataHygienePage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Last Kajabi processing:</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {lastKajabiProcessing?.updated_at
-                    ? new Date(lastKajabiProcessing.updated_at).toLocaleString()
+                  {lastKajabiProcessedAt
+                    ? new Date(lastKajabiProcessedAt).toLocaleString()
                     : "Never"}
                 </span>
               </div>

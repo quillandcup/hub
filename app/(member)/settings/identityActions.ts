@@ -73,11 +73,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const { supabase, effectiveIdentity } = ctx;
 
   const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
-    supabase
-      .from("members")
-      .select("name, display_name, email, birthday_month, birthday_day, kajabi_id, self_service_name_changed_at")
-      .eq("id", effectiveIdentity.memberId)
-      .single(),
+    createRepos(supabase).members.profile(effectiveIdentity.memberId),
     supabase
       .from("member_name_aliases")
       .select("id, alias, source, active, created_at")
@@ -92,11 +88,11 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   ]);
 
   return {
-    realName: memberResult.data?.name ?? effectiveIdentity.memberName,
-    displayName: memberResult.data?.display_name ?? null,
-    primaryEmail: memberResult.data?.email ?? effectiveIdentity.memberEmail,
-    birthdayMonth: memberResult.data?.birthday_month ?? null,
-    birthdayDay: memberResult.data?.birthday_day ?? null,
+    realName: memberResult?.name ?? effectiveIdentity.memberName,
+    displayName: memberResult?.displayName ?? null,
+    primaryEmail: memberResult?.email ?? effectiveIdentity.memberEmail,
+    birthdayMonth: memberResult?.birthdayMonth ?? null,
+    birthdayDay: memberResult?.birthdayDay ?? null,
     nameAliases: (nameAliasResult.data ?? []).map((row) => ({
       id: row.id,
       alias: row.alias,
@@ -112,7 +108,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
       createdAt: row.created_at,
     })),
     hasAttendanceHistory: attendanceCount > 0,
-    nameChangeLocked: memberResult.data?.self_service_name_changed_at != null,
+    nameChangeLocked: memberResult?.selfServiceNameChangedAt != null,
   };
 }
 
@@ -125,15 +121,11 @@ async function updateRealNameImpl(name: string): Promise<{ success: true } | { e
   if (!trimmed) return { error: "Name can't be empty" };
   if (trimmed.length > 200) return { error: "Name is too long" };
 
-  const { data: current, error: fetchError } = await supabase
-    .from("members")
-    .select("name, kajabi_id, self_service_name_changed_at")
-    .eq("id", effectiveIdentity.memberId)
-    .single();
+  const current = await createRepos(supabase).members.profile(effectiveIdentity.memberId);
 
-  if (fetchError || !current) return { error: fetchError?.message ?? "Couldn't load your member record" };
+  if (!current) return { error: "Couldn't load your member record" };
 
-  if (current.self_service_name_changed_at != null) {
+  if (current.selfServiceNameChangedAt != null) {
     return {
       error: `You've already used your one name change. Email ${SUPPORT_EMAIL} to update it further.`,
     };
@@ -142,9 +134,9 @@ async function updateRealNameImpl(name: string): Promise<{ success: true } | { e
   // A no-op save shouldn't burn the one allowed change.
   if (trimmed === current.name) return { success: true };
 
-  if (current.kajabi_id) {
+  if (current.kajabiId) {
     try {
-      await createKajabiClient().updateContact(current.kajabi_id, { name: trimmed });
+      await createKajabiClient().updateContact(current.kajabiId, { name: trimmed });
     } catch (err) {
       return { error: err instanceof Error ? err.message : "Couldn't update your name in Kajabi" };
     }
@@ -206,11 +198,7 @@ async function setCustomDisplayNameImpl(name: string): Promise<{ success: true }
   if (!trimmed) return { error: "Enter a name first" };
   if (trimmed.length > 200) return { error: "That name is too long" };
 
-  const { data: member } = await supabase
-    .from("members")
-    .select("name")
-    .eq("id", effectiveIdentity.memberId)
-    .single();
+  const member = await createRepos(supabase).members.byId(effectiveIdentity.memberId);
   if (trimmed === (member?.name ?? effectiveIdentity.memberName)) return setDisplayNameImpl(null);
 
   const { data: existing } = await supabase

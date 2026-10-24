@@ -25,6 +25,12 @@ defineMemberContract("InMemoryMemberRepository", () => {
           userId: m.user === undefined ? null : authUserIds[m.user],
           staffRole: m.staffRole ?? null,
           kajabiId: m.kajabiId ?? null,
+          stripeCustomerId: m.stripeCustomerId ?? null,
+          bio: m.bio ?? null,
+          instagramUrl: m.instagramUrl ?? null,
+          birthdayMonth: m.birthday?.[0] ?? null,
+          birthdayDay: m.birthday?.[1] ?? null,
+          updatedAt: new Date().toISOString(),
           firstJoinedAt: m.firstJoinedAt ?? null,
         };
       });

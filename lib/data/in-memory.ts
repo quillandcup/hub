@@ -17,6 +17,15 @@ export type MemberSeed = {
   kajabiId?: string | null;
   stripeCustomerId?: string | null;
   photoUrl?: string | null;
+  bio?: string | null;
+  instagramUrl?: string | null;
+  facebookUrl?: string | null;
+  twitterUrl?: string | null;
+  birthdayMonth?: number | null;
+  birthdayDay?: number | null;
+  selfServiceNameChangedAt?: string | null;
+  /** When the row was last written; the Kajabi processing run touches it for every Kajabi member. */
+  updatedAt?: string | null;
   joinedAt?: string;
   firstJoinedAt?: string | null;
   mostRecentJoinedAt?: string | null;
