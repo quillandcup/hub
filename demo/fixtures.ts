@@ -34,7 +34,15 @@ export const test = base.extend<{ signInAs: (personaKey: string) => Promise<void
     async ({ page }, provide) => {
       const errors: string[] = [];
       consoleErrors.set(page, errors);
-      page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+      // Chromium's own "Failed to load resource" line never says which one; the response event does.
+      page.on("console", (m) => m.type() === "error" && !/^Failed to load resource/.test(m.text()) && errors.push(m.text()));
+      page.on("response", (r) => {
+        if (r.status() < 400) return;
+        const url = new URL(r.url());
+        // Vercel's analytics and speed-insights scripts exist only on Vercel's hosting; anywhere else they are a 404 that says nothing about the app.
+        if (url.pathname.startsWith("/_vercel/")) return;
+        if (url.origin === new URL(page.url() === "about:blank" ? r.url() : page.url()).origin) errors.push(`HTTP ${r.status()} ${url.pathname}`);
+      });
       page.on("pageerror", (e) => errors.push(`uncaught: ${e.message}`));
       await provide();
     },

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { boxFindingToFinding, consoleKey, stableTarget } from "@/demo/checks";
+import { boxFindingToFinding, consoleKey, stableTarget, withoutIds } from "@/demo/checks";
 import { buildBaseline } from "@/demo/baseline";
 
 describe("stableTarget", () => {
@@ -13,6 +13,20 @@ describe("stableTarget", () => {
 
   it("leaves a selector without positions alone", () => {
     expect(stableTarget("select[data-track=\"filter\"]")).toBe("select[data-track=\"filter\"]");
+  });
+});
+
+describe("record ids in findings", () => {
+  it("are replaced, so a re-seeded database doesn't make every finding new", () => {
+    expect(withoutIds("a[href$=\"prkl_gB9UBSUvB7h7\"] b")).toBe("a[href$=\"<id>\"] b");
+    expect(stableTarget(".min-w-0[href$=\"prkl_ZarRkjkwwE6T\"] > .text-slate-400")).toBe(".min-w-0[href$=\"<id>\"] > .text-slate-400");
+    expect(consoleKey("HTTP 404 /api/mbr_AAAAAAAAAAA1/x")).toBe(consoleKey("HTTP 404 /api/mbr_BBBBBBBBBBB2/x"));
+  });
+
+  it("are only the app's ids: words with an underscore, or too short or long a tail, stay", () => {
+    expect(withoutIds("data_table_rows")).toBe("data_table_rows");
+    expect(withoutIds("prkl_short")).toBe("prkl_short");
+    expect(withoutIds("prkl_0OIlinvalidchr")).toBe("prkl_0OIlinvalidchr");
   });
 });
 

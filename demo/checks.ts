@@ -36,12 +36,20 @@ export type Baseline = Record<string, Record<string, string[]>>;
 
 /** A console message with urls, numbers and ids squeezed out, so the same error on another run has the same identity. */
 export function consoleKey(message: string): string {
-  return `console:${message.replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8,}|\d+/gi, "#").slice(0, 120)}`;
+  return `console:${withoutIds(message).replace(/https?:\/\/\S+/g, "<url>").replace(/[0-9a-f]{8,}|\d+/gi, "#").slice(0, 120)}`;
 }
 
-/** A selector without row positions, so a list that is one longer today than yesterday has the same finding identity. */
+/** The app's ids: a readable prefix, an underscore and 12 base58 characters (`prkl_gB9UBSUvB7h7`). Different on every seed. */
+const APP_ID = /\b[a-z]{2,8}_[1-9A-HJ-NP-Za-km-z]{12}\b/g;
+
+/** Replaces the app's ids in text with a placeholder, so the same finding has the same identity on every run. */
+export function withoutIds(text: string): string {
+  return text.replace(APP_ID, "<id>");
+}
+
+/** A selector without row positions or record ids, so a list one longer today, or a re-seeded database, has the same finding identity. */
 export function stableTarget(target: string): string {
-  return target.replace(/:nth-(?:child|of-type)\(\d+\)/g, ":nth-child(n)");
+  return withoutIds(target.replace(/:nth-(?:child|of-type)\(\d+\)/g, ":nth-child(n)"));
 }
 
 export function boxFindingToFinding(f: BoxFinding): Finding {
