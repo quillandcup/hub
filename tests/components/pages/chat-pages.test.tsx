@@ -107,8 +107,8 @@ const { loadOlderChat } = await import("@/app/(member)/chat/actions");
 const { getMemberBadges } = await import("@/lib/badges");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
 const { default: ChatIndexPage } = await import("@/app/(member)/chat/page");
-const { default: ChatChannelPage } = await import("@/app/(member)/chat/[id]/page");
-const { default: ChatMembersPage } = await import("@/app/(member)/chat/[id]/members/page");
+const { default: ChatChannelPage, generateMetadata: channelMetadata } = await import("@/app/(member)/chat/[id]/page");
+const { default: ChatMembersPage, generateMetadata: membersMetadata } = await import("@/app/(member)/chat/[id]/members/page");
 
 // Channels are 1-99, messages 100-899, members 900 and up; base58 has no 0, so it is written as A.
 const id = (n: number) => `${n < 100 ? "chn" : n < 900 ? "msg" : "mbr"}_${String(n).replace(/0/g, "A").padStart(12, "1")}`;
@@ -217,6 +217,21 @@ beforeEach(() => {
   vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   fake = useFakeSupabase(fakeTables());
+});
+
+describe("chat page titles", () => {
+  it("names the conversation in the tab title", async () => {
+    expect(await channelMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "#general · Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "Members · #general · Chat" });
+    expect(await channelMetadata({ params: Promise.resolve({ id: GROUP }) })).toEqual({ title: "Gale Prickleton · Chat" });
+  });
+
+  it("falls back to Chat for an unknown or malformed id", async () => {
+    expect(await channelMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Chat" });
+    expect(await channelMetadata({ params: Promise.resolve({ id: id(50) }) })).toEqual({ title: "Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Members · Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: id(50) }) })).toEqual({ title: "Members · Chat" });
+  });
 });
 
 describe("chat shell", () => {

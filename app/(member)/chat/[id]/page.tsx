@@ -32,9 +32,14 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
 import ProfileCard from "@/components/chat/ProfileCard";
 
-export const metadata: Metadata = {
-  title: "Chat",
-};
+// The tab is titled with the conversation (channel, group or DM), most specific first.
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  if (!isId(id, "chn")) return { title: "Chat" };
+  const { identity } = await requireChat();
+  const channel = await loadChannelForMember(await createClient(), id, identity.memberId, identity.isSudo);
+  return { title: channel ? `${channel.label} · Chat` : "Chat" };
+}
 
 type Param = string | string[] | undefined;
 
