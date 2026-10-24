@@ -3,18 +3,23 @@
 import { useMemo, useState } from "react";
 import CalendarWeekView, { type Prickle } from "@/components/CalendarWeekView";
 import CalendarScrollContainer from "@/components/CalendarScrollContainer";
+import { clock } from "@/lib/clock";
+import { sundayOnOrBefore } from "@/lib/org-week";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
 
-function startOfWeek(d: Date): Date {
-  const ws = new Date(d);
-  ws.setDate(d.getDate() - d.getDay());
-  ws.setHours(0, 0, 0, 0);
-  return ws;
+/**
+ * The Sunday starting the week that contains `instant`, as seen in `timeZone` (the zone the calendar
+ * displays), held as a UTC-midnight Date so only its UTC fields mean anything. The host's zone
+ * never enters, so the current week is right for a viewer whatever their machine's zone.
+ */
+function startOfWeek(instant: Date, timeZone: string): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
+  return new Date(`${sundayOnOrBefore(ymd)}T00:00:00Z`);
 }
 
 function addDays(d: Date, days: number): Date {
   const next = new Date(d);
-  next.setDate(d.getDate() + days);
+  next.setUTCDate(d.getUTCDate() + days);
   return next;
 }
 
@@ -40,7 +45,7 @@ export default function AllPricklesCalendar({
   selection?: CalendarSlotSelection;
 }) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const thisWeekStart = useMemo(() => startOfWeek(new Date()), []);
+  const thisWeekStart = useMemo(() => startOfWeek(new Date(), timeZone), [timeZone]);
   const [weekStart, setWeekStart] = useState<Date>(thisWeekStart);
 
   const types = useMemo(() => {
@@ -73,9 +78,9 @@ export default function AllPricklesCalendar({
       }
     : undefined;
 
-  const maxWeekStart = startOfWeek(addDays(new Date(), upcomingWindowDays));
+  const maxWeekStart = startOfWeek(new Date(clock.now() + upcomingWindowDays * 86_400_000), timeZone);
   // First full week inside the lookback window -- the week the cutoff falls in would be half empty.
-  const minWeekStart = addDays(startOfWeek(addDays(new Date(), -lookbackDays)), 7);
+  const minWeekStart = addDays(startOfWeek(new Date(clock.now() - lookbackDays * 86_400_000), timeZone), 7);
   const isPrevDisabled = weekStart <= minWeekStart;
   const isNextDisabled = weekStart >= maxWeekStart;
 
@@ -126,7 +131,7 @@ export default function AllPricklesCalendar({
       <CalendarScrollContainer prickleStartTimes={prickles.map((p) => p.start_time)} timezone={timeZone}>
         <CalendarWeekView
           prickles={prickles}
-          weekStartDate={{ year: weekStart.getFullYear(), month: weekStart.getMonth(), day: weekStart.getDate() }}
+          weekStartDate={{ year: weekStart.getUTCFullYear(), month: weekStart.getUTCMonth(), day: weekStart.getUTCDate() }}
           userTimezonePreference={timeZone}
           mode="member"
           showAttendanceDetails={false}

@@ -1186,6 +1186,11 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### MemberCalendarClient: week and month navigation still use the host's zone
+- **Missing:** `components/MemberCalendarClient.tsx` computes the current week start (`setDate`/`setHours(0,0,0,0)`) and the initial/previous/next month from the browser's zone, while the data and the grid cells are keyed in the member's `timezone` preference. When the two differ, the "current week" and "current month" can be the wrong one around midnight. `AttendanceMonthGrid` cell keys and "today" were fixed (they shifted a whole day); the navigation state was not.
+- **Why deferred:** found while making unit tests zone-independent; a fuller fix means holding the week/month as zone-free calendar dates (see `startOfWeek` in `app/(member)/my-prickles/AllPricklesCalendar.tsx` for the pattern) and needs boundary tests.
+- **Start:** `MemberCalendarClient.tsx` (`currentMonthDate`, `currentWeekStart`, `handleToday`), `AttendanceMonthGrid.tsx`, `lib/org-week.ts`.
+
 ### Reconciliation: Split monolithic endpoint and unify discrepancy logic _(refactor + code smell)_
 - **Code smell:** `has_discrepancy` is currently a hybrid — computed server-side for Kajabi/Stripe in `/api/analyze/subscription-reconciliation`, but Slack absence is ORed in client-side in `app/(admin)/admin/reconciliation/page.tsx`
 - **Root cause:** Slack, Stripe orphans, and Zoom access were already extracted into their own endpoints (`/api/analyze/slack-reconciliation`, `/api/analyze/stripe-orphans`, `/api/analyze/zoom-access`), but the subscription endpoint is still an all-in-one monolith that owns the `has_discrepancy` flag
