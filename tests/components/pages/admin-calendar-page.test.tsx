@@ -28,20 +28,40 @@ describe("admin calendar page default week", () => {
   afterEach(() => vi.useRealTimers());
 
   it("opens on the current week on a Monday", async () => {
-    vi.setSystemTime(new Date(2026, 9, 19, 12));
+    vi.setSystemTime(new Date("2026-10-19T16:00:00Z"));
     await renderWeek();
     expect(screen.getByTestId("week").textContent).toBe("2026-10-18");
   });
 
   it("opens on the current week on a Sunday", async () => {
-    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    vi.setSystemTime(new Date("2026-10-18T16:00:00Z"));
     await renderWeek();
     expect(screen.getByTestId("week").textContent).toBe("2026-10-18");
   });
 
   it("?week= overrides the default and snaps to Sunday", async () => {
-    vi.setSystemTime(new Date(2026, 9, 19, 12));
+    vi.setSystemTime(new Date("2026-10-19T16:00:00Z"));
     await renderWeek("2026-10-08");
     expect(screen.getByTestId("week").textContent).toBe("2026-10-4");
+  });
+
+  it("uses the Eastern day, not the host's: Saturday 23:30 Eastern is still last week", async () => {
+    vi.setSystemTime(new Date("2026-10-18T03:30:00Z")); // Sat Oct 17, 23:30 EDT
+    await renderWeek();
+    expect(screen.getByTestId("week").textContent).toBe("2026-10-11");
+    expect(screen.getByText(/Week of 10\/11\/2026/)).toBeTruthy();
+  });
+
+  it("starts the new week at Eastern midnight on Sunday", async () => {
+    vi.setSystemTime(new Date("2026-10-18T04:30:00Z")); // Sun Oct 18, 00:30 EDT
+    await renderWeek();
+    expect(screen.getByTestId("week").textContent).toBe("2026-10-18");
+  });
+
+  it("handles the week of the fall-back change", async () => {
+    vi.setSystemTime(new Date("2026-11-03T16:00:00Z"));
+    await renderWeek();
+    expect(screen.getByTestId("week").textContent).toBe("2026-11-1");
+    expect(screen.getByText(/Week of 11\/1\/2026/)).toBeTruthy();
   });
 });

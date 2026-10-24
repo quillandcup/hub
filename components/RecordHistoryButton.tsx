@@ -5,6 +5,7 @@ import { loadRecordHistory } from "@/app/actions/record-history";
 import { ChangeTable } from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import { actorDisplay, changedFields, describeRow, type ActivityFeedRow } from "@/lib/activity-feed";
 import { formatDateTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 /**
  * A clock icon that opens a change history: who changed what, when, newest first (the audit log
@@ -30,6 +31,7 @@ export default function RecordHistoryButton({
   /** What the dialog calls it, e.g. "Moss Bramble" or "segments". */
   label?: string;
 }) {
+  const timeZone = useTimeZone();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<ActivityFeedRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function RecordHistoryButton({
                 {rows.map((row) => (
                   <li key={row.event_id} className="border-b border-slate-100 dark:border-slate-800 pb-3 last:border-b-0">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at)}</time> · {actorDisplay(row)}
+                      <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at, timeZone)}</time> · {actorDisplay(row)}
                     </p>
                     <p className="text-sm text-slate-800 dark:text-slate-200">{describeRow(row)}</p>
                     {changedFields(row.data).length > 0 && <ChangeTable row={row} />}

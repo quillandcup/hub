@@ -3,6 +3,8 @@
  * Eliminates duplicate toLocaleString() calls across the app
  */
 
+import { ORG_TIMEZONE } from "@/lib/config";
+
 // A bare toLocaleDateString() formats in the host's zone and locale, so the server (UTC) and the
 // browser print different text and React reports a hydration mismatch. These name the zone.
 const dateFormats = new Map<string, Intl.DateTimeFormat>();
@@ -32,62 +34,87 @@ export function formatDateOnly(dateOnly: string): string {
   return dateOnlyFormat.format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
+const timeFormats = new Map<string, Intl.DateTimeFormat>();
+
+function toDate(date: Date | string): Date {
+  return typeof date === "string" ? new Date(date) : date;
+}
+
+function timeFormat(timeZone: string): Intl.DateTimeFormat {
+  let format = timeFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+    timeFormats.set(timeZone, format);
+  }
+  return format;
+}
+
 /**
- * Format date and time without seconds
+ * Format date and time without seconds, in `timeZone` (the viewer's for per-member content,
+ * `ORG_TIMEZONE` by default; never the host's zone)
  * Example: "7/19/2026, 10:00 AM"
  */
-export function formatDateTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString() + ', ' + d.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit'
-  });
+export function formatDateTime(date: Date | string, timeZone: string = ORG_TIMEZONE): string {
+  let format = dateTimeFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone,
+    });
+    dateTimeFormats.set(timeZone, format);
+  }
+  return format.format(toDate(date));
 }
 
 /**
- * Format time only without seconds
+ * Format time only without seconds, in `timeZone`
  * Example: "10:00 AM"
  */
-export function formatTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit'
-  });
+export function formatTime(date: Date | string, timeZone: string = ORG_TIMEZONE): string {
+  return timeFormat(timeZone).format(toDate(date));
 }
 
 /**
- * Format date only
+ * Format date only, in `timeZone`
  * Example: "7/19/2026"
  */
-export function formatDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString();
+export function formatDate(date: Date | string, timeZone: string = ORG_TIMEZONE): string {
+  return formatDateInZone(date, timeZone);
 }
 
 /**
- * Format a date and time range
+ * Format a date and time range in `timeZone`
  * Example: "7/19/2026, 10:00 AM - 11:00 AM"
  */
-export function formatDateTimeRange(start: Date | string, end: Date | string): string {
-  const startDate = typeof start === 'string' ? new Date(start) : start;
-  const endDate = typeof end === 'string' ? new Date(end) : end;
-
-  // If same day, show date once
-  if (startDate.toDateString() === endDate.toDateString()) {
-    return `${formatDate(startDate)}, ${formatTime(startDate)} - ${formatTime(endDate)}`;
+export function formatDateTimeRange(
+  start: Date | string,
+  end: Date | string,
+  timeZone: string = ORG_TIMEZONE
+): string {
+  // If same day (in that zone), show date once
+  if (formatDate(start, timeZone) === formatDate(end, timeZone)) {
+    return `${formatDate(start, timeZone)}, ${formatTime(start, timeZone)} - ${formatTime(end, timeZone)}`;
   }
 
   // Different days, show full date/time for both
-  return `${formatDateTime(startDate)} - ${formatDateTime(endDate)}`;
+  return `${formatDateTime(start, timeZone)} - ${formatDateTime(end, timeZone)}`;
 }
 
 /**
  * Format a time range (same day)
  * Example: "10:00 AM - 11:00 AM"
  */
-export function formatTimeRange(start: Date | string, end: Date | string): string {
-  return `${formatTime(start)} - ${formatTime(end)}`;
+export function formatTimeRange(
+  start: Date | string,
+  end: Date | string,
+  timeZone: string = ORG_TIMEZONE
+): string {
+  return `${formatTime(start, timeZone)} - ${formatTime(end, timeZone)}`;
 }
 
 /**
@@ -118,7 +145,7 @@ export function formatPrickleTitle(prickle: {
   if (prickle.title) return prickle.title;
   const host = unwrapRef(prickle.host);
   const prickleType = unwrapRef(prickle.prickle_types);
-  const weekday = new Date(prickle.start_time).toLocaleDateString("en-US", { weekday: "long" });
+  const weekday = new Date(prickle.start_time).toLocaleDateString("en-US", { weekday: "long", timeZone: ORG_TIMEZONE });
   const typeName = prickleType?.name ?? "Prickle";
   return host?.name ? `${weekday} ${typeName} with ${hostShortName(host.name)}` : `${weekday} ${typeName}`;
 }
@@ -127,7 +154,7 @@ export function formatPrickleTitle(prickle: {
  * Format a relative time
  * Example: "2 hours ago", "in 3 days"
  */
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string, timeZone: string = ORG_TIMEZONE): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
@@ -142,5 +169,5 @@ export function formatRelativeTime(date: Date | string): string {
   if (diffHours < 24) return isPast ? `${diffHours}h ago` : `in ${diffHours}h`;
   if (diffDays < 30) return isPast ? `${diffDays}d ago` : `in ${diffDays}d`;
 
-  return formatDate(d);
+  return formatDate(d, timeZone);
 }

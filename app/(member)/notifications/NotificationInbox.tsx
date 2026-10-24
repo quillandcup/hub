@@ -11,6 +11,7 @@ import { BulkActionBar, BulkActionButton } from "@/components/BulkActionBar";
 import { useRowSelection } from "@/lib/hooks/useRowSelection";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatRelativeTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { track } from "@/lib/analytics/client";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import {
@@ -38,6 +39,7 @@ export default function NotificationInbox({
   filter: InboxFilter;
   kind: string | null;
 }) {
+  const timeZone = useTimeZone();
   const { error, markRead, markUnread, markAllRead } = useInAppNotifications();
   const [items, setItems] = useState(inbox.items);
   const [unread, setUnread] = useState(inbox.counts.unread);
@@ -266,7 +268,7 @@ export default function NotificationInbox({
                         title={new Date(n.createdAt).toLocaleString()}
                         suppressHydrationWarning
                       >
-                        {formatRelativeTime(n.createdAt)}
+                        {formatRelativeTime(n.createdAt, timeZone)}
                       </time>
                     </td>
                   </tr>

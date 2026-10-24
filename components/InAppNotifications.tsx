@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/in-app-notifications";
 import type { InAppNotification } from "@/lib/channels/in-app";
 import { formatRelativeTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { track } from "@/lib/analytics/client";
 
 /** At most this many banners at once; the rest are still in the bell. */
@@ -215,6 +216,7 @@ export function NotificationRow({
   notification: InAppNotification;
   onOpen: (n: InAppNotification) => void;
 }) {
+  const timeZone = useTimeZone();
   const body = (
     <span className="flex items-start gap-2">
       <span
@@ -226,7 +228,7 @@ export function NotificationRow({
           {n.text}
           {!n.read && <span className="sr-only"> (unread)</span>}
         </span>
-        <span className="mt-0.5 block text-xs text-slate-400">{formatRelativeTime(n.createdAt)}</span>
+        <span className="mt-0.5 block text-xs text-slate-400">{formatRelativeTime(n.createdAt, timeZone)}</span>
       </span>
     </span>
   );

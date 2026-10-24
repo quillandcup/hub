@@ -6,6 +6,9 @@ import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { orgWeek } from "@/lib/org-week";
+import { formatDateOnly } from "@/lib/formatters";
+import { clock } from "@/lib/clock";
 
 export const metadata: Metadata = {
   title: "Prickle Calendar",
@@ -22,45 +25,13 @@ export default async function CalendarPage({
   // Await searchParams in Next.js 15
   const params = await searchParams;
 
-  // Get week from URL param or default to the current week
-  let weekStart: Date;
-  if (params.week) {
-    // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
-    // Use local timezone parsing to avoid UTC shift issues
-    const [year, month, day] = params.week.split('-').map(Number);
-    const paramDate = new Date(year, month - 1, day); // month is 0-indexed
-    const dayOfWeek = paramDate.getDay(); // 0 = Sunday
-    weekStart = new Date(paramDate);
-    weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
-    weekStart.setHours(0, 0, 0, 0);
-  } else {
-    // Default to the current week, starting on Sunday
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday
-    weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - dayOfWeek); // This Sunday
-    weekStart.setHours(0, 0, 0, 0);
-  }
-
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
-  weekEnd.setHours(0, 0, 0, 0);
-
-  // Calculate prev/next week dates for navigation
-  const prevWeek = new Date(weekStart);
-  prevWeek.setDate(weekStart.getDate() - 7);
-  const nextWeek = new Date(weekStart);
-  nextWeek.setDate(weekStart.getDate() + 7);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Format dates for URL params (YYYY-MM-DD)
-  const formatWeekParam = (date: Date) => date.toISOString().split("T")[0];
-  const prevWeekParam = formatWeekParam(prevWeek);
-  const nextWeekParam = formatWeekParam(nextWeek);
+  // The week (Sunday to Sunday) in the org's zone, from the URL param or the current one
+  const week = orgWeek(params.week, new Date(clock.now()));
+  const prevWeekParam = week.prev;
+  const nextWeekParam = week.next;
 
   // Disable next button if it would go into the future (beyond current week)
-  const isNextDisabled = nextWeek.getTime() > today.getTime();
+  const isNextDisabled = week.next > week.today;
 
   // Fetch prickles for the current week with attendance counts and host
   const { data: prickles, error: pricklesError } = await supabase
@@ -74,8 +45,8 @@ export default async function CalendarPage({
       prickle_types:type_id(name),
       prickle_attendance(id, member_id, join_time)
     `)
-    .gte("start_time", weekStart.toISOString())
-    .lt("start_time", weekEnd.toISOString())
+    .gte("start_time", week.startInstant.toISOString())
+    .lt("start_time", week.endInstant.toISOString())
     .order("start_time", { ascending: true });
 
   if (pricklesError) {
@@ -143,7 +114,7 @@ export default async function CalendarPage({
           <div>
             <h1 className="text-2xl font-bold">Prickle Calendar</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Week of {weekStart.toLocaleDateString()} - Color intensity shows attendance levels
+              Week of {formatDateOnly(week.start)} - Color intensity shows attendance levels
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -189,9 +160,9 @@ export default async function CalendarPage({
         <CalendarWeekView
           prickles={pricklesWithCount}
           weekStartDate={{
-            year: weekStart.getFullYear(),
-            month: weekStart.getMonth(),
-            day: weekStart.getDate()
+            year: Number(week.start.slice(0, 4)),
+            month: Number(week.start.slice(5, 7)) - 1,
+            day: Number(week.start.slice(8, 10)),
           }}
           userTimezonePreference={userTimezone}
           prickleBasePath="/admin/prickles"
