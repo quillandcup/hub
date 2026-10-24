@@ -6,6 +6,7 @@ import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import {
   actorDisplay,
   changedFields,
@@ -112,6 +113,7 @@ export default function ActivityFeedTable({
   /** Drop the About column, where every row is about the same member (their own page). */
   hideAbout?: boolean;
 }) {
+  const timeZone = useTimeZone();
   // Newest first is the only order; there are no sortable columns.
   const table = useServerDataTable<ActivityFeedRow, never>({
     rows,
@@ -140,7 +142,7 @@ export default function ActivityFeedTable({
               return (
                 <tr key={row.event_id} className="border-b border-slate-100 dark:border-slate-800 align-top">
                   <td className="py-2 pr-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
-                    <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at)}</time>
+                    <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at, timeZone)}</time>
                   </td>
                   <td className="py-2 pr-4">
                     <span

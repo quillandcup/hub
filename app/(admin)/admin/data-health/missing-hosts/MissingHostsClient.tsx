@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { setDefaultHost, setRequiresHost } from "./actions";
 
 interface PrickleTypeStats {
@@ -32,6 +33,7 @@ interface PrickleWithoutHost {
 }
 
 export default function MissingHostsClient() {
+  const timeZone = useTimeZone();
   const [stats, setStats] = useState<PrickleTypeStats[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [prickles, setPrickles] = useState<PrickleWithoutHost[]>([]);
@@ -452,7 +454,7 @@ export default function MissingHostsClient() {
                       {prickle.title || prickle.prickle_type}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-slate-400">
-                      {formatDateTimeRange(prickle.start_time, prickle.end_time)}
+                      {formatDateTimeRange(prickle.start_time, prickle.end_time, timeZone)}
                     </p>
                   </Link>
                 ))}

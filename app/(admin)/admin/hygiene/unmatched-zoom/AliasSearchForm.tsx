@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import Modal from "@/components/Modal";
 import { formatDateTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { suggestMemberMatches } from "@/lib/member-matching";
 
 interface UnmatchedAttendee {
@@ -32,6 +33,7 @@ export default function AliasSearchForm({
   unmatchedAttendees: UnmatchedAttendee[];
   allMembers: Member[];
 }) {
+  const timeZone = useTimeZone();
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
@@ -346,7 +348,7 @@ export default function AliasSearchForm({
                       {prickle.type_name || "Unknown Type"}
                     </div>
                     <div className="text-sm text-slate-600 dark:text-slate-400">
-                      {formatDateTime(prickle.start_time)}
+                      {formatDateTime(prickle.start_time, timeZone)}
                     </div>
                   </div>
                   <div className="text-plum-600 dark:text-plum-400">→</div>
