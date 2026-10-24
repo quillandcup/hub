@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Db } from "./db";
+import type { Db, Update } from "./db";
 import type { InMemoryDataset, MemberSeed } from "./in-memory";
 
 /** Ids per `.in(...)` filter, so the request URL stays under the length limit even with long ids. */
@@ -55,6 +55,15 @@ export type MemberSearch = {
   offset?: number;
 };
 
+/** The columns a new member row needs; the rest take the database defaults. */
+export type NewMember = { name: string; email: string; joinedAt: string; status: string; source: "kajabi" | "staff" };
+
+/** The outcome of changing an email: another member may already have it. */
+export type EmailChange = { ok: true } | { ok: false; reason: "taken" };
+
+/** External ids a merge copies onto the member that is kept; only the ones given are written. */
+export type ExternalIds = { kajabiId?: string; stripeCustomerId?: string; userId?: string };
+
 /**
  * Everything the app asks of `members`. Scans are paginated here (a members table past 1000 rows
  * is silently truncated by a bare select), and lookups by id or auth user are chunked.
@@ -94,6 +103,35 @@ export interface MemberRepository {
   countByStatus(status: string): Promise<number>;
   /** How many members there are with each status (statuses nobody has are absent). */
   countsByStatus(): Promise<Map<string, number>>;
+
+  /** Adds a member and returns their id. */
+  create(member: NewMember): Promise<string>;
+  /** Removes a member. Everything that still points at them cascades away or is nulled. */
+  delete(id: string): Promise<void>;
+  /**
+   * Sets the real name, in one write with `displayName` when given (an admin rename that keeps the old
+   * name as the display name). `selfService` also stamps the member's one self-service change. False if
+   * there is no such member.
+   */
+  setName(id: string, name: string, options?: { selfService?: boolean; displayName?: string }): Promise<boolean>;
+  /** Sets the display name, or clears it with null. False if there is no such member. */
+  setDisplayName(id: string, displayName: string | null): Promise<boolean>;
+  /** Clears the display name only if it is currently `name`. */
+  clearDisplayNameIfEquals(id: string, name: string): Promise<void>;
+  /** Sets the birthday, or clears it with nulls. False if there is no such member. */
+  setBirthday(id: string, month: number | null, day: number | null): Promise<boolean>;
+  /** Changes the email; reports `taken` when another member has it. */
+  setEmail(id: string, email: string): Promise<EmailChange>;
+  /** Sets the status and stamps `updated_at`. */
+  setStatus(id: string, status: string): Promise<void>;
+  /** Links the member to an auth user; with `onlyIfUnlinked`, leaves a member who already has an account alone. */
+  linkAuthUser(memberId: string, userId: string, options?: { onlyIfUnlinked?: boolean }): Promise<void>;
+  /** Links the member with exactly this email to an auth user, if they have no account yet. */
+  linkAuthUserByEmail(email: string, userId: string): Promise<void>;
+  /** Detaches whichever member signs in as this auth user. */
+  unlinkAuthUser(userId: string): Promise<void>;
+  /** Copies the given external ids onto the member. */
+  setExternalIds(id: string, ids: ExternalIds): Promise<void>;
 }
 
 const IDENTITY_COLUMNS = "id, name, display_name, email";
@@ -321,6 +359,86 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
+
+  async create(member: NewMember): Promise<string> {
+    const { data, error } = await this.db
+      .from("members")
+      .insert({ name: member.name, email: member.email, joined_at: member.joinedAt, status: member.status, source: member.source })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(error?.message ?? "Couldn't create the member");
+    return data.id;
+  }
+
+  private async write(id: string, patch: Update<"members">): Promise<boolean> {
+    const { data, error } = await this.db.from("members").update(patch).eq("id", id).select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await this.db.from("members").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {
+    const patch: Update<"members"> = { name };
+    if (selfService) patch.self_service_name_changed_at = new Date().toISOString();
+    if (displayName !== undefined) patch.display_name = displayName;
+    return this.write(id, patch);
+  }
+
+  setDisplayName(id: string, displayName: string | null) {
+    return this.write(id, { display_name: displayName });
+  }
+
+  async clearDisplayNameIfEquals(id: string, name: string): Promise<void> {
+    const { error } = await this.db.from("members").update({ display_name: null }).eq("id", id).eq("display_name", name);
+    if (error) throw new Error(error.message);
+  }
+
+  setBirthday(id: string, month: number | null, day: number | null) {
+    return this.write(id, { birthday_month: month, birthday_day: day });
+  }
+
+  async setEmail(id: string, email: string): Promise<EmailChange> {
+    const { error } = await this.db.from("members").update({ email }).eq("id", id);
+    if (error?.code === "23505") return { ok: false, reason: "taken" };
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  }
+
+  async setStatus(id: string, status: string): Promise<void> {
+    const { error } = await this.db.from("members").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async linkAuthUser(memberId: string, userId: string, { onlyIfUnlinked = false }: { onlyIfUnlinked?: boolean } = {}): Promise<void> {
+    let query = this.db.from("members").update({ user_id: userId }).eq("id", memberId);
+    if (onlyIfUnlinked) query = query.is("user_id", null);
+    const { error } = await query;
+    if (error) throw new Error(error.message);
+  }
+
+  async linkAuthUserByEmail(email: string, userId: string): Promise<void> {
+    const { error } = await this.db.from("members").update({ user_id: userId }).eq("email", email).is("user_id", null);
+    if (error) throw new Error(error.message);
+  }
+
+  async unlinkAuthUser(userId: string): Promise<void> {
+    const { error } = await this.db.from("members").update({ user_id: null }).eq("user_id", userId);
+    if (error) throw new Error(error.message);
+  }
+
+  async setExternalIds(id: string, ids: ExternalIds): Promise<void> {
+    const patch: Update<"members"> = {};
+    if (ids.kajabiId !== undefined) patch.kajabi_id = ids.kajabiId;
+    if (ids.stripeCustomerId !== undefined) patch.stripe_customer_id = ids.stripeCustomerId;
+    if (ids.userId !== undefined) patch.user_id = ids.userId;
+    if (Object.keys(patch).length === 0) return;
+    const { error } = await this.db.from("members").update(patch).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
 }
 
 function fromSeed(seed: MemberSeed): Member {
@@ -449,5 +567,83 @@ export class InMemoryMemberRepository implements MemberRepository {
     const counts = new Map<string, number>();
     for (const m of this.all()) counts.set(m.status, (counts.get(m.status) ?? 0) + 1);
     return counts;
+  }
+
+  async create(member: NewMember) {
+    const id = `mbr_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    this.data.members.push({ id, name: member.name, email: member.email, joinedAt: member.joinedAt, status: member.status, source: member.source });
+    return id;
+  }
+
+  private find(id: string) {
+    return this.data.members.find((m) => m.id === id);
+  }
+
+  async delete(id: string) {
+    this.data.members = this.data.members.filter((m) => m.id !== id);
+  }
+
+  async setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {
+    const m = this.find(id);
+    if (!m) return false;
+    m.name = name;
+    if (displayName !== undefined) m.displayName = displayName;
+    if (selfService) m.selfServiceNameChangedAt = new Date().toISOString();
+    return true;
+  }
+
+  async setDisplayName(id: string, displayName: string | null) {
+    const m = this.find(id);
+    if (!m) return false;
+    m.displayName = displayName;
+    return true;
+  }
+
+  async clearDisplayNameIfEquals(id: string, name: string) {
+    const m = this.find(id);
+    if (m && m.displayName === name) m.displayName = null;
+  }
+
+  async setBirthday(id: string, month: number | null, day: number | null) {
+    const m = this.find(id);
+    if (!m) return false;
+    m.birthdayMonth = month;
+    m.birthdayDay = day;
+    return true;
+  }
+
+  async setEmail(id: string, email: string): Promise<EmailChange> {
+    if (this.data.members.some((m) => m.id !== id && m.email === email)) return { ok: false, reason: "taken" };
+    const m = this.find(id);
+    if (m) m.email = email;
+    return { ok: true };
+  }
+
+  async setStatus(id: string, status: string) {
+    const m = this.find(id);
+    if (!m) return;
+    m.status = status;
+    m.updatedAt = new Date().toISOString();
+  }
+
+  async linkAuthUser(memberId: string, userId: string, { onlyIfUnlinked = false }: { onlyIfUnlinked?: boolean } = {}) {
+    const m = this.find(memberId);
+    if (m && (!onlyIfUnlinked || !m.userId)) m.userId = userId;
+  }
+
+  async linkAuthUserByEmail(email: string, userId: string) {
+    for (const m of this.data.members) if (m.email === email && !m.userId) m.userId = userId;
+  }
+
+  async unlinkAuthUser(userId: string) {
+    for (const m of this.data.members) if (m.userId === userId) m.userId = null;
+  }
+
+  async setExternalIds(id: string, ids: ExternalIds) {
+    const m = this.find(id);
+    if (!m) return;
+    if (ids.kajabiId !== undefined) m.kajabiId = ids.kajabiId;
+    if (ids.stripeCustomerId !== undefined) m.stripeCustomerId = ids.stripeCustomerId;
+    if (ids.userId !== undefined) m.userId = ids.userId;
   }
 }

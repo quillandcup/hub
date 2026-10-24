@@ -214,7 +214,7 @@ describe("PATCH /api/admin/members/[id]", () => {
     expect(res.status).toBe(200);
     expect(updateContactMock).toHaveBeenCalled();
     expect(writes("member_name_aliases", "upsert")).toHaveLength(1);
-    expect(writes("members", "update")).toHaveLength(1);
+    expect(await repos.members.byId(ADA.id)).toMatchObject({ name: "Ada Newname", displayName: "Ada Example" });
   });
 
   it("renames when the old name is already one of the member's own", async () => {

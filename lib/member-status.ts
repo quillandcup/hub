@@ -81,7 +81,7 @@ export async function recomputeMemberStatus(
   }
 
   if (member.status !== status) {
-    await supabase.from("members").update({ status, updated_at: new Date().toISOString() }).eq("id", memberId);
+    await createRepos(supabase).members.setStatus(memberId, status).catch(() => {});
   }
   return status;
 }

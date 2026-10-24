@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createRepos } from "@/lib/data/repos";
-import type { Member } from "@/lib/data/members";
-import type { Insert, Update } from "@/lib/data/db";
+import type { ExternalIds, Member } from "@/lib/data/members";
+import type { Insert } from "@/lib/data/db";
 import { NextRequest, NextResponse } from "next/server";
 
 // Throws on a Supabase error instead of letting the merge carry on: the
@@ -44,6 +44,8 @@ export async function POST(request: NextRequest) {
 
   // Build a patch to fill in any external IDs the primary is missing from the secondary.
   const primaryPatch: Record<string, string> = {};
+  const idsToFill: ExternalIds = {};
+  const idKeys = { kajabi_id: "kajabiId", stripe_customer_id: "stripeCustomerId", user_id: "userId" } as const;
 
   for (const field of ["kajabi_id", "stripe_customer_id", "user_id"] as const) {
     const primaryVal = primary[field];
@@ -51,6 +53,7 @@ export async function POST(request: NextRequest) {
 
     if (!primaryVal && secondaryVal) {
       primaryPatch[field] = secondaryVal;
+      idsToFill[idKeys[field]] = secondaryVal;
     } else if (primaryVal && secondaryVal && primaryVal !== secondaryVal) {
       conflicts.push({ field, kept: primaryVal, discarded: secondaryVal });
     }
@@ -170,12 +173,11 @@ export async function POST(request: NextRequest) {
       run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
     ];
     if (Object.keys(primaryPatch).length > 0) {
-      patchAndCleanup.push(run(supabase.from("members").update(primaryPatch as Update<"members">).eq("id", primaryId)));
+      patchAndCleanup.push(repo.setExternalIds(primaryId, idsToFill));
     }
     await Promise.all(patchAndCleanup);
 
-    const { error: deleteError } = await supabase.from("members").delete().eq("id", secondaryId);
-    if (deleteError) throw deleteError;
+    await repo.delete(secondaryId);
 
     return NextResponse.json({
       success: true,

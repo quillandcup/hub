@@ -51,16 +51,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/(admin)/admin/hygiene/name-matching/page.tsx",
     "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
     "app/(admin)/admin/page.tsx",
-    "app/(member)/settings/identityActions.ts",
-    "app/api/admin/aliases/[id]/route.ts",
-    "app/api/admin/members/[id]/route.ts",
-    "app/api/admin/members/merge/route.ts",
-    "app/api/admin/members/split/route.ts",
-    "app/api/admin/segments/[id]/invite/route.ts",
-    "app/api/admin/users/[id]/route.ts",
-    "app/api/admin/users/route.ts",
     "app/api/health/route.ts",
-    "lib/member-status.ts",
   ],
 };
 

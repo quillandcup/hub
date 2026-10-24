@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
@@ -50,11 +51,9 @@ export async function PATCH(
     tasks.push(
       (async () => {
         // Clear any existing member link for this user
-        await supabase.from("members").update({ user_id: null }).eq("user_id", id);
-
-        if (memberId) {
-          await supabase.from("members").update({ user_id: id }).eq("id", memberId);
-        }
+        const members = createRepos(supabase).members;
+        await members.unlinkAuthUser(id);
+        if (memberId) await members.linkAuthUser(memberId, id);
       })()
     );
   }

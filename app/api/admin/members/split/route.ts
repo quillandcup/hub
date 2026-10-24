@@ -96,18 +96,15 @@ export async function POST(request: NextRequest) {
   try {
     if (emailAlias) await run(supabase.from("member_email_aliases").delete().eq("id", emailAlias.id));
 
-    const { data: created, error: insertError } = await supabase
-      .from("members")
-      .insert({
-        name: newName,
-        email: newEmail,
-        joined_at: new Date().toISOString().split("T")[0],
-        status: "cancelled",
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (insertError || !created) throw insertError ?? new Error("Couldn't create the member");
+    // members.source only allows kajabi or staff; the new member is an ordinary (cancelled) contact.
+    const createdId = await createRepos(supabase).members.create({
+      name: newName,
+      email: newEmail,
+      joinedAt: new Date().toISOString().split("T")[0],
+      status: "cancelled",
+      source: "kajabi",
+    });
+    const created = { id: createdId };
 
     if (moveNameIds.length) {
       await run(supabase.from("member_name_aliases").update({ member_id: created.id }).in("id", moveNameIds));

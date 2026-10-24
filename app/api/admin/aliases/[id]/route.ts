@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -33,11 +34,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   // The deleted alias may have been the member's default display name --
   // display_name is a plain text column, not a foreign key, so it won't be
   // cleared automatically.
-  await supabase
-    .from("members")
-    .update({ display_name: null })
-    .eq("id", alias.member_id)
-    .eq("display_name", alias.alias);
+  await createRepos(supabase).members.clearDisplayNameIfEquals(alias.member_id, alias.alias).catch(() => {});
 
   return NextResponse.json({ success: true });
 }

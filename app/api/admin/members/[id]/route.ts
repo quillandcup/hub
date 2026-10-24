@@ -81,11 +81,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
       }
 
-      const nameUpdate: { name: string; display_name?: string } = { name: trimmed };
-      if (keepOldNameAsPenName) nameUpdate.display_name = member.name;
-
-      const { error: updateError } = await supabase.from("members").update(nameUpdate).eq("id", member.id);
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      try {
+        await createRepos(supabase).members.setName(member.id, trimmed, keepOldNameAsPenName ? { displayName: member.name } : {});
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
     }
   }
 
@@ -120,11 +120,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    const { error: displayNameError } = await supabase
-      .from("members")
-      .update({ display_name: displayName })
-      .eq("id", member.id);
-    if (displayNameError) return NextResponse.json({ error: displayNameError.message }, { status: 500 });
+    try {
+      await createRepos(supabase).members.setDisplayName(member.id, displayName);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
   }
 
   if (typeof email === "string") {
@@ -246,12 +246,13 @@ async function changePrimaryEmail(supabase: SupabaseClient, member: MemberRow, i
     }
   }
 
-  const { error: updateError } = await supabase.from("members").update({ email: address }).eq("id", member.id);
-  if (updateError) {
-    if (updateError.code === "23505") {
+  try {
+    const changed = await createRepos(supabase).members.setEmail(member.id, address);
+    if (!changed.ok) {
       return NextResponse.json({ error: "Another member already has that email." }, { status: 409 });
     }
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 
   // The new address may have been an alias of this member; it's the email now.

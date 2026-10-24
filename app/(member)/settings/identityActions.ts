@@ -144,14 +144,8 @@ async function updateRealNameImpl(name: string): Promise<{ success: true } | { e
     }
   }
 
-  const { data, error } = await supabase
-    .from("members")
-    .update({ name: trimmed, self_service_name_changed_at: new Date().toISOString() })
-    .eq("id", effectiveIdentity.memberId)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Couldn't update your name" };
+  const failure = await memberWriteError(createRepos(supabase).members.setName(effectiveIdentity.memberId, trimmed, { selfService: true }), "Couldn't update your name");
+  if (failure) return { error: failure };
 
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -174,13 +168,8 @@ async function setDisplayNameImpl(alias: string | null): Promise<{ success: true
     if (!row) return { error: "Pick one of your active names" };
   }
 
-  const { data, error } = await supabase
-    .from("members")
-    .update({ display_name: alias })
-    .eq("id", effectiveIdentity.memberId)
-    .select("id")
-    .single();
-  if (error || !data) return { error: error?.message ?? "Couldn't update your display name" };
+  const failure = await memberWriteError(createRepos(supabase).members.setDisplayName(effectiveIdentity.memberId, alias), "Couldn't update your display name");
+  if (failure) return { error: failure };
 
   revalidatePath("/settings", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -221,6 +210,15 @@ async function setCustomDisplayNameImpl(name: string): Promise<{ success: true }
   return setDisplayNameImpl(trimmed);
 }
 
+/** The message to show when a write to the member's own row failed or matched no row; null when it saved. */
+async function memberWriteError(write: Promise<boolean>, fallback: string): Promise<string | null> {
+  try {
+    return (await write) ? null : fallback;
+  } catch (err) {
+    return (err as Error).message || fallback;
+  }
+}
+
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 async function updateBirthdayImpl(
@@ -243,14 +241,8 @@ async function updateBirthdayImpl(
     }
   }
 
-  const { data, error } = await supabase
-    .from("members")
-    .update({ birthday_month: month, birthday_day: day })
-    .eq("id", effectiveIdentity.memberId)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Couldn't update your birthday" };
+  const failure = await memberWriteError(createRepos(supabase).members.setBirthday(effectiveIdentity.memberId, month, day), "Couldn't update your birthday");
+  if (failure) return { error: failure };
 
   revalidatePath("/settings", "layout");
   return { success: true };
