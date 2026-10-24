@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { cleanup, render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -14,19 +14,17 @@ const SAM = { label: "@Sam Lee", token: "<@U2>", photoUrl: null };
 const SAM_TOO = { label: "@Sam Lee", token: "<@U3>", photoUrl: null };
 const GENERAL = { label: "#general", token: "<#C1>", photoUrl: null };
 
-let tokens: Map<string, string>;
+const tokensRef = { current: new Map<string, string>() };
 let keyed: string[];
 function Harness({ initial = "" }: { initial?: string }) {
   const [value, setValue] = useState(initial);
-  const map = useRef(new Map<string, string>());
-  tokens = map.current;
   return (
     <MentionTextarea
       channelId="c1"
       aria-label="Message"
       value={value}
       onValueChange={setValue}
-      tokens={map}
+      tokens={tokensRef}
       onKeyDown={(e) => keyed.push(e.key)}
     />
   );
@@ -47,6 +45,7 @@ beforeEach(() => {
   vi.mocked(suggestMentions).mockReset();
   vi.mocked(suggestMentions).mockResolvedValue([]);
   keyed = [];
+  tokensRef.current = new Map();
 });
 afterEach(() => {
   cleanup();
@@ -64,7 +63,7 @@ describe("MentionTextarea", () => {
 
     await user.click(screen.getByRole("option", { name: /Ania Ray/ }));
     expect(box()).toHaveValue("hi @Ania Ray ");
-    expect(tokens.get("@Ania Ray")).toBe("<@U1>");
+    expect(tokensRef.current.get("@Ania Ray")).toBe("<@U1>");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
@@ -75,7 +74,7 @@ describe("MentionTextarea", () => {
     expect(suggestMentions).toHaveBeenLastCalledWith("c1", "#", "gen");
     await user.click(await screen.findByRole("option", { name: "#general" }));
     expect(box()).toHaveValue("see #general ");
-    expect(tokens.get("#general")).toBe("<#C1>");
+    expect(tokensRef.current.get("#general")).toBe("<#C1>");
   });
 
   it("moves with the arrow keys, picks with Enter, and keeps Enter from reaching the owner while choices show", async () => {
@@ -149,8 +148,8 @@ describe("MentionTextarea", () => {
     user = await type("and @sam");
     await user.click(await screen.findByRole("option", { name: /Sam Lee/ }));
     expect(box()).toHaveValue("@Sam Lee and @Sam Lee (2) ");
-    expect(tokens.get("@Sam Lee")).toBe("<@U2>");
-    expect(tokens.get("@Sam Lee (2)")).toBe("<@U3>");
+    expect(tokensRef.current.get("@Sam Lee")).toBe("<@U2>");
+    expect(tokensRef.current.get("@Sam Lee (2)")).toBe("<@U3>");
   });
 
   it("ignores an answer to something typed since", async () => {
