@@ -4,7 +4,7 @@ import { useState } from "react";
 import { clock } from "@/lib/clock";
 import Link from "next/link";
 import MemberAttendanceView from "@/components/MemberAttendanceView";
-import { MemberStatusBadge } from "@/components/MemberStatusBadge";
+import { MemberStatusBadge, type MemberStatus } from "@/components/MemberStatusBadge";
 import { InfoTip } from "@/components/InfoTip";
 import { TabBar, replaceTabPath, setTabDocumentTitle, useFollowTabPath } from "@/components/Tabs";
 import { MEMBER_TAB_IDS, MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
@@ -20,11 +20,18 @@ import MemberIdentityPanel, { type NameAliasRow, type EmailAliasRow } from "./Me
 import type { EarnedBadge } from "@/lib/badges";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
+import type { AdminMember } from "@/lib/data/members";
+
+/** The member as the page shows them: the admin view plus the engagement numbers computed for this page. */
+export type MemberView = AdminMember & {
+  metrics: { lastAttendedAt: string | null; pricklesLast30Days: number; totalPrickles: number; engagementScore: number } | null;
+  engagement: { riskLevel: string } | null;
+};
 
 interface MemberDetailsProps {
   /** The tab the route opened (/admin/members/<id>[/<tab>]). */
   initialTab: MemberTabId;
-  member: any;
+  member: MemberView;
   attendanceRecords: any[];
   hiatusHistory: any[];
   slackActivities: any[];
@@ -85,12 +92,13 @@ export default function MemberDetails({
     setTabDocumentTitle({ record: member.name }, MEMBER_TAB_LABELS[tab], tab === "overview");
   };
 
-  const memberMetrics = member.member_metrics || {};
-  const memberEngagement = member.member_engagement || {};
+  const status = member.status as MemberStatus; // members.status is checked to these four values
+  const memberMetrics = member.metrics;
+  const memberEngagement = member.engagement;
   const slackSummary = computeSlackSummary(slackActivities);
 
-  const isRejoin = !!(member.most_recent_joined_at && member.most_recent_joined_at !== member.first_joined_at);
-  const mostRecentJoinedDate = member.most_recent_joined_at ? parseDateOnly(member.most_recent_joined_at) : null;
+  const isRejoin = !!(member.mostRecentJoinedAt && member.mostRecentJoinedAt !== member.firstJoinedAt);
+  const mostRecentJoinedDate = member.mostRecentJoinedAt ? parseDateOnly(member.mostRecentJoinedAt) : null;
   const daysSinceRejoin = mostRecentJoinedDate
     ? Math.floor((clock.now() - mostRecentJoinedDate.getTime()) / (1000 * 60 * 60 * 24))
     : Infinity;
@@ -113,7 +121,7 @@ export default function MemberDetails({
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <StatItem label="Status">
             <div className="flex flex-col gap-0.5">
-              <MemberStatusBadge status={member.status} />
+              <MemberStatusBadge status={status} />
               {statusOverrides.length > 0 && (
                 <Link
                   href="/admin/member-overrides"
@@ -129,7 +137,7 @@ export default function MemberDetails({
             info="Activity points from the last 30 days (a prickle is worth 10, Slack activity 1-3), capped at 100."
           >
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {memberMetrics.engagement_score || 0}
+              {memberMetrics?.engagementScore || 0}
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> / 100</span>
             </span>
           </StatItem>
@@ -138,25 +146,25 @@ export default function MemberDetails({
               label="Churn risk"
               info="Days since the member last attended a prickle: low under 15, medium 15-30, high over 30 or never. Separate from the engagement score."
             >
-              <RiskBadge risk={memberEngagement.risk_level || "low"} />
+              <RiskBadge risk={memberEngagement?.riskLevel || "low"} />
             </StatItem>
           )}
           <StatItem label="Total Prickles">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {memberMetrics.total_prickles || 0}
+              {memberMetrics?.totalPrickles || 0}
             </span>
           </StatItem>
           <StatItem label="Last Attended">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {memberMetrics.last_attended_at
-                ? formatDateInZone(memberMetrics.last_attended_at, timeZone)
+              {memberMetrics?.lastAttendedAt
+                ? formatDateInZone(memberMetrics?.lastAttendedAt, timeZone)
                 : "Never"}
             </span>
           </StatItem>
           <StatItem label="First Joined">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {member.first_joined_at
-                ? parseDateOnly(member.first_joined_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              {member.firstJoinedAt
+                ? parseDateOnly(member.firstJoinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                 : "—"}
             </span>
             {showWelcomeBack && (
@@ -165,7 +173,7 @@ export default function MemberDetails({
           </StatItem>
           <StatItem label="Active Months">
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {member.total_active_months ?? 0}
+              {member.totalActiveMonths}
             </span>
           </StatItem>
         </div>
@@ -182,13 +190,13 @@ export default function MemberDetails({
               onViewAll={() => setActiveTab("attendance")}
               viewAllLabel="View attendance history"
             >
-              <SummaryStat label="Total Prickles" value={memberMetrics.total_prickles || 0} />
-              <SummaryStat label="Last 30 Days" value={memberMetrics.prickles_last_30_days || 0} />
+              <SummaryStat label="Total Prickles" value={memberMetrics?.totalPrickles || 0} />
+              <SummaryStat label="Last 30 Days" value={memberMetrics?.pricklesLast30Days || 0} />
               <SummaryStat
                 label="Last Attended"
                 value={
-                  memberMetrics.last_attended_at
-                    ? formatDateInZone(memberMetrics.last_attended_at, timeZone)
+                  memberMetrics?.lastAttendedAt
+                    ? formatDateInZone(memberMetrics?.lastAttendedAt, timeZone)
                     : "Never"
                 }
               />
@@ -234,8 +242,8 @@ export default function MemberDetails({
         <MemberIdentityPanel
           memberId={member.id}
           name={member.name}
-          displayName={member.display_name ?? null}
-          hasKajabiId={!!member.kajabi_id}
+          displayName={member.displayName}
+          hasKajabiId={!!member.kajabiId}
           email={member.email}
           emailAliases={emailAliases}
           nameAliases={nameAliases}

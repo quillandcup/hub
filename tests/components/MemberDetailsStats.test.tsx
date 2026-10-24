@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import MemberDetails from '@/app/(admin)/admin/members/[id]/MemberDetails'
+import MemberDetails, { type MemberView } from '@/app/(admin)/admin/members/[id]/MemberDetails'
 
 vi.mock('next/link', () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -18,14 +18,23 @@ vi.mock('@/app/(admin)/admin/activity/ActivityFilters', () => ({ default: () => 
 vi.mock('@/app/(admin)/admin/members/[id]/MemberBadgesPanel', () => ({ default: () => null }))
 vi.mock('@/app/(admin)/admin/members/[id]/MemberIdentityPanel', () => ({ default: () => null }))
 
-function renderDetails(status: string, stats: Record<string, unknown> = { member_metrics: { engagement_score: 100 }, member_engagement: { risk_level: 'medium' } }) {
+function renderDetails(status: string, stats: Partial<MemberView> = { metrics: { lastAttendedAt: null, pricklesLast30Days: 0, totalPrickles: 0, engagementScore: 100 }, engagement: { riskLevel: 'medium' } }) {
   render(
     <MemberDetails
       initialTab="overview"
       member={{
         id: 'mbr_1',
         name: 'Test Member',
+        displayName: null,
+        email: 'member@example.test',
         status,
+        kajabiId: null,
+        stripeCustomerId: null,
+        firstJoinedAt: null,
+        mostRecentJoinedAt: null,
+        totalActiveMonths: 0,
+        metrics: null,
+        engagement: null,
         ...stats,
       }}
       attendanceRecords={[]}

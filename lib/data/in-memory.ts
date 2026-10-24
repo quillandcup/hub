@@ -26,6 +26,7 @@ export type MemberSeed = {
   selfServiceNameChangedAt?: string | null;
   /** When the row was last written; the Kajabi processing run touches it for every Kajabi member. */
   updatedAt?: string | null;
+  totalActiveMonths?: number;
   joinedAt?: string;
   firstJoinedAt?: string | null;
   mostRecentJoinedAt?: string | null;
