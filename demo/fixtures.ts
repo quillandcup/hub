@@ -8,8 +8,8 @@ import { sessionCookies } from "./auth";
  * demo/out/<scene>/<project>/.
  */
 export const test = base.extend<{ signInAs: (personaKey: string) => Promise<void> }>({
-  signInAs: async ({ page, context }, use, testInfo) => {
-    await use(async (personaKey) => {
+  signInAs: async ({ page, context }, provide, testInfo) => {
+    await provide(async (personaKey) => {
       await context.addCookies(await sessionCookies(personaKey));
       const theme = testInfo.project.use.colorScheme === "dark" ? "dark" : "light";
       await page.addInitScript((t) => window.localStorage.setItem("theme", t), theme);
