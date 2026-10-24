@@ -1,6 +1,7 @@
 "use server";
 
 import { postingCaller } from "@/lib/chat/caller";
+import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember, loadChannelMembers, loadChatChannels } from "@/lib/chat/load";
 import { slackUserIdsFor } from "@/lib/chat/slack-membership";
@@ -25,8 +26,8 @@ const rank = (label: string, query: string): number => {
 };
 
 /**
- * Who or what the member can mention while writing in a conversation: `@` suggests the people in it (who
- * have a Slack account to mention), `#` the channels they can see. Same gate as posting. Names only, from
+ * Who or what the member can mention while writing in a conversation: `@` suggests people (the ones in it
+ * first; anyone active with a Slack account to mention), `#` the channels they can see. Same gate as posting. Names only, from
  * what the member can already read.
  */
 export async function suggestMentions(channelId: string, trigger: "@" | "#", query: string): Promise<MentionSuggestion[]> {
@@ -47,14 +48,38 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
       .slice(0, MAX_SUGGESTIONS);
   }
 
-  const people = (await loadChannelMembers(supabase, channelId))
-    .filter((p) => p.memberId !== caller.identity.memberId && p.name.toLowerCase().includes(text))
+  const service = createServiceRoleClient();
+  const inConversation = await loadChannelMembers(supabase, channelId);
+  const here = new Set(inConversation.map((p) => p.memberId));
+  const found = new Map<string, { memberId: string; name: string; photoUrl: string | null }>(
+    inConversation.filter((p) => p.name.toLowerCase().includes(text)).map((p) => [p.memberId, p])
+  );
+
+  // Anyone can be mentioned, not just the people already in this conversation (Slack lets you): what is typed
+  // searches the whole directory, and the people here come first. A bare `@` offers just the people here.
+  if (text.length > 0) {
+    // % and _ are wildcards in a LIKE; the person typing meant the letters. Two queries rather than an .or(),
+    // so what was typed never has to be escaped for PostgREST's filter syntax.
+    const pattern = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const [byName, byDisplayName] = await Promise.all([
+      service.from("member_directory").select("id, name, display_name, photo_url").ilike("name", pattern).order("name").limit(40),
+      service.from("member_directory").select("id, name, display_name, photo_url").ilike("display_name", pattern).order("name").limit(40),
+    ]);
+    const matches = [...(byName.data ?? []), ...(byDisplayName.data ?? [])].filter((m) => !found.has(m.id as string));
+    const active = new Set((await createRepos(service).members.byIds(matches.map((m) => m.id as string))).filter((m) => m.status === "active").map((m) => m.id));
+    for (const m of matches) {
+      if (active.has(m.id as string)) found.set(m.id as string, { memberId: m.id as string, name: (m.display_name || m.name) as string, photoUrl: (m.photo_url as string | null) ?? null });
+    }
+  }
+
+  const people = [...found.values()]
+    .filter((p) => p.memberId !== caller.identity.memberId)
     .map((p) => ({ ...p, label: `@${p.name}` }))
-    .sort((a, b) => rank(a.label, text) - rank(b.label, text) || a.name.localeCompare(b.name))
-    .slice(0, MAX_SUGGESTIONS * 3);
+    .sort((a, b) => Number(here.has(b.memberId)) - Number(here.has(a.memberId)) || rank(a.label, text) - rank(b.label, text) || a.name.localeCompare(b.name))
+    .slice(0, MAX_SUGGESTIONS * 4);
   if (people.length === 0) return [];
   // Only people the Hub can name to Slack: no Slack account, nothing to mention.
-  const slackIds = await slackUserIdsFor(createServiceRoleClient(), people.map((p) => p.memberId));
+  const slackIds = await slackUserIdsFor(service, people.map((p) => p.memberId));
   return people
     .filter((p) => slackIds.has(p.memberId))
     .slice(0, MAX_SUGGESTIONS)
