@@ -18,7 +18,7 @@ const SCHEMES = ["light", "dark"] as const;
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "scenes/**/*.spec.ts",
+  testMatch: ["scenes/**/*.spec.ts", "selftest/**/*.spec.ts"],
   outputDir: "out/.playwright",
   fullyParallel: false,
   workers: 1,

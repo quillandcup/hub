@@ -48,27 +48,34 @@ const marked = (message: OutboundMessage): OutboundMessage => ({
   title: message.title ? TEST_PREFIX + message.title : undefined,
 });
 
-/** The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters). */
-export async function sampleMessages(supabase: any, kind: NotificationKindId, now = new Date()): Promise<OutboundMessage[]> {
+/**
+ * The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters).
+ * Marked as tests by default (the admin test send); `{ test: false }` gives them as a member receives them,
+ * which is what the notification mockups in demo/ draw.
+ */
+export async function sampleMessages(
+  supabase: any,
+  kind: NotificationKindId,
+  now = new Date(),
+  { test = true }: { test?: boolean } = {},
+): Promise<OutboundMessage[]> {
+  const mark = (message: OutboundMessage) => (test ? marked(message) : message);
   switch (kind) {
     case "prickle_checkin":
       return [
         checkinMessage(await samplePrickle(supabase, now), null, {
-          test: true,
+          test,
           join: joinAt(await loadPrickleJoinSettings(supabase), now),
         }),
       ];
     case "prickle_checkout":
-      return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test: true })];
+      return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test })];
     case "intro_nudge":
-      return [marked(introNudgeMessage(await loadIntroChannelId(supabase)))];
+      return [mark(introNudgeMessage(await loadIntroChannelId(supabase)))];
     case "prickle_nudge":
-      return [marked(prickleNudgeMessage("first"))];
+      return [mark(prickleNudgeMessage("first"))];
     case "big_sister_match":
-      return [
-        marked(bigSisterMessageForNewMember("Marlow", "sample")),
-        marked(bigSisterMessageForMentor("Marlow", "Linden", "sample")),
-      ];
+      return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }
 }
 

@@ -1,0 +1,397 @@
+{
+  "desktop-dark": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  },
+  "desktop-light": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.mb-4",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.dark\\:text-slate-500.text-3xl.text-slate-400",
+      "a11y:color-contrast:.max-w-sm",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:color-contrast:summary",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5.text-xs",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .pr-2.text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .text-right:nth-child(n) > .text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  },
+  "phone-dark": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:aria-hidden-focus:.inset-y-0"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:aria-hidden-focus:.inset-y-0"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:aria-hidden-focus:.inset-y-0"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:aria-hidden-focus:.inset-y-0"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:aria-hidden-focus:.inset-y-0"
+    ]
+  },
+  "phone-light": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.mb-4"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.dark\\:text-slate-500.text-3xl.text-slate-400",
+      "a11y:color-contrast:summary",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5.text-xs"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5.text-xs"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .text-right:nth-child(n) > .text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .text-slate-500.dark\\:text-slate-400.pr-2",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)"
+    ]
+  },
+  "tablet-landscape-dark": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  },
+  "tablet-landscape-light": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.mb-4",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.dark\\:text-slate-500.text-3xl.text-slate-400",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:color-contrast:summary",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:color-contrast:.dark\\:text-slate-500.text-3xl.text-slate-400",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:color-contrast:summary",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5.text-xs",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .pr-2.text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .text-right:nth-child(n) > .text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  },
+  "tablet-portrait-dark": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.dark\\:text-slate-500.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  },
+  "tablet-portrait-light": {
+    "become-a-host/01-settle-in-first": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.mb-4",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/02-hosting-tab": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.dark\\:text-slate-500.text-3xl.text-slate-400",
+      "a11y:color-contrast:.max-w-sm",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:color-contrast:summary",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "become-a-host/03-request-form": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:scrollable-region-focusable:.max-h-\\[500px\\]"
+    ],
+    "join-a-prickle/01-dashboard": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.mb-8",
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/02-on-air-popover": [
+      "a11y:color-contrast:.min-w-0[href$=\"<id>\"][data-track=\"upcoming-prickle-open\"] > .text-slate-400.mt-0\\.5.text-xs",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "join-a-prickle/03-find-a-prickle": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:text-slate-300.dark\\:hover\\:border-slate-700:nth-child(n)",
+      "a11y:color-contrast:.hover\\:underline",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ],
+    "plan-your-month/01-all-prickles": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select"
+    ],
+    "plan-your-month/02-pick-and-commit": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.cursor-pointer.select-none[aria-sort=\"none\"]:nth-child(n)",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .pr-2.text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:.dark\\:bg-plum-950\\/40.bg-plum-50.group:nth-child(n) > .text-right:nth-child(n) > .text-slate-500.dark\\:text-slate-400",
+      "a11y:color-contrast:.dark\\:text-slate-500.mt-0\\.5",
+      "a11y:color-contrast:th[aria-sort=\"ascending\"]",
+      "a11y:label-content-name-mismatch:.mr-auto",
+      "a11y:select-name:select[data-track=\"all-prickles-table-type-filter\"]"
+    ],
+    "plan-your-month/03-commitments": [
+      "a11y:aria-hidden-focus:.inset-y-0",
+      "a11y:color-contrast:.border-transparent.dark\\:hover\\:border-slate-700.py-2\\.5:nth-child(n)",
+      "a11y:color-contrast:.gap-x-3.gap-y-1.flex-wrap:nth-child(n) > .text-slate-400.dark\\:text-slate-500.text-xs",
+      "a11y:color-contrast:.underline-offset-2.hover\\:underline.dark\\:hover\\:text-slate-300",
+      "a11y:label-content-name-mismatch:.mr-auto"
+    ]
+  }
+}

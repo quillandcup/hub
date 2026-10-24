@@ -53,6 +53,16 @@ describe("sampleMessages", () => {
     for (const message of messages) expect(message.text.startsWith("[Test] ")).toBe(true);
   });
 
+  it.each(NOTIFICATION_KINDS.map((k) => k.id))("builds %s as a member receives it with { test: false }: no test marker anywhere", async (kind) => {
+    const messages = await sampleMessages(createFakeSupabase({ prickles: { data: [prickle] } }), kind, NOW, { test: false });
+
+    expect(messages.length).toBeGreaterThan(0);
+    for (const message of messages) {
+      expect(JSON.stringify(message)).not.toMatch(/\[Test\]|Test send/);
+      expect(message.title ?? "").not.toMatch(/^\[Test\]/);
+    }
+  });
+
   it("builds both Big Sister versions: to the new member and to the Big Sister", async () => {
     const messages = await sampleMessages(createFakeSupabase(), "big_sister_match", NOW);
 
