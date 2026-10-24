@@ -4,7 +4,7 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { DEMO_APP_PORT, DEMO_PROJECT_ID, demoConfig } from "@/demo/stack";
 import { orgDate } from "@/demo/seed";
 import { assertLocal } from "@/demo/env";
-import { DEMO_EVENTS, PERSONAS, persona } from "@/demo/personas";
+import { PERSONAS, demoEvents, persona } from "@/demo/personas";
 
 const devConfig = readFileSync("supabase/config.toml", "utf8");
 
@@ -69,9 +69,20 @@ describe("demo cast", () => {
 
   it("has a host for every named prickle host", () => {
     const names = new Set(PERSONAS.map((p) => p.name));
-    for (const e of DEMO_EVENTS) {
+    for (const e of demoEvents(0)) {
       const host = e.summary.match(/ w\/(.+)$/)?.[1];
       if (host) expect(names.has(host)).toBe(true);
+    }
+  });
+
+  it("lays the weekly rhythm over the right days, with unique keys, whatever weekday today is", () => {
+    for (const today of [0, 3, 6]) {
+      const events = demoEvents(today);
+      expect(new Set(events.map((e) => e.key)).size).toBe(events.length);
+      // Day offset 0 is a weekday-`today` slot: Saturday (6) has the Heads Down prickle, and nothing else that day.
+      if (today === 6) expect(events.filter((e) => e.dayOffset === 0).map((e) => e.summary)).toEqual(["Heads Down Prickle"]);
+      expect(Math.min(...events.map((e) => e.dayOffset))).toBeGreaterThanOrEqual(-28);
+      expect(Math.max(...events.map((e) => e.dayOffset))).toBeLessThanOrEqual(14);
     }
   });
 

@@ -11,6 +11,12 @@ import path from "node:path";
  */
 export const HELP_IMAGES_BUCKET = "help-images";
 
+/**
+ * The order articles appear in the index, from first steps to hosting. A new article is added here on purpose
+ * (a test fails until it is); any article not listed sorts after these, by name.
+ */
+export const HELP_ORDER = ["join-a-prickle", "plan-your-month", "become-a-host", "start-a-pup", "run-a-prickle"];
+
 const HELP_DIR = path.join(process.cwd(), "help");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -42,13 +48,28 @@ export function helpImageUrl(src: string): string | null {
   return m && isHelpImagePath(m[1], m[2]) ? `/help/images/${m[1]}/${m[2]}` : null;
 }
 
+/** Markdown as plain text, for a summary: link text without the target, no emphasis or code marks. */
+function plainText(markdown: string): string {
+  return markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function parseHelpArticle(slug: string, markdown: string): HelpArticle {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const titleIndex = lines.findIndex((l) => l.startsWith("# "));
   const title = titleIndex >= 0 ? lines[titleIndex].slice(2).trim() : slug;
   const rest = lines.slice(titleIndex + 1).join("\n").trim();
   const firstBlock = rest.split(/\n{2,}/).find((b) => b.trim() && !/^(#|!\[|[-*]\s|\d+\.\s)/.test(b.trim()));
-  return { slug, title, summary: (firstBlock ?? "").replace(/\s+/g, " ").trim(), body: rest };
+  return { slug, title, summary: plainText(firstBlock ?? ""), body: rest };
+}
+
+function rank(slug: string): number {
+  const i = HELP_ORDER.indexOf(slug);
+  return i === -1 ? HELP_ORDER.length : i;
 }
 
 export function listHelpArticles(dir: string = HELP_DIR): HelpArticle[] {
@@ -57,7 +78,7 @@ export function listHelpArticles(dir: string = HELP_DIR): HelpArticle[] {
     .filter((f) => f.endsWith(".md"))
     .map((f) => f.slice(0, -3))
     .filter(isHelpSlug)
-    .sort()
+    .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     .map((slug) => parseHelpArticle(slug, readFileSync(path.join(dir, `${slug}.md`), "utf8")));
 }
 

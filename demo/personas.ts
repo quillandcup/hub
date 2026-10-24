@@ -36,13 +36,28 @@ export interface DemoEvent {
   minutes: number;
 }
 
-export const DEMO_EVENTS: DemoEvent[] = [
-  { key: "yesterday-progress", summary: "Progress Prickle w/Hazel Hosting", dayOffset: -1, startLocal: "10:00", minutes: 60 },
-  { key: "today-progress", summary: "Progress Prickle w/Hazel Hosting", dayOffset: 0, startLocal: "10:00", minutes: 60 },
-  { key: "tomorrow-progress", summary: "Progress Prickle w/Hazel Hosting", dayOffset: 1, startLocal: "10:00", minutes: 60 },
-  { key: "tomorrow-sprint", summary: "Sprint Prickle w/Hazel Hosting", dayOffset: 1, startLocal: "14:00", minutes: 45 },
-  { key: "dayafter-headsdown", summary: "Heads Down Prickle", dayOffset: 2, startLocal: "09:00", minutes: 90 },
+/** The weekly rhythm: day of week (0 = Sunday), local start, minutes, and the calendar title the real calendar would carry. */
+const WEEKLY_PATTERN: { weekday: number; startLocal: string; minutes: number; summary: string }[] = [
+  { weekday: 1, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
+  { weekday: 2, startLocal: "14:00", minutes: 45, summary: "Sprint Prickle w/Jules Sample" },
+  { weekday: 3, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
+  { weekday: 4, startLocal: "19:00", minutes: 60, summary: "Plot or Plan Prickle w/Rowan Demo" },
+  { weekday: 5, startLocal: "10:00", minutes: 60, summary: "Progress Prickle w/Jules Sample" },
+  { weekday: 6, startLocal: "10:00", minutes: 90, summary: "Heads Down Prickle" },
+  { weekday: 0, startLocal: "19:00", minutes: 60, summary: "Sprint Prickle w/Hazel Hosting" },
 ];
+
+/** Four weeks back and two ahead, so there is history, a recurring pattern and an upcoming week. The day offset is from today in the org's timezone; `weekdayOf` says which weekday today is. */
+export function demoEvents(weekdayOfToday: number): DemoEvent[] {
+  const events: DemoEvent[] = [];
+  for (let dayOffset = -28; dayOffset <= 14; dayOffset++) {
+    const weekday = (((weekdayOfToday + dayOffset) % 7) + 7) % 7;
+    for (const slot of WEEKLY_PATTERN.filter((w) => w.weekday === weekday)) {
+      events.push({ key: `d${dayOffset}-${slot.startLocal.replace(":", "")}`, summary: slot.summary, dayOffset, startLocal: slot.startLocal, minutes: slot.minutes });
+    }
+  }
+  return events;
+}
 
 /** Fictional Zoom room shown in the "On air" popover; the .example host never resolves. */
 export const DEMO_JOIN = {
