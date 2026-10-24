@@ -1,6 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -56,17 +57,21 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if alias already exists
-      const { data: existingAlias } = await supabase
-        .from("member_name_aliases")
-        .select("id")
-        .eq("member_id", member.id)
-        .eq("alias", alias)
-        .single();
-
-      if (existingAlias) {
+      // Skip a name this member already has; refuse one that is another member's alias or real name
+      const checked = await findNameAliasConflict(member.id, alias);
+      if ("error" in checked) {
+        messages.push(`Error checking alias "${alias}" for ${email}: ${checked.error}`);
+        errors++;
+        continue;
+      }
+      if (checked.conflict && (checked.conflict.kind === "own" || checked.conflict.kind === "own_inactive")) {
         messages.push(`Alias already exists: "${alias}" → ${member.name}`);
         skipped++;
+        continue;
+      }
+      if (checked.conflict) {
+        messages.push(`Skipped: ${adminNameAliasConflictMessage(alias, checked.conflict)}`);
+        errors++;
         continue;
       }
 

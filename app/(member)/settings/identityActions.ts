@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { findNameAliasConflict, MEMBER_NAME_ALIAS_CONFLICT_MESSAGES } from "@/lib/name-alias-conflict";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -263,6 +264,11 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   if (!trimmed) return { error: "Enter a name first" };
   if (trimmed.length > 200) return { error: "That name is too long" };
 
+  // Members can't read each other's names, so the check runs as the service role (lib/name-alias-conflict.ts).
+  const checked = await findNameAliasConflict(effectiveIdentity.memberId, trimmed);
+  if ("error" in checked) return { error: checked.error };
+  if (checked.conflict) return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES[checked.conflict.kind] };
+
   const { error } = await supabase.from("member_name_aliases").insert({
     member_id: effectiveIdentity.memberId,
     alias: trimmed,
@@ -270,11 +276,8 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   });
 
   if (error) {
-    if (isUniqueViolation(error)) {
-      return {
-        error: "That name is already registered as an alias for someone — ask an admin for help if it's actually yours.",
-      };
-    }
+    // Two members adding the same text at once: the check above passed for both.
+    if (isUniqueViolation(error)) return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES.other_alias };
     return { error: error.message };
   }
 

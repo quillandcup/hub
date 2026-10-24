@@ -25,6 +25,12 @@ vi.mock("@/lib/processing/trigger", () => ({
   triggerReprocessing: vi.fn(),
 }));
 
+// Whether a name is taken is asked as the service role (members can't read each other's names).
+const nameConflictMock = vi.fn();
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceRoleClient: () => ({ rpc: nameConflictMock }),
+}));
+
 import { setCustomDisplayName, setDisplayName, updateRealName } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -66,6 +72,7 @@ function makeSupabaseMock({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  nameConflictMock.mockResolvedValue({ data: [], error: null });
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 });
 
@@ -261,10 +268,12 @@ describe("setCustomDisplayName", () => {
   });
 
   it("doesn't choose the name when another member already owns that alias", async () => {
-    const mock = makeMock({ insertError: { code: "23505", message: "duplicate" } });
+    nameConflictMock.mockResolvedValue({ data: [{ kind: "other_alias", other_member_id: "member-2", other_member_name: "Other Member" }], error: null });
+    const mock = makeMock();
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
-    expect(await setCustomDisplayName("Taken Name")).toEqual({ error: expect.stringContaining("already registered") });
+    expect(await setCustomDisplayName("Taken Name")).toEqual({ error: expect.stringContaining("already uses that name") });
+    expect(mock.__insert).not.toHaveBeenCalled();
     expect(mock.__memberUpdate).not.toHaveBeenCalled();
   });
 
