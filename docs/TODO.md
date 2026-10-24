@@ -246,10 +246,13 @@ have been checked and fixed, or after a set period with no use; whichever comes 
 Check the `audit_log`/activity feed for recent use before deleting.
 
 ### Refresh Admin Member Pages After Moving Aliases
-**Resolved:** the split and move-aliases routes call `revalidatePath` for the source and
-target members, and `SplitMemberModal` calls `router.refresh()` before navigating (a route
-handler's `revalidatePath` doesn't clear the client router cache). The stale Identity tab
-symptom was never reproduced, so the cache was the suspected cause, not a confirmed one.
+Unconfirmed. After "Move ticked names and emails to ..." in the Split dialog, the source
+member's Identity tab once kept showing the moved email briefly. It has not been reproduced.
+The suspected cause is the client router cache, so `SplitMemberModal` calls `router.refresh()`
+before navigating; whether that is needed is unknown. The routes do not call `revalidatePath`
+(a route handler's call doesn't clear the client cache, so it was removed). Retry the repro
+(move an alias, then open the source member's Identity tab); if it still happens, capture
+what the page shows and when, and check whether the alias row is gone at that moment.
 
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
@@ -507,11 +510,13 @@ Auth and notification email sends from `no-reply@hub.quillandcup.com` through Re
 ### Data Access Layer: Repositories, Typed Clients, Typed Seed Data _(In Progress)_
 Goals: isolate database access so other layers are tested against in-memory fakes (less DB in CI), a clear object model, compile-time column and enum checks, and typed seed profiles for tests, demos and docs. Decision: **repositories on the existing Supabase client with generated types (Option A)**, migrated area by area; Drizzle/Kysely only later, for queries PostgREST handles badly. A direct Postgres connection bypasses RLS and would need a wrapper that sets `request.jwt.claims`, the role and the sudo setting for every user-scoped query (or `audit_row_change` records `system`), so it isn't worth it for the layering goals.
 
-**Resolved (pilot):** `lib/data/` (generated `database.types.ts`, `Db`, `createRepos`, `getRepos`/`getServiceRepos`), `AttendanceRepository` with Supabase and in-memory implementations sharing a contract suite, every `prickle_attendance` query that doesn't join another table moved onto it, and a guard test with an allowlist of the rest (`tests/lib/data-access-layer.test.ts`). The admin dashboard's date-range reads and the network page's full scan were unpaginated (silently capped at 1000 rows); they paginate now. Convention in `CLAUDE.md`, "Data Access Layer".
+**Resolved (pilot, then prickles):** `lib/data/` (generated `database.types.ts`, `Db`, `createRepos`, `getRepos`/`getServiceRepos`), `AttendanceRepository` with Supabase and in-memory implementations sharing a contract suite, every `prickle_attendance` query that doesn't join another table moved onto it, and a guard test with an allowlist of the rest (`tests/lib/data-access-layer.test.ts`). The admin dashboard's date-range reads and the network page's full scan were unpaginated (silently capped at 1000 rows); they paginate now. Convention in `CLAUDE.md`, "Data Access Layer". `PrickleRepository` (prickles joined with their type and host; `InMemoryDataset` so in-memory joins work) is in, with the window queries behind the upcoming-prickles, schedule overview and hosting schedule, the date picker, and the hosted/calendar counts moved onto it.
 
 **Still open:**
 - [ ] **Move the remaining `prickle_attendance` call sites** (the guard test's allowlist). All of them embed another table (`prickles(...)`, `prickles!inner(prickle_types(...))`, `members:attendance_member(...)`), so they wait for the prickles and members repositories, which should own those joins as domain objects (an attendance record with its prickle and type, an attendee with a name). Do them as part of those repositories, not before.
-- [ ] **Next aggregates**, in order of how many call sites and rules they carry: members, prickles, notifications, badges. Each: interface, Supabase + in-memory classes, contract suite, guard-test entry.
+- [ ] **Move the remaining `prickles` call sites** (the guard test's `prickles` allowlist). Still direct: the calendar feed, search, live room, educational prickles, check-in actions and routes, the Zoom/attendance processing routes (writes and RPCs), badges' host queries, the admin pages with `prickle_types!inner(requires_host)` counts, and the pages that embed prickles through attendance. Add the missing methods (`byIds` with a start filter, host/type counts, title search) as each is converted.
+- [ ] **Attendance joins**: methods that return attendance with its prickle (`forMemberWithPrickles`) and with the attendee's name, to retire the 13 attendance queries that embed `prickles` or `members`. The in-memory twin already joins from the dataset.
+- [ ] **Next aggregates**, in order of how many call sites and rules they carry: members, notifications, badges. Each: interface, Supabase + in-memory classes, contract suite, guard-test entry.
 - [ ] **CI check that the generated types are current**: add a step to the `Test (db) & build` job after "Wait for local Supabase" that runs `pnpm types:check` (regenerates and fails on a diff). Not done in the pilot because that job's startup is backgrounded and I couldn't verify a workflow edit without running CI. The Supabase CLI version is pinned by `SUPABASE_CLI_VERSION`; regenerate with the same version locally or the output may differ.
 - [ ] **Type the shared clients** (`createClient`/`createServiceRoleClient` with `<Database>`). Measured on 2026-10-23: 428 compile errors, mostly nullable columns and enum-typed strings that were `any`, and `select("a, b(c)")` strings that now infer. Do it per area as the repositories absorb the queries, then flip the factories and fix what is left. Until then call sites outside repositories still get `any`.
 - [ ] **Typed seed profiles**: seed data as `Insert` rows (or the in-memory repositories' row types) in typed files, loaded into the database by one seeder and into the in-memory repositories for tests, demos and help-doc screenshots. Start from the attendance seed type in `lib/data/attendance.ts`.

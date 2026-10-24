@@ -1,16 +1,24 @@
-import { SupabaseAttendanceRepository, type AttendanceRepository } from "./attendance";
+import { InMemoryAttendanceRepository, SupabaseAttendanceRepository, type AttendanceRepository } from "./attendance";
 import type { Db } from "./db";
+import { InMemoryDataset } from "./in-memory";
+import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
- * Supabase, so tests pass in-memory twins (`InMemoryAttendanceRepository`, ...) and only the
- * repositories' own tests need a database. New aggregates are added here.
+ * Supabase, so tests pass in-memory twins (`createInMemoryRepos`) and only the repositories' own
+ * tests need a database. New aggregates are added here.
  */
 export interface Repos {
   attendance: AttendanceRepository;
+  prickles: PrickleRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
 export function createRepos(db: Db): Repos {
-  return { attendance: new SupabaseAttendanceRepository(db) };
+  return { attendance: new SupabaseAttendanceRepository(db), prickles: new SupabasePrickleRepository(db) };
+}
+
+/** In-memory repositories over one dataset, so joins between them work. For tests, demos and seed profiles. */
+export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDataset()): Repos {
+  return { attendance: new InMemoryAttendanceRepository(dataset), prickles: new InMemoryPrickleRepository(dataset) };
 }

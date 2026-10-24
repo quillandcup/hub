@@ -1,7 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
-import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse, after } from "next/server";
 
 export const maxDuration = 300;
@@ -127,10 +126,6 @@ export async function POST(request: NextRequest) {
         console.error("[admin] Reprocessing attendance after a member split failed:", err);
       }
     });
-
-    // Admin member pages are path tabs: refresh every tab of both members.
-    revalidatePath(`/admin/members/${original.id}`, "layout");
-    revalidatePath(`/admin/members/${created.id}`, "layout");
 
     return NextResponse.json({
       success: true,
