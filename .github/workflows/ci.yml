@@ -393,94 +393,25 @@ jobs:
       - name: Run pgTAP test suite
         run: pnpm test:pgtap
 
-      - name: Stop app server
-        if: always()
-        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
+      # The screenshots the member help articles show (help/, docs/DEMO_AND_HELP.md), captured here, on this
+      # job's own stack and built app, so the run starts ONE local Supabase stack (a second one doubled the Docker
+      # Hub image pulls per run, which the shared runners' rate limit could not take). The database is reset to
+      # empty without seed.sql first, so no db-test fixture or dev seed row can appear in a picture: the only
+      # people on screen are the demo's fictional community.
+      #
+      # A failing scene (a changed screen), a new page problem (demo/baseline.json) or an article that shows a
+      # screenshot no scene captured fails THIS job, which is required. The `Help screenshots` job below is the
+      # gate that publishes and previews what this produced.
+      - name: Reset to an empty database for the screenshots
+        run: supabase db reset --no-seed
 
-      - name: Stop local Supabase
-        if: always()
-        run: supabase stop
-
-  # The screenshots the member help articles show (help/, docs/DEMO_AND_HELP.md), captured from this
-  # commit's code in a clean database: the same `demo:stack` the demo uses locally (no seed.sql, no db-test
-  # fixtures, so nothing but the fictional demo community can appear in a picture).
-  #
-  # This is the block against articles and images drifting apart: the job fails if a demo scene fails
-  # (a changed screen), or if an article shows a screenshot no scene captured (`demo:publish --verify`).
-  # On a pull request the images go to the review comment and an artifact; on main the publish job below
-  # uploads them under this commit's set id before the deploy, and the deploy needs that to succeed.
-  help-screenshots:
-    name: Help screenshots
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6.1.0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: ${{ env.SUPABASE_CLI_VERSION }}
-
-      - name: Log in to Docker Hub
-        continue-on-error: true
-        uses: docker/login-action@v4
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Backgrounded like the db job's stack, so the build below overlaps its startup. `demo:stack up` writes
-      # demo/.env.demo last, and records its exit code for the wait step below.
-      - name: Start the demo stack
-        env:
-          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+      - name: Point the demo at this job's stack
         run: |
-          nohup sh -c 'pnpm demo:stack up; echo $? > /tmp/demo-stack.exit' > /tmp/demo-stack.log 2>&1 &
-          disown
-
-      # The demo stack's API is on 56321; its keys are the same public local keys as the db job's.
-      - name: Production build
-        run: pnpm build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:56321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
-
-      - name: Wait for the demo stack
-        run: |
-          for i in $(seq 1 180); do
-            [ -f /tmp/demo-stack.exit ] && break
-            sleep 2
-          done
-          if [ "$(cat /tmp/demo-stack.exit 2>/dev/null)" != "0" ]; then
-            echo "demo stack did not start"
-            cat /tmp/demo-stack.log
-            exit 1
-          fi
-
-      - name: Start the app on the demo stack
-        run: |
-          pnpm demo:serve > /tmp/demo-app.log 2>&1 &
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/login 2>/dev/null) || true
-            if [ -n "$code" ] && [ "$code" != "000" ]; then
-              echo "App is up (HTTP $code)"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "App did not become ready in time"
-          cat /tmp/demo-app.log
-          exit 1
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
+          } > demo/.env.demo
 
       - name: Cache the Playwright browser
         uses: actions/cache@v6
@@ -493,11 +424,16 @@ jobs:
 
       - name: Seed the demo community
         run: pnpm demo:seed
+        env:
+          DEMO_APP_URL: http://localhost:3000
 
-      # Every scene at every size, light and dark. `@published` scenes read screenshots from the bucket, which
-      # this job's output is what fills, so they run locally against a published stack and are skipped here.
+      # Every scene at every size, light and dark, with the page checks. `@published` scenes read screenshots
+      # from the bucket, which this output is what fills, so they run locally against a published stack and are
+      # skipped here.
       - name: Capture the scenes
         run: pnpm demo:capture --grep-invert @published
+        env:
+          DEMO_APP_URL: http://localhost:3000
 
       - name: Check every article screenshot was captured
         run: pnpm demo:publish --verify
@@ -512,13 +448,44 @@ jobs:
             !demo/out/.playwright
           retention-days: 14
 
-      - name: Show the app log on failure
-        if: failure()
-        run: tail -n 100 /tmp/demo-app.log || true
-
-      - name: Stop the demo stack
+      - name: Stop app server
         if: always()
-        run: pnpm demo:stack down || true
+        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+  # The gate for the help screenshots: a required check (github-repo-config.yml) that passes when the capture in
+  # `Test (db) & build` produced every screenshot an article shows. The capture itself runs there (see its steps) so
+  # CI starts one local stack, not two. This job re-verifies the uploaded set, and is what the PR preview and the
+  # main-only publish job wait for, so a deploy can't go out with an article showing a missing picture. It is
+  # skipped, which counts as passing, when `Test (db) & build` is (a docs-only change) or has already failed.
+  help-screenshots:
+    name: Help screenshots
+    needs: test-db
+    if: ${{ !cancelled() && needs.test-db.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v6.1.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: demo-screenshots
+          path: demo/out
+
+      - name: Check every article screenshot was captured
+        run: pnpm demo:publish --verify
 
   # Shows the article screenshots inline in the pull request. Same-repo PRs only: a fork's token can't push, and
   # Dependabot's is read-only. The images go to the `help-previews` branch (not main: nothing here reaches the
