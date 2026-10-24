@@ -100,6 +100,9 @@ export const EVENTS = {
   /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
   chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },
 
+  /** A member cancelled the upload of a message's files while sending (components/chat/Composer.tsx): `count` files were attached. */
+  chat_upload_cancelled: { count: int() },
+
   /** A reaction was chosen in the full emoji picker (components/chat/EmojiPicker.tsx): `via` is its Frequently used row, browsing a category, or search; `custom` whether it was a workspace emoji. */
   chat_reaction_picked: { via: oneOf("recent", "browse", "search"), custom: bool() },
 

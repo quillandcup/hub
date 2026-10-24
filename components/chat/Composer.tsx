@@ -86,13 +86,14 @@ export default function Composer({
 
   /** Upload the attachments to the member's staging folder; null (with the error shown) if any fails. */
   const uploadAttachments = async (): Promise<StagedUpload[] | null> => {
+    const controller = new AbortController();
+    abortRef.current = controller;
     const prepared = await prepareChatUploads(attached.map((f) => ({ name: f.name || "file", size: f.size }))).catch(() => null);
+    if (controller.signal.aborted) return null;
     if (!prepared?.ok) {
       setError(prepared?.error ?? "Couldn't start the upload. Try again.");
       return null;
     }
-    const controller = new AbortController();
-    abortRef.current = controller;
     setSentBytes(attached.map(() => 0));
     // Several at once; results keep the order the files were attached in. The first failure aborts the
     // rest, nothing is sent and the files stay attached to retry. Staged files left behind are swept by
@@ -121,6 +122,12 @@ export default function Composer({
       return null;
     }
     return outcome.results;
+  };
+
+  /** Stop an upload in progress: nothing is sent, the files stay attached and the box is editable again. */
+  const cancelUpload = () => {
+    track("chat_upload_cancelled", { count: attached.length });
+    abortRef.current?.abort();
   };
 
   const send = async () => {
@@ -240,6 +247,14 @@ export default function Composer({
         <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
           <progress aria-label="Upload progress" max={Math.max(totalBytes, 1)} value={totalSent} className="h-1.5 flex-1 accent-plum-600" />
           <span>{totalBytes > 0 ? Math.round((totalSent / totalBytes) * 100) : 100}% uploaded</span>
+          <button
+            type="button"
+            data-track="chat-composer-cancel-upload"
+            onClick={cancelUpload}
+            className="shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium text-plum-700 hover:bg-slate-100 dark:text-plum-300 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
         </div>
       )}
       {error && (
