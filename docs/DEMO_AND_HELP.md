@@ -5,7 +5,7 @@ One mechanism, two outputs: a fictional demo community seeded into a local stack
 1. **Newsletter / showcase** (short term): screenshots and short videos of what's being built, for the RayhausCapital newsletter.
 2. **Member help site** (longer term): app-specific help articles (how to join a prickle, check in, host, find a BFF) whose screenshots are regenerated from the same scenes, so they don't go stale as the UI changes.
 
-Status: design only, nothing built yet (`docs/TODO.md`, "Reproducible demo and help docs").
+Status: the harness and one scene ("How to join a prickle") exist; the `/help` route and articles do not yet (`docs/TODO.md`, "Reproducible demo and help docs").
 
 ## Layout (proposed)
 
@@ -18,7 +18,14 @@ demo/
 help/         the articles (markdown), one per topic, images by scene name
 ```
 
-Commands: `pnpm demo:seed` (reset the demo data on the local stack), `pnpm demo:capture [scene]` (run scenes, write `demo/out/<scene>/NN-step.png`), `pnpm demo:video` (same scenes with video on).
+Commands, run from the repo root:
+
+1. `pnpm demo:stack up`: a separate local Supabase stack (project `hub-demo`, ports shifted by 2000: API 56321, DB 56322, mail 56324), built from this branch's migrations with no `seed.sql`, so it always matches the schema and never touches the shared dev database. Its config is generated from `supabase/config.toml` (`demo/stack.ts`); URLs and the standard local keys go to the gitignored `demo/.env.demo`. `down` stops it, `reset` deletes its data.
+2. `pnpm demo:app`: the app on port 3100 against that stack.
+3. `pnpm demo:seed`: the fictional community (`demo/personas.ts`), then the app's own `/api/process/calendar`. Safe to run again.
+4. `pnpm demo:capture [--project=desktop-light]`: runs every scene in `demo/scenes/` across the matrix and writes `demo/out/<scene>/<project>/NN-step.png`. `DEMO_VIDEO=1` records video.
+
+Notes from the first run: the phone project is Chromium at the iPhone's size and user agent (WebKit isn't installed; add it for Safari-accurate checks); the browser's time zone and locale are pinned to the org's, because members see times in their own zone and the host's would leak in; the Next.js dev badge is hidden in screenshots.
 
 ## Seed data
 
