@@ -145,9 +145,9 @@ describe('Slack import: channel membership history', () => {
     expect(new Date(bobJoin.occurred_at).toISOString()).toBe(iso(joinedTs))
     expect(bobJoin.inviter_user_id).toBe(alice)
 
-    // The notice is not stored as a message.
-    const { data: messages } = await bronze('slack_messages').select('message_ts').eq('channel_id', channelId)
-    expect(messages).toEqual([])
+    // The notice is stored as a system message too, so the chat can show it.
+    const { data: messages } = await bronze('slack_messages').select('message_ts, message_type').eq('channel_id', channelId)
+    expect(messages).toEqual([{ message_ts: joinedTs, message_type: 'channel_join' }])
 
     // Fetching the same notice again changes nothing.
     await runImport()
