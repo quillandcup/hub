@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import MemberSlackSearchForm from "./MemberSlackSearchForm";
@@ -13,11 +14,11 @@ export default async function MembersWithoutSlackPage() {
   const supabase = await createClient();
 
   const [
-    { data: members },
+    members,
     { data: slackUsers },
     { data: aliases },
   ] = await Promise.all([
-    supabase.from("members").select("id, name, email, status").order("name"),
+    createRepos(supabase).members.list({ orderBy: "name" }),
     supabase
       .schema("bronze")
       .from("slack_users")
@@ -33,7 +34,7 @@ export default async function MembersWithoutSlackPage() {
   // resolve automatically.
   const userToMemberMap = await matchSlackUsersToMembers(
     slackUsers || [],
-    members || [],
+    members,
     aliases || []
   );
   const matchedMemberIds = new Set(userToMemberMap.values());

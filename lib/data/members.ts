@@ -15,6 +15,9 @@ export type Member = MemberIdentity & {
   /** The Supabase Auth user this member signs in as; null until they have an account. */
   userId: string | null;
   staffRole: string | null;
+  /** The contact id in Kajabi, if the member has one. */
+  kajabiId: string | null;
+  stripeCustomerId: string | null;
   joinedAt: string;
   firstJoinedAt: string | null;
   mostRecentJoinedAt: string | null;
@@ -27,6 +30,15 @@ export type Member = MemberIdentity & {
 export interface MemberRepository {
   /** Every member's identity (optionally one status), ordered by id. For matching and rosters. */
   identities(options?: { status?: string }): Promise<MemberIdentity[]>;
+  /**
+   * Every member (optionally one status), paginated, ordered by id or by name. For admin lists and
+   * reports; use `identities` when only the name and email are needed.
+   */
+  list(options?: { status?: string; orderBy?: "id" | "name" }): Promise<Member[]>;
+  /** How many members there are in total. */
+  count(): Promise<number>;
+  /** The members whose email is one of these (exact, as stored), in no particular order. */
+  byEmails(emails: string[]): Promise<Member[]>;
   byId(id: string): Promise<Member | null>;
   /** The members that exist among these ids, in no particular order. */
   byIds(ids: string[]): Promise<Member[]>;
@@ -43,7 +55,7 @@ export interface MemberRepository {
 }
 
 const IDENTITY_COLUMNS = "id, name, display_name, email";
-const MEMBER_COLUMNS = `${IDENTITY_COLUMNS}, status, source, user_id, staff_role, joined_at, first_joined_at, most_recent_joined_at`;
+const MEMBER_COLUMNS = `${IDENTITY_COLUMNS}, status, source, user_id, staff_role, kajabi_id, stripe_customer_id, joined_at, first_joined_at, most_recent_joined_at`;
 
 type IdentityRow = { id: string; name: string; display_name: string | null; email: string };
 type MemberRow = IdentityRow & {
@@ -51,6 +63,8 @@ type MemberRow = IdentityRow & {
   source: string;
   user_id: string | null;
   staff_role: string | null;
+  kajabi_id: string | null;
+  stripe_customer_id: string | null;
   joined_at: string;
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
@@ -70,6 +84,8 @@ const toMember = (row: MemberRow): Member => ({
   source: row.source,
   userId: row.user_id,
   staffRole: row.staff_role,
+  kajabiId: row.kajabi_id,
+  stripeCustomerId: row.stripe_customer_id,
   joinedAt: row.joined_at,
   firstJoinedAt: row.first_joined_at,
   mostRecentJoinedAt: row.most_recent_joined_at,
@@ -85,6 +101,34 @@ export class SupabaseMemberRepository implements MemberRepository {
       return query.order("id").range(from, to) as unknown as PromiseLike<Page<IdentityRow>>;
     });
     return rows.map(toIdentity);
+  }
+
+  async list({ status, orderBy = "id" }: { status?: string; orderBy?: "id" | "name" } = {}): Promise<Member[]> {
+    const rows = await fetchAllRows<MemberRow>((from, to) => {
+      let query = this.db.from("members").select(MEMBER_COLUMNS);
+      if (status !== undefined) query = query.eq("status", status);
+      // `id` last so paging has a total order even when names repeat.
+      return (orderBy === "name" ? query.order("name").order("id") : query.order("id")).range(from, to) as unknown as PromiseLike<Page<MemberRow>>;
+    });
+    return rows.map(toMember);
+  }
+
+  async count(): Promise<number> {
+    const { count, error } = await this.db.from("members").select("id", { count: "exact", head: true });
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  async byEmails(emails: string[]): Promise<Member[]> {
+    const found: Member[] = [];
+    for (const emailChunk of chunk(emails, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<MemberRow>(
+        (from, to) =>
+          this.db.from("members").select(MEMBER_COLUMNS).in("email", emailChunk).order("id").range(from, to) as unknown as PromiseLike<Page<MemberRow>>,
+      );
+      found.push(...rows.map(toMember));
+    }
+    return found;
   }
 
   async byId(id: string): Promise<Member | null> {
@@ -162,6 +206,8 @@ function fromSeed(seed: MemberSeed): Member {
     source: seed.source ?? "kajabi",
     userId: seed.userId ?? null,
     staffRole: seed.staffRole ?? null,
+    kajabiId: seed.kajabiId ?? null,
+    stripeCustomerId: seed.stripeCustomerId ?? null,
     joinedAt: seed.joinedAt ?? "2026-01-01",
     firstJoinedAt: seed.firstJoinedAt ?? null,
     mostRecentJoinedAt: seed.mostRecentJoinedAt ?? null,
@@ -181,6 +227,21 @@ export class InMemoryMemberRepository implements MemberRepository {
       .filter((m) => status === undefined || m.status === status)
       .sort((a, b) => a.id.localeCompare(b.id))
       .map(({ id, name, displayName, email }) => ({ id, name, displayName, email }));
+  }
+
+  async list({ status, orderBy = "id" }: { status?: string; orderBy?: "id" | "name" } = {}) {
+    return this.all()
+      .filter((m) => status === undefined || m.status === status)
+      .sort((a, b) => (orderBy === "name" ? a.name.localeCompare(b.name) : 0) || a.id.localeCompare(b.id));
+  }
+
+  async count() {
+    return this.data.members.length;
+  }
+
+  async byEmails(emails: string[]) {
+    const wanted = new Set(emails);
+    return this.all().filter((m) => wanted.has(m.email));
   }
 
   async byId(id: string) {

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 /**
@@ -16,21 +17,21 @@ export async function getSlackDmLinksForMembers(memberIds: string[]): Promise<Ma
   if (memberIds.length === 0) return links;
 
   const service = createServiceRoleClient();
-  const [{ data: slackAliases }, { data: members }] = await Promise.all([
+  const [{ data: slackAliases }, members] = await Promise.all([
     service
       .from("member_name_aliases")
       .select("member_id, alias")
       .in("member_id", memberIds)
       .eq("source", "slack")
       .eq("active", true),
-    service.from("members").select("id, email").in("id", memberIds),
+    createRepos(service).members.byIds(memberIds),
   ]);
 
   for (const a of slackAliases ?? []) {
     links.set(a.member_id, `https://quillandcup.slack.com/app_redirect?channel=${a.alias}`);
   }
 
-  const unmatched = (members ?? []).filter((m) => !links.has(m.id) && m.email);
+  const unmatched = members.filter((m) => !links.has(m.id) && m.email);
   if (unmatched.length > 0) {
     const memberIdByEmail = new Map(unmatched.map((m) => [m.email as string, m.id as string]));
     const { data: slackUsers } = await service

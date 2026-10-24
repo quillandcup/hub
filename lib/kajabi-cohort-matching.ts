@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
@@ -243,13 +244,9 @@ export async function findKajabiCandidatesForCohort(
   const canonicalEmails = Array.from(new Set(Array.from(emailByCustomerId.values())));
   if (canonicalEmails.length === 0) return { candidates: [], offerNamesConfigured: true };
 
-  const { data: members, error: membersError } = await supabase
-    .from("members")
-    .select("id, name, email, status")
-    .in("email", canonicalEmails);
-  if (membersError) throw membersError;
+  const members = await createRepos(supabase).members.byEmails(canonicalEmails);
 
-  const memberByEmail = new Map((members || []).map((m) => [m.email.toLowerCase(), m]));
+  const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
   // Fetched for every member who ever bought a matching offer (not narrowed
   // to this cohort's window) so computeCandidates can annotate any of them —

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
@@ -120,17 +121,10 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
 
   const emails = [...startByEmail.keys()];
   const found: Candidate[] = [];
-  const CHUNK = 200;
-  for (let i = 0; i < emails.length; i += CHUNK) {
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, name, email, staff_role")
-      .in("email", emails.slice(i, i + CHUNK));
-    for (const m of (members ?? []) as { id: string; name: string; email: string; staff_role: string | null }[]) {
-      const arrivedOn = startByEmail.get(m.email.toLowerCase());
-      if (arrivedOn && !m.staff_role) {
-        found.push({ memberId: m.id, memberName: m.name, email: m.email, arrivedOn, from: "membership", programName: null });
-      }
+  for (const m of await createRepos(supabase).members.byEmails(emails)) {
+    const arrivedOn = startByEmail.get(m.email.toLowerCase());
+    if (arrivedOn && !m.staffRole) {
+      found.push({ memberId: m.id, memberName: m.name, email: m.email, arrivedOn, from: "membership", programName: null });
     }
   }
   return found;

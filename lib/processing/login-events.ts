@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
@@ -57,9 +58,7 @@ export async function mirrorLoginEvents(
   }
 
   const [members, { data: emailAliases, error: aliasesError }] = await Promise.all([
-    fetchAllPages<{ id: string; user_id: string | null; email: string | null }>((start, end) =>
-      supabase.from("members").select("id, user_id, email").order("id").range(start, end)
-    ),
+    createRepos(supabase).members.list(),
     supabase.from("member_email_aliases").select("*").eq("active", true),
   ]);
   if (aliasesError) throw aliasesError;
@@ -67,7 +66,7 @@ export async function mirrorLoginEvents(
   const memberIdByUserId = new Map<string, string>();
   const memberIdByEmail = new Map<string, string>();
   for (const m of members) {
-    if (m.user_id) memberIdByUserId.set(m.user_id, m.id);
+    if (m.userId) memberIdByUserId.set(m.userId, m.id);
     if (m.email) memberIdByEmail.set(m.email.toLowerCase(), m.id);
   }
   const aliasMap = buildAliasMap(emailAliases ?? []);

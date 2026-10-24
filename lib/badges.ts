@@ -721,13 +721,12 @@ export async function getBadgeRecipients(
   badgeType: BadgeType,
   levels: BadgeLevel[]
 ): Promise<BadgeRecipient[]> {
-  const { data: memberRows } = await supabase
-    .from("members")
-    .select("id, name, email, first_joined_at")
-    .order("name");
-  const members: RecipientMember[] = (
-    (memberRows ?? []) as { id: string; name: string; email: string; first_joined_at: string | null }[]
-  ).map((m) => ({ id: m.id, name: m.name, email: m.email, firstJoinedAt: m.first_joined_at }));
+  const members: RecipientMember[] = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    firstJoinedAt: m.firstJoinedAt,
+  }));
 
   if (!badgeType.is_automatic) {
     const { data: awards } = await supabase

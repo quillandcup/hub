@@ -123,25 +123,8 @@ interface MemberRow {
 }
 
 async function loadActiveMembers(supabase: SupabaseClient): Promise<MemberRow[]> {
-  const rows: MemberRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await supabase
-      .from("members")
-      .select("id, first_joined_at, user_id")
-      .eq("status", "active")
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (data && data.length > 0) {
-      rows.push(...(data as MemberRow[]));
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return rows;
+  const members = await createRepos(supabase).members.list({ status: "active" });
+  return members.map((m) => ({ id: m.id, first_joined_at: m.firstJoinedAt, user_id: m.userId }));
 }
 
 /** Whether this is the hour the member's next reminder (the `sent + 1`th) goes out in. */

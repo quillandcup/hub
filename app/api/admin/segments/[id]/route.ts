@@ -1,5 +1,6 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { fetchAllRows, chunk } from "@/lib/supabase/paginate";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -28,12 +29,9 @@ export async function GET(
   );
 
   const memberIds = memberLinks.map((m) => m.member_id);
-  let members: { id: string; name: string; email: string }[] = [];
-  for (const idBatch of chunk(memberIds, 500)) {
-    const { data } = await supabase.from("members").select("id, name, email").in("id", idBatch);
-    members = members.concat(data ?? []);
-  }
-  members.sort((a, b) => a.name.localeCompare(b.name));
+  const members = (await createRepos(supabase).members.byIds(memberIds))
+    .map(({ id, name, email }) => ({ id, name, email }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return NextResponse.json({ segment, members });
 }

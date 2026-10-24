@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
@@ -120,11 +121,7 @@ export async function rebuildCourseAccess(
 
   const emails = Array.from(new Set(emailByCustomerId.values()));
   const memberIdByEmail = new Map<string, string>();
-  for (const batch of chunks(emails, LOOKUP_BATCH)) {
-    const { data, error } = await supabase.from("members").select("id, email").in("email", batch);
-    if (error) throw new Error(`members read failed: ${error.message}`);
-    for (const m of data ?? []) memberIdByEmail.set(m.email.toLowerCase(), m.id);
-  }
+  for (const m of await createRepos(supabase).members.byEmails(emails)) memberIdByEmail.set(m.email.toLowerCase(), m.id);
 
   const grants = await fetchAll(supabase, "course_access_grants", "member_id, course_id, starts_at, ends_at", (q) =>
     q.in("course_id", courses.map((c) => c.id))

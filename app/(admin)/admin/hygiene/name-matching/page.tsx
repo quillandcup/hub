@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -24,7 +25,7 @@ export default async function NameMatchingReportPage() {
   // Get active members with their attendance count, all members, and aliases in parallel
   const [
     { data: activeMembers },
-    { data: allMembers },
+    allMembers,
     { data: aliases },
   ] = await Promise.all([
     supabase
@@ -37,9 +38,7 @@ export default async function NameMatchingReportPage() {
       `)
       .eq("status", "active")
       .order("name"),
-    supabase
-      .from("members")
-      .select("id, name, email"),
+    createRepos(supabase).members.identities(),
     supabase
       .from("member_name_aliases")
       .select("alias, member_id, source"),
@@ -90,7 +89,7 @@ export default async function NameMatchingReportPage() {
     const matchResult = matchAttendeeToMember(
       zoomName,
       email,
-      allMembers || [],
+      allMembers,
       aliases || []
     );
 

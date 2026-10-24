@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addMonthsClamped } from "@/lib/member-tenure";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -82,12 +83,6 @@ export function hostEligibilityMessage(eligibility: HostEligibility): string {
   return `${base} — for you, that's ${date}.`;
 }
 
-interface HostEligibilityMemberRow {
-  id: string;
-  first_joined_at: string | null;
-  most_recent_joined_at: string | null;
-}
-
 // Loads join dates for the given members and computes each one's host
 // eligibility. Members not found are omitted from the result.
 export async function fetchHostEligibilityByMember(
@@ -99,25 +94,8 @@ export async function fetchHostEligibilityByMember(
   const ids = [...new Set(memberIds)];
   if (ids.length === 0) return result;
 
-  // .in() filters go in the URL, so chunk to keep requests a sane size.
-  const ID_CHUNK = 100;
-  const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += ID_CHUNK) chunks.push(ids.slice(i, i + ID_CHUNK));
-
-  const responses = await Promise.all(
-    chunks.map((chunk) =>
-      supabase.from("members").select("id, first_joined_at, most_recent_joined_at").in("id", chunk)
-    )
-  );
-
-  for (const res of responses) {
-    if (res.error) throw res.error;
-    for (const m of (res.data ?? []) as HostEligibilityMemberRow[]) {
-      result.set(
-        m.id,
-        getHostEligibility({ firstJoinedAt: m.first_joined_at, mostRecentJoinedAt: m.most_recent_joined_at }, now)
-      );
-    }
+  for (const m of await createRepos(supabase).members.byIds(ids)) {
+    result.set(m.id, getHostEligibility({ firstJoinedAt: m.firstJoinedAt, mostRecentJoinedAt: m.mostRecentJoinedAt }, now));
   }
   return result;
 }

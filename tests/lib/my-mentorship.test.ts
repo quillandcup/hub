@@ -1,3 +1,5 @@
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { badgeHref } from "@/lib/badges";
 import { currentMentorships, type MyMentorshipRow } from "@/lib/my-mentorship";
@@ -114,14 +116,23 @@ vi.mock("@/lib/notifications/notify", () => ({ createNotifier: (...a: unknown[])
 let flagged = new Set<string>();
 vi.mock("@/lib/features.server", () => ({ membersWithFeature: async () => flagged }));
 
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+
 import { sendMatchIntroductions } from "@/lib/mentorship-intro";
 
 describe("sendMatchIntroductions", () => {
-  const service = (members: unknown[]) =>
-    ({ from: () => ({ select: () => ({ in: async () => ({ data: members }) }) }) }) as never;
+  // Names come from the members repository (in memory here); the client is only handed through.
+  const service = (members: { id: string; name: string; displayName: string | null }[]) => {
+    repos = createInMemoryRepos(new InMemoryDataset({ members }));
+    return {} as never;
+  };
   const members = [
-    { id: "mentor", name: "Ada Quill", display_name: null },
-    { id: "new", name: "Bea Moss", display_name: null },
+    { id: "mentor", name: "Ada Quill", displayName: null },
+    { id: "new", name: "Bea Moss", displayName: null },
   ];
   const match = { mentorMemberId: "mentor", newMemberId: "new", startedOn: "2026-06-01" };
 

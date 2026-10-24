@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { withAction } from "@/lib/analytics/server";
 import { chatCaller, postingCaller, type ChatCaller } from "@/lib/chat/caller";
 import { isId } from "@/lib/ids";
@@ -150,8 +151,7 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
   if (wanted.length === 0) return { ok: true };
 
   // Only people who are active members can be added.
-  const { data: active } = await service.from("members").select("id").in("id", wanted).eq("status", "active");
-  const activeIds = new Set((active ?? []).map((m) => m.id as string));
+  const activeIds = new Set((await createRepos(service).members.byIds(wanted)).filter((m) => m.status === "active").map((m) => m.id));
   const notActive = wanted.filter((id) => !activeIds.has(id));
   if (notActive.length > 0) return { ok: false, error: "Only active members can be added." };
 
@@ -275,12 +275,12 @@ export async function searchMembersToAdd(channelId: string, query: string): Prom
   const ids = matches.map((m) => m.id as string).filter((id) => id !== caller.identity.memberId);
   if (ids.length === 0) return [];
 
-  const [{ data: active }, present, slackIds] = await Promise.all([
-    service.from("members").select("id").in("id", ids).eq("status", "active"),
+  const [candidates, present, slackIds] = await Promise.all([
+    createRepos(service).members.byIds(ids),
     alreadyIn(channelId, ids),
     slackUserIdsFor(service, ids),
   ]);
-  const activeIds = new Set((active ?? []).map((m) => m.id as string));
+  const activeIds = new Set(candidates.filter((m) => m.status === "active").map((m) => m.id));
   return matches
     .filter((m) => activeIds.has(m.id as string) && !present.has(m.id as string) && m.id !== caller.identity.memberId)
     .slice(0, 8)

@@ -4,6 +4,7 @@ import type { MemberRepository } from "@/lib/data/members";
 /** A seeded member; `user` points at one of the context's two auth users. */
 export type MemberSeedRecord = {
   name: string;
+  kajabiId?: string;
   displayName?: string;
   status?: string;
   user?: 0 | 1;
@@ -53,6 +54,39 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       });
       expect(everyone.find((m) => m.id === fern)?.displayName).toBeNull();
       expect(active.map((m) => m.id).sort()).toEqual([ada, gale].sort());
+    });
+
+    it("lists full member records by id or by name, optionally one status, in a stable order", async () => {
+      const [zed, amy, bea] = await ctx.seed([
+        { name: "Zed Example", kajabiId: "kaj-1" },
+        { name: "Amy Example", status: "cancelled" },
+        { name: "Bea Example" },
+      ]);
+      const ours = new Set([zed, amy, bea]);
+      const mine = async (options?: Parameters<ReturnType<typeof ctx.repo>["list"]>[0]) =>
+        (await ctx.repo().list(options)).filter((m) => ours.has(m.id));
+
+      const byName = await mine({ orderBy: "name" });
+      const byId = await mine();
+      const active = await mine({ status: "active", orderBy: "name" });
+
+      expect(byName.map((m) => m.name)).toEqual(["Amy Example", "Bea Example", "Zed Example"]);
+      expect(byId.map((m) => m.id).sort()).toEqual([zed, amy, bea].sort());
+      expect((await mine()).map((m) => m.id)).toEqual(byId.map((m) => m.id));
+      expect(active.map((m) => m.name)).toEqual(["Bea Example", "Zed Example"]);
+      expect(byName.find((m) => m.id === zed)?.kajabiId).toMatch(/^kaj-1/);
+      expect(byName.find((m) => m.id === amy)?.kajabiId).toBeNull();
+      expect(byName.find((m) => m.id === zed)).toMatchObject({ status: "active", stripeCustomerId: null });
+    });
+
+    it("finds members by email, and counts them all", async () => {
+      const [ada, fern] = await ctx.seed([{ name: "Ada Example" }, { name: "Fern Example" }, { name: "Gale Example" }]);
+
+      const found = await ctx.repo().byEmails([ctx.emailOf(ada), ctx.emailOf(fern), "nobody@example.test"]);
+
+      expect(found.map((m) => m.id).sort()).toEqual([ada, fern].sort());
+      expect(await ctx.repo().byEmails([])).toEqual([]);
+      expect(await ctx.repo().count()).toBeGreaterThanOrEqual(3);
     });
 
     it("pages through more than a thousand members", async () => {
