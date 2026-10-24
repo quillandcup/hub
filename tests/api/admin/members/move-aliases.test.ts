@@ -2,12 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/members/move-aliases/route";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
 
-import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
@@ -79,10 +77,6 @@ describe("POST /api/admin/members/move-aliases", () => {
       filters: [["in", "id", ["n1"]]],
     });
     expect(vi.mocked(triggerAttendanceReprocessing).mock.calls[0][0].from.toISOString()).toBe("2025-01-02T10:00:00.000Z");
-
-    // Both members' pages (every tab) are refreshed.
-    expect(revalidatePath).toHaveBeenCalledWith(`/admin/members/${FROM.id}`, "layout");
-    expect(revalidatePath).toHaveBeenCalledWith(`/admin/members/${TO.id}`, "layout");
   });
 
   it("falls back to the last 90 days without attendance", async () => {

@@ -246,10 +246,13 @@ have been checked and fixed, or after a set period with no use; whichever comes 
 Check the `audit_log`/activity feed for recent use before deleting.
 
 ### Refresh Admin Member Pages After Moving Aliases
-**Resolved:** the split and move-aliases routes call `revalidatePath` for the source and
-target members, and `SplitMemberModal` calls `router.refresh()` before navigating (a route
-handler's `revalidatePath` doesn't clear the client router cache). The stale Identity tab
-symptom was never reproduced, so the cache was the suspected cause, not a confirmed one.
+Unconfirmed. After "Move ticked names and emails to ..." in the Split dialog, the source
+member's Identity tab once kept showing the moved email briefly. It has not been reproduced.
+The suspected cause is the client router cache, so `SplitMemberModal` calls `router.refresh()`
+before navigating; whether that is needed is unknown. The routes do not call `revalidatePath`
+(a route handler's call doesn't clear the client cache, so it was removed). Retry the repro
+(move an alias, then open the source member's Identity tab); if it still happens, capture
+what the page shows and when, and check whether the alias row is gone at that moment.
 
 ### Multi-Environment Setup
 **Status:** Documentation created, awaiting implementation
