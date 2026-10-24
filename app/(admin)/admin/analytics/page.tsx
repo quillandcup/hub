@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -80,7 +81,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   // A rate from a handful of visits, or of a control that just shipped, says nothing: hold those back.
   const minVisits = wholeNumber(params.min, 10, 1);
   const minAgeDays = wholeNumber(params.age, 14, 0);
-  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  const since = new Date(clock.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
   const [summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
@@ -91,7 +92,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
     supabase.rpc("analytics_notification_rates", { since, ...audienceArgs }),
     ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}), ...audienceArgs })),
   ]);
-  const oldEnough = Date.now() - minAgeDays * DAY_MS;
+  const oldEnough = clock.now() - minAgeDays * DAY_MS;
   const allControls = (controlRates.data ?? []) as ControlRateRow[];
   const judged = allControls.filter((c) => c.seen_sessions >= minVisits && Date.parse(c.first_seen) <= oldEnough);
   const held = allControls.length - judged.length;

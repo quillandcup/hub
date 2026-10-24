@@ -18,28 +18,28 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const pollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pollStatus = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/admin/events/${eventId}/photos/import/status`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Failed to check picker status");
-      if (body.mediaItemsSet) {
-        setPhase("importing");
-        return;
-      }
-      pollTimeout.current = setTimeout(pollStatus, body.pollIntervalMs || 2000);
-    } catch (err: any) {
-      setError(err.message);
-      setPhase("error");
-    }
-  }, [eventId]);
-
   useEffect(() => {
+    // The poll reschedules itself, so it lives inside the effect where it can name itself.
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/admin/events/${eventId}/photos/import/status`);
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Failed to check picker status");
+        if (body.mediaItemsSet) {
+          setPhase("importing");
+          return;
+        }
+        pollTimeout.current = setTimeout(pollStatus, body.pollIntervalMs || 2000);
+      } catch (err: any) {
+        setError(err.message);
+        setPhase("error");
+      }
+    };
     pollStatus();
     return () => {
       if (pollTimeout.current) clearTimeout(pollTimeout.current);
     };
-  }, [pollStatus]);
+  }, [eventId]);
 
   const runImportLoop = useCallback(async () => {
     try {

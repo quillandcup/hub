@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
@@ -66,15 +66,7 @@ export default function MemberOverridesClient() {
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
-  useEffect(() => {
-    fetchOverrides();
-    fetch("/api/members")
-      .then((res) => res.json())
-      .then((body) => setAllMembers(body.members || []))
-      .catch(() => {});
-  }, []);
-
-  const fetchOverrides = async () => {
+  const fetchOverrides = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/member-overrides");
@@ -91,7 +83,16 @@ export default function MemberOverridesClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchOverrides();
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setAllMembers(body.members || []))
+      .catch(() => {});
+  }, [fetchOverrides]);
+
 
   const handleEdit = (override: MemberOverride) => {
     setEditingOverride(override);

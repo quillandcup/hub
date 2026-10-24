@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -69,7 +70,7 @@ export default async function AtRiskPage() {
       totalAttendance,
       lastAttendance,
       daysSinceLastAttendance: lastAttendance
-        ? Math.floor((Date.now() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((clock.now() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
         : null,
     };
   });

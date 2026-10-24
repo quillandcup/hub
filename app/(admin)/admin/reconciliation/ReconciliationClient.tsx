@@ -192,18 +192,7 @@ export default function ReconciliationClient() {
     resetKey: String(filterDiscrepancies),
   });
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const fetchAll = async () => {
-    setLoading(true);
-    setError(null);
-    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchKajabiGrants(), fetchZoomAccess()]);
-    setLoading(false);
-  };
-
-  const fetchReconciliation = async () => {
+  const fetchReconciliation = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/subscription-reconciliation");
       const result = await response.json();
@@ -213,14 +202,14 @@ export default function ReconciliationClient() {
       console.error("Error fetching reconciliation:", err);
       setError(err.message);
     }
-  };
+  }, []);
 
   const handleOverrideSaved = () => {
     setEditingMemberId(null);
     fetchReconciliation();
   };
 
-  const fetchSlackData = async () => {
+  const fetchSlackData = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/slack-reconciliation");
       const result = await response.json();
@@ -229,9 +218,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Slack reconciliation:", err);
     }
-  };
+  }, []);
 
-  const fetchStripeOrphans = async () => {
+  const fetchStripeOrphans = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/stripe-orphans");
       const result = await response.json();
@@ -240,9 +229,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Stripe orphans:", err);
     }
-  };
+  }, []);
 
-  const fetchKajabiGrants = async () => {
+  const fetchKajabiGrants = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/kajabi-grants");
       const result = await response.json();
@@ -251,9 +240,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Kajabi grants:", err);
     }
-  };
+  }, []);
 
-  const fetchZoomAccess = async () => {
+  const fetchZoomAccess = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/zoom-access");
       const result = await response.json();
@@ -262,7 +251,18 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Zoom access:", err);
     }
-  };
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchKajabiGrants(), fetchZoomAccess()]);
+    setLoading(false);
+  }, [fetchReconciliation, fetchSlackData, fetchStripeOrphans, fetchKajabiGrants, fetchZoomAccess]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   if (loading) {
     return (

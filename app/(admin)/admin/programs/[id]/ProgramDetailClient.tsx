@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import MultiSelectSearch from "@/components/MultiSelectSearch";
 import { SortableTh } from "@/components/SortableTh";
@@ -130,10 +130,6 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [enrollingSelectedCohortId, setEnrollingSelectedCohortId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [programId]);
-
-  useEffect(() => {
     fetch("/api/members")
       .then((res) => res.json())
       .then((body) => setAllMembers(body.members || []))
@@ -144,11 +140,15 @@ export default function ProgramDetailClient({ programId }: { programId: string }
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (data?.program) setOfferNamesSelection(data.program.kajabi_offer_names || []);
-  }, [data?.program.id]);
+  // Reset the editable offer selection when a different program loads (adjusting state while
+  // rendering, not in an effect, so there is no extra commit with stale names).
+  const [selectionProgramId, setSelectionProgramId] = useState<string | undefined>(undefined);
+  if (data?.program && data.program.id !== selectionProgramId) {
+    setSelectionProgramId(data.program.id);
+    setOfferNamesSelection(data.program.kajabi_offer_names || []);
+  }
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/programs/${programId}`);
@@ -160,7 +160,12 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     } finally {
       setLoading(false);
     }
-  };
+  }, [programId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const handleCreateCohort = async (e: React.FormEvent) => {
     e.preventDefault();

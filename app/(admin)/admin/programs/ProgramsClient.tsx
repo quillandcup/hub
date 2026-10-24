@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -52,11 +52,7 @@ export default function ProgramsClient() {
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
-  useEffect(() => {
-    fetchPrograms();
-  }, []);
-
-  const fetchPrograms = async () => {
+  const fetchPrograms = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/programs");
@@ -68,7 +64,12 @@ export default function ProgramsClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPrograms();
+  }, [fetchPrograms]);
+
 
   // Whether joining the program makes someone a member, so they get a Big Sister.
   const setIncludesMembership = async (program: Program, includes: boolean) => {

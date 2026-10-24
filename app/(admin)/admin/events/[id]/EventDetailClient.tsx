@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
@@ -73,17 +73,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [eventId]);
-
-  useEffect(() => {
     fetch("/api/members")
       .then((res) => res.json())
       .then((body) => setAllMembers(body.members || []))
       .catch(() => {});
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/events/${eventId}`);
@@ -98,7 +94,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const handleAddAttendee = async (e: React.FormEvent) => {
     e.preventDefault();
