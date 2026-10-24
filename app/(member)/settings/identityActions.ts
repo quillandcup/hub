@@ -10,6 +10,7 @@ import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
+import type { Insert } from "@/lib/data/db";
 
 import { withAction } from "@/lib/analytics/server";
 export interface NameAliasRow {
@@ -17,7 +18,7 @@ export interface NameAliasRow {
   alias: string;
   source: string;
   active: boolean;
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export interface EmailAliasRow {
@@ -25,7 +26,7 @@ export interface EmailAliasRow {
   aliasEmail: string;
   source: string;
   active: boolean;
-  createdAt: string;
+  createdAt: string | null;
 }
 
 export interface IdentitySettings {
@@ -343,7 +344,7 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true } | { e
     member_id: effectiveIdentity.memberId,
     alias_email: trimmed,
     source: "manual",
-  });
+  } as Insert<"member_email_aliases">); // canonical_email is filled in by the trigger
 
   if (error) {
     if (isUniqueViolation(error)) {

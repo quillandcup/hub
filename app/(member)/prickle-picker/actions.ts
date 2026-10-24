@@ -20,6 +20,7 @@ import {
   type TimeOfDay,
   type MoodNow,
   type Vibe,
+  type PrickleTypePurpose,
   type VibePreference,
   PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
@@ -179,12 +180,13 @@ export async function getWizardRecommendations(
         .order("start_time")
         .range(offset, offset + BATCH_SIZE - 1)
     ),
-    fetchAllPaginated<HostVibeRow>((offset) =>
+    // The vibe column is plain text with a check constraint; HostVibeRow narrows it to the Vibe union.
+    fetchAllPaginated<Omit<HostVibeRow, "vibe"> & { vibe: string }>((offset) =>
       supabase
         .from("prickle_host_vibes")
         .select("type_id, host_id, vibe, notes")
         .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    ).then((rows) => rows as HostVibeRow[]),
     fetchMyRatedCheckins(supabase, effectiveIdentity.memberId),
   ]);
 
@@ -193,7 +195,7 @@ export async function getWizardRecommendations(
   const typesMap = new Map<string, PickerPrickleType>(
     (typesResult.data ?? []).map((t) => [
       t.id,
-      { id: t.id, name: t.name, purpose: t.purpose, soloTaskFriendly: t.solo_task_friendly },
+      { id: t.id, name: t.name, purpose: t.purpose as PrickleTypePurpose, soloTaskFriendly: t.solo_task_friendly },
     ])
   );
   const hostsMap = new Map<string, PickerHost>(membersResult.map((m) => [m.id, m]));
@@ -268,7 +270,7 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
     .map((typeId) => ({
       typeId,
       typeName: typeNameById.get(typeId) ?? "Prickle",
-      vibe: vibeByTypeId.get(typeId)?.vibe ?? "balanced",
+      vibe: (vibeByTypeId.get(typeId)?.vibe ?? "balanced") as Vibe,
       notes: vibeByTypeId.get(typeId)?.notes ?? "",
     }))
     .sort((a, b) => a.typeName.localeCompare(b.typeName));

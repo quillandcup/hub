@@ -609,7 +609,7 @@ export async function POST(request: NextRequest) {
       for (const group of ambiguousGroups.values()) {
         const { error: upsertError } = await supabase.rpc('upsert_ambiguous_zoom_name', {
           p_zoom_name: group.name,
-          p_zoom_email: group.email,
+          p_zoom_email: group.email as string, // null is allowed: the function stores it as no email
           p_candidate_member_ids: group.candidateIds,
           p_occurrence_increment: group.count,
         });

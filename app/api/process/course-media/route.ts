@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
   const { data: course } = await supabase.from("courses").select("source_key").eq("slug", slug).eq("source", "kajabi").maybeSingle();
   if (!course) return NextResponse.json({ error: `No published course "${slug}"` }, { status: 404 });
+  if (!course.source_key) return NextResponse.json({ error: `Course "${slug}" has no source key` }, { status: 409 });
 
   try {
     const api = courseMuxApi(createMuxClient());

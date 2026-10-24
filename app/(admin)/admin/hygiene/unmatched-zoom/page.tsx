@@ -27,7 +27,7 @@ export default async function AliasSearchPage() {
   ]);
 
   // Paginate zoom_attendees — table exceeds 1000 rows
-  const allZoomNames: { name: string; email: string | null; meeting_uuid: string }[] = [];
+  const allZoomNames: { name: string; email: string | null; meeting_uuid: string | null }[] = [];
   {
     const BATCH = 1000;
     let offset = 0, hasMore = true;

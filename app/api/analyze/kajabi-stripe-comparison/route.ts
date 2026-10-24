@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Group subscriptions by email for comparison
     const kajabiByEmail = new Map<string, any[]>();
     kajabiPurchases?.forEach(purchase => {
-      const customer = kajabiCustomerMap.get(purchase.kajabi_customer_id);
+      const customer = purchase.kajabi_customer_id ? kajabiCustomerMap.get(purchase.kajabi_customer_id) : undefined;
       if (customer?.email) {
         const email = customer.email.toLowerCase();
         if (!kajabiByEmail.has(email)) {

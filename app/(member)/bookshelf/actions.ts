@@ -76,7 +76,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     publishedDate: row.published_date,
     price: row.price,
     genre: row.genre,
-    format: row.format,
+    format: row.format as BookFormat, // a check constraint limits the column to print and ebook
     projectId: row.project_id,
   }));
 }
@@ -93,8 +93,8 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
     member_id: effectiveIdentity.memberId,
     title: input.title.trim(),
     description: input.description?.trim() || null,
-    cover_url: safeUrl(input.coverUrl),
-    purchase_url: safeUrl(input.purchaseUrl),
+    cover_url: safeUrl(input.coverUrl)!, // validateBookInput rejected anything safeUrl would null
+    purchase_url: safeUrl(input.purchaseUrl)!,
     published_date: input.publishedDate,
     price: input.price ?? null,
     genre: input.genre?.trim() || null,
@@ -135,8 +135,8 @@ export async function updateBook(
     .update({
       title: input.title.trim(),
       description: input.description?.trim() || null,
-      cover_url: safeUrl(input.coverUrl),
-      purchase_url: safeUrl(input.purchaseUrl),
+      cover_url: safeUrl(input.coverUrl)!, // validateBookInput rejected anything safeUrl would null
+      purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
       price: input.price ?? null,
       genre: input.genre?.trim() || null,

@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createZoomClient } from "@/lib/zoom/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
         host_email: meeting.host_email || null,
         host_name: meeting.host_name || null,
         participant_count: meeting.participants_count || null,
-        data: meeting,
+        data: asJson(meeting),
       };
 
       const { error: meetingError } = await supabase
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
         attentiveness_score: p.attentiveness_score || null,
         failover: p.failover || false,
         status: p.status || null,
-        raw_payload: p,
+        raw_payload: asJson(p),
       }));
 
       if (attendeesToInsert.length > 0) {

@@ -9,7 +9,7 @@ export interface UnmatchedZoomName {
 interface ZoomAttendeeRecord {
   name: string;
   email: string | null;
-  meeting_uuid: string;
+  meeting_uuid: string | null;
 }
 
 interface StaffMember {

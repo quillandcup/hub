@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
 
 /**
  * Sync data from Stripe API
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       name: customer.name,
       created_at_stripe: new Date(customer.created * 1000).toISOString(),
       imported_at: importTimestamp,
-      data: customer,
+      data: asJson(customer),
     }));
 
     const { error: customersError } = await supabase
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       name: product.name,
       active: product.active,
       imported_at: importTimestamp,
-      data: product,
+      data: asJson(product),
     }));
 
     const { error: productsError } = await supabase
@@ -78,15 +79,15 @@ export async function POST(request: NextRequest) {
 
     const subscriptionRecords = subscriptions.map(subscription => ({
       stripe_subscription_id: subscription.id,
-      stripe_customer_id: subscription.customer,
+      stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
       status: subscription.status,
       current_period_start: (subscription as any).current_period_start ? new Date((subscription as any).current_period_start * 1000).toISOString() : null,
       current_period_end: (subscription as any).current_period_end ? new Date((subscription as any).current_period_end * 1000).toISOString() : null,
       canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
       created_at_stripe: new Date(subscription.created * 1000).toISOString(),
-      pause_collection: subscription.pause_collection,
+      pause_collection: asJson(subscription.pause_collection),
       imported_at: importTimestamp,
-      data: subscription,
+      data: asJson(subscription),
     }));
 
     const { error: subscriptionsError } = await supabase

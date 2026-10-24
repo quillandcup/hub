@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Category = "milestone" | "community" | "course" | "retreat" | "special";
+export type Category = "milestone" | "community" | "course" | "retreat" | "special";
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: "milestone", label: "Milestone" },

@@ -27,7 +27,7 @@ export default async function UnmatchedSlackUsersPage() {
   ]);
 
   // Paginate slack_messages to get complete activity counts per user — table exceeds 1000 rows
-  const slackMessages: { user_id: string }[] = [];
+  const slackMessages: { user_id: string | null }[] = [];
   {
     const BATCH = 1000;
     let offset = 0, hasMore = true;
@@ -59,7 +59,7 @@ export default async function UnmatchedSlackUsersPage() {
   // Count messages per user
   const messageCountByUser = new Map<string, number>();
   for (const msg of slackMessages) {
-    messageCountByUser.set(msg.user_id, (messageCountByUser.get(msg.user_id) || 0) + 1);
+    if (msg.user_id) messageCountByUser.set(msg.user_id, (messageCountByUser.get(msg.user_id) || 0) + 1);
   }
 
   // Find unmatched users (not matched, not ignored, not bots)

@@ -14,7 +14,7 @@ interface SlackUser {
   email: string | null;
   real_name: string | null;
   display_name: string | null;
-  is_deleted?: boolean;
+  is_deleted?: boolean | null;
 }
 
 function SlackUserSearch({

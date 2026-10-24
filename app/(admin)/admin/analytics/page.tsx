@@ -86,8 +86,8 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   const supabase = await createClient();
   const [summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
     supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
-    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
-    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
     supabase.rpc("analytics_action_outcomes", { since, ...audienceArgs }),
     supabase.rpc("analytics_notification_rates", { since, ...audienceArgs }),
     ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}), ...audienceArgs })),

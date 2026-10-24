@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     const memberList = members.map((m) => ({ id: m.id, name: m.name, email: m.email }));
 
     // Paginate zoom_attendees for the last 90 days
-    const attendees: Array<{ name: string; email: string | null; meeting_uuid: string }> = [];
+    const attendees: Array<{ name: string; email: string | null; meeting_uuid: string | null }> = [];
     {
       let offset = 0;
       let hasMore = true;
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
               meetings: new Set(),
             });
           }
-          inactiveMatchCounts.get(result.member_id)!.meetings.add(attendee.meeting_uuid);
+          if (attendee.meeting_uuid) inactiveMatchCounts.get(result.member_id)!.meetings.add(attendee.meeting_uuid);
         }
       }
     }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
+import type { PrickleTypePurpose } from "@/lib/prickle-picker";
 
 const getPrickleType = cache(async (id: string) => {
   const supabase = await createClient();
@@ -76,7 +77,7 @@ export default async function EditPrickleTypePage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-2xl">
-          <EditPrickleTypeForm prickleType={prickleType} />
+          <EditPrickleTypeForm prickleType={{ ...prickleType, purpose: prickleType.purpose as PrickleTypePurpose }} />
         </div>
       </main>
     </div>

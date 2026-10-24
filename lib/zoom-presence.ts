@@ -1,5 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import type { Json } from "@/lib/data/database.types";
 
 /**
  * Live Zoom presence from the participant joined/left webhooks (bronze.zoom_participant_events,
@@ -38,7 +39,7 @@ export interface ParticipantEventRow {
   participant_email: string | null;
   event_time: string;
   leave_reason: string | null;
-  raw_payload: unknown;
+  raw_payload: Json;
 }
 
 const PARTICIPANT_EVENTS: Record<string, "joined" | "left"> = {

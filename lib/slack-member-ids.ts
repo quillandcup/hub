@@ -77,8 +77,9 @@ async function buildSlackUserIdToMemberIdMap(
     const emailMatches = userEmail
       ? members.filter((row) => row.email?.toLowerCase() === userEmail)
       : [];
-    const nameMatches = user.real_name
-      ? members.filter((row) => row.name && normalizeName(row.name) === normalizeName(user.real_name))
+    const realName = user.real_name;
+    const nameMatches = realName
+      ? members.filter((row) => row.name && normalizeName(row.name) === normalizeName(realName))
       : [];
     const candidates = manual.length ? manual.map((row) => row.member_id) : emailMatches.length
       ? emailMatches.map((row) => row.id) : nameMatches.map((row) => row.id);

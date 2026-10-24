@@ -18,6 +18,10 @@ export const maxDuration = 300; // 5 minutes
 const PROJECTION_WINDOW_DAYS = 1;
 const BATCH_SIZE = 1000;
 
+/** What the reprocess functions report (their jsonb result, as the generated types see it: any JSON). */
+type ReprocessCounts = { messages?: number; reactions?: number };
+type ChannelCounts = { channels?: number; members?: number };
+
 /**
  * Process Bronze Slack data into the chat mirror (chat_channels, chat_channel_members,
  * chat_messages, chat_message_contents, chat_reactions). See docs/SLACK_BRIDGED_CHAT.md.
@@ -48,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Load reference data upfront (members and aliases can exceed 1000 rows)
     const members = await createRepos(supabase).members.identities();
-    const aliases: { alias: string; member_id: string; source: "zoom" | "slack" }[] = [];
+    const aliases: { alias: string; member_id: string; source: string }[] = [];
     for (let offset = 0; ; offset += BATCH_SIZE) {
       const { data: a, error: ae } = await supabase
         .from("member_name_aliases")
@@ -98,8 +102,8 @@ export async function POST(request: NextRequest) {
         );
         throw error;
       }
-      messages += result?.messages ?? 0;
-      reactions += result?.reactions ?? 0;
+      messages += (result as ReprocessCounts | null)?.messages ?? 0;
+      reactions += (result as ReprocessCounts | null)?.reactions ?? 0;
     }
 
     console.log(
@@ -133,8 +137,8 @@ export async function POST(request: NextRequest) {
       processed: {
         purgedStaged,
         sweptFiles,
-        channels: channelResult?.channels ?? 0,
-        members: channelResult?.members ?? 0,
+        channels: (channelResult as ChannelCounts | null)?.channels ?? 0,
+        members: (channelResult as ChannelCounts | null)?.members ?? 0,
         messages,
         reactions,
         outboxSent: outbox.sent,

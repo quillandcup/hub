@@ -1,11 +1,12 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createServiceClient(url, key, {
+  return createServiceClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

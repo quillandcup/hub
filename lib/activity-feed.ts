@@ -218,13 +218,19 @@ export interface ReactionRow {
   activity_type?: string | null;
   event_type?: string | null;
   title?: string | null;
-  data?: Record<string, unknown> | null;
+  /** Activity data: an object for reactions, though the column's type is any JSON value. */
+  data?: unknown;
 }
 
 /** The emoji name (no colons) of a Slack reaction row, else null. */
+/** The row's data when it is an object (arrays and scalars are not activity data). */
+export function dataObject(data: unknown): Record<string, unknown> | null {
+  return data !== null && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+}
+
 export function reactionName(row: ReactionRow): string | null {
   if ((row.activity_type ?? row.event_type) !== "slack_reaction") return null;
-  const fromData = row.data?.reaction;
+  const fromData = dataObject(row.data)?.reaction;
   if (typeof fromData === "string" && fromData) return fromData;
   return row.title?.match(/:([^:\s]+(?:::skin-tone-\d)?):/)?.[1] ?? null;
 }

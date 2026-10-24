@@ -3,6 +3,7 @@ import { getMonthStart, getNextMonthStart, seedNextMonthSchedules, validateSched
 import { fetchHostEligibilityByMember } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { Insert } from "@/lib/data/db";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "status must be one of: proposed, confirmed, declined" }, { status: 400 });
     }
 
-    const insert: Record<string, unknown> = {
+    const insert: Insert<"prickle_schedules"> = {
       host_id,
       type_id: body.type_id,
       month: body.month,

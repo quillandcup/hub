@@ -102,7 +102,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
           .gte("occurred_at", activityWindowStart)
           .range(offset, offset + BATCH_SIZE - 1)
       ),
-      fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
+      fetchAllPaginated<{ member_id: string; alias: string; source: string }>((offset) =>
         supabase
           .from("member_name_aliases")
           .select("member_id, alias, source")

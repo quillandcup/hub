@@ -266,7 +266,7 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   const { data, error } = await supabase.rpc("chat_post_message", {
     p_channel_id: channelId,
     p_body: body,
-    p_thread_root_id: threadRootId ?? null,
+    p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
     ...(files ? { p_files: files } : {}),
   });
   if (error || !data) {

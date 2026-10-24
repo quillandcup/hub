@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createRepos } from "@/lib/data/repos";
 import type { Member } from "@/lib/data/members";
+import type { Insert, Update } from "@/lib/data/db";
 import { NextRequest, NextResponse } from "next/server";
 
 // Throws on a Supabase error instead of letting the merge carry on: the
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
     // must land before the delete below.
     await run(supabase.from("member_email_aliases").update({ member_id: primaryId }).eq("member_id", secondaryId));
     await run(supabase.from("member_email_aliases").upsert(
-      { member_id: primaryId, alias_email: secondary.email.toLowerCase(), source: "manual" },
+      { member_id: primaryId, alias_email: secondary.email.toLowerCase(), source: "manual" } as Insert<"member_email_aliases">, // canonical_email: the trigger
       { onConflict: "alias_email" }
     ));
 
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
       run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
     ];
     if (Object.keys(primaryPatch).length > 0) {
-      patchAndCleanup.push(run(supabase.from("members").update(primaryPatch).eq("id", primaryId)));
+      patchAndCleanup.push(run(supabase.from("members").update(primaryPatch as Update<"members">).eq("id", primaryId)));
     }
     await Promise.all(patchAndCleanup);
 
