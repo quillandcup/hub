@@ -1319,6 +1319,13 @@ Only meaningful once a few weeks of check-ins exist.
 - **Normalized prickle ratings:** score a prickle series by each member's "got what I came for" and mood change minus that member's own average, so a member who always answers low doesn't drag a series down (and one who answers everything "Completely" doesn't inflate it). Use it wherever series ratings surface (Prickle Picker ranking, host stats).
 - Same privacy rules as check-ins: members see only their own; any host-facing aggregate needs at least 5 distinct members (see the check-in visibility entry above).
 
+### Prickle Check-ins: Learn Feeling Suggestions from Searches (Needs Scoping)
+The "Name the feeling" search suggests Feeling Wheel words for common words that aren't on the wheel ("stuck" → Frustrated, Discouraged, Helpless). That table, `EMOTION_SUGGESTIONS` in `lib/prickle-checkins.ts`, was written by hand from the old feelings list, so it only knows the words we guessed. Deferred from the Feeling Wheel PR (#361) to ship the redesign first.
+- Record, anonymously, what members type into the feeling search and what they pick next (or that they picked nothing): the term and the chosen wheel word, no member id, so typed text can't be traced to a person. It is typed text, so it can't be a `track()` property (`docs/ANALYTICS.md`); it needs its own small table (service role writes, admin reads, with explicit grants per `supabase-table-grants.md`) or an aggregate counter per (term, pick).
+- An admin view listing frequent terms with no exact match and what people chose for them, as input for new `EMOTION_SUGGESTIONS` entries (still added by hand and reviewed).
+- Covers the in-app picker (`EmotionPicker` in `components/writing/CheckinFields.tsx`, which matches with `searchEmotions`). Slack filters its own select client-side, so those searches can't be seen.
+- Add a line to the privacy page saying feeling searches are logged without a name.
+
 ### In-App Pipeline Visualization + Next-Stage Nudges (Needs Scoping)
 Show each member, on their own writing project, a visual of where they sit in the overall Quill & Cup pipeline (idea → draft → self-edit → feedback → publish → launch/sell) — both to make the system visible ("we have a system, and you're on it") and to nudge them toward the next stage as they approach it, which doubles as adoption/revenue for the programs at each stage as they get built.
 
