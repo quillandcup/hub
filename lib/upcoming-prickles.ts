@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos"
+import type { PrickleDetail } from "@/lib/data/prickles"
 import type { createClient } from "@/lib/supabase/server"
 import {
   computePrickleStreaks,
@@ -106,16 +107,6 @@ function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string;
   return { dayOfWeek, startHour: parseInt(hourStr, 10) % 24 }
 }
 
-type RawHost = { id: string; name: string; display_name: string | null }
-
-type RawUpcomingPrickle = {
-  id: string
-  type_id: string | null
-  start_time: string
-  prickle_types: { name: string } | { name: string }[] | null
-  host: RawHost | RawHost[] | null
-}
-
 export type UpcomingPrickle = {
   id: string
   typeId: string | null
@@ -150,18 +141,17 @@ function sisterReasonText(signal: SisterSignal): string {
   return `${name} came ${attendedCount} of the last ${totalOccurrences}`
 }
 
-function toUpcomingPrickle(p: RawUpcomingPrickle, timeZone: string): UpcomingPrickle {
-  const type = unwrapOne(p.prickle_types)
-  const host = unwrapOne(p.host)
-  const { dayOfWeek, startHour } = getLocalDayAndHour(p.start_time, timeZone)
-  const typeName = type?.name ?? "Prickle"
+function toUpcomingPrickle(p: PrickleDetail, timeZone: string): UpcomingPrickle {
+  const { host } = p
+  const { dayOfWeek, startHour } = getLocalDayAndHour(p.startTime, timeZone)
+  const typeName = p.type?.name ?? "Prickle"
   return {
     id: p.id,
-    typeId: p.type_id,
+    typeId: p.typeId,
     typeName,
-    startTime: p.start_time,
+    startTime: p.startTime,
     hostId: host?.id ?? null,
-    hostName: host ? getMemberDisplayName(host) : null,
+    hostName: host ? getMemberDisplayName({ name: host.name, display_name: host.displayName }) : null,
     dayOfWeek,
     startHour,
     seriesKey: seriesKeyFor(typeName, dayOfWeek, startHour),
@@ -176,17 +166,8 @@ async function fetchPrickles(
   timeZone: string,
   inclusiveEnd: boolean
 ): Promise<UpcomingPrickle[]> {
-  const raw = await fetchAllPaginated<RawUpcomingPrickle>((offset) => {
-    const q = supabase
-      .from("prickles")
-      .select("id, type_id, start_time, prickle_types(name), host:prickle_host(id, name, display_name)")
-      .gte("start_time", from)
-    return (inclusiveEnd ? q.lte("start_time", to) : q.lt("start_time", to))
-      .order("start_time")
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  })
-  return raw.map((p) => toUpcomingPrickle(p, timeZone))
+  const prickles = await createRepos(supabase).prickles.startingBetween({ from, to, inclusiveEnd })
+  return prickles.map((p) => toUpcomingPrickle(p, timeZone))
 }
 
 /** Every attendance row (multiple per member/prickle is normal -- leave/rejoin) for these prickles. */

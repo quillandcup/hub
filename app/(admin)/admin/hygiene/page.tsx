@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
@@ -30,7 +31,7 @@ export default async function DataHygienePage() {
   // Fetch data quality metrics
   const [
     { count: totalCalendarEvents },
-    { count: matchedCalendarEvents },
+    matchedCalendarEvents,
     { count: unmatchedCalendarEvents },
     { count: calendarPricklesWithHost },
     { count: calendarPricklesMissingHost },
@@ -54,7 +55,7 @@ export default async function DataHygienePage() {
     { data: slackChannelsForAccessCheck },
   ] = await Promise.all([
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
-    supabase.from("prickles").select("*", { count: "exact", head: true }).eq("source", "calendar"),
+    createRepos(supabase).prickles.countBySource("calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
     // Count prickles with hosts (only those that require hosts)
     supabase.from("prickles").select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })

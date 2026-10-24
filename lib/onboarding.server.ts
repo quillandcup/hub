@@ -125,12 +125,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       .eq("member_id", memberId)
       .eq("status", "active"),
     supabase.from("calendar_feed_items").select("id", { count: "exact", head: true }).eq("member_id", memberId),
-    supabase.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId),
-    supabase
-      .from("prickles")
-      .select("id", { count: "exact", head: true })
-      .eq("host", memberId)
-      .gte("start_time", hostHistoryStart.toISOString()),
+    createRepos(supabase).prickles.countHostedBy(memberId),
+    createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
     supabase
       .from("prickle_schedules")
       .select("month")
@@ -161,10 +157,10 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       latestProjectId: latestProject.data?.id ?? null,
       hasGoal: (goals.count ?? 0) > 0,
       hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,
-      isHost: (hostedEver.count ?? 0) > 0 || latestScheduleMonth !== null,
+      isHost: hostedEver > 0 || latestScheduleMonth !== null,
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
-      hostedRecently: (hostedRecently.count ?? 0) > 0,
+      hostedRecently: hostedRecently > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
       hasBirthday: birthday.data?.birthday_month != null && birthday.data?.birthday_day != null,

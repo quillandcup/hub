@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -134,8 +135,8 @@ async function selfServeHostingBlock(
   };
   if (eligibility.eligible) return null;
 
-  const [{ count: hostedCount }, { count: confirmedCount }] = await Promise.all([
-    supabase.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId),
+  const [hostedCount, { count: confirmedCount }] = await Promise.all([
+    createRepos(supabase).prickles.countHostedBy(memberId),
     supabase
       .from("prickle_schedules")
       .select("id", { count: "exact", head: true })
@@ -143,7 +144,7 @@ async function selfServeHostingBlock(
       .eq("status", "confirmed")
       .is("deleted_at", null),
   ]);
-  if ((hostedCount ?? 0) > 0 || (confirmedCount ?? 0) > 0) return null;
+  if (hostedCount > 0 || (confirmedCount ?? 0) > 0) return null;
 
   return hostEligibilityMessage(eligibility);
 }

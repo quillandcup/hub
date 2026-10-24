@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { createRepos } from "@/lib/data/repos"
+import type { PrickleDetail } from "@/lib/data/prickles"
 import { buildAttendanceMap } from "@/lib/scheduled-prickle-stats"
 import { getMemberDisplayName } from "@/lib/member-display-name"
 
@@ -11,29 +12,8 @@ import { getMemberDisplayName } from "@/lib/member-display-name"
 // instances by personal relevance rather than describing the recurring
 // pattern itself.
 
-const BATCH_SIZE = 1000
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: unknown }>
-): Promise<T[]> {
-  let all: T[] = []
-  let offset = 0
-  let hasMore = true
-  while (hasMore) {
-    const { data } = await queryFn(offset)
-    const batch = (data as T[] | null) ?? []
-    if (batch.length > 0) {
-      all = all.concat(batch)
-      offset += batch.length
-      hasMore = batch.length === BATCH_SIZE
-    } else {
-      hasMore = false
-    }
-  }
-  return all
-}
 
 function unwrapOne<T>(ref: T | T[] | null | undefined): T | null {
   if (Array.isArray(ref)) return ref[0] ?? null
@@ -50,6 +30,16 @@ type RawPrickleRow = {
   prickle_types: { name: string } | { name: string }[] | null
   host: Host | Host[] | null
 }
+
+/** The repository's prickle in the row shape the grouping code below was written against. */
+const toRawRow = (p: PrickleDetail): RawPrickleRow => ({
+  id: p.id,
+  type_id: p.typeId,
+  start_time: p.startTime,
+  end_time: p.endTime,
+  prickle_types: p.type ? { name: p.type.name } : null,
+  host: p.host ? { id: p.host.id, name: p.host.name, display_name: p.host.displayName } : null,
+})
 
 export interface PrickleScheduleRow {
   seriesKey: string
@@ -165,15 +155,9 @@ export async function getPrickleScheduleOverview(
   const windowEnd = new Date(now.getTime() + upcomingWindowDays * 24 * 60 * 60 * 1000).toISOString()
   const nowIso = now.toISOString()
 
-  const raw = await fetchAllPaginated<RawPrickleRow>((offset) =>
-    supabase
-      .from("prickles")
-      .select("id, type_id, start_time, end_time, prickle_types(name), host:prickle_host(id, name, display_name)")
-      .gte("start_time", windowStart)
-      .lte("start_time", windowEnd)
-      .order("start_time")
-      .range(offset, offset + BATCH_SIZE - 1)
-  )
+  const raw = (
+    await createRepos(supabase).prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true })
+  ).map(toRawRow)
 
   // Group into upcoming vs. historical occurrences per (type, day, hour) slot.
   const upcomingBySlot = new Map<string, RawPrickleRow[]>()
@@ -306,12 +290,6 @@ export function groupHostedPricklesIntoSlots(
   return [...bySlot.values()].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 }
 
-type RawHostedRow = {
-  id: string
-  type_id: string | null
-  start_time: string
-  prickle_types: { name: string } | { name: string }[] | null
-}
 
 /**
  * The prickles `hostId` is on the calendar to host between now and `windowDays` from now,
@@ -328,23 +306,19 @@ export async function getMemberHostingSchedule(
 ): Promise<HostedScheduleSlot[]> {
   const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000).toISOString()
 
-  const raw = await fetchAllPaginated<RawHostedRow>((offset) =>
-    supabase
-      .from("prickles")
-      .select("id, type_id, start_time, prickle_types(name)")
-      .eq("host", hostId)
-      .gte("start_time", now.toISOString())
-      .lte("start_time", windowEnd)
-      .order("start_time")
-      .range(offset, offset + BATCH_SIZE - 1)
-  )
+  const hosted = await createRepos(supabase).prickles.startingBetween({
+    from: now.toISOString(),
+    to: windowEnd,
+    inclusiveEnd: true,
+    hostId,
+  })
 
   return groupHostedPricklesIntoSlots(
-    raw.map((p) => ({
+    hosted.map((p) => ({
       id: p.id,
-      typeId: p.type_id,
-      typeName: unwrapOne(p.prickle_types)?.name ?? "Prickle",
-      startTime: p.start_time,
+      typeId: p.typeId,
+      typeName: p.type?.name ?? "Prickle",
+      startTime: p.startTime,
     })),
     timeZone
   )
