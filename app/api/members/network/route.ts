@@ -14,26 +14,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get all active members
-    const members: { id: string; name: string; email: string; status: string }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("members")
-          .select("id, name, email, status")
-          .eq("status", "active")
-          .order("name")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          members.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const members = await createRepos(supabase).members.list({ status: "active", orderBy: "name" });
 
     if (members.length === 0) {
       return NextResponse.json({

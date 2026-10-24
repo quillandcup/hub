@@ -10,7 +10,7 @@ vi.mock("@/lib/chat/staging", () => ({ purgeStagedChatFiles: async () => 0 }));
 
 const empty = () => {
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "range"]) chain[m] = () => chain;
+  for (const m of ["select", "eq", "order", "range"]) chain[m] = () => chain;
   chain.then = (resolve: (v: unknown) => void) => resolve({ data: [], error: null });
   return chain;
 };

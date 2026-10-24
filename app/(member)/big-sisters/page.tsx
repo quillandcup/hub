@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -29,22 +30,18 @@ export default async function BigSistersPage() {
   const partnerIds = [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
     (id): id is string => !!id
   );
-  const [{ data: volunteer }, { data: member }] = await Promise.all([
+  const [{ data: volunteer }, member] = await Promise.all([
     supabase
       .from("big_sister_volunteers")
       .select("note")
       .eq("member_id", identity.memberId)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase
-      .from("members")
-      .select("first_joined_at, most_recent_joined_at")
-      .eq("id", identity.memberId)
-      .maybeSingle(),
+    createRepos(supabase).members.byId(identity.memberId),
   ]);
   const eligibility = member
     ? getVolunteerEligibility(
-        { firstJoinedAt: member.first_joined_at, mostRecentJoinedAt: member.most_recent_joined_at },
+        { firstJoinedAt: member.firstJoinedAt, mostRecentJoinedAt: member.mostRecentJoinedAt },
         new Date()
       )
     : null;

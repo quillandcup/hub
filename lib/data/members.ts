@@ -18,6 +18,8 @@ export type Member = MemberIdentity & {
   /** The contact id in Kajabi, if the member has one. */
   kajabiId: string | null;
   stripeCustomerId: string | null;
+  /** Profile photo URL, if they have one. */
+  photoUrl: string | null;
   joinedAt: string;
   firstJoinedAt: string | null;
   mostRecentJoinedAt: string | null;
@@ -52,10 +54,12 @@ export interface MemberRepository {
   userIdsByMemberId(memberIds: string[]): Promise<Map<string, string | null>>;
   /** How many members have this status. */
   countByStatus(status: string): Promise<number>;
+  /** How many members there are with each status (statuses nobody has are absent). */
+  countsByStatus(): Promise<Map<string, number>>;
 }
 
 const IDENTITY_COLUMNS = "id, name, display_name, email";
-const MEMBER_COLUMNS = `${IDENTITY_COLUMNS}, status, source, user_id, staff_role, kajabi_id, stripe_customer_id, joined_at, first_joined_at, most_recent_joined_at`;
+const MEMBER_COLUMNS = `${IDENTITY_COLUMNS}, status, source, user_id, staff_role, kajabi_id, stripe_customer_id, photo_url, joined_at, first_joined_at, most_recent_joined_at`;
 
 type IdentityRow = { id: string; name: string; display_name: string | null; email: string };
 type MemberRow = IdentityRow & {
@@ -65,6 +69,7 @@ type MemberRow = IdentityRow & {
   staff_role: string | null;
   kajabi_id: string | null;
   stripe_customer_id: string | null;
+  photo_url: string | null;
   joined_at: string;
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
@@ -86,6 +91,7 @@ const toMember = (row: MemberRow): Member => ({
   staffRole: row.staff_role,
   kajabiId: row.kajabi_id,
   stripeCustomerId: row.stripe_customer_id,
+  photoUrl: row.photo_url,
   joinedAt: row.joined_at,
   firstJoinedAt: row.first_joined_at,
   mostRecentJoinedAt: row.most_recent_joined_at,
@@ -189,6 +195,15 @@ export class SupabaseMemberRepository implements MemberRepository {
     return userIds;
   }
 
+  async countsByStatus(): Promise<Map<string, number>> {
+    const rows = await fetchAllRows<{ status: string }>(
+      (from, to) => this.db.from("members").select("status").order("id").range(from, to) as unknown as PromiseLike<Page<{ status: string }>>,
+    );
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
+    return counts;
+  }
+
   async countByStatus(status: string): Promise<number> {
     const { count, error } = await this.db.from("members").select("id", { count: "exact", head: true }).eq("status", status);
     if (error) throw new Error(error.message);
@@ -208,6 +223,7 @@ function fromSeed(seed: MemberSeed): Member {
     staffRole: seed.staffRole ?? null,
     kajabiId: seed.kajabiId ?? null,
     stripeCustomerId: seed.stripeCustomerId ?? null,
+    photoUrl: seed.photoUrl ?? null,
     joinedAt: seed.joinedAt ?? "2026-01-01",
     firstJoinedAt: seed.firstJoinedAt ?? null,
     mostRecentJoinedAt: seed.mostRecentJoinedAt ?? null,
@@ -275,5 +291,11 @@ export class InMemoryMemberRepository implements MemberRepository {
 
   async countByStatus(status: string) {
     return this.all().filter((m) => m.status === status).length;
+  }
+
+  async countsByStatus() {
+    const counts = new Map<string, number>();
+    for (const m of this.all()) counts.set(m.status, (counts.get(m.status) ?? 0) + 1);
+    return counts;
   }
 }

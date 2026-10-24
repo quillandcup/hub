@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createHash, randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WebClient } from "@slack/web-api";
@@ -162,8 +163,8 @@ async function findProfileForSlackEmail(
     (q) => q.eq("active", true)
   );
   if (alias?.member_id) {
-    const { data: aliased } = await service.from("members").select("user_id").eq("id", alias.member_id).maybeSingle();
-    const profile = aliased?.user_id ? await findProfileById(service, aliased.user_id as string) : null;
+    const aliased = await createRepos(service).members.byId(alias.member_id);
+    const profile = aliased?.userId ? await findProfileById(service, aliased.userId) : null;
     if (profile) return { profile, via: "email_alias" };
   }
   return null;

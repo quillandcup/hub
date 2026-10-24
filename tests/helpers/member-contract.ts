@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { describe, it, expect, beforeEach } from "vitest";
 import type { MemberRepository } from "@/lib/data/members";
 
@@ -149,6 +150,17 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(byUser).toEqual(new Map([[ctx.authUserIds[0], ada], [ctx.authUserIds[1], fern]]));
       expect(byMember).toEqual(new Map<string, string | null>([[ada, ctx.authUserIds[0]], [fern, ctx.authUserIds[1]], [gale, null]]));
       expect(await ctx.repo().idsByUserId([])).toEqual(new Map());
+    });
+
+    it("counts members for every status at once", async () => {
+      await ctx.seed([]);
+      const before = await ctx.repo().countsByStatus();
+
+      await ctx.seed([{ name: "Ada Example", status: "on_hiatus" }, { name: "Fern Example", status: "on_hiatus" }, { name: "Gale Example" }]);
+      const after = await ctx.repo().countsByStatus();
+
+      expect(after.get("on_hiatus")).toBe((before.get("on_hiatus") ?? 0) + 2);
+      expect(after.get("active")).toBe((before.get("active") ?? 0) + 1);
     });
 
     it("counts members by status", async () => {

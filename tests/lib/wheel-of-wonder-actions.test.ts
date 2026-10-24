@@ -40,10 +40,20 @@ vi.mock("@/lib/supabase/service", () => ({
   }),
 }));
 
-// Attendance goes through its repository (lib/data/); this test has none, so it gets the in-memory twin.
+// Members and attendance come from their repositories (lib/data/), in memory here: the members
+// are the rows a test registers for the "members" table, and nobody has attended anything.
 vi.mock("@/lib/data/repos", async () => {
-  const { InMemoryAttendanceRepository } = await import("@/lib/data/attendance");
-  return { createRepos: () => ({ attendance: new InMemoryAttendanceRepository() }) };
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: () => {
+      const rows = (tables.data.members ?? []) as { id: string; name: string; photo_url: string | null }[];
+      return actual.createInMemoryRepos(
+        new InMemoryDataset({ members: rows.map((r) => ({ id: r.id, name: r.name, email: `${r.id}@example.test`, photoUrl: r.photo_url })) }),
+      );
+    },
+  };
 });
 
 import { introduceOnSlack, spinWheel } from "@/app/(member)/wheel-of-wonder/actions";

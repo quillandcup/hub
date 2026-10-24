@@ -31,13 +31,18 @@ const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 
 function fakeSupabase() {
-  return {
-    from: (table: string) =>
-      table === "members"
-        ? { select: () => ({ eq: () => ({ single: async () => ({ data: { id: MEMBER_ID } }) }) }) }
-        : { insert },
-  };
+  return { from: () => ({ insert }) };
 }
+
+// The member being sudo'd into is read through the members repository (in memory here).
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => actual.createInMemoryRepos(new InMemoryDataset({ members: [{ id: MEMBER_ID, name: "Fern Example", email: "fern@example.test" }] })),
+  };
+});
 
 import { startSudo, exitSudo } from "@/app/actions/sudo";
 import { signSudoCookie } from "@/lib/sudo-cookie";

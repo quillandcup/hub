@@ -120,9 +120,12 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/reports/name-matching/route.ts'), 'utf-8'
       )
-      // The three other large-table queries paginate in the route with a while loop
+      // The Zoom attendee query paginates in the route; members and prickle_attendance go through
+      // their repositories, which paginate (tests/api/data/)
       const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(3)
+      expect(whileCount).toBeGreaterThanOrEqual(1)
+      expect(content).toContain('members.identities(')
+      expect(content).not.toContain('from("members")')
       expect(content).toContain('from("zoom_attendees")')
       // prickle_attendance goes through its repository, which paginates (tests/api/data/)
       expect(content).toContain('attendance.attendedPrickleIdsByMember()')
@@ -230,14 +233,12 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/members/network/route.ts'), 'utf-8'
       )
-      // The members query paginates in the route; prickle_attendance goes through its repository,
-      // which paginates (tests/api/data/attendance-repository.test.ts)
-      const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(1)
+      // Members and prickle_attendance go through their repositories, which paginate
+      // (tests/api/data/)
+      expect(content).toContain('members.list(')
       expect(content).toContain('attendance.list()')
       expect(content).not.toContain('from("prickle_attendance")')
-      expect(content).toContain('from("members")')
-      expect(content).toContain('.range(offset, offset + 999)')
+      expect(content).not.toContain('from("members")')
       // Must not have the old single-shot pattern
       expect(content).not.toMatch(/const\s*\{\s*data:\s*attendance\s*\}\s*=\s*await\s+supabase/)
     })

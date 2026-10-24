@@ -6,11 +6,16 @@ vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
 
+vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members)));
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
 const ORIGINAL = { id: "orig-1", name: "Wren Holloway", email: "wren@example.com" };
 const NEW_ID = "new-1";
+
+// The members the route finds, in the in-memory repository: the one being split, and whoever already has the new email.
+let members: { id: string; name: string; email: string }[] = [];
 
 type Call = { table: string; op: string; payload?: unknown; filters: [string, string, unknown][] };
 
@@ -25,6 +30,7 @@ interface Fixtures {
 
 function makeSupabaseMock(fx: Fixtures = {}) {
   const calls: Call[] = [];
+  members = [ORIGINAL, ...(fx.emailHolder ? [{ id: fx.emailHolder.id, name: (fx.emailHolder as { name?: string }).name ?? fx.emailHolder.id, email: "ivy@example.com" }] : [])];
   const from = vi.fn((table: string) => {
     const call: Call = { table, op: "select", filters: [] };
     const builder: any = {

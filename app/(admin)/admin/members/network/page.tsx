@@ -60,11 +60,7 @@ export default async function MemberNetworkPage({
 
   // Calculate network data inline (simpler than API call for server component)
   // Get all active members
-  const { data: members } = await supabase
-    .from("members")
-    .select("id, name, email, status")
-    .eq("status", "active")
-    .order("name");
+  const members = await createRepos(supabase).members.list({ status: "active", orderBy: "name" });
 
   if (!members || members.length === 0) {
     return (

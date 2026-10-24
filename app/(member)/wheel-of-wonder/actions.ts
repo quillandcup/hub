@@ -87,14 +87,10 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
 
   const [membersResult, allMembersForMatching, attendance, slackActivity, slackAliases, slackUsers] =
     await Promise.all([
-      supabase
-        .from("members")
-        .select("id, name, photo_url")
-        .eq("status", "active")
-        .neq("id", viewerMemberId),
+      createRepos(supabase).members.list({ status: "active" }),
       // matchSlackUsersToMembers needs the full member roster (with email) to
       // resolve email/name matches, not just the id/photo fields above.
-      supabase.from("members").select("id, name, email"),
+      createRepos(supabase).members.identities(),
       createRepos(supabase)
         .attendance.list()
         .then((links) => links.map((l) => ({ member_id: l.memberId, prickle_id: l.prickleId }))),
@@ -116,7 +112,9 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
       supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
     ]);
 
-  const members = membersResult.data ?? [];
+  const members = membersResult
+    .filter((m) => m.id !== viewerMemberId)
+    .map((m) => ({ id: m.id, name: m.name, photo_url: m.photoUrl }));
 
   // Same matching logic the Slack data-hygiene pages use (alias > email >
   // normalized name), not just a raw alias lookup — otherwise a member
@@ -124,7 +122,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
   // here even though /admin/hygiene considers them linked.
   const slackUserToMemberId = await matchSlackUsersToMembers(
     slackUsers.data ?? [],
-    allMembersForMatching.data ?? [],
+    allMembersForMatching,
     slackAliases,
     await loadVerifiedSlackLinks(supabase)
   );

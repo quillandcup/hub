@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
@@ -47,11 +48,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Look up member by email
-      const { data: member } = await supabase
-        .from("members")
-        .select("id, name")
-        .eq("email", email)
-        .single();
+      const member = await createRepos(supabase).members.byEmail(email);
 
       if (!member) {
         messages.push(`Member not found for email: ${email} (alias: ${alias})`);

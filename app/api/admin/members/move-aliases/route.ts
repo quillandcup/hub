@@ -47,10 +47,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Tick at least one name or email to move" }, { status: 400 });
   }
 
-  const [{ data: from }, { data: to }] = await Promise.all([
-    supabase.from("members").select("id").eq("id", fromMemberId).single(),
-    supabase.from("members").select("id, email").eq("id", toMemberId).single(),
-  ]);
+  const members = createRepos(supabase).members;
+  const [from, to] = await Promise.all([members.byId(fromMemberId), members.byId(toMemberId)]);
   if (!from) return NextResponse.json({ error: "Member not found" }, { status: 404 });
   if (!to) return NextResponse.json({ error: "Target member not found" }, { status: 404 });
 

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { buildReverseAliasMap, matchStripeCustomerToMember } from "@/lib/stripe-matching";
@@ -18,11 +19,11 @@ export async function GET(request: NextRequest) {
   try {
     const [
       { data: stripeProducts },
-      { data: members },
+      members,
       { data: emailAliases },
     ] = await Promise.all([
       supabase.schema("bronze").from("stripe_products").select("stripe_product_id").in("name", [...MEMBERSHIP_PRODUCT_NAMES]),
-      supabase.from("members").select("id, email, kajabi_id"),
+      createRepos(supabase).members.list(),
       supabase.from("member_email_aliases").select("canonical_email, alias_email"),
     ]);
 

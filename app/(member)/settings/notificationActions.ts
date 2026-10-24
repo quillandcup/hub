@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -187,8 +188,8 @@ export async function pausePushSubscription(endpoint: string): Promise<{ success
   if (!user) return { error: "Not authenticated" };
   // Sign-out is about the real account, including while an admin is browsing in sudo.
   const service = createServiceRoleClient();
-  const { data: member, error: memberError } = await service.from("members").select("id").eq("user_id", user.id).maybeSingle();
-  if (memberError || !member) return { error: "Couldn't find your member record" };
+  const member = await createRepos(service).members.byUserId(user.id).catch(() => null);
+  if (!member) return { error: "Couldn't find your member record" };
   if (!isAllowedPushEndpoint(endpoint)) return { error: "Invalid push subscription" };
   const { error } = await service.from("push_subscriptions")
     .update({ paused_at: new Date().toISOString() })

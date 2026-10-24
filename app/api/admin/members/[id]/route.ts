@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { refreshKajabiContactInBronze } from "@/lib/kajabi/contact-refresh";
@@ -42,15 +43,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     emailAlias?: { id: string; active: boolean };
   };
 
-  const { data: member, error: fetchError } = await supabase
-    .from("members")
-    .select("id, name, email, kajabi_id")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !member) {
-    return NextResponse.json({ error: fetchError?.message ?? "Member not found" }, { status: 404 });
-  }
+  const found = await createRepos(supabase).members.byId(id);
+  if (!found) return NextResponse.json({ error: "Member not found" }, { status: 404 });
+  const member: MemberRow = { id: found.id, name: found.name, email: found.email, kajabi_id: found.kajabiId };
 
   if (typeof name === "string") {
     const trimmed = name.trim();
@@ -140,8 +135,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (emailAlias.active) scheduleAliasReprocess();
   }
 
-  const [{ data: updatedMember }, { data: aliases }, { data: emailAliases }] = await Promise.all([
-    supabase.from("members").select("name, display_name, email").eq("id", member.id).single(),
+  const [updated, { data: aliases }, { data: emailAliases }] = await Promise.all([
+    createRepos(supabase).members.byId(member.id),
     supabase
       .from("member_name_aliases")
       .select("id, alias, source, active")
@@ -154,6 +149,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .order("alias_email"),
   ]);
 
+  const updatedMember = updated && { name: updated.name, display_name: updated.displayName, email: updated.email };
   return NextResponse.json({ member: updatedMember, aliases: aliases ?? [], emailAliases: emailAliases ?? [] });
 }
 
@@ -171,11 +167,11 @@ function normalizeEmail(input: string): string | NextResponse {
  * paper over with an alias.
  */
 async function findEmailOwner(supabase: SupabaseClient, memberId: string, address: string) {
-  const [{ data: holder }, { data: alias }] = await Promise.all([
-    supabase.from("members").select("id").eq("email", address).neq("id", memberId).maybeSingle(),
+  const [holder, { data: alias }] = await Promise.all([
+    createRepos(supabase).members.byEmail(address),
     supabase.from("member_email_aliases").select("member_id").eq("alias_email", address).maybeSingle(),
   ]);
-  if (holder) return { memberId: holder.id as string, as: "email" as const };
+  if (holder && holder.id !== memberId) return { memberId: holder.id, as: "email" as const };
   if (alias && alias.member_id !== memberId) return { memberId: alias.member_id as string, as: "alias" as const };
   return null;
 }

@@ -46,8 +46,8 @@ async function loadNewcomerSignals(
   now: Date
 ): Promise<Pick<OnboardingSignals, "isNewcomer" | "introUrl" | "hasIntroduced" | "hasAttendedPrickle" | "hasUpcomingPrickle">> {
   const none = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
-  const { data: member } = await supabase.from("members").select("first_joined_at").eq("id", memberId).maybeSingle();
-  if (!isNewcomer(member?.first_joined_at as string | null | undefined, now)) return none;
+  const member = await createRepos(supabase).members.byId(memberId);
+  if (!isNewcomer(member?.firstJoinedAt, now)) return none;
 
   const [introduced, attended, channelId, upcoming] = await Promise.all([
     loadIntroducedMemberIds(supabase, [memberId]),

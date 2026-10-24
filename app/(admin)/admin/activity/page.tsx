@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -14,7 +15,6 @@ export const metadata: Metadata = {
 
 export const maxDuration = 60;
 
-const BATCH_SIZE = 1000;
 
 const VIEW_SUMMARIES: Record<FeedView, string> = {
   audit: "Changes made in Hedgie Hub by staff and the system, and anything an admin did while viewing as a member.",
@@ -24,19 +24,10 @@ const VIEW_SUMMARIES: Record<FeedView, string> = {
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
-// The picker needs every member; paginate past PostgREST's 1000-row cap.
+// The picker needs every member (paginated by the repository).
 async function loadMembers(supabase: SupabaseServer) {
-  const members: { id: string; name: string; email: string; user_id: string | null }[] = [];
-  for (let offset = 0; ; offset += BATCH_SIZE) {
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, name, email, user_id")
-      .order("name")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw error;
-    members.push(...(data ?? []));
-    if (!data || data.length < BATCH_SIZE) return members;
-  }
+  const members = await createRepos(supabase).members.list({ orderBy: "name" });
+  return members.map((m) => ({ id: m.id, name: m.name, email: m.email, user_id: m.userId }));
 }
 
 /**

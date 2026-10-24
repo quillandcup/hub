@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { buildMembershipTimeline } from "@/lib/membership-timeline";
@@ -23,16 +24,12 @@ export async function recomputeMemberStatus(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<MemberStatus | null> {
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, email, staff_role, status")
-    .eq("id", memberId)
-    .single();
+  const member = await createRepos(supabase).members.byId(memberId);
   if (!member) return null;
 
   let status: MemberStatus;
 
-  if (member.staff_role) {
+  if (member.staffRole) {
     // Staff are always active regardless of subscription/hiatus state (see
     // reprocess_members_atomic's staff_role handling).
     status = "active";

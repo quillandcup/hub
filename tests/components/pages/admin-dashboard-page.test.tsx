@@ -11,7 +11,15 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 let attendance = new InMemoryAttendanceRepository();
-vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ attendance }) }));
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    // Members (counts by status, names for the top attendees) and the attendance seeded per test.
+    createRepos: () => ({ ...actual.createInMemoryRepos(new InMemoryDataset({ members: MEMBERS })), attendance }),
+  };
+});
 // The charts are a client component; here they show what the page hands them.
 vi.mock("@/app/(admin)/admin/DashboardCharts", () => ({
   default: (props: { weeklyAttendance: { uniqueAttendees: number; repeatAttendance: number }[]; dailyHours: { hours: number }[] }) => (

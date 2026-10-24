@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizePrickleType, plainTextDescription } from "@/lib/prickle-types";
@@ -85,8 +86,8 @@ export async function POST(request: NextRequest) {
     // Only try to match if a host was provided
     if (host && host.trim()) {
       // Load members and aliases for matching
-      const [{ data: members }, { data: aliases }] = await Promise.all([
-        supabase.from("members").select("id, name, email").eq("status", "active"),
+      const [members, { data: aliases }] = await Promise.all([
+        createRepos(supabase).members.identities({ status: "active" }),
         supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       ]);
 

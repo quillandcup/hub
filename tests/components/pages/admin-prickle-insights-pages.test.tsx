@@ -11,7 +11,17 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
 // Attendance comes from its repository; the pages get an in-memory one seeded per test.
 let attendance = new InMemoryAttendanceRepository();
-vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({ attendance }) }));
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => ({
+      ...actual.createInMemoryRepos(new InMemoryDataset({ members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }] })),
+      attendance,
+    }),
+  };
+});
 vi.mock("@/app/(admin)/admin/insights/prickles/[kind]/GroupedTable", () => ({
   default: ({ rows }: { rows: unknown[] }) => <pre data-testid="grouped">{JSON.stringify(rows.length)}</pre>,
 }));

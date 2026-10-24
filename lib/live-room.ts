@@ -1,4 +1,5 @@
-import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import { createRepos } from "@/lib/data/repos";
+import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle-join";
 import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
@@ -85,9 +86,9 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   if (open.length === 0) return { live: false, count: 0, members: [], guests: 0, prickle: null, join };
 
   const [members, aliases, emailAliases, prickleRows] = await Promise.all([
-    fetchAllPaginated<Member & { display_name: string | null }>((offset) =>
-      supabase.from("members").select("id, name, email, display_name").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase)
+      .members.identities()
+      .then((rows) => rows.map((m) => ({ id: m.id, name: m.name, email: m.email, display_name: m.displayName }))),
     fetchAllPaginated<MemberAlias>((offset) =>
       supabase
         .from("member_name_aliases")

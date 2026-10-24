@@ -1,5 +1,6 @@
 'use server'
 
+import { createRepos } from "@/lib/data/repos";
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireAdminAction } from '@/lib/admin-auth'
@@ -46,11 +47,7 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   if (!auth.ok) throw new Error(auth.error)
   const { user, supabase } = auth
 
-  const { data: member } = await supabase
-    .from('members')
-    .select('id')
-    .eq('id', memberId)
-    .single()
+  const member = await createRepos(supabase).members.byId(memberId)
 
   if (!member) throw new Error('Member not found')
 

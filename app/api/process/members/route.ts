@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
@@ -580,21 +581,13 @@ export async function POST(request: NextRequest) {
     // gift overrides and program-cohort enrollments (applied inside the RPC)
     // are reflected -- the in-memory allMembers list is pre-override.
     const statuses = ["active", "on_hiatus", "cancelled", "lead"] as const;
-    const counts = await Promise.all(
-      statuses.map((status) =>
-        supabase.from("members").select("id", { count: "exact", head: true }).eq("status", status)
-      )
-    );
+    const statusCounts = await createRepos(supabase).members.countsByStatus();
     const statusBreakdown: Record<(typeof statuses)[number], number> = {
-      active: 0,
-      on_hiatus: 0,
-      cancelled: 0,
-      lead: 0,
+      active: statusCounts.get("active") ?? 0,
+      on_hiatus: statusCounts.get("on_hiatus") ?? 0,
+      cancelled: statusCounts.get("cancelled") ?? 0,
+      lead: statusCounts.get("lead") ?? 0,
     };
-    statuses.forEach((status, i) => {
-      if (counts[i].error) throw counts[i].error;
-      statusBreakdown[status] = counts[i].count ?? 0;
-    });
 
     return NextResponse.json({
       success: true,

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
@@ -59,24 +60,12 @@ export async function GET(request: NextRequest) {
       console.warn("RPC get_subscription_reconciliation not found, using manual query");
 
       // Manual reconciliation query
-      const members: any[] = [];
-      {
-        let offset = 0;
-        let hasMore = true;
-        while (hasMore) {
-          const { data: batch } = await supabase
-            .from("members")
-            .select("id, name, email, kajabi_id")
-            .range(offset, offset + 999);
-          if (batch && batch.length > 0) {
-            members.push(...batch);
-            offset += batch.length;
-            hasMore = batch.length === 1000;
-          } else {
-            hasMore = false;
-          }
-        }
-      }
+      const members = (await createRepos(supabase).members.list()).map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        kajabi_id: m.kajabiId,
+      }));
 
       // Get Kajabi customers for email matching
       const kajabiCustomers: any[] = [];

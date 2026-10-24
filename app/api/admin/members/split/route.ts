@@ -48,12 +48,12 @@ export async function POST(request: NextRequest) {
   const nameIds = Array.isArray(nameAliasIds) ? nameAliasIds : [];
   const emailIds = Array.isArray(emailAliasIds) ? emailAliasIds : [];
 
-  const { data: original } = await supabase.from("members").select("id, name, email").eq("id", memberId).single();
+  const original = await createRepos(supabase).members.byId(memberId);
   if (!original) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
   // The new email must be free, or be an alias of the member being split.
-  const [{ data: holder }, { data: emailAlias }] = await Promise.all([
-    supabase.from("members").select("id, name").eq("email", newEmail).maybeSingle(),
+  const [holder, { data: emailAlias }] = await Promise.all([
+    createRepos(supabase).members.byEmail(newEmail),
     supabase.from("member_email_aliases").select("id, member_id").eq("alias_email", newEmail).maybeSingle(),
   ]);
   if (holder) {

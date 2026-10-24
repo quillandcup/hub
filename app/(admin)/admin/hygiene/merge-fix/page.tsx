@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -27,25 +28,13 @@ export default async function MergeFixPage() {
     .select("group_key");
   const dismissedKeys = new Set((dismissedRows ?? []).map((r) => r.group_key));
 
-  // Paginate in case member count grows
-  const allMembers: { id: string; name: string; email: string; status: string; stripe_customer_id: string | null }[] = [];
-  const BATCH = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("members")
-      .select("id, name, email, status, stripe_customer_id")
-      .order("name")
-      .range(offset, offset + BATCH - 1);
-    if (batch && batch.length > 0) {
-      allMembers.push(...batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allMembers = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    status: m.status,
+    stripe_customer_id: m.stripeCustomerId,
+  }));
 
   const duplicateGroups = detectDuplicates(allMembers);
 

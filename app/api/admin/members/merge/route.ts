@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createRepos } from "@/lib/data/repos";
+import type { Member } from "@/lib/data/members";
 import { NextRequest, NextResponse } from "next/server";
 
 // Throws on a Supabase error instead of letting the merge carry on: the
@@ -27,10 +28,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Cannot merge a member into themselves" }, { status: 400 });
   }
 
-  const [{ data: primary }, { data: secondary }] = await Promise.all([
-    supabase.from("members").select("id, name, email, kajabi_id, stripe_customer_id, user_id").eq("id", primaryId).single(),
-    supabase.from("members").select("id, name, email, kajabi_id, stripe_customer_id, user_id").eq("id", secondaryId).single(),
-  ]);
+  // The columns merged below, under their table names (they key the patch written back).
+  const mergeable = (m: Member | null) =>
+    m && { id: m.id, name: m.name, email: m.email, kajabi_id: m.kajabiId, stripe_customer_id: m.stripeCustomerId, user_id: m.userId };
+  const repo = createRepos(supabase).members;
+  const [primary, secondary] = (await Promise.all([repo.byId(primaryId), repo.byId(secondaryId)])).map(mergeable);
 
   if (!primary) return NextResponse.json({ error: "Primary member not found" }, { status: 404 });
   if (!secondary) return NextResponse.json({ error: "Secondary member not found" }, { status: 404 });

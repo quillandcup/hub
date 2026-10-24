@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
@@ -50,10 +51,8 @@ export default async function MentorshipPage({
   const load = openLoadByMentor(rows);
 
   const prefillId = prefill?.newMemberId;
-  const { data: prefillMember } =
-    prefillId && isId(prefillId, "mbr")
-      ? await supabase.from("members").select("id, name, email").eq("id", prefillId).maybeSingle()
-      : { data: null };
+  const prefillMember =
+    prefillId && isId(prefillId, "mbr") ? await createRepos(supabase).members.byId(prefillId) : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
