@@ -898,6 +898,19 @@ Build fuzzy matching to connect Zoom attendance to members when emails aren't av
 - Manual mapping table for common aliases
 - Confidence scoring
 
+### Zoom Name Matching: Options Beyond Aliases _(Needs Scoping)_
+Checked against prod on 2026-10-24 (counts only): 7.1k attendee rows since January, about 94% matched by alias, email or full name (the first-name rules in `lib/member-matching.ts` match more), 88 active Zoom aliases covering 70 of 82 active members, 20 distinct ambiguous names.
+
+**What doesn't work as an identity key.** Zoom's participant report gives a stable id only for people in our own Zoom account. Everything else was unusable: `participant_id` is empty, `registrant_id` and `customer_key` are never set, the payload's `participant_user_id`/`id` are filled on about 2% of rows with 2-3 distinct values, and `user_id` is a recycled per-session slot (131 distinct values; 52 of 90 matched members appear under 10 or more of them). Emails come back on 3% of rows even with "Only authenticated participants can join" on, because Zoom hides external users' emails from reports (`/docs/api/using-zoom-apis/#email-address-display-rules`). So connecting a member's Zoom account (OAuth) gives us their Zoom user id, but nothing in the attendee data to join it to.
+
+**What OAuth could still do** (not built): with a user-level app, `GET /users/me` (`user:read`) returns the account's `display_name`, so Settings > Identity could show "your Zoom name is X, your Hub name is Y" and create the alias on confirm; `PATCH /users/me` (`user:write`) can set `display_name` to the Hub name. Both only help someone who joins signed in to that Zoom account (a guest or a different device still shows whatever name they typed), and the Zoom app may need Marketplace review to be used by accounts other than ours. Cheaper first step: tell new members during onboarding to set their Zoom name to their Hub name, or add an alias at `/settings/identity`.
+
+**Other routes that put identity into the attendee record:** registration on the recurring meetings (gives a registrant id and email), or per-member join links. Both add friction at join time.
+
+**Nudge by elimination (not built):** a member completed a prickle check-in but has no matched attendance for it, and that prickle has an unmatched or ambiguous Zoom name: ask the member "were you 'X'?" and add the alias on yes. Weak when a prickle has several unmatched names or several missing members, and blind to drop-ins (no check-in is sent to them), so it must stay a suggestion the member confirms. Revisit once launched, if `member_name_aliases.source = 'member'` shows members aren't setting names themselves.
+
+**Resolved:** `ambiguous_zoom_names` collected one row per reprocess instead of one per name (a NULL email defeated its unique constraint); fixed by `20261222000000_ambiguous_zoom_names_null_email_unique.sql`.
+
 ### Slack Name → Member Lookup Tool (Needs Scoping)
 Staff currently resolve an unknown Slack display name/nickname to a member by hand: search Slack, guess at a real name, then search Kajabi/Hedgie Hub by email. Came up while bootstrapping member birthdays from a hand-maintained sheet of Slack names — the fuzzy matcher (`lib/member-matching.ts`, `suggestMemberMatches`) plus the alias tables (`member_name_aliases`, `member_email_aliases`) already have most of what's needed to do this automatically; there's just no UI for an ad-hoc "who is this Slack name" lookup outside the existing unmatched-Slack/ambiguous-names reconciliation flows (which only cover names Slack/Zoom processing has already flagged).
 
