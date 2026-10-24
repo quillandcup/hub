@@ -870,6 +870,11 @@ Let members choose which of their alternate names show on their public profile. 
 
 ## Analytics & Matching
 
+### Best Feedback Friend (BFF) program: enrollment and matching in the Hub _(Needs Scheduling)_
+Today a member joins the BFF program (quarterly enrollment, a quarter-long commitment: read each other's work, meet at least monthly, give reinforcing and constructive feedback) by filling out an external **BFF interest form**, and the pairing is done by hand from the answers. The Hub has no BFF screen, table or notification; the only trace is the BFF Program as a Kajabi product (`docs/TODO.md`, "Multi-product" notes) and the "Former BFF"-style labels below. The Kajabi lessons "How to get a BFF" and "What to expect in the BFF Program?" (a draft that only points to an attached document) stay in Kajabi until this exists, so there is no help article.
+
+**Why deferred:** it's a program with a matching decision (compatibility, availability), not a form, and the shape isn't settled. **Where to start:** an enrollment window (open and close dates, per quarter), an interest form in the Hub (replacing the external one), a pairing table (two members, quarter, status, `deleted_at`) written by an admin, a member page for "my BFF", and a notification kind (`lib/notifications/registry.ts`) when a pairing is made. Once it exists, write the help article from the real screens (a demo scene, `help/`, `HELP_ORDER` in `lib/help.ts`). Related: "Analytics & Matching" below (matching signals), `docs/BIG_SISTERS.md` for a pairing program that already exists.
+
 ### Member Interactions: Who Replied to Whom _(Parked, Refinement)_
 `member_interactions` (Silver, `20261212000000`, `docs/SLACK_BRIDGED_CHAT.md` phase 3 part 12) is a derived table of who talked with whom in chat (thread replies, DMs, reactions, mentions; who, toward whom, where, when, public or private; never content). It feeds the admin member network graph (`/admin/members/network`, chat off by default for prickles-only, `?chat=public|all` to add it). It is built and rebuilt by `/api/process/member-interactions` from the chat tables.
 
@@ -949,6 +954,16 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Daily coaching videos: member submissions in the Hub _(Needs Scheduling)_
+Members who want to teach a daily coaching video fill out an external **coaching video sign-up form**, and a separate shared list of **proposed coaching videos** gives them ideas. The Hub has courses and lessons (`docs/COURSES.md`) but no way for a member to propose, claim or schedule a video, and no list of proposals. The Kajabi lesson "Submit a Daily Coaching Video" stays in Kajabi until this exists.
+
+**Why deferred:** it needs a decision on who reviews and schedules submissions (admins, a host team) and where the videos land (a course, the calendar as an Educational Prickle). **Where to start:** a `coaching_video_proposals` table (topic, who, status proposed/claimed/scheduled/done, `deleted_at`) with member-facing submit and browse pages, an admin queue (`/admin/work-queue` fits), and a link to the scheduled calendar event. Then write the help article from the real screens (a demo scene, `help/`, `HELP_ORDER` in `lib/help.ts`).
+
+### Suggest a webinar or coaching topic: intake in the Hub _(Needs Scheduling)_
+The Kajabi lesson "Suggesting a Webinar or Coaching Topic" is an empty draft: there is no documented way for a member to suggest a topic, and the Hub has none either. Today suggestions arrive through chat or email and live in people's heads.
+
+**Why deferred:** nothing to document yet, and it overlaps the coaching video proposals above (a suggested topic is a proposal nobody has claimed). **Where to start:** build it as the same proposals table with a "suggested, no presenter" status rather than a second feature, add a member-facing "Suggest a topic" form, and let members vote or +1 so admins can see demand (`lib/analytics/events.ts` for the usage events). Then add the help article.
+
 ### Reproducible demo and help docs _(Needs Scheduling)_
 A fictional demo community plus Playwright scenes that capture screenshots and clips, for the RayhausCapital newsletter now and member help articles later. Design in `docs/DEMO_AND_HELP.md`.
 
@@ -962,8 +977,9 @@ A fictional demo community plus Playwright scenes that capture screenshots and c
 
 ### Kajabi help topics left in Kajabi
 The Kajabi "Hedgie Help!" module had ten lessons. Six are now Hub help articles (join a prickle, plan your month, become a host, start a PUP, run a prickle, which also covers "if you can't host"). Four stay in Kajabi on purpose, because each describes a process that happens outside the Hub, with no screen to document or screenshot:
-- **How to get a BFF (Best Feedback Friend)**: the program enrolls quarterly through an external interest form and asks for a quarter-long commitment (read each other's work, meet at least monthly, give both reinforcing and constructive feedback). **What to expect in the BFF Program?** is a draft that only points to an attached document.
-- **Submit a Daily Coaching Video**: members fill out an external sign-up form; a list of proposed videos is linked for inspiration. **Suggesting a Webinar or Coaching Topic** is an empty draft.
+- **How to get a BFF (Best Feedback Friend)** and **What to expect in the BFF Program?** (a draft that only points to an attached document): enrollment and matching run through an external form. See "Best Feedback Friend (BFF) program: enrollment and matching in the Hub".
+- **Submit a Daily Coaching Video**: an external sign-up form plus a shared list of proposals. See "Daily coaching videos: member submissions in the Hub".
+- **Suggesting a Webinar or Coaching Topic** (an empty draft): no intake exists. See "Suggest a webinar or coaching topic: intake in the Hub".
 
 **Why deferred:** a help article would duplicate the Kajabi lessons, and the form links sit in a members-only lesson while this repo is public, so they can't go in an article. **When to pick up:** when the Hub gets a BFF matching flow or a topic and video submission form (then document the real screens), or if the Kajabi lessons are retired. If form links ever need to appear in articles, declare them as env vars in `env-vars.config.ts` and render them through a placeholder, never as literals. Where to start: `help/`, `lib/help.ts` (`HELP_ORDER`), and the scenes in `demo/scenes/`.
 
