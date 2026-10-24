@@ -9,9 +9,13 @@ import { membershipAbilities } from "@/lib/chat/membership-abilities";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import MembersManager from "@/components/chat/MembersManager";
 
-export const metadata: Metadata = {
-  title: "Members · Chat",
-};
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  if (!isId(id, "chn")) return { title: "Members · Chat" };
+  const { identity } = await requireChat();
+  const channel = await loadChannelForMember(await createClient(), id, identity.memberId, identity.isSudo);
+  return { title: channel ? `Members · ${channel.label} · Chat` : "Members · Chat" };
+}
 
 /**
  * Who is in a conversation, each linking to their profile, with the controls for changing it (join or
