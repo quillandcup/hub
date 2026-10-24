@@ -46,7 +46,7 @@ function makeClient(insertError?: { code?: string; message: string }) {
 beforeEach(() => {
   vi.clearAllMocks();
   afterCallbacks.length = 0;
-  rpcMock.mockResolvedValue({ data: null, error: null });
+  rpcMock.mockResolvedValue({ data: [], error: null });
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "login@example.com" } as any);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as any);
 });
@@ -90,7 +90,7 @@ describe("addNameAlias", () => {
     ["other_alias", SUPPORT_EMAIL],
     ["other_name", SUPPORT_EMAIL],
   ])("won't save a name that conflicts (%s) and says why", async (conflict, snippet) => {
-    rpcMock.mockResolvedValue({ data: conflict, error: null });
+    rpcMock.mockResolvedValue({ data: [{ kind: conflict, other_member_id: "member-2", other_member_name: "Katie Peters" }], error: null });
     const { client, inserts } = makeClient();
     vi.mocked(createClient).mockResolvedValue(client);
 
@@ -105,17 +105,18 @@ describe("addNameAlias", () => {
     const { client } = makeClient();
     vi.mocked(createClient).mockResolvedValue(client);
 
-    rpcMock.mockResolvedValue({ data: "other_alias", error: null });
+    rpcMock.mockResolvedValue({ data: [{ kind: "other_alias", other_member_id: "member-2", other_member_name: "Katie Peters" }], error: null });
     const alias = await addNameAlias("Katie P");
-    rpcMock.mockResolvedValue({ data: "other_name", error: null });
+    rpcMock.mockResolvedValue({ data: [{ kind: "other_name", other_member_id: "member-2", other_member_name: "Katie Peters" }], error: null });
     const name = await addNameAlias("Katie P");
 
     expect(alias).not.toEqual(name);
+    expect(JSON.stringify([alias, name])).not.toContain("Katie Peters");
     expect(name).toEqual({ error: expect.stringContaining("another member's name") });
   });
 
   it("falls back to the 'already used' message for a conflict kind it doesn't know", async () => {
-    rpcMock.mockResolvedValue({ data: "something_new", error: null });
+    rpcMock.mockResolvedValue({ data: [{ kind: "something_new", other_member_id: null, other_member_name: null }], error: null });
     const { client, inserts } = makeClient();
     vi.mocked(createClient).mockResolvedValue(client);
 

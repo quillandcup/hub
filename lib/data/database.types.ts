@@ -5966,6 +5966,15 @@ export type Database = {
           viewer_role: string
         }[]
       }
+      name_alias_conflict: {
+        Args: { p_alias: string; p_member_id: string }
+        Returns: {
+          kind: string
+          other_member_id: string
+          other_member_name: string
+        }[]
+      }
+      name_alias_key: { Args: { p_name: string }; Returns: string }
       new_id: { Args: { prefix: string }; Returns: string }
       prickle_host: {
         Args: { "": Database["public"]["Tables"]["prickles"]["Row"] }

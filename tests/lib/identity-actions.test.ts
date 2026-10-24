@@ -72,7 +72,7 @@ function makeSupabaseMock({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  nameConflictMock.mockResolvedValue({ data: null, error: null });
+  nameConflictMock.mockResolvedValue({ data: [], error: null });
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 });
 
@@ -268,7 +268,7 @@ describe("setCustomDisplayName", () => {
   });
 
   it("doesn't choose the name when another member already owns that alias", async () => {
-    nameConflictMock.mockResolvedValue({ data: "other_alias", error: null });
+    nameConflictMock.mockResolvedValue({ data: [{ kind: "other_alias", other_member_id: "member-2", other_member_name: "Other Member" }], error: null });
     const mock = makeMock();
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
