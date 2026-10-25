@@ -11,12 +11,13 @@ export const metadata: Metadata = {
  * What staff can and can't see: Slack and Hub chat, how course videos are watched, and where
  * members connect from.
  *
- * The chat sections:
- * Behind the `message_privacy` flag because it describes the Slack-bridged chat design, not
- * today's app: the content/metadata split, per-channel "restricted" flag, break-glass access
- * with its audit log, and soft-deleted messages are not built yet. Every statement here must be
- * true before the flag goes on, and must be updated if that design changes. See
- * docs/SLACK_BRIDGED_CHAT.md.
+ * Behind the `message_privacy` flag so it can be turned on for everyone together with chat. Every
+ * statement here must be true when it is on, and must be updated if the chat design changes (see
+ * docs/SLACK_BRIDGED_CHAT.md). What is true of the code today: staff read chat content only where RLS
+ * lets admins (`chat_can_read_content`: public and non-restricted private channels); restricted channels,
+ * DMs and group DMs have no admin read path at all; deleted messages stay out of activity. The break-glass
+ * section is the commitment for the rare case, not a screen: there is no in-app break-glass tool yet, so
+ * until there is, anything done under it is done by hand and has to follow what that section promises.
  */
 export default async function PrivacyPage() {
   const user = await getCurrentUser();
@@ -59,21 +60,18 @@ export default async function PrivacyPage() {
             <Row where="Public channels" activity="Yes" content="Yes, same as every member" />
             <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
             <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
-            <Row where="Direct messages and group DMs in the Hub, and Slack group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
             <Row where="Slack DMs, and Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
           </tbody>
         </table>
-        <p>
-          Each channel in the Hub shows whether staff can read its content.
-        </p>
       </Section>
 
       <Section title="Break-glass access">
         <p>
           In rare cases, such as a safety or conduct report, an admin may need to read the content of a specific
-          restricted channel or direct message. Doing so requires recording a reason, is limited to that one
-          conversation for a limited time, and is permanently recorded in an audit log that staff review. You
-          won&apos;t receive an automatic notification when this happens.
+          restricted channel or group DM. We will do that only for that one conversation and only for as long as it
+          takes, and we will record who looked, why and when. You won&apos;t receive an automatic notification when
+          this happens.
         </p>
       </Section>
 
@@ -98,8 +96,9 @@ export default async function PrivacyPage() {
       <Section title="Deleted messages and reactions">
         <p>
           When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather
-          than erasing it. Deleted messages still count toward your activity, at a reduced weight. Staff can only see
-          a deleted message&apos;s content through break-glass access.
+          than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can see a
+          deleted message&apos;s content only where they could see the original: in public and unrestricted channels
+          they can, and in restricted channels and group DMs only through break-glass access.
         </p>
       </Section>
     </div>

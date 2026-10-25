@@ -42,7 +42,11 @@ describe("/privacy (message_privacy flag)", () => {
     await renderServerPage(PrivacyPage, {});
     expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Break-glass access" })).toBeInTheDocument();
-    expect(screen.getByText(/^Direct messages and group DMs in the Hub/)).toBeInTheDocument();
+    expect(screen.getByText(/^Group DMs that include Billie Bot/)).toBeInTheDocument();
+    // What the page says about the chat has to be true of the app: no per-channel "staff can read this" note, and deleted messages don't count.
+    expect(screen.queryByText(/Each channel in the Hub shows/)).not.toBeInTheDocument();
+    expect(screen.getByText(/no longer count toward your activity/)).toBeInTheDocument();
+    expect(screen.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
   });
 
   it("says how course videos are watched and what is recorded about where a visit came from", async () => {
