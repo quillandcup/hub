@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
+import { cachedLookup } from "@/lib/chat/lookup-cache";
 import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/lib/chat/render";
 
 /**
@@ -11,6 +12,12 @@ import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/li
  */
 
 const BATCH = 200;
+
+/** The rows of a result, or a throw on a database error so a failed lookup is never cached as empty. */
+function ok<T>(result: { data: T[] | null; error?: { message: string } | null }): T[] {
+  if (result.error) throw new Error(result.error.message);
+  return result.data ?? [];
+}
 
 function chunks<T>(items: T[]): T[][] {
   const out: T[][] = [];
@@ -23,22 +30,24 @@ function chunks<T>(items: T[]): T[][] {
  * name they go by in Slack, else their Hub name, else their Slack real name. (A mention reads as it
  * does in Slack; the Hub's legal-style name only fills in when nothing else is set.)
  */
-export async function slackUserNames(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserNamesUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const names: Record<string, string> = {};
   if (ids.length === 0) return names;
   const service = createServiceRoleClient();
 
   for (const batch of chunks(ids)) {
-    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
+    const [a, u] = await Promise.all([
       service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
       service.schema("bronze").from("slack_users").select("user_id, display_name, real_name, name").in("user_id", batch),
     ]);
+    const authors = ok(a);
+    const slackUsers = ok(u);
 
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberNames = new Map<string, { name: string; displayName: string | null }>();
     if (memberIds.length > 0) {
-      const { data: members } = await service.from("member_directory").select("id, name, display_name").in("id", memberIds);
+      const members = ok(await service.from("member_directory").select("id, name, display_name").in("id", memberIds));
       for (const m of members ?? []) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
     }
     const memberBySlackUser = new Map((authors ?? []).map((a) => [a.slack_user_id as string, memberNames.get(a.member_id)]));
@@ -59,16 +68,16 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
  * matched. A notice about someone joining or leaving names them as the Hub does everywhere else, not by the
  * short name they go by in Slack ("Cody" for Cody Ray).
  */
-export async function slackUserHubNames(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserHubNamesUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
   const service = createServiceRoleClient();
   for (const batch of chunks(ids)) {
-    const { data: authors } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch);
+    const authors = ok(await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch));
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id as string))];
     if (memberIds.length === 0) continue;
-    const { data: members } = await service.from("member_directory").select("id, name, display_name").in("id", memberIds);
+    const members = ok(await service.from("member_directory").select("id, name, display_name").in("id", memberIds));
     const byMember = new Map((members ?? []).map((m) => [m.id as string, (m.display_name || m.name) as string]));
     for (const a of authors ?? []) {
       const name = byMember.get(a.member_id as string);
@@ -79,31 +88,31 @@ export async function slackUserHubNames(userIds: string[]): Promise<Record<strin
 }
 
 /** Slack user id -> Hub member id, for the people we have matched, so a mention can link to a profile. */
-export async function slackUserMemberIds(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserMemberIdsUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
   const service = createServiceRoleClient();
   for (const batch of chunks(ids)) {
-    const { data } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch);
+    const data = ok(await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch));
     for (const a of data ?? []) out[a.slack_user_id] = a.member_id;
   }
   return out;
 }
 
 /** Slack channel id -> name for public channels, for <#C123> links whose text carries no name. */
-export async function slackChannelNames(channelIds: string[]): Promise<Record<string, string>> {
+async function slackChannelNamesUncached(channelIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(channelIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
   const service = createServiceRoleClient();
   for (const batch of chunks(ids)) {
-    const { data } = await service
+    const data = ok(await service
       .schema("bronze")
       .from("slack_channels")
       .select("channel_id, name")
       .in("channel_id", batch)
-      .eq("is_private", false);
+      .eq("is_private", false));
     for (const c of data ?? []) if (c.name) out[c.channel_id] = c.name;
   }
   return out;
@@ -114,21 +123,23 @@ export async function slackChannelNames(channelIds: string[]): Promise<Record<st
  * photo, else the real (uploaded) photo from their Slack profile. Others are left out, and the
  * chat shows initials.
  */
-export async function slackUserPhotos(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const photos: Record<string, string> = {};
   if (ids.length === 0) return photos;
   const service = createServiceRoleClient();
 
   for (const batch of chunks(ids)) {
-    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
+    const [a, u] = await Promise.all([
       service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
       service.schema("bronze").from("slack_users").select("user_id, image_url").in("user_id", batch),
     ]);
+    const authors = ok(a);
+    const slackUsers = ok(u);
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberPhotos = new Map<string, string>();
     if (memberIds.length > 0) {
-      const { data: members } = await service.from("member_directory").select("id, photo_url").in("id", memberIds);
+      const members = ok(await service.from("member_directory").select("id, photo_url").in("id", memberIds));
       for (const m of members ?? []) {
         const url = safeUrl(m.photo_url);
         if (url) memberPhotos.set(m.id, url);
@@ -165,12 +176,19 @@ export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: stri
 
 const ALIAS_DEPTH = 5;
 
+export const slackUserNames = cachedLookup("slack-user-names", slackUserNamesUncached);
+export const slackUserHubNames = cachedLookup("slack-user-hub-names", slackUserHubNamesUncached);
+export const slackUserMemberIds = cachedLookup("slack-user-member-ids", slackUserMemberIdsUncached);
+export const slackChannelNames = cachedLookup("slack-channel-names", slackChannelNamesUncached);
+export const slackUserPhotos = cachedLookup("slack-user-photos", slackUserPhotosUncached);
+export const customEmojiFor = cachedLookup("custom-emoji", customEmojiUncached);
+
 /**
  * Custom emoji by name, for the names a page shows. bronze.slack_custom_emoji is admin-read only
  * under RLS, but the emoji are public workspace decoration, so this returns just name -> image
  * (aliases followed, to a custom image or a standard emoji). Names that are not custom are left out.
  */
-export async function customEmojiFor(names: string[]): Promise<Record<string, CustomEmoji>> {
+async function customEmojiUncached(names: string[]): Promise<Record<string, CustomEmoji>> {
   let wanted = [...new Set(names)];
   const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
   if (wanted.length === 0) return {};
@@ -180,12 +198,12 @@ export async function customEmojiFor(names: string[]): Promise<Record<string, Cu
   for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
     const next = new Set<string>();
     for (const batch of chunks(wanted)) {
-      const { data } = await service
+      const data = ok(await service
         .schema("bronze")
         .from("slack_custom_emoji")
         .select("name, image_url, alias_for")
         .in("name", batch)
-        .is("deleted_at", null);
+        .is("deleted_at", null));
       for (const r of data ?? []) {
         rows.set(r.name, r);
         if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);

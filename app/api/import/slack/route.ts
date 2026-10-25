@@ -1,3 +1,4 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
         channels.map(c => ({ ...c, imported_at: importTimestamp })),
         { onConflict: "channel_id" }
       );
+
+    invalidateChatLookups();
 
     const { error: messagesError } = await supabase
       .schema('bronze').from("slack_messages")
