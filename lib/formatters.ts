@@ -150,16 +150,6 @@ export function formatPrickleTitle(prickle: {
   return host?.name ? `${weekday} ${typeName} with ${hostShortName(host.name)}` : `${weekday} ${typeName}`;
 }
 
-/** formatPrickleTitle for a prickle read through the repository (type and host already joined). */
-export function formatPrickleDetailTitle(prickle: {
-  title: string | null;
-  startTime: string;
-  host: { name: string } | null;
-  type: { name: string } | null;
-}): string {
-  return formatPrickleTitle({ title: prickle.title, start_time: prickle.startTime, host: prickle.host, prickle_types: prickle.type });
-}
-
 /**
  * Format a relative time
  * Example: "2 hours ago", "in 3 days"

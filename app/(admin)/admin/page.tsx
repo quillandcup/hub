@@ -4,7 +4,7 @@ import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
-import { isAtRisk, summarizeAttendance } from "@/lib/attendance-summary";
+import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 
 export const metadata: Metadata = {
   title: "Dashboard",

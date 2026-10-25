@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isAtRisk, summarizeAttendance } from "@/lib/attendance-summary";
+import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 
 describe("summarizeAttendance", () => {
   it("counts each member's records and keeps their latest join", () => {

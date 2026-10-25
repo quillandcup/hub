@@ -15,7 +15,7 @@ import {
   type CheckinInput,
 } from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
-import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { prickleTitle as nameOfPrickle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -138,7 +138,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
   if (!prickle) return null;
 
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const prickleTitle = formatPrickleDetailTitle(prickle);
+  const prickleTitle = nameOfPrickle(prickle);
   const byProject = <T extends { project_id: string }>(rows: T[] | null) => {
     const map = new Map<string, T[]>();
     for (const row of rows ?? []) map.set(row.project_id, [...(map.get(row.project_id) ?? []), row]);
