@@ -61,6 +61,9 @@ definePrickleContract("SupabasePrickleRepository", () => ({
     return hosts;
   },
   repo: () => new SupabasePrickleRepository(db),
+  adopt: (ids: string[]) => {
+    created.push(...ids);
+  },
   seed: async (seeds: PrickleSeed[]) => {
     await clearPrickles();
     const rows = seeds.map((s) => ({

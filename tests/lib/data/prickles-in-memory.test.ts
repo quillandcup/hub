@@ -17,6 +17,7 @@ definePrickleContract("InMemoryPrickleRepository", () => {
     types,
     hosts,
     repo: () => new InMemoryPrickleRepository(data),
+    adopt: () => {},
     seed: async (seeds: PrickleSeed[]) => {
       const prickles: Prickle[] = seeds.map((s, i) => ({
         id: `prkl_${String(i).padStart(12, "A")}`,
