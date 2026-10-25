@@ -7,6 +7,7 @@ import { readPushDiagnostics, sendBrowserAlertComparison, type PushDiagnostics }
 const STAGES: Record<string, string> = {
   shown: "Browser accepted notification for display",
   click_received: "Click reached the notification worker",
+  dismissed: "Notification dismissed without a click",
   tab_reuse_failed: "Could not focus or navigate an existing Hub tab; trying another tab or window",
   focus_failed: "Navigated the Hub tab, but could not bring it to the front",
   tab_navigated: "Hub tab navigated to the notification destination",

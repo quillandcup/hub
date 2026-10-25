@@ -6,7 +6,7 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-const DIAGNOSTICS_VERSION = "click-diagnostics-v4";
+const DIAGNOSTICS_VERSION = "click-diagnostics-v5";
 const DIAGNOSTICS_CACHE = "hub-push-diagnostics";
 const DIAGNOSTICS_URL = new URL("/__push_diagnostics__", self.location.origin).href;
 let diagnosticWrites = Promise.resolve();
@@ -108,6 +108,14 @@ self.addEventListener("push", (event) => {
       tagged: Boolean(payload.tag),
     }))
   );
+});
+
+// Chrome fires this when the user dismisses a notification (not when we close() it after a click).
+// With "shown" and "click_received" it tells a click macOS never passed on from one that wasn't made.
+self.addEventListener("notificationclose", (event) => {
+  event.waitUntil(recordDiagnostic("dismissed", event.notification.data?.notificationId || "older-notification", {
+    target: event.notification.data?.url || "/", operation: "dismiss_notification",
+  }));
 });
 
 self.addEventListener("notificationclick", (event) => {
