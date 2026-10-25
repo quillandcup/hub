@@ -69,25 +69,26 @@ describe("missingImages", () => {
 });
 
 describe("setsToPrune", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = 100 * DAY;
   const sets = [
-    { name: "aaa", newest: 100 },
-    { name: "bbb", newest: 500 },
-    { name: "ccc", newest: 300 },
-    { name: "ddd", newest: 200 },
-    { name: "eee", newest: 400 },
+    { name: "fresh", newest: now - 1 * DAY },
+    { name: "recent", newest: now - 29 * DAY },
+    { name: "old1", newest: now - 31 * DAY },
+    { name: "old2", newest: now - 40 * DAY },
+    { name: "old3", newest: now - 90 * DAY },
   ];
 
-  it("keeps the newest N and deletes the rest", () => {
-    expect(setsToPrune(sets, 3, "bbb").sort()).toEqual(["aaa", "ddd"]);
+  it("deletes sets past the window, keeping the newest of them for deploys from before it", () => {
+    expect(setsToPrune(sets, 30, "fresh", now).sort()).toEqual(["old2", "old3"]);
   });
 
-  it("never deletes the set the build is paired with, even when it is old", () => {
-    expect(setsToPrune(sets, 2, "aaa").sort()).toEqual(["ccc", "ddd"]);
+  it("deletes nothing while every set is inside the window, or when there are none", () => {
+    expect(setsToPrune(sets, 365, "fresh", now)).toEqual([]);
+    expect(setsToPrune([], 30, "x", now)).toEqual([]);
   });
 
-  it("keeps at least one set, and deletes nothing when there are fewer sets than the limit", () => {
-    expect(setsToPrune(sets, 0, "bbb").sort()).toEqual(["aaa", "ccc", "ddd", "eee"]);
-    expect(setsToPrune(sets, 10, "bbb")).toEqual([]);
-    expect(setsToPrune([], 5, "x")).toEqual([]);
+  it("never deletes the set being published, even when its files look old", () => {
+    expect(setsToPrune(sets, 30, "old3", now).sort()).toEqual(["old2"]);
   });
 });

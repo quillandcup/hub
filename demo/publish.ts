@@ -1,16 +1,17 @@
 /**
  * Uploads the captured screenshots the help articles use to the private help-images bucket, so the deployed
  * /help pages can show them (lib/help.ts, app/(member)/help/images). Desktop in light mode is the published set.
- * Each set lives in its own folder, named by an id derived from the source that produces the screens
- * (scripts/help-images-version.ts), and a build only ever reads the folder it is paired with.
+ * Each set lives in its own folder, named by the main commit it was captured at, and a build shows the newest set
+ * captured at or before it (scripts/help-images-version.ts, docs/DEMO_AND_HELP.md).
  *
  *   pnpm demo:publish                 to the demo stack (what `pnpm demo:app` serves), into the "local" set
  *   pnpm demo:publish --verify        no upload: check every screenshot an article shows was captured
  *   pnpm demo:publish --from-env      to the Supabase project in NEXT_PUBLIC_SUPABASE_URL and
- *                                     SUPABASE_SERVICE_ROLE_KEY (CI: the publish job on main, before the deploy)
+ *                                     SUPABASE_SERVICE_ROLE_KEY (CI: the scheduled Help screenshots workflow)
  *   pnpm demo:publish --prod          to production, from .env.prod / .env.shared. Writes to production storage:
  *                                     for a person to run, never an automated session.
- *   --prune --keep=5                  after uploading, delete all but the newest 5 sets (this build's is kept)
+ *   --prune --keep-days=30           after uploading, delete the sets older than 30 days, except the newest of them
+ *                                     (a deploy from before that still shows something) and this one
  *
  * Capture first: `pnpm demo:capture --project=desktop-light`.
  */
@@ -19,7 +20,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadTargetEnv } from "../scripts/env-files";
-import { helpImagesVersion } from "../scripts/help-images-version";
+import { SET_ID, helpImagesVersion } from "../scripts/help-images-version";
 import { HELP_IMAGES_BUCKET, isHelpImagePath, listHelpArticles } from "../lib/help";
 import { loadDemoEnv } from "./env";
 
@@ -57,15 +58,16 @@ export function missingImages(plan: Upload[], wanted: Set<string>): string[] {
   return [...wanted].filter((ref) => !have.has(ref)).sort();
 }
 
-/** The sets to delete: everything but the `keep` newest, and never `current` (the set this build is paired with). */
-export function setsToPrune(sets: { name: string; newest: number }[], keep: number, current: string): string[] {
-  const byAge = [...sets].sort((a, b) => b.newest - a.newest);
-  const kept = new Set(byAge.slice(0, Math.max(keep, 1)).map((s) => s.name));
-  kept.add(current);
-  return byAge.filter((s) => !kept.has(s.name)).map((s) => s.name);
+/**
+ * The sets to delete: those older than `keepDays`, except the newest of them (a deploy or rollback from before the
+ * window still resolves to a set) and `current`. A deploy bakes in the newest set before its commit, so sets stay
+ * as long as a deploy that could use them.
+ */
+export function setsToPrune(sets: { name: string; newest: number }[], keepDays: number, current: string, now: number): string[] {
+  const cutoff = now - keepDays * 24 * 60 * 60 * 1000;
+  const old = sets.filter((s) => s.newest < cutoff && s.name !== current).sort((a, b) => b.newest - a.newest);
+  return old.slice(1).map((s) => s.name);
 }
-
-const SET_ID = /^[0-9a-f]{12}$/;
 
 async function listFiles(bucket: ReturnType<SupabaseClient["storage"]["from"]>, prefix: string): Promise<{ path: string; created: number }[]> {
   const files: { path: string; created: number }[] = [];
@@ -78,7 +80,7 @@ async function listFiles(bucket: ReturnType<SupabaseClient["storage"]["from"]>, 
   return files;
 }
 
-async function prune(bucket: ReturnType<SupabaseClient["storage"]["from"]>, keep: number, current: string) {
+async function prune(bucket: ReturnType<SupabaseClient["storage"]["from"]>, keepDays: number, current: string) {
   const { data, error } = await bucket.list("", { limit: 1000 });
   if (error) throw new Error(`list sets: ${error.message}`);
   const sets: { name: string; newest: number; files: string[] }[] = [];
@@ -86,7 +88,7 @@ async function prune(bucket: ReturnType<SupabaseClient["storage"]["from"]>, keep
     const files = await listFiles(bucket, entry.name);
     sets.push({ name: entry.name, newest: Math.max(0, ...files.map((f) => f.created)), files: files.map((f) => f.path) });
   }
-  for (const name of setsToPrune(sets, keep, current)) {
+  for (const name of setsToPrune(sets, keepDays, current, Date.now())) {
     const { error: removeError } = await bucket.remove(sets.find((s) => s.name === name)!.files);
     if (removeError) throw new Error(`remove ${name}: ${removeError.message}`);
     console.log(`  pruned set ${name}`);
@@ -128,8 +130,7 @@ async function main() {
   const version = helpImagesVersion();
   const bucket = createClient(url, key, { auth: { persistSession: false } }).storage.from(HELP_IMAGES_BUCKET);
 
-  // A set is immutable: if every file is already there, this commit's screens were published before (an earlier
-  // commit with the same source), so there is nothing to upload.
+  // A set is immutable: if every file is already there (a re-run of the same commit), there is nothing to upload.
   const present = new Set((await listFiles(bucket, version).catch(() => [])).map((f) => f.path.slice(version.length + 1)));
   const todo = plan.filter((u) => !present.has(u.remote));
   console.log(`Set ${version} on ${new URL(url).host} (${label}): ${plan.length - todo.length} already there, ${todo.length} to upload`);
@@ -140,8 +141,8 @@ async function main() {
   }
 
   if (args.includes("--prune")) {
-    const keep = Number(args.find((a) => a.startsWith("--keep="))?.slice(7) ?? 5);
-    await prune(bucket, keep, version);
+    const keepDays = Number(args.find((a) => a.startsWith("--keep-days="))?.slice(12) ?? 30);
+    await prune(bucket, keepDays, version);
   }
 }
 
