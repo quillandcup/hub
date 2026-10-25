@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -50,36 +51,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch prickles for these meetings
-    const { data: prickles, error: pricklesError } = await supabase
-      .from("prickles")
-      .select(`
-        id,
-        start_time,
-        end_time,
-        zoom_meeting_uuid,
-        prickle_types (
-          name
-        )
-      `)
-      .in("zoom_meeting_uuid", meetingUuids)
-      .order("start_time", { ascending: false });
-
-    console.log(`Found ${prickles?.length || 0} prickles for "${zoomName}"`);
-
-    if (pricklesError) {
-      console.error("Error fetching prickles:", pricklesError);
-      return NextResponse.json({ error: pricklesError.message }, { status: 500 });
-    }
+    const prickles = await createRepos(supabase).prickles.byZoomMeetings(meetingUuids);
+    console.log(`Found ${prickles.length} prickles for "${zoomName}"`);
 
     // Format the response
-    const formattedPrickles = prickles?.map((p: any) => ({
+    const formattedPrickles = prickles.map((p) => ({
       id: p.id,
-      start_time: p.start_time,
-      end_time: p.end_time,
-      type_name: Array.isArray(p.prickle_types)
-        ? p.prickle_types[0]?.name
-        : p.prickle_types?.name || "Unknown",
-    })) || [];
+      start_time: p.startTime,
+      end_time: p.endTime,
+      type_name: p.type?.name ?? "Unknown",
+    }));
 
     return NextResponse.json({ prickles: formattedPrickles });
   } catch (error: any) {
