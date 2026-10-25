@@ -12,6 +12,12 @@ import { emitListEvent, onPoke } from "@/lib/chat/list-events";
 const REFRESH_DELAY_MS = 300;
 /** Within this many pixels of the bottom counts as "following the conversation". */
 const NEAR_BOTTOM_PX = 150;
+/**
+ * A page rendered longer ago than this when it mounts came from the router's client cache (revisited
+ * within `staleTimes`), so it is brought up to date at once. Generous enough that clock skew between
+ * server and browser does not trigger it on a fresh render.
+ */
+const CACHED_PAGE_MS = 5000;
 /** Most messages with a changed reaction one fetch asks about. */
 const MAX_CHANGED_IDS = 50;
 
@@ -54,6 +60,7 @@ export default function ChatLive({
   threadRootId,
   markRead = false,
   latestAt = null,
+  renderedAt = null,
 }: {
   channelId: string;
   view: ChatLiveView;
@@ -63,6 +70,8 @@ export default function ChatLive({
   markRead?: boolean;
   /** When the newest message on the page was sent: how far the reader has seen. */
   latestAt?: string | null;
+  /** When the server rendered this page (ISO). Older than a moment on mount means it was served from the client cache. */
+  renderedAt?: string | null;
 }) {
   const router = useRouter();
   const anchor = useRef<HTMLSpanElement>(null);
@@ -142,6 +151,15 @@ export default function ChatLive({
     };
     timer.current = setTimeout(cooldown, REFRESH_DELAY_MS);
   }, [reload]);
+
+  // A conversation opened from the client cache shows what it had when it was cached: catch up once,
+  // merged in place (the realtime subscription only reports changes from now on).
+  useEffect(() => {
+    if (view === "older" || !renderedAt) return;
+    if (Date.now() - Date.parse(renderedAt) > CACHED_PAGE_MS) void reload();
+    // Only on mount: later renders of the same page must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Someone changed something here (a reaction toggled, a message sent): catch up now, without the debounce.
   useEffect(() => onPoke(channelId, () => void reload()), [channelId, reload]);

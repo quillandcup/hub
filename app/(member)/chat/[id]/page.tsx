@@ -151,6 +151,7 @@ export default async function ChatChannelPage({
   // Who the composer shows as the author of a message while it is sent.
   const me = people.find((p) => p.memberId === identity.memberId);
   const viewer = { memberId: identity.memberId, name: me?.name ?? identity.memberName, photoUrl: me?.photoUrl ?? null };
+  const renderedAt = new Date().toISOString();
   const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 
   return (
@@ -189,6 +190,7 @@ export default async function ChatChannelPage({
                 channelId={channel.id}
                 view={before ? "older" : "latest"}
                 markRead={!identity.isSudo}
+                renderedAt={renderedAt}
                 latestAt={messageViews.length > 0 ? messageViews[messageViews.length - 1].createdAt : null}
                 latestId={messageViews.length > 0 ? messageViews[messageViews.length - 1].id : null}
               />
@@ -220,6 +222,7 @@ export default async function ChatChannelPage({
             channelId={channel.id}
             view="thread"
             threadRootId={threadId}
+            renderedAt={renderedAt}
             latestId={threadViews[threadViews.length - 1].id}
           />
           <ThreadList
