@@ -38,7 +38,8 @@ export type PrickleDetail = Prickle & { type: PrickleType | null; host: PrickleH
 /** Prickles whose start time falls in a window; ordered by start time, then id. */
 export type StartingBetween = {
   from: string;
-  to: string;
+  /** No later than this; leave out for "from then on". */
+  to?: string;
   /** Include prickles starting exactly at `to` (default: the window is [from, to)). */
   inclusiveEnd?: boolean;
   /** Only these types. */
@@ -193,7 +194,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       rows.push(
         ...(await fetchAllRows<DetailRow>((start, end) => {
           let query = this.db.from("prickles").select(DETAIL_SELECT).gte("start_time", from);
-          query = inclusiveEnd ? query.lte("start_time", to) : query.lt("start_time", to);
+          if (to !== undefined) query = inclusiveEnd ? query.lte("start_time", to) : query.lt("start_time", to);
           if (typeChunk) query = query.in("type_id", typeChunk);
           if (hostId) query = query.eq("host", hostId);
           return query.order("start_time").order("id").range(start, end) as unknown as PromiseLike<{
@@ -397,7 +398,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId }: StartingBetween) {
     const start = new Date(from).getTime();
-    const end = new Date(to).getTime();
+    const end = to === undefined ? Infinity : new Date(to).getTime();
     const types = typeIds ? new Set(typeIds) : null;
     return this.data.prickles
       .filter((p) => {

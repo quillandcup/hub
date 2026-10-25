@@ -1,6 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { bootstrapMonthFromCalendar } from "@/lib/prickle-schedules";
+
+// The calendar's prickles come from their repository, in memory here; the schedules go through the fake client below.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 /**
  * Unit tests for bootstrapMonthFromCalendar against a tiny in-memory stand-in
@@ -56,17 +65,25 @@ function fakeSupabase(tables: Record<string, Row[]>) {
 // October 2026: Thursdays are 1, 8, 15, 22, 29; Mondays are 5, 12, 19, 26; Tuesdays 6, 13, 20, 27.
 const OCTOBER = "2026-10-01";
 const NOVEMBER = "2026-11-01";
-const HOSTED = { requires_host: true };
+// type-a takes a host; type-b doesn't.
+const TYPES = [
+  { id: "type-a", name: "Type A", normalizedName: "type-a", purpose: "writing", requiresHost: true, soloTaskFriendly: false },
+  { id: "type-b", name: "Type B", normalizedName: "type-b", purpose: "writing", requiresHost: false, soloTaskFriendly: false },
+];
 
 // 7pm ET (EDT, UTC-4) on the given October day.
-function prickle(host: string, type: string, day: number, requiresHost = HOSTED) {
+let prickleCount = 0;
+function prickle(host: string, type: string, day: number) {
   const dd = String(day).padStart(2, "0");
   return {
-    host,
-    type_id: type,
+    id: `prkl_${String(++prickleCount).padStart(12, "A")}`,
+    typeId: type,
+    hostId: host,
+    title: null,
     source: "calendar",
-    start_time: `2026-10-${dd}T23:00:00.000Z`,
-    prickle_types: requiresHost,
+    startTime: `2026-10-${dd}T23:00:00.000Z`,
+    endTime: `2026-10-${dd}T23:00:00.000Z`,
+    calendarEventId: null,
   };
 }
 
@@ -91,8 +108,7 @@ describe("bootstrapMonthFromCalendar", () => {
   let tables: Record<string, Row[]>;
 
   beforeEach(() => {
-    tables = {
-      prickles: [
+    const prickles = [
         // host-1: every Thursday -> weekly (already has a proposed carried-forward row)
         ...[1, 8, 15, 22, 29].map((d) => prickle("host-1", "type-a", d)),
         // host-2: every Monday -> weekly (no row yet)
@@ -100,8 +116,10 @@ describe("bootstrapMonthFromCalendar", () => {
         // host-3: 2nd Tuesday only -> monthly week 2 (admin already declined it)
         prickle("host-3", "type-a", 13),
         // Doesn't require a host -> ignored
-        prickle("host-4", "type-b", 7, { requires_host: false }),
-      ],
+        prickle("host-4", "type-b", 7),
+    ];
+    repos = createInMemoryRepos(new InMemoryDataset({ prickleTypes: TYPES, prickles }));
+    tables = {
       prickle_schedules: [
         schedule({ id: "proposed-thu", host_id: "host-1", day_of_week: 4, status: "proposed" }),
         schedule({ id: "declined-tue", host_id: "host-3", recurrence_type: "monthly", day_of_week: 2, week_of_month: 2, status: "declined" }),
