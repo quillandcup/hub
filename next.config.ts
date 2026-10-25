@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: isPreview,
   },
+  // Revisiting a page within 30s reuses what the client already has (default 0: every click renders on
+  // the server). Makes flipping between chat conversations instant; a server action that calls
+  // revalidatePath still clears it, and the live conversation reconciles over Realtime.
+  experimental: { staleTimes: { dynamic: 30 } },
 };
 
 export default withSentryConfig(nextConfig, {
