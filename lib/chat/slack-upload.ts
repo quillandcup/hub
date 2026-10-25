@@ -24,8 +24,6 @@ export interface FileSendContext {
   files: ChatFile[];
   connection: { token: string } | null;
   authorMemberId: string;
-  /** What the bot's version of the comment starts with, since an upload can't carry a name and photo. */
-  authorName: string | null;
   escape: (text: string) => string;
   fail: (reason: string, error?: unknown) => Promise<"failed">;
 }
@@ -92,30 +90,23 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
         file_uploads: uploads,
       });
 
-    let result: Awaited<ReturnType<typeof upload>> | null = null;
-    if (ctx.connection) {
-      try {
-        result = await upload(ctx.connection.token, ctx.escape(ctx.body));
-        postedVia = "user_token";
-      } catch (error) {
-        const code = (error as { data?: { error?: string } })?.data?.error;
-        if (isDeadTokenError(error)) {
-          console.error("Slack token for member %s is dead, revoking and uploading through the bot", ctx.authorMemberId);
-          await supabase.rpc("slack_connection_revoke", { p_member: ctx.authorMemberId });
-        } else if (code !== "missing_scope") {
-          return ctx.fail("filesUploadV2 as the member threw", error);
-        }
-        // missing_scope: they connected before the Hub asked to upload files for them; use the bot.
+    // As the member, with their own token: chat requires a connected account, so the bot never uploads for
+    // them. Without a working connection nothing is uploaded and the message waits for a Retry.
+    if (!ctx.connection) return ctx.fail("the member has no working Slack connection");
+    let result: Awaited<ReturnType<typeof upload>>;
+    try {
+      result = await upload(ctx.connection.token, ctx.escape(ctx.body));
+      postedVia = "user_token";
+    } catch (error) {
+      // A dead token, or one connected before the Hub asked to upload files for the member (missing_scope):
+      // either way they reconnect (the gate sends them to Settings), and Retry then sends it.
+      const code = (error as { data?: { error?: string } })?.data?.error;
+      if (isDeadTokenError(error) || code === "missing_scope") {
+        console.error("Slack token for member %s can't upload (%s), revoking it", ctx.authorMemberId, code ?? "dead");
+        await supabase.rpc("slack_connection_revoke", { p_member: ctx.authorMemberId });
+        return ctx.fail("the member's Slack token can't upload");
       }
-    }
-    if (!result) {
-      const who = ctx.authorName ? `*${ctx.escape(ctx.authorName)}:* ` : "";
-      try {
-        result = await upload(botToken, `${who}${ctx.escape(ctx.body)}`.trim());
-        postedVia = "bot";
-      } catch (error) {
-        return ctx.fail("filesUploadV2 threw", error);
-      }
+      return ctx.fail("filesUploadV2 as the member threw", error);
     }
 
     ids = uploadedFileIds(result);

@@ -275,6 +275,11 @@ async function sendChatMessageImpl(channelId: string, body: string, threadRootId
   if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+  // Messages are posted as the member, with their own Slack token, and there is no bot fallback: without a
+  // connection nothing would reach Slack, so say so now instead of saving a message that can only fail.
+  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." };
+  }
 
   let files: Record<string, unknown>[] | null = null;
   if (uploads.length > 0) {
@@ -380,7 +385,11 @@ export async function retryChatMessage(messageId: string): Promise<SendChatResul
   if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent") {
     return { ok: false, error: "That message can't be retried." };
   }
-  const result = await sendChatMessageToSlack(createServiceRoleClient(), messageId);
+  const service = createServiceRoleClient();
+  if (!(await getSlackConnectionStatus(service, caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings, then retry: your messages are posted as you." };
+  }
+  const result = await sendChatMessageToSlack(service, messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
 }
 

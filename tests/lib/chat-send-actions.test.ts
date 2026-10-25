@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   removeBytes: vi.fn(),
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
+  retryRow: null as Record<string, unknown> | null,
   connected: vi.fn(),
   serviceClient: vi.fn(),
 }));
@@ -31,6 +32,7 @@ vi.mock("@/lib/supabase/server", () => ({
       const chain: Record<string, unknown> = {};
       for (const k of ["select", "eq", "not", "is"]) chain[k] = () => chain;
       chain.limit = async () => ({ data: m.slackReactionRows });
+      chain.maybeSingle = async () => ({ data: m.retryRow });
       return chain;
     },
   }),
@@ -43,7 +45,7 @@ vi.mock("@/lib/chat/slack-edit", () => ({ updateChatMessageInSlack: m.slackUpdat
 vi.mock("@/lib/chat/load", () => ({}));
 vi.mock("@/lib/chat/file-cleanup", () => ({ removeChatFileBytes: m.removeBytes }));
 
-import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
+import { deleteChatFile, deleteChatMessage, editChatMessage, prepareChatUploads, retryChatMessage, sendChatMessage, toggleChatReaction } from "@/app/(member)/chat/actions";
 
 const CHANNEL = "chn_AAAAAAAAAAC1";
 const MESSAGE = "msg_AAAAAAAAAAD1";
@@ -68,8 +70,44 @@ beforeEach(() => {
   m.slackDelete.mockReset();
   m.slackDelete.mockResolvedValue({ ok: true });
   m.slackReactionRows = [];
+  m.retryRow = { author_member_id: "member-fern", origin: "app", slack_sync_status: "failed" };
   m.connected.mockReset();
   m.connected.mockResolvedValue({ connected: true });
+});
+
+describe("retryChatMessage", () => {
+  it("sends the author's own failed message again", async () => {
+    m.sendToSlack.mockResolvedValue("sent");
+    await expect(retryChatMessage(MESSAGE)).resolves.toEqual({ ok: true, id: MESSAGE });
+    expect(m.sendToSlack).toHaveBeenCalledWith({ service: true }, MESSAGE);
+  });
+
+  it("says Slack didn't take it when the send fails again", async () => {
+    m.sendToSlack.mockResolvedValue("failed");
+    await expect(retryChatMessage(MESSAGE)).resolves.toEqual({ ok: false, error: "Slack didn't take it. Try again in a moment." });
+  });
+
+  it("sends nothing and says to connect Slack when the member has no working connection (no bot fallback)", async () => {
+    m.connected.mockResolvedValue({ connected: false });
+    await expect(retryChatMessage(MESSAGE)).resolves.toEqual({ ok: false, error: expect.stringContaining("Connect Slack in Settings") });
+    expect(m.sendToSlack).not.toHaveBeenCalled();
+  });
+
+  it("refuses someone else's message, one from Slack, one already sent, an unknown one and a bad id", async () => {
+    for (const change of [{ author_member_id: "member-gale" }, { origin: "slack" }, { slack_sync_status: "sent" }]) {
+      m.retryRow = { author_member_id: "member-fern", origin: "app", slack_sync_status: "failed", ...change };
+      await expect(retryChatMessage(MESSAGE)).resolves.toEqual({ ok: false, error: "That message can't be retried." });
+    }
+    m.retryRow = null;
+    await expect(retryChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false });
+    await expect(retryChatMessage("nope")).resolves.toMatchObject({ ok: false });
+    expect(m.sendToSlack).not.toHaveBeenCalled();
+  });
+
+  it("is closed without the posting preview", async () => {
+    m.hasFeature.mockImplementation(async (key: string) => key !== "chat_posting");
+    await expect(retryChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("isn't available") });
+  });
 });
 
 describe("sendChatMessage", () => {
@@ -82,6 +120,13 @@ describe("sendChatMessage", () => {
 
     await flushAfter();
     expect(m.sendToSlack).toHaveBeenCalledWith({ service: true }, MESSAGE);
+  });
+
+  it("refuses, saving nothing, when the member has no working Slack connection, since there is no bot fallback", async () => {
+    m.connected.mockResolvedValue({ connected: false });
+    await expect(sendChatMessage(CHANNEL, "hello")).resolves.toEqual({ ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." });
+    expect(m.rpc).not.toHaveBeenCalled();
+    expect(m.afterCallbacks).toHaveLength(0);
   });
 
   it("never lets a failure in the background send surface as an error", async () => {

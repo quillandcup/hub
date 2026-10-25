@@ -53,9 +53,8 @@ const ctx = (extra: Partial<FileSendContext> = {}): FileSendContext => ({
   threadTs: undefined,
   body: "look <here>",
   files: FILES.map((f) => ({ ...f })),
-  connection: null,
+  connection: { token: "xoxp-member" },
   authorMemberId: "member-fern",
-  authorName: "Fern Quillsby",
   escape: (t) => t.replace(/</g, "&lt;"),
   fail,
   ...extra,
@@ -102,14 +101,14 @@ describe("lookupFileMessageTs", () => {
 describe("sendChatFilesToSlack", () => {
   useFakeClock();
 
-  it("uploads the staged bytes as the bot with the member's name on the comment, stores the real ids, marks it sent and keeps permanent copies", async () => {
-    const result = await sendChatFilesToSlack(ctx());
+  it("uploads the staged bytes as the member, stores the real ids, marks it sent and keeps permanent copies", async () => {
+    const result = await sendChatFilesToSlack(ctx({ threadTs: "1.1" }));
 
     expect(result).toBe("sent");
     expect(uploadV2).toHaveBeenCalledTimes(1);
     const [args, token] = uploadV2.mock.calls[0];
-    expect(token).toBe("xoxb-test");
-    expect(args).toMatchObject({ channel_id: "C1", initial_comment: "*Fern Quillsby:* look &lt;here>" });
+    expect(token).toBe("xoxp-member");
+    expect(args).toMatchObject({ channel_id: "C1", thread_ts: "1.1", initial_comment: "look &lt;here>" });
     expect(args.file_uploads.map((u: { filename: string }) => u.filename)).toEqual(["cat.gif", "notes.pdf"]);
     expect(updates.find((u) => u.table === "chat_message_contents")?.values).toEqual({
       files: [
@@ -118,29 +117,26 @@ describe("sendChatFilesToSlack", () => {
       ],
     });
     expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000200" });
-    expect(updates.find((u) => u.table === "chat_messages")?.values).toEqual({ posted_via: "bot" });
+    expect(updates.find((u) => u.table === "chat_messages")?.values).toEqual({ posted_via: "user_token" });
     expect(Object.keys(storedBytes).filter((k) => k.startsWith("uploaded:"))).toEqual(["uploaded:F1/cat.gif", "uploaded:F2/notes.pdf"]);
     expect(bronzeRows).toHaveLength(2);
     expect(removed).toEqual([["staging/2026-10-22/m-1/cat.gif", "staging/2026-10-22/m-1/notes.pdf"]]);
   });
 
-  it("uploads as the member with their own token and their text alone", async () => {
-    await sendChatFilesToSlack(ctx({ connection: { token: "xoxp-member" }, threadTs: "1.1" }));
-    const [args, token] = uploadV2.mock.calls[0];
-    expect(token).toBe("xoxp-member");
-    expect(args).toMatchObject({ thread_ts: "1.1", initial_comment: "look &lt;here>" });
-    expect(updates.find((u) => u.table === "chat_messages")?.values).toEqual({ posted_via: "user_token" });
+  it("never uploads through the bot: without a working connection the message fails and waits for a Retry", async () => {
+    expect(await sendChatFilesToSlack(ctx({ connection: null }))).toBe("failed");
+    expect(uploadV2).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledWith(expect.stringContaining("no working Slack connection"));
   });
 
-  it("falls back to the bot when the member's token lacks the files scope, and revokes a dead one", async () => {
-    uploadV2.mockRejectedValueOnce(Object.assign(new Error("x"), { data: { error: "missing_scope" } }));
-    await sendChatFilesToSlack(ctx({ connection: { token: "xoxp-member" } }));
-    expect(uploadV2.mock.calls.map((c) => c[1])).toEqual(["xoxp-member", "xoxb-test"]);
-    expect(rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
-
-    uploadV2.mockReset();
-    uploadV2.mockRejectedValueOnce(Object.assign(new Error("x"), { data: { error: "token_revoked" } })).mockResolvedValueOnce({ files: [{ files: [{ id: "F1" }] }, { files: [{ id: "F2" }] }] });
-    await sendChatFilesToSlack(ctx({ connection: { token: "xoxp-member" } }));
+  it.each([
+    ["token_revoked", "a dead token"],
+    ["missing_scope", "a connection from before the Hub uploaded files for members"],
+  ])("revokes the connection on %s (%s) so the member reconnects, and fails instead of falling back to the bot", async (code) => {
+    uploadV2.mockRejectedValueOnce(Object.assign(new Error("x"), { data: { error: code } }));
+    expect(await sendChatFilesToSlack(ctx())).toBe("failed");
+    expect(uploadV2).toHaveBeenCalledTimes(1);
+    expect(uploadV2.mock.calls[0][1]).toBe("xoxp-member");
     expect(rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "member-fern" });
   });
 
