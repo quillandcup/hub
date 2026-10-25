@@ -7,7 +7,7 @@ Two narrated overview videos of Hedgie Hub for members, recorded from the demo c
 - **A new member** (or someone deciding whether to join) asks: *what is this, and why would I want it?* The answer is a community that makes writing less lonely, with a rhythm (Prickles, streaks) that keeps you going.
 - **An existing member**, who already lives in Slack and Kajabi, asks: *what is in it for me now?* The answer is what the Hub adds to the habit they have: your schedule in your own calendar, your progress in one place, and the conversation (chat) without switching apps.
 - **Voice**: warm, plain, a little proud; short sentences; one idea per beat. Everything said is something the screen shows. "Prickle" is explained the first time, never assumed.
-- **Narrator**: a neutral American female voice (macOS "Samantha" by default; `DEMO_VOICE` changes it). Captions are on the whole time, because most people will first see it with the sound off, on Instagram.
+- **Narrator**: a neutral, warm American female voice: Kokoro's `af_heart` (a local neural model; the setup and other voices are in `docs/DEMO_AND_HELP.md`). Captions are on the whole time, because most people will first see it with the sound off, on Instagram.
 - **Cast**: women writers in a bookstagram voice (casual, emoji, word counts); the viewer is "Maya", three weeks in.
 
 ## Long cut (about 2 minutes)

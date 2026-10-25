@@ -311,7 +311,7 @@ function encode(raw: string, out: string, trimSeconds: number, voice: { file: st
     ? []
     : [
         "-filter_complex",
-        `${voice.map((v, i) => `[${i + 1}:a]adelay=${Math.round(v.atMs)}|${Math.round(v.atMs)}[a${i}]`).join(";")};${voice.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voice.length}:normalize=0:dropout_transition=0[voice]`,
+        `${voice.map((v, i) => `[${i + 1}:a]adelay=${Math.round(v.atMs)}|${Math.round(v.atMs)}[a${i}]`).join(";")};${voice.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voice.length}:normalize=0:dropout_transition=0[mix];[mix]loudnorm=I=-16:TP=-1.5:LRA=11[voice]`,
         "-map", "0:v", "-map", "[voice]",
       ];
   const run = (args: string[]) => {
