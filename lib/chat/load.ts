@@ -467,7 +467,14 @@ export async function buildMessageViews(
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
   const threadRoots = rows.filter((r) => r.reply_count > 0).map((r) => r.id);
 
-  const [profiles, slackAuthorByTs, { data: reactionRows }, replies] = await Promise.all([
+  // Lookups that need only the rows are started with the first batch: mention names, notices,
+  // channel links and the emoji used in the bodies. The batches below reuse them.
+  const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
+  // People named in a notice (a join, a leave) are shown by their Hub name; elsewhere a mention reads as in Slack.
+  const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
+  const bodyEmojiNames = rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? ""));
+
+  const [profiles, slackAuthorByTs, { data: reactionRows }, replies, userMembers, hubNames, channelNames] = await Promise.all([
     memberProfiles(supabase, matched),
     channel.slackChannelId && unmatched.length > 0
       ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
@@ -478,40 +485,44 @@ export async function buildMessageViews(
       .in("message_id", rows.map((r) => r.id))
       .is("deleted_at", null),
     loadReplyAuthors(supabase, threadRoots),
-  ]);
-
-  timer?.mark("views.batch1");
-  // Repliers with no matched member: who wrote them, by Slack ts.
-  const unmatchedReplyTs = [...replies.values()].flat().filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
-  const replySlackAuthors =
-    channel.slackChannelId && unmatchedReplyTs.length > 0
-      ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
-      : ({} as Record<string, string>);
-  const replyProfiles = await memberProfiles(supabase, [...replies.values()].flat().flatMap((a) => (a.memberId ? [a.memberId] : [])));
-  timer?.mark("views.replyAuthors");
-
-  // One batch for every Slack name and photo needed: unmatched authors and repliers plus people mentioned in the text.
-  const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
-  const reactorMemberIds = [...new Set((reactionRows ?? []).flatMap((r) => (r.member_id && r.member_id !== viewerMemberId ? [r.member_id as string] : [])))];
-  const reactorSlackIds = [...new Set((reactionRows ?? []).flatMap((r) => (!r.member_id && r.slack_user_id ? [r.slack_user_id as string] : [])))];
-  const reactorProfiles = await memberProfiles(supabase, reactorMemberIds);
-  timer?.mark("views.reactors");
-  const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
-  const emojiNames = [
-    ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
-    ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
-  ];
-  // People named in a notice (a join, a leave) are shown by their Hub name; elsewhere a mention reads as in Slack.
-  const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
-  const [userNames, userMembers, hubNames, channelNames, slackPhotos, customEmoji] = await Promise.all([
-    slackUserNames([...slackIds, ...mentioned]),
     slackUserMemberIds(mentioned),
     slackUserHubNames(mentionedInNotices),
     slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? ""))),
-    slackUserPhotos(slackIds),
-    customEmojiFor(emojiNames),
   ]);
-  timer?.mark("views.names");
+  timer?.mark("views.batch1");
+
+  const replyList = [...replies.values()].flat();
+  const reactorMemberIds = [...new Set((reactionRows ?? []).flatMap((r) => (r.member_id && r.member_id !== viewerMemberId ? [r.member_id as string] : [])))];
+  const reactorSlackIds = [...new Set((reactionRows ?? []).flatMap((r) => (!r.member_id && r.slack_user_id ? [r.slack_user_id as string] : [])))];
+  const emojiNames = [
+    ...bodyEmojiNames,
+    ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
+  ];
+  // Repliers with no matched member: who wrote them, by Slack ts.
+  const unmatchedReplyTs = replyList.filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
+
+  // Two independent chains run together: the repliers' and reactors' Hub profiles (one lookup), and
+  // the Slack side (replier authors by ts, then every Slack name, photo and emoji in one batch).
+  const [otherProfiles, slackSide] = await Promise.all([
+    memberProfiles(supabase, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds]),
+    (async () => {
+      const replySlackAuthors =
+        channel.slackChannelId && unmatchedReplyTs.length > 0
+          ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
+          : ({} as Record<string, string>);
+      const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
+      const [userNames, slackPhotos, customEmoji] = await Promise.all([
+        slackUserNames([...slackIds, ...mentioned]),
+        slackUserPhotos(slackIds),
+        customEmojiFor(emojiNames),
+      ]);
+      return { replySlackAuthors, userNames, slackPhotos, customEmoji };
+    })(),
+  ]);
+  const replyProfiles = otherProfiles;
+  const reactorProfiles = otherProfiles;
+  const { replySlackAuthors, userNames, slackPhotos, customEmoji } = slackSide;
+  timer?.mark("views.profilesAndNames");
 
   const slackPerson = (slackUserId: string | undefined): Person => ({
     name: (slackUserId ? userNames[slackUserId] : undefined) ?? (slackUserId?.startsWith("B") ? "Slack app" : "Someone on Slack"),

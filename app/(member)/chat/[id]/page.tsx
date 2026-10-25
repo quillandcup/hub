@@ -1,6 +1,7 @@
 import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -34,12 +35,17 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { isValidTimeZone } from "@/lib/time-zone";
 import ProfileCard from "@/components/chat/ProfileCard";
 
+// generateMetadata and the page both need the channel; keyed on plain values (not the client) so one request reads it once.
+const channelFor = cache(async (id: string, memberId: string, isSudo: boolean) =>
+  loadChannelForMember(await createClient(), id, memberId, isSudo)
+);
+
 // The tab is titled with the conversation (channel, group or DM), most specific first.
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   if (!isId(id, "chn")) return { title: "Chat" };
   const { identity } = await requireChat();
-  const channel = await loadChannelForMember(await createClient(), id, identity.memberId, identity.isSudo);
+  const channel = await channelFor(id, identity.memberId, identity.isSudo);
   return { title: channel ? `${channel.label} · Chat` : "Chat" };
 }
 
@@ -67,7 +73,7 @@ export default async function ChatChannelPage({
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
+  const channel = await channelFor(id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
   timer.mark("channel");
 
