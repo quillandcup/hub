@@ -184,5 +184,30 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().ofTypeActiveBetween({ ...window, normalizedName: "no such type" })).toEqual([]);
       expect([over, later, otherType]).toHaveLength(3);
     });
+
+    it("lists the host and start time of every hosted prickle, optionally one member's", async () => {
+      await ctx.seed([
+        { host: 0, start: at(0) },
+        { host: 0, start: at(1) },
+        { host: 1, start: at(2) },
+        { start: at(3) },
+      ]);
+
+      const all = (await ctx.repo().hostedStartTimes()).filter((h) => [ctx.hosts[0].id, ctx.hosts[1].id].includes(h.hostId));
+      const mine = await ctx.repo().hostedStartTimes({ hostId: ctx.hosts[0].id });
+
+      expect(all.map((h) => h.hostId).sort()).toEqual([ctx.hosts[0].id, ctx.hosts[0].id, ctx.hosts[1].id].sort());
+      expect(mine.map((h) => new Date(h.startTime).getTime()).sort()).toEqual([new Date(at(0)).getTime(), new Date(at(1)).getTime()]);
+      expect(mine.every((h) => h.hostId === ctx.hosts[0].id)).toBe(true);
+    });
+
+    it("picks the next prickle from an instant, else the latest there is", async () => {
+      await ctx.seed([{ start: at(0) }, { start: at(5) }, { start: at(9) }]);
+
+      expect(new Date((await ctx.repo().nextOrMostRecent(at(3)))!.startTime)).toEqual(new Date(at(5)));
+      expect(new Date((await ctx.repo().nextOrMostRecent(at(5)))!.startTime)).toEqual(new Date(at(5))); // starting exactly then counts
+      // Nothing after: the latest there is (a shared database may hold later ones from elsewhere).
+      expect(new Date((await ctx.repo().nextOrMostRecent("2999-01-01T00:00:00Z"))!.startTime).getTime()).toBeGreaterThanOrEqual(new Date(at(9)).getTime());
+    });
   });
 }

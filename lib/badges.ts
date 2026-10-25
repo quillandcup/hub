@@ -313,24 +313,8 @@ export async function getHostedQuarterCount(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<number> {
-  const quarters = new Set<string>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("start_time")
-      .eq("host", memberId)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { start_time: string }[]) quarters.add(quarterKey(row.start_time));
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const hosted = await createRepos(supabase).prickles.hostedStartTimes({ hostId: memberId });
+  const quarters = new Set(hosted.map((h) => quarterKey(h.startTime)));
   return quarters.size;
 }
 
@@ -554,26 +538,10 @@ export function computeBadgeRecipients(
  * -- the bulk counterpart to getHostedQuarterCount, one paginated scan instead of N. */
 async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise<Map<string, number>> {
   const quartersByMember = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("host, start_time")
-      .not("host", "is", null)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { host: string; start_time: string }[]) {
-        const quarters = quartersByMember.get(row.host) ?? new Set<string>();
-        quarters.add(quarterKey(row.start_time));
-        quartersByMember.set(row.host, quarters);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
+  for (const { hostId, startTime } of await createRepos(supabase).prickles.hostedStartTimes()) {
+    const quarters = quartersByMember.get(hostId) ?? new Set<string>();
+    quarters.add(quarterKey(startTime));
+    quartersByMember.set(hostId, quarters);
   }
   const countsByMember = new Map<string, number>();
   for (const [memberId, quarters] of quartersByMember) countsByMember.set(memberId, quarters.size);

@@ -1,6 +1,7 @@
 "use server";
 
 import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -157,29 +158,17 @@ export async function getWizardRecommendations(
   const historyStart = new Date(now);
   historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
 
-  const [typesResult, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
-    supabase.from("prickle_types").select("id, name, purpose, solo_task_friendly"),
+  const prickleRepo = createRepos(supabase).prickles;
+  const toCandidates = (rows: PrickleDetail[]): CandidatePrickle[] =>
+    rows.map((p) => ({ id: p.id, type_id: p.typeId, host_id: p.hostId, start_time: p.startTime }));
+
+  const [types, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
+    prickleRepo.types(),
     fetchAllPaginated<PickerHost>((offset) =>
       supabase.from("member_directory").select("id, name").order("id").range(offset, offset + BATCH_SIZE - 1)
     ),
-    fetchAllPaginated<CandidatePrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, host_id:host, start_time")
-        .gte("start_time", windowStart)
-        .lte("start_time", fallbackWindowEnd)
-        .order("start_time")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<CandidatePrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, host_id:host, start_time")
-        .gte("start_time", historyStart.toISOString())
-        .lt("start_time", windowStart)
-        .order("start_time")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    prickleRepo.startingBetween({ from: windowStart, to: fallbackWindowEnd, inclusiveEnd: true }).then(toCandidates),
+    prickleRepo.startingBetween({ from: historyStart.toISOString(), to: windowStart }).then(toCandidates),
     // The vibe column is plain text with a check constraint; HostVibeRow narrows it to the Vibe union.
     fetchAllPaginated<Omit<HostVibeRow, "vibe"> & { vibe: string }>((offset) =>
       supabase
@@ -190,13 +179,8 @@ export async function getWizardRecommendations(
     fetchMyRatedCheckins(supabase, effectiveIdentity.memberId),
   ]);
 
-  if (typesResult.error) return { error: typesResult.error.message };
-
   const typesMap = new Map<string, PickerPrickleType>(
-    (typesResult.data ?? []).map((t) => [
-      t.id,
-      { id: t.id, name: t.name, purpose: t.purpose as PrickleTypePurpose, soloTaskFriendly: t.solo_task_friendly },
-    ])
+    types.map((t) => [t.id, { id: t.id, name: t.name, purpose: t.purpose as PrickleTypePurpose, soloTaskFriendly: t.soloTaskFriendly }])
   );
   const hostsMap = new Map<string, PickerHost>(membersResult.map((m) => [m.id, m]));
 
