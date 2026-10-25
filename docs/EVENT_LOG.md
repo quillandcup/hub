@@ -154,6 +154,29 @@ The owner's rules for this: **business events are never dropped or anonymised au
 
 Where the current system differs: `access_events` keeps raw IPs, user agents and places indefinitely and nothing prunes it (recorded in `docs/TODO.md` as "the owner's call, for now"). That is the one real exposure, and phase 0 closes it. `video_watch_segments`, `member_activities` and `audit_log` have no limit, which matches this schedule (kept until asked).
 
+### Data inventory: what is kept, at what detail, for how long
+
+The one table to read (and to publish, in plain words, on `/privacy`). Everything above and below must agree with it; if they don't, this table wins and the other is a bug.
+
+| Data | What exactly is stored (granularity) | Stored together with (combinations) | Kept identifiable for | After that |
+|---|---|---|---|---|
+| **Business events**: a project created, a check-in saved, a notification sent or opened, a lesson completed | event name and time; who did it (user) and what it concerns (the member, the record); the correlation id; a few allowlisted facts (which action, a count, a status). No typed text | actor + record only. **Never** device, IP, viewport or place | **until the member asks** | on request: erased or anonymised, as they choose. No automatic limit |
+| **Sign-in events** | time; user; **raw IP**; **raw user agent**; place (country, region, city); browser and OS **with versions**; device type | all together on the one event | raw IP and raw user agent **90 days**; browser and OS versions **13 months**; the rest until asked | at 90 days: IP truncated (last octet, or lower 64 bits for IPv6) or nulled, user agent nulled. At 13 months: versions removed. What stays until asked: time, user, place, browser family, OS family, device type |
+| **Visit records** (page views) | the page trail: route templates only (`/members/[id]`, never real paths or ids), in order, with times; visit start and end; coarse device (browser family, OS family, device type) | the user and the visit. No IP, no exact viewport | the trail **13 months** | one summary row per visit: start, end, number of pages, place, coarse device; kept until asked |
+| **Interaction events**: clicks, impressions, search, filters | event name; control name (`data-track`); route template; a visible label only where allowed (never on admin pages, in tables, on links to people or records, or if it looks like an email); for search, only its shape (the `in:` scope, operator names, word count, result counts, never the query); **device detail**: browser and OS with versions, device type, exact viewport width and height, orientation | the user, the visit, the correlation id, and the device detail on **every** event | **13 months** | row deleted; already counted in the rollups |
+| **Friction events** (`*_failed`, validation) | the reason (validation, permission or precondition), the names of the fields involved (never what was typed); the same device detail | as interaction events | **13 months** | row deleted; counted in the rollups |
+| **Error events** (`*_error`) | the error class and the action; the same device detail | as interaction events | **90 days** | deleted |
+| **Rollups** (anonymous) | **counts only**: events, visits and distinct members per day, week and month. No member ids | **one dimension at a time:** event name; route; control; browser by `major.minor` version; OS by `major.minor` version; viewport width in 100-pixel bins and in the named bands (under 360, 360-479, 480-767, 768-1023, 1024-1279, 1280-1535, 1536 and up); viewport height in 100-pixel bins; orientation; device type. **Coarse pairs only:** browser family by device type, width band by device type, OS family by orientation (a pair cell under five distinct members is folded into "other"). **Never** the full combination (this Chrome on this OS at this window size) | **indefinitely** | n/a: they hold no personal data |
+| **Cookies** | `hub_sid`: the visit's random session id. `hub_cid`: the correlation id of the last click | set only where tracking is allowed | `hub_sid` 30 minutes idle; `hub_cid` 60 seconds | expire |
+| **Soft-deleted rows** | any row marked deleted | | **30 days** | physically purged. Backups roll off on the provider's schedule |
+| **Existing logs, unchanged by this design** | `audit_log` (field-level changes), `member_activities` (the CRM timeline), `video_watch_segments` (course viewing, in its own tables) | | until the member asks | on request |
+
+**Legacy until phase 4.** `access_events` still has a row per request (path, user agent, raw IP, place, device). Its raw IP and user agent go at 90 days from phase 0; its other columns are replaced by sign-in events and visit records in phase 4 and then retired.
+
+**Never stored, anywhere:** text a member typed (search queries, form fields, messages) in the event log; names or emails in labels; a fingerprint hash or any identifier derived from combining device details; an IP address on interaction, friction, error or business events (only on sign-in events, and only for 90 days); the full combination of device details in a rollup.
+
+**Where each device field is collected, and under what basis:** browser, OS and device type on sign-in events are parsed server-side from the header the browser already sent (legitimate interest, security); client hints, exact viewport and orientation are read by browser JavaScript, so they exist only on events from members who allowed tracking (consent). See [Device and viewport details](#device-and-viewport-details).
+
 ### Device and viewport details
 
 For analytics the log records what a member's browser and screen actually are, in enough detail to answer "which Chrome and Safari versions, which OS versions, which window sizes and orientations do we need to support":
