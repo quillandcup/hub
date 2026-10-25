@@ -7,6 +7,15 @@ import type { ChannelSummary } from "@/lib/chat/load";
 let pathname = "/chat";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
+// Shows what the sidebar asked the router to prefetch.
+vi.mock("next/link", () => ({
+  default: ({ prefetch, children, ...props }: { prefetch?: boolean; children: React.ReactNode } & Record<string, unknown>) => (
+    <a {...props} data-prefetch={String(prefetch)}>
+      {children}
+    </a>
+  ),
+}));
+
 type Row = Record<string, unknown>;
 let onInsert: (payload: { new: Row }) => void = () => {};
 let onUpdate: (payload: { new: Row }) => void = () => {};
@@ -262,5 +271,28 @@ describe("ChatSidebar", () => {
       await flush();
       expect(syncRead).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ChatSidebar prefetching", () => {
+  const prefetchOf = (name: string) => screen.getByRole("link", { name }).getAttribute("data-prefetch");
+
+  it("prefetches a conversation in full only once it is hovered, focused or touched", async () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(prefetchOf("#general")).toBe("undefined");
+    await userEvent.hover(screen.getByRole("link", { name: "#general" }));
+    expect(prefetchOf("#general")).toBe("true");
+    expect(prefetchOf("#writing-sprints")).toBe("undefined");
+    await act(async () => screen.getByRole("link", { name: "#writing-sprints" }).focus());
+    expect(prefetchOf("#writing-sprints")).toBe("true");
+  });
+
+  it("prefetches conversations with unread messages up front, but not the open one and not more than five", () => {
+    pathname = "/chat/1";
+    const many = Array.from({ length: 8 }, (_, i) => channel(String(i + 1), `#c${i + 1}`));
+    render(<ChatSidebar channels={many} unread={Object.fromEntries(many.map((c) => [c.id, 3]))} />);
+    const flags = many.map((c) => document.querySelector(`a[href="/chat/${c.id}"]`)?.getAttribute("data-prefetch"));
+    expect(flags[0]).toBe("undefined");
+    expect(flags.filter((f) => f === "true")).toHaveLength(5);
   });
 });
