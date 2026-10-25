@@ -17,6 +17,7 @@ import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
 import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
+import { seedChat } from "./chat-seed";
 
 /** Today's date in the org's timezone as YYYY-MM-DD, plus a number of days. */
 export function orgDate(offsetDays: number, now: Date = new Date()): string {
@@ -131,6 +132,9 @@ export async function seed(now: Date = new Date()) {
     const { error: entriesError } = await admin.from("writing_progress_entries").insert(entries);
     if (entriesError) throw new Error(`writing_progress_entries: ${entriesError.message}`);
   }
+
+  // Chat: the features on, and a few days of conversation in four channels.
+  await seedChat(admin, now);
 
   // The Zoom room members see under "On air" (append-only: add only when the demo's isn't the latest).
   const { data: latest } = await admin.from("prickle_join_settings").select("join_url").order("effective_from", { ascending: false }).limit(1);
