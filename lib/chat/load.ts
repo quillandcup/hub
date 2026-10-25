@@ -1,3 +1,4 @@
+import type { StageTimer } from "@/lib/chat/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
@@ -453,7 +454,8 @@ export async function buildMessageViews(
   supabase: SupabaseClient,
   channel: Pick<ChannelSummary, "slackChannelId">,
   allRows: MessageRow[],
-  viewerMemberId: string
+  viewerMemberId: string,
+  timer?: StageTimer
 ): Promise<ChatMessages> {
   // A deleted message is not shown at all. Exception: a deleted thread root that still has
   // live replies stays as a row with no content (the UI shows a tombstone), so its replies link
@@ -478,6 +480,7 @@ export async function buildMessageViews(
     loadReplyAuthors(supabase, threadRoots),
   ]);
 
+  timer?.mark("views.batch1");
   // Repliers with no matched member: who wrote them, by Slack ts.
   const unmatchedReplyTs = [...replies.values()].flat().filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
   const replySlackAuthors =
@@ -485,12 +488,14 @@ export async function buildMessageViews(
       ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
       : ({} as Record<string, string>);
   const replyProfiles = await memberProfiles(supabase, [...replies.values()].flat().flatMap((a) => (a.memberId ? [a.memberId] : [])));
+  timer?.mark("views.replyAuthors");
 
   // One batch for every Slack name and photo needed: unmatched authors and repliers plus people mentioned in the text.
   const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
   const reactorMemberIds = [...new Set((reactionRows ?? []).flatMap((r) => (r.member_id && r.member_id !== viewerMemberId ? [r.member_id as string] : [])))];
   const reactorSlackIds = [...new Set((reactionRows ?? []).flatMap((r) => (!r.member_id && r.slack_user_id ? [r.slack_user_id as string] : [])))];
   const reactorProfiles = await memberProfiles(supabase, reactorMemberIds);
+  timer?.mark("views.reactors");
   const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
   const emojiNames = [
     ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
@@ -506,6 +511,7 @@ export async function buildMessageViews(
     slackUserPhotos(slackIds),
     customEmojiFor(emojiNames),
   ]);
+  timer?.mark("views.names");
 
   const slackPerson = (slackUserId: string | undefined): Person => ({
     name: (slackUserId ? userNames[slackUserId] : undefined) ?? (slackUserId?.startsWith("B") ? "Slack app" : "Someone on Slack"),
