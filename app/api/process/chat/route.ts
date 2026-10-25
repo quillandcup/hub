@@ -8,6 +8,7 @@ import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
 import { sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 import { purgeStagedChatFiles } from "@/lib/chat/staging";
 import { clock } from "@/lib/clock";
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
       console.log(`Deleted chat files swept: ${sweptFiles.removed} removed, ${sweptFiles.failed} failed`);
     }
 
+    invalidateChatLookups();
     return NextResponse.json({
       success: true,
       processed: {

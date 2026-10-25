@@ -1,3 +1,4 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -144,6 +145,7 @@ async function processSlackEvent(event: any) {
       await applyFileDelete(supabase, event);
     } else if (eventType === "emoji_changed") {
       await applySlackEmojiEvent(supabase, event);
+      invalidateChatLookups();
     } else if (eventType === "message" && event.subtype === "message_changed") {
       await applyMessageEdit(supabase, event);
     } else if (eventType === "message" && event.subtype === "message_deleted") {

@@ -1,3 +1,4 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { WebClient } from '@slack/web-api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
@@ -182,6 +183,7 @@ export async function POST(request: NextRequest) {
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
     await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
     await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
+    invalidateChatLookups();
     await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
     await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
 
@@ -224,6 +226,7 @@ export async function POST(request: NextRequest) {
     });
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
     const emoji = await capture('custom emoji', () => syncCustomEmoji(supabase, slack, importTimestamp));
+    invalidateChatLookups();
     if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
 
     // Detect date range from imported messages
