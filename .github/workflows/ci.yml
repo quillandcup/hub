@@ -49,9 +49,6 @@ env:
   # Pinned (not "latest") so the local stack's container image set -- and this
   # cache key, if caching is revisited -- is reproducible across runs.
   SUPABASE_CLI_VERSION: 2.117.0
-  # Pinned so `vercel build`/`vercel deploy` behavior in the deploy job below
-  # doesn't shift out from under CI on an unannounced CLI release.
-  VERCEL_CLI_VERSION: 60.0.0
   # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
   # public, and the same for every `supabase start` on every machine. Not
   # secrets. Only valid against the ephemeral local stack this job starts;
@@ -517,117 +514,17 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
+  # The deploy itself is in deploy.yml, shared with help-screenshots.yml (which redeploys the commit already in
+  # production after publishing a new help screenshot set).
   deploy:
     name: Build and deploy to production
     needs: push-migrations
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
     permissions:
-      contents: write # moves the `production` tag below
-    # Makes GitHub record a deployment for this commit (Environments page, the merged PR,
-    # `gh api repos/{owner}/{repo}/deployments?sha=<sha>`), marked success or failure when
-    # the job ends. Vercel's git integration is off, so this is the only record. The URL is
-    # the canonical one, not the deployment's own hub-<hash>.vercel.app address.
-    environment:
-      name: production
-      url: ${{ steps.app-url.outputs.url }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # the help screenshot set is the newest one captured at an ancestor of this commit
-
-      # `cache: pnpm` here caches pnpm's store, keyed on pnpm-lock.yaml -- `vercel build`
-      # below runs its own install internally (and there is no way to skip it), so this is
-      # what speeds it up.
-      - uses: pnpm/action-setup@v6.1.0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-
-      # Which help screenshot set this build shows: the newest one captured at an ancestor of this commit
-      # (scripts/help-images-version.ts). The scheduled `Help screenshots` workflow publishes sets and then
-      # dispatches this workflow, so a new set reaches production with the next deploy. The step writes
-      # HELP_IMAGES_VERSION to the job's environment, where next.config.ts reads it during `vercel build`. No set
-      # is a warning, not a failure: the help pages then show no pictures.
-      - run: pnpm install --frozen-lockfile
-
-      - name: Pick the help screenshot set
-        run: pnpm exec tsx scripts/help-images-sets.ts pick
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      # The deployment record's URL (see `environment` above), read from app.config.ts like
-      # the rest of the app. Node 24 runs the .ts file directly; it has no imports.
-      - name: Read the production URL
-        id: app-url
-        run: |
-          url=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.appUrl)")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-
-      - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
-
-      # `vercel build` populates/reads the same .next/cache that `next build`
-      # does (see Next.js's CI build caching docs), so this is what makes a
-      # --prebuilt deploy fast instead of a cold build every push -- it's the
-      # local equivalent of the remote build cache the deploy-hook path got
-      # for free from Vercel's own infrastructure.
-      - name: Cache Next.js build cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
-
-      # Pulls the linked project's real production env vars/settings (this is
-      # what makes vercel.json's git.deploymentEnabled.main:false safe --
-      # production only ever ships via this explicit, CI-tested path, never
-      # an implicit git-triggered build).
-      #
-      # VERCEL_TOKEN is read from the env automatically -- deliberately not
-      # passed as `--token=`, which would leak it into this runner's process
-      # listing (`ps`, etc.) for the life of the command.
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      # Builds the exact commit that test-unit/test-db/push-migrations just
-      # passed -- unlike the old deploy-hook trigger, there's no gap where
-      # Vercel might build a different HEAD than the one CI validated.
-      - name: Build project artifacts
-        run: vercel build --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
-          # `vercel pull` above only gets a "[SENSITIVE]" placeholder for Vercel Secrets.
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-      # Uploads the local build output as-is instead of triggering another
-      # remote build -- and unlike the old curl to the deploy hook, this step
-      # actually fails the job (and the workflow) if the deploy doesn't
-      # succeed, rather than reporting green the instant Vercel accepts the
-      # webhook.
-      - name: Deploy prebuilt artifacts to production
-        run: vercel deploy --prebuilt --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-
-      # Moves the `production` tag to the commit that just deployed, so `git log` shows how
-      # far production is and `git log production..origin/main` lists what's merged but not
-      # live. Only runs when the deploy above succeeded. It's a tag, not a branch, so
-      # `pnpm branches:prune` leaves it alone. A plain `git fetch` won't move a tag that
-      # already exists locally; update it with
-      # `git fetch origin +refs/tags/production:refs/tags/production`.
-      - name: Move the production tag
-        run: |
-          git tag --force production "$GITHUB_SHA"
-          git push --force origin refs/tags/production
+      contents: write # moves the `production` tag
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.sha }}
 
   # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push

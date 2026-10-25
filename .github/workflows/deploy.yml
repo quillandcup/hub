@@ -1,0 +1,172 @@
+# Builds a commit and deploys it to production (Vercel prebuilt), then moves the `production` tag to it. Called by
+# ci.yml after a merge's tests and migrations pass, and by help-screenshots.yml to redeploy the commit that is
+# already in production once a new help screenshot set is published (no tests, no migrations: that commit already
+# went through them). Deploys are serialized across both callers.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The commit to build and deploy"
+        type: string
+        required: true
+      only_if_production_is:
+        description: "If set, deploy only while the production tag still points at this commit (a redeploy must never roll back a newer deploy)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # Pinned so `vercel build`/`vercel deploy` behavior doesn't shift out from under CI on an unannounced CLI release.
+  VERCEL_CLI_VERSION: 60.0.0
+
+jobs:
+  deploy:
+    name: Build and deploy to production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # moves the `production` tag below
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    # Makes GitHub record a deployment for this commit (Environments page, the merged PR,
+    # `gh api repos/{owner}/{repo}/deployments?sha=<sha>`), marked success or failure when
+    # the job ends. Vercel's git integration is off, so this is the only record. The URL is
+    # the canonical one, not the deployment's own hub-<hash>.vercel.app address.
+    environment:
+      name: production
+      url: ${{ steps.app-url.outputs.url }}
+    steps:
+      # A redeploy of an older commit (help-screenshots.yml) must not roll production back past a deploy that
+      # landed since it was queued. Deploys are serialized, so this reads the tag after any earlier one finished.
+      - name: Check production hasn't moved on
+        id: guard
+        run: |
+          if [ -z "$EXPECTED" ]; then echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          current=$(gh api "repos/$REPO/git/ref/tags/production" --jq .object.sha)
+          if [ "$current" = "$EXPECTED" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Production is at ${current::12}, not ${EXPECTED::12}: a newer deploy picks up the new set, so this one is skipped."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EXPECTED: ${{ inputs.only_if_production_is }}
+
+      - uses: actions/checkout@v5
+        if: steps.guard.outputs.proceed == 'true'
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0 # the help screenshot set is the newest one captured at an ancestor of this commit
+
+      # `cache: pnpm` here caches pnpm's store, keyed on pnpm-lock.yaml -- `vercel build`
+      # below runs its own install internally (and there is no way to skip it), so this is
+      # what speeds it up.
+      - uses: pnpm/action-setup@v6.1.0
+        if: steps.guard.outputs.proceed == 'true'
+
+      - uses: actions/setup-node@v7
+        if: steps.guard.outputs.proceed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      # Which help screenshot set this build shows: the newest one captured at an ancestor of this commit
+      # (scripts/help-images-version.ts). The scheduled `Help screenshots` workflow publishes sets and then
+      # dispatches this workflow, so a new set reaches production with the next deploy. The step writes
+      # HELP_IMAGES_VERSION to the job's environment, where next.config.ts reads it during `vercel build`. No set
+      # is a warning, not a failure: the help pages then show no pictures.
+      - run: pnpm install --frozen-lockfile
+        if: steps.guard.outputs.proceed == 'true'
+
+      - name: Pick the help screenshot set
+        if: steps.guard.outputs.proceed == 'true'
+        run: pnpm exec tsx scripts/help-images-sets.ts pick
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # The deployment record's URL (see `environment` above), read from app.config.ts like
+      # the rest of the app. Node 24 runs the .ts file directly; it has no imports.
+      - name: Read the production URL
+        if: steps.guard.outputs.proceed == 'true'
+        id: app-url
+        run: |
+          url=$(node --no-warnings --input-type=module -e "console.log((await import('./app.config.ts')).default.appUrl)")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
+        if: steps.guard.outputs.proceed == 'true'
+
+      # `vercel build` populates/reads the same .next/cache that `next build`
+      # does (see Next.js's CI build caching docs), so this is what makes a
+      # --prebuilt deploy fast instead of a cold build every push -- it's the
+      # local equivalent of the remote build cache the deploy-hook path got
+      # for free from Vercel's own infrastructure.
+      - name: Cache Next.js build cache
+        if: steps.guard.outputs.proceed == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
+
+      # Pulls the linked project's real production env vars/settings (this is
+      # what makes vercel.json's git.deploymentEnabled.main:false safe --
+      # production only ever ships via this explicit, CI-tested path, never
+      # an implicit git-triggered build).
+      #
+      # VERCEL_TOKEN is read from the env automatically -- deliberately not
+      # passed as `--token=`, which would leak it into this runner's process
+      # listing (`ps`, etc.) for the life of the command.
+      - name: Pull Vercel production environment
+        if: steps.guard.outputs.proceed == 'true'
+        run: vercel pull --yes --environment=production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # Builds the exact commit that test-unit/test-db/push-migrations just
+      # passed -- unlike the old deploy-hook trigger, there's no gap where
+      # Vercel might build a different HEAD than the one CI validated.
+      - name: Build project artifacts
+        if: steps.guard.outputs.proceed == 'true'
+        run: vercel build --prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
+          # `vercel pull` above only gets a "[SENSITIVE]" placeholder for Vercel Secrets.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # Uploads the local build output as-is instead of triggering another
+      # remote build -- and unlike the old curl to the deploy hook, this step
+      # actually fails the job (and the workflow) if the deploy doesn't
+      # succeed, rather than reporting green the instant Vercel accepts the
+      # webhook.
+      - name: Deploy prebuilt artifacts to production
+        if: steps.guard.outputs.proceed == 'true'
+        run: vercel deploy --prebuilt --prod
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      # Moves the `production` tag to the commit that just deployed, so `git log` shows how
+      # far production is and `git log production..origin/main` lists what's merged but not
+      # live. Only runs when the deploy above succeeded. It's a tag, not a branch, so
+      # `pnpm branches:prune` leaves it alone. A plain `git fetch` won't move a tag that
+      # already exists locally; update it with
+      # `git fetch origin +refs/tags/production:refs/tags/production`.
+      - name: Move the production tag
+        if: steps.guard.outputs.proceed == 'true'
+        env:
+          DEPLOY_SHA: ${{ inputs.ref }}
+        run: |
+          git tag --force production "$DEPLOY_SHA"
+          git push --force origin refs/tags/production

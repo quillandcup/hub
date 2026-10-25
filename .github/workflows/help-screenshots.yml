@@ -3,9 +3,12 @@
 # every deploy. Sets are named by the main commit they were captured at; a deploy shows the newest set captured at
 # an ancestor of its commit (scripts/help-images-version.ts), so help pictures lag main by up to a day.
 #
-# When it published a new set it dispatches CI on main, because a set only reaches production when a build bakes
-# it in (the deploy job picks it). Skipped when nothing the screens depend on changed since the newest set
-# (HELP_IMAGE_INPUTS in scripts/help-images-version.ts); `force` runs it anyway.
+# It captures the commit that is in production (the `production` tag), not main's head: that commit already passed
+# CI and has its migrations applied, and the pictures then match what members see. A set only reaches production
+# when a build bakes it in, so after publishing it redeploys that same commit (deploy.yml, no tests: they ran
+# when it merged). That deploy is skipped if a newer one landed meanwhile; the newer one's build picks the set up
+# if it ran after the publish, otherwise the next run does. Skipped entirely when nothing the screens depend on
+# changed since the newest set (HELP_IMAGE_INPUTS in scripts/help-images-version.ts); `force` runs it anyway.
 #
 # A failing scene, a new page problem (demo/baseline.json) or an article that shows a screenshot no scene
 # captured fails this workflow, and GitHub emails the failure. Nothing blocks a merge on it any more, so watch for
@@ -45,11 +48,24 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      actions: write # dispatches CI on main after publishing
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      published: ${{ steps.publish.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: production # the tag the deploy moves to the commit it deployed
           fetch-depth: 0 # the newest published set is found through the commit history
+
+      # Everything below runs at this commit, not at the workflow's own (main's head). The set is named by it, and
+      # the build bakes the same id in.
+      - name: Note the commit
+        id: commit
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "HELP_IMAGES_VERSION=${sha::12}" >> "$GITHUB_ENV"
+          echo "Capturing production at $sha"
 
       - uses: pnpm/action-setup@v6.1.0
 
@@ -206,19 +222,12 @@ jobs:
       # Additive: it never overwrites a file. Sets older than 30 days are deleted, except the newest of them,
       # which a deploy from before then still resolves to.
       - name: Publish the screenshot set
+        id: publish
         if: steps.run.outputs.capture == 'true' && github.ref == 'refs/heads/main'
         run: pnpm demo:publish --from-env --prune --keep-days=30
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      # The set reaches production when a build picks it up. This is a normal CI run on main (the same as the
-      # "Run workflow" button), so it also runs the tests and deploys whatever has merged since the last deploy.
-      - name: Deploy so production shows the new set
-        if: steps.run.outputs.capture == 'true' && github.ref == 'refs/heads/main'
-        run: gh workflow run ci.yml --ref main
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Stop app server
         if: always()
@@ -227,3 +236,16 @@ jobs:
       - name: Stop local Supabase
         if: always() && steps.run.outputs.capture == 'true'
         run: supabase stop
+
+  # The set reaches production when a build picks it up (see the top of this file). Skipped unless a set was published.
+  deploy:
+    name: Redeploy with the new set
+    needs: capture
+    if: needs.capture.outputs.published == 'true'
+    permissions:
+      contents: write # moves the `production` tag
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      ref: ${{ needs.capture.outputs.sha }}
+      only_if_production_is: ${{ needs.capture.outputs.sha }}
