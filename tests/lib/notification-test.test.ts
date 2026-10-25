@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { CHANNELS } from "@/lib/channels/catalog";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import fs from "node:fs";
@@ -29,14 +30,30 @@ vi.mock("@/lib/newcomer-signals", () => ({ loadIntroChannelId: mocks.introChanne
 import { sampleMessages, sendTestNotification, UNREACHABLE_REASON } from "@/lib/notification-test";
 
 const NOW = new Date("2026-10-18T15:00:00Z");
+const POMODORO = { id: "pt1", name: "Pomodoro", normalizedName: "pomodoro", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
 const prickle = {
   id: "p1",
-  start_time: "2026-10-19T13:00:00Z",
-  end_time: "2026-10-19T14:00:00Z",
-  prickle_types: { name: "Pomodoro" },
+  typeId: POMODORO.id,
+  hostId: null,
+  title: null,
+  startTime: "2026-10-19T13:00:00Z",
+  endTime: "2026-10-19T14:00:00Z",
+  source: "calendar",
+  calendarEventId: null,
 };
 
+// The sample prickle comes from its repository, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), prickles: actual.createInMemoryRepos(dataset).prickles }),
+  };
+});
+
 beforeEach(() => {
+  dataset = new InMemoryDataset({ prickleTypes: [POMODORO], prickles: [prickle] });
   vi.clearAllMocks();
   mocks.addresses.clear();
   mocks.addresses.set("slack", "U1");
@@ -47,14 +64,14 @@ beforeEach(() => {
 
 describe("sampleMessages", () => {
   it.each(NOTIFICATION_KINDS.map((k) => k.id))("builds a sample for %s that's marked as a test", async (kind) => {
-    const messages = await sampleMessages(createFakeSupabase({ prickles: { data: [prickle] } }), kind, NOW);
+    const messages = await sampleMessages(createFakeSupabase(), kind, NOW);
 
     expect(messages.length).toBeGreaterThan(0);
     for (const message of messages) expect(message.text.startsWith("[Test] ")).toBe(true);
   });
 
   it.each(NOTIFICATION_KINDS.map((k) => k.id))("builds %s as a member receives it with { test: false }: no test marker anywhere", async (kind) => {
-    const messages = await sampleMessages(createFakeSupabase({ prickles: { data: [prickle] } }), kind, NOW, { test: false });
+    const messages = await sampleMessages(createFakeSupabase(), kind, NOW, { test: false });
 
     expect(messages.length).toBeGreaterThan(0);
     for (const message of messages) {
@@ -79,14 +96,15 @@ describe("sampleMessages", () => {
   });
 
   it("uses the next prickle for a check-in, so its link and text are real", async () => {
-    const [message] = await sampleMessages(createFakeSupabase({ prickles: { data: [prickle] } }), "prickle_checkin", NOW);
+    const [message] = await sampleMessages(createFakeSupabase(), "prickle_checkin", NOW);
 
     expect(message.text).toContain("Pomodoro");
     expect(message.url).toContain("p1");
   });
 
   it("falls back to a stand-in prickle when there are none", async () => {
-    const [message] = await sampleMessages(createFakeSupabase({ prickles: { data: [] } }), "prickle_checkout", NOW);
+    dataset = new InMemoryDataset();
+    const [message] = await sampleMessages(createFakeSupabase(), "prickle_checkout", NOW);
 
     expect(message.text).toContain("Sprint Prickle");
   });
@@ -94,7 +112,7 @@ describe("sampleMessages", () => {
 
 describe("sendTestNotification", () => {
   it("wires the actual Browser check-in sample to the worker's click handler and diagnostic entry", async () => {
-    await sendTestNotification(createFakeSupabase({ prickles: { data: [prickle] } }), "m1", "prickle_checkin", "web_push", NOW);
+    await sendTestNotification(createFakeSupabase(), "m1", "prickle_checkin", "web_push", NOW);
     const [, message, context] = mocks.send.mock.calls[0];
     expect(message.text).toMatch(/^\[Test\]/);
     const payload = JSON.parse(JSON.stringify(pushPayload(message, context, NOW.getTime())));

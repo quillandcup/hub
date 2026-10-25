@@ -1,6 +1,7 @@
 "use server";
 
 import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -29,7 +30,6 @@ import {
 } from "@/lib/commitments";
 
 import { withAction } from "@/lib/analytics/server";
-const BATCH_SIZE = 1000;
 /** How far ahead createCommitment looks for a real prickle in each requested slot. */
 const SLOT_LOOKAHEAD_DAYS = 21;
 
@@ -96,28 +96,8 @@ function sortSlotRows(rows: SlotRow[]): SlotRow[] {
   );
 }
 
-async function fetchAllPaginated<T>(queryFn: (offset: number) => PromiseLike<{ data: unknown }>): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    const batch = (data as T[] | null) ?? [];
-    if (batch.length > 0) {
-      all = all.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
-
-type RawPrickle = { id: string; type_id: string | null; start_time: string; end_time: string };
-
-function toSlotPrickle(p: RawPrickle): SlotPrickle {
-  return { id: p.id, typeId: p.type_id, startTime: p.start_time, endTime: p.end_time };
+function toSlotPrickle(p: PrickleDetail): SlotPrickle {
+  return { id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.endTime };
 }
 
 const COMMITMENT_SELECT =
@@ -172,17 +152,7 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
   const window = commitmentsFetchWindow(commitments)!;
   const typeIds = [...new Set(commitments.flatMap((c) => c.slots.map((s) => s.typeId)))];
   const prickles = (
-    await fetchAllPaginated<RawPrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, start_time, end_time")
-        .in("type_id", typeIds)
-        .gte("start_time", window.from)
-        .lte("start_time", window.to)
-        .order("start_time")
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    )
+    await createRepos(supabase).prickles.startingBetween({ from: window.from, to: window.to, inclusiveEnd: true, typeIds })
   ).map(toSlotPrickle);
 
   // Only prickles that have started can have attendance; batched by id, each batch paginated.
@@ -231,17 +201,12 @@ async function findMissingSlots(
 ): Promise<CommitmentSlot[]> {
   const typeIds = [...new Set(slots.map((s) => s.typeId))];
   const upcoming = (
-    await fetchAllPaginated<RawPrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, start_time, end_time")
-        .in("type_id", typeIds)
-        .gte("start_time", now.toISOString())
-        .lte("start_time", new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString())
-        .order("start_time")
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    )
+    await createRepos(supabase).prickles.startingBetween({
+      from: now.toISOString(),
+      to: new Date(now.getTime() + SLOT_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      inclusiveEnd: true,
+      typeIds,
+    })
   ).map(toSlotPrickle);
   return slots.filter((slot) => !upcoming.some((p) => prickleMatchesSlot(p, slot)));
 }

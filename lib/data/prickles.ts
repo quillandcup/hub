@@ -63,6 +63,10 @@ export interface PrickleRepository {
   countHostedBy(memberId: string, options?: { since?: string }): Promise<number>;
   /** How many prickles came from this source (e.g. "calendar"). */
   countBySource(source: string): Promise<number>;
+  /** Host and start time of every hosted prickle (those with an assigned host), optionally one member's. For hosting streaks. */
+  hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
+  /** The first prickle starting at or after `instant` (ISO), else the latest one there is; null when there are none. */
+  nextOrMostRecent(instant: string): Promise<PrickleDetail | null>;
   /** The prickle running at this instant (ISO; started at or before it, not yet ended), the earliest-starting one; null if none. */
   inProgressAt(instant: string): Promise<PrickleDetail | null>;
   /** How many prickles each of these members hosted among those that started before `before` (ISO); every member asked about is present, 0 if none. */
@@ -209,6 +213,30 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return count ?? 0;
   }
 
+  async hostedStartTimes({ hostId }: { hostId?: string } = {}): Promise<{ hostId: string; startTime: string }[]> {
+    const rows = await fetchAllRows<{ host: string; start_time: string }>((from, to) => {
+      let query = this.db.from("prickles").select("host, start_time").not("host", "is", null);
+      if (hostId) query = query.eq("host", hostId);
+      return query.order("id").range(from, to) as unknown as PromiseLike<{
+        data: { host: string; start_time: string }[] | null;
+        error: { message: string } | null;
+      }>;
+    });
+    return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
+  }
+
+  async nextOrMostRecent(instant: string): Promise<PrickleDetail | null> {
+    const next = await this.db.from("prickles").select(DETAIL_SELECT).gte("start_time", instant).order("start_time").order("id").limit(1);
+    if (next.error) throw new Error(next.error.message);
+    let row = (next.data ?? [])[0];
+    if (!row) {
+      const latest = await this.db.from("prickles").select(DETAIL_SELECT).order("start_time", { ascending: false }).order("id", { ascending: false }).limit(1);
+      if (latest.error) throw new Error(latest.error.message);
+      row = (latest.data ?? [])[0];
+    }
+    return row ? toDetail(row as unknown as DetailRow) : null;
+  }
+
   async inProgressAt(instant: string): Promise<PrickleDetail | null> {
     const { data, error } = await this.db
       .from("prickles")
@@ -313,6 +341,20 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async countBySource(source: string) {
     return this.data.prickles.filter((p) => p.source === source).length;
+  }
+
+  async hostedStartTimes({ hostId }: { hostId?: string } = {}) {
+    return this.data.prickles
+      .filter((p): p is typeof p & { hostId: string } => p.hostId !== null && (!hostId || p.hostId === hostId))
+      .map((p) => ({ hostId: p.hostId, startTime: p.startTime }));
+  }
+
+  async nextOrMostRecent(instant: string) {
+    const at = new Date(instant).getTime();
+    const sorted = [...this.data.prickles].sort(byStartThenId);
+    const next = sorted.find((p) => new Date(p.startTime).getTime() >= at);
+    const chosen = next ?? sorted[sorted.length - 1];
+    return chosen ? this.detail(chosen) : null;
   }
 
   async inProgressAt(instant: string) {
