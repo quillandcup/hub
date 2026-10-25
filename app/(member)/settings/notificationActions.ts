@@ -1,6 +1,7 @@
 "use server";
 
 import { createRepos } from "@/lib/data/repos";
+import type { NotificationPreference } from "@/lib/data/notifications";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -44,11 +45,12 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   if (!identity) return null;
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("notification_preferences")
-    .select("kind, channel, enabled")
-    .eq("member_id", identity.memberId);
-  if (error) console.error("[notifications] Loading settings failed", { member: identity.memberId, error });
+  let stored: NotificationPreference[] = [];
+  try {
+    stored = await createRepos(supabase).notifications.preferencesOf(identity.memberId);
+  } catch (error) {
+    console.error("[notifications] Loading settings failed", { member: identity.memberId, error });
+  }
 
   // The member's flag, not the signed-in admin's in sudo. Service role: it reads their previews.
   const service = createServiceRoleClient();
@@ -69,7 +71,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   return {
     channels,
     webPushPublicKey,
-    channelsByKind: effectiveSettings(data ?? []),
+    channelsByKind: effectiveSettings(stored),
     visibleKinds,
     readOnly: identity.isSudo,
   };
@@ -96,10 +98,9 @@ async function setNotificationChannelImpl(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("notification_preferences")
-    .upsert({ member_id: identity.memberId, kind, channel, enabled }, { onConflict: "member_id,kind,channel" });
-  if (error) {
+  try {
+    await createRepos(supabase).notifications.setPreference(identity.memberId, kind, channel, enabled);
+  } catch (error) {
     console.error("[notifications] Saving setting failed", { member: identity.memberId, kind, channel, error });
     return { error: "Couldn't save that setting — please try again." };
   }

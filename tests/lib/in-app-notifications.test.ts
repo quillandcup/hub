@@ -100,17 +100,17 @@ describe("inAppRow", () => {
         { kind: "prickle_checkin", memberId: "m1" }
       )
     ).toEqual({
-      member_id: "m1",
+      memberId: "m1",
       kind: "prickle_checkin",
       ref: "p1",
       text: "Check in?",
       url: "/prickles/p1",
-      banner_until: "2026-10-05T11:00:00.000Z",
+      bannerUntil: "2026-10-05T11:00:00.000Z",
     });
   });
 
   it("isn't a banner when the message isn't time-sensitive", () => {
-    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout", memberId: "m1" })).toMatchObject({ banner_until: null });
+    expect(inAppRow("m1", { text: "FYI" }, { kind: "prickle_checkout", memberId: "m1" })).toMatchObject({ bannerUntil: null });
   });
 });
 

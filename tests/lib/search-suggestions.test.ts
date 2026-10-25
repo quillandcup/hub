@@ -167,7 +167,7 @@ describe("markSuggestionsRead", () => {
     const note: { kind: string; ref: string } | null = null;
     const q = (table: string, op: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ["eq", "is"]) chain[m] = () => chain;
+      for (const m of ["eq", "in", "is"]) chain[m] = () => chain;
       chain.then = (resolve: (v: unknown) => unknown) => (writes.push([table, op]), Promise.resolve({ error: null }).then(resolve));
       return chain;
     };

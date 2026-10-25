@@ -19,6 +19,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   members: [
     "app/api/health/route.ts",
   ],
+  in_app_notifications: [],
+  notification_preferences: [],
 };
 
 const root = path.resolve(__dirname, "../..");

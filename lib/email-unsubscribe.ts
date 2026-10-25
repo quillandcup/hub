@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createHmac, timingSafeEqual } from "crypto";
 import { APP_URL } from "@/lib/config";
 import { isNotificationKind, type NotificationKindId } from "@/lib/notifications/registry";
@@ -51,9 +52,11 @@ export async function setEmailEnabled(
   kind: NotificationKindId,
   enabled: boolean
 ): Promise<boolean> {
-  const { error } = await supabase
-    .from("notification_preferences")
-    .upsert({ member_id: memberId, kind, channel: "email", enabled }, { onConflict: "member_id,kind,channel" });
-  if (error) console.error("[email] Saving unsubscribe choice failed", { member: memberId, kind, enabled, error });
-  return !error;
+  try {
+    await createRepos(supabase).notifications.setPreference(memberId, kind, "email", enabled);
+    return true;
+  } catch (error) {
+    console.error("[email] Saving unsubscribe choice failed", { member: memberId, kind, enabled, error });
+    return false;
+  }
 }
