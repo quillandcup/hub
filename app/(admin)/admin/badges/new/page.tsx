@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -11,12 +12,11 @@ export const metadata: Metadata = {
 export default async function NewBadgePage() {
   await requireAdminPage();
   const supabase = await createClient();
-  const [{ data: allEvents }, { data: linkedBadges }, { data: programs }] = await Promise.all([
+  const [{ data: allEvents }, linkedEventIds, { data: programs }] = await Promise.all([
     supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
-    supabase.from("badge_types").select("event_id").not("event_id", "is", null),
+    createRepos(supabase).badges.linkedEventIds(),
     supabase.from("programs").select("id, name").order("name"),
   ]);
-  const linkedEventIds = new Set((linkedBadges ?? []).map((b) => b.event_id));
   const events = (allEvents ?? []).filter((e) => !linkedEventIds.has(e.id));
 
   return (

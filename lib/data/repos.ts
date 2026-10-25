@@ -2,6 +2,7 @@ import { InMemoryAttendanceRepository, SupabaseAttendanceRepository, type Attend
 import type { Db } from "./db";
 import { InMemoryDataset } from "./in-memory";
 import { InMemoryMemberRepository, SupabaseMemberRepository, type MemberRepository } from "./members";
+import { InMemoryBadgeRepository, SupabaseBadgeRepository, type BadgeRepository } from "./badges";
 import { InMemoryNotificationRepository, SupabaseNotificationRepository, type NotificationRepository } from "./notifications";
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
 
@@ -15,6 +16,7 @@ export interface Repos {
   prickles: PrickleRepository;
   members: MemberRepository;
   notifications: NotificationRepository;
+  badges: BadgeRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -24,6 +26,7 @@ export function createRepos(db: Db): Repos {
     prickles: new SupabasePrickleRepository(db),
     members: new SupabaseMemberRepository(db),
     notifications: new SupabaseNotificationRepository(db),
+    badges: new SupabaseBadgeRepository(db),
   };
 }
 
@@ -34,5 +37,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     prickles: new InMemoryPrickleRepository(dataset),
     members: new InMemoryMemberRepository(dataset),
     notifications: new InMemoryNotificationRepository(dataset),
+    badges: new InMemoryBadgeRepository(dataset),
   };
 }

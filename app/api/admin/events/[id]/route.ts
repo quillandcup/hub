@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import type { Update } from "@/lib/data/db";
@@ -15,7 +16,7 @@ export async function GET(
   const [
     { data: event, error: eventError },
     { data: photos, error: photosError },
-    { data: badgeType },
+    badgeType,
     { data: attendees, error: attendeesError },
   ] = await Promise.all([
     supabase.from("events").select("*").eq("id", id).single(),
@@ -25,7 +26,7 @@ export async function GET(
       .eq("event_id", id)
       .order("taken_at", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true }),
-    supabase.from("badge_types").select("id, name, icon").eq("event_id", id).maybeSingle(),
+    createRepos(supabase).badges.typeForEvent(id),
     supabase
       .from("event_attendees")
       .select("id, member_id, members(name, email)")

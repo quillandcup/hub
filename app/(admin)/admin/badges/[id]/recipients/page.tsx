@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -14,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: badgeType } = await supabase.from("badge_types").select("name").eq("id", id).single();
+  const badgeType = await createRepos(supabase).badges.typeById(id);
   return { title: badgeType ? `${badgeType.name} recipients` : "Badge recipients" };
 }
 
@@ -23,10 +24,8 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: badgeType }, { data: levels }] = await Promise.all([
-    supabase.from("badge_types").select("*").eq("id", id).single(),
-    supabase.from("badge_levels").select("*").eq("badge_type_id", id).order("level"),
-  ]);
+  const badges = createRepos(supabase).badges;
+  const [badgeType, levels] = await Promise.all([badges.typeById(id), badges.levelsOf(id)]);
 
   if (!badgeType) notFound();
 
@@ -40,8 +39,8 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
 
   const recipients = await getBadgeRecipients(
     supabase,
-    badgeType as BadgeType,
-    (levels ?? []) as BadgeLevel[]
+    badgeType,
+    levels
   );
 
   return (

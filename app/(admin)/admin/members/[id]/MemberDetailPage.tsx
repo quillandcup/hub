@@ -214,26 +214,23 @@ export default async function MemberDetailPage({
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
-  const [earnedBadges, { data: awardableBadgeTypes }, { data: rawAwards }] = await Promise.all([
+  const badges = createRepos(supabase).badges;
+  const [earnedBadges, awardableBadgeTypes, rawAwards] = await Promise.all([
     getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.firstJoinedAt),
-    supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).is("event_id", null).order("name"),
-    supabase
-      .from("member_badges")
-      .select("id, badge_type_id, occurred_at, note, event_id, badge_types(name, icon), events(title, slug)")
-      .eq("member_id", id)
-      .order("occurred_at", { ascending: false }),
+    badges.manualTypes(),
+    badges.awardsWithDetails(id),
   ]);
 
-  const awards = (rawAwards ?? []).map((row: any) => ({
-    id: row.id,
-    badgeTypeId: row.badge_type_id,
-    badgeTypeName: row.badge_types?.name ?? "Badge",
-    badgeTypeIcon: row.badge_types?.icon ?? "🏅",
-    occurredAt: row.occurred_at,
-    note: row.note,
-    eventId: row.event_id,
-    eventTitle: row.events?.title ?? null,
-    eventSlug: row.events?.slug ?? null,
+  const awards = rawAwards.map((a) => ({
+    id: a.id,
+    badgeTypeId: a.badgeTypeId,
+    badgeTypeName: a.badgeTypeName ?? "Badge",
+    badgeTypeIcon: a.badgeTypeIcon ?? "🏅",
+    occurredAt: a.occurredAt,
+    note: a.note,
+    eventId: a.eventId,
+    eventTitle: a.eventTitle,
+    eventSlug: a.eventSlug,
   }));
 
   return (
@@ -356,7 +353,7 @@ export default async function MemberDetailPage({
           programOverrides={programOverrides}
           statusOverrides={statusOverrides}
           earnedBadges={earnedBadges}
-          awardableBadgeTypes={awardableBadgeTypes ?? []}
+          awardableBadgeTypes={awardableBadgeTypes}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}
