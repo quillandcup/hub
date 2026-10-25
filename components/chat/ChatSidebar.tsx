@@ -12,8 +12,24 @@ import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
 
+/** Most conversations with unread messages prefetched in full per section, so a busy member doesn't render dozens at once. */
+const MAX_UNREAD_PREFETCH = 5;
+
 /** How long deletes in a conversation are batched before its count is re-read. */
 const DELETE_RECOUNT_MS = 300;
+
+/**
+ * One conversation in the list. The default link prefetch stops at the loading skeleton (the page is
+ * dynamic), so a click still waits for the server. Prefetching every link in full would render every
+ * conversation on each load, so only the ones the member is about to open are: one with unread
+ * messages, or one being hovered, focused or touched. That fills the router's cache (5 minutes), and
+ * a conversation opened from it catches itself up (`ChatLive`). Prefetching only happens in production.
+ */
+function ChannelLink({ href, hasUnread, ...props }: React.ComponentProps<typeof Link> & { href: string; hasUnread: boolean }) {
+  const [warm, setWarm] = useState(false);
+  const heat = () => setWarm(true);
+  return <Link {...props} href={href} prefetch={warm || hasUnread ? true : undefined} onPointerEnter={heat} onFocus={heat} onTouchStart={heat} />;
+}
 
 function Section({
   title,
@@ -27,6 +43,7 @@ function Section({
   unread: Record<string, number>;
 }) {
   if (channels.length === 0) return null;
+  const prefetched = new Set(channels.filter((c) => c.id !== pathname.split("/")[2] && (unread[c.id] ?? 0) > 0).slice(0, MAX_UNREAD_PREFETCH).map((c) => c.id));
   return (
     <div className="mb-4">
       <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
@@ -36,8 +53,9 @@ function Section({
           const count = active ? 0 : (unread[c.id] ?? 0);
           return (
             <li key={c.id}>
-              <Link
+              <ChannelLink
                 href={`/chat/${c.id}`}
+                hasUnread={prefetched.has(c.id)}
                 data-track="chat-sidebar-channel"
                 aria-current={active ? "page" : undefined}
                 aria-label={count > 0 ? `${c.label}, ${badge(count)} unread` : undefined}
@@ -56,7 +74,7 @@ function Section({
                     {badge(count)}
                   </span>
                 )}
-              </Link>
+              </ChannelLink>
             </li>
           );
         })}
