@@ -88,6 +88,17 @@ A scene can also assert behaviour, not just look: `calendar-views` scrolls each 
 
 **A ratchet, not a wall.** `demo/baseline.json` lists the findings that are known and tolerated, per size and theme and per step. It is empty now (the 245 the first run found are fixed), so any finding fails a run, with the rule, the element and the numbers. If a deliberate or not-yet-fixable one has to be allowed, it is added there in a reviewed diff. A finding known at any size in the same theme counts as known, because axe is not consistent about elements below the fold on a short screen; a new element or rule still fails. Identities leave out row positions and record ids, so a list that is one longer today or a re-seeded database doesn't count as new. To regenerate the file: `DEMO_CHECKS=report pnpm demo:capture --grep-invert @published && pnpm demo:baseline`. `DEMO_CHECKS=report` writes the findings without failing, and `off` skips the checks.
 
+## Overview videos
+
+`pnpm demo:video` records two member overview videos from the demo community into `demo/out/video/` (gitignored, WebM): `overview-short` (about 20 seconds: the promise and the daily loop) and `overview-long` (about 90 seconds: dashboard, the Prickle schedule and calendar, commitments, hosting, attendance history and check-ins, streaks, My Writing, members, search, notifications, Hedgie Help). They are scripts, so a UI change means re-running, not re-editing.
+
+- **`demo/video/director.ts`** draws everything into the page with one injected script: a cursor that glides to what it clicks, a ripple on each click, a caption bar, and full-screen title cards (the recording opens on the card's background, never a blank page). Scenes call `say`, `click`, `point`, `scroll`, `card`, `goto`; each click clears the caption and scrolls the new view to its top (the app's own `main` scroller keeps its position across navigation).
+- **Run against a production build** so nothing compiles on camera: `pnpm demo:build`, then `pnpm demo:serve -p 3101` (the scenes default to `http://localhost:3101`; `DEMO_APP_URL` overrides). Pages are visited once in an unrecorded context first, so the recording shows the app responding, not loading for the first time. `DIRECTOR_LOG=1` prints each step, which is how to find the one a changed page broke.
+- **Never `waitUntil: "networkidle"`**: the member pages poll, so it doesn't settle and the run hangs until the timeout.
+- **Only what the demo community can show honestly.** Captions say what is on screen (Hosting shows "Settle in first" for a three-week member, so the caption says that). Screens with nothing to show are left out: the Bookshelf (no published book) and the Wheel of Wonder (nobody online).
+- **Checking a recording without ffmpeg**: Playwright's bundled `ffmpeg-mac` can't filter, but `-r 0.25 -c:v png out%02d.png` writes a frame every four seconds and `-ss 71 -frames:v 1` one frame at a time, which is enough to read the captions and pages.
+- Not in CI (it isn't under `demo/scenes/`): recording takes minutes and the output isn't committed.
+
 ## Integration mockups
 
 Not everything happens in the browser. `demo/scenes/notification-mockups.spec.ts` draws what members receive when the Hub reaches out, for every notification kind (so a new kind appears in it by itself), from the real message code with the demo community's data:
