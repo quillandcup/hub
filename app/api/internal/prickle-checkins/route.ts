@@ -4,7 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
-import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail, PrickleType } from "@/lib/data/prickles";
 import {
@@ -73,7 +73,7 @@ async function loadRecentPrickles(supabase: SupabaseClient, now: number): Promis
   return writingPrickles(active).map((p) => ({
     id: p.id,
     typeName: p.type.name,
-    title: formatPrickleDetailTitle(p),
+    title: prickleTitle(p),
     startTime: p.startTime,
     endTime: p.endTime,
   }));
@@ -92,7 +92,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
   const upcomingPrickles: UpcomingPrickle[] = writingPrickles(starting).map((p) => ({
     id: p.id,
     typeName: p.type.name,
-    title: formatPrickleDetailTitle(p),
+    title: prickleTitle(p),
     typeId: p.type.id,
     hostId: p.hostId,
     startTime: p.startTime,

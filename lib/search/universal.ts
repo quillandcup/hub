@@ -8,7 +8,7 @@
  */
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import type { ChannelSummary } from "@/lib/chat/load";
@@ -171,7 +171,7 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
     hasMore,
     hits: rows.map((p) => ({
       kind: "prickles", id: p.id,
-      title: formatPrickleDetailTitle(p),
+      title: prickleTitle(p),
       date: p.startTime, href: `${base}/${p.id}`,
     })),
   };

@@ -4,7 +4,7 @@ import { requireAdminAction } from "@/lib/admin-auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendTestCheckinDM, type CheckinDMKind } from "@/lib/prickle-checkin-dms";
-import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
 
 /**
@@ -30,7 +30,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
   const result = await sendTestCheckinDM(
     createServiceRoleClient(),
     identity.memberId,
-    { id: prickle.id, typeName: type.name, title: formatPrickleDetailTitle(prickle) },
+    { id: prickle.id, typeName: type.name, title: prickleTitle(prickle) },
     kind
   );
   return "error" in result ? { error: result.error } : { success: true as const, delivered: result.delivered };

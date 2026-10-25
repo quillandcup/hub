@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
-import { isAtRisk, summarizeAttendance } from "@/lib/attendance-summary";
+import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
