@@ -86,30 +86,13 @@ export default async function ChatChannelPage({
   const profileParam = Array.isArray(profile) ? profile[0] : profile;
   const profileId = profileParam && isId(profileParam, "mbr") ? profileParam : null;
 
-  // The conversation always shows its messages; a thread or a profile opens beside it.
-  let root = null;
-  let threadPage = null;
-  let page = null;
-  if (!sudoHidden) {
-    page = await loadMessages(supabase, channel.id, { before: parseBefore(before) });
-    if (threadId) {
-      root = await loadMessage(supabase, channel.id, threadId);
-      if (!root) notFound();
-      threadPage = await loadMessages(supabase, channel.id, { threadRootId: threadId });
-    }
-  }
-
-  // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
-  const preferredZone = await getUserTimezonePreference();
-  const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
-
-  const people = sudoHidden ? [] : await loadChannelMembers(supabase, channel.id);
-
-  // Where the member had read up to when they opened this (the marker only moves when they leave,
-  // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
-  // member's) and not on an older page.
-  let readMarker: string | null = null;
-  if (!sudoHidden && !identity.isSudo && !before) {
+  // Everything below is independent of everything else except the message views, so it is read at
+  // once: a conversation switch waits for the slowest query, not the sum of them.
+  const readMarkerQuery = async (): Promise<string | null> => {
+    // Where the member had read up to when they opened this (the marker only moves when they leave,
+    // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
+    // member's) and not on an older page.
+    if (sudoHidden || identity.isSudo || before) return null;
     const { data } = await supabase
       .from("chat_channel_members")
       .select("last_read_at, joined_at")
@@ -117,15 +100,40 @@ export default async function ChatChannelPage({
       .eq("member_id", identity.memberId)
       .is("left_at", null)
       .maybeSingle();
-    readMarker = data ? (data.last_read_at ?? data.joined_at) : null;
-  }
-  const mainRows = page?.messages ?? [];
-  const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const [{ views, ...rendered }, channels, memberCard] = await Promise.all([
-    buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId),
+    return data ? (data.last_read_at ?? data.joined_at) : null;
+  };
+  // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
+  // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
+  const postingQuery = async (): Promise<boolean> => {
+    if (sudoHidden || identity.isSudo || channel.archived) return false;
+    return effectiveMemberHasFeature("chat_posting", identity, await getUserFeaturePreviews(user.id));
+  };
+  // The conversation always shows its messages; a thread or a profile opens beside it.
+  const messagesQuery = async () => {
+    if (sudoHidden) return { page: null, root: null, threadPage: null };
+    const [page, thread] = await Promise.all([
+      loadMessages(supabase, channel.id, { before: parseBefore(before) }),
+      threadId
+        ? Promise.all([loadMessage(supabase, channel.id, threadId), loadMessages(supabase, channel.id, { threadRootId: threadId })])
+        : Promise.resolve(null),
+    ]);
+    if (thread && !thread[0]) notFound();
+    return { page, root: thread?.[0] ?? null, threadPage: thread?.[1] ?? null };
+  };
+  const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn] = await Promise.all([
+    messagesQuery(),
+    // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
+    getUserTimezonePreference(),
+    sudoHidden ? Promise.resolve([]) : loadChannelMembers(supabase, channel.id),
+    readMarkerQuery(),
     loadChatChannels(supabase, identity.memberId, identity.isSudo),
     profileId && !threadId && !sudoHidden ? loadMemberCard(supabase, profileId) : Promise.resolve(null),
+    postingQuery(),
   ]);
+  const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
+  const mainRows = page?.messages ?? [];
+  const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
+  const { views, ...rendered } = await buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId);
   const ctx = chatTextContext(rendered, channels);
   const messageViews = views.slice(0, mainRows.length);
   const threadViews = views.slice(mainRows.length);
@@ -137,13 +145,6 @@ export default async function ChatChannelPage({
   const rootView = root ? threadViews[0] : null;
   const replyViews = root ? threadViews.slice(1) : [];
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
-  // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
-  // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).
-  const postingOn =
-    !sudoHidden &&
-    !identity.isSudo &&
-    !channel.archived &&
-    (await effectiveMemberHasFeature("chat_posting", identity, await getUserFeaturePreviews(user.id)));
   const canPost = postingOn && channel.joined;
   // Reacting also works in a public channel the member has not joined.
   const canReact = postingOn;
