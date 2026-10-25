@@ -36,7 +36,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
   return (
     <div className="container mx-auto px-6 py-8 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">🐚 Hedgie Bookshelf</h1>
+        <h1 className="text-2xl font-bold">🐚 Hedgie Book Shelf</h1>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           Books published by members of the community.{" "}
           <Link href="/projects" data-track="bookshelf-publish-project" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">

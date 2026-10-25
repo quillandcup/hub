@@ -101,7 +101,7 @@ export default function AwardFormModal({ isOpen, onClose, onSaved, award, myBook
               onChange={(e) => handleBookChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
             >
-              <option value="">Not one of my Bookshelf books</option>
+              <option value="">Not one of my Book Shelf books</option>
               {myBooks.map((book) => (
                 <option key={book.id} value={book.id}>
                   {book.title}
