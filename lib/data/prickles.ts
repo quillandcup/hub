@@ -16,6 +16,8 @@ export type PrickleType = {
   soloTaskFriendly: boolean;
   /** What the type is, in a sentence or two; null when nobody wrote one. */
   description?: string | null;
+  /** The member who hosts this kind of prickle unless someone else is assigned. */
+  defaultHostId?: string | null;
 };
 
 /** Who hosts a prickle: the public part of the host's member record. */
@@ -111,6 +113,10 @@ export interface PrickleRepository {
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
   /** Prickles matching every word (case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
+  /** How many calendar prickles with a type have no host, by type id (types with none are absent). */
+  hostlessCalendarCountsByType(): Promise<Map<string, number>>;
+  /** Calendar prickles of this type with no host, newest first, at most `limit`. */
+  hostlessCalendarOfType(typeId: string, limit: number): Promise<PrickleDetail[]>;
   /** Calendar prickles that overlap the window (start before `to`, end after `from`; both exclusive, ISO), oldest first. Lean: no type or host joined. */
   calendarOverlapping(window: { from: string; to: string }): Promise<Pick<Prickle, "id" | "typeId" | "startTime" | "endTime">[]>;
   /** The prickles whose Zoom meeting is one of these, newest first. */
@@ -142,7 +148,7 @@ export interface PrickleRepository {
   ofTypeActiveBetween(options: { normalizedName: string; from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
 }
 
-const TYPE_COLUMNS = "id, name, normalized_name, description, purpose, requires_host, solo_task_friendly";
+const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
 const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
@@ -160,6 +166,7 @@ type TypeRow = {
   name: string;
   normalized_name: string;
   description: string | null;
+  default_host_id: string | null;
   purpose: string;
   requires_host: boolean | null;
   solo_task_friendly: boolean;
@@ -190,6 +197,7 @@ const toType = (row: TypeRow): PrickleType => ({
   purpose: row.purpose,
   requiresHost: row.requires_host ?? false,
   description: row.description,
+  defaultHostId: row.default_host_id,
   soloTaskFriendly: row.solo_task_friendly,
 });
 
@@ -301,6 +309,33 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async reassignHost(fromMemberId: string, toMemberId: string): Promise<void> {
     const { error } = await this.db.from("prickles").update({ host: toMemberId }).eq("host", fromMemberId);
     if (error) throw new Error(error.message);
+  }
+
+  async hostlessCalendarCountsByType(): Promise<Map<string, number>> {
+    const rows = await fetchAllRows<{ type_id: string }>(
+      (from, to) =>
+        this.db.from("prickles").select("type_id").eq("source", "calendar").is("host", null).not("type_id", "is", null).order("id").range(from, to) as unknown as PromiseLike<{
+          data: { type_id: string }[] | null;
+          error: { message: string } | null;
+        }>,
+    );
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row.type_id, (counts.get(row.type_id) ?? 0) + 1);
+    return counts;
+  }
+
+  async hostlessCalendarOfType(typeId: string, limit: number): Promise<PrickleDetail[]> {
+    const { data, error } = await this.db
+      .from("prickles")
+      .select(DETAIL_SELECT)
+      .eq("type_id", typeId)
+      .eq("source", "calendar")
+      .is("host", null)
+      .order("start_time", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
   }
 
   async calendarOverlapping({ from, to }: { from: string; to: string }) {
@@ -590,6 +625,22 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
     for (const p of this.data.prickles) if (p.hostId === fromMemberId) p.hostId = toMemberId;
+  }
+
+  async hostlessCalendarCountsByType() {
+    const counts = new Map<string, number>();
+    for (const p of this.data.prickles) {
+      if (p.source === "calendar" && p.hostId === null && p.typeId !== null) counts.set(p.typeId, (counts.get(p.typeId) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  async hostlessCalendarOfType(typeId: string, limit: number) {
+    return this.data.prickles
+      .filter((p) => p.source === "calendar" && p.hostId === null && p.typeId === typeId)
+      .sort((a, b) => -byStartThenId(a, b))
+      .slice(0, limit)
+      .map((p) => this.detail(p));
   }
 
   async calendarOverlapping({ from, to }: { from: string; to: string }) {
