@@ -15,7 +15,8 @@ import {
   type CheckinInput,
 } from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { createRepos } from "@/lib/data/repos";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { localDateOf } from "@/lib/prickle-writing";
@@ -110,12 +111,8 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
 
   const supabase = await createClient();
   const memberId = identity.memberId;
-  const [prickleResult, checkin, projectsResult, goalsResult, recentResult, loggedResult, tzPref] = await Promise.all([
-    supabase
-      .from("prickles")
-      .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
-      .eq("id", prickleId)
-      .maybeSingle(),
+  const [prickle, checkin, projectsResult, goalsResult, recentResult, loggedResult, tzPref] = await Promise.all([
+    createRepos(supabase).prickles.byId(prickleId),
     getMyCheckin(prickleId),
     supabase
       .from("writing_projects")
@@ -138,11 +135,10 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
       .order("created_at", { ascending: true }),
     getUserTimezonePreference(),
   ]);
-  const prickle = prickleResult.data;
   if (!prickle) return null;
 
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const prickleTitle = formatPrickleTitle(prickle as Parameters<typeof formatPrickleTitle>[0]);
+  const prickleTitle = formatPrickleDetailTitle(prickle);
   const byProject = <T extends { project_id: string }>(rows: T[] | null) => {
     const map = new Map<string, T[]>();
     for (const row of rows ?? []) map.set(row.project_id, [...(map.get(row.project_id) ?? []), row]);
@@ -170,11 +166,11 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
 
   return {
     prickleTitle,
-    entryDate: localDateOf(prickle.start_time, timeZone),
-    hasStarted: new Date(prickle.start_time).getTime() <= Date.now(),
+    entryDate: localDateOf(prickle.startTime, timeZone),
+    hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
     checkin,
     canEdit: !identity.isSudo,
-    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.start_time),
+    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.startTime),
     projects,
   };
 }

@@ -4,7 +4,9 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { formatPrickleDetailTitle } from "@/lib/formatters";
+import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail, PrickleType } from "@/lib/data/prickles";
 import {
   checkinAnswered,
   checkinMessage,
@@ -62,45 +64,38 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json({ checkins, checkouts });
 }
 
-/** Maps prickle rows with an inner-joined prickle_types(name) to id, type name and title, dropping unnamed ones. */
-function withTypeName<T extends object>(
-  rows: any[],
-  extra: (r: any) => T
-): (T & { id: string; typeName: string; title: string })[] {
-  return rows.flatMap((r) => {
-    const type = Array.isArray(r.prickle_types) ? r.prickle_types[0] : r.prickle_types;
-    return type?.name
-      ? [{ id: r.id as string, typeName: type.name as string, title: formatPrickleTitle(r), ...extra(r) }]
-      : [];
-  });
-}
-
 /** Writing prickles that have started and ended within CHECKOUT_LOOKBACK_MS (or not yet ended). */
 async function loadRecentPrickles(supabase: SupabaseClient, now: number): Promise<RecentPrickle[]> {
-  const { data } = await supabase
-    .from("prickles")
-    .select("id, start_time, end_time, host:prickle_host(name), prickle_types!inner(name, purpose)")
-    .lte("start_time", new Date(now).toISOString())
-    .gte("end_time", new Date(now - CHECKOUT_LOOKBACK_MS).toISOString())
-    .eq("prickle_types.purpose", "writing");
-  return withTypeName((data ?? []) as any[], (r) => ({ startTime: r.start_time, endTime: r.end_time }));
+  const active = await createRepos(supabase).prickles.activeBetween({
+    from: new Date(now - CHECKOUT_LOOKBACK_MS).toISOString(),
+    to: new Date(now).toISOString(),
+  });
+  return writingPrickles(active).map((p) => ({
+    id: p.id,
+    typeName: p.type.name,
+    title: formatPrickleDetailTitle(p),
+    startTime: p.startTime,
+    endTime: p.endTime,
+  }));
+}
+
+/** The prickles whose type is for writing (only those get check-ins and check-outs), with the type known. */
+function writingPrickles(prickles: PrickleDetail[]) {
+  return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type?.purpose === "writing");
 }
 
 async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[], now: number): Promise<number> {
   const windowStart = new Date(now + 15 * 60 * 1000).toISOString();
   const windowEnd = new Date(now + 30 * 60 * 1000).toISOString();
 
-  const { data: prickleRows } = await supabase
-    .from("prickles")
-    .select("id, type_id, host, start_time, prickle_types!inner(name, purpose)")
-    .gte("start_time", windowStart)
-    .lte("start_time", windowEnd)
-    .eq("prickle_types.purpose", "writing");
-
-  const upcomingPrickles: UpcomingPrickle[] = withTypeName((prickleRows ?? []) as any[], (r) => ({
-    typeId: r.type_id,
-    hostId: r.host ?? null,
-    startTime: r.start_time,
+  const starting = await createRepos(supabase).prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true });
+  const upcomingPrickles: UpcomingPrickle[] = writingPrickles(starting).map((p) => ({
+    id: p.id,
+    typeName: p.type.name,
+    title: formatPrickleDetailTitle(p),
+    typeId: p.type.id,
+    hostId: p.hostId,
+    startTime: p.startTime,
   }));
   if (upcomingPrickles.length === 0) return 0;
 

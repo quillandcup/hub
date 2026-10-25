@@ -65,6 +65,8 @@ export interface PrickleRepository {
   countBySource(source: string): Promise<number>;
   /** Host and start time of every hosted prickle (those with an assigned host), optionally one member's. For hosting streaks. */
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
+  /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
+  activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
   /** How many different members have ever been the assigned host of a prickle. */
   distinctHostCount(): Promise<number>;
   /** The first prickle starting at or after `instant` (ISO), else the latest one there is; null when there are none. */
@@ -227,6 +229,21 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
   }
 
+  async activeBetween({ from, to }: { from: string; to: string }): Promise<PrickleDetail[]> {
+    const rows = await fetchAllRows<DetailRow>(
+      (start, end) =>
+        this.db
+          .from("prickles")
+          .select(DETAIL_SELECT)
+          .gte("end_time", from)
+          .lte("start_time", to)
+          .order("start_time")
+          .order("id")
+          .range(start, end) as unknown as PromiseLike<{ data: DetailRow[] | null; error: { message: string } | null }>,
+    );
+    return rows.map(toDetail);
+  }
+
   async distinctHostCount(): Promise<number> {
     return new Set((await this.hostedStartTimes()).map((h) => h.hostId)).size;
   }
@@ -353,6 +370,15 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles
       .filter((p): p is typeof p & { hostId: string } => p.hostId !== null && (!hostId || p.hostId === hostId))
       .map((p) => ({ hostId: p.hostId, startTime: p.startTime }));
+  }
+
+  async activeBetween({ from, to }: { from: string; to: string }) {
+    const start = new Date(from).getTime();
+    const end = new Date(to).getTime();
+    return this.data.prickles
+      .filter((p) => new Date(p.endTime).getTime() >= start && new Date(p.startTime).getTime() <= end)
+      .sort(byStartThenId)
+      .map((p) => this.detail(p));
   }
 
   async distinctHostCount() {

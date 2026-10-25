@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 
 const checkinRow = (answers: Partial<CheckinInput>) => ({ id: "c1", member_id: "m1", prickle_id: "p1", ...checkinToRow({ ...EMPTY_CHECKIN, ...answers }) });
@@ -67,14 +68,26 @@ function dmLog() {
   };
 }
 
+// The prickles the route finds come from their repository, in memory here.
+const PROGRESS = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
 const PRICKLE = {
   id: "p1",
-  type_id: "t1",
-  host: "host",
-  start_time: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-  end_time: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
-  prickle_types: { name: "Progress Prickle", purpose: "writing" },
+  typeId: PROGRESS.id,
+  hostId: "host",
+  title: null,
+  startTime: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+  endTime: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
+  source: "calendar",
+  calendarEventId: null,
 };
+let dataset = new InMemoryDataset({ members: [{ id: "host", name: "Host Example" }], prickleTypes: [PROGRESS], prickles: [PRICKLE] });
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), prickles: actual.createInMemoryRepos(dataset).prickles }),
+  };
+});
 
 function cronRequest() {
   return new NextRequest("http://localhost/api/internal/prickle-checkins", {
@@ -84,6 +97,7 @@ function cronRequest() {
 }
 
 beforeEach(() => {
+  dataset = new InMemoryDataset({ members: [{ id: "host", name: "Host Example" }], prickleTypes: [PROGRESS], prickles: [PRICKLE] });
   sendSlackDM.mockClear();
   sendEmail.mockClear();
   calendarPrickleIds.mockReset();
@@ -95,7 +109,6 @@ describe("prickle check-in route", () => {
   function setup(goals: object[], extra: FakeTables = {}) {
     fake = createFakeSupabase({
       writing_goals: { data: goals },
-      prickles: { data: [PRICKLE] },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
       prickle_checkin_dm_log: dmLog(),
@@ -259,6 +272,12 @@ describe("prickle check-in route", () => {
   });
 
   it("sends check-outs for a recent prickle once its attendance has been imported", async () => {
+    // A writing prickle that ended ten minutes ago.
+    dataset = new InMemoryDataset({
+      members: [{ id: "host", name: "Host Example" }],
+      prickleTypes: [PROGRESS],
+      prickles: [{ ...PRICKLE, startTime: new Date(Date.now() - 70 * 60 * 1000).toISOString(), endTime: new Date(Date.now() - 10 * 60 * 1000).toISOString() }],
+    });
     setup([goalRow("g1", "m1", "proj1", "words")], {
       prickle_attendance: { data: [{ id: "a1", member_id: "m1", prickle_id: "p1" }] },
     });
