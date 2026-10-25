@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
 const effectiveMemberHasFeature = vi.hoisted(() => vi.fn());
 const identity = vi.hoisted(() => ({ memberId: "m1", memberName: "Member", memberEmail: "m@example.test", isSudo: false }));
@@ -9,9 +9,11 @@ vi.mock("@/lib/browser-push", () => ({ syncBrowserPush }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => createFakeSupabase() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => ({ id: "u1" }) }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: async () => identity }));
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => [], effectiveMemberHasFeature }));
+const previews = vi.hoisted(() => ({ list: [] as string[] }));
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => previews.list, effectiveMemberHasFeature }));
 vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => null }));
 vi.mock("@/components/MemberNavigation", () => ({ default: () => null }));
+vi.mock("@/components/MemberFooter", () => ({ default: ({ showPrivacy }: { showPrivacy: boolean }) => <p data-testid="footer">privacy: {String(showPrivacy)}</p> }));
 vi.mock("@/components/UserMenu", () => ({ default: () => null }));
 vi.mock("@/components/search/SearchPalette", () => ({ default: () => null }));
 vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -23,6 +25,7 @@ vi.mock("@/components/PageViewTracker", () => ({ default: () => null }));
 vi.mock("@/components/onboarding/OnboardingGuide", () => ({ default: () => null }));
 import MemberLayout from "@/app/(member)/layout";
 beforeEach(() => {
+  previews.list = [];
   identity.isSudo = false;
   effectiveMemberHasFeature.mockReset().mockResolvedValue(false);
   syncBrowserPush.mockReset().mockResolvedValue(undefined);
@@ -44,4 +47,12 @@ it.each(["AAAA", ""])("passes available browser push keys for automatic resume (
   else vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", undefined);
   render(await MemberLayout({ children: <div>Member content</div> }));
   await waitFor(() => expect(syncBrowserPush).toHaveBeenCalledWith("m1", key || null, expect.any(AbortSignal)));
+});
+
+it("shows the footer under the page, with Privacy only once the page is on for the member", async () => {
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  expect(screen.getByTestId("footer")).toHaveTextContent("privacy: false");
+  previews.list = ["message_privacy"];
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  expect(screen.getAllByTestId("footer")[1]).toHaveTextContent("privacy: true");
 });

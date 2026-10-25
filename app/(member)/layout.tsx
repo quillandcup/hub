@@ -6,6 +6,7 @@ import { getEffectiveIdentity } from '@/lib/sudo'
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from '@/lib/features.server'
 import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
+import MemberFooter from '@/components/MemberFooter'
 import UserMenu from '@/components/UserMenu'
 import AppHeader from '@/components/AppHeader'
 import WithInAppNotifications from '@/components/WithInAppNotifications'
@@ -90,6 +91,7 @@ export default async function MemberLayout({
             />
           </AppHeader>
           {main}
+          <MemberFooter showPrivacy={enabledFeatures.includes('message_privacy')} />
         </WithInAppNotifications>
         </SecondaryTimezoneProvider>
         </TimezoneProvider>
