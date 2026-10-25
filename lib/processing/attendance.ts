@@ -1,3 +1,6 @@
+import type { Db } from "@/lib/data/db";
+import { asJson } from "@/lib/data/json";
+
 const MIN_PUP_DURATION_MS = 5 * 60 * 1000;
 const MIN_PUP_ATTENDEES = 2;
 
@@ -12,6 +15,62 @@ export interface AttendanceRecord {
   client_prickle_id: string | null;
   member_id: string;
   [key: string]: unknown;
+}
+
+/** A Pop-Up Prickle as `reprocess_prickle_attendance_atomic` reads it from its `new_pup_data` argument. */
+export interface PupInput extends PupRecord {
+  /** Names the PUP within one call, so attendance rows can point at it before it has a database id. */
+  client_prickle_id: string;
+  type_id: string;
+  host: string | null;
+  source: "zoom";
+  zoom_meeting_uuid: string;
+}
+
+/** An attendance row as the same function reads it from `new_attendance_data`: a real `prickle_id`, or a `client_prickle_id` naming one of the PUPs in the call. */
+export interface AttendanceInput extends AttendanceRecord {
+  prickle_id: string | null;
+  client_prickle_id: string | null;
+  member_id: string;
+  join_time: string;
+  leave_time: string;
+  confidence_score: string;
+}
+
+/**
+ * Replace the attendance and Pop-Up Prickles that overlap [from, to) with these, in one transaction
+ * (it also rebuilds the range's `member_activities` mirror). PUPs left out are deleted; ones that
+ * match on meeting and times keep their ids. Throws on a database error.
+ */
+export async function reprocessAttendanceRange(
+  db: Db,
+  range: { from: string; to: string; pups: PupInput[]; attendance: AttendanceInput[] }
+): Promise<void> {
+  const { error } = await db.rpc("reprocess_prickle_attendance_atomic", {
+    from_date: range.from,
+    to_date: range.to,
+    new_pup_data: asJson(range.pups),
+    new_attendance_data: asJson(range.attendance),
+  });
+  if (error) throw error;
+}
+
+/** Remember that a Zoom name matched several members (adds `count` to its occurrences). Throws on a database error. */
+export async function trackAmbiguousZoomName(
+  db: Db,
+  name: string,
+  email: string | null,
+  candidateMemberIds: string[],
+  count: number
+): Promise<void> {
+  const { error } = await db.rpc("upsert_ambiguous_zoom_name", {
+    p_zoom_name: name,
+    // null is allowed: the function stores it as no email, but the generated type wants a string
+    p_zoom_email: email as string,
+    p_candidate_member_ids: candidateMemberIds,
+    p_occurrence_increment: count,
+  });
+  if (error) throw error;
 }
 
 /**

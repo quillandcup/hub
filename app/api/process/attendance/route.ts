@@ -2,7 +2,14 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "@/lib/member-matching";
-import { chunkAttendanceWrites, filterTrivialPups } from "@/lib/processing/attendance";
+import {
+  chunkAttendanceWrites,
+  filterTrivialPups,
+  reprocessAttendanceRange,
+  trackAmbiguousZoomName,
+  type AttendanceInput,
+  type PupInput,
+} from "@/lib/processing/attendance";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
@@ -220,13 +227,9 @@ export async function POST(request: NextRequest) {
 
     if (zoomAttendees.length === 0) {
       // Still call the atomic procedure to DELETE any orphaned PUPs/attendance in this range
-      const { error: cleanupError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
-        from_date: fromDateTime,
-        to_date: toDateTime,
-        new_pup_data: [],
-        new_attendance_data: [],
-      });
-      if (cleanupError) {
+      try {
+        await reprocessAttendanceRange(supabase, { from: fromDateTime, to: toDateTime, pups: [], attendance: [] });
+      } catch (cleanupError) {
         console.error("Error cleaning up attendance for empty range:", cleanupError);
         throw cleanupError;
       }
@@ -329,7 +332,7 @@ export async function POST(request: NextRequest) {
     // STEP 3: Prepare PUP data (assign client-side temp IDs instead of creating them now)
     // We'll create them atomically with attendance later
     const prickleIdsBySegment = new Map<any, string>();
-    let pupsToCreate: any[] = [];
+    let pupsToCreate: PupInput[] = [];
     let clientPupIdCounter = 0;
 
     for (const segments of segmentsByMeeting.values()) {
@@ -368,7 +371,7 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 4: Assign attendees to segments and collect attendance records
-    let attendanceToUpsert: any[] = [];
+    let attendanceToUpsert: AttendanceInput[] = [];
     const ambiguousMatches: Array<{ name: string; email: string | null; candidateIds: string[] }> = [];
     let segmentLookupFailures = 0;
 
@@ -476,7 +479,9 @@ export async function POST(request: NextRequest) {
           // Determine if this is a calendar prickle (UUID) or PUP (temp ID)
           const isCalendarPrickle = item.segment.type === "calendar";
           const resolvedMatch = match as MatchResult;
-          const attendanceRecord: any = {
+          const attendanceRecord: AttendanceInput = {
+            prickle_id: null,
+            client_prickle_id: null,
             member_id: resolvedMatch.member_id,
             join_time: item.intersection.start.toISOString(),
             leave_time: item.intersection.end.toISOString(),
@@ -531,14 +536,9 @@ export async function POST(request: NextRequest) {
     if (writeChunks.length > 1) console.log(`Writing attendance in ${writeChunks.length} atomic chunks`);
 
     for (const [i, chunk] of writeChunks.entries()) {
-      const { error: reprocessError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
-        from_date: chunk.from,
-        to_date: chunk.to,
-        new_pup_data: chunk.pups,
-        new_attendance_data: chunk.attendance,
-      });
-
-      if (reprocessError) {
+      try {
+        await reprocessAttendanceRange(supabase, chunk);
+      } catch (reprocessError) {
         console.error(
           `Error atomically reprocessing attendance (chunk ${i + 1}/${writeChunks.length}, ${chunk.from} to ${chunk.to}):`,
           reprocessError
@@ -567,17 +567,11 @@ export async function POST(request: NextRequest) {
 
       // Upsert each unique ambiguous name using database function
       for (const group of ambiguousGroups.values()) {
-        const { error: upsertError } = await supabase.rpc('upsert_ambiguous_zoom_name', {
-          p_zoom_name: group.name,
-          p_zoom_email: group.email as string, // null is allowed: the function stores it as no email
-          p_candidate_member_ids: group.candidateIds,
-          p_occurrence_increment: group.count,
-        });
-
-        if (upsertError) {
-          console.error(`Error tracking ambiguous name "${group.name}":`, upsertError);
-        } else {
+        try {
+          await trackAmbiguousZoomName(supabase, group.name, group.email, group.candidateIds, group.count);
           ambiguousNamesTracked++;
+        } catch (upsertError) {
+          console.error(`Error tracking ambiguous name "${group.name}":`, upsertError);
         }
       }
 
