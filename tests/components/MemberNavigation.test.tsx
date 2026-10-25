@@ -85,7 +85,7 @@ describe("MemberNavigation", () => {
     pathname = path;
     render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
-    expect(within(sidebar).getByRole("link", { name: /My Prickles/ })).toHaveClass("font-medium");
+    expect(within(sidebar).getByRole("link", { name: /Prickles/ })).toHaveClass("font-medium");
     expect(within(sidebar).getByRole("link", { name: /Dashboard/ })).not.toHaveClass("font-medium");
   });
 
@@ -93,7 +93,7 @@ describe("MemberNavigation", () => {
     pathname = "/projects";
     render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
-    expect(within(sidebar).getByRole("link", { name: /My Prickles/ })).not.toHaveClass("font-medium");
+    expect(within(sidebar).getByRole("link", { name: /Prickles/ })).not.toHaveClass("font-medium");
   });
 });
 
