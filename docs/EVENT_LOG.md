@@ -49,7 +49,7 @@ One append-only table, `events` (the existing `analytics_events`, generalised; a
 | `source` | `client`, `server`, `system`, `trigger` |
 | `properties` | allowlisted properties from the event's declaration (see [The catalog](#the-catalog)): never names, emails or typed text |
 | `context` | route template, viewport, app version; **not** the network details |
-| `deleted_at` | soft delete (see below) |
+| `deleted_at` | soft delete: hides the row from every view; it is a mechanism within a category, not a category (see [Mechanism](#mechanism)). A scrub also sets `scrubbed_at` and `scrub_reason` |
 
 No foreign key to users: like `audit_log`, an event can outlive the account (anonymised, see below). The network and device details that `access_events` keeps today (IP address, place, user agent, GA client id) stay in this same table in columns with tighter grants (see [Access](#access)), not in a second table.
 
@@ -99,7 +99,7 @@ The log is the store; these are queries. Audience is a property of the *view*, n
 
 `video_watch_segments` stays for now: it is interval data with its own aggregation (heatmaps, engagement), and other work is building on it. Its watch ranges can be exposed through a view next to the events (or, later, re-expressed as `video_segment_watched` events); not in the first phases.
 
-## Retention, erasure and soft delete
+## Retention and erasure
 
 **This is engineering's reading of the regulators' published guidance, not legal advice.** The numbers below are proposals backed by the sources in [Sources](#sources-and-what-was-not-verified); counsel should confirm them before they are published to members.
 
@@ -145,7 +145,6 @@ The owner's rules for this: **business events are never dropped or anonymised au
 | **Raw IP address and raw user agent** (on sign-in events, and on old access rows until they are replaced) | legitimate interest (security, abuse) | **90 days** | IP truncated (last octet, or the lower 64 bits of an IPv6 address) or nulled; raw user agent nulled | the most sensitive columns; the place and the parsed device details (next row) are derived once at write time, so the raw values add nothing after that |
 | **Device and viewport details** (browser and OS with versions, device type, viewport size, orientation: see [Device and viewport details](#device-and-viewport-details)) | consent (client-sourced), legitimate interest (the sign-in header parse) | **13 months**, on interaction events, sign-in events and visit summaries | the coarse fields (browser family, OS family, device type) stay on sign-in events and visit summaries; the detail is removed; rollups keep bucketed counts | detail answers "what do we need to support" and "when did their problem start"; it is the fingerprint-like part, so it expires on the same clock as the clicks and rollups never show a cell smaller than five members |
 | Derived place (country, region, city) | follows its event | with its event | with its event | coarse (the ICO lists coarse city or region as acceptable detail) |
-| Soft-deleted rows | | **30 days** | physically purged | recoverable from a mistake, then really gone |
 | Backups | | the provider's backup window | rolls off | erasure completes when backups expire; the privacy notice says so |
 | `hub_sid` visit cookie | consent | 30 minutes idle (already) | | |
 | `hub_cid` correlation cookie | consent | **60 seconds** (it only has to survive from the click to the request it makes) | | |
@@ -168,7 +167,6 @@ The one table to read (and to publish, in plain words, on `/privacy`). Everythin
 | **Error events** (`*_error`) | the error class and the action; the same device detail | as interaction events | **90 days** | deleted |
 | **Rollups** (anonymous) | **counts only**: events, visits and distinct members per day, week and month. No member ids | **one dimension at a time:** event name; route; control; browser by `major.minor` version; OS by `major.minor` version; viewport width in 100-pixel bins and in the named bands (under 360, 360-479, 480-767, 768-1023, 1024-1279, 1280-1535, 1536 and up); viewport height in 100-pixel bins; orientation; device type. **Pairs, each chosen for a decision it supports:** browser family by device type, OS family by orientation, **route by viewport width band, route by orientation, route by device type, and audience (staff or member) by each of those** (a pair cell under five distinct members is folded into "other", except on staff-only pages: see the page-level rollups below). Every rollup also records **viewport coverage** (visits that reported a viewport against all visits). **Never** the full combination (this Chrome on this OS at this window size at this page) | **indefinitely** | n/a: they hold no personal data |
 | **Cookies** | `hub_sid`: the visit's random session id. `hub_cid`: the correlation id of the last click | set only where tracking is allowed | `hub_sid` 30 minutes idle; `hub_cid` 60 seconds | expire |
-| **Soft-deleted rows** | any row marked deleted | | **30 days** | physically purged. Backups roll off on the provider's schedule |
 | **Existing logs, unchanged by this design** | `audit_log` (field-level changes), `member_activities` (the CRM timeline), `video_watch_segments` (course viewing, in its own tables) | | until the member asks | on request |
 
 **Legacy until phase 4.** `access_events` still has a row per request (path, user agent, raw IP, place, device). Its raw IP and user agent go at 90 days from phase 0; its other columns are replaced by sign-in events and visit records in phase 4 and then retired.
@@ -206,12 +204,31 @@ For analytics the log records what a member's browser and screen actually are, i
 - **Viewport coverage is a number, not an assumption.** Each rollup also stores the share of visits that reported a viewport, so a chart can say "viewport known for 94% of visits". A member in the EU, EEA or UK who has not allowed tracking has no viewport in the log; their browser and OS versions are still counted, from the sign-in event. The UK's statistical-purposes exception (in force since 5 February 2026, per the sources listed below) would allow an anonymous, aggregate-only viewport count without consent, provided there is notice and a simple way to object and nothing links it to a person. It is not used here: it would need a second collection path that bypasses the member's identity entirely, for a gap that is small with a mostly US membership. Revisit if the EU/UK share grows.
 - **Consent follows the source.** Reading client hints and window size is JavaScript that makes the browser report information to our server, which the EDPB treats as access to the device (see the note in `docs/ANALYTICS.md`), so those fields are collected only where interaction tracking is allowed. The server-side parse of the header on sign-in does not read anything from the device and stays under legitimate interest (security).
 
+### What a scrub keeps and removes
+
+A scrub (when a window expires, or a member asks) **keeps the record's shape**: the same columns, the same row id, the same event. It removes or coarsens only the fields that can point at a person, and leaves everything that need not go. Each column of `events` is classed once, in the catalog, and the scrub routine reads the class; there is no per-event code.
+
+| Class | Columns | When a window expires (interaction, friction, error) | When a member asks (any event type) |
+|---|---|---|---|
+| **Kept as is** | row id, event name, the allowlisted properties (facts such as which action, a count, a status, never typed text), route template, `source`, `occurred_at` for business events | kept | kept |
+| **Time, coarsened** | `occurred_at` on interaction, friction and error events | **truncated to the day** | kept as is (exact time of a business fact stays; the audit rows it matches are anonymised by the same request) |
+| **Identity** | actor user id, subject member id, `entity_id` when it names a person's record, `session_id`, `correlation_id` | **nulled** | **nulled** |
+| **Network** | raw IP, raw user agent | already gone at 90 days | nulled |
+| **Place** | country, region, city | kept (coarse) | nulled |
+| **Device detail** | browser and OS versions, exact viewport width and height, orientation | **coarsened**: major version, 100-pixel bin, orientation kept | coarsened the same way |
+| **Coarse device** | browser family, OS family, device type | kept | kept |
+| **Marker** | `scrubbed_at`, `scrub_reason` (`expired` or `erased`) | set | set |
+
+What is left after an expiry is the interaction event with no person attached, the time as a day, and the device as bins: still a useful row for a page-by-screen question years later, which is why rollups are not the only thing that survives. It is treated as anonymous only because nothing in it links to a person or to another record; whether the remaining combination of route, day and device bins is anonymous *enough* is exactly the kind of judgement counsel should confirm, and the fallback, if it is not, is to delete those rows outright (the rollups hold their counts).
+
+The same principle applies to a member's request: a business event keeps its name, time and facts, and loses only the references that say whose it was. A deleted project is a soft-deleted record that stays until they ask; the request is what removes the person from it.
+
 ### Mechanism
 
-- **Soft delete first.** Every row has `deleted_at`; views read live rows only.
-- **Anonymise, or erase, when a member asks.** `anonymise_user_events(user_id)` nulls the actor and subject columns and blanks identifying context (user agent, IP, place, GA id) in one pass; a full erase soft-deletes the rows instead. Nothing runs it automatically for business events.
-- **A scheduled job enforces the windows that exist** (interaction and friction events at 13 months, errors at 90 days, raw IP and user agent at 90 days, soft-deleted rows at 30 days), reading each event type's window from the catalog, so a new event can't be added without saying how long it lives. Business events' window is "until asked", also in the catalog, so it is a stated choice and not an omission.
-- **Rollups before deletion.** The job never deletes interaction or friction rows until their daily, weekly and monthly rollups exist (counts per event, route, control and the bucketed device dimensions (browser and OS major version, device type, viewport width band, orientation), with cells under five members folded into "other", plus distinct-member counts per period, which cannot be rebuilt from daily numbers). Year-over-year views read the rollups for anything older than 13 months.
+- **Soft delete is a mechanism within a category, not a category with its own clock.** Every row has `deleted_at`; views read live rows only, and a soft-deleted row **keeps the retention of the category it belongs to.** A project a member deletes is hidden, and its records are kept until they ask, like every business record; an interaction event hidden because it was recorded wrongly still expires with the other interaction events. Nothing is purged because it was soft-deleted. Two things must be said plainly where a member sees them (the `/privacy` page and the delete action's wording): that deleting in the app hides something rather than removing it from our records, and that a request does remove it.
+- **Removal happens on request, or when a window expires: by scrubbing, not by purging.** `anonymise_user_events(user_id)` (a member asked) and the expiry job run the same routine, which reads each column's class from the catalog and removes or coarsens only the personal ones, leaving the rest of the row intact (see [What a scrub keeps and removes](#what-a-scrub-keeps-and-removes)). The row is never physically removed: ids that other records point at (audit rows, correlation chains) stay valid, and there is no grace period to wait out; a mistake is recovered from backups, which roll off on the provider's schedule. Nothing runs it automatically for business events.
+- **A scheduled job enforces the windows that exist** (interaction and friction events at 13 months, errors at 90 days, raw IP and user agent at 90 days), reading each event type's window from the catalog, so a new event can't be added without saying how long it lives. Business events' window is "until asked", also in the catalog, so it is a stated choice and not an omission.
+- **Rollups before deletion.** The job never scrubs interaction or friction rows until their daily, weekly and monthly rollups exist (counts per event, route, control and the bucketed device dimensions (browser and OS major version, device type, viewport width band, orientation), with cells under five members folded into "other", plus distinct-member counts per period, which cannot be rebuilt from daily numbers). Year-over-year views read the rollups for anything older than 13 months.
 - **Objection and withdrawal** are handled the same way: stop recording for that member (a per-member flag the receiver and `createNotifier` check), and apply `anonymise_user_events` to the classes that no longer have a basis.
 - **`audit_log` keeps its rule** (history outlives deleted users), now explicitly "until asked" too: its entries name records and fields, so a member's request to be anonymised covers them as well.
 
@@ -222,7 +239,7 @@ One table, with the restrictions pushed into RLS and grants, as the repo already
 - Members can insert their own events (today's policy) and read their own non-sensitive ones.
 - Staff read through views. The sensitive columns (IP, place, user agent, GA client id) are excluded from the views' column lists and from `SELECT` grants on the table, like `bronze.slack_messages_meta`; a break-glass view (admin-only, itself logged) can read them.
 - `events` itself is not readable by `authenticated` apart from a member's own rows; every audience reads a `security_invoker` view, so RLS still decides.
-- Soft-deleted rows are invisible to every view.
+- Soft-deleted rows, and tombstones, are invisible to every view.
 
 ## Migration plan
 
