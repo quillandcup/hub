@@ -2,6 +2,8 @@
 import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import CalendarWeekView from "@/components/CalendarWeekView";
 import AllPricklesCalendar from "@/app/(member)/my-prickles/AllPricklesCalendar";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
 
@@ -67,5 +69,51 @@ describe("CalendarWeekView layout", () => {
     const grids = Array.from(container.querySelectorAll("[class*='grid-cols-[2.75rem']"));
     expect(grids.length).toBeGreaterThan(0);
     for (const grid of grids) expect(grid.className).toContain("minmax(4rem,1fr)");
+  });
+});
+
+describe("CalendarWeekView today highlight", () => {
+  it("marks today only after mounting, so server and browser clocks in different zones can't fail hydration", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-22T15:00:00.000Z"));
+    const html = renderToString(
+      <AllPricklesCalendar instances={[]} timeZone="America/New_York" upcomingWindowDays={14} lookbackDays={28} />,
+    );
+    expect(html).not.toContain("border-t-plum-500");
+    const { container } = renderCalendar();
+    expect(container.querySelector(".border-t-plum-500")).not.toBeNull();
+    vi.useRealTimers();
+  });
+});
+
+describe("CalendarWeekView on a server in another zone", () => {
+  it("renders the same week whatever zone the host runs in, so the server HTML and the browser's agree", () => {
+    const original = process.env.TZ;
+    const prickle = {
+      id: "p1",
+      host: "Host",
+      start_time: "2026-06-15T14:00:00Z",
+      end_time: "2026-06-15T15:00:00Z",
+      prickle_type: "Heads Down",
+      attendance_count: 3,
+    };
+    const htmlIn = (tz: string) => {
+      process.env.TZ = tz;
+      return renderToString(
+        <CalendarWeekView
+          prickles={[prickle]}
+          weekStartDate={{ year: 2026, month: 5, day: 14 }}
+          userTimezonePreference="America/New_York"
+          mode="admin"
+          attendanceDataThrough="2026-06-16T10:00:00Z"
+        />,
+      );
+    };
+    try {
+      expect(htmlIn("UTC")).toBe(htmlIn("America/New_York"));
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 });

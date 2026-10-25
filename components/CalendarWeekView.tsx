@@ -82,7 +82,7 @@ function getAttendanceColor(count: number): string {
   } else if (count <= 6) {
     return "bg-plum-200 dark:bg-plum-900 text-plum-900 dark:text-plum-50 border-plum-400 dark:border-plum-600";
   } else if (count <= 10) {
-    return "bg-plum-400 dark:bg-plum-700 text-white border-plum-500 dark:border-plum-500";
+    return "bg-plum-400 dark:bg-plum-700 text-plum-950 dark:text-white border-plum-500 dark:border-plum-500";
   } else {
     return "bg-plum-600 dark:bg-plum-600 text-white border-plum-700 dark:border-plum-400";
   }
@@ -143,12 +143,10 @@ function isSameCalendarDay(isoTimestamp: string, day: Date, timezone: string): b
     month: "2-digit",
     day: "2-digit",
   });
-  const dayDateStr = day.toLocaleDateString("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  // `day` is a calendar date built from year/month/day components in the host's zone, not an instant: read those
+  // components as they are. Formatting it in `timezone` shifts it by a day whenever the host's zone (UTC on the
+  // server) differs from the viewer's, so the server and the browser would put prickles in different columns.
+  const dayDateStr = `${String(day.getMonth() + 1).padStart(2, "0")}/${String(day.getDate()).padStart(2, "0")}/${day.getFullYear()}`;
   return itemDateStr === dayDateStr;
 }
 
@@ -188,6 +186,13 @@ export default function CalendarWeekView({
     userTimezonePreference === "browser"
       ? (detectedTimezone || ORG_TIMEZONE)
       : userTimezonePreference;
+
+  // "Today" depends on the clock and zone of whoever renders it, so the server's answer (UTC) can differ from the
+  // browser's around midnight and fail hydration. Leave it unset until mounted.
+  const [todayString, setTodayString] = useState<string | null>(null);
+  useEffect(() => {
+    setTodayString(new Date().toDateString());
+  }, []);
 
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
@@ -318,7 +323,7 @@ export default function CalendarWeekView({
           <div className={`sticky top-0 z-30 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
             <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
-              const isToday = day.toDateString() === new Date().toDateString();
+              const isToday = day.toDateString() === todayString;
               return (
                 <div
                   key={i}
@@ -341,7 +346,9 @@ export default function CalendarWeekView({
           {/* Time Grid */}
           <div className="relative">
             <div className={`grid ${gridColsClass}`}>
-              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen */}
+              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen. Sticky `left-0` sticks at
+                  the content edge of the scroller around the calendar, so that scroller must have no padding of its
+                  own (put it on a box inside), or the column parks inside the gap and scrolled days show beside it. */}
               <div className="sticky left-0 z-20">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
@@ -357,7 +364,7 @@ export default function CalendarWeekView({
 
               {/* Day Columns */}
               {days.map((day, dayIndex) => {
-                const isToday = day.toDateString() === new Date().toDateString();
+                const isToday = day.toDateString() === todayString;
                 return (
                   <div key={dayIndex} className="relative border-l border-slate-200 dark:border-slate-800">
                     {/* Hour Grid Lines */}

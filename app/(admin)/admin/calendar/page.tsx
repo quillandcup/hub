@@ -156,7 +156,11 @@ export default async function CalendarPage({
         nextHref={isNextDisabled ? null : `/admin/calendar?week=${nextWeekParam}`}
         todayHref="/admin/calendar"
       />
-      <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+      {/* The scroller bleeds to the screen edges on a phone and carries no padding of its own: the calendar's sticky
+          time column sticks at a scroller's content edge, so padding on the scroller leaves a gap beside it. The
+          page margin is on the box inside. */}
+      <div className="overflow-x-auto -mx-6 sm:mx-0">
+        <div className="px-6 sm:px-0">
         <CalendarWeekView
           prickles={pricklesWithCount}
           weekStartDate={{
@@ -168,6 +172,7 @@ export default async function CalendarPage({
           prickleBasePath="/admin/prickles"
           attendanceDataThrough={latestMeeting?.start_time ?? null}
         />
+        </div>
       </div>
     </div>
   );

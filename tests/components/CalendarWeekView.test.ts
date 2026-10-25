@@ -36,22 +36,18 @@ describe('CalendarWeekView mode prop', () => {
 });
 
 describe('CalendarWeekView day-to-prickle timezone matching', () => {
-  it('uses selected timezone for both sides of the day-matching comparison', () => {
-    // Both itemDateStr and dayDateStr must use the same timezone so prickles
-    // near midnight UTC (e.g. 8pm ET = 2026-06-19T00:00Z) land on the correct
-    // calendar day when the selected timezone differs from the browser's local one.
-    // This comparison lives in the shared isSameCalendarDay helper, reused by
-    // both prickle and proposed-slot day-grouping.
+  it('reads the prickle in the selected timezone and the column as the calendar date it is', () => {
+    // The prickle's instant is read in the selected timezone, so a prickle near midnight UTC (8pm ET =
+    // 2026-06-19T00:00Z) lands on the right calendar day. The column is a calendar date built from
+    // year/month/day components, so it is read as those components, never formatted in a timezone: that shifts it a
+    // day whenever the host's zone differs from the viewer's (server vs browser; see CalendarWeekViewLayout.test.tsx).
     const block = src.match(/function isSameCalendarDay[\s\S]*?itemDateStr === dayDateStr/)?.[0] ?? '';
-    const count = (block.match(/timeZone: timezone/g) ?? []).length;
-    expect(count).toBe(2);
+    expect((block.match(/timeZone: timezone/g) ?? []).length).toBe(1);
+    expect(block).toMatch(/dayDateStr = `[^`]*day\.getMonth\(\)[^`]*day\.getDate\(\)[^`]*day\.getFullYear\(\)/);
   });
 
-  it('dayDateStr includes timeZone option (regression guard)', () => {
-    // Before the fix, dayDateStr called toLocaleDateString without timeZone,
-    // causing it to use the browser's local timezone while prickleDateStr used
-    // the calendar's selected timezone — mismatching for users near midnight UTC.
-    expect(src).toMatch(/dayDateStr = day\.toLocaleDateString\([^)]*\{[^}]*timeZone: timezone/);
+  it('does not format the column date in a timezone (regression guard)', () => {
+    expect(src).not.toMatch(/dayDateStr = day\.toLocaleDateString/);
   });
 
   it('hides attendee count label in member mode', () => {
