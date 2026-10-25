@@ -14,19 +14,19 @@ export interface Persona {
 }
 
 export const PERSONAS: Persona[] = [
-  { key: "admin", name: "Avery Admin", email: "avery.admin@example.com", role: "admin", joinedDaysAgo: null },
-  { key: "member", name: "Marlowe Example", email: "marlowe.example@example.com", role: "member", joinedDaysAgo: 21 },
+  { key: "admin", name: "Amelia Admin", email: "amelia.admin@example.com", role: "admin", joinedDaysAgo: null },
+  { key: "member", name: "Maya Example", email: "maya.example@example.com", role: "member", joinedDaysAgo: 21 },
   { key: "host", name: "Hazel Hosting", email: "hazel.hosting@example.com", role: "member", joinedDaysAgo: 400 },
-  { key: "regular1", name: "Jules Sample", email: "jules.sample@example.com", role: "member", joinedDaysAgo: 200 },
-  { key: "regular2", name: "Rowan Demo", email: "rowan.demo@example.com", role: "member", joinedDaysAgo: 90 },
+  { key: "regular1", name: "Julia Sample", email: "julia.sample@example.com", role: "member", joinedDaysAgo: 200 },
+  { key: "regular2", name: "Rosa Demo", email: "rosa.demo@example.com", role: "member", joinedDaysAgo: 90 },
 ];
 
 /** How often someone comes to a prickle they could attend (0 to 1): what makes streaks, "~4 Hedgies" and show-up rates look lived in. */
 export const ATTENDANCE_RATE: Record<string, number> = {
-  "marlowe.example@example.com": 0.4,
+  "maya.example@example.com": 0.4,
   "hazel.hosting@example.com": 0.85,
-  "jules.sample@example.com": 0.6,
-  "rowan.demo@example.com": 0.5,
+  "julia.sample@example.com": 0.6,
+  "rosa.demo@example.com": 0.5,
 };
 
 /**
@@ -41,16 +41,16 @@ export interface FillerMember {
 }
 
 export const FILLER_MEMBERS: FillerMember[] = [
-  { name: "Wren Placeholder", email: "wren.placeholder@example.com", joinedDaysAgo: 540, rate: 0.7 },
-  { name: "Sage Sample", email: "sage.sample@example.com", joinedDaysAgo: 330, rate: 0.55 },
-  { name: "Linden Example", email: "linden.example@example.com", joinedDaysAgo: 280, rate: 0.45 },
-  { name: "Ash Fictional", email: "ash.fictional@example.com", joinedDaysAgo: 210, rate: 0.65 },
-  { name: "Briar Demo", email: "briar.demo@example.com", joinedDaysAgo: 150, rate: 0.3 },
+  { name: "Willa Placeholder", email: "willa.placeholder@example.com", joinedDaysAgo: 540, rate: 0.7 },
+  { name: "Sadie Sample", email: "sadie.sample@example.com", joinedDaysAgo: 330, rate: 0.55 },
+  { name: "Linnea Example", email: "linnea.example@example.com", joinedDaysAgo: 280, rate: 0.45 },
+  { name: "Aria Fictional", email: "aria.fictional@example.com", joinedDaysAgo: 210, rate: 0.65 },
+  { name: "Briony Demo", email: "briony.demo@example.com", joinedDaysAgo: 150, rate: 0.3 },
   { name: "Juniper Test", email: "juniper.test@example.com", joinedDaysAgo: 120, rate: 0.5 },
-  { name: "Thistle Mockup", email: "thistle.mockup@example.com", joinedDaysAgo: 75, rate: 0.6 },
+  { name: "Thea Mockup", email: "thea.mockup@example.com", joinedDaysAgo: 75, rate: 0.6 },
   { name: "Fern Imaginary", email: "fern.imaginary@example.com", joinedDaysAgo: 60, rate: 0.35 },
   { name: "Clover Sketch", email: "clover.sketch@example.com", joinedDaysAgo: 45, rate: 0.5 },
-  { name: "Maple Pretend", email: "maple.pretend@example.com", joinedDaysAgo: 40, rate: 0.25 },
+  { name: "Mabel Pretend", email: "mabel.pretend@example.com", joinedDaysAgo: 40, rate: 0.25 },
 ];
 
 export function persona(key: string): Persona {
@@ -71,10 +71,10 @@ export interface DemoEvent {
 /** The weekly rhythm: day of week (0 = Sunday), local start, minutes, and the calendar title the real calendar would carry. */
 const WEEKLY_PATTERN: { weekday: number; startLocal: string; minutes: number; summary: string }[] = [
   { weekday: 1, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
-  { weekday: 2, startLocal: "14:00", minutes: 45, summary: "Sprint Prickle w/Jules Sample" },
+  { weekday: 2, startLocal: "14:00", minutes: 45, summary: "Sprint Prickle w/Julia Sample" },
   { weekday: 3, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
-  { weekday: 4, startLocal: "19:00", minutes: 60, summary: "Plot or Plan Prickle w/Rowan Demo" },
-  { weekday: 5, startLocal: "10:00", minutes: 60, summary: "Progress Prickle w/Jules Sample" },
+  { weekday: 4, startLocal: "19:00", minutes: 60, summary: "Plot or Plan Prickle w/Rosa Demo" },
+  { weekday: 5, startLocal: "10:00", minutes: 60, summary: "Progress Prickle w/Julia Sample" },
   { weekday: 6, startLocal: "10:00", minutes: 90, summary: "Heads Down Prickle" },
   { weekday: 0, startLocal: "19:00", minutes: 60, summary: "Sprint Prickle w/Hazel Hosting" },
 ];

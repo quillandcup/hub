@@ -63,6 +63,15 @@ export async function seed(now: Date = new Date()) {
   const { error: membersError } = await admin.from("members").upsert(members, { onConflict: "email" });
   if (membersError) throw new Error(`members: ${membersError.message}`);
 
+  // A cast that was renamed leaves its old members behind: remove demo members (example.com) who are no longer in it.
+  const { data: demoMembers } = await admin.from("members").select("id, email").like("email", "%@example.com");
+  const current = new Set(members.map((m) => m.email));
+  const staleMembers = (demoMembers ?? []).filter((m) => !current.has(m.email as string)).map((m) => m.id as string);
+  if (staleMembers.length > 0) {
+    const { error } = await admin.from("members").delete().in("id", staleMembers);
+    if (error) throw new Error(`members cleanup: ${error.message}`);
+  }
+
   // The Getting started tour is for new members; the demo members have put it away so it doesn't cover the page.
   const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", members.map((m) => m.email));
   if (seededError) throw new Error(`members: ${seededError.message}`);
@@ -74,22 +83,22 @@ export async function seed(now: Date = new Date()) {
 
   // Short bios, so the member directory and profiles read like a community, not a list of names.
   const bios: Record<string, string> = {
-    "Marlowe Example": "Drafting a cozy mystery set in a lighthouse bakery. Tea first, words second.",
-    "Hazel Hosting": "Hosts the early Progress Prickles. Revising a middle-grade fantasy, one chapter at a time.",
-    "Jules Sample": "Short stories and the occasional sonnet. Sprint Prickles keep me honest.",
-    "Rowan Demo": "Plotting my first novel. Plot or Plan Prickles are my favorite hour of the week.",
+    "Maya Example": "Drafting a cozy mystery set in a lighthouse bakery 🧁 Tea first, words second. WIP: 12k and counting!",
+    "Hazel Hosting": "I host the early Progress Prickles ☀️ Revising a middle-grade fantasy, one chapter at a time. Coffee-powered.",
+    "Julia Sample": "Short stories + the occasional sonnet ✨ Sprint Prickles keep me honest. Poet problems, always.",
+    "Rosa Demo": "Plotting my very first novel 📓 Plot or Plan Prickles are my favorite hour of the week. Index cards everywhere.",
   };
   const fillerBios = [
-    "Cozy fantasy, strong tea, and a very large to-be-read pile.",
-    "Writing a memoir in 20-minute bursts between school runs.",
-    "Poet by night, accountant by day. Here for the morning Prickles.",
-    "Finishing my second draft before the leaves are gone.",
-    "Sci-fi short stories and too many half-finished notebooks.",
-    "Romance writer. Sprint Prickles are my secret weapon.",
-    "Reworking a screenplay into a novel, one scene at a time.",
-    "Here to build a daily writing habit and make friends.",
-    "Historical fiction, with a lot of research rabbit holes.",
-    "Writing picture books after the kids are in bed.",
+    "Cozy fantasy, strong tea, and a very large TBR pile 📚",
+    "Writing a memoir in 20-minute bursts between school runs 🚌",
+    "Poet by night, accountant by day. Here for the morning Prickles ✍️",
+    "Finishing my second draft before the leaves are gone 🍂",
+    "Sci-fi short stories and too many half-finished notebooks 🚀",
+    "Romance writer. Sprint Prickles are my secret weapon 💌",
+    "Turning a screenplay into a novel, one scene at a time 🎬",
+    "Here to build a daily writing habit and make writer friends 🌱",
+    "Historical fiction with a lot of research rabbit holes 🕰️",
+    "Writing picture books after the kids are in bed 🌙",
   ];
   FILLER_MEMBERS.forEach((f, i) => {
     bios[f.name] = fillerBios[i % fillerBios.length];
@@ -105,6 +114,26 @@ export async function seed(now: Date = new Date()) {
   const { data: memberRow } = await admin.from("members").select("id").eq("email", memberEmail ?? "").single();
   const memberId = memberRow?.id;
   if (memberId) {
+    // An active commitment (Progress Prickles, Mondays and Wednesdays at 9) so Commitments isn't empty. Replaced each run.
+    const { error: commitWipeError } = await admin.from("prickle_commitments").delete().eq("member_id", memberId);
+    if (commitWipeError) throw new Error(`prickle_commitments clear: ${commitWipeError.message}`);
+    const { data: progressType } = await admin.from("prickle_types").select("id").eq("name", "Progress Prickle").maybeSingle();
+    if (progressType) {
+      const { data: commitment, error: commitError } = await admin
+        .from("prickle_commitments")
+        .insert({ member_id: memberId, start_date: orgDate(-7, now), weeks: 4, status: "active" })
+        .select("id")
+        .single();
+      if (commitError || !commitment) throw new Error(`prickle_commitments: ${commitError?.message}`);
+      const { error: slotError } = await admin.from("prickle_commitment_slots").insert(
+        [1, 3].map((day_of_week) => ({ commitment_id: commitment.id, type_id: progressType.id, day_of_week, start_time_local: "09:00", timezone: ORG_TIMEZONE })),
+      );
+      if (slotError) throw new Error(`prickle_commitment_slots: ${slotError.message}`);
+    }
+
+    // Prickles the member added to their calendar by hand (the recording does it), so each run starts with none.
+    const { error: feedError } = await admin.from("calendar_feed_items").delete().eq("member_id", memberId);
+    if (feedError) throw new Error(`calendar_feed_items clear: ${feedError.message}`);
     const { error: wipeError } = await admin.from("writing_projects").delete().eq("member_id", memberId).like("external_id", "demo-%");
     if (wipeError) throw new Error(`writing_projects clear: ${wipeError.message}`);
     const projects = [
