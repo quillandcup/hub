@@ -222,5 +222,20 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(after).toBeLessThanOrEqual(before + 2);
       expect(after).toBeGreaterThanOrEqual(2);
     });
+
+    it("lists the prickles running at the start of a window or starting within it, oldest first", async () => {
+      const [over, running, soon, later] = await ctx.seed([
+        { start: at(0), end: at(1) },
+        { start: at(2), end: at(6) },
+        { start: at(7), end: at(8) },
+        { start: at(20), end: at(21) },
+      ]);
+
+      const found = (await ctx.repo().activeBetween({ from: at(5), to: at(10) })).map((p) => p.id);
+
+      expect(found).toEqual([running, soon]);
+      expect(found).not.toContain(over);
+      expect(found).not.toContain(later);
+    });
   });
 }

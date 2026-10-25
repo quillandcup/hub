@@ -3,6 +3,8 @@
  * The admin prickle page's "send me a test check-in/check-out" action: admin-only, and always to
  * the signed-in admin's own member record, never a sudo'd member.
  */
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ADMIN_USER,
@@ -17,6 +19,20 @@ import {
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+// The prickle comes from its repository, in memory here.
+const repos = createInMemoryRepos(
+  new InMemoryDataset({
+    members: [{ id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" }],
+    prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false }],
+    prickles: [
+      { id: "p1", typeId: "prty_AAAAAAAAAAA1", hostId: "mbr_AAAAAAAAAAA1", title: null, startTime: "2026-10-05T17:00:00Z", endTime: "2026-10-05T18:00:00Z", source: "calendar", calendarEventId: null },
+    ],
+  }),
+);
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => "service-client" }));
 
 const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<{ error: string } | { delivered: string[] }>>(async () => ({ delivered: ["slack", "email"] }));
@@ -34,12 +50,7 @@ const ADMIN_IDENTITY = { memberId: "member-bramble", memberName: "Bramble", memb
 beforeEach(() => {
   resetServerPageMocks();
   sendTestCheckinDM.mockClear();
-  useFakeSupabase({
-    user_profiles: userProfiles,
-    prickles: {
-      data: [{ id: "p1", start_time: "2026-10-05T17:00:00Z", host: { name: "Jenn Parker" }, prickle_types: { name: "Progress Prickle" } }],
-    },
-  });
+  useFakeSupabase({ user_profiles: userProfiles });
 });
 
 describe("sendTestPrickleDM", () => {

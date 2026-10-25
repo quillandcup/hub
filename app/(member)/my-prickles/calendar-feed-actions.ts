@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { refresh, revalidatePath } from "next/cache";
@@ -226,17 +227,17 @@ async function addItem(row: Omit<Insert<"calendar_feed_items">, "member_id" | "c
 async function addPrickleToMyCalendarImpl(prickleId: string, mode: "once" | "weekly"): Promise<ItemResult> {
   if (mode !== "once" && mode !== "weekly") return { error: "Invalid option" };
   const supabase = await createClient();
-  const { data: prickle } = await supabase.from("prickles").select("id, type_id, start_time").eq("id", prickleId).maybeSingle();
+  const prickle = await createRepos(supabase).prickles.byId(prickleId);
   if (!prickle) return { error: "That prickle isn't on the schedule anymore." };
-  if (!prickle.type_id) return { error: "That prickle can't be added to your calendar." };
+  if (!prickle.typeId) return { error: "That prickle can't be added to your calendar." };
 
   if (mode === "once") {
     return addItem({ kind: "prickle", prickle_id: prickle.id });
   }
-  const { dayOfWeek, startTimeLocal } = slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE);
+  const { dayOfWeek, startTimeLocal } = slotTimeForInstant(prickle.startTime, SCHEDULE_TIMEZONE);
   return addItem({
     kind: "slot",
-    type_id: prickle.type_id,
+    type_id: prickle.typeId,
     day_of_week: dayOfWeek,
     start_time_local: startTimeLocal,
     timezone: SCHEDULE_TIMEZONE,
