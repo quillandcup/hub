@@ -3,6 +3,7 @@ import { startRecording, type Director } from "./director";
 import { acknowledgePost, demoChannelId, forgetPosts } from "./slack-stand-in";
 import { googleCalendarFrames } from "./google-calendar";
 import { LONG as L, SHORT as S } from "./script";
+import { synthesize } from "./voiceover";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 
 /**
@@ -60,14 +61,16 @@ test.setTimeout(600_000);
 const baseURL = process.env.DEMO_APP_URL ?? "http://localhost:3101";
 
 /** A returning member: signed in, with the chat channel they last had open (so /chat opens on it, not the empty list). */
-async function startAsMember(browser: Parameters<typeof startRecording>[0]) {
+async function startAsMember(browser: Parameters<typeof startRecording>[0], lines: Record<string, string>) {
+  // Speak every line first (they are kept after that): a line made while recording would be a silent gap on screen.
+  Object.values(lines).forEach(synthesize);
   await forgetPosts();
   const lastChannel = await demoChannelId("announcements");
   return startRecording(browser, baseURL, "member", WARM, "light", [{ name: LAST_CHAT_COOKIE, value: lastChannel }]);
 }
 
 test("overview-short", async ({ browser }) => {
-  const d = await startAsMember(browser);
+  const d = await startAsMember(browser, S);
   await d.goto("/dashboard", 300);
   await d.card({ kicker: "Quill & Cup", title: "Hedgie Hub", line: "Your writing community, every day." }, 100);
   await d.narrate(S.hook);
@@ -95,7 +98,7 @@ test("overview-short", async ({ browser }) => {
 });
 
 test("overview-long", async ({ browser }) => {
-  const d = await startAsMember(browser);
+  const d = await startAsMember(browser, L);
   await d.goto("/dashboard", 300);
   await d.card({ kicker: "Quill & Cup", title: "Hedgie Hub", line: "Everything you need to keep writing, in one place." }, 100);
   await d.narrate(L.hook);
