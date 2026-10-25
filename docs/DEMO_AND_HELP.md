@@ -75,12 +75,14 @@ A stale article and a broken flow are then the same failure.
 Each `shot()` also checks the page it just captured (`demo/checks.ts`), so a scene is an accessibility, overflow and console test at all eight size and theme combinations without extra code:
 
 - **a11y and contrast**: axe at WCAG 2.0/2.1 A and AA. Colour contrast is the check that catches a missing dark-mode colour: it runs against the real theme of each run.
-- **overflow**: the page scrolls sideways, or an element sticks out past the screen edge (outside a container that is meant to scroll).
+- **overflow**: the page scrolls sideways, or an element sticks out past the screen edge, outside a container that really scrolls sideways (`overflow: auto` or `scroll`, with something to scroll). A container that clips with `hidden` or `clip` doesn't count: it cuts content off with no way to reach it, which is how the week calendars lost Thursday to Saturday on phones. Contents of a fixed panel (a slide-in drawer) are left to the dialog check.
 - **edge**: a dialog, menu, listbox, tooltip or popover is cut off by the screen, is taller than it with no scrolling of its own, or sits within 8 px of a side without being a full-width sheet. This is what catches a modal clipped on a phone.
 - **covered**: no control is still under a fixed or sticky bar (or any other element) after it has been scrolled to the middle of the screen. Content passing under a footer while it scrolls is normal; the last item under a footer, the first under a header (they can't be centred), or a bar tall enough to cover the middle is a control a person can never reach.
 - **console**: an error logged, or an uncaught exception.
 
 **Scrolling.** The member app is a full-height shell whose `main` scrolls; the window never does. So before checking, every scrolling area is scrolled through, top to bottom in screen-sized steps and back (`scrollThroughPage`): that lays out everything below the fold, which axe needs to report it consistently, and it makes lazy-loaded content appear. A whole-page capture (`shot(page, testInfo, "name", { fullPage: true })`, used for the weekly schedule and the host request form) grows the viewport to fit what the page scrolls inside itself, up to 7000 px, because Playwright's own `fullPage` only knows the window and would add nothing here. The default capture stays what is on the screen, as a member sees it.
+
+A scene can also assert behaviour, not just look: `calendar-views` scrolls each day of the week calendars into view and expects it on screen, which is what failed on a phone before the fix. (The cause: the calendar card was both the `@container` box, whose width ignores its contents, and `overflow-clip`, so the 492 px grid overflowed it and the clip hid the overflow from the scroller outside; the fix keeps the `@container` box bare and puts the card inside with a minimum width.)
 
 `demo/selftest/checks.spec.ts` builds small pages that each trip one check (and a clean one that trips none), so a detector that quietly stopped working can't pass for an app with no problems.
 

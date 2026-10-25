@@ -7,7 +7,7 @@ import type { Page } from "playwright/test";
  *  - contrast / a11y: axe (WCAG 2.0 and 2.1, levels A and AA), which includes colour contrast, so a missing
  *    dark-mode colour shows up in the dark runs;
  *  - overflow: the page scrolls sideways, or an element sticks out past the screen edge (outside a container
- *    that is meant to scroll);
+ *    that really scrolls sideways: a container that clips with `overflow: hidden` or `clip` is not one);
  *  - edge: a dialog, menu or popover is cut off by the screen, is taller than it with no scrolling of its own,
  *    or sits closer than EDGE_MARGIN to a side without being a full-width sheet;
  *  - covered: no control is still under a fixed or sticky bar, or any other element, after it has been scrolled to the
@@ -162,11 +162,22 @@ export async function measureBoxes(edgeMargin: number): Promise<BoxFinding[]> {
     const r = el.getBoundingClientRect();
     return s.visibility !== "hidden" && s.display !== "none" && Number(s.opacity) > 0 && r.width > 0 && r.height > 0;
   };
+  // Only a container that really scrolls sideways excuses what sticks out of it. `hidden` and `clip` cut content
+  // off with no way to reach it, which is the bug, not the excuse (a week calendar clipped on a phone, with the
+  // scroller outside the clip seeing nothing to scroll).
   const insideScroller = (el: Element): boolean => {
     for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
       const s = getComputedStyle(p);
-      if (/(auto|scroll|hidden|clip)/.test(s.overflowX) && p.scrollWidth > p.clientWidth) return true;
-      if (/(auto|scroll|hidden|clip)/.test(s.overflowX)) return true;
+      if (/(auto|scroll)/.test(s.overflowX) && p.scrollWidth > p.clientWidth) return true;
+    }
+    return false;
+  };
+
+  // Inside a fixed panel: a slide-in drawer, closed or mid-slide. A fixed panel's own edges are the dialog check's
+  // concern (and a fixed element itself is skipped below); what is drawn inside one is not "sticking out" of the page.
+  const insideFixed = (el: Element): boolean => {
+    for (let p: Element | null = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      if (getComputedStyle(p).position === "fixed") return true;
     }
     return false;
   };
@@ -179,6 +190,8 @@ export async function measureBoxes(edgeMargin: number): Promise<BoxFinding[]> {
   for (const el of Array.from(document.body.querySelectorAll("*"))) {
     if (el.closest("[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip]")) continue;
     if (getComputedStyle(el).position === "fixed") continue;
+    if (el.closest("[inert],[aria-hidden=true]")) continue; // hidden from everyone, wherever it is drawn
+    if (insideFixed(el)) continue;
     const r = el.getBoundingClientRect();
     if ((r.right > vw + 1 || r.left < -1) && visible(el) && !insideScroller(el)) {
       const sel = selectorOf(el);

@@ -7,7 +7,7 @@ import { TALL_VIEWPORT_CAP, captureWholePage, pageFindings, scrollThroughPage, t
  * caught, and a clean page is shown to be clean. Without this a check that quietly stopped working would look
  * exactly like an app with no problems. Runs at every size and colour scheme like the scenes do.
  */
-const page = (body: string, head = "") => `<!doctype html><html lang="en"><head><title>t</title><style>body{margin:0;font:16px sans-serif;background:#fff;color:#111}${head}</style></head><body><main>${body}</main></body></html>`;
+const page = (body: string, head = "") => `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>t</title><style>body{margin:0;font:16px sans-serif;background:#fff;color:#111}${head}</style></head><body><main>${body}</main></body></html>`;
 const kinds = (findings: { key: string }[]) => findings.map((f) => f.key.split(":").slice(0, 2).join(":"));
 
 test("a clean page has no findings", async ({ page: p }) => {
@@ -126,4 +126,31 @@ test("content passing under a fixed bar while scrolling is not a finding; an ope
   expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
   await p.setContent(page(`${BUTTONS}<div role="dialog" aria-modal="true" aria-label="Open" style="position:fixed;inset:16px;background:#eee">dialog</div>`));
   expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+});
+
+// A wide grid in a card, inside a scroller: the shape of the week calendar.
+const GRID = '<div style="display:grid;grid-template-columns:repeat(7,280px);width:1960px;height:60px;background:#ddd"><div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div></div>';
+
+test("a wide grid clipped by its card, with the scroller outside the clip, is found: nothing can reach the rest", async ({ page: p }) => {
+  await p.setContent(page(`<div style="overflow:auto"><div style="container-type:inline-size;overflow:clip">${GRID}</div></div>`));
+  expect(kinds(await pageFindings(p))).toContain("overflow:sticks-out");
+});
+
+test("the same grid hidden by an overflow:hidden box is found too", async ({ page: p }) => {
+  await p.setContent(page(`<div style="overflow:hidden">${GRID}</div>`));
+  expect(kinds(await pageFindings(p))).toContain("overflow:sticks-out");
+});
+
+test("a wide grid in a container that really scrolls sideways is fine, and every column can be scrolled into view", async ({ page: p }) => {
+  await p.setContent(page(`<div id="scroller" style="overflow:auto"><div style="container-type:inline-size"><div style="min-width:1960px">${GRID}</div></div></div>`));
+  expect(kinds(await pageFindings(p)).filter((k) => k.startsWith("overflow"))).toEqual([]);
+  expect(await p.evaluate(() => { const s = document.getElementById("scroller")!; return s.scrollWidth > s.clientWidth; })).toBe(true);
+});
+
+test("a slide-in drawer, closed or mid-slide, is not something sticking out of the page", async ({ page: p }) => {
+  const drawer = (x: string) => `<aside style="position:fixed;top:0;bottom:0;left:0;width:256px;transform:translateX(${x});background:#eee"><nav style="padding:16px"><a href="/x">Link</a></nav></aside>`;
+  await p.setContent(page(`<p>Page</p>${drawer("-100%")}`));
+  expect(kinds(await pageFindings(p)).filter((k) => k.startsWith("overflow"))).toEqual([]);
+  await p.setContent(page(`<p>Page</p>${drawer("-50%")}`));
+  expect(kinds(await pageFindings(p)).filter((k) => k.startsWith("overflow"))).toEqual([]);
 });

@@ -152,6 +152,10 @@ function isSameCalendarDay(isoTimestamp: string, day: Date, timezone: string): b
   return itemDateStr === dayDateStr;
 }
 
+/** Time column plus seven day columns at their minimum: the width below which the week no longer fits and scrolls sideways. */
+const GRID_COLS = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] @pair:grid-cols-[4rem_repeat(7,1fr)]";
+const MIN_GRID_WIDTH = "min-w-[30.75rem]";
+
 export default function CalendarWeekView({
   prickles,
   weekStartDate,
@@ -242,10 +246,17 @@ export default function CalendarWeekView({
   // share the rest and can shrink down to a readable minimum before the grid's
   // intrinsic min-width kicks in and the container scrolls horizontally on its
   // own (bounded to the calendar, not the whole page).
-  const gridColsClass = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] @pair:grid-cols-[4rem_repeat(7,1fr)]";
+  const gridColsClass = GRID_COLS;
 
   return (
-    <div className="@container bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
+    // `@container` makes this box's width independent of what is inside it (the day columns' container queries
+    // measure it), so the grid, which cannot get narrower than MIN_GRID_WIDTH, overflows it on a phone. That
+    // overflow must reach the scroller around the calendar (CalendarScrollContainer, or the host form's region):
+    // so nothing here may clip sideways. The card is the box inside, as wide as the grid needs. (An earlier
+    // `overflow-clip` on this box hid Thursday to Saturday on phones, with nothing to scroll.) `overflow-clip`
+    // on the card is fine: it never scrolls, and unlike `overflow-hidden` it keeps the sticky day header working.
+    <div className="@container">
+      <div className={`${MIN_GRID_WIDTH} bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip`}>
       {/* Legend */}
       {mode !== "member" && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
@@ -304,8 +315,8 @@ export default function CalendarWeekView({
       {/* Calendar Grid */}
       <div>
           {/* Day Headers — sticky so they stay visible while time rows scroll */}
-          <div className={`sticky top-0 z-20 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
-            <div className="p-2 bg-slate-50 dark:bg-slate-800"></div>
+          <div className={`sticky top-0 z-30 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
+            <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
               const isToday = day.toDateString() === new Date().toDateString();
               return (
@@ -319,7 +330,7 @@ export default function CalendarWeekView({
                     <span className="@pair:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
                     <span className="hidden @pair:inline">{dayNames[day.getDay()]}</span>
                   </div>
-                  <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-600 dark:text-slate-400"}`}>
+                  <div className={`text-xs ${isToday ? "text-plum-700 dark:text-plum-300" : "text-slate-600 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
                   </div>
                 </div>
@@ -330,8 +341,8 @@ export default function CalendarWeekView({
           {/* Time Grid */}
           <div className="relative">
             <div className={`grid ${gridColsClass}`}>
-              {/* Time Labels */}
-              <div>
+              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen */}
+              <div className="sticky left-0 z-20">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
@@ -503,6 +514,7 @@ export default function CalendarWeekView({
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 }
