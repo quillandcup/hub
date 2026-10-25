@@ -13,9 +13,9 @@ export default function MemberFooter({ showPrivacy }: { showPrivacy: boolean }) 
   const pathname = usePathname();
   if (pathname === "/chat" || pathname.startsWith("/chat/")) return null;
 
-  const link = "text-slate-500 underline-offset-2 hover:text-plum-700 hover:underline dark:text-slate-400 dark:hover:text-plum-300";
+  const link = "text-slate-600 underline-offset-2 hover:text-plum-700 hover:underline dark:text-slate-400 dark:hover:text-plum-300";
   return (
-    <footer className="shrink-0 border-t border-slate-200 px-6 py-2 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+    <footer className="shrink-0 border-t border-slate-200 px-6 py-2 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-400">
       <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {showPrivacy && (
           <Link data-track="footer-privacy" href="/privacy" className={link}>
