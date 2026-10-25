@@ -48,6 +48,20 @@ export type StartingBetween = {
   hostId?: string;
 };
 
+/** A search over prickles by what they are called; see `PrickleRepository.search`. */
+export type PrickleSearch = {
+  /** Each word must match the prickle's title, its type's name, or the name of a member in that word's `hostIds` (looked up by the caller) who hosts it. */
+  words: { text: string; hostIds: string[] }[];
+  /** Only prickles one of these members hosts. */
+  hostIds?: string[];
+  /** Started at or after this instant (ISO). */
+  after?: string;
+  /** Started before this instant (ISO). */
+  before?: string;
+  limit: number;
+  offset: number;
+};
+
 /** A prickle to add from the calendar; the rest takes the database defaults. */
 export type NewCalendarPrickle = {
   typeId: string;
@@ -77,6 +91,8 @@ export interface PrickleRepository {
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
   /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
+  /** Prickles matching every word (case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
+  search(query: PrickleSearch): Promise<PrickleDetail[]>;
   /** The id of the prickle type with this normalized name, creating it (named `name`, with `description`) when there is none. */
   findOrCreateType(input: { name: string; normalizedName: string; description?: string }): Promise<string>;
   /** Adds prickles that came from the calendar and returns their ids in order. */
@@ -161,6 +177,9 @@ export function toDetail(row: DetailRow): PrickleDetail {
     host: host ? { id: host.id, name: host.name, displayName: host.display_name } : null,
   };
 }
+
+/** A typed word with the characters that mean something to PostgREST's filter syntax or to LIKE turned into spaces. */
+const neutralize = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
 
 export class SupabasePrickleRepository implements PrickleRepository {
   constructor(private readonly db: Db) {}
@@ -248,6 +267,34 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async reassignHost(fromMemberId: string, toMemberId: string): Promise<void> {
     const { error } = await this.db.from("prickles").update({ host: toMemberId }).eq("host", fromMemberId);
     if (error) throw new Error(error.message);
+  }
+
+  async search({ words, hostIds, after, before, limit, offset }: PrickleSearch): Promise<PrickleDetail[]> {
+    if (hostIds && hostIds.length === 0) return [];
+    // A type counts for a word when its name contains it.
+    const typeIdsByWord = await Promise.all(
+      words.map(async (w) => {
+        const { data, error } = await this.db.from("prickle_types").select("id").ilike("name", `%${neutralize(w.text)}%`).limit(50);
+        if (error) throw new Error(error.message);
+        return (data ?? []).map((t) => t.id);
+      }),
+    );
+    let query = this.db.from("prickles").select(DETAIL_SELECT);
+    if (hostIds) query = query.in("host", hostIds);
+    words.forEach((w, i) => {
+      // One .or() per word: PostgREST ANDs separate filters.
+      const ors = [
+        `title.ilike."%${neutralize(w.text)}%"`,
+        typeIdsByWord[i].length ? `type_id.in.(${typeIdsByWord[i].join(",")})` : null,
+        w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
+      ].filter(Boolean);
+      query = query.or(ors.join(","));
+    });
+    if (after) query = query.gte("start_time", after);
+    if (before) query = query.lt("start_time", before);
+    const { data, error } = await query.order("start_time", { ascending: false }).order("id", { ascending: false }).range(offset, offset + limit - 1);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
   }
 
   async findOrCreateType({ name, normalizedName, description }: { name: string; normalizedName: string; description?: string }): Promise<string> {
@@ -430,6 +477,25 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
     for (const p of this.data.prickles) if (p.hostId === fromMemberId) p.hostId = toMemberId;
+  }
+
+  async search({ words, hostIds, after, before, limit, offset }: PrickleSearch) {
+    if (hostIds && hostIds.length === 0) return [];
+    const contains = (text: string | null | undefined, word: string) => (text ?? "").toLowerCase().includes(neutralize(word).toLowerCase());
+    const hostSet = hostIds ? new Set(hostIds) : null;
+    const afterMs = after ? new Date(after).getTime() : -Infinity;
+    const beforeMs = before ? new Date(before).getTime() : Infinity;
+    return this.data.prickles
+      .filter((p) => {
+        const start = new Date(p.startTime).getTime();
+        if (start < afterMs || start >= beforeMs) return false;
+        if (hostSet && !(p.hostId && hostSet.has(p.hostId))) return false;
+        const type = this.data.prickleTypes.find((t) => t.id === p.typeId);
+        return words.every((w) => contains(p.title, w.text) || contains(type?.name, w.text) || (!!p.hostId && w.hostIds.includes(p.hostId)));
+      })
+      .sort((a, b) => -byStartThenId(a, b))
+      .slice(offset, offset + limit)
+      .map((p) => this.detail(p));
   }
 
   async findOrCreateType({ name, normalizedName }: { name: string; normalizedName: string; description?: string }) {
