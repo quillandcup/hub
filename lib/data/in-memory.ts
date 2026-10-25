@@ -1,4 +1,5 @@
 import type { AttendanceRow } from "./attendance";
+import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
@@ -43,11 +44,19 @@ export class InMemoryDataset {
   prickleTypes: PrickleType[];
   prickles: Prickle[];
   attendance: AttendanceRow[];
+  notificationPreferences: NotificationPreference[];
+  inAppNotifications: InAppNotificationRow[];
 
-  constructor(init: Partial<Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance">> = {}) {
+  constructor(
+    init: Partial<
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications">
+    > = {},
+  ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
     this.prickleTypes = (init.prickleTypes ?? []).map((row) => ({ ...row }));
     this.prickles = (init.prickles ?? []).map((row) => ({ ...row }));
     this.attendance = (init.attendance ?? []).map((row) => ({ ...row }));
+    this.notificationPreferences = (init.notificationPreferences ?? []).map((row) => ({ ...row }));
+    this.inAppNotifications = (init.inAppNotifications ?? []).map((row) => ({ ...row }));
   }
 }

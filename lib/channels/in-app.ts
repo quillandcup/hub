@@ -1,5 +1,7 @@
 import { APP_URL } from "@/lib/config";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
+import type { InAppNotificationRow, NewInAppNotification } from "@/lib/data/notifications";
 import type { SortConfig } from "@/lib/hooks/useTableSort";
 import { isAllowedExternalUrl } from "@/lib/notification-links";
 import { pageBounds } from "@/lib/pagination";
@@ -30,19 +32,22 @@ export const inAppChannel: ChannelAdapter = {
     return new Map(memberIds.map((memberId) => [memberId, memberId]));
   },
   async send(memberId, message, context) {
-    const { error } = await createServiceRoleClient().from("in_app_notifications").insert(inAppRow(memberId, message, context));
-    if (error) throw new Error(`in_app_notifications insert failed: ${error.message}`);
+    try {
+      await createRepos(createServiceRoleClient()).notifications.addInApp(inAppRow(memberId, message, context));
+    } catch (error) {
+      throw new Error(`in_app_notifications insert failed: ${(error as Error).message}`);
+    }
   },
 };
 
-export function inAppRow(memberId: string, message: OutboundMessage, { kind }: SendContext) {
+export function inAppRow(memberId: string, message: OutboundMessage, { kind }: SendContext): NewInAppNotification {
   return {
-    member_id: memberId,
+    memberId,
     kind,
     ref: message.ref ?? null,
     text: message.text,
     url: notificationUrl(message.url),
-    banner_until: message.timeSensitiveUntil ?? null,
+    bannerUntil: message.timeSensitiveUntil ?? null,
   };
 }
 
@@ -72,17 +77,15 @@ export interface InAppNotification {
   banner: boolean;
 }
 
-const COLUMNS = "id, kind, text, url, created_at, banner_until, read_at";
-
-function toNotification(row: any, now: Date): InAppNotification {
+function toNotification(row: InAppNotificationRow, now: Date): InAppNotification {
   return {
     id: row.id,
     kind: row.kind,
     text: row.text,
     url: row.url,
-    createdAt: row.created_at,
-    read: row.read_at !== null,
-    banner: row.read_at === null && row.banner_until !== null && Date.parse(row.banner_until) > now.getTime(),
+    createdAt: row.createdAt,
+    read: row.readAt !== null,
+    banner: row.readAt === null && row.bannerUntil !== null && Date.parse(row.bannerUntil) > now.getTime(),
   };
 }
 
@@ -93,18 +96,12 @@ export async function loadInAppNotifications(
   now: Date,
   { limit }: { limit: number }
 ): Promise<InAppNotification[]> {
-  const { data, error } = await supabase
-    .from("in_app_notifications")
-    .select(COLUMNS)
-    .eq("member_id", memberId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit);
-  if (error) {
+  try {
+    return (await createRepos(supabase).notifications.inAppLatest(memberId, limit)).map((row) => toNotification(row, now));
+  } catch (error) {
     console.error("[in-app] Loading notifications failed", { member: memberId, error });
     return [];
   }
-  return (data ?? []).map((row: any) => toNotification(row, now));
 }
 
 export interface InboxPage {
@@ -135,34 +132,36 @@ export async function loadInboxPage(
     pageSize,
   }: { filter: InboxFilter; kind: string | null; sort: SortConfig<InboxSortColumn>; page: number; pageSize: number }
 ): Promise<InboxPage> {
-  const scoped = (query: any) => {
-    let q = query.eq("member_id", memberId);
-    if (kind) q = q.eq("kind", kind);
-    return q;
-  };
-  const count = async (unread: boolean) => {
-    let q = scoped(supabase.from("in_app_notifications").select("id", { count: "exact", head: true }));
-    if (unread) q = q.is("read_at", null);
-    const { count: n, error } = await q;
-    if (error) console.error("[in-app] Counting inbox failed", { member: memberId, error });
-    return n ?? 0;
+  const notifications = createRepos(supabase).notifications;
+  const count = async (unreadOnly: boolean) => {
+    try {
+      return await notifications.inAppCount(memberId, { unreadOnly, kind });
+    } catch (error) {
+      console.error("[in-app] Counting inbox failed", { member: memberId, error });
+      return 0;
+    }
   };
 
   const [all, unread] = await Promise.all([count(false), count(true)]);
   const counts = { all, unread };
   const bounds = pageBounds(page, pageSize, counts[filter]);
 
-  let rows = scoped(supabase.from("in_app_notifications").select(COLUMNS));
-  if (filter === "unread") rows = rows.is("read_at", null);
-  rows = rows.order(sort.column, { ascending: sort.direction === "asc" });
-  if (sort.column !== "created_at") rows = rows.order("created_at", { ascending: false });
-  const { data, error } = await rows
-    .order("id", { ascending: false })
-    .range(bounds.offset, bounds.offset + bounds.pageSize - 1);
-  if (error) console.error("[in-app] Loading inbox failed", { member: memberId, error });
+  let rows: InAppNotificationRow[] = [];
+  try {
+    rows = await notifications.inAppPage(memberId, {
+      unreadOnly: filter === "unread",
+      kind,
+      sortBy: sort.column,
+      ascending: sort.direction === "asc",
+      offset: bounds.offset,
+      limit: bounds.pageSize,
+    });
+  } catch (error) {
+    console.error("[in-app] Loading inbox failed", { member: memberId, error });
+  }
 
   return {
-    items: (data ?? []).map((row: any) => toNotification(row, now)),
+    items: rows.map((row) => toNotification(row, now)),
     total: counts[filter],
     counts,
     page: bounds.page,
@@ -176,46 +175,37 @@ export async function countInAppNotifications(
   memberId: string,
   { unreadOnly = false }: { unreadOnly?: boolean } = {}
 ): Promise<number> {
-  let query = supabase
-    .from("in_app_notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("member_id", memberId);
-  if (unreadOnly) query = query.is("read_at", null);
-  const { count, error } = await query;
-  if (error) {
+  try {
+    return await createRepos(supabase).notifications.inAppCount(memberId, { unreadOnly });
+  } catch (error) {
     console.error("[in-app] Counting notifications failed", { member: memberId, unreadOnly, error });
     return 0;
   }
-  return count ?? 0;
+}
+
+/** Runs a write and reports it the way the server actions read it: `{ error }`, null when it worked. */
+async function attempt(write: () => Promise<void>): Promise<{ error: Error | null }> {
+  try {
+    await write();
+    return { error: null };
+  } catch (error) {
+    return { error: error as Error };
+  }
 }
 
 /** Marks these of the member's notifications read (scoped to the member, whichever client). */
 export async function markInAppNotificationsRead(supabase: any, memberId: string, ids: string[]) {
-  return supabase
-    .from("in_app_notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("member_id", memberId)
-    .in("id", ids)
-    .is("read_at", null);
+  return attempt(() => createRepos(supabase).notifications.markInAppRead(memberId, ids));
 }
 
 /** Puts these of the member's notifications back to unread (scoped to the member, whichever client). */
 export async function markInAppNotificationsUnread(supabase: any, memberId: string, ids: string[]) {
-  return supabase
-    .from("in_app_notifications")
-    .update({ read_at: null })
-    .eq("member_id", memberId)
-    .in("id", ids)
-    .not("read_at", "is", null);
+  return attempt(() => createRepos(supabase).notifications.markInAppUnread(memberId, ids));
 }
 
 /** Marks every one of the member's notifications read. */
 export async function markAllInAppNotificationsRead(supabase: any, memberId: string) {
-  return supabase
-    .from("in_app_notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("member_id", memberId)
-    .is("read_at", null);
+  return attempt(() => createRepos(supabase).notifications.markAllInAppRead(memberId));
 }
 
 /**
@@ -226,12 +216,6 @@ export async function markAllInAppNotificationsRead(supabase: any, memberId: str
  * the answer itself is already saved.
  */
 export async function resolveInAppNotifications(supabase: any, memberId: string, kind: string, ref: string) {
-  const { error } = await supabase
-    .from("in_app_notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("member_id", memberId)
-    .eq("kind", kind)
-    .eq("ref", ref)
-    .is("read_at", null);
+  const { error } = await attempt(() => createRepos(supabase).notifications.resolveInApp(memberId, kind, ref));
   if (error) console.error("[in-app] Resolving notifications failed", { member: memberId, kind, ref, error });
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { getSearcher, type Searcher } from "@/lib/search/context";
 import { recordSearchTimings } from "@/lib/search/metrics";
 import { parseUniversal, wantsChat } from "@/lib/search/syntax";
@@ -118,14 +119,7 @@ export async function searchSuggestions(): Promise<{ needsAttention: Suggestion[
 
   const [derived, notifications, unread, channels] = await Promise.all([
     openCheckins(supabase, viewerMemberId).catch(() => [] as Suggestion[]),
-    supabase
-      .from("in_app_notifications")
-      .select("id, kind, text, url")
-      .eq("member_id", viewerMemberId)
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then((r) => r.data ?? [], () => []),
+    createRepos(supabase).notifications.inAppUnread(viewerMemberId, 20).catch(() => []),
     chatOn ? syncedUnreadCounts(supabase, viewerMemberId) : Promise.resolve({} as Record<string, number>),
     chatOn && typeof searcher.ctx.chatChannels === "function" ? searcher.ctx.chatChannels().catch(() => []) : Promise.resolve([]),
   ]);
@@ -211,18 +205,13 @@ export async function markSuggestionsRead(ids: string[]): Promise<number> {
         if (kind === "checkin") return (await dismissCheckin(supabase, viewerMemberId, ref)) === null;
         if (kind === "notification") {
           // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
-          const { data: note } = await supabase.from("in_app_notifications").select("kind, ref").eq("id", ref).eq("member_id", viewerMemberId).maybeSingle();
+          const note = await createRepos(supabase).notifications.inAppById(viewerMemberId, ref);
           if (note && isId(note.ref, "prkl")) {
             if (note.kind === "prickle_checkin") return (await dismissCheckin(supabase, viewerMemberId, note.ref)) === null;
             if (note.kind === "prickle_checkout") return (await dismissCheckout(supabase, viewerMemberId, note.ref)) === null;
           }
-          const { error } = await supabase
-            .from("in_app_notifications")
-            .update({ read_at: new Date().toISOString() })
-            .eq("id", ref)
-            .eq("member_id", viewerMemberId)
-            .is("read_at", null);
-          return !error;
+          await createRepos(supabase).notifications.markInAppRead(viewerMemberId, [ref]);
+          return true;
         }
       } catch (error) {
         console.error("markSuggestionsRead failed", { id, error });
