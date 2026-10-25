@@ -237,6 +237,21 @@ describe("browser push click diagnostics", () => {
     expect((await diagnostics(worker.listeners)).entries).toHaveLength(0);
   });
 
+  it("records a dismissed notification by its ID, without opening anything", async () => {
+    const openWindow = vi.fn();
+    const worker = loadWorker({ openWindow });
+    await fire(worker.listeners, "notificationclose", { notification: { data: { url: "/my-prickles/history?private=1", notificationId: "n-1" } } });
+    await fire(worker.listeners, "notificationclose", { notification: {} });
+
+    const entries = (await diagnostics(worker.listeners)).entries;
+    expect(entries.map((e: any) => [e.stage, e.notificationId, e.pathname, e.operation])).toEqual([
+      ["dismissed", "n-1", "/my-prickles/history", "dismiss_notification"],
+      ["dismissed", "older-notification", "/", "dismiss_notification"],
+    ]);
+    expect(JSON.stringify(entries)).not.toContain("private");
+    expect(openWindow).not.toHaveBeenCalled();
+  });
+
   it("repeats a tagged persistent alert with the same tag and a fresh diagnostic ID", async () => {
     const worker = loadWorker();
     const first = vi.fn();
@@ -259,11 +274,11 @@ describe("browser push click diagnostics", () => {
     const second = loadWorker({ matchAll: async () => [], openWindow: vi.fn().mockResolvedValue(null) }, storage);
     await fire(second.listeners, "notificationclick", { notification: { data, close: vi.fn() } });
     const result = await diagnostics(second.listeners);
-    expect(result.version).toBe("click-diagnostics-v4");
+    expect(result.version).toBe("click-diagnostics-v5");
     expect(result.entries.map((e: any) => e.stage)).toEqual(["shown", "click_received", "window_open_requested"]);
     expect(result.entries.every((e: any) => e.notificationId === data.notificationId)).toBe(true);
     expect(result.entries.every((e: any) => e.pathname === "/my-prickles/history")).toBe(true);
-    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v4")).toBe(true);
+    expect(result.entries.every((e: any) => e.version === "click-diagnostics-v5")).toBe(true);
     expect(result.entries.map((e: any) => e.operation)).toEqual(["show_notification", "receive_click", "open_window"]);
     expect(JSON.stringify(result)).not.toMatch(/Private|secret-id|private-fragment/);
   });
