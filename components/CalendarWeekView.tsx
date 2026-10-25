@@ -189,6 +189,13 @@ export default function CalendarWeekView({
       ? (detectedTimezone || ORG_TIMEZONE)
       : userTimezonePreference;
 
+  // "Today" depends on the clock and zone of whoever renders it, so the server's answer (UTC) can differ from the
+  // browser's around midnight and fail hydration. Leave it unset until mounted.
+  const [todayString, setTodayString] = useState<string | null>(null);
+  useEffect(() => {
+    setTodayString(new Date().toDateString());
+  }, []);
+
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
   const [showPups, setShowPups] = useState(true);
@@ -318,7 +325,7 @@ export default function CalendarWeekView({
           <div className={`sticky top-0 z-30 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
             <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
-              const isToday = day.toDateString() === new Date().toDateString();
+              const isToday = day.toDateString() === todayString;
               return (
                 <div
                   key={i}
@@ -359,7 +366,7 @@ export default function CalendarWeekView({
 
               {/* Day Columns */}
               {days.map((day, dayIndex) => {
-                const isToday = day.toDateString() === new Date().toDateString();
+                const isToday = day.toDateString() === todayString;
                 return (
                   <div key={dayIndex} className="relative border-l border-slate-200 dark:border-slate-800">
                     {/* Hour Grid Lines */}

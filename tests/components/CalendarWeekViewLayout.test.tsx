@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import AllPricklesCalendar from "@/app/(member)/my-prickles/AllPricklesCalendar";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
 
@@ -67,5 +68,19 @@ describe("CalendarWeekView layout", () => {
     const grids = Array.from(container.querySelectorAll("[class*='grid-cols-[2.75rem']"));
     expect(grids.length).toBeGreaterThan(0);
     for (const grid of grids) expect(grid.className).toContain("minmax(4rem,1fr)");
+  });
+});
+
+describe("CalendarWeekView today highlight", () => {
+  it("marks today only after mounting, so server and browser clocks in different zones can't fail hydration", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-22T15:00:00.000Z"));
+    const html = renderToString(
+      <AllPricklesCalendar instances={[]} timeZone="America/New_York" upcomingWindowDays={14} lookbackDays={28} />,
+    );
+    expect(html).not.toContain("border-t-plum-500");
+    const { container } = renderCalendar();
+    expect(container.querySelector(".border-t-plum-500")).not.toBeNull();
+    vi.useRealTimers();
   });
 });
