@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
-import { loadChatChannels, loadUnreadCounts } from "@/lib/chat/load";
+import { loadUnreadCounts } from "@/lib/chat/load";
+import { loadChatChannelsForRender } from "@/lib/chat/render-data";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 
 /**
@@ -16,7 +17,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // Unread counts follow the signed-in member's read markers, which are not the viewed member's in
   // sudo (read-only), so sudo shows none.
   const [channels, unread] = await Promise.all([
-    loadChatChannels(supabase, identity.memberId, identity.isSudo),
+    loadChatChannelsForRender(identity.memberId, identity.isSudo),
     identity.isSudo ? Promise.resolve({}) : loadUnreadCounts(supabase),
   ]);
 

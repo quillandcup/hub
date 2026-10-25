@@ -11,13 +11,13 @@ import { requireChat } from "@/lib/chat/access";
 import { parseBefore } from "@/lib/chat/format";
 import { isId } from "@/lib/ids";
 import { createStageTimer } from "@/lib/chat/timing";
+import { loadChatChannelsForRender } from "@/lib/chat/render-data";
 import { firstUnreadMessageId } from "@/lib/chat/unread";
 import {
   buildMessageViews,
   chatTextContext,
   loadChannelForMember,
   loadChannelMembers,
-  loadChatChannels,
   loadMessage,
   loadMessages,
   loadMemberCard,
@@ -137,7 +137,7 @@ export default async function ChatChannelPage({
     timer.time("timezone", getUserTimezonePreference()),
     sudoHidden ? Promise.resolve([]) : timer.time("members", loadChannelMembers(supabase, channel.id)),
     timer.time("readMarker", readMarkerQuery()),
-    timer.time("channels", loadChatChannels(supabase, identity.memberId, identity.isSudo)),
+    timer.time("channels", loadChatChannelsForRender(identity.memberId, identity.isSudo)),
     profileId && !threadId && !sudoHidden ? loadMemberCard(supabase, profileId) : Promise.resolve(null),
     timer.time("posting", postingQuery()),
   ]);
