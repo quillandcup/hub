@@ -284,11 +284,17 @@ jobs:
       # above -- the build only needs the Supabase URL/key env vars present
       # (baked in / read at runtime), not a live database.
       #
+      # Backgrounded the same way, so the db tests start as soon as Supabase is up instead of after the build:
+      # only the HTTP smoke tests need the built app, and they run last ("Wait for the production build"). The
+      # wrapper records the build's exit code to /tmp/build.exit.
+      #
       # `pnpm build` (package.json) now runs `next build --turbopack`
       # directly, matching what Vercel's production deploys use -- so this
       # step no longer needs to forward the flag itself.
       - name: Production build
-        run: pnpm build
+        run: |
+          nohup sh -c 'pnpm build; echo $? > /tmp/build.exit' > /tmp/build.log 2>&1 &
+          disown
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
@@ -343,6 +349,40 @@ jobs:
       - name: Check the generated database types are current
         run: pnpm types:check
 
+      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
+      # counts them; the few HTTP smoke tests need the built app and run at the end (they add no coverage:
+      # the server is a separate process). The coverage job below merges this with the unit run and checks
+      # the floors. This runs while the production build is still going.
+      - name: Run db test suite (with coverage)
+        run: pnpm test:db:coverage
+
+      - name: Upload db coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-db
+          path: coverage/db
+          retention-days: 14
+
+      # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
+      # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
+      - name: Run pgTAP test suite
+        run: pnpm test:pgtap
+
+      # The build above finished or is finishing; fail the job with its log if it failed.
+      - name: Wait for the production build
+        run: |
+          for i in $(seq 1 300); do
+            [ -f /tmp/build.exit ] && break
+            sleep 2
+          done
+          if [ "$(cat /tmp/build.exit 2>/dev/null)" != "0" ]; then
+            echo "The production build failed, or did not finish in time"
+            cat /tmp/build.log
+            exit 1
+          fi
+          tail -n 40 /tmp/build.log
+
       # Most tests/api/** call route handlers in-process (tests/helpers/api-fetch.ts) so their
       # coverage is counted. Only tests/api/smoke/ goes over HTTP, to the built app started here,
       # to cover Next's own routing, proxy and body parsing. Locally those tests use a server
@@ -371,24 +411,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
-      # counts them; only the few HTTP smoke tests use the app server above. The coverage job
-      # below merges this with the unit run and checks the floors.
-      - name: Run db test suite (with coverage)
-        run: pnpm test:db:coverage
-
-      - name: Upload db coverage report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-db
-          path: coverage/db
-          retention-days: 14
-
-      # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
-      # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
-      - name: Run pgTAP test suite
-        run: pnpm test:pgtap
+      - name: Run HTTP smoke tests
+        run: pnpm test:smoke
 
       - name: Stop app server
         if: always()
