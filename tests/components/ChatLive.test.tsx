@@ -95,8 +95,19 @@ describe("ChatLive", () => {
     await mount("latest", { renderedAt: new Date(now - 1000).toISOString() });
     expect(loadLatestChat).not.toHaveBeenCalled();
     cleanup();
+    const events: ListEvent[] = [];
+    const stop = subscribeListEvents((e) => events.push(e));
+    loadLatestChat.mockResolvedValueOnce({
+      views: [{ id: "m1", createdAt: "2026-10-03T10:00:00Z", contentState: "ok", mine: false }, { id: "m2", createdAt: "2026-10-03T12:00:00Z", contentState: "ok", mine: false }],
+      ctx: {},
+      olderBefore: null,
+      readMarker: "2026-10-03T11:00:00Z",
+    });
     await mount("latest", { renderedAt: new Date(now - 20_000).toISOString() });
+    expect(loadLatestChat).toHaveBeenCalledWith("c1", [], true);
     expect(loadLatestChat).toHaveBeenCalledTimes(1);
+    expect(events.find((e) => e.kind === "unread")).toEqual({ kind: "unread", channelId: "c1", firstUnreadId: "m2" });
+    stop();
     cleanup();
     loadLatestChat.mockClear();
     refresh.mockClear();

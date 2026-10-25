@@ -113,9 +113,11 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
  * rest are untouched), plus the messages in `alsoMessageIds` (ones whose reactions changed, wherever they
  * are in the list). Same access rules as the page and `loadOlderChat`; the text context carries
  * just the names found in these messages (the list merges it into what it already has), so the
- * channel list isn't read again. Null when it can't be loaded, and the caller refreshes the page.
+ * channel list isn't read again. `withReadMarker` also returns where the member has read up to now (for a
+ * page that came from the client cache, whose unread line is out of date). Null when it can't be loaded,
+ * and the caller refreshes the page.
  */
-export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = []): Promise<OlderChat | null> {
+export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = [], withReadMarker = false): Promise<LatestChat | null> {
   if (!isId(channelId, "chn")) return null;
   const started = performance.now();
   const caller = await chatCaller();
@@ -128,10 +130,23 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
+  const markerQuery = async (): Promise<string | null | undefined> => {
+    if (!withReadMarker) return undefined;
+    if (identity.isSudo) return null;
+    const { data } = await supabase
+      .from("chat_channel_members")
+      .select("last_read_at, joined_at")
+      .eq("channel_id", channel.id)
+      .eq("member_id", identity.memberId)
+      .is("left_at", null)
+      .maybeSingle();
+    return data ? (data.last_read_at ?? data.joined_at) : null;
+  };
   const wanted = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg")))].slice(0, 50);
-  const [page, extra] = await Promise.all([
+  const [page, extra, readMarker] = await Promise.all([
     loadMessages(supabase, channel.id, {}),
     loadMessagesByIds(supabase, channel.id, wanted),
+    markerQuery(),
   ]);
   const afterMessages = performance.now();
   // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
@@ -148,7 +163,12 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
     Math.round(afterMessages - afterChannel),
     Math.round(done - afterMessages)
   );
-  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore };
+  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker };
+}
+
+export interface LatestChat extends OlderChat {
+  /** Where the member has read up to (null: nowhere, or sudo). Only when asked for. */
+  readMarker?: string | null;
 }
 
 export interface ThreadChat {

@@ -56,7 +56,7 @@ export default function ThreadList({
   const [sentCount, setSentCount] = useState(0);
   useEffect(() => {
     return subscribeListEvents((event) => {
-      if (event.channelId !== channelId || event.kind === "merge") return;
+      if (event.channelId !== channelId || event.kind === "merge" || event.kind === "unread") return;
       // Only this thread's: a send in the conversation itself has no thread id and isn't ours.
       if (event.threadRootId !== threadRootId) return;
       if (event.kind === "merge-thread") {

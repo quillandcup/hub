@@ -14,6 +14,7 @@ vi.mock("emojibase-data/en/shortcodes/iamcal.json", () => ({ default: {} }));
 vi.mock("@/app/(member)/chat/actions", () => ({ loadOlderChat: vi.fn(), toggleChatReaction: vi.fn() }));
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import MessageList from "@/components/chat/MessageList";
+import { emitListEvent } from "@/lib/chat/list-events";
 
 const CTX: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const view = (n: number, extra: Partial<ChatMessageView> = {}): ChatMessageView => ({
@@ -50,6 +51,14 @@ describe("MessageList", () => {
     const line = screen.getByRole("separator", { name: "New messages" });
     expect(line.nextElementSibling).toHaveTextContent("message 2");
     expect(screen.queryByRole("button", { name: /older/ })).not.toBeInTheDocument();
+  });
+
+  it("moves the unread line when a page from the client cache learns the reader's real marker", () => {
+    render(<MessageList channelId="c1" views={[view(1), view(2), view(3)]} ctx={CTX} olderBefore={null} firstUnreadId="m2" />);
+    act(() => emitListEvent({ kind: "unread", channelId: "c1", firstUnreadId: "m3" }));
+    expect(screen.getByRole("separator", { name: "New messages" }).nextElementSibling).toHaveTextContent("message 3");
+    act(() => emitListEvent({ kind: "unread", channelId: "c1", firstUnreadId: null }));
+    expect(screen.queryByRole("separator", { name: "New messages" })).not.toBeInTheDocument();
   });
 
   it("shows a notice Slack posted itself as a quiet line without an author", () => {
