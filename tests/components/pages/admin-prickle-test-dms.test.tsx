@@ -20,7 +20,7 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 // The prickle comes from its repository, in memory here.
-let repos = createInMemoryRepos(
+const repos = createInMemoryRepos(
   new InMemoryDataset({
     members: [{ id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" }],
     prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false }],
