@@ -131,6 +131,19 @@ export function defineAttendanceContract(name: string, setup: () => AttendanceCo
       expect(new Date(second.leaveTime)).toEqual(new Date(at(7)));
     });
 
+    it("says which of the prickles anyone attended", async () => {
+      await ctx.seed([
+        { member: 0, prickle: 0, join: at(0) },
+        { member: 1, prickle: 0, join: at(1) },
+        { member: 2, prickle: 2, join: at(2) },
+      ]);
+
+      const found = await ctx.repo().prickleIdsWithAttendance([ctx.prickleIds[0], ctx.prickleIds[1], ctx.prickleIds[2]]);
+
+      expect(found).toEqual(new Set([ctx.prickleIds[0], ctx.prickleIds[2]]));
+      expect(await ctx.repo().prickleIdsWithAttendance([])).toEqual(new Set());
+    });
+
     it("says which members attended anything", async () => {
       await ctx.seed([
         { member: 1, prickle: 0, join: at(0) },

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
+export type PrickleSeed = { createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -313,6 +313,61 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await mine({ hostIds: [] })).toEqual([]);
       expect(await mine({ after: at(52), before: at(53) })).toEqual([byHost]); // [after, before)
       expect(await mine({ limit: 2, offset: 1 })).toEqual([byHost, byType]);
+    });
+
+    it("counts a source's prickles by whether their type takes a host and whether one is assigned", async () => {
+      await ctx.seed([]);
+      const before = await ctx.repo().hostCoverage("sheets");
+
+      await ctx.seed([
+        { type: 0, host: 0, start: at(60), source: "sheets" }, // type 0 takes a host (see the context)
+        { type: 0, start: at(61), source: "sheets" },
+        { type: 0, start: at(62), source: "sheets" },
+        { type: 1, host: 1, start: at(63), source: "sheets" }, // type 1 doesn't
+        { type: 1, start: at(64), source: "sheets" },
+        { start: at(65), source: "sheets" }, // no type: only in the total
+        { type: 0, host: 0, start: at(66) }, // another source
+      ]);
+      const after = await ctx.repo().hostCoverage("sheets");
+
+      expect(after.total - before.total).toBe(6);
+      expect(after.requiresHost.withHost - before.requiresHost.withHost).toBe(1);
+      expect(after.requiresHost.withoutHost - before.requiresHost.withoutHost).toBe(2);
+      expect(after.optionalHost.withHost - before.optionalHost.withHost).toBe(1);
+      expect(after.optionalHost.withoutHost - before.optionalHost.withoutHost).toBe(1);
+    });
+
+    it("says when the newest prickle from a source was added", async () => {
+      await ctx.seed([
+        { start: at(70), source: "sheets", createdAt: "2097-06-01T10:00:00Z" },
+        { start: at(71), source: "sheets", createdAt: "2097-07-01T10:00:00Z" },
+      ]);
+
+      const last = await ctx.repo().lastCreatedAt("sheets");
+
+      expect(new Date(last!).getTime()).toBeGreaterThanOrEqual(new Date("2097-07-01T10:00:00Z").getTime());
+      expect(await ctx.repo().lastCreatedAt("no-such-source")).toBeNull();
+    });
+
+    it("lists every prickle's time window and source, oldest first", async () => {
+      const [first, second] = await ctx.seed([
+        { start: at(81), end: at(82), source: "sheets" },
+        { start: at(80), end: at(83) },
+      ]);
+
+      const windows = (await ctx.repo().timeWindows()).filter((w) => [first, second].includes(w.id));
+
+      expect(windows.map((w) => w.id)).toEqual([second, first]);
+      expect(windows[1]).toMatchObject({ source: "sheets", zoomMeetingUuid: null });
+      expect(new Date(windows[0].endTime)).toEqual(new Date(at(83)));
+    });
+
+    it("lists the time windows of more than a thousand prickles", async () => {
+      const ids = await ctx.seed(Array.from({ length: 1050 }, (_, i) => ({ start: at(100 + i / 100) })));
+
+      const found = new Set((await ctx.repo().timeWindows()).map((w) => w.id));
+
+      expect(ids.every((id) => found.has(id))).toBe(true);
     });
   });
 }
