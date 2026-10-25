@@ -102,7 +102,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
 
                     {showSlackConnect && (
                       <div data-tour="slack-connect" className="border-t border-slate-200 dark:border-slate-700 pt-6">
-                        <SlackConnectPanel connected={slackConnected} sharesReadState={slackStatus?.sharesReadState ?? false} />
+                        <SlackConnectPanel connected={slackConnected} sharesReadState={slackStatus?.sharesReadState ?? false} showPrivacy={enabledFeatures.includes("message_privacy")} />
                       </div>
                     )}
 

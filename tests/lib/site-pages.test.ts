@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { SETTINGS_SECTIONS } from "@/app/(member)/settings/sections";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
-import { SITE_PAGES, navGroups, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS } from "@/lib/site-pages";
+import { SITE_PAGES, navGroups, pageEnabled, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS } from "@/lib/site-pages";
 
 /**
  * lib/site-pages.ts feeds the sidebars and universal search. This fails when a static page route
@@ -72,6 +72,12 @@ describe("site pages registry", () => {
     const links = (features: Parameters<typeof navGroups>[1]) => navGroups("member", features).flatMap((g) => g.items.map((p) => p.href));
     expect(links([])).not.toContain("/chat");
     expect(links(["chat"])).toContain("/chat");
+  });
+
+  it("lists the privacy page only for members it is on for, since it redirects everyone else", () => {
+    const privacy = SITE_PAGES.find((p) => p.href === "/privacy")!;
+    expect(pageEnabled(privacy, [])).toBe(false);
+    expect(pageEnabled(privacy, ["message_privacy"])).toBe(true);
   });
 
   it("names My Burrow pages without a My prefix and still finds them by it", () => {
