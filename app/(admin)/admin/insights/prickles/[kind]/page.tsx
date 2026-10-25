@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import {
   computeGroupedPrickleStats,
+  pricklesWindowEnd,
   type PrickleWithHost,
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
@@ -23,36 +24,13 @@ async function fetchPricklesForType(
   from?: string,
   to?: string
 ): Promise<PrickleWithHost[]> {
-  const BATCH = 1000;
-  const rows: PrickleWithHost[] = [];
-  let offset = 0;
-  let hasMore = true;
-  const now = new Date().toISOString();
-
-  while (hasMore) {
-    let query = supabase
-      .from("prickles")
-      .select("id, type_id, start_time, host:members(id, name)")
-      .eq("type_id", typeId)
-      .lte("start_time", now)
-      .range(offset, offset + BATCH - 1)
-      .order("start_time", { ascending: true });
-
-    if (from) query = query.gte("start_time", from);
-    if (to) query = query.lte("start_time", to + "T23:59:59Z");
-
-    const { data } = await query;
-
-    if (data && data.length > 0) {
-      rows.push(...(data as unknown as PrickleWithHost[]));
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const found = await createRepos(supabase).prickles.startingBetween({
+    from: from ?? new Date(0).toISOString(),
+    to: pricklesWindowEnd(to, new Date()),
+    inclusiveEnd: true,
+    typeIds: [typeId],
+  });
+  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime, host: p.host ? { id: p.host.id, name: p.host.name } : null }));
 }
 
 async function fetchAttendanceForPrickles(
@@ -88,12 +66,8 @@ function dateOffsetISO(days: number): string {
 
 const getPrickleType = cache(async (kind: string) => {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .eq("normalized_name", kind)
-    .single();
-  return data;
+  const type = (await createRepos(supabase).prickles.types()).find((t) => t.normalizedName === kind);
+  return type ? { id: type.id, name: type.name, normalized_name: type.normalizedName } : null;
 });
 
 export async function generateMetadata({
