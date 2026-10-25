@@ -54,6 +54,30 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
   return names;
 }
 
+/**
+ * Slack user id -> the person's Hub name (their chosen display name, else their name), for the people we have
+ * matched. A notice about someone joining or leaving names them as the Hub does everywhere else, not by the
+ * short name they go by in Slack ("Cody" for Cody Ray).
+ */
+export async function slackUserHubNames(userIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(userIds)];
+  const out: Record<string, string> = {};
+  if (ids.length === 0) return out;
+  const service = createServiceRoleClient();
+  for (const batch of chunks(ids)) {
+    const { data: authors } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch);
+    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id as string))];
+    if (memberIds.length === 0) continue;
+    const { data: members } = await service.from("member_directory").select("id, name, display_name").in("id", memberIds);
+    const byMember = new Map((members ?? []).map((m) => [m.id as string, (m.display_name || m.name) as string]));
+    for (const a of authors ?? []) {
+      const name = byMember.get(a.member_id as string);
+      if (name) out[a.slack_user_id as string] = name;
+    }
+  }
+  return out;
+}
+
 /** Slack user id -> Hub member id, for the people we have matched, so a mention can link to a profile. */
 export async function slackUserMemberIds(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];

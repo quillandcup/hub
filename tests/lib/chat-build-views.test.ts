@@ -1,11 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 
-const names = vi.hoisted(() => ({ userNames: {} as Record<string, string> }));
+const names = vi.hoisted(() => ({ userNames: {} as Record<string, string>, hubNames: {} as Record<string, string>, hubAsked: [] as string[][] }));
 vi.mock("@/lib/chat/names", () => ({
   customEmojiFor: async () => ({}),
   slackAuthorIdsByTs: async () => ({}),
   slackChannelNames: async () => ({}),
   slackUserMemberIds: async () => ({}),
+  slackUserHubNames: async (ids: string[]) => {
+    names.hubAsked.push(ids);
+    return names.hubNames;
+  },
   slackUserNames: async () => names.userNames,
   slackUserPhotos: async () => ({}),
 }));
@@ -38,6 +42,23 @@ function fakeSupabase(tables: Record<string, unknown[] | null>) {
 }
 
 describe("buildMessageViews", () => {
+  it("looks up Hub names only for people named in notices, and returns them for the page's text context", async () => {
+    names.hubAsked.length = 0;
+    names.hubNames = { U1: "Cody Ray" };
+    const out = await buildMessageViews(
+      fakeSupabase({}),
+      { slackChannelId: null },
+      [
+        row("m1", { system_subtype: "channel_join", chat_message_contents: { body: "<@U1> was added to the channel by <@U2>" } }),
+        row("m2", { chat_message_contents: { body: "hello <@U3>" } }),
+      ],
+      "member-fern"
+    );
+    expect(names.hubAsked).toEqual([["U1", "U2"]]);
+    expect(out.hubNames).toEqual({ U1: "Cody Ray" });
+    names.hubNames = {};
+  });
+
   it("copes with the reactions query returning nothing", async () => {
     const out = await buildMessageViews(fakeSupabase({ chat_reactions: null }), { slackChannelId: null }, [row("m1")], "member-fern");
     expect(out.views[0].reactions).toEqual([]);

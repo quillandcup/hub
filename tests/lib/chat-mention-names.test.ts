@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/service", () => ({
   },
 }));
 
-import { withMentionNames } from "@/lib/chat/names";
+import { slackUserHubNames, withMentionNames } from "@/lib/chat/names";
 
 beforeEach(() => {
   from.mockClear();
@@ -53,5 +53,27 @@ describe("withMentionNames", () => {
     const rows = [{ description: "plain" }, { description: undefined }];
     expect(await withMentionNames(rows)).toBe(rows);
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+describe("slackUserHubNames", () => {
+  it("names matched people by their Hub display name, else their Hub name, and leaves unmatched ones out", async () => {
+    tables["public.chat_slack_authors"] = [
+      { slack_user_id: "U1", member_id: "m1" },
+      { slack_user_id: "U2", member_id: "m2" },
+    ];
+    tables["public.member_directory"] = [
+      { id: "m1", name: "Cody Ray", display_name: null },
+      { id: "m2", name: "Gale Prickleton", display_name: "Gale" },
+    ];
+    expect(await slackUserHubNames(["U1", "U2", "U3", "U1"])).toEqual({ U1: "Cody Ray", U2: "Gale" });
+  });
+
+  it("asks nothing for nobody or for nobody matched", async () => {
+    expect(await slackUserHubNames([])).toEqual({});
+    expect(from).not.toHaveBeenCalled();
+    tables["public.chat_slack_authors"] = [];
+    expect(await slackUserHubNames(["U9"])).toEqual({});
+    expect(from).not.toHaveBeenCalledWith("public.member_directory");
   });
 });
