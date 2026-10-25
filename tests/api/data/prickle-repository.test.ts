@@ -70,6 +70,7 @@ definePrickleContract("SupabasePrickleRepository", () => ({
     const rows = seeds.map((s) => ({
       title: s.title ?? null,
       description: s.description ?? null,
+      zoom_meeting_uuid: s.zoomMeetingUuid ?? null,
       ...(s.createdAt ? { created_at: s.createdAt } : {}),
       type_id: s.type === undefined ? null : types[s.type].id,
       host: s.host === undefined ? null : hosts[s.host].id,

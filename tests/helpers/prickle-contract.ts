@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { description?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
+export type PrickleSeed = { zoomMeetingUuid?: string; description?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" | "zoom" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -381,6 +381,47 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(found.find((p) => p.id === withText)?.description).toBe("Bring a tiny idea.");
       expect(found.find((p) => p.id === without)?.description ?? null).toBeNull();
       expect((await ctx.repo().types()).find((t) => t.id === typeId)?.description).toBe("Timed writing in company.");
+    });
+
+    it("finds the prickles of some Zoom meetings, newest first", async () => {
+      const run = Math.random().toString(36).slice(2, 10);
+      const [older, newer, other] = await ctx.seed([
+        { start: at(110), source: "zoom", zoomMeetingUuid: `m1-${run}` },
+        { start: at(111), source: "zoom", zoomMeetingUuid: `m2-${run}` },
+        { start: at(112), source: "zoom", zoomMeetingUuid: `m3-${run}` },
+      ]);
+
+      const found = await ctx.repo().byZoomMeetings([`m1-${run}`, `m2-${run}`, "no-such-meeting"]);
+
+      expect(found.map((p) => p.id)).toEqual([newer, older]);
+      expect(found[0].zoomMeetingUuid).toBe(`m2-${run}`);
+      expect(found.some((p) => p.id === other)).toBe(false);
+      expect(await ctx.repo().byZoomMeetings([])).toEqual([]);
+    });
+
+    it("lists calendar prickles that overlap a window, strictly at both ends, oldest first", async () => {
+      const [before, endsAtStart, inside, startsAtEnd, zoomOne] = await ctx.seed([
+        { start: at(120), end: at(121) },
+        { start: at(121), end: at(125) }, // ends exactly when the window starts: not overlapping
+        { start: at(124), end: at(130) },
+        { start: at(130), end: at(131) }, // starts exactly when the window ends: not overlapping
+        { start: at(126), end: at(127), source: "sheets" }, // another source
+      ]);
+      const ids = [before, endsAtStart, inside, startsAtEnd, zoomOne];
+
+      const found = (await ctx.repo().calendarOverlapping({ from: at(125), to: at(130) })).filter((p) => ids.includes(p.id));
+
+      expect(found.map((p) => p.id)).toEqual([inside]);
+      expect(found[0]).toMatchObject({ typeId: null });
+      expect(new Date(found[0].startTime)).toEqual(new Date(at(124)));
+    });
+
+    it("lists the calendar prickles overlapping a window past a thousand", async () => {
+      const ids = await ctx.seed(Array.from({ length: 1050 }, (_, i) => ({ start: at(140 + i / 100), end: at(141 + i / 100) })));
+
+      const found = new Set((await ctx.repo().calendarOverlapping({ from: at(139), to: at(160) })).map((p) => p.id));
+
+      expect(ids.every((id) => found.has(id))).toBe(true);
     });
   });
 }

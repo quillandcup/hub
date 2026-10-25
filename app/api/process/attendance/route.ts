@@ -31,25 +31,6 @@ function chunk<T>(array: T[], size: number): T[][] {
 }
 
 /**
- * Find all calendar prickles that overlap with a time range
- */
-async function findOverlappingPrickles(
-  supabase: any,
-  start: string,
-  end: string
-): Promise<any[]> {
-  const { data: prickles } = await supabase
-    .from("prickles")
-    .select("id, start_time, end_time, type_id")
-    .eq("source", "calendar")
-    .lt("start_time", end)
-    .gt("end_time", start)
-    .order("start_time", { ascending: true });
-
-  return prickles || [];
-}
-
-/**
  * Split a Zoom meeting into segments (scheduled prickles + PUPs)
  * Based on Python implementation in zoom-analytics/analyzer.py
  */
@@ -257,11 +238,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Pop-Up Prickle type ID
-    const { data: pupType } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", "pop-up")
-      .single();
+    const pupType = (await createRepos(supabase).prickles.types()).find((t) => t.normalizedName === "pop-up");
 
     if (!pupType) {
       return NextResponse.json(
@@ -273,29 +250,12 @@ export async function POST(request: NextRequest) {
     // Load reference data upfront for in-memory matching (performance optimization)
     // Note: Load ALL calendar prickles that OVERLAP with date range (not just contained within)
     // A prickle overlaps if: prickle.start_time < toDate AND prickle.end_time > fromDate
-    let allPrickles: any[] = [];
-    let prickleOffset = 0;
-    const PRICKLE_BATCH = 1000;
-    let hasMorePrickles = true;
-
-    while (hasMorePrickles) {
-      const { data: batch } = await supabase
-        .from("prickles")
-        .select("id, start_time, end_time, type_id")
-        .eq("source", "calendar")
-        .lt("start_time", toDateTime)    // Prickle starts before end of range
-        .gt("end_time", fromDateTime)    // Prickle ends after start of range
-        .order("start_time")
-        .range(prickleOffset, prickleOffset + PRICKLE_BATCH - 1);
-
-      if (batch && batch.length > 0) {
-        allPrickles = allPrickles.concat(batch);
-        prickleOffset += batch.length;
-        hasMorePrickles = batch.length === PRICKLE_BATCH;
-      } else {
-        hasMorePrickles = false;
-      }
-    }
+    const allPrickles = (await createRepos(supabase).prickles.calendarOverlapping({ from: fromDateTime, to: toDateTime })).map((p) => ({
+      id: p.id,
+      start_time: p.startTime,
+      end_time: p.endTime,
+      type_id: p.typeId,
+    }));
 
     const [members, { data: aliases }, { data: emailAliases }] = await Promise.all([
       createRepos(supabase).members.identities(),

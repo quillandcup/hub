@@ -111,6 +111,10 @@ export interface PrickleRepository {
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
   /** Prickles matching every word (case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
+  /** Calendar prickles that overlap the window (start before `to`, end after `from`; both exclusive, ISO), oldest first. Lean: no type or host joined. */
+  calendarOverlapping(window: { from: string; to: string }): Promise<Pick<Prickle, "id" | "typeId" | "startTime" | "endTime">[]>;
+  /** The prickles whose Zoom meeting is one of these, newest first. */
+  byZoomMeetings(meetingUuids: string[]): Promise<PrickleDetail[]>;
   /** Host coverage of the prickles from this source (e.g. "calendar"). */
   hostCoverage(source: string): Promise<HostCoverage>;
   /** When the most recently added prickle from this source was added, or null if there are none. */
@@ -140,7 +144,7 @@ export interface PrickleRepository {
 
 const TYPE_COLUMNS = "id, name, normalized_name, description, purpose, requires_host, solo_task_friendly";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
-const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id";
+const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
 const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
 
@@ -171,6 +175,7 @@ export type DetailRow = {
   end_time: string;
   source: string;
   calendar_event_id: string | null;
+  zoom_meeting_uuid: string | null;
   prickle_type: TypeRow | TypeRow[] | null;
   host: HostRow | HostRow[] | null;
 };
@@ -201,6 +206,7 @@ export function toDetail(row: DetailRow): PrickleDetail {
     endTime: row.end_time,
     source: row.source,
     calendarEventId: row.calendar_event_id,
+    zoomMeetingUuid: row.zoom_meeting_uuid,
     type: type ? toType(type) : null,
     host: host ? { id: host.id, name: host.name, displayName: host.display_name } : null,
   };
@@ -295,6 +301,40 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async reassignHost(fromMemberId: string, toMemberId: string): Promise<void> {
     const { error } = await this.db.from("prickles").update({ host: toMemberId }).eq("host", fromMemberId);
     if (error) throw new Error(error.message);
+  }
+
+  async calendarOverlapping({ from, to }: { from: string; to: string }) {
+    const rows = await fetchAllRows<{ id: string; type_id: string | null; start_time: string; end_time: string }>(
+      (start, end) =>
+        this.db
+          .from("prickles")
+          .select("id, type_id, start_time, end_time")
+          .eq("source", "calendar")
+          .lt("start_time", to)
+          .gt("end_time", from)
+          .order("start_time")
+          .order("id")
+          .range(start, end) as unknown as PromiseLike<{
+          data: { id: string; type_id: string | null; start_time: string; end_time: string }[] | null;
+          error: { message: string } | null;
+        }>,
+    );
+    return rows.map((r) => ({ id: r.id, typeId: r.type_id, startTime: r.start_time, endTime: r.end_time }));
+  }
+
+  async byZoomMeetings(meetingUuids: string[]): Promise<PrickleDetail[]> {
+    const found: PrickleDetail[] = [];
+    for (const uuidChunk of chunk(meetingUuids, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<DetailRow>(
+        (from, to) =>
+          this.db.from("prickles").select(DETAIL_SELECT).in("zoom_meeting_uuid", uuidChunk).order("id").range(from, to) as unknown as PromiseLike<{
+            data: DetailRow[] | null;
+            error: { message: string } | null;
+          }>,
+      );
+      found.push(...rows.map(toDetail));
+    }
+    return found.sort((a, b) => -byStartThenId(a, b));
   }
 
   async hostCoverage(source: string): Promise<HostCoverage> {
@@ -550,6 +590,23 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
     for (const p of this.data.prickles) if (p.hostId === fromMemberId) p.hostId = toMemberId;
+  }
+
+  async calendarOverlapping({ from, to }: { from: string; to: string }) {
+    const start = new Date(from).getTime();
+    const end = new Date(to).getTime();
+    return this.data.prickles
+      .filter((p) => p.source === "calendar" && new Date(p.startTime).getTime() < end && new Date(p.endTime).getTime() > start)
+      .sort(byStartThenId)
+      .map((p) => ({ id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.endTime }));
+  }
+
+  async byZoomMeetings(meetingUuids: string[]) {
+    const wanted = new Set(meetingUuids);
+    return this.data.prickles
+      .filter((p) => p.zoomMeetingUuid && wanted.has(p.zoomMeetingUuid))
+      .sort((a, b) => -byStartThenId(a, b))
+      .map((p) => this.detail(p));
   }
 
   async hostCoverage(source: string): Promise<HostCoverage> {
