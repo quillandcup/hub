@@ -18,8 +18,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/(admin)/admin/calendar/page.tsx",
     "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx",
     "app/(admin)/admin/hygiene/page.tsx",
-    "app/(admin)/admin/insights/prickles/[kind]/page.tsx",
-    "app/(admin)/admin/insights/prickles/page.tsx",
     "app/(admin)/admin/prickles/[id]/page.tsx",
     "app/(member)/prickles/[id]/page.tsx",
     "app/api/process/attendance/route.ts",

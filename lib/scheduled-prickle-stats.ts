@@ -15,6 +15,12 @@ export interface PrickleWithHost extends Prickle {
   host: { id: string; name: string } | { id: string; name: string }[] | null;
 }
 
+/** The end of the window of prickles to count: the end of day `to` (YYYY-MM-DD), never later than `now`, since prickles that haven't happened have no attendance. */
+export function pricklesWindowEnd(to: string | undefined, now: Date): string {
+  const requested = to ? new Date(`${to}T23:59:59Z`) : null;
+  return (requested && requested < now ? requested : now).toISOString();
+}
+
 export interface AttendanceRow {
   prickle_id: string;
   member_id: string;

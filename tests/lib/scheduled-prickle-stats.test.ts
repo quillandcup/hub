@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeScheduledPrickleStats,
   computeGroupedPrickleStats,
+  pricklesWindowEnd,
   type PrickleWithHost,
 } from '@/lib/scheduled-prickle-stats';
 
@@ -378,3 +379,16 @@ describe('computeGroupedPrickleStats — by host', () => {
     expect(groups[0].max).toBe(2);
   });
 });
+
+describe('pricklesWindowEnd', () => {
+  const now = new Date('2026-10-20T12:00:00Z')
+
+  it('ends at the end of the chosen day when that is in the past', () => {
+    expect(pricklesWindowEnd('2026-10-01', now)).toBe('2026-10-01T23:59:59.000Z')
+  })
+
+  it('never reaches past now, since prickles that have not happened have no attendance', () => {
+    expect(pricklesWindowEnd('2026-12-01', now)).toBe(now.toISOString())
+    expect(pricklesWindowEnd(undefined, now)).toBe(now.toISOString())
+  })
+})

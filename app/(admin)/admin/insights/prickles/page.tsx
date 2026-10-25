@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   computeScheduledPrickleStats,
+  pricklesWindowEnd,
   type PrickleType,
   type Prickle,
   type AttendanceRow,
@@ -26,35 +27,12 @@ async function fetchAllPrickles(
   from?: string,
   to?: string
 ): Promise<Prickle[]> {
-  const BATCH = 1000;
-  const rows: Prickle[] = [];
-  let offset = 0;
-  let hasMore = true;
-  const now = new Date().toISOString();
-
-  while (hasMore) {
-    let query = supabase
-      .from("prickles")
-      .select("id, type_id, start_time")
-      .lte("start_time", now)
-      .range(offset, offset + BATCH - 1)
-      .order("start_time", { ascending: true });
-
-    if (from) query = query.gte("start_time", from);
-    if (to) query = query.lte("start_time", to + "T23:59:59Z");
-
-    const { data } = await query;
-
-    if (data && data.length > 0) {
-      rows.push(...data);
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const found = await createRepos(supabase).prickles.startingBetween({
+    from: from ?? new Date(0).toISOString(),
+    to: pricklesWindowEnd(to, new Date()),
+    inclusiveEnd: true,
+  });
+  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime }));
 }
 
 async function fetchAllAttendance(
@@ -104,13 +82,11 @@ export default async function PrickleInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Prickle types (small table — no pagination needed)
-  const { data: typesRaw } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .order("name", { ascending: true });
-
-  const types: PrickleType[] = typesRaw ?? [];
+  const types: PrickleType[] = (await createRepos(supabase).prickles.types()).map((t) => ({
+    id: t.id,
+    name: t.name,
+    normalized_name: t.normalizedName,
+  }));
 
   // All prickles in range (paginated)
   const prickles = await fetchAllPrickles(supabase, from, to);
