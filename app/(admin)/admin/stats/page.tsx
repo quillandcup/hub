@@ -39,27 +39,14 @@ async function fetchAllPrickles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   since: string,
   until: string
-) {
-  const rows: PrickleRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("id, start_time, members!host(name), prickle_types(name, normalized_name)")
-      .gte("start_time", since)
-      .lte("start_time", until)
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as PrickleRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
+): Promise<PrickleRow[]> {
+  const prickles = await createRepos(supabase).prickles.startingBetween({ from: since, to: until, inclusiveEnd: true })
+  return prickles.map((p) => ({
+    id: p.id,
+    start_time: p.startTime,
+    members: p.host ? { name: p.host.name } : null,
+    prickle_types: p.type ? { name: p.type.name, normalized_name: p.type.normalizedName } : null,
+  }))
 }
 
 async function fetchAllAttendance(

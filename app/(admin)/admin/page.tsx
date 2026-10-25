@@ -170,12 +170,7 @@ export default async function DashboardPage() {
     : 0;
 
   // Host Participation Rate: % of active members who have hosted (ever)
-  const { data: hostsEver } = await supabase
-    .from("prickles")
-    .select("host")
-    .not("host", "is", null);
-
-  const uniqueHosts = new Set(hostsEver?.map(p => p.host) || []).size;
+  const uniqueHosts = await repos.prickles.distinctHostCount();
   const hostParticipationRate = activeMembers > 0
     ? Math.round((uniqueHosts / activeMembers) * 100)
     : 0;

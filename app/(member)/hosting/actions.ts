@@ -193,13 +193,8 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
   const monthEnd = getMonthEnd(monthStart);
   const rangeEnd = new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000);
 
-  const [{ data: prickleRows }, { data: scheduleRows }] = await Promise.all([
-    supabase
-      .from("prickles")
-      .select("id, host:prickle_host(name), start_time, end_time, prickle_types(name)")
-      .gte("start_time", monthStart.toISOString())
-      .lt("start_time", rangeEnd.toISOString())
-      .order("start_time"),
+  const [monthPrickles, { data: scheduleRows }] = await Promise.all([
+    createRepos(supabase).prickles.startingBetween({ from: monthStart.toISOString(), to: rangeEnd.toISOString() }),
     supabase
       .from("prickle_schedules")
       .select(
@@ -210,12 +205,12 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
       .is("deleted_at", null),
   ]);
 
-  const prickles: HostingCalendarPrickle[] = (prickleRows ?? []).map((row: any) => ({
-    id: row.id,
-    host: row.host?.name ?? "",
-    start_time: row.start_time,
-    end_time: row.end_time,
-    prickle_type: row.prickle_types?.name ?? "Prickle",
+  const prickles: HostingCalendarPrickle[] = monthPrickles.map((p) => ({
+    id: p.id,
+    host: p.host?.name ?? "",
+    start_time: p.startTime,
+    end_time: p.endTime,
+    prickle_type: p.type?.name ?? "Prickle",
     attendance_count: 0,
   }));
 
@@ -294,12 +289,8 @@ async function requestToHostImpl(
   });
   if (validationError) return { error: validationError };
 
-  const { data: type } = await supabase
-    .from("prickle_types")
-    .select("requires_host")
-    .eq("id", input.typeId)
-    .single();
-  if (!type?.requires_host) return { error: "This prickle type doesn't take a host" };
+  const type = (await createRepos(supabase).prickles.types()).find((t) => t.id === input.typeId);
+  if (!type?.requiresHost) return { error: "This prickle type doesn't take a host" };
 
   const monthDate = new Date(`${input.month}T00:00:00Z`);
   const overrides = await getLockOverrides(supabase, [input.month]);

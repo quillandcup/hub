@@ -65,6 +65,8 @@ export interface PrickleRepository {
   countBySource(source: string): Promise<number>;
   /** Host and start time of every hosted prickle (those with an assigned host), optionally one member's. For hosting streaks. */
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
+  /** How many different members have ever been the assigned host of a prickle. */
+  distinctHostCount(): Promise<number>;
   /** The first prickle starting at or after `instant` (ISO), else the latest one there is; null when there are none. */
   nextOrMostRecent(instant: string): Promise<PrickleDetail | null>;
   /** The prickle running at this instant (ISO; started at or before it, not yet ended), the earliest-starting one; null if none. */
@@ -225,6 +227,10 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
   }
 
+  async distinctHostCount(): Promise<number> {
+    return new Set((await this.hostedStartTimes()).map((h) => h.hostId)).size;
+  }
+
   async nextOrMostRecent(instant: string): Promise<PrickleDetail | null> {
     const next = await this.db.from("prickles").select(DETAIL_SELECT).gte("start_time", instant).order("start_time").order("id").limit(1);
     if (next.error) throw new Error(next.error.message);
@@ -347,6 +353,10 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles
       .filter((p): p is typeof p & { hostId: string } => p.hostId !== null && (!hostId || p.hostId === hostId))
       .map((p) => ({ hostId: p.hostId, startTime: p.startTime }));
+  }
+
+  async distinctHostCount() {
+    return new Set((await this.hostedStartTimes()).map((h) => h.hostId)).size;
   }
 
   async nextOrMostRecent(instant: string) {

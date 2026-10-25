@@ -209,5 +209,18 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       // Nothing after: the latest there is (a shared database may hold later ones from elsewhere).
       expect(new Date((await ctx.repo().nextOrMostRecent("2999-01-01T00:00:00Z"))!.startTime).getTime()).toBeGreaterThanOrEqual(new Date(at(9)).getTime());
     });
+
+    it("counts the members who have ever hosted", async () => {
+      await ctx.seed([]);
+      const before = await ctx.repo().distinctHostCount();
+
+      await ctx.seed([{ host: 0, start: at(0) }, { host: 0, start: at(1) }, { host: 1, start: at(2) }, { start: at(3) }]);
+
+      // The seeded hosts may already host elsewhere in a shared database, so at most two more.
+      const after = await ctx.repo().distinctHostCount();
+      expect(after).toBeGreaterThanOrEqual(before);
+      expect(after).toBeLessThanOrEqual(before + 2);
+      expect(after).toBeGreaterThanOrEqual(2);
+    });
   });
 }
