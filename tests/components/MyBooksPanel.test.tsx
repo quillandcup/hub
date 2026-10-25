@@ -93,7 +93,7 @@ describe("MyBooksPanel", () => {
 
     await user.click(within(rowFor("The Lantern Keeper")).getByRole("button", { name: "Remove" }));
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Remove "The Lantern Keeper" from the Bookshelf? "Lantern Draft Two" will no longer be marked as published.'
+      'Remove "The Lantern Keeper" from the Book Shelf? "Lantern Draft Two" will no longer be marked as published.'
     );
   });
 
@@ -102,10 +102,10 @@ describe("MyBooksPanel", () => {
     render(<MyBooksPanel initialBooks={[STANDALONE, UNKNOWN_PROJECT]} projectTitles={PROJECT_TITLES} />);
 
     await user.click(within(rowFor("Salt and Starlight")).getByRole("button", { name: "Remove" }));
-    expect(confirmSpy).toHaveBeenLastCalledWith('Remove "Salt and Starlight" from the Bookshelf?');
+    expect(confirmSpy).toHaveBeenLastCalledWith('Remove "Salt and Starlight" from the Book Shelf?');
 
     await user.click(within(rowFor("Moss Letters")).getByRole("button", { name: "Remove" }));
-    expect(confirmSpy).toHaveBeenLastCalledWith('Remove "Moss Letters" from the Bookshelf?');
+    expect(confirmSpy).toHaveBeenLastCalledWith('Remove "Moss Letters" from the Book Shelf?');
   });
 
   it("does not delete when the member cancels the confirm", async () => {

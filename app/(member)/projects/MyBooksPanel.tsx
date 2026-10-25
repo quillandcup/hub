@@ -40,8 +40,8 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
   async function handleDelete(book: MyBookRow) {
     const projectTitle = book.projectId ? projectTitles[book.projectId] : undefined;
     const message = projectTitle
-      ? `Remove "${book.title}" from the Bookshelf? "${projectTitle}" will no longer be marked as published.`
-      : `Remove "${book.title}" from the Bookshelf?`;
+      ? `Remove "${book.title}" from the Book Shelf? "${projectTitle}" will no longer be marked as published.`
+      : `Remove "${book.title}" from the Book Shelf?`;
     if (!confirm(message)) return;
     setDeletingId(book.id);
     const result = await deleteBook(book.id);

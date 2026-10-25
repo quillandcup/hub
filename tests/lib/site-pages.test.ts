@@ -73,6 +73,14 @@ describe("site pages registry", () => {
     expect(links([])).not.toContain("/chat");
     expect(links(["chat"])).toContain("/chat");
   });
+
+  it("keeps things to do in Community and things to browse in Explore", () => {
+    const hrefs = (name: string) =>
+      navGroups("member", ["chat", "big_sisters", "events"]).find((g) => g.name === name)?.items.map((p) => p.href);
+    expect(hrefs("Community")).toEqual(["/big-sisters", "/chat", "/wheel-of-wonder"]);
+    expect(hrefs("Explore")).toEqual(["/members", "/bookshelf", "/events"]);
+    expect(SITE_PAGES.find((p) => p.href === "/bookshelf")?.title).toBe("Book Shelf");
+  });
 });
 
 describe("settings sections", () => {

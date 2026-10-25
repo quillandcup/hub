@@ -137,7 +137,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
 
   async function handleRemoveBook() {
     if (!project.book) return;
-    if (!confirm(`Remove "${project.book.title}" from the Bookshelf?`)) return;
+    if (!confirm(`Remove "${project.book.title}" from the Book Shelf?`)) return;
     setRemovingBook(true);
     const result = await deleteBook(project.book.id);
     setRemovingBook(false);
@@ -220,7 +220,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             </p>
             <p className="text-xs mt-2">
               <Link data-track="project-view-on-the-bookshelf" href="/bookshelf" className="text-plum-600 hover:text-plum-700 dark:text-plum-400">
-                View on the Bookshelf
+                View on the Book Shelf
               </Link>
             </p>
           </div>

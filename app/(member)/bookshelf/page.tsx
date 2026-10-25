@@ -4,7 +4,7 @@ import BookshelfClient, { type ShelfBook } from "./BookshelfClient";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 export const metadata: Metadata = {
-  title: "Hedgie Bookshelf",
+  title: "Hedgie Book Shelf",
 };
 
 export default async function BookshelfPage() {

@@ -33,7 +33,7 @@ export interface SitePage {
   feature?: FeatureKey;
 }
 
-export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community"] as const;
+export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community", "Explore"] as const;
 export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooling, folded by default. */ collapsible?: boolean }[] = [
   { name: "Overview" },
   { name: "Member Programs" },
@@ -90,12 +90,12 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
   member({ title: "Courses", href: "/courses", section: "My Burrow", nav: { icon: "🎓", activeFor: ["/courses/"] }, keywords: ["ready writer", "lessons", "learn", "video"], feature: "courses" }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
-  member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
+  member({ title: "Members", href: "/members", section: "Explore", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
   member({ title: "Big Sisters", href: "/big-sisters", section: "Community", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "new member", "buddy"], feature: "big_sisters" }),
   member({ title: "Chat", href: "/chat", section: "Community", nav: { icon: "💬" }, keywords: ["messages", "slack", "dm"], feature: "chat" }),
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
-  member({ title: "Bookshelf", href: "/bookshelf", section: "Community", nav: { icon: "🐚" }, keywords: ["library", "books"] }),
-  member({ title: "Events", href: "/events", section: "Community", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
+  member({ title: "Book Shelf", href: "/bookshelf", section: "Explore", nav: { icon: "🐚" }, keywords: ["bookshelf", "library", "books"] }),
+  member({ title: "Events", href: "/events", section: "Explore", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
 
   // Member pages the sidebar doesn't link (Hedgie Help is the question mark in the top bar)
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
