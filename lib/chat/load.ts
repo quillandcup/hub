@@ -49,12 +49,15 @@ const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, sl
 export async function loadChatChannels(
   supabase: SupabaseClient,
   memberId: string,
-  isSudo: boolean
+  isSudo: boolean,
+  timer?: StageTimer
 ): Promise<ChannelSummary[]> {
+  const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
   const [{ data: memberships }, { data: channels }] = await Promise.all([
-    supabase.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null),
-    supabase.from("chat_channels").select(CHANNEL_COLUMNS).order("name"),
+    t("memberships", supabase.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null)),
+    t("channels", supabase.from("chat_channels").select(CHANNEL_COLUMNS).order("name")),
   ]);
+  timer?.mark("stage1");
   const joined = new Set((memberships ?? []).map((m) => m.channel_id as string));
 
   // Direct messages and group DMs are hidden in sudo (like a member's private notes).
@@ -62,11 +65,11 @@ export async function loadChatChannels(
     (c) => (c.visibility === "public" || joined.has(c.id)) && !(isSudo && c.kind !== "channel")
   );
 
-  const dmLabels = await groupDmLabels(
-    supabase,
-    visible.filter((c) => c.kind !== "channel").map((c) => c.id),
-    memberId
-  );
+  const dmIds = visible.filter((c) => c.kind !== "channel").map((c) => c.id);
+  timer?.note("visible", visible.length);
+  timer?.note("dms", dmIds.length);
+  const dmLabels = await groupDmLabels(supabase, dmIds, memberId, timer);
+  timer?.mark("dmLabels");
 
   const summaries = visible.map(
     (c): ChannelSummary => ({
@@ -85,7 +88,7 @@ export async function loadChatChannels(
 }
 
 /** "Fern, Gale" for each group DM: the other people in it. */
-async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string) {
+async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string, timer?: StageTimer) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
   const { data: rows } = await supabase
@@ -93,7 +96,9 @@ async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], mem
     .select("channel_id, member_id")
     .in("channel_id", channelIds)
     .is("left_at", null);
+  timer?.mark("dmMembers");
   const others = (rows ?? []).filter((r) => r.member_id !== memberId);
+  timer?.note("dmPeople", others.length);
   const names = await memberProfiles(supabase, others.map((r) => r.member_id as string));
   for (const channelId of channelIds) {
     const list = others
@@ -474,20 +479,31 @@ export async function buildMessageViews(
   const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
   const bodyEmojiNames = rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? ""));
 
+  const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
+  timer?.note("rows", rows.length);
+  timer?.note("roots", threadRoots.length);
+  timer?.note("unmatched", unmatched.length);
+
   const [profiles, slackAuthorByTs, { data: reactionRows }, replies, userMembers, hubNames, channelNames] = await Promise.all([
-    memberProfiles(supabase, matched),
-    channel.slackChannelId && unmatched.length > 0
-      ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
-      : Promise.resolve({} as Record<string, string>),
-    supabase
-      .from("chat_reactions")
-      .select("message_id, emoji, member_id, slack_user_id")
-      .in("message_id", rows.map((r) => r.id))
-      .is("deleted_at", null),
-    loadReplyAuthors(supabase, threadRoots),
-    slackUserMemberIds(mentioned),
-    slackUserHubNames(mentionedInNotices),
-    slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? ""))),
+    t("b1.profiles", memberProfiles(supabase, matched)),
+    t(
+      "b1.slackAuthors",
+      channel.slackChannelId && unmatched.length > 0
+        ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
+        : Promise.resolve({} as Record<string, string>)
+    ),
+    t(
+      "b1.reactions",
+      supabase
+        .from("chat_reactions")
+        .select("message_id, emoji, member_id, slack_user_id")
+        .in("message_id", rows.map((r) => r.id))
+        .is("deleted_at", null)
+    ),
+    t("b1.replyAuthors", loadReplyAuthors(supabase, threadRoots)),
+    t("b1.userMembers", slackUserMemberIds(mentioned)),
+    t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
+    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? "")))),
   ]);
   timer?.mark("views.batch1");
 
@@ -504,17 +520,17 @@ export async function buildMessageViews(
   // Two independent chains run together: the repliers' and reactors' Hub profiles (one lookup), and
   // the Slack side (replier authors by ts, then every Slack name, photo and emoji in one batch).
   const [otherProfiles, slackSide] = await Promise.all([
-    memberProfiles(supabase, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds]),
+    t("b2.profiles", memberProfiles(supabase, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds])),
     (async () => {
       const replySlackAuthors =
         channel.slackChannelId && unmatchedReplyTs.length > 0
-          ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
+          ? await t("b2.replySlackAuthors", slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs))
           : ({} as Record<string, string>);
       const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
       const [userNames, slackPhotos, customEmoji] = await Promise.all([
-        slackUserNames([...slackIds, ...mentioned]),
-        slackUserPhotos(slackIds),
-        customEmojiFor(emojiNames),
+        t("b2.userNames", slackUserNames([...slackIds, ...mentioned])),
+        t("b2.photos", slackUserPhotos(slackIds)),
+        t("b2.emoji", customEmojiFor(emojiNames)),
       ]);
       return { replySlackAuthors, userNames, slackPhotos, customEmoji };
     })(),

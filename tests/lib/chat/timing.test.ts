@@ -18,6 +18,14 @@ describe("createStageTimer", () => {
     expect(info).toHaveBeenCalledWith("[chat] page %s %dms (%s)", "channel", 100, "auth 10, slow 60, parallel 90");
   });
 
+  it("records sizes next to the timings", () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const timer = createStageTimer(() => 0);
+    timer.note("rows", 50);
+    timer.log("channel");
+    expect(info.mock.calls[0][3]).toBe("rows=50");
+  });
+
   it("still records a query that fails, and rethrows", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const timer = createStageTimer(() => 0);
