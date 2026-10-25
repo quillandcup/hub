@@ -33,13 +33,14 @@ beforeAll(async () => {
       { name: `Contract Sprint ${RUN}`, normalized_name: `contract-sprint-${RUN}`, purpose: "writing", requires_host: true, solo_task_friendly: false },
       { name: `Contract Chat ${RUN}`, normalized_name: `contract-chat-${RUN}`, purpose: "social", requires_host: false, solo_task_friendly: true },
     ])
-    .select("id, name, normalized_name, description, purpose, requires_host, solo_task_friendly");
+    .select("id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly");
   if (typeError) throw new Error(typeError.message);
   const asType = (r: NonNullable<typeof typeRows>[number]): PrickleType => ({
     id: r.id,
     name: r.name,
     normalizedName: r.normalized_name,
     description: r.description,
+    defaultHostId: r.default_host_id,
     purpose: r.purpose,
     requiresHost: r.requires_host ?? false,
     soloTaskFriendly: r.solo_task_friendly,

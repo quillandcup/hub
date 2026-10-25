@@ -423,5 +423,26 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
 
       expect(ids.every((id) => found.has(id))).toBe(true);
     });
+
+    it("counts calendar prickles that have no host by their type, and lists a type's newest first", async () => {
+      await ctx.seed([]);
+      const before = await ctx.repo().hostlessCalendarCountsByType();
+
+      const [oldest, , newest] = await ctx.seed([
+        { type: 0, start: at(150) },
+        { type: 0, host: 0, start: at(151) }, // has a host
+        { type: 0, start: at(152) },
+        { type: 1, start: at(153) },
+        { start: at(154) }, // no type: not counted
+        { type: 0, start: at(155), source: "sheets" }, // another source
+      ]);
+      const after = await ctx.repo().hostlessCalendarCountsByType();
+
+      expect((after.get(ctx.types[0].id) ?? 0) - (before.get(ctx.types[0].id) ?? 0)).toBe(2);
+      expect((after.get(ctx.types[1].id) ?? 0) - (before.get(ctx.types[1].id) ?? 0)).toBe(1);
+      const listed = (await ctx.repo().hostlessCalendarOfType(ctx.types[0].id, 100)).map((p) => p.id);
+      expect(listed.indexOf(newest)).toBeLessThan(listed.indexOf(oldest));
+      expect((await ctx.repo().hostlessCalendarOfType(ctx.types[0].id, 1)).map((p) => p.id)).toHaveLength(1);
+    });
   });
 }
