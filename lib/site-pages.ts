@@ -86,8 +86,8 @@ const admin = (page: Omit<SitePage, "audience">): SitePage => ({ ...page, audien
 export const SITE_PAGES: SitePage[] = [
   // Member sidebar
   member({ title: "Dashboard", href: "/dashboard", section: "Home", nav: { icon: "🏠" }, keywords: ["home"] }),
-  member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["wip"] }),
-  member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
+  member({ title: "Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["my writing", "wip"] }),
+  member({ title: "Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["my prickles", "sessions"] }),
   member({ title: "Courses", href: "/courses", section: "My Burrow", nav: { icon: "🎓", activeFor: ["/courses/"] }, keywords: ["ready writer", "lessons", "learn", "video"], feature: "courses" }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
   member({ title: "Members", href: "/members", section: "Explore", nav: { icon: "👥" }, keywords: ["directory", "people"] }),

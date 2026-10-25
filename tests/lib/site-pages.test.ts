@@ -74,6 +74,13 @@ describe("site pages registry", () => {
     expect(links(["chat"])).toContain("/chat");
   });
 
+  it("names My Burrow pages without a My prefix and still finds them by it", () => {
+    const burrow = navGroups("member", ["courses"]).find((g) => g.name === "My Burrow")?.items;
+    expect(burrow?.map((p) => p.title)).toEqual(["Writing", "Prickles", "Courses", "Streaks"]);
+    expect(burrow?.find((p) => p.href === "/projects")?.keywords).toContain("my writing");
+    expect(burrow?.find((p) => p.href === "/my-prickles")?.keywords).toContain("my prickles");
+  });
+
   it("keeps things to do in Community and things to browse in Explore", () => {
     const hrefs = (name: string) =>
       navGroups("member", ["chat", "big_sisters", "events"]).find((g) => g.name === name)?.items.map((p) => p.href);
