@@ -143,12 +143,10 @@ function isSameCalendarDay(isoTimestamp: string, day: Date, timezone: string): b
     month: "2-digit",
     day: "2-digit",
   });
-  const dayDateStr = day.toLocaleDateString("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  // `day` is a calendar date built from year/month/day components in the host's zone, not an instant: read those
+  // components as they are. Formatting it in `timezone` shifts it by a day whenever the host's zone (UTC on the
+  // server) differs from the viewer's, so the server and the browser would put prickles in different columns.
+  const dayDateStr = `${String(day.getMonth() + 1).padStart(2, "0")}/${String(day.getDate()).padStart(2, "0")}/${day.getFullYear()}`;
   return itemDateStr === dayDateStr;
 }
 

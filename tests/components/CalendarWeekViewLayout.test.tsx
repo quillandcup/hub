@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
+import CalendarWeekView from "@/components/CalendarWeekView";
 import AllPricklesCalendar from "@/app/(member)/my-prickles/AllPricklesCalendar";
 import type { PrickleInstance } from "@/lib/prickle-schedule";
 
@@ -82,5 +83,37 @@ describe("CalendarWeekView today highlight", () => {
     const { container } = renderCalendar();
     expect(container.querySelector(".border-t-plum-500")).not.toBeNull();
     vi.useRealTimers();
+  });
+});
+
+describe("CalendarWeekView on a server in another zone", () => {
+  it("renders the same week whatever zone the host runs in, so the server HTML and the browser's agree", () => {
+    const original = process.env.TZ;
+    const prickle = {
+      id: "p1",
+      host: "Host",
+      start_time: "2026-06-15T14:00:00Z",
+      end_time: "2026-06-15T15:00:00Z",
+      prickle_type: "Heads Down",
+      attendance_count: 3,
+    };
+    const htmlIn = (tz: string) => {
+      process.env.TZ = tz;
+      return renderToString(
+        <CalendarWeekView
+          prickles={[prickle]}
+          weekStartDate={{ year: 2026, month: 5, day: 14 }}
+          userTimezonePreference="America/New_York"
+          mode="admin"
+          attendanceDataThrough="2026-06-16T10:00:00Z"
+        />,
+      );
+    };
+    try {
+      expect(htmlIn("UTC")).toBe(htmlIn("America/New_York"));
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
   });
 });
