@@ -1,5 +1,6 @@
 import type { BrowserContext, Locator, Page } from "playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, renameSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { sessionCookies } from "../auth";
 
@@ -85,13 +86,15 @@ export interface Director {
   point(target: Locator, ms?: number): Promise<void>;
   /** Glide to an element, click it, and wait for what it does. */
   click(target: Locator, ms?: number): Promise<void>;
+  /** Click a field and type into it, one key at a time so a viewer can follow. */
+  type(target: Locator, text: string, ms?: number): Promise<void>;
   /** Go to a page as a member would after clicking a link: the cursor rests where it was. */
   goto(url: string, ms?: number): Promise<void>;
   /** Scroll the app's own scroller (not the window) by an amount, smoothly. */
   scroll(by: number, ms?: number): Promise<void>;
   /** A full-screen title card; `null` clears it. */
   card(content: { kicker?: string; title: string; line?: string } | null, ms?: number): Promise<void>;
-  /** Stop recording and save the video as demo/out/video/<name>.webm. */
+  /** Stop recording and save demo/out/video/<name>.webm (and .mp4 when ffmpeg is installed), trimmed to the first loaded page. */
   finish(name: string): Promise<string>;
 }
 
@@ -150,7 +153,9 @@ export async function startRecording(
   await prepare(context);
   await context.addInitScript(OVERLAY_SCRIPT);
   const page = await context.newPage();
-  let at = { x: VIDEO_SIZE.width / 2, y: VIDEO_SIZE.height / 2 };
+  const startedAt = Date.now();
+  let loadedAfterMs: number | null = null;
+  let at ={ x: VIDEO_SIZE.width / 2, y: VIDEO_SIZE.height / 2 };
 
   const trace = (m: string) => process.env.DIRECTOR_LOG && console.log(`[director] ${m}`);
   const hold = (ms: number) => page.waitForTimeout(ms);
@@ -184,9 +189,16 @@ export async function startRecording(
       await page.evaluate(() => (document.querySelector("main") as HTMLElement | null)?.scrollTo(0, 0));
       await hold(Math.max(0, ms - 700));
     },
+    async type(target, text, ms = 700) {
+      await director.click(target, 300);
+      await page.keyboard.type(text, { delay: 110 });
+      await hold(ms);
+    },
     async goto(url, ms = 900) {
       trace(`goto ${url}`);
       await page.goto(url, { waitUntil: "load" });
+      // The recording starts when the page is created; remember when the first page was up, to cut what came before.
+      if (loadedAfterMs === null) loadedAfterMs = Date.now() - startedAt;
       await hold(ms);
     },
     async scroll(by, ms = 1200) {
@@ -218,9 +230,32 @@ export async function startRecording(
       const video = page.video();
       await context.close();
       const out = path.join(VIDEO_DIR, `${name}.webm`);
-      await video?.saveAs(out);
-      return out;
+      const raw = path.join(VIDEO_DIR, `${name}.raw.webm`);
+      await video?.saveAs(raw);
+      return encode(raw, out, loadedAfterMs === null ? 0 : Math.max(0, loadedAfterMs - 300) / 1000);
     },
   };
   return director;
+}
+
+/**
+ * Cuts the blank seconds before the first page loaded and writes `<name>.webm` and `<name>.mp4` (H.264, plays
+ * everywhere: email, social) with the system ffmpeg. Without one it keeps the untrimmed WebM and says so, since
+ * Playwright's own ffmpeg can only write WebM and can't cut.
+ */
+function encode(raw: string, out: string, trimSeconds: number): string {
+  const has = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
+  if (!has) {
+    renameSync(raw, out);
+    console.warn(`ffmpeg isn't installed: ${out} keeps its blank first seconds and there is no MP4 (brew install ffmpeg).`);
+    return out;
+  }
+  const run = (args: string[]) => {
+    const result = spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", String(trimSeconds), "-i", raw, ...args], { stdio: "inherit" });
+    if (result.status !== 0) throw new Error(`ffmpeg failed for ${raw}`);
+  };
+  run(["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "28", out]);
+  run(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart", out.replace(/\.webm$/, ".mp4")]);
+  rmSync(raw);
+  return out;
 }
