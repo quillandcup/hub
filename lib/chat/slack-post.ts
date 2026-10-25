@@ -58,9 +58,10 @@ const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? nul
  * Posts one pending (or failed) app message to Slack. Skips anything already sent, not ours, or
  * deleted, and does nothing off production (see chatSlackWritesEnabled).
  *
- * As the member when they have connected Slack (their own token: no "APP" tag, editable in Slack),
- * else as the bot under their name and photo. A connected member's token that Slack says is dead
- * revokes the connection and the message goes out through the bot instead, so it isn't lost.
+ * As the member, with their own Slack token (no "APP" tag, editable in Slack): chat requires a connected
+ * account, so there is no bot fallback. Without one, or when Slack says the token is dead (which also revokes
+ * the connection, so the member is sent to reconnect), the message is marked failed and stays in the Hub with
+ * its Retry, which works once they have reconnected.
  */
 export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId: string): Promise<SendResult> {
   const { data } = await supabase
@@ -90,21 +91,13 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   const slackChannelId = one(row.chat_channels)?.slack_channel_id;
   if ((!body && files.length === 0) || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
 
-  // Everything the post needs, read at once: the thread root's ts, the member's Slack connection
-  // and (for the bot path) their name and photo. Waiting on these one after another was a good
-  // part of the time between pressing Send and the message reaching Slack.
+  // Everything the post needs, read at once: the thread root's ts and the member's Slack connection.
   const authorMemberId = row.author_member_id;
-  const [root, connection, author] = await Promise.all([
+  const [root, connection] = await Promise.all([
     row.thread_root_id
       ? supabase.from("chat_messages").select("slack_ts").eq("id", row.thread_root_id).maybeSingle().then((r) => r.data)
       : Promise.resolve(null),
     getSlackUserToken(supabase, authorMemberId),
-    supabase
-      .from("member_directory")
-      .select("name, display_name, photo_url")
-      .eq("id", authorMemberId)
-      .maybeSingle()
-      .then((r) => r.data),
   ]);
 
   let threadTs: string | undefined;
@@ -123,54 +116,36 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
       files,
       connection,
       authorMemberId,
-      authorName: author?.display_name || author?.name || null,
       escape: escapeForSlack,
       fail: fail as (reason: string, error?: unknown) => Promise<"failed">,
     });
   }
 
-  const post = (token: string, identity?: { username?: string; icon_url?: string }) =>
-    new WebClient(token).chat.postMessage({
+  if (!connection) return fail("the member has no working Slack connection");
+
+  let result: Awaited<ReturnType<WebClient["chat"]["postMessage"]>>;
+  try {
+    result = await new WebClient(connection.token).chat.postMessage({
       channel: slackChannelId,
       text: escapeForSlack(body),
       thread_ts: threadTs,
-      ...identity,
       unfurl_links: false,
       unfurl_media: false,
       metadata: hubMessageMetadata(messageId),
     });
-
-  let result: Awaited<ReturnType<typeof post>> | null = null;
-  let postedVia: "user_token" | "bot" = "bot";
-
-  // As the member, when they have connected Slack.
-  if (connection) {
-    try {
-      result = await post(connection.token);
-      postedVia = "user_token";
-    } catch (error) {
-      if (!isDeadTokenError(error)) return fail("chat.postMessage as the member threw", error);
-      console.error("Slack token for member %s is dead, revoking and posting through the bot", row.author_member_id);
-      await supabase.rpc("slack_connection_revoke", { p_member: row.author_member_id });
+  } catch (error) {
+    if (isDeadTokenError(error)) {
+      console.error("Slack token for member %s is dead, revoking it", authorMemberId);
+      await supabase.rpc("slack_connection_revoke", { p_member: authorMemberId });
+      return fail("the member's Slack token is dead");
     }
-  }
-
-  // As the bot, under the member's name and photo.
-  if (!result) {
-    const token = process.env.SLACK_BOT_TOKEN;
-    if (!token) return fail("SLACK_BOT_TOKEN not configured");
-    const photo = author?.photo_url && /^https:\/\//.test(author.photo_url) ? author.photo_url : undefined;
-    try {
-      result = await post(token, { username: author?.display_name || author?.name || undefined, icon_url: photo });
-    } catch (error) {
-      return fail("chat.postMessage threw", error);
-    }
+    return fail("chat.postMessage as the member threw", error);
   }
 
   if (!result.ok || !result.ts) return fail("Slack did not return a ts");
   const [{ error }] = await Promise.all([
     supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts }),
-    postedVia !== "bot" ? supabase.from("chat_messages").update({ posted_via: postedVia }).eq("id", messageId) : null,
+    supabase.from("chat_messages").update({ posted_via: "user_token" }).eq("id", messageId),
   ]);
   if (error) {
     // Posted but not recorded: leave it pending (not failed) so Slack's own event can still link it.
