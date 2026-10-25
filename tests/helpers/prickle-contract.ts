@@ -11,6 +11,8 @@ export type PrickleContractContext = {
   hosts: readonly [{ id: string; name: string }, { id: string; name: string }];
   /** Replace the context's prickles with these; returns their ids in order. */
   seed: (prickles: PrickleSeed[]) => Promise<string[]>;
+  /** Hand over prickles the repository created, so the context removes them with the rest. */
+  adopt: (prickleIds: string[]) => void;
 };
 
 const HOUR = 3_600_000;
@@ -236,6 +238,47 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(found).toEqual([running, soon]);
       expect(found).not.toContain(over);
       expect(found).not.toContain(later);
+    });
+
+    it("finds a prickle type by its normalized name, or creates it once", async () => {
+      await ctx.seed([]);
+      const suffix = Math.random().toString(36).slice(2, 10);
+      const normalizedName = `contract-new-${suffix}`;
+
+      const first = await ctx.repo().findOrCreateType({ name: `Contract New Type ${suffix}`, normalizedName, description: "Made by the contract" });
+      const again = await ctx.repo().findOrCreateType({ name: "Other Spelling", normalizedName });
+
+      expect(again).toBe(first);
+      const made = (await ctx.repo().types()).find((t) => t.id === first);
+      expect(made).toMatchObject({ name: `Contract New Type ${suffix}`, normalizedName });
+      expect(await ctx.repo().findOrCreateType({ name: ctx.types[0].name, normalizedName: ctx.types[0].normalizedName })).toBe(ctx.types[0].id);
+    });
+
+    it("creates prickles from the calendar, with their type and host", async () => {
+      const ids = await ctx.repo().createCalendarPrickles([
+        { typeId: ctx.types[0].id, hostId: ctx.hosts[0].id, description: "From the calendar", startTime: at(30), endTime: at(31) },
+        { typeId: ctx.types[1].id, hostId: null, startTime: at(32), endTime: at(33) },
+      ]);
+      ctx.adopt(ids);
+
+      const [first, second] = await ctx.repo().byIds(ids).then((found) => ids.map((id) => found.find((p) => p.id === id)!));
+      expect(ids).toHaveLength(2);
+      expect(first).toMatchObject({ source: "calendar", typeId: ctx.types[0].id, hostId: ctx.hosts[0].id });
+      expect(new Date(first.endTime)).toEqual(new Date(at(31)));
+      expect(second).toMatchObject({ source: "calendar", typeId: ctx.types[1].id, hostId: null });
+      expect(await ctx.repo().createCalendarPrickles([])).toEqual([]);
+    });
+
+    it("hands one member's prickles to another", async () => {
+      const [mine, theirs, hostless] = await ctx.seed([{ host: 0, start: at(40) }, { host: 1, start: at(41) }, { start: at(42) }]);
+
+      await ctx.repo().reassignHost(ctx.hosts[0].id, ctx.hosts[1].id);
+
+      const found = await ctx.repo().byIds([mine, theirs, hostless]);
+      const hostOf = (id: string) => found.find((p) => p.id === id)?.hostId;
+      expect(hostOf(mine)).toBe(ctx.hosts[1].id);
+      expect(hostOf(theirs)).toBe(ctx.hosts[1].id);
+      expect(hostOf(hostless)).toBeNull();
     });
   });
 }

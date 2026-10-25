@@ -37,38 +37,16 @@ export async function POST(request: NextRequest) {
 
     let resolvedTypeId = typeId;
 
-    // If creating a new type, insert it first
+    // If creating a new type, reuse the one with the same normalized name or add it
     if (mode === "new" && newTypeName) {
-      const normalized = normalizePrickleType(newTypeName);
-
-      // Check if type already exists
-      const { data: existingType } = await supabase
-        .from("prickle_types")
-        .select("id")
-        .eq("normalized_name", normalized)
-        .single();
-
-      if (existingType) {
-        resolvedTypeId = existingType.id;
-      } else {
-        // Create new type
-        const { data: newType, error: typeError } = await supabase
-          .from("prickle_types")
-          .insert({
-            name: newTypeName.trim(),
-            normalized_name: normalized,
-          })
-          .select("id")
-          .single();
-
-        if (typeError || !newType) {
-          return NextResponse.json(
-            { error: "Failed to create prickle type" },
-            { status: 500 }
-          );
-        }
-
-        resolvedTypeId = newType.id;
+      try {
+        resolvedTypeId = await createRepos(supabase).prickles.findOrCreateType({
+          name: newTypeName.trim(),
+          normalizedName: normalizePrickleType(newTypeName),
+        });
+      } catch (err) {
+        console.error("Error creating prickle type:", err);
+        return NextResponse.json({ error: "Failed to create prickle type" }, { status: 500 });
       }
     }
 
@@ -104,22 +82,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the prickle
-    const { error: prickleError } = await supabase
-      .from("prickles")
-      .insert({
-        type_id: resolvedTypeId,
-        host: hostId,
-        start_time: startTime,
-        end_time: endTime,
-        source: "calendar",
-      });
-
-    if (prickleError) {
-      console.error("Error creating prickle:", prickleError);
-      return NextResponse.json(
-        { error: "Failed to create prickle" },
-        { status: 500 }
-      );
+    try {
+      await createRepos(supabase).prickles.createCalendarPrickles([{ typeId: resolvedTypeId, hostId, startTime, endTime }]);
+    } catch (err) {
+      console.error("Error creating prickle:", err);
+      return NextResponse.json({ error: "Failed to create prickle" }, { status: 500 });
     }
 
     // Mark the unmatched event as resolved

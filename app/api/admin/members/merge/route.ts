@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       run(supabase.from("member_status_overrides").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       // prickles.host (not host_id) -- a wrong column name here used to fail silently, and deleting
       // the secondary below then SET NULL'd every prickle they hosted.
-      run(supabase.from("prickles").update({ host: primaryId }).eq("host", secondaryId)),
+      createRepos(supabase).prickles.reassignHost(secondaryId, primaryId),
       // prickle_schedules.host_id is ON DELETE CASCADE, so an untransferred schedule would be
       // silently deleted along with the secondary.
       run(supabase.from("prickle_schedules").update({ host_id: primaryId }).eq("host_id", secondaryId)),

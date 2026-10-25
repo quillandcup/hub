@@ -47,6 +47,15 @@ export type StartingBetween = {
   hostId?: string;
 };
 
+/** A prickle to add from the calendar; the rest takes the database defaults. */
+export type NewCalendarPrickle = {
+  typeId: string;
+  hostId: string | null;
+  description?: string | null;
+  startTime: string;
+  endTime: string;
+};
+
 /**
  * Everything the app asks of `prickles` and `prickle_types`. Reads return `PrickleDetail`
  * (type and host joined) so callers never reach for PostgREST embeds themselves.
@@ -67,6 +76,12 @@ export interface PrickleRepository {
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
   /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
+  /** The id of the prickle type with this normalized name, creating it (named `name`, with `description`) when there is none. */
+  findOrCreateType(input: { name: string; normalizedName: string; description?: string }): Promise<string>;
+  /** Adds prickles that came from the calendar and returns their ids in order. */
+  createCalendarPrickles(rows: NewCalendarPrickle[]): Promise<string[]>;
+  /** Hands every prickle one member hosts to another (merging duplicate members). */
+  reassignHost(fromMemberId: string, toMemberId: string): Promise<void>;
   /** How many different members have ever been the assigned host of a prickle. */
   distinctHostCount(): Promise<number>;
   /** The first prickle starting at or after `instant` (ISO), else the latest one there is; null when there are none. */
@@ -229,6 +244,46 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
   }
 
+  async reassignHost(fromMemberId: string, toMemberId: string): Promise<void> {
+    const { error } = await this.db.from("prickles").update({ host: toMemberId }).eq("host", fromMemberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async findOrCreateType({ name, normalizedName, description }: { name: string; normalizedName: string; description?: string }): Promise<string> {
+    const { data: existing, error: findError } = await this.db.from("prickle_types").select("id").eq("normalized_name", normalizedName).maybeSingle();
+    if (findError) throw new Error(findError.message);
+    if (existing) return existing.id;
+    const { data: created, error } = await this.db
+      .from("prickle_types")
+      .insert({ name, normalized_name: normalizedName, ...(description ? { description } : {}) })
+      .select("id")
+      .single();
+    if (error || !created) throw new Error(error?.message ?? "Couldn't create the prickle type");
+    return created.id;
+  }
+
+  async createCalendarPrickles(rows: NewCalendarPrickle[]): Promise<string[]> {
+    const ids: string[] = [];
+    for (const batch of chunk(rows, 500)) {
+      const { data, error } = await this.db
+        .from("prickles")
+        .insert(
+          batch.map((r) => ({
+            type_id: r.typeId,
+            host: r.hostId,
+            description: r.description ?? null,
+            start_time: r.startTime,
+            end_time: r.endTime,
+            source: "calendar",
+          })),
+        )
+        .select("id");
+      if (error) throw new Error(error.message);
+      ids.push(...(data ?? []).map((r) => r.id));
+    }
+    return ids;
+  }
+
   async activeBetween({ from, to }: { from: string; to: string }): Promise<PrickleDetail[]> {
     const rows = await fetchAllRows<DetailRow>(
       (start, end) =>
@@ -370,6 +425,35 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles
       .filter((p): p is typeof p & { hostId: string } => p.hostId !== null && (!hostId || p.hostId === hostId))
       .map((p) => ({ hostId: p.hostId, startTime: p.startTime }));
+  }
+
+  async reassignHost(fromMemberId: string, toMemberId: string) {
+    for (const p of this.data.prickles) if (p.hostId === fromMemberId) p.hostId = toMemberId;
+  }
+
+  async findOrCreateType({ name, normalizedName }: { name: string; normalizedName: string; description?: string }) {
+    const existing = this.data.prickleTypes.find((t) => t.normalizedName === normalizedName);
+    if (existing) return existing.id;
+    const id = `prty_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    this.data.prickleTypes.push({ id, name, normalizedName, purpose: "writing", requiresHost: false, soloTaskFriendly: false });
+    return id;
+  }
+
+  async createCalendarPrickles(rows: NewCalendarPrickle[]) {
+    return rows.map((r) => {
+      const id = `prkl_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+      this.data.prickles.push({
+        id,
+        typeId: r.typeId,
+        hostId: r.hostId,
+        title: null,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        source: "calendar",
+        calendarEventId: null,
+      });
+      return id;
+    });
   }
 
   async activeBetween({ from, to }: { from: string; to: string }) {
