@@ -57,7 +57,7 @@ import type { ChatMessageView } from "@/lib/chat/load";
 import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Like the member layout: the page scrolls inside <main>, not the window. */
-async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null } = {}) {
+async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null; renderedAt?: string | null } = {}) {
   const result = render(
     <main style={{ overflowY: "auto" }}>
       <ChatLive channelId="c1" view={view} latestId="m2" {...extra} />
@@ -89,6 +89,21 @@ describe("ChatLive", () => {
     scrolledTo("bottom");
   });
   afterEach(() => vi.useRealTimers());
+
+  it("catches up once on mount when the page came from the client cache, not when it was just rendered", async () => {
+    const now = Date.now();
+    await mount("latest", { renderedAt: new Date(now - 1000).toISOString() });
+    expect(loadLatestChat).not.toHaveBeenCalled();
+    cleanup();
+    await mount("latest", { renderedAt: new Date(now - 20_000).toISOString() });
+    expect(loadLatestChat).toHaveBeenCalledTimes(1);
+    cleanup();
+    loadLatestChat.mockClear();
+    refresh.mockClear();
+    await mount("older", { renderedAt: new Date(now - 20_000).toISOString() });
+    expect(loadLatestChat).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
 
   it("listens to this channel's messages and to reactions, but not message content", async () => {
     await mount();
