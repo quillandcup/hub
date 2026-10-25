@@ -86,6 +86,36 @@ async function recordJoined(channelId: string, people: { memberId: string; sourc
   if (error) throw error;
 }
 
+/**
+ * A line in the conversation saying who was added or removed, for the changes Slack doesn't announce itself:
+ * a removal (Slack posts no notice for one) and anyone only the Hub knows is in it. What Slack does announce
+ * ("X was added to the channel by Y", a member leaving) arrives as its own notice, so isn't written here too.
+ * Best effort: the membership change has been made, so a failure is logged, not reported. Not from Slack, so no
+ * ts and nothing to send (slack_sync_status stays null); the person it is about is its author, so the line starts
+ * with their name.
+ */
+async function recordMembershipNotice(channelId: string, subjectId: string, kind: "join" | "leave", actorId: string): Promise<void> {
+  try {
+    const actor = actorId === subjectId ? null : ((await namesOf([actorId])).get(actorId) ?? "someone");
+    const text =
+      kind === "join"
+        ? actor ? `was added to the channel by ${actor}` : "has joined the channel"
+        : actor ? `was removed from the channel by ${actor}` : "has left the channel";
+    const body = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const service = createServiceRoleClient();
+    const { data, error } = await service
+      .from("chat_messages")
+      .insert({ channel_id: channelId, author_member_id: subjectId, origin: "app", system_subtype: kind === "join" ? "channel_join" : "channel_leave", created_at: new Date(clock.now()).toISOString() })
+      .select("id")
+      .single();
+    if (error || !data) throw error ?? new Error("no row");
+    const { error: contentError } = await service.from("chat_message_contents").insert({ message_id: data.id, body });
+    if (contentError) throw contentError;
+  } catch (error) {
+    console.error("recording a membership notice failed:", error);
+  }
+}
+
 /** Which of these members are already in the conversation. */
 async function alreadyIn(channelId: string, memberIds: string[]): Promise<Set<string>> {
   const { data } = await createServiceRoleClient()
@@ -176,6 +206,8 @@ async function addMembersImpl(channelId: string, memberIds: string[]): Promise<M
   if (!done.result.ok) return done.result;
 
   await recordJoined(channelId, wanted.map((memberId) => ({ memberId, source: slackIds.has(memberId) ? ("slack" as const) : ("app" as const) })));
+  // Slack announces the ones it added; the rest are only in the Hub, so the line is ours.
+  await Promise.all(withoutSlack.map((memberId) => recordMembershipNotice(channelId, memberId, "join", self)));
   return {
     ok: true,
     message: [
@@ -212,6 +244,8 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
   if (!row) return { ok: true }; // already out
 
   let reconnect = false;
+  // Slack posts a notice when someone leaves, but not when they are removed.
+  let slackAnnounces = false;
   // In Slack too, unless the Hub alone knows they were in it.
   if (row.source !== "app") {
     const slackUser = (await slackUserIdsFor(service, [memberId])).get(memberId);
@@ -227,6 +261,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
       );
       if (!done.result.ok) return done.result;
       reconnect = done.reconnect;
+      slackAnnounces = isSelf;
     }
   }
 
@@ -237,6 +272,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
     .eq("member_id", memberId)
     .is("left_at", null);
   if (error) throw error;
+  if (!slackAnnounces) await recordMembershipNotice(channelId, memberId, "leave", caller.identity.memberId);
   return reconnect ? { ok: true, message: RECONNECT_NOTICE } : { ok: true };
 }
 

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
-import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
+import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
@@ -375,6 +375,8 @@ export interface ChatMessages {
   userNames: Record<string, string>;
   /** Slack user id -> Hub member id for matched people, so mentions can link to a profile. */
   userMembers: Record<string, string>;
+  /** Slack user id -> Hub name, for the people named in notices (joins, leaves, renames). */
+  hubNames?: Record<string, string>;
   /** Slack channel id -> name for <#C123> links in the bodies (public channels). */
   channelNames: Record<string, string>;
   /** Custom emoji used in the bodies and reactions, by shortcode. */
@@ -386,6 +388,7 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
   return {
     userNames: rendered.userNames,
     userMembers: rendered.userMembers,
+    hubNames: rendered.hubNames,
     customEmoji: rendered.customEmoji,
     // Names of channels the member is in (private ones included) win over the public-name lookup.
     channelNames: {
@@ -456,7 +459,7 @@ export async function buildMessageViews(
   // live replies stays as a row with no content (the UI shows a tombstone), so its replies link
   // keeps the thread reachable (reply_count only counts live replies).
   const rows = allRows.filter((r) => !r.deleted_at || r.reply_count > 0);
-  if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
+  if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, hubNames: {}, channelNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
@@ -493,9 +496,12 @@ export async function buildMessageViews(
     ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
     ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
   ];
-  const [userNames, userMembers, channelNames, slackPhotos, customEmoji] = await Promise.all([
+  // People named in a notice (a join, a leave) are shown by their Hub name; elsewhere a mention reads as in Slack.
+  const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
+  const [userNames, userMembers, hubNames, channelNames, slackPhotos, customEmoji] = await Promise.all([
     slackUserNames([...slackIds, ...mentioned]),
     slackUserMemberIds(mentioned),
+    slackUserHubNames(mentionedInNotices),
     slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? ""))),
     slackUserPhotos(slackIds),
     customEmojiFor(emojiNames),
@@ -563,5 +569,5 @@ export async function buildMessageViews(
       system: Boolean(row.system_subtype),
     };
   });
-  return { views, userNames, userMembers, channelNames, customEmoji };
+  return { views, userNames, userMembers, hubNames, channelNames, customEmoji };
 }

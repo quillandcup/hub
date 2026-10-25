@@ -123,12 +123,14 @@ beforeEach(() => {
     present: [],
     active: [FERN, GALE, HAZEL],
     directory: [
+      { id: FERN, name: "Fern Quillsby", display_name: "Fern", photo_url: null },
       { id: GALE, name: "Gale Prickleton", display_name: null, photo_url: "https://photos.example.test/gale.jpg" },
       { id: HAZEL, name: "Hazel Burrows", display_name: "Hazel", photo_url: null },
     ],
     membershipRow: { source: "slack" },
   };
   answer = (q) => {
+    if (q.table === "chat_messages") return { data: { id: "msg_NOTICE" }, error: null };
     if (q.table === "chat_channels") return { data: world.channelRow };
     if (q.table === "chat_channel_members") {
       if (has(q, "upsert") || has(q, "update")) return { error: null };
@@ -487,5 +489,63 @@ describe("searchMembersToAdd", () => {
     world.active = people.map((p) => p.id);
     m.slackIds.mockResolvedValue(new Map());
     expect(await searchMembersToAdd(CHANNEL, "person")).toHaveLength(8);
+  });
+});
+
+const notices = () =>
+  queries
+    .filter((q) => q.table === "chat_messages" && has(q, "insert"))
+    .map((q) => q.calls.find((c) => c.method === "insert")!.args[0] as Record<string, unknown>);
+const noticeBodies = () =>
+  queries
+    .filter((q) => q.table === "chat_message_contents" && has(q, "insert"))
+    .map((q) => (q.calls.find((c) => c.method === "insert")!.args[0] as { body: string }).body);
+
+describe("lines in the conversation for what Slack doesn't announce", () => {
+  it("says who removed someone, as the person's own line, since Slack posts nothing for a removal", async () => {
+    m.role.current = "admin";
+    await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
+    expect(notices()).toEqual([expect.objectContaining({ channel_id: CHANNEL, author_member_id: GALE, origin: "app", system_subtype: "channel_leave" })]);
+    expect(noticeBodies()).toEqual(["was removed from the channel by Fern"]);
+  });
+
+  it("leaves a member's own leave to Slack's notice, when Slack was told", async () => {
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
+    expect(notices()).toEqual([]);
+  });
+
+  it("writes the line itself for a leave only the Hub knows about", async () => {
+    world.membershipRow = { source: "app" };
+    await removeChatMember(CHANNEL, FERN);
+    expect(notices()).toEqual([expect.objectContaining({ author_member_id: FERN, system_subtype: "channel_leave" })]);
+    expect(noticeBodies()).toEqual(["has left the channel"]);
+  });
+
+  it("writes the line for someone added only in the Hub, and none for ones Slack announces", async () => {
+    m.slackIds.mockResolvedValue(new Map([[GALE, "U_GALE"]]));
+    await addChatMembers(CHANNEL, [GALE, HAZEL]);
+    expect(notices()).toEqual([expect.objectContaining({ author_member_id: HAZEL, system_subtype: "channel_join" })]);
+    expect(noticeBodies()).toEqual(["was added to the channel by Fern"]);
+  });
+
+  it("says a Hub-only person joined, not that they were added, when they added themselves", async () => {
+    world.summary = { label: "#general", joined: false };
+    m.slackIds.mockResolvedValue(new Map());
+    await joinChatChannel(CHANNEL);
+    expect(noticeBodies()).toEqual(["has joined the channel"]);
+  });
+
+  it("escapes names in the line, and a failure to write it doesn't undo the change", async () => {
+    m.role.current = "admin";
+    world.directory = [{ id: FERN, name: "Fern <b> & Co", display_name: null, photo_url: null }];
+    await removeChatMember(CHANNEL, GALE);
+    expect(noticeBodies()).toEqual(["was removed from the channel by Fern &lt;b&gt; &amp; Co"]);
+
+    const before = answer;
+    answer = (q) => (q.table === "chat_messages" ? { data: null, error: new Error("db down") } : before(q));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    world.membershipRow = { source: "slack" };
+    await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
+    expect(writes("update").length).toBeGreaterThan(0);
   });
 });

@@ -20,7 +20,10 @@ import { decodeEntities, mentionsToPlainText } from "@/lib/chat/render";
  */
 export function systemNoticeText(body: string, authorName: string, ctx: ChatTextContext): string {
   const named = body.startsWith("<@");
-  const text = decodeEntities(mentionsToPlainText(body, ctx)).replace(/^@/, "");
+  // A notice names people the way the Hub does (Cody Ray), not by the short name they go by in Slack, and without
+  // the @ a mention in a message has: "Ania was added to the channel by Cody Ray".
+  const people = body.replace(/<@([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => ctx.hubNames?.[id] ?? ctx.userNames[id] ?? label ?? "someone");
+  const text = decodeEntities(mentionsToPlainText(people, ctx));
   return (named ? text : `${authorName} ${text}`).replace(/^(.+?) has (renamed|set|archived|unarchived|changed)\b/, "$1 $2");
 }
 

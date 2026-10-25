@@ -9,6 +9,8 @@ export interface ChatTextContext {
   userNames: Record<string, string>;
   /** Slack user id -> Hub member id, so a mention of a matched person links to their profile. */
   userMembers: Record<string, string>;
+  /** Slack user id -> Hub name, for the people named in notices; otherwise `userNames` is what a mention shows. */
+  hubNames?: Record<string, string>;
   /** Slack channel id -> Hub chat channel id, for <#C123> links to channels we mirror. */
   channelIds: Record<string, string>;
   /** Slack channel id -> channel name; the text's own label is often just "channel". */

@@ -99,6 +99,7 @@ vi.mock("@/lib/chat/names", () => ({
   customEmojiFor: vi.fn(async () => ({})),
   slackUserPhotos: vi.fn(async () => ({})),
   slackUserMemberIds: vi.fn(async () => ({})),
+  slackUserHubNames: vi.fn(async () => ({})),
   slackChannelNames: vi.fn(async () => ({})),
 }));
 

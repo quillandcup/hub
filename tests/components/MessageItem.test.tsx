@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ toggleChatReaction: vi.fn(), editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
 vi.mock("@/components/member/MemberHoverCard", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 vi.mock("@/components/chat/MessageFiles", () => ({ default: () => null }));
-import MessageItem from "@/components/chat/MessageItem";
+import MessageItem, { systemNoticeText } from "@/components/chat/MessageItem";
 import { optimisticView } from "@/lib/chat/list-events";
 
 const CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
@@ -67,5 +67,20 @@ describe("MessageItem deleted messages", () => {
     render(<MessageItem message={base({ contentState: "deleted", body: null, replyCount: 2 })} ctx={CTX} channelId="c1" inThread />);
     expect(screen.getByText("This message was deleted.")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+});
+
+describe("system notices", () => {
+  const ctx = { ...CTX, userNames: { U1: "Cody", U2: "Ania" }, hubNames: { U1: "Cody Ray" } };
+
+  it("names people the way the Hub does, not by the short name they go by in Slack, and falls back to that for unmatched ones", () => {
+    expect(systemNoticeText("<@U2> was added to the channel by <@U1>", "Ania Ray", ctx)).toBe("Ania was added to the channel by Cody Ray");
+    expect(systemNoticeText("<@U1> has joined the channel", "Cody Ray", { ...CTX, userNames: { U1: "Cody" } })).toBe("Cody has joined the channel");
+  });
+
+  it("starts a notice without a mention with the author's name, and renders as a quiet line", () => {
+    expect(systemNoticeText("was removed from the channel by Cody Ray", "Ania Ray", ctx)).toBe("Ania Ray was removed from the channel by Cody Ray");
+    render(<MessageItem message={base({ system: true, authorName: "Ania Ray", body: "was removed from the channel by Cody Ray" })} ctx={ctx} channelId="c1" canEdit canReact={false} />);
+    expect(screen.getByText(/Ania Ray was removed from the channel by Cody Ray/)).toBeInTheDocument();
   });
 });
