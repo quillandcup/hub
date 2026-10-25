@@ -393,61 +393,6 @@ jobs:
       - name: Run pgTAP test suite
         run: pnpm test:pgtap
 
-      # The screenshots the member help articles show (help/, docs/DEMO_AND_HELP.md), captured here, on this
-      # job's own stack and built app, so the run starts ONE local Supabase stack (a second one doubled the Docker
-      # Hub image pulls per run, which the shared runners' rate limit could not take). The database is reset to
-      # empty without seed.sql first, so no db-test fixture or dev seed row can appear in a picture: the only
-      # people on screen are the demo's fictional community.
-      #
-      # A failing scene (a changed screen), a new page problem (demo/baseline.json) or an article that shows a
-      # screenshot no scene captured fails THIS job, which is required. The `Help screenshots` job below is the
-      # gate that publishes and previews what this produced.
-      - name: Reset to an empty database for the screenshots
-        run: supabase db reset --no-seed
-
-      - name: Point the demo at this job's stack
-        run: |
-          {
-            echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
-            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
-            echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
-          } > demo/.env.demo
-
-      - name: Cache the Playwright browser
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install the browser
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Seed the demo community
-        run: pnpm demo:seed
-        env:
-          DEMO_APP_URL: http://localhost:3000
-
-      # Every scene at every size, light and dark, with the page checks. `@published` scenes read screenshots
-      # from the bucket, which this output is what fills, so they run locally against a published stack and are
-      # skipped here.
-      - name: Capture the scenes
-        run: pnpm demo:capture --grep-invert @published
-        env:
-          DEMO_APP_URL: http://localhost:3000
-
-      - name: Check every article screenshot was captured
-        run: pnpm demo:publish --verify
-
-      - name: Upload the screenshots
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: demo-screenshots
-          path: |
-            demo/out
-            !demo/out/.playwright
-          retention-days: 14
-
       - name: Stop app server
         if: always()
         run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
@@ -455,125 +400,6 @@ jobs:
       - name: Stop local Supabase
         if: always()
         run: supabase stop
-
-  # The gate for the help screenshots: a required check (github-repo-config.yml) that passes when the capture in
-  # `Test (db) & build` produced every screenshot an article shows. The capture itself runs there (see its steps) so
-  # CI starts one local stack, not two. This job re-verifies the uploaded set, and is what the PR preview and the
-  # main-only publish job wait for, so a deploy can't go out with an article showing a missing picture. It is
-  # skipped, which counts as passing, when `Test (db) & build` is (a docs-only change) or has already failed.
-  help-screenshots:
-    name: Help screenshots
-    needs: test-db
-    if: ${{ !cancelled() && needs.test-db.result == 'success' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6.1.0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: demo-screenshots
-          path: demo/out
-
-      - name: Check every article screenshot was captured
-        run: pnpm demo:publish --verify
-
-  # Shows the article screenshots inline in the pull request. Same-repo PRs only: a fork's token can't push, and
-  # Dependabot's is read-only. The images go to the `help-previews` branch (not main: nothing here reaches the
-  # app or the build; fictional data) under pr-<number>/, and ONE comment is updated on every push. The
-  # cleanup workflow removes them when the PR closes. The comment links the images by commit.
-  help-preview:
-    name: Help screenshot preview
-    needs: help-screenshots
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write # pushes the images to the help-previews branch
-      pull-requests: write # the review comment
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6.1.0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: demo-screenshots
-          path: demo/out
-
-      - name: Push the images to the help-previews branch
-        id: push
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-          if git ls-remote --exit-code --heads "$remote" help-previews > /dev/null 2>&1; then
-            git clone --quiet --depth 1 --branch help-previews "$remote" /tmp/previews
-          else
-            mkdir /tmp/previews
-            cd /tmp/previews
-            git init --quiet -b help-previews
-            git remote add origin "$remote"
-            printf 'Screenshots for pull requests, written by CI (docs/DEMO_AND_HELP.md). Not part of main.\n' > README.md
-            git add README.md
-            git commit --quiet -m "help-previews: start"
-            cd "$GITHUB_WORKSPACE"
-          fi
-          # The screenshots the articles show, from the desktop light run: demo/out/<scene>/desktop-light/<file>
-          # goes to pr-<number>/<scene>/<file>.
-          pnpm exec tsx -e '
-            import { publishPlan, referencedImages } from "./demo/publish.ts";
-            for (const u of publishPlan("demo/out", referencedImages())) console.log(`${u.local}\t${u.remote}`);
-          ' > /tmp/plan.tsv
-          cd /tmp/previews
-          git rm -r -q --ignore-unmatch "pr-${PR}"
-          while IFS="$(printf '\t')" read -r local remote; do
-            mkdir -p "pr-${PR}/$(dirname "$remote")"
-            cp "$GITHUB_WORKSPACE/$local" "pr-${PR}/$remote"
-          done < /tmp/plan.tsv
-          git add -A
-          git diff --cached --quiet || git commit --quiet -m "pr-${PR}: screenshots for ${GITHUB_SHA::7}"
-          for attempt in 1 2 3; do
-            git push --quiet origin help-previews && break
-            git pull --quiet --rebase origin help-previews
-          done
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Update the pull request comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          SHA: ${{ steps.push.outputs.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          pnpm exec tsx demo/preview-comment.ts "$REPO" "$SHA" "$PR" "$RUN_URL" > /tmp/comment.md
-          existing=$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate --jq '[.[] | select(.body | startswith("<!-- help-previews -->"))][0].id // empty')
-          if [ -n "$existing" ]; then
-            gh api --method PATCH "repos/${REPO}/issues/comments/${existing}" -F body=@/tmp/comment.md > /dev/null
-          else
-            gh api --method POST "repos/${REPO}/issues/${PR}/comments" -F body=@/tmp/comment.md > /dev/null
-          fi
 
   coverage:
     name: Coverage report
@@ -691,44 +517,9 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
-  # Uploads this commit's screenshot set to production storage before the deploy, so a deploy never goes out
-  # with an article showing a missing picture: `deploy` needs this to succeed. The set is named by an id derived
-  # from the source that produces the screens (scripts/help-images-version.ts), the same one `vercel build`
-  # bakes into the app below, so the build and its images are paired. An id already published (a commit that
-  # changed nothing the screens depend on) uploads nothing; all but the newest 5 sets are then deleted.
-  # Additive: it never overwrites a file, and it only ever runs on main.
-  publish-help-images:
-    name: Publish help screenshots
-    needs: [help-screenshots, push-migrations]
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v6.1.0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: demo-screenshots
-          path: demo/out
-
-      - name: Publish the screenshot set
-        run: pnpm demo:publish --from-env --prune --keep=5
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
   deploy:
     name: Build and deploy to production
-    needs: [push-migrations, publish-help-images]
+    needs: push-migrations
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -742,16 +533,31 @@ jobs:
       url: ${{ steps.app-url.outputs.url }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the help screenshot set is the newest one captured at an ancestor of this commit
 
       # `cache: pnpm` here caches pnpm's store, keyed on pnpm-lock.yaml -- `vercel build`
       # below runs its own install internally (and there is no way to skip it), so this is
-      # what speeds it up. No explicit install step needed in this job.
+      # what speeds it up.
       - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: pnpm
+
+      # Which help screenshot set this build shows: the newest one captured at an ancestor of this commit
+      # (scripts/help-images-version.ts). The scheduled `Help screenshots` workflow publishes sets and then
+      # dispatches this workflow, so a new set reaches production with the next deploy. The step writes
+      # HELP_IMAGES_VERSION to the job's environment, where next.config.ts reads it during `vercel build`. No set
+      # is a warning, not a failure: the help pages then show no pictures.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Pick the help screenshot set
+        run: pnpm exec tsx scripts/help-images-sets.ts pick
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       # The deployment record's URL (see `environment` above), read from app.config.ts like
       # the rest of the app. Node 24 runs the .ts file directly; it has no imports.

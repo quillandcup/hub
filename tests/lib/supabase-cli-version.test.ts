@@ -18,6 +18,11 @@ describe("Supabase CLI version for generated types", () => {
     expect(generator).toContain(`supabase@${pinned} gen types`);
   });
 
+  it("is the same in the scheduled help screenshots workflow, which starts its own stack", () => {
+    const pin = (file: string) => read(file).match(/^\s*SUPABASE_CLI_VERSION:\s*([\d.]+)\s*$/m)?.[1];
+    expect(pin(".github/workflows/help-screenshots.yml")).toBe(pin(".github/workflows/ci.yml"));
+  });
+
   it("is checked by CI after the local Supabase is up", () => {
     const ci = read(".github/workflows/ci.yml");
 

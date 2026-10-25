@@ -1,0 +1,229 @@
+# Captures the screenshots the member help articles show (help/, docs/DEMO_AND_HELP.md) and publishes them as a
+# new set, on a schedule instead of on every merge: the capture takes several minutes and used to sit in front of
+# every deploy. Sets are named by the main commit they were captured at; a deploy shows the newest set captured at
+# an ancestor of its commit (scripts/help-images-version.ts), so help pictures lag main by up to a day.
+#
+# When it published a new set it dispatches CI on main, because a set only reaches production when a build bakes
+# it in (the deploy job picks it). Skipped when nothing the screens depend on changed since the newest set
+# (HELP_IMAGE_INPUTS in scripts/help-images-version.ts); `force` runs it anyway.
+#
+# A failing scene, a new page problem (demo/baseline.json) or an article that shows a screenshot no scene
+# captured fails this workflow, and GitHub emails the failure. Nothing blocks a merge on it any more, so watch for
+# it; production keeps showing the previous set meanwhile.
+name: Help screenshots
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Capture even if the screens haven't changed since the newest set"
+        type: boolean
+        default: false
+
+concurrency:
+  group: help-screenshots
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Keep in step with ci.yml (tests/lib/supabase-cli-version.test.ts checks package.json against it).
+  SUPABASE_CLI_VERSION: 2.117.0
+  # The Supabase CLI's well-known local demo keys (fixed and public; see ci.yml). Only valid against the
+  # ephemeral local stack this job starts.
+  LOCAL_SUPABASE_URL: http://127.0.0.1:54321
+  LOCAL_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+jobs:
+  capture:
+    name: Capture and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write # dispatches CI on main after publishing
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the newest published set is found through the commit history
+
+      - uses: pnpm/action-setup@v6.1.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Has anything the screens depend on changed since the newest set?
+        id: needed
+        run: pnpm exec tsx scripts/help-images-sets.ts needed
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Decide
+        id: run
+        run: echo "capture=${{ steps.needed.outputs.needed == 'true' || inputs.force == true }}" >> "$GITHUB_OUTPUT"
+
+      - uses: supabase/setup-cli@v1
+        if: steps.run.outputs.capture == 'true'
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Authenticated pulls: see the same step in ci.yml.
+      - name: Log in to Docker Hub
+        if: steps.run.outputs.capture == 'true'
+        continue-on-error: true
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Backgrounded so the build below overlaps it; "Wait for local Supabase" blocks until it is up. The
+      # registry and excluded services are explained in ci.yml.
+      - name: Start local Supabase
+        if: steps.run.outputs.capture == 'true'
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+        run: |
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
+          disown
+
+      - name: Production build
+        if: steps.run.outputs.capture == 'true'
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Wait for local Supabase
+        if: steps.run.outputs.capture == 'true'
+        run: |
+          for i in $(seq 1 180); do
+            [ -f /tmp/supabase-start.exit ] && break
+            sleep 2
+          done
+          if [ "$(cat /tmp/supabase-start.exit 2>/dev/null)" != "0" ]; then
+            echo "supabase start did not finish, or failed"
+            cat /tmp/supabase-start.log
+            exit 1
+          fi
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/rest/v1/" \
+              && curl -sf -o /dev/null -H "apikey: $LOCAL_SUPABASE_SERVICE_ROLE_KEY" "$LOCAL_SUPABASE_URL/auth/v1/health"; then
+              echo "Supabase is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Supabase API gateway did not become reachable in time"
+          cat /tmp/supabase-start.log
+          exit 1
+
+      # An empty database without seed.sql, so no dev seed row can appear in a picture: the only people on
+      # screen are the demo's fictional community.
+      - name: Reset to an empty database
+        if: steps.run.outputs.capture == 'true'
+        run: supabase db reset --no-seed
+
+      - name: Start app server
+        if: steps.run.outputs.capture == 'true'
+        run: |
+          pnpm start > /tmp/next-server.log 2>&1 &
+          echo $! > /tmp/next-server.pid
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/admin/events 2>/dev/null) || true
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "App server is up (HTTP $code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App server did not become ready in time"
+          cat /tmp/next-server.log
+          exit 1
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Point the demo at this job's stack
+        if: steps.run.outputs.capture == 'true'
+        run: |
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$LOCAL_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$LOCAL_SUPABASE_ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$LOCAL_SUPABASE_SERVICE_ROLE_KEY"
+          } > demo/.env.demo
+
+      - name: Cache the Playwright browser
+        if: steps.run.outputs.capture == 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install the browser
+        if: steps.run.outputs.capture == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Seed the demo community
+        if: steps.run.outputs.capture == 'true'
+        run: pnpm demo:seed
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      # Every scene at every size, light and dark, with the page checks. `@published` scenes read screenshots
+      # from the bucket, which this output is what fills, so they run locally against a published stack and are
+      # skipped here.
+      - name: Capture the scenes
+        if: steps.run.outputs.capture == 'true'
+        run: pnpm demo:capture --grep-invert @published
+        env:
+          DEMO_APP_URL: http://localhost:3000
+
+      - name: Check every article screenshot was captured
+        if: steps.run.outputs.capture == 'true'
+        run: pnpm demo:publish --verify
+
+      - name: Upload the screenshots
+        if: ${{ !cancelled() && steps.run.outputs.capture == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: demo-screenshots
+          path: |
+            demo/out
+            !demo/out/.playwright
+          retention-days: 14
+
+      # Additive: it never overwrites a file. Sets older than 30 days are deleted, except the newest of them,
+      # which a deploy from before then still resolves to.
+      - name: Publish the screenshot set
+        if: steps.run.outputs.capture == 'true' && github.ref == 'refs/heads/main'
+        run: pnpm demo:publish --from-env --prune --keep-days=30
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # The set reaches production when a build picks it up. This is a normal CI run on main (the same as the
+      # "Run workflow" button), so it also runs the tests and deploys whatever has merged since the last deploy.
+      - name: Deploy so production shows the new set
+        if: steps.run.outputs.capture == 'true' && github.ref == 'refs/heads/main'
+        run: gh workflow run ci.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Stop app server
+        if: always()
+        run: kill "$(cat /tmp/next-server.pid)" 2>/dev/null || true
+
+      - name: Stop local Supabase
+        if: always() && steps.run.outputs.capture == 'true'
+        run: supabase stop
