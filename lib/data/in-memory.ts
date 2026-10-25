@@ -1,4 +1,5 @@
 import type { AttendanceRow } from "./attendance";
+import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
 
@@ -46,10 +47,15 @@ export class InMemoryDataset {
   attendance: AttendanceRow[];
   notificationPreferences: NotificationPreference[];
   inAppNotifications: InAppNotificationRow[];
+  badgeTypes: BadgeType[];
+  badgeLevels: BadgeLevel[];
+  memberBadges: MemberBadge[];
+  /** Only what badges link to: an event's title and its member-facing slug. */
+  events: { id: string; title: string; slug: string }[];
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -58,5 +64,9 @@ export class InMemoryDataset {
     this.attendance = (init.attendance ?? []).map((row) => ({ ...row }));
     this.notificationPreferences = (init.notificationPreferences ?? []).map((row) => ({ ...row }));
     this.inAppNotifications = (init.inAppNotifications ?? []).map((row) => ({ ...row }));
+    this.badgeTypes = (init.badgeTypes ?? []).map((row) => ({ ...row }));
+    this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
+    this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
+    this.events = (init.events ?? []).map((row) => ({ ...row }));
   }
 }

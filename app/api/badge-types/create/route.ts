@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -37,36 +38,28 @@ export async function POST(request: NextRequest) {
       .replace(/\s+/g, "_")
       .trim();
 
-    const { data: existing } = await supabase.from("badge_types").select("id").eq("key", key).single();
-    if (existing) {
+    const badges = createRepos(supabase).badges;
+    if (await badges.typeByKey(key)) {
       return NextResponse.json({ error: "A badge type with this name already exists" }, { status: 409 });
     }
 
-    const { data: badgeType, error: insertError } = await supabase
-      .from("badge_types")
-      .insert({
-        key,
-        name: name.trim(),
-        description: description?.trim() || null,
-        icon: icon?.trim() || "🏅",
-        category: category ?? "community",
-        has_levels: !!hasLevels,
-        // A program link makes the badge computed (lib/badges.ts), same as founding_hedgie /
-        // prickle_milestones -- there's no separate "enable automation" toggle, per design.
-        is_automatic: !!programId,
-        event_id: eventId || null,
-        program_id: programId || null,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Error creating badge type:", insertError);
-      if (insertError.code === "23505" && insertError.message.includes("event_id")) {
-        return NextResponse.json({ error: "That event is already linked to another badge" }, { status: 409 });
-      }
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    const created = await badges.createType({
+      key,
+      name: name.trim(),
+      description: description?.trim() || null,
+      icon: icon?.trim() || "🏅",
+      category: category ?? "community",
+      hasLevels: !!hasLevels,
+      // A program link makes the badge computed (lib/badges.ts), same as founding_hedgie /
+      // prickle_milestones -- there's no separate "enable automation toggle", per design.
+      isAutomatic: !!programId,
+      eventId: eventId || null,
+      programId: programId || null,
+    });
+    if (!created.ok) {
+      return NextResponse.json({ error: "That event is already linked to another badge" }, { status: 409 });
     }
+    const badgeType = created.badgeType;
 
     if (eventId) {
       const { error: syncError } = await supabase.rpc("sync_event_badge_awards", { p_event_id: eventId });
@@ -74,18 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (hasLevels && Array.isArray(levels) && levels.length > 0) {
-      const { error: levelsError } = await supabase.from("badge_levels").insert(
-        levels.map((level: { level: number; name: string; threshold: number | null }) => ({
-          badge_type_id: badgeType.id,
-          level: level.level,
-          name: level.name,
-          threshold: level.threshold ?? null,
-        }))
-      );
-      if (levelsError) {
-        console.error("Error creating badge levels:", levelsError);
-        return NextResponse.json({ error: levelsError.message }, { status: 500 });
-      }
+      await badges.replaceLevels(badgeType.id, levels.map((l: { level: number; name: string; threshold: number | null }) => ({ level: l.level, name: l.name, threshold: l.threshold ?? null })));
     }
 
     return NextResponse.json({ badgeType }, { status: 201 });

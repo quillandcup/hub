@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -20,12 +21,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "memberId and badgeTypeId are required" }, { status: 400 });
     }
 
-    const { data: badgeType, error: badgeTypeError } = await supabase
-      .from("badge_types")
-      .select("id, is_automatic, event_id")
-      .eq("id", badgeTypeId)
-      .single();
-    if (badgeTypeError || !badgeType) {
+    const badges = createRepos(supabase).badges;
+    const badgeType = await badges.typeById(badgeTypeId);
+    if (!badgeType) {
       return NextResponse.json({ error: "Badge type not found" }, { status: 404 });
     }
     if (badgeType.is_automatic) {
@@ -41,22 +39,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: memberBadge, error } = await supabase
-      .from("member_badges")
-      .insert({
-        member_id: memberId,
-        badge_type_id: badgeTypeId,
-        occurred_at: occurredAt || undefined,
-        note: note?.trim() || null,
-        awarded_by: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error awarding badge:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const memberBadge = await badges.award({
+      memberId,
+      badgeTypeId,
+      occurredAt: occurredAt || undefined,
+      note: note?.trim() || null,
+      awardedBy: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
+    });
 
     return NextResponse.json({ memberBadge }, { status: 201 });
   } catch (error: any) {

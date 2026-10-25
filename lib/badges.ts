@@ -3,30 +3,8 @@ import { parseDateOnly } from "@/lib/member-tenure";
 import type { AttendanceRepository } from "@/lib/data/attendance";
 import { createRepos } from "@/lib/data/repos";
 
-export interface BadgeType {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-  icon: string;
-  category: string;
-  has_levels: boolean;
-  is_automatic: boolean;
-  program_id: string | null;
-  /** The events row a retreat badge commemorates (see badge_types.event_id), if linked. */
-  event_id?: string | null;
-  /** That event's slug, for linking to its member-facing /events/[slug] page. Only populated by
-   * getMemberBadges. */
-  event_slug?: string | null;
-}
-
-export interface BadgeLevel {
-  id: string;
-  badge_type_id: string;
-  level: number;
-  name: string;
-  threshold: number | null;
-}
+export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
+import type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 
 export interface EarnedBadge {
   badgeType: BadgeType;
@@ -677,6 +655,11 @@ async function getProgramCompletionsByProgram(
   return byProgram;
 }
 
+/** The awards of one badge type in the shape the recipient math reads (member, when, note). */
+async function legacyAwardsOf(supabase: SupabaseClient, badgeTypeId: string) {
+  return (await createRepos(supabase).badges.awardsOfType(badgeTypeId)).map((a) => ({ member_id: a.memberId, occurred_at: a.occurredAt, note: a.note }));
+}
+
 /**
  * Every member who has earned a given badge type, across all members -- the reverse of
  * getMemberBadges (which computes one member's badges). Fetches all members plus, depending on
@@ -697,15 +680,11 @@ export async function getBadgeRecipients(
   }));
 
   if (!badgeType.is_automatic) {
-    const { data: awards } = await supabase
-      .from("member_badges")
-      .select("member_id, occurred_at, note")
-      .eq("badge_type_id", badgeType.id);
     return computeBadgeRecipients(
       badgeType,
       levels,
       members,
-      (awards ?? []) as { member_id: string; occurred_at: string; note: string | null }[],
+      await legacyAwardsOf(supabase, badgeType.id),
       {
         attendedPrickleCountsByMember: new Map(),
         hostedQuarterCountsByMember: new Map(),
@@ -735,22 +714,14 @@ export async function getBadgeRecipients(
       break;
     case "hedgie_mentor": {
       mentorshipByMember = await getMentorshipCounts(supabase);
-      const { data: awards } = await supabase
-        .from("member_badges")
-        .select("member_id, occurred_at, note")
-        .eq("badge_type_id", badgeType.id);
-      legacyAwards = (awards ?? []) as typeof legacyAwards;
+      legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
       break;
     }
     // founding_hedgie needs no query -- it's a pure function of members.firstJoinedAt.
     default:
       if (badgeType.program_id) {
         programCompletionsByProgramId = await getProgramCompletionsByProgram(supabase);
-        const { data: awards } = await supabase
-          .from("member_badges")
-          .select("member_id, occurred_at, note")
-          .eq("badge_type_id", badgeType.id);
-        legacyAwards = (awards ?? []) as typeof legacyAwards;
+        legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
       }
   }
 
@@ -763,8 +734,6 @@ export async function getBadgeRecipients(
   });
 }
 
-type BadgeTypeWithEvent = BadgeType & { event: { slug: string } | { slug: string }[] | null };
-
 /** Fetches every badge_type + badge_levels once (shared across all members on a page), this
  * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
  * published books), then merges them into their earned badges. */
@@ -774,42 +743,28 @@ export async function getMemberBadges(
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const [
-    { data: badgeTypes },
-    { data: levels },
-    { data: awards },
-    hostedQuarterCount,
-    publishedBookCount,
-    programCompletions,
-    mentorshipCounts,
-  ] =
-    await Promise.all([
-      supabase.from("badge_types").select("*, event:events(slug)").order("category").order("name"),
-      supabase.from("badge_levels").select("*").order("level"),
-      supabase
-        .from("member_badges")
-        .select("badge_type_id, occurred_at, note")
-        .eq("member_id", memberId),
-      getHostedQuarterCount(supabase, memberId),
-      getPublishedBookCount(supabase, memberId),
-      getProgramCompletions(supabase, memberId),
-      getMentorshipCounts(supabase),
-    ]);
+  const badges = createRepos(supabase).badges;
+  const [badgeTypes, levels, awards, hostedQuarterCount, publishedBookCount, programCompletions, mentorshipCounts] = await Promise.all([
+    badges.types(),
+    badges.levels(),
+    badges.awardsOf(memberId),
+    getHostedQuarterCount(supabase, memberId),
+    getPublishedBookCount(supabase, memberId),
+    getProgramCompletions(supabase, memberId),
+    getMentorshipCounts(supabase),
+  ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
-  for (const level of (levels ?? []) as BadgeLevel[]) {
+  for (const level of levels) {
     const list = levelsByBadgeType.get(level.badge_type_id) ?? [];
     list.push(level);
     levelsByBadgeType.set(level.badge_type_id, list);
   }
 
   return computeEarnedBadges(
-    ((badgeTypes ?? []) as BadgeTypeWithEvent[]).map(({ event, ...badgeType }) => ({
-      ...badgeType,
-      event_slug: (Array.isArray(event) ? event[0]?.slug : event?.slug) ?? null,
-    })),
+    badgeTypes,
     levelsByBadgeType,
-    (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
+    awards.map((a) => ({ badge_type_id: a.badgeTypeId, occurred_at: a.occurredAt, note: a.note })),
     {
       totalPricklesAttended,
       firstJoinedAt,

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -14,7 +15,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const { id } = await params;
 
-    const { data: badgeType } = await supabase.from("badge_types").select("is_automatic").eq("id", id).single();
+    const badges = createRepos(supabase).badges;
+    const badgeType = await badges.typeById(id);
     if (!badgeType) return NextResponse.json({ error: "Badge type not found" }, { status: 404 });
     if (badgeType.is_automatic) {
       return NextResponse.json(
@@ -23,11 +25,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       );
     }
 
-    const { error } = await supabase.from("badge_types").delete().eq("id", id);
-    if (error) {
-      console.error("Error deleting badge type:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await badges.deleteType(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

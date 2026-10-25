@@ -76,9 +76,17 @@ describe("badge recipients", () => {
 
   it("lists the members who were awarded a manual badge, by name", async () => {
     service = createFakeSupabase();
-    const supabase = createFakeSupabase({
-      member_badges: { data: [{ member_id: FERN.id, occurred_at: "2026-09-01T00:00:00Z", note: "for the welcome" }, { member_id: ADA.id, occurred_at: "2026-09-02T00:00:00Z", note: null }] },
-    });
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [ADA, FERN, GALE],
+        badgeTypes: [badge],
+        memberBadges: [
+          { id: "mbdg_AAAAAAAAAAA1", memberId: FERN.id, badgeTypeId: badge.id, occurredAt: "2026-09-01", note: "for the welcome", eventId: null, awardedBy: null },
+          { id: "mbdg_AAAAAAAAAAA2", memberId: ADA.id, badgeTypeId: badge.id, occurredAt: "2026-09-02", note: null, eventId: null, awardedBy: null },
+        ],
+      }),
+    );
+    const supabase = createFakeSupabase();
 
     const recipients = await getBadgeRecipients(supabase as never, badge, []);
 

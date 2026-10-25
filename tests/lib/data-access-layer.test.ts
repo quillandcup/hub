@@ -21,6 +21,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   ],
   in_app_notifications: [],
   notification_preferences: [],
+  badge_types: [],
+  badge_levels: [],
+  member_badges: [],
 };
 
 const root = path.resolve(__dirname, "../..");
