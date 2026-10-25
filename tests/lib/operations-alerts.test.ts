@@ -56,4 +56,16 @@ describe("production operations alerts", () => {
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(postMessage.mock.calls[0][0].text).toContain("1 ambiguous Slack member match(es) rejected");
   });
+
+  it("names the job and lists each problem for a scheduled job that did not finish cleanly", async () => {
+    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, {
+      type: "cron_partial_failure",
+      job: "reconcile-slack",
+      problems: ["Silver step chat failed: statement timeout", "capture: channel members: boom"],
+    });
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("reconcile-slack");
+    expect(text).toContain("Silver step chat failed: statement timeout");
+    expect(text).toContain("capture: channel members: boom");
+  });
 });

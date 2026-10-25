@@ -14,7 +14,16 @@ vi.mock('@/lib/cron-heartbeats', () => ({
   pingCronHeartbeat: vi.fn(),
 }))
 
+vi.mock('@/lib/operations-alerts', () => ({
+  sendOperationsAlert: vi.fn(),
+}))
+
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceRoleClient: vi.fn(() => ({})),
+}))
+
 import { triggerSlackSync } from '@/lib/processing/trigger'
+import { sendOperationsAlert } from '@/lib/operations-alerts'
 import { requireAdmin } from '@/lib/supabase/api-auth'
 import { pingCronHeartbeat } from '@/lib/cron-heartbeats'
 
@@ -110,6 +119,56 @@ describe('GET /api/reconcile/slack', () => {
       expect(pingCronHeartbeat).not.toHaveBeenCalled()
     })
 
+    it('does not ping, and alerts, when a Silver step failed even though the import answered 200', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsBehindDeferred: 0 },
+        processing: [
+          { table: 'slack', success: true },
+          { table: 'chat', success: false, error: 'canceling statement due to statement timeout' },
+        ],
+      })
+
+      const response = await GET(makeRequest())
+
+      expect(response.status).toBe(200)
+      expect(pingCronHeartbeat).not.toHaveBeenCalled()
+      expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), {
+        type: 'cron_partial_failure',
+        job: 'reconcile-slack',
+        problems: ['Silver step chat failed: canceling statement due to statement timeout'],
+      })
+    })
+
+    it('alerts for threads left behind and capture errors too', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsBehindDeferred: 3 },
+        capture: { errors: ['channel members: boom'] },
+      })
+
+      await GET(makeRequest())
+
+      expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), {
+        type: 'cron_partial_failure',
+        job: 'reconcile-slack',
+        problems: ['3 threads left behind Slack; next run continues', 'capture: channel members: boom'],
+      })
+    })
+
+    it('does not alert on a clean run', async () => {
+      vi.mocked(triggerSlackSync).mockResolvedValue({
+        success: true,
+        fetched: { threadsBehindDeferred: 0 },
+        processing: [{ table: 'slack', success: true }],
+      })
+
+      await GET(makeRequest())
+
+      expect(sendOperationsAlert).not.toHaveBeenCalled()
+      expect(pingCronHeartbeat).toHaveBeenCalledWith('reconcile-slack')
+    })
+
     it('still pings when a capture step was only skipped for a missing scope', async () => {
       vi.mocked(triggerSlackSync).mockResolvedValue({
         success: true,
@@ -132,6 +191,11 @@ describe('GET /api/reconcile/slack', () => {
 
       expect(response.status).toBe(500)
       expect(body.error).toBe('Slack API unavailable')
+      expect(sendOperationsAlert).toHaveBeenCalledWith(expect.anything(), {
+        type: 'cron_partial_failure',
+        job: 'reconcile-slack',
+        problems: ['failed outright: Slack API unavailable'],
+      })
     })
 
     it('returns 500 with fallback message when error has no message', async () => {

@@ -6,11 +6,12 @@ import { sendEmail } from "@/lib/email";
 /** Alerts about the member-notification path, delivered outside that path. */
 export type OperationsAlert =
   | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
+  | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
 const ALERT_WINDOW_SECONDS = 10 * 60;
 type RateLimitClient = {
-  rpc: (name: string, args: { p_bucket: string; p_window_seconds: number; p_max_hits: number }) =>
+  rpc: (name: "rate_limit_hit", args: { p_bucket: string; p_window_seconds: number; p_max_hits: number }) =>
     PromiseLike<{ data: boolean | null; error: unknown }>;
 };
 
@@ -20,6 +21,14 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:slack_dm_failed:${alert.notificationKind}`,
       title: "Slack notification DM failed",
       text: `Slack notification DM failed (kind: ${alert.notificationKind}, member ID: ${alert.memberId}). Check server logs and the Sentry event tagged notification_channel=slack. The failed DM was not retried by the notifier.`,
+    };
+  }
+
+  if (alert.type === "cron_partial_failure") {
+    return {
+      bucket: `operations_alert:cron_partial_failure:${alert.job}`,
+      title: `Scheduled job ${alert.job} did not finish cleanly`,
+      text: `Scheduled job ${alert.job} did not finish cleanly, so its Checkly heartbeat was skipped:\n${alert.problems.join("\n")}\nCheck the Vercel logs for that run.`,
     };
   }
 

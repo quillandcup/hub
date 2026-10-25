@@ -1,6 +1,8 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerSlackSync } from "@/lib/processing/trigger";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
+import { sendOperationsAlert } from "@/lib/operations-alerts";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
 
 // Extend timeout for reconciliation jobs
@@ -35,10 +37,19 @@ export async function GET(request: NextRequest) {
     // Membership, emoji or file capture failing is a partial failure too: on
     // the free plan, data that isn't captured in time can't be fetched later.
     const captureErrors: string[] = result.capture?.errors ?? [];
-    if (behindDeferred > 0) {
-      console.warn(`[Reconciliation] Slack reconciliation left ${behindDeferred} threads behind; next run continues`);
-    } else if (captureErrors.length > 0) {
-      console.warn(`[Reconciliation] Slack reconciliation saved messages but part of the capture failed:`, captureErrors);
+    // The import catches a failing Silver step and still answers 200, so the
+    // steps' own results decide whether the run was clean.
+    const failedSteps: { table: string; error?: string }[] = (result.processing ?? []).filter(
+      (step: { success?: boolean }) => step.success === false
+    );
+    const problems = [
+      ...(behindDeferred > 0 ? [`${behindDeferred} threads left behind Slack; next run continues`] : []),
+      ...captureErrors.map((e) => `capture: ${e}`),
+      ...failedSteps.map((step) => `Silver step ${step.table} failed: ${step.error ?? "unknown error"}`),
+    ];
+    if (problems.length > 0) {
+      console.warn(`[Reconciliation] Slack reconciliation did not finish cleanly:`, problems);
+      await sendOperationsAlert(createServiceRoleClient(), { type: "cron_partial_failure", job: "reconcile-slack", problems });
     } else {
       console.log(`[Reconciliation] Slack reconciliation complete`);
       await pingCronHeartbeat("reconcile-slack");
@@ -51,6 +62,11 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[Reconciliation] Error in Slack reconciliation:", error);
+    await sendOperationsAlert(createServiceRoleClient(), {
+      type: "cron_partial_failure",
+      job: "reconcile-slack",
+      problems: [`failed outright: ${error.message || "unknown error"}`],
+    });
     return NextResponse.json(
       { error: error.message || "Failed to reconcile Slack data" },
       { status: 500 }

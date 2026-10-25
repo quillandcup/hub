@@ -2,10 +2,11 @@
 
 The Sentry Slack integration requires a Team plan, so the Hub app posts its own production
 alerts to [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) through Billie Bot.
-The channel ID is in `app.config.ts`; the two alert cases are in `lib/operations-alerts.ts`:
+The channel ID is in `app.config.ts`; the alert cases are in `lib/operations-alerts.ts`:
 
 - A Slack member notification DM failed and was skipped by the notifier.
 - A Slack user matched ambiguously to Hub members and was rejected.
+- A scheduled job finished with problems, so its Checkly heartbeat was skipped (`cron_partial_failure`; today the nightly Slack reconciliation: a Silver step failed, threads were left behind, capture errors, or it failed outright). The message names the job and lists each problem.
 
 The original failures still appear in server logs and Sentry. The channel messages contain
 only notification kinds, reasons and IDs, not member names, email addresses or message bodies.
