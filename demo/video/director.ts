@@ -1,6 +1,7 @@
 import type { BrowserContext, Locator, Page } from "playwright/test";
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { synthesize } from "./voiceover";
 import path from "node:path";
 import { sessionCookies } from "../auth";
 
@@ -23,12 +24,12 @@ const OVERLAY_SCRIPT = `
     .__d-ripple { position: fixed; z-index: 2147483645; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
       border: 3px solid #b0457a; pointer-events: none; animation: __d-ripple .6s ease-out forwards; }
     @keyframes __d-ripple { to { transform: scale(3.4); opacity: 0; } }
-    #__d-caption { position: fixed; z-index: 2147483644; left: 50%; bottom: 36px; transform: translate(-50%, 24px); opacity: 0;
+    #__d-caption { position: fixed; z-index: 2147483645; left: 50%; bottom: 36px; transform: translate(-50%, 24px); opacity: 0;
       max-width: 78%; padding: 14px 26px; border-radius: 14px; background: rgba(33, 22, 38, .92); color: #fff;
       font: 600 24px/1.3 Inter, system-ui, sans-serif; text-align: center; pointer-events: none;
       transition: opacity .35s ease, transform .35s ease; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
     #__d-caption.on { opacity: 1; transform: translate(-50%, 0); }
-    #__d-card { position: fixed; z-index: 2147483647; inset: 0; display: flex; flex-direction: column; align-items: center;
+    #__d-card { position: fixed; z-index: 2147483640; inset: 0; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 18px; text-align: center; padding: 60px; opacity: 0; pointer-events: none;
       background: radial-gradient(circle at 30% 20%, #8a3a67, #3a1b33 70%); color: #fff; transition: opacity .5s ease; }
     #__d-card.on { opacity: 1; }
@@ -78,6 +79,12 @@ const OVERLAY_SCRIPT = `
 
 export interface Director {
   page: Page;
+  /**
+   * Speak a line of the script (voiceover.ts) while `during` happens on screen: the line is the caption, the screen
+   * waits for whichever takes longer, and the recording mixes the voice in at this moment. Without `during` it just
+   * holds on the current screen for the length of the line.
+   */
+  narrate(text: string, during?: () => Promise<void>, padMs?: number): Promise<void>;
   /** A caption under the screen; empty text clears it. */
   say(text: string, ms?: number): Promise<void>;
   /** Hold on the current screen. */
@@ -174,6 +181,12 @@ export async function startRecording(
   const page = await context.newPage();
   const startedAt = Date.now();
   let loadedAfterMs: number | null = null;
+  /** The spoken lines and when each starts, in ms after the page was created; mixed into the video by finish(). */
+  const voice: { file: string; atMs: number }[] = [];
+  let narrating = false;
+  /** The line being spoken: a full page load drops the caption from the page, so it is put back after one. */
+  let spoken = "";
+  const showSpoken = () => (spoken ? page.evaluate((t) => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(t), spoken) : Promise.resolve());
   let at ={ x: VIDEO_SIZE.width / 2, y: VIDEO_SIZE.height / 2 };
 
   const trace = (m: string) => process.env.DIRECTOR_LOG && console.log(`[director] ${m}`);
@@ -181,6 +194,20 @@ export async function startRecording(
   const director: Director = {
     page,
     hold,
+    async narrate(text, during, padMs = 400) {
+      const clip = synthesize(text);
+      trace(`narrate (${((Date.now() - startedAt) / 1000).toFixed(1)}s, ${(clip.durationMs / 1000).toFixed(1)}s of voice) ${text}`);
+      voice.push({ file: clip.file, atMs: Date.now() - startedAt });
+      spoken = text;
+      await page.evaluate((t) => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(t), text);
+      narrating = true;
+      try {
+        await Promise.all([hold(clip.durationMs + padMs), during ? during() : Promise.resolve()]);
+      } finally {
+        narrating = false;
+        spoken = "";
+      }
+    },
     async say(text, ms = 1800) {
       trace(`say ${text}`);
       await page.evaluate((t) => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(t), text);
@@ -199,7 +226,7 @@ export async function startRecording(
     },
     async click(target, ms = 1200) {
       // The caption belongs to the screen it was said on: let it go as the cursor moves to the next thing.
-      await page.evaluate(() => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(""));
+      if (!narrating) await page.evaluate(() => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(""));
       await director.point(target, 250);
       await page.mouse.down();
       await page.mouse.up();
@@ -217,11 +244,13 @@ export async function startRecording(
       trace("showHtml");
       await page.route(`${baseURL}/__still`, (route) => route.fulfill({ contentType: "text/html", body: html }));
       await page.goto(`${baseURL}/__still`, { waitUntil: "load" });
+      await showSpoken();
       await hold(ms);
     },
     async goto(url, ms = 900) {
       trace(`goto ${url}`);
       await page.goto(url, { waitUntil: "load" });
+      await showSpoken();
       // The recording starts when the page is created; remember when the first page was up, to cut what came before.
       if (loadedAfterMs === null) loadedAfterMs = Date.now() - startedAt;
       await hold(ms);
@@ -257,7 +286,8 @@ export async function startRecording(
       const out = path.join(VIDEO_DIR, `${name}.webm`);
       const raw = path.join(VIDEO_DIR, `${name}.raw.webm`);
       await video?.saveAs(raw);
-      return encode(raw, out, loadedAfterMs === null ? 0 : Math.max(0, loadedAfterMs - 300) / 1000);
+      const trimSeconds = loadedAfterMs === null ? 0 : Math.max(0, loadedAfterMs - 300) / 1000;
+      return encode(raw, out, trimSeconds, voice.map((v) => ({ file: v.file, atMs: Math.max(0, v.atMs - trimSeconds * 1000) })));
     },
   };
   return director;
@@ -268,19 +298,29 @@ export async function startRecording(
  * everywhere: email, social) with the system ffmpeg. Without one it keeps the untrimmed WebM and says so, since
  * Playwright's own ffmpeg can only write WebM and can't cut.
  */
-function encode(raw: string, out: string, trimSeconds: number): string {
+function encode(raw: string, out: string, trimSeconds: number, voice: { file: string; atMs: number }[]): string {
   const has = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0;
   if (!has) {
     renameSync(raw, out);
     console.warn(`ffmpeg isn't installed: ${out} keeps its blank first seconds and there is no MP4 (brew install ffmpeg).`);
     return out;
   }
+  // The voice: every spoken line delayed to where it started, mixed into one track alongside the (trimmed) picture.
+  const audioInputs = voice.flatMap((v) => ["-i", v.file]);
+  const audioGraph = voice.length === 0
+    ? []
+    : [
+        "-filter_complex",
+        `${voice.map((v, i) => `[${i + 1}:a]adelay=${Math.round(v.atMs)}|${Math.round(v.atMs)}[a${i}]`).join(";")};${voice.map((_, i) => `[a${i}]`).join("")}amix=inputs=${voice.length}:normalize=0:dropout_transition=0[voice]`,
+        "-map", "0:v", "-map", "[voice]",
+      ];
   const run = (args: string[]) => {
-    const result = spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", String(trimSeconds), "-i", raw, ...args], { stdio: "inherit" });
+    const result = spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", String(trimSeconds), "-i", raw, ...audioInputs, ...audioGraph, ...args], { stdio: "inherit" });
     if (result.status !== 0) throw new Error(`ffmpeg failed for ${raw}`);
   };
-  run(["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "28", out]);
-  run(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart", out.replace(/\.webm$/, ".mp4")]);
+  const audioArgs = (codec: string[]) => (voice.length === 0 ? [] : codec);
+  run(["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "28", ...audioArgs(["-c:a", "libopus", "-b:a", "96k"]), out]);
+  run(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", ...audioArgs(["-c:a", "aac", "-b:a", "160k"]), "-movflags", "+faststart", out.replace(/\.webm$/, ".mp4")]);
   rmSync(raw);
   return out;
 }
