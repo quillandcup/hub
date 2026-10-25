@@ -296,3 +296,15 @@ describe("ChatSidebar prefetching", () => {
     expect(flags.filter((f) => f === "true")).toHaveLength(5);
   });
 });
+
+describe("ChatSidebar privacy link", () => {
+  it("links to the privacy page only when it is on for the member", () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.queryByRole("link", { name: "Who can see this?" })).not.toBeInTheDocument();
+  });
+
+  it("shows it under the conversations when it is", () => {
+    render(<ChatSidebar channels={CHANNELS} showPrivacy />);
+    expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
+  });
+});

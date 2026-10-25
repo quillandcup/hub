@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { disconnectSlackAction } from "./slackConnectActions";
 
@@ -19,12 +20,21 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 };
 
 /**
- * "Connect your Slack account" (Settings → Account, for everyone once the Slack app is configured). Connected, the
- * Hub posts your chat messages and reactions to Slack as you; without it, messages go through
- * Billie Bot under your name and reactions stay in the Hub. Connected with the read scopes, what you
- * read in Hub chat and in Slack is read in both; a connection from before that asks to reconnect.
+ * "Connect your Slack account" (Settings → Account, for everyone once the Slack app is configured). Hub chat
+ * requires it: the Hub posts your messages and reactions to Slack as you, with your own token, and has no
+ * fallback; without a connection chat stays closed. Connected with the read scopes, what you read in Hub chat
+ * and in Slack is read in both; a connection from before that asks to reconnect. Links to the privacy page
+ * (who can read what you write) when it is on for the member.
  */
-export default function SlackConnectPanel({ connected, sharesReadState = true }: { connected: boolean; sharesReadState?: boolean }) {
+export default function SlackConnectPanel({
+  connected,
+  sharesReadState = true,
+  showPrivacy = false,
+}: {
+  connected: boolean;
+  sharesReadState?: boolean;
+  showPrivacy?: boolean;
+}) {
   const router = useRouter();
   const flash = FLASH[useSearchParams().get("slack") ?? ""];
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +100,15 @@ export default function SlackConnectPanel({ connected, sharesReadState = true }:
             Connect Slack
           </a>
         </>
+      )}
+      {showPrivacy && (
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+          Wondering who can read what you write?{" "}
+          <Link data-track="settings-slack-privacy" href="/privacy" className="font-medium text-plum-700 underline dark:text-plum-400">
+            See what staff can and can&apos;t see
+          </Link>
+          .
+        </p>
       )}
     </section>
   );

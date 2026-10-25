@@ -259,6 +259,16 @@ describe("chat shell", () => {
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
+  it("links to the privacy page under the conversations once it is on for the member, and not before", async () => {
+    render(await ChatLayout({ children: null }));
+    expect(screen.queryByRole("link", { name: "Who can see this?" })).not.toBeInTheDocument();
+    cleanup();
+
+    vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "message_privacy"]);
+    render(await ChatLayout({ children: null }));
+    expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
+  });
+
   it("shows unread counts beside the conversations that have some, and none in sudo", async () => {
     unread = [{ channel_id: GENERAL, unread: 3 }];
     render(await ChatLayout({ children: null }));
