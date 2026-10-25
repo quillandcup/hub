@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
@@ -33,25 +34,12 @@ export default async function CalendarPage({
   // Disable next button if it would go into the future (beyond current week)
   const isNextDisabled = week.next > week.today;
 
-  // Fetch prickles for the current week with attendance counts and host
-  const { data: prickles, error: pricklesError } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      host:members(id, name),
-      start_time,
-      end_time,
-      type_id,
-      prickle_types:type_id(name),
-      prickle_attendance(id, member_id, join_time)
-    `)
-    .gte("start_time", week.startInstant.toISOString())
-    .lt("start_time", week.endInstant.toISOString())
-    .order("start_time", { ascending: true });
-
-  if (pricklesError) {
-    console.error("Error fetching prickles:", pricklesError);
-    throw pricklesError;
+  // The week's prickles (type and host joined in) and who attended each
+  const repos = createRepos(supabase);
+  const prickles = await repos.prickles.startingBetween({ from: week.startInstant.toISOString(), to: week.endInstant.toISOString() });
+  const attendanceByPrickle = new Map<string, { memberId: string; joinTime: string }[]>();
+  for (const link of await repos.attendance.forPrickles(prickles.map((p) => p.id))) {
+    attendanceByPrickle.set(link.prickleId, [...(attendanceByPrickle.get(link.prickleId) ?? []), link]);
   }
 
   // Zoom attendance is imported after the fact. If a meeting at or after a prickle's start is
@@ -68,43 +56,34 @@ export default async function CalendarPage({
   const userTimezone = await getUserTimezonePreference();
 
   // Transform the data to include attendance count and host attendance status
-  const pricklesWithCount = prickles?.map((prickle: any) => {
-    // Handle host as array or object (Supabase foreign key can return either)
-    const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-    const hostId = host?.id;
+  const pricklesWithCount = prickles.map((prickle) => {
+    const attendance = attendanceByPrickle.get(prickle.id) ?? [];
+    const hostId = prickle.hostId;
     let hostMissing = false;
     let hostLate = false;
 
     if (hostId) {
       // A host can leave/rejoin (multiple attendance rows per prickle), so punctuality is judged
       // by their earliest join_time, not just whichever record comes back first.
-      const hostAttendanceRecords = (prickle.prickle_attendance ?? []).filter(
-        (a: any) => a.member_id === hostId
-      );
-      const earliestJoinTime =
-        hostAttendanceRecords.length > 0
-          ? hostAttendanceRecords.reduce(
-              (min: string, a: any) => (a.join_time < min ? a.join_time : min),
-              hostAttendanceRecords[0].join_time
-            )
-          : null;
-      const punctuality = computeHostStatus(prickle.start_time, prickle.end_time, earliestJoinTime);
+      const hostJoins = attendance.filter((a) => a.memberId === hostId).map((a) => a.joinTime);
+      const earliestJoinTime = hostJoins.length > 0 ? hostJoins.reduce((min, t) => (t < min ? t : min)) : null;
+      const punctuality = computeHostStatus(prickle.startTime, prickle.endTime, earliestJoinTime);
       hostMissing = punctuality === "missing";
       hostLate = punctuality === "late";
     }
 
     return {
       id: prickle.id,
-      host: host?.name || null,
-      host_id: hostId,
-      start_time: prickle.start_time,
-      end_time: prickle.end_time,
-      prickle_type: prickle.prickle_types?.name || "Unknown",
-      attendance_count: new Set(prickle.prickle_attendance?.map((a: any) => a.member_id) || []).size,
+      host: prickle.host?.name ?? "",
+      host_id: hostId ?? undefined,
+      start_time: prickle.startTime,
+      end_time: prickle.endTime,
+      prickle_type: prickle.type?.name || "Unknown",
+      attendance_count: new Set(attendance.map((a) => a.memberId)).size,
       host_missing: hostMissing,
       host_late: hostLate,
     };
-  }) || [];
+  });
 
   return (
     <div className="container mx-auto px-6 py-8">
