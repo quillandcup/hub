@@ -2,6 +2,8 @@
  * The demo cast: invented people, example.com addresses. Each persona is a state a real member can be in,
  * and a scene signs in as the one its article is about. The password is a throwaway for the local demo stack.
  */
+import { COMMUNITY } from "@/lib/data/profiles/community";
+
 export const DEMO_PASSWORD = "demo-only-local-password";
 
 export interface Persona {
@@ -13,21 +15,15 @@ export interface Persona {
   joinedDaysAgo: number | null;
 }
 
-export const PERSONAS: Persona[] = [
-  { key: "admin", name: "Amelia Admin", email: "amelia.admin@example.com", role: "admin", joinedDaysAgo: null },
-  { key: "member", name: "Maya Example", email: "maya.example@example.com", role: "member", joinedDaysAgo: 21 },
-  { key: "host", name: "Hazel Hosting", email: "hazel.hosting@example.com", role: "member", joinedDaysAgo: 400 },
-  { key: "regular1", name: "Julia Sample", email: "julia.sample@example.com", role: "member", joinedDaysAgo: 200 },
-  { key: "regular2", name: "Rosa Demo", email: "rosa.demo@example.com", role: "member", joinedDaysAgo: 90 },
-];
+// The cast is the community profile (lib/data/profiles/community.ts); this file keeps the demo's names for it.
+export const PERSONAS: Persona[] = COMMUNITY.people
+  .filter((p) => p.signsIn)
+  .map(({ key, name, email, role, joinedDaysAgo }) => ({ key, name, email, role, joinedDaysAgo }));
 
 /** How often someone comes to a prickle they could attend (0 to 1): what makes streaks, "~4 Hedgies" and show-up rates look lived in. */
-export const ATTENDANCE_RATE: Record<string, number> = {
-  "maya.example@example.com": 0.4,
-  "hazel.hosting@example.com": 0.85,
-  "julia.sample@example.com": 0.6,
-  "rosa.demo@example.com": 0.5,
-};
+export const ATTENDANCE_RATE: Record<string, number> = Object.fromEntries(
+  COMMUNITY.people.filter((p) => p.signsIn && p.joinedDaysAgo !== null).map((p) => [p.email, p.rate]),
+);
 
 /**
  * Members who fill the room but never sign in, so no screen is a community of five. Invented names,
@@ -40,18 +36,12 @@ export interface FillerMember {
   rate: number;
 }
 
-export const FILLER_MEMBERS: FillerMember[] = [
-  { name: "Willa Placeholder", email: "willa.placeholder@example.com", joinedDaysAgo: 540, rate: 0.7 },
-  { name: "Sadie Sample", email: "sadie.sample@example.com", joinedDaysAgo: 330, rate: 0.55 },
-  { name: "Linnea Example", email: "linnea.example@example.com", joinedDaysAgo: 280, rate: 0.45 },
-  { name: "Aria Fictional", email: "aria.fictional@example.com", joinedDaysAgo: 210, rate: 0.65 },
-  { name: "Briony Demo", email: "briony.demo@example.com", joinedDaysAgo: 150, rate: 0.3 },
-  { name: "Juniper Test", email: "juniper.test@example.com", joinedDaysAgo: 120, rate: 0.5 },
-  { name: "Thea Mockup", email: "thea.mockup@example.com", joinedDaysAgo: 75, rate: 0.6 },
-  { name: "Fern Imaginary", email: "fern.imaginary@example.com", joinedDaysAgo: 60, rate: 0.35 },
-  { name: "Clover Sketch", email: "clover.sketch@example.com", joinedDaysAgo: 45, rate: 0.5 },
-  { name: "Mabel Pretend", email: "mabel.pretend@example.com", joinedDaysAgo: 40, rate: 0.25 },
-];
+export const FILLER_MEMBERS: FillerMember[] = COMMUNITY.people
+  .filter((p) => !p.signsIn)
+  .map((p) => ({ name: p.name, email: p.email, joinedDaysAgo: p.joinedDaysAgo as number, rate: p.rate }));
+
+/** Each member's short bio, by name, so the member directory and profiles read like a community. */
+export const BIOS: Record<string, string> = Object.fromEntries(COMMUNITY.people.flatMap((p) => (p.bio ? [[p.name, p.bio]] : [])));
 
 export function persona(key: string): Persona {
   const p = PERSONAS.find((x) => x.key === key);
@@ -68,16 +58,7 @@ export interface DemoEvent {
   minutes: number;
 }
 
-/** The weekly rhythm: day of week (0 = Sunday), local start, minutes, and the calendar title the real calendar would carry. */
-const WEEKLY_PATTERN: { weekday: number; startLocal: string; minutes: number; summary: string }[] = [
-  { weekday: 1, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
-  { weekday: 2, startLocal: "14:00", minutes: 45, summary: "Sprint Prickle w/Julia Sample" },
-  { weekday: 3, startLocal: "09:00", minutes: 60, summary: "Progress Prickle w/Hazel Hosting" },
-  { weekday: 4, startLocal: "19:00", minutes: 60, summary: "Plot or Plan Prickle w/Rosa Demo" },
-  { weekday: 5, startLocal: "10:00", minutes: 60, summary: "Progress Prickle w/Julia Sample" },
-  { weekday: 6, startLocal: "10:00", minutes: 90, summary: "Heads Down Prickle" },
-  { weekday: 0, startLocal: "19:00", minutes: 60, summary: "Sprint Prickle w/Hazel Hosting" },
-];
+const WEEKLY_PATTERN = COMMUNITY.weeklyPattern;
 
 /** Four weeks back and two ahead, so there is history, a recurring pattern and an upcoming week. The day offset is from today in the org's timezone; `weekdayOf` says which weekday today is. */
 export function demoEvents(weekdayOfToday: number): DemoEvent[] {
