@@ -15,7 +15,7 @@ import path from "node:path";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
-import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
+import { ATTENDANCE_RATE, BIOS, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 import { seedChat } from "./chat-seed";
 
@@ -82,28 +82,7 @@ export async function seed(now: Date = new Date()) {
   if (onboardingError) throw new Error(`member_onboarding: ${onboardingError.message}`);
 
   // Short bios, so the member directory and profiles read like a community, not a list of names.
-  const bios: Record<string, string> = {
-    "Maya Example": "Drafting a cozy mystery set in a lighthouse bakery 🧁 Tea first, words second. WIP: 12k and counting!",
-    "Hazel Hosting": "I host the early Progress Prickles ☀️ Revising a middle-grade fantasy, one chapter at a time. Coffee-powered.",
-    "Julia Sample": "Short stories + the occasional sonnet ✨ Sprint Prickles keep me honest. Poet problems, always.",
-    "Rosa Demo": "Plotting my very first novel 📓 Plot or Plan Prickles are my favorite hour of the week. Index cards everywhere.",
-  };
-  const fillerBios = [
-    "Cozy fantasy, strong tea, and a very large TBR pile 📚",
-    "Writing a memoir in 20-minute bursts between school runs 🚌",
-    "Poet by night, accountant by day. Here for the morning Prickles ✍️",
-    "Finishing my second draft before the leaves are gone 🍂",
-    "Sci-fi short stories and too many half-finished notebooks 🚀",
-    "Romance writer. Sprint Prickles are my secret weapon 💌",
-    "Turning a screenplay into a novel, one scene at a time 🎬",
-    "Here to build a daily writing habit and make writer friends 🌱",
-    "Historical fiction with a lot of research rabbit holes 🕰️",
-    "Writing picture books after the kids are in bed 🌙",
-  ];
-  FILLER_MEMBERS.forEach((f, i) => {
-    bios[f.name] = fillerBios[i % fillerBios.length];
-  });
-  for (const [name, bio] of Object.entries(bios)) {
+  for (const [name, bio] of Object.entries(BIOS)) {
     const { error } = await admin.from("members").update({ bio }).eq("name", name);
     if (error) throw new Error(`member bio ${name}: ${error.message}`);
   }
