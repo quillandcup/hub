@@ -72,6 +72,8 @@ export interface AttendanceRepository {
   list(): Promise<AttendanceLink[]>;
   /** Who attended these prickles, one entry per record. */
   forPrickles(prickleIds: string[]): Promise<AttendanceLink[]>;
+  /** Which of these prickles anyone attended. */
+  prickleIdsWithAttendance(prickleIds: string[]): Promise<Set<string>>;
   /** Which of these prickles the member attended. */
   attendedAmong(memberId: string, prickleIds: string[]): Promise<Set<string>>;
   /** For each of these prickles the member attended, when they first joined it (ISO). */
@@ -197,6 +199,17 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
       for (const row of rows) links.push({ memberId: row.member_id, prickleId: row.prickle_id, joinTime: row.join_time });
     }
     return links;
+  }
+
+  async prickleIdsWithAttendance(prickleIds: string[]): Promise<Set<string>> {
+    const attended = new Set<string>();
+    for (const ids of chunk(prickleIds, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows((from, to) =>
+        this.db.from("prickle_attendance").select("prickle_id").in("prickle_id", ids).order("id").range(from, to),
+      );
+      for (const row of rows) attended.add(row.prickle_id);
+    }
+    return attended;
   }
 
   async attendedAmong(memberId: string, prickleIds: string[]): Promise<Set<string>> {
@@ -402,6 +415,11 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   async forPrickles(prickleIds: string[]) {
     const wanted = new Set(prickleIds);
     return this.rows.filter((row) => wanted.has(row.prickleId)).map(toLink);
+  }
+
+  async prickleIdsWithAttendance(prickleIds: string[]) {
+    const wanted = new Set(prickleIds);
+    return new Set(this.rows.filter((row) => wanted.has(row.prickleId)).map((row) => row.prickleId));
   }
 
   async attendedAmong(memberId: string, prickleIds: string[]) {

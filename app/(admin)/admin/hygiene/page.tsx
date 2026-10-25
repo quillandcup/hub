@@ -33,18 +33,16 @@ export default async function DataHygienePage() {
     { count: totalCalendarEvents },
     matchedCalendarEvents,
     { count: unmatchedCalendarEvents },
-    { count: calendarPricklesWithHost },
-    { count: calendarPricklesMissingHost },
+    hostCoverage,
     { count: totalZoomAttendees },
     totalMembers,
     { count: totalAliases },
     { data: ambiguousNameRows },
     { data: slackUsersForMatching },
     { data: ignoredSlackUsers },
-    { data: pupsWith0Attendees },
     { data: oldUnmatchedEvents },
     { data: lastSync },
-    { data: lastProcessing },
+    lastProcessingAt,
     { data: lastSlackMessageSync },
     { data: lastSlackReactionSync },
     { data: lastSlackProcessing },
@@ -57,16 +55,8 @@ export default async function DataHygienePage() {
     supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
     createRepos(supabase).prickles.countBySource("calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    // Count prickles with hosts (only those that require hosts)
-    supabase.from("prickles").select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .not("host", "is", null)
-      .eq("prickle_types.requires_host", true),
-    // Count prickles missing hosts (only those that require hosts)
-    supabase.from("prickles").select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .is("host", null)
-      .eq("prickle_types.requires_host", true),
+    // Prickles with and without hosts, split by whether their type takes a host
+    createRepos(supabase).prickles.hostCoverage("calendar"),
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     createRepos(supabase).members.count(),
     supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
@@ -74,13 +64,6 @@ export default async function DataHygienePage() {
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
     supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
     supabase.from("ignored_slack_users").select("user_id"),
-    // Find PUPs with 0 attendees
-    supabase
-      .from("prickles")
-      .select("id, start_time, end_time")
-      .eq("source", "zoom")
-      .not("id", "in", `(SELECT DISTINCT prickle_id FROM prickle_attendance WHERE prickle_id IS NOT NULL)`)
-      .limit(10),
     // Find old unmatched events (queued before prickle_types migration)
     supabase
       .from("unmatched_calendar_events")
@@ -96,13 +79,7 @@ export default async function DataHygienePage() {
       .limit(1)
       .single(),
     // Last attendance processing (most recent PUP)
-    supabase
-      .from("prickles")
-      .select("created_at")
-      .eq("source", "zoom")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).prickles.lastCreatedAt("zoom"),
     // Last Slack sync (bronze import — webhook or bulk import, both set imported_at).
     // Checked across both tables since a sync can land only reactions or only
     // messages depending on what happened in Slack during that window.
@@ -157,10 +134,13 @@ export default async function DataHygienePage() {
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
     : 0;
 
+  const hostedRequiring = hostCoverage.requiresHost.withHost;
+  const unhostedRequiring = hostCoverage.requiresHost.withoutHost;
+
   // Host match rate: % of prickles requiring hosts that have hosts
-  const totalRequiringHosts = (calendarPricklesWithHost || 0) + (calendarPricklesMissingHost || 0);
+  const totalRequiringHosts = (hostedRequiring || 0) + (unhostedRequiring || 0);
   const hostMatchRate = totalRequiringHosts > 0
-    ? Math.round(((calendarPricklesWithHost || 0) / totalRequiringHosts) * 100)
+    ? Math.round(((hostedRequiring || 0) / totalRequiringHosts) * 100)
     : 0;
 
   // Calculate orphaned events (imported but never processed)
@@ -272,26 +252,13 @@ export default async function DataHygienePage() {
     }
   });
 
-  // Get all prickles (calendar and zoom) with their time windows (paginated — table exceeds 1000 rows)
-  const allPricklesForOverlap: { id: string; start_time: string; end_time: string; zoom_meeting_uuid: string | null; source: string }[] = [];
-  {
-    const BATCH = 1000;
-    let offset = 0, hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickles")
-        .select("id, start_time, end_time, zoom_meeting_uuid, source")
-        .order("start_time")
-        .range(offset, offset + BATCH - 1);
-      if (batch && batch.length > 0) {
-        allPricklesForOverlap.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === BATCH;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  // Every prickle (calendar and zoom) with its time window, paginated by the repository
+  const allPricklesForOverlap = await createRepos(supabase).prickles.timeWindows();
+
+  // Pop-Up Prickles nobody attended (the first ten, for the warning below)
+  const zoomWindowIds = allPricklesForOverlap.filter((p) => p.source === "zoom").map((p) => p.id);
+  const withAttendance = await createRepos(supabase).attendance.prickleIdsWithAttendance(zoomWindowIds);
+  const pupsWith0Attendees = zoomWindowIds.filter((id) => !withAttendance.has(id)).slice(0, 10);
 
   // Check each meeting to see if it has been processed
   const orphanedMeetingUuids: string[] = [];
@@ -299,7 +266,7 @@ export default async function DataHygienePage() {
   for (const [meetingUuid, timeWindow] of meetingTimeWindows) {
     // Check if this meeting has a PUP
     const hasPUP = allPricklesForOverlap?.some(
-      p => p.source === 'zoom' && p.zoom_meeting_uuid === meetingUuid
+      p => p.source === 'zoom' && p.zoomMeetingUuid === meetingUuid
     );
 
     if (hasPUP) {
@@ -310,8 +277,8 @@ export default async function DataHygienePage() {
     // Check if meeting overlaps with any calendar prickle
     const overlapsCalendar = allPricklesForOverlap?.some(p => {
       if (p.source !== 'calendar') return false;
-      const prickleStart = new Date(p.start_time);
-      const prickleEnd = new Date(p.end_time);
+      const prickleStart = new Date(p.startTime);
+      const prickleEnd = new Date(p.endTime);
       // Check for time overlap
       return prickleStart < timeWindow.end && prickleEnd > timeWindow.start;
     });
@@ -489,7 +456,7 @@ export default async function DataHygienePage() {
                     with &quot;w/[Name]&quot; patterns or set default hosts for prickle types.
                   </p>
                   <p className="text-xs text-plum-700 dark:text-plum-300">
-                    Current rate: {hostMatchRate}% ({calendarPricklesWithHost}/{totalRequiringHosts} with host).
+                    Current rate: {hostMatchRate}% ({hostedRequiring}/{totalRequiringHosts} with host).
                     Visit{" "}
                     <Link href="/admin/data-health/missing-hosts" className="underline hover:text-plum-500">
                       Missing Hosts
@@ -550,7 +517,7 @@ export default async function DataHygienePage() {
             </div>
           )}
 
-          {pupsWith0Attendees && pupsWith0Attendees.length > 0 && (
+          {pupsWith0Attendees.length > 0 && (
             <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
               <div className="flex items-start gap-3">
                 <span className="text-xl">⚠️</span>
@@ -629,11 +596,11 @@ export default async function DataHygienePage() {
                 {hostMatchRate}%
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                {calendarPricklesWithHost}/{totalRequiringHosts} assigned
+                {hostedRequiring}/{totalRequiringHosts} assigned
               </p>
-              {calendarPricklesMissingHost && calendarPricklesMissingHost > 0 && (
+              {unhostedRequiring && unhostedRequiring > 0 && (
                 <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                  {calendarPricklesMissingHost} missing hosts →
+                  {unhostedRequiring} missing hosts →
                 </p>
               )}
             </Link>
@@ -683,8 +650,8 @@ export default async function DataHygienePage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Last attendance processing:</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {lastProcessing?.created_at
-                    ? new Date(lastProcessing.created_at).toLocaleString()
+                  {lastProcessingAt
+                    ? new Date(lastProcessingAt).toLocaleString()
                     : "Never"}
                 </span>
               </div>

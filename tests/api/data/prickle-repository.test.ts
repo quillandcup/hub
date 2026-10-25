@@ -68,6 +68,7 @@ definePrickleContract("SupabasePrickleRepository", () => ({
     await clearPrickles();
     const rows = seeds.map((s) => ({
       title: s.title ?? null,
+      ...(s.createdAt ? { created_at: s.createdAt } : {}),
       type_id: s.type === undefined ? null : types[s.type].id,
       host: s.host === undefined ? null : hosts[s.host].id,
       start_time: s.start,

@@ -30,6 +30,10 @@ export type Prickle = {
   endTime: string;
   source: string;
   calendarEventId: string | null;
+  /** The Zoom meeting a Pop-Up Prickle (source "zoom") came from. */
+  zoomMeetingUuid?: string | null;
+  /** When the row was added; for the "last processed" readouts. */
+  createdAt?: string | null;
 };
 
 /** A prickle with its type and host joined in, the shape nearly every page wants. */
@@ -47,6 +51,16 @@ export type StartingBetween = {
   /** Only prickles this member is the assigned host of. */
   hostId?: string;
 };
+
+/** How many prickles of one source have a host assigned, split by whether their type takes a host. */
+export type HostCoverage = {
+  total: number;
+  requiresHost: { withHost: number; withoutHost: number };
+  optionalHost: { withHost: number; withoutHost: number };
+};
+
+/** Just when a prickle ran and where it came from, for matching Zoom meetings to it. */
+export type PrickleWindow = { id: string; startTime: string; endTime: string; source: string; zoomMeetingUuid: string | null };
 
 /** A search over prickles by what they are called; see `PrickleRepository.search`. */
 export type PrickleSearch = {
@@ -93,6 +107,12 @@ export interface PrickleRepository {
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
   /** Prickles matching every word (case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
+  /** Host coverage of the prickles from this source (e.g. "calendar"). */
+  hostCoverage(source: string): Promise<HostCoverage>;
+  /** When the most recently added prickle from this source was added, or null if there are none. */
+  lastCreatedAt(source: string): Promise<string | null>;
+  /** Every prickle's time window and source, oldest first: a lean scan, without type or host. */
+  timeWindows(): Promise<PrickleWindow[]>;
   /** The id of the prickle type with this normalized name, creating it (named `name`, with `description`) when there is none. */
   findOrCreateType(input: { name: string; normalizedName: string; description?: string }): Promise<string>;
   /** Adds prickles that came from the calendar and returns their ids in order. */
@@ -267,6 +287,51 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async reassignHost(fromMemberId: string, toMemberId: string): Promise<void> {
     const { error } = await this.db.from("prickles").update({ host: toMemberId }).eq("host", fromMemberId);
     if (error) throw new Error(error.message);
+  }
+
+  async hostCoverage(source: string): Promise<HostCoverage> {
+    const count = async (host: "with" | "without", requiresHost?: boolean) => {
+      let query =
+        requiresHost === undefined
+          ? this.db.from("prickles").select("id", { count: "exact", head: true })
+          : this.db.from("prickles").select("id, prickle_types!inner(requires_host)", { count: "exact", head: true });
+      query = query.eq("source", source);
+      query = host === "with" ? query.not("host", "is", null) : query.is("host", null);
+      if (requiresHost !== undefined) query = query.eq("prickle_types.requires_host", requiresHost);
+      const { count: n, error } = await query;
+      if (error) throw new Error(error.message);
+      return n ?? 0;
+    };
+    const [total, reqWith, reqWithout, optWith, optWithout] = await Promise.all([
+      this.countBySource(source),
+      count("with", true),
+      count("without", true),
+      count("with", false),
+      count("without", false),
+    ]);
+    return { total, requiresHost: { withHost: reqWith, withoutHost: reqWithout }, optionalHost: { withHost: optWith, withoutHost: optWithout } };
+  }
+
+  async lastCreatedAt(source: string): Promise<string | null> {
+    const { data, error } = await this.db.from("prickles").select("created_at").eq("source", source).order("created_at", { ascending: false }).limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0]?.created_at ?? null;
+  }
+
+  async timeWindows(): Promise<PrickleWindow[]> {
+    const rows = await fetchAllRows<{ id: string; start_time: string; end_time: string; source: string; zoom_meeting_uuid: string | null }>(
+      (from, to) =>
+        this.db
+          .from("prickles")
+          .select("id, start_time, end_time, zoom_meeting_uuid, source")
+          .order("start_time")
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<{
+          data: { id: string; start_time: string; end_time: string; source: string; zoom_meeting_uuid: string | null }[] | null;
+          error: { message: string } | null;
+        }>,
+    );
+    return rows.map((r) => ({ id: r.id, startTime: r.start_time, endTime: r.end_time, source: r.source, zoomMeetingUuid: r.zoom_meeting_uuid }));
   }
 
   async search({ words, hostIds, after, before, limit, offset }: PrickleSearch): Promise<PrickleDetail[]> {
@@ -477,6 +542,32 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
     for (const p of this.data.prickles) if (p.hostId === fromMemberId) p.hostId = toMemberId;
+  }
+
+  async hostCoverage(source: string): Promise<HostCoverage> {
+    const types = new Map(this.data.prickleTypes.map((t) => [t.id, t.requiresHost]));
+    const coverage: HostCoverage = { total: 0, requiresHost: { withHost: 0, withoutHost: 0 }, optionalHost: { withHost: 0, withoutHost: 0 } };
+    for (const p of this.data.prickles) {
+      if (p.source !== source) continue;
+      coverage.total++;
+      const requires = p.typeId === null ? undefined : types.get(p.typeId);
+      if (requires === undefined) continue; // no type: counted in the total only
+      const group = requires ? coverage.requiresHost : coverage.optionalHost;
+      if (p.hostId) group.withHost++;
+      else group.withoutHost++;
+    }
+    return coverage;
+  }
+
+  async lastCreatedAt(source: string) {
+    const times = this.data.prickles.filter((p) => p.source === source && p.createdAt).map((p) => p.createdAt as string);
+    return times.length ? times.reduce((a, b) => (new Date(a) > new Date(b) ? a : b)) : null;
+  }
+
+  async timeWindows() {
+    return [...this.data.prickles]
+      .sort(byStartThenId)
+      .map((p) => ({ id: p.id, startTime: p.startTime, endTime: p.endTime, source: p.source, zoomMeetingUuid: p.zoomMeetingUuid ?? null }));
   }
 
   async search({ words, hostIds, after, before, limit, offset }: PrickleSearch) {
