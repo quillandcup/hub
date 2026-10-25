@@ -64,7 +64,7 @@ describe("attendanceRows", () => {
 
   it("writes rows the attendance processing accepts: durations in seconds, a join before every leave, demo-marked", () => {
     const people = FILLER_MEMBERS.map((f) => ({ name: f.name, email: f.email, joinedAt: at("2025-01-01T00:00:00Z"), rate: 1 }));
-    const rows = attendanceRows([past, slot("p3", "Sprint Prickle w/Jules Sample", "2026-10-22T15:00:00Z", 45)], people, NOW, "999");
+    const rows = attendanceRows([past, slot("p3", "Sprint Prickle w/Julia Sample", "2026-10-22T15:00:00Z", 45)], people, NOW, "999");
     expect(rows.length).toBeGreaterThan(10);
     for (const r of rows) {
       const join = new Date(r.join_time).getTime();

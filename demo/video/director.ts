@@ -88,6 +88,8 @@ export interface Director {
   click(target: Locator, ms?: number): Promise<void>;
   /** Click a field and type into it, one key at a time so a viewer can follow. */
   type(target: Locator, text: string, ms?: number): Promise<void>;
+  /** Show a prepared page (a still of something outside the app) full screen on the app's own origin, with captions working. */
+  showHtml(html: string, ms?: number): Promise<void>;
   /** Go to a page as a member would after clicking a link: the cursor rests where it was. */
   goto(url: string, ms?: number): Promise<void>;
   /** Scroll the app's own scroller (not the window) by an amount, smoothly. */
@@ -120,6 +122,8 @@ export async function startRecording(
   personaKey: string,
   warm: string[] = [],
   scheme: "light" | "dark" = "light",
+  /** Cookies the member already has when the video starts (a returning member's, such as the chat channel they left open). */
+  extraCookies: { name: string; value: string }[] = [],
 ): Promise<Director> {
   mkdirSync(VIDEO_DIR, { recursive: true });
   const base = { baseURL, viewport: VIDEO_SIZE, colorScheme: scheme, locale: "en-US", timezoneId: "America/New_York" } as const;
@@ -127,8 +131,23 @@ export async function startRecording(
   const log = (m: string) => process.env.DIRECTOR_LOG && console.log(`[director] ${m}`);
   const prepare = async (context: BrowserContext) => {
     log('cookies');
-    await context.addCookies(await sessionCookies(personaKey));
+    await context.addCookies([...(await sessionCookies(personaKey)), ...extraCookies.map((c) => ({ ...c, url: baseURL }))]);
     await context.addInitScript((t) => window.localStorage.setItem("theme", t), scheme);
+    // Nothing on this machine's network goes on camera: the Account tab lists sessions with the IP address they came
+    // from (the laptop's) and the demo browser's user agent ("node"). Show the reserved documentation address and a
+    // normal browser name instead, wherever they appear.
+    await context.addInitScript(() => {
+      const mask = (root: Node) => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const text = n.nodeValue ?? "";
+          const masked = text.replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, "203.0.113.24").replace(/^\s*node\s*$/, "Chrome on macOS");
+          if (masked !== text) n.nodeValue = masked;
+        }
+      };
+      new MutationObserver(() => mask(document.body)).observe(document, { childList: true, subtree: true, characterData: true });
+      document.addEventListener("DOMContentLoaded", () => mask(document.body));
+    });
     await context.addInitScript(() => {
       const hide = document.createElement("style");
       hide.textContent = "nextjs-portal, [data-feedback-widget], [data-environment-indicator] { display: none !important; }";
@@ -192,6 +211,12 @@ export async function startRecording(
     async type(target, text, ms = 700) {
       await director.click(target, 300);
       await page.keyboard.type(text, { delay: 110 });
+      await hold(ms);
+    },
+    async showHtml(html, ms = 800) {
+      trace("showHtml");
+      await page.route(`${baseURL}/__still`, (route) => route.fulfill({ contentType: "text/html", body: html }));
+      await page.goto(`${baseURL}/__still`, { waitUntil: "load" });
       await hold(ms);
     },
     async goto(url, ms = 900) {
