@@ -71,6 +71,67 @@ export async function seed(now: Date = new Date()) {
     .upsert((seeded ?? []).map((m) => ({ member_id: m.id, dismissed_at: dismissedAt })), { onConflict: "member_id" });
   if (onboardingError) throw new Error(`member_onboarding: ${onboardingError.message}`);
 
+  // Short bios, so the member directory and profiles read like a community, not a list of names.
+  const bios: Record<string, string> = {
+    "Marlowe Example": "Drafting a cozy mystery set in a lighthouse bakery. Tea first, words second.",
+    "Hazel Hosting": "Hosts the early Progress Prickles. Revising a middle-grade fantasy, one chapter at a time.",
+    "Jules Sample": "Short stories and the occasional sonnet. Sprint Prickles keep me honest.",
+    "Rowan Demo": "Plotting my first novel. Plot or Plan Prickles are my favorite hour of the week.",
+  };
+  const fillerBios = [
+    "Cozy fantasy, strong tea, and a very large to-be-read pile.",
+    "Writing a memoir in 20-minute bursts between school runs.",
+    "Poet by night, accountant by day. Here for the morning Prickles.",
+    "Finishing my second draft before the leaves are gone.",
+    "Sci-fi short stories and too many half-finished notebooks.",
+    "Romance writer. Sprint Prickles are my secret weapon.",
+    "Reworking a screenplay into a novel, one scene at a time.",
+    "Here to build a daily writing habit and make friends.",
+    "Historical fiction, with a lot of research rabbit holes.",
+    "Writing picture books after the kids are in bed.",
+  ];
+  FILLER_MEMBERS.forEach((f, i) => {
+    bios[f.name] = fillerBios[i % fillerBios.length];
+  });
+  for (const [name, bio] of Object.entries(bios)) {
+    const { error } = await admin.from("members").update({ bio }).eq("name", name);
+    if (error) throw new Error(`member bio ${name}: ${error.message}`);
+  }
+
+  // What the member writes: the demo member's projects and a few weeks of progress, so My Writing and the streaks
+  // read as lived-in. Replaced on every run (external ids start with "demo-").
+  const memberEmail = PERSONAS.find((p) => p.key === "member")?.email;
+  const { data: memberRow } = await admin.from("members").select("id").eq("email", memberEmail ?? "").single();
+  const memberId = memberRow?.id;
+  if (memberId) {
+    const { error: wipeError } = await admin.from("writing_projects").delete().eq("member_id", memberId).like("external_id", "demo-%");
+    if (wipeError) throw new Error(`writing_projects clear: ${wipeError.message}`);
+    const projects = [
+      { external_id: "demo-lighthouse", title: "The Lighthouse Bakery Murders", phase: "drafting", description: "A cozy mystery about a baker who finds a body in the proofing room.", show_on_profile: true },
+      { external_id: "demo-tide", title: "Tide Tables (short story)", phase: "revising", description: "A quiet story about two sisters and a very old tide chart.", show_on_profile: true },
+      { external_id: "demo-seed", title: "Seed Notes", phase: "planning", description: "Ideas for the next book, collected a line at a time.", show_on_profile: false },
+    ];
+    const { data: created, error: projectError } = await admin.from("writing_projects").insert(projects.map((p) => ({ ...p, member_id: memberId }))).select("id, external_id");
+    if (projectError) throw new Error(`writing_projects: ${projectError.message}`);
+    const projectId = (key: string) => created?.find((p) => p.external_id === key)?.id;
+    const words = [820, 0, 640, 1100, 450, 0, 930, 760, 0, 1250, 520, 880, 0, 700, 960, 610, 0, 1040, 780, 890];
+    const entries = words.flatMap((amount, i) => {
+      if (amount === 0) return [];
+      const lighthouse = projectId("demo-lighthouse");
+      return lighthouse
+        ? [{ member_id: memberId, project_id: lighthouse, entry_date: orgDate(-(words.length - i), now), measure: "words", mode: "delta", amount, tags: [] as string[] }]
+        : [];
+    });
+    const tide = projectId("demo-tide");
+    if (tide) {
+      for (const [daysAgo, amount] of [[12, 3], [9, 2], [5, 4], [2, 3]] as const) {
+        entries.push({ member_id: memberId, project_id: tide, entry_date: orgDate(-daysAgo, now), measure: "pages", mode: "delta", amount, tags: [] });
+      }
+    }
+    const { error: entriesError } = await admin.from("writing_progress_entries").insert(entries);
+    if (entriesError) throw new Error(`writing_progress_entries: ${entriesError.message}`);
+  }
+
   // The Zoom room members see under "On air" (append-only: add only when the demo's isn't the latest).
   const { data: latest } = await admin.from("prickle_join_settings").select("join_url").order("effective_from", { ascending: false }).limit(1);
   if (latest?.[0]?.join_url !== DEMO_JOIN.url) {

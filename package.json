@@ -26,6 +26,7 @@
     "demo:seed": "tsx demo/seed.ts",
     "demo:baseline": "tsx demo/baseline.ts",
     "demo:publish": "tsx demo/publish.ts",
+    "demo:video": "playwright test --config demo/video/playwright.config.ts",
     "demo:capture": "playwright test --config demo/playwright.config.ts",
     "check:migrations": "tsx scripts/check-migration-order.ts",
     "branches:prune": "tsx scripts/prune-branches.ts",
