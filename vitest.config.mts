@@ -101,11 +101,21 @@ export default defineConfig({
             ...DB_EXCEPTIONS_UNDER_LIB,
             ...DB_ROOT_FILES,
           ],
-          exclude: [...UNIT_EXCEPTIONS_UNDER_API],
+          exclude: [...UNIT_EXCEPTIONS_UNDER_API, 'tests/api/smoke/**'],
           // See the file-level comment above -- these tests share one local Supabase
           // instance (and, for some, the same Next app server) using fixed fixture
           // identifiers, so running files in parallel causes flaky cross-file collisions.
           fileParallelism: false,
+        },
+      },
+      {
+        // The few tests that go over HTTP to the built app (`pnpm start`, or TEST_API_BASE_URL). A project of their
+        // own so CI can run the rest of the db suite while the production build is still running, and these after
+        // it. `pnpm test` still runs them with everything else.
+        extends: true,
+        test: {
+          name: 'smoke',
+          include: ['tests/api/smoke/**/*.test.ts'],
         },
       },
     ],
