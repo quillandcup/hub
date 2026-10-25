@@ -12,7 +12,7 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { getMyEntriesForPrickle } from "@/app/(member)/projects/actions";
 import { getMyCheckin } from "@/app/(member)/prickles/checkin-actions";
@@ -27,23 +27,7 @@ import { loadPrickleRoster, type PrickleRoster } from "@/lib/prickle-roster";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      title,
-      description,
-      host:prickle_host(id, name),
-      start_time,
-      end_time,
-      source,
-      zoom_meeting_uuid,
-      type_id,
-      prickle_types:type_id(name, description)
-    `)
-    .eq("id", id)
-    .single();
-  return data;
+  return createRepos(supabase).prickles.byId(id);
 });
 
 export async function generateMetadata({
@@ -56,7 +40,7 @@ export async function generateMetadata({
 
   if (!prickle) return { title: "Prickle" };
 
-  return { title: formatPrickleTitle(prickle) };
+  return { title: prickleTitle(prickle) };
 }
 
 function hasNotStarted(startTime: string): boolean {
@@ -123,15 +107,14 @@ export default async function PrickleDetailPage({
   const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: isActingAsAdmin });
   const attendanceRecords = attendeeList.map(attendeeRow);
 
-  const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-  const hostId = host?.id;
+  const hostId = prickle.host?.id;
   let hostMissing = false;
   let hostLate = false;
 
   if (hostId) {
     // Records are ordered by join_time, so the first match is the host's earliest join.
     const hostAttendance = attendanceRecords.find((a) => a.member_id === hostId);
-    const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
+    const hostStatus = computeHostStatus(prickle.startTime, prickle.endTime, hostAttendance?.join_time ?? null);
     hostMissing = hostStatus === "missing";
     hostLate = hostStatus === "late";
   }
@@ -145,8 +128,8 @@ export default async function PrickleDetailPage({
     const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
       supabase.schema("bronze").from("zoom_attendees")
         .select("name, email")
-        .lt("join_time", prickle.end_time)
-        .gt("leave_time", prickle.start_time),
+        .lt("join_time", prickle.endTime)
+        .gt("leave_time", prickle.startTime),
       createRepos(supabase).members.identities(),
       supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
       supabase.from("ignored_zoom_names").select("zoom_name"),
@@ -189,14 +172,13 @@ export default async function PrickleDetailPage({
   }
 
   // Members can add an upcoming prickle to their synced calendar (just this one, or every week).
-  const prickleHost = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-  const typeName =
-    (Array.isArray(prickle.prickle_types) ? prickle.prickle_types[0] : prickle.prickle_types)?.name ?? "Prickle";
-  const scheduleSlot = prickle.type_id
-    ? { typeId: prickle.type_id, ...slotTimeForInstant(prickle.start_time, SCHEDULE_TIMEZONE), timezone: SCHEDULE_TIMEZONE }
+  const prickleHost = prickle.host;
+  const typeName = prickle.type?.name ?? "Prickle";
+  const scheduleSlot = prickle.typeId
+    ? { typeId: prickle.typeId, ...slotTimeForInstant(prickle.startTime, SCHEDULE_TIMEZONE), timezone: SCHEDULE_TIMEZONE }
     : null;
   const calendarControl =
-    effectiveIdentity && prickle.type_id && hasNotStarted(prickle.start_time) ? (
+    effectiveIdentity && prickle.typeId && hasNotStarted(prickle.startTime) ? (
       <AddPrickleToCalendar
         prickleId={prickle.id}
         typeName={typeName}
@@ -205,7 +187,7 @@ export default async function PrickleDetailPage({
           weekday: "short",
           month: "short",
           day: "numeric",
-        }).format(new Date(prickle.start_time))}
+        }).format(new Date(prickle.startTime))}
         state={prickleCalendarState(calendarItems, prickle.id, scheduleSlot ? slotKey(scheduleSlot) : null)}
         autoIncluded={prickleHost?.id === effectiveIdentity.memberId ? "hosting" : null}
       />
@@ -215,7 +197,7 @@ export default async function PrickleDetailPage({
   // Attendance History; here, only a link, and only when it's relevant: before the prickle (to
   // check in) or after it for someone who was there or already has something saved. Admins with a
   // member record get it too (the DM links there).
-  const started = !hasNotStarted(prickle.start_time);
+  const started = !hasNotStarted(prickle.startTime);
   // Who's coming: commitments and calendar items are private rows, so the roster is read with the
   // service role and carries names only. A failure just leaves the "stay tuned" text.
   let roster: PrickleRoster | null = null;
@@ -223,7 +205,7 @@ export default async function PrickleDetailPage({
     try {
       roster = await loadPrickleRoster(
         createServiceRoleClient(),
-        { id: prickle.id, type_id: prickle.type_id, start_time: prickle.start_time, host_id: hostId ?? null },
+        { id: prickle.id, type_id: prickle.typeId, start_time: prickle.startTime, host_id: hostId ?? null },
         effectiveIdentity?.memberId ?? null
       );
     } catch (error) {

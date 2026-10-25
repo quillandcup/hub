@@ -9,6 +9,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
+import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
@@ -27,7 +28,7 @@ const TIMEZONES = [
 ];
 
 interface PrickleDetailsProps {
-  prickle: any;
+  prickle: PrickleDetail;
   attendanceRecords: any[];
   hostMissing: boolean;
   hostLate: boolean;
@@ -93,10 +94,10 @@ export default function PrickleDetails({
     setTimezone(defaultTimezone);
   }, [defaultTimezone]);
 
-  const prickleType = prickle.prickle_types as any;
-  const hostMember = prickle.host as any;
-  const startTime = new Date(prickle.start_time);
-  const endTime = new Date(prickle.end_time);
+  const prickleType = prickle.type;
+  const hostMember = prickle.host;
+  const startTime = new Date(prickle.startTime);
+  const endTime = new Date(prickle.endTime);
   const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
 
   const uniqueMembers = new Set(attendanceRecords.map(r => r.member_id || r.members?.id)).size;

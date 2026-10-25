@@ -11,30 +11,14 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      title,
-      description,
-      host:members(id, name),
-      start_time,
-      end_time,
-      source,
-      zoom_meeting_uuid,
-      type_id,
-      prickle_types:type_id(name, description, normalized_name)
-    `)
-    .eq("id", id)
-    .single();
-  return data;
+  return createRepos(supabase).prickles.byId(id);
 });
 
 export async function generateMetadata({
@@ -47,7 +31,7 @@ export async function generateMetadata({
 
   if (!prickle) return { title: "Prickle" };
 
-  return { title: formatPrickleTitle(prickle) };
+  return { title: prickleTitle(prickle) };
 }
 
 export default async function AdminPrickleDetailPage({
@@ -83,15 +67,14 @@ export default async function AdminPrickleDetailPage({
   const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: true });
   const attendanceRecords = attendeeList.map(attendeeRow);
 
-  const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-  const hostId = host?.id;
+  const hostId = prickle.host?.id;
   let hostMissing = false;
   let hostLate = false;
 
   if (hostId) {
     // Records are ordered by join_time, so the first match is the host's earliest join.
     const hostAttendance = attendanceRecords.find((a) => a.member_id === hostId);
-    const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
+    const hostStatus = computeHostStatus(prickle.startTime, prickle.endTime, hostAttendance?.join_time ?? null);
     hostMissing = hostStatus === "missing";
     hostLate = hostStatus === "late";
   }
@@ -101,8 +84,8 @@ export default async function AdminPrickleDetailPage({
   const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
     supabase.schema("bronze").from("zoom_attendees")
       .select("name, email")
-      .lt("join_time", prickle.end_time)
-      .gt("leave_time", prickle.start_time),
+      .lt("join_time", prickle.endTime)
+      .gt("leave_time", prickle.startTime),
     createRepos(supabase).members.identities(),
     supabase.from("member_name_aliases").select("alias, member_id, source"),
     supabase.from("ignored_zoom_names").select("zoom_name"),
@@ -144,11 +127,10 @@ export default async function AdminPrickleDetailPage({
     }
   }
 
-  const prickleTypeData = prickle.prickle_types as any;
-  const normalizedName = prickleTypeData?.normalized_name as string | undefined;
+  const normalizedName = prickle.type?.normalizedName;
   let insightsSlotUrl: string | undefined;
   if (normalizedName) {
-    const slot = getScheduleSlot(prickle.start_time);
+    const slot = getScheduleSlot(prickle.startTime);
     insightsSlotUrl = `/admin/insights/prickles/${normalizedName}?group=schedule&slot=${encodeURIComponent(slot.sortKey)}`;
   }
 

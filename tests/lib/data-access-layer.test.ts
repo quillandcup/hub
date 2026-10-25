@@ -16,8 +16,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_attendance: [],
   prickles: [
     "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx",
-    "app/(admin)/admin/prickles/[id]/page.tsx",
-    "app/(member)/prickles/[id]/page.tsx",
     "app/api/process/attendance/route.ts",
     "app/api/zoom/prickles/route.ts",
   ],
