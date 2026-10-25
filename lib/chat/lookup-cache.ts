@@ -13,14 +13,16 @@ export const LOOKUP_TTL_SECONDS = 300;
 export const CHAT_LOOKUPS_TAG = "chat-slack-lookups";
 
 export function cachedLookup<V>(name: string, fn: (keys: string[]) => Promise<Record<string, V>>) {
-  const cached = unstable_cache((keys: string[]) => fn(keys), ["chat-lookup", name], {
-    revalidate: LOOKUP_TTL_SECONDS,
-    tags: [CHAT_LOOKUPS_TAG],
-  });
+  // Built on first use, so importing this module never needs the cache runtime.
+  let cached: ((keys: string[]) => Promise<Record<string, V>>) | undefined;
   return async (input: string[]): Promise<Record<string, V>> => {
     const keys = [...new Set(input)].sort();
     if (keys.length === 0) return {};
     try {
+      cached ??= unstable_cache((k: string[]) => fn(k), ["chat-lookup", name], {
+        revalidate: LOOKUP_TTL_SECONDS,
+        tags: [CHAT_LOOKUPS_TAG],
+      });
       return await cached(keys);
     } catch (error) {
       // Outside a Next request (scripts, some tests) there is no cache: run the lookup directly.
