@@ -23,7 +23,7 @@ definePrickleContract("InMemoryPrickleRepository", () => {
         id: `prkl_${String(i).padStart(12, "A")}`,
         typeId: s.type === undefined ? null : types[s.type].id,
         hostId: s.host === undefined ? null : hosts[s.host].id,
-        title: null,
+        title: s.title ?? null,
         startTime: s.start,
         endTime: s.end ?? s.start,
         source: s.source ?? "calendar",

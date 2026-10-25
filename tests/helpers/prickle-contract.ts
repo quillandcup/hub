@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
+export type PrickleSeed = { title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -290,6 +290,29 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(found).toContain(later);
       expect(found.indexOf(from)).toBeLessThan(found.indexOf(later));
       expect(await ctx.repo().startingBetween({ from: at(1), hostId: ctx.hosts[0].id })).toEqual([]);
+    });
+
+    it("searches prickles by title, type name or the host's name, every word, newest first", async () => {
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const [titled, byType, byHost, other] = await ctx.seed([
+        { start: at(50), title: `Tiny Workshop ${suffix}` },
+        { type: 0, start: at(51) },
+        { host: 0, start: at(52) },
+        { type: 1, start: at(53) },
+      ]);
+      const ids = [titled, byType, byHost, other];
+      const mine = async (query: Partial<Parameters<ReturnType<typeof ctx.repo>["search"]>[0]>) =>
+        (await ctx.repo().search({ words: [], limit: 50, offset: 0, after: at(49), before: at(60), ...query })).map((p) => p.id).filter((id) => ids.includes(id));
+
+      expect(await mine({ words: [{ text: `workshop ${suffix}`, hostIds: [] }] })).toEqual([titled]); // by its own title
+      expect(await mine({ words: [{ text: ctx.types[0].name, hostIds: [] }] })).toEqual([byType]); // by type name
+      expect(await mine({ words: [{ text: "anything", hostIds: [ctx.hosts[0].id] }] })).toEqual([byHost]); // by a host the caller matched
+      expect(await mine({ words: [{ text: ctx.types[1].name, hostIds: [] }, { text: "nonesuch", hostIds: [] }] })).toEqual([]); // every word must match
+      expect(await mine({})).toEqual([other, byHost, byType, titled]); // newest first
+      expect(await mine({ hostIds: [ctx.hosts[0].id] })).toEqual([byHost]);
+      expect(await mine({ hostIds: [] })).toEqual([]);
+      expect(await mine({ after: at(52), before: at(53) })).toEqual([byHost]); // [after, before)
+      expect(await mine({ limit: 2, offset: 1 })).toEqual([byHost, byType]);
     });
   });
 }

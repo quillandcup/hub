@@ -8,7 +8,7 @@
  */
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { formatPrickleDetailTitle } from "@/lib/formatters";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
 import { mentionsToPlainText } from "@/lib/chat/render";
 import type { ChannelSummary } from "@/lib/chat/load";
@@ -148,43 +148,31 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   // A prickle is named for its type and host ("Monday Progress Prickle with Jenn P") unless the host
   // gave it a title of its own ("Tiny Things Practice Workshop"), so each word must match the type's
   // name, the host's name or the title.
-  const [hosts, perWord] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
+  const [hosts, wordHosts] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
     words.map(async (w) => {
-      const [types, named] = await Promise.all([
-        ctx.supabase.from("prickle_types").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(50),
-        ctx.supabase.from("member_directory").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(100),
-      ]);
-      return { typeIds: (types.data ?? []).map((t) => t.id as string), hostIds: (named.data ?? []).map((m) => m.id as string) };
+      const { data } = await ctx.supabase.from("member_directory").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(100);
+      return { text: w, hostIds: (data ?? []).map((m) => m.id as string) };
     })
   )]);
   if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
 
-  let query = ctx.supabase
-    .from("prickles")
-    .select("id, title, start_time, host:prickle_host(id, name), prickle_types:type_id(name)");
-  if (hosts) query = query.in("host", hosts);
-  for (const [i, w] of perWord.entries()) {
-    // One .or() per word: PostgREST ANDs separate filters.
-    const ors = [
-      `title.ilike.${pattern(words[i])}`,
-      w.typeIds.length ? `type_id.in.(${w.typeIds.join(",")})` : null,
-      w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
-    ].filter(Boolean);
-    query = query.or(ors.join(","));
-  }
-  if (q.after) query = query.gte("start_time", q.after);
-  if (q.before) query = query.lt("start_time", q.before);
-  const { data } = await query.order("start_time", { ascending: false }).range(offset, offset + limit);
-  const { rows, hasMore } = finish(data, limit);
+  const found = await createRepos(ctx.supabase).prickles.search({
+    words: wordHosts,
+    hostIds: hosts ?? undefined,
+    after: q.after || undefined,
+    before: q.before || undefined,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
+  const { rows, hasMore } = finish(found, limit);
   const base = ctx.isActingAsAdmin ? "/admin/prickles" : "/prickles";
   return {
     kind: "prickles",
     hasMore,
     hits: rows.map((p) => ({
-      kind: "prickles", id: p.id as string,
-      // PostgREST types an embedded single row as an array here; formatPrickleTitle accepts either.
-      title: formatPrickleTitle(p as unknown as Parameters<typeof formatPrickleTitle>[0]),
-      date: p.start_time as string, href: `${base}/${p.id}`,
+      kind: "prickles", id: p.id,
+      title: formatPrickleDetailTitle(p),
+      date: p.startTime, href: `${base}/${p.id}`,
     })),
   };
 }
