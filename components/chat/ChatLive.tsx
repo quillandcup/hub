@@ -7,6 +7,7 @@ import { authenticateRealtime } from "@/lib/chat/live";
 import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
 import { emitListEvent, onPoke } from "@/lib/chat/list-events";
+import { firstUnreadMessageId } from "@/lib/chat/unread";
 
 /** Changes right behind the first one in a burst (a message plus its reactions) fold into one more fetch. */
 const REFRESH_DELAY_MS = 300;
@@ -103,19 +104,24 @@ export default function ChatLive({
 
   // Bring the conversation up to date: just the newest messages (or the open thread), merged into
   // the list in place; or the whole page for older pages and when that small fetch can't be done.
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (fromCache = false) => {
     if (view === "older") return router.refresh();
     const changed = [...changedIds.current].slice(0, MAX_CHANGED_IDS);
     changedIds.current.clear();
     const result =
       view === "thread"
         ? await loadThreadChat(channelId, threadRootId ?? "").catch(() => null)
-        : await loadLatestChat(channelId, changed).catch(() => null);
+        : await (fromCache ? loadLatestChat(channelId, changed, true) : loadLatestChat(channelId, changed)).catch(() => null);
     if (!result) return router.refresh();
     if (view === "thread") {
       emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
     } else {
       emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+      // The unread line the cached page drew is where the marker was then; the reader has moved it since.
+      const readMarker = (result as { readMarker?: string | null }).readMarker;
+      if (readMarker !== undefined) {
+        emitListEvent({ kind: "unread", channelId, firstUnreadId: firstUnreadMessageId(result.views, readMarker) ?? null });
+      }
     }
     // The newest message is the newest by time, not the last one in the list: a fetch can carry older
     // messages that changed.
@@ -156,7 +162,7 @@ export default function ChatLive({
   // merged in place (the realtime subscription only reports changes from now on).
   useEffect(() => {
     if (view === "older" || !renderedAt) return;
-    if (Date.now() - Date.parse(renderedAt) > CACHED_PAGE_MS) void reload();
+    if (Date.now() - Date.parse(renderedAt) > CACHED_PAGE_MS) void reload(true);
     // Only on mount: later renders of the same page must not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

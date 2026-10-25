@@ -58,6 +58,9 @@ export default function MessageList({
   const [loadedCursor, setLoadedCursor] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Set when a page served from the client cache learns where the reader's marker really is.
+  const [unreadOverride, setUnreadOverride] = useState<{ id: string | null } | null>(null);
+  const unreadId = unreadOverride ? (unreadOverride.id ?? undefined) : firstUnreadId;
 
   if (views !== seen.views || ctx !== seen.ctx) {
     setSeen({ views, ctx });
@@ -87,6 +90,10 @@ export default function MessageList({
           next.delete(event.tempId);
           return next;
         });
+        return;
+      }
+      if (event.kind === "unread") {
+        setUnreadOverride({ id: event.firstUnreadId });
         return;
       }
       if (event.kind === "merge") {
@@ -194,7 +201,7 @@ export default function MessageList({
         )}
       </div>
       {messages.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No messages here yet.</p>}
-      {groupByDay(messages, timeZone, firstUnreadId).map((day) => (
+      {groupByDay(messages, timeZone, unreadId).map((day) => (
         <section key={day.key} aria-label={day.label}>
           {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
           <div role="separator" aria-label={day.label} className="sticky top-0 z-10 flex items-center bg-canvas py-2 dark:bg-slate-950">
@@ -206,7 +213,7 @@ export default function MessageList({
           </div>
           {day.items.map(({ message: m, compact }) => (
             <Fragment key={m.id}>
-              {m.id === firstUnreadId && <UnreadDivider />}
+              {m.id === unreadId && <UnreadDivider />}
               <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} compact={compact} timeZone={timeZone} />
             </Fragment>
           ))}

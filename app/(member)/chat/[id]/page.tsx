@@ -9,6 +9,7 @@ import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
 import { parseBefore } from "@/lib/chat/format";
 import { isId } from "@/lib/ids";
+import { firstUnreadMessageId } from "@/lib/chat/unread";
 import {
   buildMessageViews,
   chatTextContext,
@@ -137,11 +138,7 @@ export default async function ChatChannelPage({
   const ctx = chatTextContext(rendered, channels);
   const messageViews = views.slice(0, mainRows.length);
   const threadViews = views.slice(mainRows.length);
-  const firstUnreadId = readMarker
-    ? messageViews.find(
-        (m) => m.contentState !== "deleted" && m.authorMemberId !== identity.memberId && Date.parse(m.createdAt) > Date.parse(readMarker!)
-      )?.id
-    : undefined;
+  const firstUnreadId = firstUnreadMessageId(messageViews, readMarker);
   const rootView = root ? threadViews[0] : null;
   const replyViews = root ? threadViews.slice(1) : [];
   const panelOpen = !sudoHidden && (rootView !== null || (profileId !== null && !threadId));
