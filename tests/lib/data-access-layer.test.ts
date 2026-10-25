@@ -15,7 +15,6 @@ import { describe, expect, it } from "vitest";
 const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_attendance: [],
   prickles: [
-    "app/(admin)/admin/calendar/page.tsx",
     "app/(admin)/admin/data-health/missing-hosts/MissingHostsClient.tsx",
     "app/(admin)/admin/hygiene/page.tsx",
     "app/(admin)/admin/prickles/[id]/page.tsx",
