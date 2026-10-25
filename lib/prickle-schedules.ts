@@ -7,6 +7,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
 
 export type RecurrenceType = "weekly" | "biweekly" | "monthly" | "one_off";
 export type ScheduleStatus = "proposed" | "confirmed" | "declined";
@@ -266,12 +268,6 @@ function toLocalDateAndTime(isoTimestamp: string, timezone: string): { date: Dat
 
 const BOOTSTRAP_TIMEZONE = ORG_TIMEZONE;
 
-interface BootstrapPrickleRow {
-  host: string;
-  type_id: string;
-  start_time: string;
-}
-
 interface BootstrapExistingRow {
   id: string;
   host_id: string;
@@ -344,28 +340,26 @@ export async function bootstrapMonthFromCalendar(
   const monthEnd = getMonthEnd(monthStart);
   const nextMonth = getNextMonthStart(monthStart).toISOString().slice(0, 10);
 
-  const [{ data: prickleRows, error: pricklesError }, { data: existingRows, error: existingError }] = await Promise.all([
-    supabase
-      .from("prickles")
-      .select("host, type_id, start_time, prickle_types!inner(requires_host)")
-      .eq("source", "calendar")
-      .eq("prickle_types.requires_host", true)
-      .not("host", "is", null)
-      .not("type_id", "is", null)
-      .gte("start_time", monthStart.toISOString())
-      .lt("start_time", new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000).toISOString())
-      .order("start_time", { ascending: true }),
+  const [monthPrickles, { data: existingRows, error: existingError }] = await Promise.all([
+    createRepos(supabase).prickles.startingBetween({
+      from: monthStart.toISOString(),
+      to: new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    }),
     supabase
       .from("prickle_schedules")
       .select("id, host_id, type_id, recurrence_type, day_of_week, week_of_month, status")
       .eq("month", month)
       .is("deleted_at", null),
   ]);
-  if (pricklesError) throw new Error(pricklesError.message);
   if (existingError) throw new Error(existingError.message);
 
   const groups = new Map<string, { host_id: string; type_id: string; dates: Date[]; timeLocal: string }>();
-  for (const row of (prickleRows ?? []) as BootstrapPrickleRow[]) {
+  // Calendar prickles of a type that takes a host, with a host assigned; startingBetween is oldest first.
+  const hosted = monthPrickles.filter(
+    (p): p is PrickleDetail & { hostId: string; typeId: string } => p.source === "calendar" && !!p.type?.requiresHost && p.hostId !== null && p.typeId !== null
+  );
+  for (const p of hosted) {
+    const row = { host: p.hostId, type_id: p.typeId, start_time: p.startTime };
     const { date, timeLocal } = toLocalDateAndTime(row.start_time, BOOTSTRAP_TIMEZONE);
     const key = `${row.host}|${row.type_id}|${date.getUTCDay()}`;
     const group = groups.get(key);

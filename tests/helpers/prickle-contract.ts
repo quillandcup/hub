@@ -280,5 +280,16 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(hostOf(theirs)).toBe(ctx.hosts[1].id);
       expect(hostOf(hostless)).toBeNull();
     });
+
+    it("lists everything from a start on when no end is given", async () => {
+      const [, from, later] = await ctx.seed([{ start: at(0) }, { start: at(5) }, { start: at(500) }]);
+
+      const found = (await ctx.repo().startingBetween({ from: at(1) })).map((p) => p.id);
+
+      expect(found).toContain(from);
+      expect(found).toContain(later);
+      expect(found.indexOf(from)).toBeLessThan(found.indexOf(later));
+      expect(await ctx.repo().startingBetween({ from: at(1), hostId: ctx.hosts[0].id })).toEqual([]);
+    });
   });
 }
