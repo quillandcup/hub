@@ -2,14 +2,20 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import PrickleDetails from "@/components/PrickleDetails";
+import type { PrickleDetail } from "@/lib/domain/prickle";
 
-const prickle = {
+const prickle: PrickleDetail = {
   id: "p1",
-  start_time: "2026-10-20T15:00:00Z",
-  end_time: "2026-10-20T16:00:00Z",
+  typeId: "t1",
+  hostId: "h1",
+  title: null,
+  description: null,
+  startTime: "2026-10-20T15:00:00Z",
+  endTime: "2026-10-20T16:00:00Z",
   source: "calendar",
-  host: { id: "h1", name: "Jenn Parker" },
-  prickle_types: { name: "Progress Prickle", description: null },
+  calendarEventId: null,
+  host: { id: "h1", name: "Jenn Parker", displayName: null },
+  type: { id: "t1", name: "Progress Prickle", normalizedName: "progress", description: null, purpose: "writing", requiresHost: true, soloTaskFriendly: false },
 };
 
 const record = {
@@ -23,7 +29,7 @@ const record = {
 const renderDetails = (props: Partial<React.ComponentProps<typeof PrickleDetails>> = {}) =>
   render(
     <PrickleDetails
-      prickle={prickle as never}
+      prickle={prickle}
       attendanceRecords={[]}
       hostMissing={false}
       hostLate={false}
@@ -128,5 +134,37 @@ describe("PrickleDetails who's coming", () => {
     renderDetails({ hasStarted: true, roster: { entries: [entry()], total: 1 } });
     expect(screen.queryByText("Committed")).not.toBeInTheDocument();
     expect(screen.getByText("No attendance records for this Prickle")).toBeInTheDocument();
+  });
+});
+
+describe("PrickleDetails summary", () => {
+  it("shows the title or a default, the description, type, host and source", () => {
+    const { rerender } = renderDetails();
+    expect(screen.getByRole("heading", { name: "Prickle Details" })).toBeInTheDocument();
+    expect(screen.getByText("Progress Prickle")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jenn Parker" })).toHaveAttribute("href", "/members/h1");
+    expect(screen.getByText("Google Calendar")).toBeInTheDocument();
+
+    rerender(
+      <PrickleDetails
+        prickle={{
+          ...prickle,
+          title: "Tiny Things Workshop",
+          description: "Bring a tiny idea.",
+          source: "zoom",
+          type: { ...prickle.type!, description: "Timed writing in company." },
+        }}
+        attendanceRecords={[]}
+        hostMissing={false}
+        hostLate={false}
+        userTimezonePreference="America/New_York"
+        memberBasePath="/members"
+        showMemberEmails={false}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Tiny Things Workshop" })).toBeInTheDocument();
+    expect(screen.getByText("Bring a tiny idea.")).toBeInTheDocument();
+    expect(screen.getByText("Timed writing in company.")).toBeInTheDocument();
+    expect(screen.getByText("Pop-Up Prickle (Zoom)")).toBeInTheDocument();
   });
 });

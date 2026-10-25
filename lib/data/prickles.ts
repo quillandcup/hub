@@ -14,6 +14,8 @@ export type PrickleType = {
   purpose: string;
   requiresHost: boolean;
   soloTaskFriendly: boolean;
+  /** What the type is, in a sentence or two; null when nobody wrote one. */
+  description?: string | null;
 };
 
 /** Who hosts a prickle: the public part of the host's member record. */
@@ -26,6 +28,8 @@ export type Prickle = {
   /** Member id of the host; null when nobody is assigned. */
   hostId: string | null;
   title: string | null;
+  /** What the host wrote about this session; null when nothing. */
+  description?: string | null;
   startTime: string;
   endTime: string;
   source: string;
@@ -134,9 +138,9 @@ export interface PrickleRepository {
   ofTypeActiveBetween(options: { normalizedName: string; from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
 }
 
-const TYPE_COLUMNS = "id, name, normalized_name, purpose, requires_host, solo_task_friendly";
+const TYPE_COLUMNS = "id, name, normalized_name, description, purpose, requires_host, solo_task_friendly";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
-const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, start_time, end_time, source, calendar_event_id";
+const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
 const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
 
@@ -151,6 +155,7 @@ type TypeRow = {
   id: string;
   name: string;
   normalized_name: string;
+  description: string | null;
   purpose: string;
   requires_host: boolean | null;
   solo_task_friendly: boolean;
@@ -161,6 +166,7 @@ export type DetailRow = {
   type_id: string | null;
   host_id: string | null;
   title: string | null;
+  description: string | null;
   start_time: string;
   end_time: string;
   source: string;
@@ -178,6 +184,7 @@ const toType = (row: TypeRow): PrickleType => ({
   normalizedName: row.normalized_name,
   purpose: row.purpose,
   requiresHost: row.requires_host ?? false,
+  description: row.description,
   soloTaskFriendly: row.solo_task_friendly,
 });
 
@@ -189,6 +196,7 @@ export function toDetail(row: DetailRow): PrickleDetail {
     typeId: row.type_id,
     hostId: row.host_id,
     title: row.title,
+    description: row.description,
     startTime: row.start_time,
     endTime: row.end_time,
     source: row.source,
@@ -589,11 +597,11 @@ export class InMemoryPrickleRepository implements PrickleRepository {
       .map((p) => this.detail(p));
   }
 
-  async findOrCreateType({ name, normalizedName }: { name: string; normalizedName: string; description?: string }) {
+  async findOrCreateType({ name, normalizedName, description }: { name: string; normalizedName: string; description?: string }) {
     const existing = this.data.prickleTypes.find((t) => t.normalizedName === normalizedName);
     if (existing) return existing.id;
     const id = `prty_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-    this.data.prickleTypes.push({ id, name, normalizedName, purpose: "writing", requiresHost: false, soloTaskFriendly: false });
+    this.data.prickleTypes.push({ id, name, normalizedName, description: description ?? null, purpose: "writing", requiresHost: false, soloTaskFriendly: false });
     return id;
   }
 

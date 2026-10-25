@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
+export type PrickleSeed = { description?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -368,6 +368,19 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       const found = new Set((await ctx.repo().timeWindows()).map((w) => w.id));
 
       expect(ids.every((id) => found.has(id))).toBe(true);
+    });
+
+    it("reads a prickle's description and its type's description", async () => {
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const [withText, without] = await ctx.seed([{ start: at(90), description: "Bring a tiny idea." }, { start: at(91) }]);
+      const typeId = await ctx.repo().findOrCreateType({ name: `Described Type ${suffix}`, normalizedName: `described-${suffix}`, description: "Timed writing in company." });
+      ctx.adopt(await ctx.repo().createCalendarPrickles([{ typeId, hostId: null, description: "Made by a resolve", startTime: at(92), endTime: at(93) }]));
+
+      const found = await ctx.repo().byIds([withText, without]);
+
+      expect(found.find((p) => p.id === withText)?.description).toBe("Bring a tiny idea.");
+      expect(found.find((p) => p.id === without)?.description ?? null).toBeNull();
+      expect((await ctx.repo().types()).find((t) => t.id === typeId)?.description).toBe("Timed writing in company.");
     });
   });
 }
