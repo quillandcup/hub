@@ -187,7 +187,7 @@ For analytics the log records what a member's browser and screen actually are, i
 | `viewport_w`, `viewport_h` | 1437 x 812 (CSS pixels) | read when each event is recorded, so a resized window or rotated phone shows up |
 | `orientation` | portrait, landscape | from the screen, not the user agent |
 | `touch`, `pointer` | has touch points; `coarse` (finger), `fine` (mouse, trackpad), `none` | from the browser; **what tells an iPad from a Mac** (see [Decisions the rollups must support](#decisions-the-rollups-must-support)) |
-| `display_mode` | `browser`, `standalone` | whether the Hub was opened as an installed app (PWA) |
+| `display_mode` | `browser`, `standalone`, `minimal-ui`, `fullscreen`, `window-controls-overlay` | whether the Hub was opened as an installed app, from the `display-mode` media query (and `navigator.standalone` for older iOS Safari); see [Installed app](#installed-app) |
 | `device_class` | desktop, phone, tablet | computed on the client from the above (user agent alone mislabels iPads) with the server's user-agent parse as the fallback for sign-in events |
 | `device_source` | `client_hints` or `user_agent` | how reliable the versions are, so an analysis can filter to the trustworthy ones |
 
@@ -215,7 +215,7 @@ Rollups exist to inform decisions, so their dimensions are chosen backwards from
 |---|---|---|
 | Which browsers and versions to support, which features to use | each browser's version, and **which family the version belongs to** (a bare version number means nothing) | browser family x `major.minor`; OS family x `major.minor`; browser family x OS family (needed because every browser on iOS is WebKit, so "Chrome on iOS" is governed by the iOS version, not Chrome's) |
 | Layout and breakpoints | the viewport, with no need to know the browser | width bins; height bins; width band x height band (above-the-fold); orientation x width band |
-| Which platforms to build or polish for (iPhone, iPad, Android phone, Android tablet, desktop) and whether a native app is worth it | the **platform**: device class x OS family, plus whether the PWA is installed and touch is the input | **platform** (device class x OS family); platform x `display_mode` (installed app or browser tab); platform x `pointer` (touch or mouse) |
+| Which platforms to build or polish for (iPhone, iPad, Android phone, Android tablet, desktop) and whether a native app is worth it | the **platform**: device class x OS family, plus whether the PWA is installed and touch is the input | **platform** (device class x OS family); platform x `display_mode` (installed app or browser tab); platform x `pointer` (touch or mouse); installs per week by platform (`app_installed` x platform, `install_prompt_available` x platform) |
 | Tablet design: landscape against portrait | orientation by tablet, and by size | platform x orientation; platform x orientation x width band (tablets only) |
 | Optimising one page for the screens that use it | the page by viewport | route x width band; route x platform; route x orientation; **route x device class x orientation** (the one three-way set, for pages used on tablets) |
 | Staff pages against member pages | every set above, split by audience | `audience` (staff or member) x each set above |
@@ -228,6 +228,18 @@ Rules that keep this from becoming the fingerprint it must not be: a cell of any
 - **An installed app is invisible to the user agent.** The Hub is a PWA (members on iOS must install it to receive push notifications). `display_mode` (`browser` or `standalone`) records whether it was opened as an installed app, which is the clearest single signal for "native app or not".
 
 Both are small enumerations and only collected where tracking is allowed, like the viewport.
+
+### Installed app
+
+"Installed" means the same thing on every platform: the member added the Hub as an app, and it opens in its own window or full screen. The manifest sets `display: "standalone"`, so **iPhone Add to Home Screen, Android Install app (and Add to Home screen), and Chrome or Edge desktop's Install app (the icon in the address bar) all produce a launch where `display_mode` is `standalone`.** `components/InstallAppPrompt.tsx` already uses that same check. Because `display_mode` is recorded on every event, an installed launch shows up without anyone nudging anyone, and platform x `display_mode` separates the cases: standalone on iOS is Add to Home Screen, on desktop Chrome or Edge it is the address-bar install.
+
+Two kinds of signal, because "is it installed" and "when did they install it" are different questions:
+
+- **Every launch**: `display_mode` on each event, as above. Works on iOS, Android and desktop. An installed copy shares its sign-in and storage with the browser on the same device, so it needs no separate login and the consent choice carries over.
+- **The moment of installing** (`app_installed`, from the browser's `appinstalled` event): Chrome and Edge on Android and desktop only. **iOS Safari has no install event**, so for iOS the first launch in standalone mode is the nearest thing, found by query ("this member's first `standalone` visit").
+- **The offer** (`install_prompt_available`, from `beforeinstallprompt`, Chromium only): fires when the browser decides the Hub can be installed, including when the member never sees our own prompt. It lets us measure a nudge later (offered, accepted, dismissed) and count how many installs happen with no nudge at all, which is the baseline you'd want before deciding whether a nudge is worth building. The Hub has no desktop nudge today; the install in the screenshot is Chrome's own.
+
+`app_installed` and `install_prompt_available` are consent-class events (the browser reports them), counted in rollups as event name x platform, so "installs per week on each platform" is a permanent chart.
 
 ### What a scrub keeps and removes
 
