@@ -9,6 +9,7 @@ import { catchUpChannel } from "@/lib/chat/gap-fill";
 import { requireChat } from "@/lib/chat/access";
 import { parseBefore } from "@/lib/chat/format";
 import { isId } from "@/lib/ids";
+import { createStageTimer } from "@/lib/chat/timing";
 import { firstUnreadMessageId } from "@/lib/chat/unread";
 import {
   buildMessageViews,
@@ -58,7 +59,9 @@ export default async function ChatChannelPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ before?: Param; thread?: Param; profile?: Param }>;
 }) {
+  const timer = createStageTimer();
   const { user, identity } = await requireChat();
+  timer.mark("requireChat");
   const { id } = await params;
   const { before, thread, profile } = await searchParams;
   if (!isId(id, "chn")) notFound();
@@ -66,6 +69,7 @@ export default async function ChatChannelPage({
   const supabase = await createClient();
   const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
+  timer.mark("channel");
 
   const sudoHidden = identity.isSudo && channel.restricted;
 
@@ -122,20 +126,22 @@ export default async function ChatChannelPage({
     return { page, root: thread?.[0] ?? null, threadPage: thread?.[1] ?? null };
   };
   const [{ page, root, threadPage }, preferredZone, people, readMarker, channels, memberCard, postingOn] = await Promise.all([
-    messagesQuery(),
+    timer.time("messages", messagesQuery()),
     // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
-    getUserTimezonePreference(),
-    sudoHidden ? Promise.resolve([]) : loadChannelMembers(supabase, channel.id),
-    readMarkerQuery(),
-    loadChatChannels(supabase, identity.memberId, identity.isSudo),
+    timer.time("timezone", getUserTimezonePreference()),
+    sudoHidden ? Promise.resolve([]) : timer.time("members", loadChannelMembers(supabase, channel.id)),
+    timer.time("readMarker", readMarkerQuery()),
+    timer.time("channels", loadChatChannels(supabase, identity.memberId, identity.isSudo)),
     profileId && !threadId && !sudoHidden ? loadMemberCard(supabase, profileId) : Promise.resolve(null),
-    postingQuery(),
+    timer.time("posting", postingQuery()),
   ]);
+  timer.mark("parallel");
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
   const mainRows = page?.messages ?? [];
   const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const { views, ...rendered } = await buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId);
+  const { views, ...rendered } = await buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId, timer);
   const ctx = chatTextContext(rendered, channels);
+  timer.log(channel.kind === "channel" ? "channel" : "group");
   const messageViews = views.slice(0, mainRows.length);
   const threadViews = views.slice(mainRows.length);
   const firstUnreadId = firstUnreadMessageId(messageViews, readMarker);
