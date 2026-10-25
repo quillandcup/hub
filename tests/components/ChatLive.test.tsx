@@ -99,6 +99,7 @@ describe("ChatLive", () => {
     expect(loadLatestChat).toHaveBeenCalledTimes(1);
     cleanup();
     loadLatestChat.mockClear();
+    refresh.mockClear();
     await mount("older", { renderedAt: new Date(now - 20_000).toISOString() });
     expect(loadLatestChat).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
