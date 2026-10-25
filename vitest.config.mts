@@ -44,7 +44,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/setup.ts', './tests/setup-msw.ts', './tests/setup-jsdom.ts'],
+    // msw (tests/setup-msw.ts) is not here: the two files that use it import it, which registers its hooks. Starting
+    // its interceptors in every file cost setup time for nothing.
+    setupFiles: ['./tests/setup.ts', './tests/setup-jsdom.ts'],
     // Only applies with --coverage (pnpm test:unit:coverage / test:db:coverage).
     // Each project writes to its own directory (see the scripts in package.json) so CI
     // can merge the two lcov files. 

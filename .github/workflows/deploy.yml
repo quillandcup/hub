@@ -109,12 +109,24 @@ jobs:
       # --prebuilt deploy fast instead of a cold build every push -- it's the
       # local equivalent of the remote build cache the deploy-hook path got
       # for free from Vercel's own infrastructure.
+      #
+      # Keyed by lockfile and UTC day, not by a hash of the sources: the cache is saved when the exact key is
+      # missing, so a per-source key saved a fresh copy on nearly every deploy (about 30s in the post step, and
+      # churn in the repository's cache quota). Now the first deploy of a day saves it and the rest only restore the
+      # newest earlier one (restore-keys); Next's cache entries are content-addressed, so a day-old copy still
+      # hits for every file that didn't change. Hashing every source file also walked node_modules, which this job
+      # has since the help-screenshots step installs dependencies.
+      - name: Today's date, for the build cache key
+        id: day
+        if: steps.guard.outputs.proceed == 'true'
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Cache Next.js build cache
         if: steps.guard.outputs.proceed == 'true'
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ steps.day.outputs.day }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
 
