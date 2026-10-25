@@ -82,7 +82,7 @@ function getAttendanceColor(count: number): string {
   } else if (count <= 6) {
     return "bg-plum-200 dark:bg-plum-900 text-plum-900 dark:text-plum-50 border-plum-400 dark:border-plum-600";
   } else if (count <= 10) {
-    return "bg-plum-400 dark:bg-plum-700 text-white border-plum-500 dark:border-plum-500";
+    return "bg-plum-400 dark:bg-plum-700 text-plum-950 dark:text-white border-plum-500 dark:border-plum-500";
   } else {
     return "bg-plum-600 dark:bg-plum-600 text-white border-plum-700 dark:border-plum-400";
   }
@@ -341,7 +341,9 @@ export default function CalendarWeekView({
           {/* Time Grid */}
           <div className="relative">
             <div className={`grid ${gridColsClass}`}>
-              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen */}
+              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen. Sticky `left-0` sticks at
+                  the content edge of the scroller around the calendar, so that scroller must have no padding of its
+                  own (put it on a box inside), or the column parks inside the gap and scrolled days show beside it. */}
               <div className="sticky left-0 z-20">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
