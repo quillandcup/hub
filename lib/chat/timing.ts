@@ -9,6 +9,8 @@ export interface StageTimer {
   time<T>(name: string, promise: PromiseLike<T>): Promise<T>;
   /** End a sequential stage: the time since the previous mark (or the start). */
   mark(name: string): void;
+  /** Record a size next to the timings (rows, threads...), so a slow query can be read against how much it handled. */
+  note(name: string, value: number): void;
   /** Log the line. */
   log(label: string): void;
 }
@@ -30,6 +32,9 @@ export function createStageTimer(now: () => number = () => performance.now()): S
       const at = now();
       parts.push(`${name} ${Math.round(at - last)}`);
       last = at;
+    },
+    note(name, value) {
+      parts.push(`${name}=${value}`);
     },
     log(label) {
       console.info("[chat] page %s %dms (%s)", label, Math.round(now() - start), parts.join(", "));
