@@ -36,7 +36,7 @@ beforeEach(() => {
   hasFeature.mockResolvedValue(true);
   isSlackConnectConfigured.mockReturnValue(true);
   getSlackConnectionStatus.mockReset();
-  getSlackConnectionStatus.mockResolvedValue({ connected: true, sharesReadState: true });
+  getSlackConnectionStatus.mockResolvedValue({ connected: true, sharesReadState: true, revoked: false });
 });
 
 describe("requireChat", () => {
@@ -46,25 +46,25 @@ describe("requireChat", () => {
   });
 
   it("sends a member without a connection to settings to connect", async () => {
-    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false });
+    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false, revoked: false });
     await expect(requireChat()).rejects.toThrow("redirect:/settings?slack=required");
   });
 
   it("asks a connection that lacks the read scopes to reconnect", async () => {
-    getSlackConnectionStatus.mockResolvedValue({ connected: true, sharesReadState: false });
+    getSlackConnectionStatus.mockResolvedValue({ connected: true, sharesReadState: false, revoked: false });
     await expect(requireChat()).rejects.toThrow("redirect:/settings?slack=required");
   });
 
   it("doesn't check the connection in sudo, which is read-only", async () => {
     getEffectiveIdentity.mockResolvedValue({ memberId: "m1", isSudo: true });
-    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false });
+    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false, revoked: false });
     await expect(requireChat()).resolves.toBeDefined();
     expect(getSlackConnectionStatus).not.toHaveBeenCalled();
   });
 
   it("doesn't lock everyone out while the Slack app isn't configured", async () => {
     isSlackConnectConfigured.mockReturnValue(false);
-    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false });
+    getSlackConnectionStatus.mockResolvedValue({ connected: false, sharesReadState: false, revoked: false });
     await expect(requireChat()).resolves.toBeDefined();
     expect(getSlackConnectionStatus).not.toHaveBeenCalled();
   });

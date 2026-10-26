@@ -7,6 +7,9 @@ import { effectiveMemberHasFeature, getUserFeaturePreviews } from '@/lib/feature
 import type { FeatureKey } from '@/lib/features'
 import MemberNavigation from '@/components/MemberNavigation'
 import MemberFooter from '@/components/MemberFooter'
+import SlackConnectPrompt from '@/components/SlackConnectPrompt'
+import { getSlackConnectionStatus, isSlackConnectConfigured } from '@/lib/slack-connect'
+import { createServiceRoleClient } from '@/lib/supabase/service'
 import UserMenu from '@/components/UserMenu'
 import AppHeader from '@/components/AppHeader'
 import WithInAppNotifications from '@/components/WithInAppNotifications'
@@ -59,6 +62,14 @@ export default async function MemberLayout({
   const showInstallPrompt = await effectiveMemberHasFeature('browser_notifications', effectiveIdentity, enabledFeatures)
   const onboardingState = showOnboarding ? await getOnboardingState(effectiveIdentity.memberId) : null
 
+  // Chat needs a working Slack connection (lib/chat/access.ts sends them to Settings); tell a member who has chat
+  // but not that, wherever they are, instead of leaving them to find out at the chat door.
+  let slackNeed: 'connect' | 'reconnect' | 'update' | null = null
+  if (!effectiveIdentity.isSudo && isSlackConnectConfigured() && (await effectiveMemberHasFeature('chat', effectiveIdentity, enabledFeatures))) {
+    const slack = await getSlackConnectionStatus(createServiceRoleClient(), effectiveIdentity.memberId)
+    slackNeed = !slack.connected ? (slack.revoked ? 'reconnect' : 'connect') : !slack.sharesReadState ? 'update' : null
+  }
+
   // While the tour shows, room to scroll the page's last controls clear of its bar.
   const main = (
     <main className={`flex-1 overflow-auto ${onboardingState?.active ? 'pb-36' : ''}`}>
@@ -78,6 +89,7 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
+        {slackNeed && <SlackConnectPrompt need={slackNeed} />}
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>

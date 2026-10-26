@@ -177,6 +177,8 @@ export interface SlackConnectionStatus {
   connectedAt: string | null;
   /** Connected with every scope read sync needs; false for a connection made before it existed. */
   sharesReadState: boolean;
+  /** Had a connection that Slack stopped honouring (revoked by us when its token died), so it needs reconnecting rather than connecting. */
+  revoked: boolean;
 }
 
 /** Whether the member has an active connection (the row, never the tokens). */
@@ -192,6 +194,7 @@ export async function getSlackConnectionStatus(service: SupabaseClient, memberId
     slackUserId: connected ? data!.slack_user_id : null,
     connectedAt: connected ? data!.connected_at : null,
     sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
+    revoked: Boolean(data?.revoked_at),
   };
 }
 

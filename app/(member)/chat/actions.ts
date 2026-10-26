@@ -325,8 +325,7 @@ const REACT_ERRORS: Record<string, string> = {
 
 /**
  * The signed-in member adds their reaction to a message, or takes it back if they already have
- * it. A member who connected Slack has the reaction sent to Slack as them; otherwise it stays in
- * the Hub (the bot can't react under a member's name). Same gate as posting.
+ * it. It is sent to Slack as them, so it needs their Slack connection. Same gate as posting.
  */
 async function toggleChatReactionImpl(messageId: string, emoji: string): Promise<ToggleReactionResult> {
   if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
@@ -335,19 +334,11 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
 
   const supabase = await createClient();
 
-  // A reaction the member made in Slack can only be taken back in Slack, as them: without a connection
-  // the Hub would hide it until the next sync brought it back, so say what to do instead.
-  const { data: inSlack } = await supabase
-    .from("chat_reactions")
-    .select("id")
-    .eq("message_id", messageId)
-    .eq("emoji", emoji)
-    .eq("member_id", caller.identity.memberId)
-    .not("slack_user_id", "is", null)
-    .is("deleted_at", null)
-    .limit(1);
-  if (inSlack?.length && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
-    return { ok: false, error: "You reacted in Slack. Connect Slack in Settings to take it back from here." };
+  // Reactions go to Slack as the member (their own token; the bot can't react under a name), and there is no
+  // Hub-only fallback: without a connection one would be hidden here and never reach Slack, and a reaction
+  // the member made in Slack could not be taken back from here. So say what to do instead.
+  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings to react: your reactions are sent as you." };
   }
 
   const { data, error } = await supabase.rpc("chat_toggle_reaction", { p_message_id: messageId, p_emoji: emoji });

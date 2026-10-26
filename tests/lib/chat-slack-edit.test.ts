@@ -28,7 +28,7 @@ import { hubMessageMetadata } from "@/lib/chat/slack-post";
 const ROW = {
   origin: "app",
   author_member_id: "member-fern",
-  posted_via: "bot",
+  posted_via: "user_token",
   slack_ts: "1700000000.000100",
   deleted_at: null,
   chat_channels: { slack_channel_id: "C_HOSTS" },
@@ -67,23 +67,25 @@ afterEach(() => {
 });
 
 describe("updateChatMessageInSlack", () => {
-  it("edits a bot-posted message with the bot's token, escaping the text and keeping our metadata", async () => {
+  it("edits a message posted as the member with the member's own token, escaping the text and keeping our metadata", async () => {
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith(
       { channel: "C_HOSTS", ts: "1700000000.000100", text: "fixed &lt;typo&gt; &amp; more", metadata: hubMessageMetadata("m1") },
-      "xoxb-test"
+      "xoxp-fern"
     );
-    expect(getSlackUserToken).not.toHaveBeenCalled();
   });
 
-  it("edits a message posted as the member with the member's own token", async () => {
-    row = { ...ROW, posted_via: "user_token" };
-    await expect(updateChatMessageInSlack(service, EDIT)).resolves.toEqual({ ok: true });
-    expect(update.mock.calls[0][1]).toBe("xoxp-fern");
+  it.each([
+    ["edit", () => updateChatMessageInSlack(service, EDIT)],
+    ["delete", () => deleteChatMessageInSlack(service, DELETE)],
+  ])("won't %s a message the bot posted for a member, which only the bot could change and which no longer acts for one", async (_what, run) => {
+    row = { ...ROW, posted_via: "bot" };
+    await expect(run()).resolves.toEqual({ ok: false, error: expect.stringContaining("posted by Billie Bot") });
+    expect(update).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("asks the member to reconnect when their message can't be edited without their token, or the token is dead", async () => {
-    row = { ...ROW, posted_via: "user_token" };
     getSlackUserToken.mockResolvedValueOnce(null);
     await expect(updateChatMessageInSlack(service, EDIT)).resolves.toMatchObject({ ok: false, error: expect.stringContaining("Reconnect Slack") });
     expect(update).not.toHaveBeenCalled();
@@ -139,13 +141,9 @@ describe("updateChatMessageInSlack", () => {
 });
 
 describe("deleteChatMessageInSlack", () => {
-  it("deletes as whoever posted it", async () => {
+  it("deletes as the member, with their own token", async () => {
     await expect(deleteChatMessageInSlack(service, DELETE)).resolves.toEqual({ ok: true });
-    expect(remove).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100" }, "xoxb-test");
-
-    row = { ...ROW, posted_via: "user_token" };
-    await deleteChatMessageInSlack(service, DELETE);
-    expect(remove.mock.calls[1][1]).toBe("xoxp-fern");
+    expect(remove).toHaveBeenCalledWith({ channel: "C_HOSTS", ts: "1700000000.000100" }, "xoxp-fern");
   });
 
   it("counts a message already gone from Slack as deleted, and one that never got there needs nothing", async () => {
@@ -191,9 +189,9 @@ describe("deleteChatMessageInSlack", () => {
 
 describe("deleteChatFileInSlack", () => {
   const FILE = { ...DELETE, fileId: "F1" };
-  it("deletes the file as whoever posted the message", async () => {
+  it("deletes the file as the member who posted the message", async () => {
     await expect(deleteChatFileInSlack(service, FILE)).resolves.toEqual({ ok: true });
-    expect(remove).toHaveBeenCalledWith({ file: "F1" }, "xoxb-test");
+    expect(remove).toHaveBeenCalledWith({ file: "F1" }, "xoxp-fern");
   });
   it("treats a missing file or an unsent message as done, and reports other failures", async () => {
     remove.mockRejectedValueOnce({ data: { error: "file_not_found" } });

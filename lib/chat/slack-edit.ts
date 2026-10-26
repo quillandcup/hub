@@ -6,8 +6,8 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 /**
  * Changing or removing a message in Slack, for editing and deleting your own messages
  * (docs/SLACK_BRIDGED_CHAT.md). Slack only lets whoever posted a message change it, so this uses the
- * same identity the post used: for a message written in the Hub, chat_messages.posted_via (the member's
- * own token, or the bot); for one written in Slack itself, the member's own token, since it was theirs.
+ * same identity the post used: the member's own token, whether the message was written in the Hub or in
+ * Slack itself (a message the bot posted for a member before chat required a connection can't be changed).
  * Service role. The Hub's own copy is changed afterwards (chat_edit_message / chat_delete_message), so it
  * never says something Slack doesn't.
  */
@@ -56,9 +56,9 @@ async function writerFor(
     if (!connection) return { ok: false, error: `${row.posted_via === "user_token" ? "Reconnect" : "Connect"} Slack in Settings to have this message ${what}: it was posted as you.` };
     return { ok: true, slack: { token: connection.token, channel, ts: row.slack_ts, native: row.origin === "slack" } };
   }
-  const bot = process.env.SLACK_BOT_TOKEN;
-  if (!bot) return { ok: false, error: "Slack isn't set up to do that." };
-  return { ok: true, slack: { token: bot, channel, ts: row.slack_ts, native: false } };
+  // Posted by the bot, from before chat required a connected account: only the bot could change it, and the
+  // bot no longer acts for a member.
+  return { ok: false, error: `That message was posted by Billie Bot, so it can't be ${what} here.` };
 }
 
 const slackError = (error: unknown): string | undefined => (error as { data?: { error?: string } } | null)?.data?.error;
