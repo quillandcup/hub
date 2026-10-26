@@ -82,7 +82,7 @@ export default async function DashboardPage() {
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
   const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id))
 
-  const firstName = effectiveIdentity.memberName?.split(" ")[0]
+  const firstName = (effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName)?.split(" ")[0]
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">

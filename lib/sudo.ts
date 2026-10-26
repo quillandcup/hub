@@ -3,11 +3,14 @@ import { cache } from 'react'
 import { createRepos } from '@/lib/data/repos'
 import { createClient } from '@/lib/supabase/server'
 import type { AuthUser } from '@/lib/auth'
+import { getMemberDisplayName } from '@/lib/member-display-name'
 import { SUDO_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
 
 export interface EffectiveIdentity {
   memberId: string
   memberName: string
+  /** What the community sees: their chosen display name, else memberName. */
+  memberDisplayName?: string
   memberEmail: string
   isSudo: boolean
 }
@@ -53,6 +56,7 @@ const resolveEffectiveIdentity = cache(async (
           return {
             memberId: member.id,
             memberName: member.name,
+            memberDisplayName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
             memberEmail: member.email,
             isSudo: true,
           }
@@ -77,6 +81,7 @@ const resolveEffectiveIdentity = cache(async (
   return {
     memberId: member.id,
     memberName: member.name,
+    memberDisplayName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
     memberEmail: member.email,
     isSudo: false,
   }
