@@ -159,7 +159,7 @@ export default async function ChatChannelPage({
   const canReact = postingOn;
   // Who the composer shows as the author of a message while it is sent.
   const me = people.find((p) => p.memberId === identity.memberId);
-  const viewer = { memberId: identity.memberId, name: me?.name ?? identity.memberName, photoUrl: me?.photoUrl ?? null };
+  const viewer = { memberId: identity.memberId, name: me?.name ?? identity.memberDisplayName ?? identity.memberName, photoUrl: me?.photoUrl ?? null };
   const renderedAt = new Date().toISOString();
   const closeHref = `/chat/${channel.id}${before && !Array.isArray(before) ? `?before=${encodeURIComponent(before)}` : ""}`;
 

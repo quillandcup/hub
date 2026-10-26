@@ -282,7 +282,7 @@ async function introduceOnSlackImpl(winnerMemberId: string): Promise<WheelIntroR
       const starter = pickConversationStarter();
       await slack.chat.postMessage({
         channel: channelId,
-        text: `👋 Billie would like to (re)introduce ${effectiveIdentity.memberName} and ${winner.memberName} — the Wheel of Wonder brought you two together! I wonder… ${starter}`,
+        text: `👋 Billie would like to (re)introduce ${effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName} and ${winner.memberName} — the Wheel of Wonder brought you two together! I wonder… ${starter}`,
         unfurl_links: false,
         unfurl_media: false,
       });

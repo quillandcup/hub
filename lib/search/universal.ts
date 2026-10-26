@@ -181,7 +181,7 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   const { limit, offset } = page(ctx);
   const authors = await memberIdsNamed(ctx, q.from);
   if (authors && authors.length === 0) return { kind: "books", hits: [], hasMore: false };
-  let query = ctx.supabase.from("member_books").select("id, title, description, cover_url, published_date, author:book_member(id, name)");
+  let query = ctx.supabase.from("member_books").select("id, title, description, cover_url, published_date, pen_name, author:book_member(id, name)");
   query = matchEach(query, matchWords(q), ["title", "description"]);
   if (authors) query = query.in("member_id", authors);
   if (q.after) query = query.gte("published_date", q.after.slice(0, 10));
@@ -193,7 +193,7 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
     hasMore,
     hits: rows.map((b) => {
       const author = Array.isArray(b.author) ? b.author[0] : b.author;
-      return { kind: "books", id: b.id, title: b.title, subtitle: author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
+      return { kind: "books", id: b.id, title: b.title, subtitle: b.pen_name ?? author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
     }),
   };
 }

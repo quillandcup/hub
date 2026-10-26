@@ -84,7 +84,7 @@ export default async function MemberLayout({
       <div className="flex flex-col flex-1 min-w-0">
         {effectiveIdentity.isSudo && (
           <SudoBanner
-            memberName={effectiveIdentity.memberName}
+            memberName={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
             memberEmail={effectiveIdentity.memberEmail}
           />
         )}
@@ -96,7 +96,7 @@ export default async function MemberLayout({
         <WithInAppNotifications identity={effectiveIdentity}>
           <AppHeader resultsPath="/search" isAdmin={isAdmin} helpHref="/help">
             <UserMenu
-              userEmail={effectiveIdentity.memberName}
+              userEmail={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
               memberId={effectiveIdentity.memberId}
               isAdmin={isAdmin}
               isSudo={effectiveIdentity.isSudo}

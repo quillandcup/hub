@@ -9,6 +9,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { resolvePenName } from "@/lib/book-pen-name";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
@@ -682,6 +683,9 @@ async function publishProjectImpl(
   const validationError = validateBookInput(book);
   if (validationError) return { error: validationError };
 
+  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, book.penName);
+  if ("error" in pen) return pen;
+
   const { error: insertError } = await supabase.from("member_books").insert({
     member_id: effectiveIdentity.memberId,
     project_id: projectId,
@@ -693,6 +697,7 @@ async function publishProjectImpl(
     price: book.price ?? null,
     genre: book.genre?.trim() || null,
     format: book.format,
+    pen_name: pen.penName,
   });
 
   if (insertError) {

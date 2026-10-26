@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import {
   addBook,
+  getMyPenNameOptions,
   updateBook,
   type BookFormat,
   type BookInput,
   type MyBookRow,
 } from "@/app/(member)/bookshelf/actions";
 import { publishProject } from "@/app/(member)/projects/actions";
+import type { PenNameOptions } from "@/lib/book-pen-name";
 import {
   describeBookCoverRequirements,
   validateBookCoverDimensions,
@@ -70,8 +72,26 @@ export default function BookFormModal({
   const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
   const [genre, setGenre] = useState(book?.genre ?? "");
   const [format, setFormat] = useState<BookFormat>(book?.format ?? "print");
+  const [penName, setPenName] = useState(book?.penName ?? "");
+  const [penNameOptions, setPenNameOptions] = useState<PenNameOptions | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    getMyPenNameOptions().then((options) => {
+      if (!cancelled) setPenNameOptions(options);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // A name the book already carries stays selectable even if the alias was switched off since.
+  const penNameChoices = penNameOptions
+    ? [...penNameOptions.others, ...(penName && !penNameOptions.others.includes(penName) ? [penName] : [])]
+    : [];
 
   async function handleCoverFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -130,6 +150,7 @@ export default function BookFormModal({
       price: price.trim() === "" ? null : Number(price),
       genre,
       format,
+      penName,
     };
 
     setIsPending(true);
@@ -196,6 +217,22 @@ export default function BookFormModal({
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
           />
         </div>
+
+        {penNameChoices.length > 0 && penNameOptions && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Published as</label>
+            <select data-track="book-form-pen-name" aria-label="Published as"
+              value={penName}
+              onChange={(e) => setPenName(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="">{penNameOptions.defaultName}</option>
+              {penNameChoices.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex gap-4">
           <div className="flex-1">

@@ -18,15 +18,24 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("@/lib/book-pen-name", () => ({
+  getPenNameOptions: vi.fn(),
+  // Same contract as the real one, without the member and alias lookups (tests/lib/book-pen-name.test.ts).
+  resolvePenName: vi.fn(async (_db: unknown, _memberId: string, penName?: string | null) =>
+    penName === "Not Mine" ? { error: "Pick one of your own names" } : { penName: penName?.trim() || null },
+  ),
+}));
+
 vi.mock("@/lib/slack", () => ({
   notifyStaffNewBook: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { getMyBooks, addBook, updateBook, deleteBook, type BookInput } from "@/app/(member)/bookshelf/actions";
+import { getMyBooks, getMyPenNameOptions, addBook, updateBook, deleteBook, type BookInput } from "@/app/(member)/bookshelf/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { notifyStaffNewBook } from "@/lib/slack";
+import { getPenNameOptions } from "@/lib/book-pen-name";
 
 const IDENTITY = {
   memberId: "member-1",
@@ -241,6 +250,7 @@ describe("addBook", () => {
       price: null,
       genre: null,
       format: "print",
+      pen_name: null,
     });
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
@@ -372,5 +382,71 @@ describe("deleteBook", () => {
 
     const result = await deleteBook("book-1");
     expect(result).toEqual({ error: "boom" });
+  });
+});
+
+describe("pen names", () => {
+  it("getMyBooks returns the pen name a book is published under", async () => {
+    const mock = makeSupabaseMock({
+      selectResult: {
+        data: [{ id: "book-1", title: "T", description: null, cover_url: "https://example.com/c.jpg", purchase_url: "https://example.com/b", published_date: "2026-03-15", price: null, genre: null, format: "print", project_id: null, pen_name: "A. E. Byron" }],
+        error: null,
+      },
+    });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect((await getMyBooks())[0].penName).toBe("A. E. Byron");
+  });
+
+  it("addBook stores the chosen pen name", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await addBook({ ...VALID_INPUT, penName: "A. E. Byron" })).toEqual({ success: true });
+    expect(mock.__insert).toHaveBeenCalledWith(expect.objectContaining({ pen_name: "A. E. Byron" }));
+  });
+
+  it("addBook refuses a name that is not the member's own, without inserting", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await addBook({ ...VALID_INPUT, penName: "Not Mine" })).toEqual({ error: "Pick one of your own names" });
+    expect(mock.__insert).not.toHaveBeenCalled();
+  });
+
+  it("updateBook stores the pen name, and clears it when blank", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    await updateBook("book-1", { ...VALID_INPUT, penName: "A. E. Byron" });
+    await updateBook("book-1", { ...VALID_INPUT, penName: "" });
+    expect(mock.__update).toHaveBeenNthCalledWith(1, expect.objectContaining({ pen_name: "A. E. Byron" }));
+    expect(mock.__update).toHaveBeenNthCalledWith(2, expect.objectContaining({ pen_name: null }));
+  });
+
+  it("updateBook refuses a name that is not the member's own", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await updateBook("book-1", { ...VALID_INPUT, penName: "Not Mine" })).toEqual({ error: "Pick one of your own names" });
+    expect(mock.__update).not.toHaveBeenCalled();
+  });
+
+  it("getMyPenNameOptions looks up the acting member's options, and is null when signed out", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(SUDO_IDENTITY);
+    vi.mocked(getPenNameOptions).mockResolvedValue({ defaultName: "Sudo Target", others: ["Pen"] });
+
+    expect(await getMyPenNameOptions()).toEqual({ defaultName: "Sudo Target", others: ["Pen"] });
+    expect(getPenNameOptions).toHaveBeenCalledWith(mock, "sudo-target-member");
+
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+    expect(await getMyPenNameOptions()).toBeNull();
   });
 });

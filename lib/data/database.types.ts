@@ -2907,6 +2907,7 @@ export type Database = {
           genre: string | null
           id: string
           member_id: string
+          pen_name: string | null
           price: number | null
           project_id: string | null
           published_date: string
@@ -2935,6 +2936,7 @@ export type Database = {
           genre?: string | null
           id?: string
           member_id: string
+          pen_name?: string | null
           price?: number | null
           project_id?: string | null
           published_date: string
@@ -2949,6 +2951,7 @@ export type Database = {
           genre?: string | null
           id?: string
           member_id?: string
+          pen_name?: string | null
           price?: number | null
           project_id?: string | null
           published_date?: string

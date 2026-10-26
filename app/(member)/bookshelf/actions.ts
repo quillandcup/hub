@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
 import { notifyStaffNewBook } from "@/lib/slack";
+import { getPenNameOptions, resolvePenName, type PenNameOptions } from "@/lib/book-pen-name";
 
 import { withAction } from "@/lib/analytics/server";
 export type BookFormat = "print" | "ebook";
@@ -20,6 +21,8 @@ export interface BookInput {
   price?: number | null;
   genre?: string;
   format: BookFormat;
+  /** Name the book is published under: the member's display name or one of their aliases; blank = display name. */
+  penName?: string | null;
 }
 
 export interface MyBookRow {
@@ -32,6 +35,8 @@ export interface MyBookRow {
   price: number | null;
   genre: string | null;
   format: BookFormat;
+  /** Null when the book follows the member's display name. */
+  penName: string | null;
   /** The Projects entry this book was published from, or null for a standalone/legacy book. */
   projectId: string | null;
 }
@@ -63,7 +68,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
 
   const { data } = await supabase
     .from("member_books")
-    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id")
+    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name")
     .eq("member_id", effectiveIdentity.memberId)
     .order("published_date", { ascending: false });
 
@@ -77,6 +82,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     price: row.price,
     genre: row.genre,
     format: row.format as BookFormat, // a check constraint limits the column to print and ebook
+    penName: row.pen_name,
     projectId: row.project_id,
   }));
 }
@@ -89,6 +95,9 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   const validationError = validateBookInput(input);
   if (validationError) return { error: validationError };
 
+  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
+  if ("error" in pen) return pen;
+
   const { error } = await supabase.from("member_books").insert({
     member_id: effectiveIdentity.memberId,
     title: input.title.trim(),
@@ -99,6 +108,7 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
     price: input.price ?? null,
     genre: input.genre?.trim() || null,
     format: input.format,
+    pen_name: pen.penName,
   });
 
   if (error) return { error: error.message };
@@ -128,6 +138,9 @@ export async function updateBook(
   const validationError = validateBookInput(input);
   if (validationError) return { error: validationError };
 
+  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
+  if ("error" in pen) return pen;
+
   // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
   // zero-row result means the id didn't belong to them, not a silent no-op.
   const { data, error } = await supabase
@@ -141,6 +154,7 @@ export async function updateBook(
       price: input.price ?? null,
       genre: input.genre?.trim() || null,
       format: input.format,
+      pen_name: pen.penName,
     })
     .eq("id", bookId)
     .select("id")
@@ -167,6 +181,13 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
+}
+
+/** The names the acting member can publish a book under, for the form's "Published as" picker. */
+export async function getMyPenNameOptions(): Promise<PenNameOptions | null> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return null;
+  return getPenNameOptions(ctx.supabase, ctx.effectiveIdentity.memberId);
 }
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).

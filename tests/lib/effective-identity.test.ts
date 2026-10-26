@@ -36,6 +36,7 @@ describe("getEffectiveIdentity", () => {
     expect(await getEffectiveIdentity(ADMIN_USER)).toEqual({
       memberId: ADA.id,
       memberName: ADA.name,
+      memberDisplayName: ADA.name,
       memberEmail: ADA.email,
       isSudo: false,
     });
@@ -64,6 +65,7 @@ describe("getEffectiveIdentity", () => {
     expect(await getEffectiveIdentity(ADMIN_USER)).toEqual({
       memberId: FERN.id,
       memberName: FERN.name,
+      memberDisplayName: FERN.name,
       memberEmail: FERN.email,
       isSudo: true,
     });
