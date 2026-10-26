@@ -76,11 +76,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
 
   const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
     createRepos(supabase).members.profile(effectiveIdentity.memberId),
-    supabase
-      .from("member_name_aliases")
-      .select("id, alias, source, active, created_at")
-      .eq("member_id", effectiveIdentity.memberId)
-      .order("created_at", { ascending: false }),
+    createRepos(supabase).aliases.namesOf(effectiveIdentity.memberId),
     supabase
       .from("member_email_aliases")
       .select("id, alias_email, source, active, created_at")
@@ -95,13 +91,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
     primaryEmail: memberResult?.email ?? effectiveIdentity.memberEmail,
     birthdayMonth: memberResult?.birthdayMonth ?? null,
     birthdayDay: memberResult?.birthdayDay ?? null,
-    nameAliases: (nameAliasResult.data ?? []).map((row) => ({
-      id: row.id,
-      alias: row.alias,
-      source: row.source,
-      active: row.active,
-      createdAt: row.created_at,
-    })),
+    nameAliases: nameAliasResult,
     emailAliases: (emailAliasResult.data ?? []).map((row) => ({
       id: row.id,
       aliasEmail: row.alias_email,
@@ -158,14 +148,8 @@ async function setDisplayNameImpl(alias: string | null): Promise<{ success: true
   const { supabase, effectiveIdentity } = ctx;
 
   if (alias !== null) {
-    const { data: row } = await supabase
-      .from("member_name_aliases")
-      .select("id")
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("alias", alias)
-      .eq("active", true)
-      .maybeSingle();
-    if (!row) return { error: "Pick one of your active names" };
+    const row = await createRepos(supabase).aliases.findName(effectiveIdentity.memberId, alias);
+    if (!row?.active) return { error: "Pick one of your active names" };
   }
 
   const failure = await memberWriteError(createRepos(supabase).members.setDisplayName(effectiveIdentity.memberId, alias), "Couldn't update your display name");
@@ -192,12 +176,7 @@ async function setCustomDisplayNameImpl(name: string): Promise<{ success: true }
   const member = await createRepos(supabase).members.byId(effectiveIdentity.memberId);
   if (trimmed === (member?.name ?? effectiveIdentity.memberName)) return setDisplayNameImpl(null);
 
-  const { data: existing } = await supabase
-    .from("member_name_aliases")
-    .select("id, active")
-    .eq("member_id", effectiveIdentity.memberId)
-    .eq("alias", trimmed)
-    .maybeSingle();
+  const existing = await createRepos(supabase).aliases.findName(effectiveIdentity.memberId, trimmed);
 
   if (!existing) {
     const added = await addNameAliasImpl(trimmed);
@@ -262,17 +241,14 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   if ("error" in checked) return { error: checked.error };
   if (checked.conflict) return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES[checked.conflict.kind] };
 
-  const { error } = await supabase.from("member_name_aliases").insert({
-    member_id: effectiveIdentity.memberId,
-    alias: trimmed,
-    source: "member",
-  });
-
-  if (error) {
-    // Two members adding the same text at once: the check above passed for both.
-    if (isUniqueViolation(error)) return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES.other_alias };
-    return { error: error.message };
+  let added: boolean;
+  try {
+    added = await createRepos(supabase).aliases.addName(effectiveIdentity.memberId, trimmed, "member");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't add that name" };
   }
+  // Two members adding the same text at once: the check above passed for both.
+  if (!added) return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES.other_alias };
 
   // Backfill matching over the recent window so attendance under this name
   // shows up without waiting for the next scheduled reprocess. Runs after
@@ -295,15 +271,13 @@ export async function setNameAliasActive(
   // sudo) -- a zero-row result means the id didn't belong to them, not a
   // silent no-op. This is always a soft toggle (active flag), never a hard
   // delete -- see the migration comment for why.
-  const { data, error } = await supabase
-    .from("member_name_aliases")
-    .update({ active })
-    .eq("id", id)
-    .eq("member_id", effectiveIdentity.memberId)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Alias not found" };
+  let found: boolean;
+  try {
+    found = await createRepos(supabase).aliases.setNameActive(effectiveIdentity.memberId, id, active);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Alias not found" };
+  }
+  if (!found) return { error: "Alias not found" };
 
   // Reactivating backfills recent matching, same as adding a new one.
   // Deactivating intentionally does NOT trigger reprocessing -- the whole
