@@ -308,6 +308,34 @@ describe("Big Sister step", () => {
   });
 });
 
+describe("the Slack step", () => {
+  const slack = (c: { connected: boolean; required?: boolean }): OnboardingSignals => ({ ...NOTHING, slackConnect: c });
+  const slackStep = (signals: OnboardingSignals, marked: string[] = []) =>
+    buildOnboardingState(signals, record({ marked_steps: [...IDENTITY_DONE, ...marked] })).steps.find((s) => s.id === "slack")!;
+
+  it("comes right after checking your details, before the profile", () => {
+    const state = buildOnboardingState(slack({ connected: false, required: true }), null);
+    expect(state.steps.map((s) => s.id)).toEqual(["identity", "slack", "profile", "writing", "prickles", "calendar"]);
+  });
+
+  it("for someone who has chat can't be skipped or marked done: chat is closed until they connect", () => {
+    const step = slackStep(slack({ connected: false, required: true }), ["slack"]);
+    expect(step.done).toBe(false);
+    expect(step.confirmLabel).toBeUndefined();
+    expect(step.summary).toMatch(/chat needs it/);
+    expect(step.hint).toMatch(/Chat needs your Slack account/);
+    expect(slackStep(slack({ connected: true, required: true })).done).toBe(true);
+  });
+
+  it("for someone without chat is optional: it can be skipped, and counts done once connected", () => {
+    const step = slackStep(slack({ connected: false }));
+    expect(step.confirmLabel).toBe("I'll skip this");
+    expect(step.done).toBe(false);
+    expect(slackStep(slack({ connected: false }), ["slack"]).done).toBe(true);
+    expect(slackStep(slack({ connected: true })).done).toBe(true);
+  });
+});
+
 describe("steps added after a finished tour", () => {
   const SEEN = ["identity", "identity.basics", "identity.display-name", "identity.names", "identity.emails", "identity.birthday", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"];
   const finished = (r: Partial<OnboardingRecord> = {}) =>

@@ -89,7 +89,8 @@ export default async function MemberLayout({
           />
         )}
         {showInstallPrompt && <InstallAppPrompt />}
-        {slackNeed && <SlackConnectPrompt need={slackNeed} />}
+        {/* While the Getting started tour runs it has the Slack step (required for chat), so the bar would say it twice. */}
+        {slackNeed && !onboardingState?.active && <SlackConnectPrompt need={slackNeed} />}
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
