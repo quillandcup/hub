@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import {
   MEMBER_IDENTITY,
   MEMBER_USER,
@@ -10,6 +10,8 @@ import {
   signInAs,
 } from "@/tests/helpers/server-page";
 import type { FeatureKey } from "@/lib/features";
+import { RETENTION } from "@/lib/retention";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -72,5 +74,85 @@ describe("/privacy chat sections", () => {
     expect(screen.getByText(/It doesn't give the Hub access to your one-on-one Slack direct messages/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Viewing the Hub as you" })).toBeInTheDocument();
     expect(screen.getByText(/when you last read it/)).toBeInTheDocument();
+  });
+});
+
+describe("/privacy usage, notifications and retention sections", () => {
+  beforeEach(() => {
+    resetServerPageMocks();
+    signInAs(MEMBER_USER, MEMBER_IDENTITY);
+    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+  });
+
+  it("says what the usage log records, and never the words typed", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { name: "How we measure what is useful" })).toBeInTheDocument();
+    expect(screen.getByText(/never the words you typed/)).toBeInTheDocument();
+    expect(screen.getByText(/It does not record what you type into search, forms or/)).toBeInTheDocument();
+  });
+
+  it("states the consent rule and that anyone can ask to be left out", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByText(/we ask before we start, with the banner/)).toBeInTheDocument();
+    expect(screen.getByText(/if you decline we don't record any of this/)).toBeInTheDocument();
+    expect(screen.getByText(/you can ask us to/)).toBeInTheDocument();
+  });
+
+  it("lists the cookies, including the visit number and when it expires", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { name: "Cookies" })).toBeInTheDocument();
+    expect(screen.getByText(/visit number/, { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(/it expires after 30 minutes without activity/)).toBeInTheDocument();
+  });
+
+  it("names the four notification channels and says what is recorded about them", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const section = within(screen.getByRole("heading", { name: "Notifications" }).closest("section")!);
+    expect(section.getByText(/direct message from Billie Bot in Slack, email/)).toBeInTheDocument();
+    expect(section.getByText(/and browser notifications on a device you turn them on for/)).toBeInTheDocument();
+    expect(section.getByText(/We keep a record that we sent you each notification/)).toBeInTheDocument();
+    expect(section.getByText(/takes the tag off the address/)).toBeInTheDocument();
+  });
+
+  it("prints the retention numbers from the one place the job reads them", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const table = within(screen.getByRole("heading", { name: "How long we keep things" }).closest("section")!);
+    expect(table.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
+    expect(table.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
+    // The IP section repeats the promise, with the same number.
+    const where = within(screen.getByRole("heading", { name: "Where you connect from" }).closest("section")!);
+    expect(where.getByText(new RegExp(`after ${RETENTION.rawNetworkDays} days`))).toBeInTheDocument();
+    // Records of what a member did in the Hub have no automatic limit, and the page says so in the member's terms.
+    expect(table.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
+  });
+
+  it("says deleting a project, goal, entry, book or award removes it but leaves a record, not that it is merely hidden", async () => {
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { name: "When you delete something else" })).toBeInTheDocument();
+    expect(screen.getByText(/it is gone from the Hub for you and for/)).toBeInTheDocument();
+    expect(screen.getByText(/Our change history keeps a record that it existed and what it said/)).toBeInTheDocument();
+  });
+
+  it("tells members how to ask, with the configured support address, and for what", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const section = within(screen.getByRole("heading", { name: "Asking us" }).closest("section")!);
+    expect(section.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
+    expect(section.getByText(/show you what we hold about you, correct it, remove it, or stop using it for usage/)).toBeInTheDocument();
+    expect(section.getByText(/We will answer within a month/)).toBeInTheDocument();
+  });
+
+  it("names the services involved, and the region Sentry is held in", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const section = within(screen.getByRole("heading", { name: "Services that help us run the Hub" }).closest("section")!);
+    for (const service of ["Supabase", "Vercel", "Sentry", "Google Analytics", "Mux", "Slack"]) {
+      expect(section.getByText(new RegExp(service))).toBeInTheDocument();
+    }
+    expect(section.getByText(/Sentry \(error reports, held in the EU\)/)).toBeInTheDocument();
+  });
+});
+
+describe("retention constants", () => {
+  it("are what the privacy page and the pruning job both promise", () => {
+    expect(RETENTION).toEqual({ rawNetworkDays: 90, usageMonths: 13 });
   });
 });
