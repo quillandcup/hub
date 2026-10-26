@@ -105,6 +105,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     bigSistersOn,
     birthday,
     slackStatus,
+    chatOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -143,6 +144,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     createRepos(supabase).members.profile(memberId),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
+    // Chat needs the connection, so for someone who has it the Slack step can't be skipped.
+    membersWithFeature(createServiceRoleClient(), "chat", [memberId]).then((on) => on.has(memberId)),
   ]);
   const mentorships = bigSistersOn
     ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
@@ -165,7 +168,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasCalendarSynced: !!feedToken.data?.first_fetched_at,
       hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,
-      slackConnect: slackStatus ? { connected: slackStatus.connected } : null,
+      slackConnect: slackStatus ? { connected: slackStatus.connected && slackStatus.sharesReadState, required: chatOn } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData

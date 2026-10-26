@@ -11,7 +11,8 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => ({ id: "u1" }) }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: async () => identity }));
 const previews = vi.hoisted(() => ({ list: [] as string[] }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => previews.list, effectiveMemberHasFeature }));
-vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => null }));
+const tour = vi.hoisted(() => ({ active: false }));
+vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => (tour.active ? { active: true, steps: [], currentStepId: null } : null) }));
 const slack = vi.hoisted(() => ({ configured: true, status: { connected: true, sharesReadState: true, revoked: false } }));
 vi.mock("@/lib/slack-connect", () => ({ isSlackConnectConfigured: () => slack.configured, getSlackConnectionStatus: async () => slack.status }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
@@ -29,6 +30,7 @@ vi.mock("@/components/PageViewTracker", () => ({ default: () => null }));
 vi.mock("@/components/onboarding/OnboardingGuide", () => ({ default: () => null }));
 import MemberLayout from "@/app/(member)/layout";
 beforeEach(() => {
+  tour.active = false;
   slack.configured = true;
   slack.status = { connected: true, sharesReadState: true, revoked: false };
   previews.list = [];
@@ -94,6 +96,14 @@ it("doesn't ask when Slack is connected, chat is off, it is sudo, or Slack isn't
 
   identity.isSudo = false;
   slack.configured = false;
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
+});
+
+it("leaves the Slack bar out while the Getting started tour is running, which has the same step", async () => {
+  effectiveMemberHasFeature.mockImplementation(async (feature: string) => feature === "chat");
+  slack.status = { connected: false, sharesReadState: false, revoked: false };
+  tour.active = true;
   render(await MemberLayout({ children: <div>Member content</div> }));
   expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
 });
