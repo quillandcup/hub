@@ -171,10 +171,12 @@ export class InMemoryPushSubscriptionRepository implements PushSubscriptionRepos
       Object.assign(existing, { memberId: s.memberId, p256dh: s.p256dh, auth: s.auth, userAgent: s.userAgent, deletedAt: null, pausedAt: null, disabledAt: null });
       return;
     }
+    // Strictly after every earlier one, like the database's clock, so "newest first" never ties.
+    const latest = Math.max(0, ...this.data.pushSubscriptions.map((x) => Date.parse(x.createdAt)));
     this.data.pushSubscriptions.push({
       ...s,
       id: `psub_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
       lastSentAt: null,
       pausedAt: null,
       disabledAt: null,
