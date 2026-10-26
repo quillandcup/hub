@@ -46,6 +46,9 @@ describe("/privacy (message_privacy flag)", () => {
     // What the page says about the chat has to be true of the app: no per-channel "staff can read this" note, and deleted messages don't count.
     expect(screen.queryByText(/Each channel in the Hub shows/)).not.toBeInTheDocument();
     expect(screen.getByText(/no longer count toward your activity/)).toBeInTheDocument();
+    // Deleted content is readable by nobody through the app (RLS needs deleted_at IS NULL), so the page must not say staff can read it.
+    expect(screen.getByText(/can't read a deleted message's text or files in the Hub/)).toBeInTheDocument();
+    expect(screen.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
     expect(screen.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
   });
 
@@ -57,5 +60,17 @@ describe("/privacy (message_privacy flag)", () => {
     expect(screen.getByText(/we record where you stopped/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Where you connect from" })).toBeInTheDocument();
     expect(screen.getByText(/we record the IP address your connection comes from/)).toBeInTheDocument();
+  });
+});
+
+describe("/privacy chat sections", () => {
+  it("says what connecting Slack allows, that staff can view the Hub as a member, and what staff see in every conversation", async () => {
+    signInAs(MEMBER_USER, MEMBER_IDENTITY);
+    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { name: "Connecting your Slack account" })).toBeInTheDocument();
+    expect(screen.getByText(/It doesn't give the Hub access to your one-on-one Slack direct messages/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Viewing the Hub as you" })).toBeInTheDocument();
+    expect(screen.getByText(/when you last read it/)).toBeInTheDocument();
   });
 });

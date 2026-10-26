@@ -18,6 +18,10 @@ export const metadata: Metadata = {
  * DMs and group DMs have no admin read path at all; deleted messages stay out of activity. The break-glass
  * section is the commitment for the rare case, not a screen: there is no in-app break-glass tool yet, so
  * until there is, anything done under it is done by hand and has to follow what that section promises.
+ * Also true of the code (checked 2026-10-25): admins' read access covers every conversation's metadata
+ * (`chat_can_see_channel`: members, who wrote and reacted and when, `last_read_at`) but never a deleted
+ * message's content (`chat_message_contents` policy requires `deleted_at IS NULL`), and files follow the
+ * content policy.
  */
 export default async function PrivacyPage() {
   const user = await getCurrentUser();
@@ -64,6 +68,12 @@ export default async function PrivacyPage() {
             <Row where="Slack DMs, and Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
           </tbody>
         </table>
+        <p>
+          In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is
+          in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with Slack). Files
+          shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and
+          group DMs the Hub mirrors, and the copy is removed if the file is deleted.
+        </p>
       </Section>
 
       <Section title="Break-glass access">
@@ -72,6 +82,24 @@ export default async function PrivacyPage() {
           restricted channel or group DM. We will do that only for that one conversation and only for as long as it
           takes, and we will record who looked, why and when. You won&apos;t receive an automatic notification when
           this happens.
+        </p>
+      </Section>
+
+      <Section title="Connecting your Slack account">
+        <p>
+          Hub chat needs your Slack account connected. That lets the Hub act as you in Slack and only as you: post your
+          messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel,
+          and mark conversations read. It doesn&apos;t give the Hub access to your one-on-one Slack direct messages, and
+          the Hub does nothing in Slack you didn&apos;t ask for there. The connection is kept encrypted and used only by the Hub&apos;s
+          server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
+          shows it under your authorized apps.
+        </p>
+      </Section>
+
+      <Section title="Viewing the Hub as you">
+        <p>
+          To help with support, an admin can view the Hub as a member. In chat that is read-only and shows what you can
+          see with restricted channels and group DMs left out.
         </p>
       </Section>
 
@@ -96,9 +124,9 @@ export default async function PrivacyPage() {
       <Section title="Deleted messages and reactions">
         <p>
           When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather
-          than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can see a
-          deleted message&apos;s content only where they could see the original: in public and unrestricted channels
-          they can, and in restricted channels and group DMs only through break-glass access.
+          than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can&apos;t
+          read a deleted message&apos;s text or files in the Hub; the only way to read one is break-glass access, the same
+          as for a restricted conversation.
         </p>
       </Section>
     </div>
