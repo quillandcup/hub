@@ -5,7 +5,8 @@
  *
  * Written for two people at once: someone new, asking "what is this, and why would I join?", and a member who
  * already lives in Slack and Kajabi, asking "what is in it for me?". Every claim is something the screen shows.
- * Spelled for the ear ("Quill and Cup", not "Quill & Cup").
+ * Spelled for the ear ("Quill and Cup", not "Quill & Cup"), and worded so no word can be read two ways: the speech
+ * model read "lives" as the noun ("two lives") where the verb was meant, so the line says "is" instead.
  */
 
 /** About 2.5 minutes. */
@@ -19,9 +20,9 @@ export const LONG = {
   googleEvent: "complete with the Zoom link, and a reminder before it starts.",
   history: "Afterward, check in and out to reflect on how it went. See your month at a glance, or zoom into any week.",
   streaks: "Show up week after week, and watch your streak grow. Your community cheers you on.",
-  projects: "Every project lives in one place, from first idea to finished draft.",
+  projects: "Every project is in one place, from first idea to finished draft.",
   log: "After a session, log your words in seconds, and watch your progress build.",
-  chat: "And now, chat lives right here in the Hub, so the conversation is always one click away.",
+  chat: "And now, chat is right here in the Hub, so the conversation is always one click away.",
   unread: "See what you've missed, and catch up in a moment.",
   thread: "Follow a conversation in its thread, with reactions along the way.",
   post: "Join in right from the Hub. Your message reaches Slack too.",

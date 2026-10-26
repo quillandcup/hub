@@ -22,7 +22,8 @@ const KOKORO_PYTHON = path.join(KOKORO_HOME, "venv", "bin", "python");
 const KOKORO_MODELS = path.join(KOKORO_HOME, "models");
 const KOKORO_SCRIPT = path.join("demo", "video", "kokoro_tts.py");
 
-const kokoroReady = existsSync(KOKORO_PYTHON) && existsSync(path.join(KOKORO_MODELS, "kokoro-v1.0.int8.onnx")) && existsSync(path.join(KOKORO_MODELS, "voices-v1.0.bin"));
+const fullModel = existsSync(path.join(KOKORO_MODELS, "kokoro-v1.0.onnx"));
+const kokoroReady = existsSync(KOKORO_PYTHON) && (fullModel || existsSync(path.join(KOKORO_MODELS, "kokoro-v1.0.int8.onnx"))) && existsSync(path.join(KOKORO_MODELS, "voices-v1.0.bin"));
 
 export const ENGINE: "kokoro" | "say" = process.env.DEMO_TTS === "say" ? "say" : process.env.DEMO_TTS === "kokoro" || kokoroReady ? "kokoro" : "say";
 export const VOICE = process.env.DEMO_VOICE ?? (ENGINE === "kokoro" ? "af_heart" : "Samantha");
@@ -37,7 +38,7 @@ export interface Clip {
 
 export function synthesize(text: string): Clip {
   mkdirSync(DIR, { recursive: true });
-  const key = createHash("sha1").update(`${ENGINE}|${VOICE}|${RATE}|${text}`).digest("hex").slice(0, 16);
+  const key = createHash("sha1").update(`${ENGINE}${ENGINE === "kokoro" ? (fullModel ? "-full" : "-int8") : ""}|${VOICE}|${RATE}|${text}`).digest("hex").slice(0, 16);
   const wav = path.join(DIR, `${key}.wav`);
   if (!existsSync(wav)) {
     const raw = path.join(DIR, `${key}.raw.${ENGINE === "say" ? "aiff" : "wav"}`);

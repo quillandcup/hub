@@ -23,9 +23,9 @@ Two narrated overview videos of Hedgie Hub for members, recorded from the demo c
 | 7 | 0:35 | One event opened: Zoom link, "15 minutes before" | "complete with the Zoom link, and a reminder before it starts." |
 | 8 | 0:40 | Attendance History: list, then month, then a week | "Afterward, check in and out to reflect on how it went. See your month at a glance, or zoom into any week." |
 | 9 | 0:49 | Streaks | "Show up week after week, and watch your streak grow. Your community cheers you on." |
-| 10 | 0:55 | Writing: the projects | "Every project lives in one place, from first idea to finished draft." |
+| 10 | 0:55 | Writing: the projects | "Every project is in one place, from first idea to finished draft." |
 | 11 | 0:59 | A project: the progress chart; Log progress (650 words, a note) saved | "After a session, log your words in seconds, and watch your progress build." |
-| 12 | 1:12 | Chat opens on #announcements | "And now, chat lives right here in the Hub, so the conversation is always one click away." |
+| 12 | 1:12 | Chat opens on #announcements | "And now, chat is right here in the Hub, so the conversation is always one click away." |
 | 13 | 1:18 | #craft-talk, unread messages | "See what you've missed, and catch up in a moment." |
 | 14 | 1:21 | A thread, with reactions | "Follow a conversation in its thread, with reactions along the way." |
 | 15 | 1:25 | Writes and sends a message in #prickle-chatter | "Join in right from the Hub. Your message reaches Slack too." |
