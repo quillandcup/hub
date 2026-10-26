@@ -54,7 +54,6 @@ export const PRICKLE_LAPSED_AFTER_DAYS = 30;
 const NUDGE_REF: Record<MemberReminderKind, string> = { intro_nudge: "intro", prickle_nudge: "prickle" };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BATCH_SIZE = 1000;
 
 /**
  * Whether a reminder is due. `sentAt` is when earlier ones went out, since the member last did the
@@ -157,39 +156,12 @@ async function loadMemberTimeZones(supabase: SupabaseClient, members: MemberRow[
 
 /** `${memberId}:${kind}` -> when each reminder went out. */
 async function loadNudgeLog(supabase: SupabaseClient, memberIds: string[]): Promise<Map<string, Date[]>> {
-  const log = new Map<string, Date[]>();
-  for (let i = 0; i < memberIds.length; i += 200) {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await supabase
-        .from("member_reminder_log")
-        .select("member_id, kind, sent_at")
-        .in("member_id", memberIds.slice(i, i + 200))
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1);
-      for (const row of data ?? []) {
-        const key = `${row.member_id}:${row.kind}`;
-        log.set(key, [...(log.get(key) ?? []), new Date(row.sent_at)]);
-      }
-      offset += data?.length ?? 0;
-      hasMore = (data?.length ?? 0) === BATCH_SIZE;
-    }
-  }
-  return log;
+  return createRepos(supabase).reminderLog.sentTimes(memberIds);
 }
 
 /** Claims today's reminder for the member; false when another run already did (unique member, kind, day). */
 async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: MemberReminderKind, now: Date) {
-  const { data, error } = await supabase
-    .from("member_reminder_log")
-    .insert({ member_id: memberId, kind, sent_at: now.toISOString(), sent_on: now.toISOString().slice(0, 10) })
-    .select("id");
-  if (error) {
-    if (error.code !== "23505") console.error(`tryRecordNudge failed for member=${memberId} kind=${kind}:`, error);
-    return false;
-  }
-  return (data?.length ?? 0) > 0;
+  return createRepos(supabase).reminderLog.claim(memberId, kind, now);
 }
 
 export interface MemberReminderResult {
@@ -366,13 +338,7 @@ async function sendKind(
     if (delivered.length > 0) sent++;
     else {
       // Keep partial successes deduplicated; only a completely undelivered reminder can retry.
-      const { error } = await supabase
-        .from("member_reminder_log")
-        .delete()
-        .eq("member_id", member.id)
-        .eq("kind", kind)
-        .eq("sent_on", now.toISOString().slice(0, 10));
-      if (error) throw new Error(`Releasing ${kind} notification claim failed: ${error.message}`);
+      await createRepos(supabase).reminderLog.release(member.id, kind, now);
     }
   }
   return { sent, dryRun };

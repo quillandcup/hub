@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import webpush, { WebPushError } from "web-push";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -47,35 +48,15 @@ export const webPushChannel: ChannelAdapter = {
     if (!vapidKeys() || memberIds.length === 0) return reachable;
 
     const flagged = await membersWithFeature(supabase, WEB_PUSH_FEATURE, memberIds);
-    const ids = [...flagged];
-    // Keeps each `.in("member_id", ...)` URL well under PostgREST's length limit.
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data, error } = await supabase
-        .from("push_subscriptions")
-        .select("member_id")
-        .is("deleted_at", null)
-        .is("paused_at", null)
-        .is("disabled_at", null)
-        .in("member_id", ids.slice(i, i + 200));
-      if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
-      for (const row of data ?? []) reachable.set(row.member_id, row.member_id);
-    }
+    for (const memberId of await createRepos(supabase).pushSubscriptions.membersWithLive([...flagged])) reachable.set(memberId, memberId);
     return reachable;
   },
   async send(memberId, message, context) {
     const keys = vapidKeys();
     if (!keys) throw new Error("Web Push isn't configured (VAPID keys missing)");
-    const supabase = createServiceRoleClient();
-
-    const { data: subscriptions, error } = await supabase
-      .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .is("paused_at", null)
-      .is("disabled_at", null);
-    if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
-    if (!subscriptions?.length) throw new Error("No live push subscriptions");
+    const subscriptions = createRepos(createServiceRoleClient()).pushSubscriptions;
+    const live = await subscriptions.live(memberId);
+    if (!live.length) throw new Error("No live push subscriptions");
 
     const now = Date.now();
     const payload = JSON.stringify(pushPayload(message, context, now));
@@ -87,7 +68,7 @@ export const webPushChannel: ChannelAdapter = {
     };
 
     const results = await Promise.allSettled(
-      subscriptions.map(async (s: any) => {
+      live.map(async (s) => {
         if (!isAllowedPushEndpoint(s.endpoint)) throw new Error("Untrusted push subscription endpoint");
         return webpush.sendNotification({ endpoint: new URL(s.endpoint).href, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, options);
       })
@@ -97,7 +78,7 @@ export const webPushChannel: ChannelAdapter = {
     const gone: string[] = [];
     const failures: unknown[] = [];
     results.forEach((result, i) => {
-      const id = subscriptions[i].id;
+      const id = live[i].id;
       if (result.status === "fulfilled") sent.push(id);
       // 404/410: the browser unsubscribed or the subscription expired. It will never work again.
       else if (result.reason instanceof WebPushError && [404, 410].includes(result.reason.statusCode)) gone.push(id);
@@ -105,14 +86,8 @@ export const webPushChannel: ChannelAdapter = {
     });
 
     const stamp = new Date(now).toISOString();
-    const updates = await Promise.all([
-      sent.length > 0 && supabase.from("push_subscriptions").update({ last_sent_at: stamp }).in("id", sent),
-      gone.length > 0 && supabase.from("push_subscriptions").update({ deleted_at: stamp }).in("id", gone),
-    ]);
-    for (const result of updates) {
-      if (result && result.error) {
-        console.error("[web-push] Updating subscriptions failed", { member: memberId, error: result.error });
-      }
+    for (const result of await Promise.allSettled([subscriptions.markSent(sent, stamp), subscriptions.markGone(gone, stamp)])) {
+      if (result.status === "rejected") console.error("[web-push] Updating subscriptions failed", { member: memberId, error: result.reason });
     }
 
     for (const reason of failures) {
@@ -146,15 +121,8 @@ export async function sendDiagnosticPush(
 ): Promise<number> {
   const keys = vapidKeys();
   if (!keys) throw new Error("Web Push isn't configured (VAPID keys missing)");
-  const { data: subscriptions, error } = await supabase
-    .from("push_subscriptions")
-    .select("endpoint, p256dh, auth")
-    .eq("member_id", memberId)
-    .is("deleted_at", null)
-    .is("paused_at", null)
-    .is("disabled_at", null);
-  if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
-  if (!subscriptions?.length) throw new Error("No live push subscriptions");
+  const subscriptions = await createRepos(supabase).pushSubscriptions.live(memberId);
+  if (!subscriptions.length) throw new Error("No live push subscriptions");
 
   const options = {
     vapidDetails: { subject: `mailto:${SUPPORT_EMAIL}`, publicKey: keys.publicKey, privateKey: keys.privateKey },
@@ -164,7 +132,7 @@ export async function sendDiagnosticPush(
   };
   const body = JSON.stringify(payload);
   const results = await Promise.allSettled(
-    subscriptions.map(async (s: any) => {
+    subscriptions.map(async (s) => {
       if (!isAllowedPushEndpoint(s.endpoint)) throw new Error("Untrusted push subscription endpoint");
       return webpush.sendNotification({ endpoint: new URL(s.endpoint).href, keys: { p256dh: s.p256dh, auth: s.auth } }, body, options);
     })
@@ -201,30 +169,9 @@ function describe(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
 
-export interface PushDevice {
-  id: string;
-  endpoint: string;
-  userAgent: string | null;
-  createdAt: string;
-  lastSentAt: string | null;
-  pausedAt: string | null;
-}
+export type { PushDevice } from "@/lib/data/push-subscriptions";
 
 /** A member's live devices, newest first. Service role: the table holds push credentials. */
-export async function loadPushDevices(supabase: any, memberId: string): Promise<PushDevice[]> {
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("id, endpoint, user_agent, created_at, last_sent_at, paused_at")
-    .eq("member_id", memberId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`push_subscriptions lookup failed: ${error.message}`);
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    endpoint: row.endpoint,
-    userAgent: row.user_agent,
-    createdAt: row.created_at,
-    lastSentAt: row.last_sent_at,
-    pausedAt: row.paused_at ?? null,
-  }));
+export async function loadPushDevices(supabase: any, memberId: string) {
+  return createRepos(supabase).pushSubscriptions.devices(memberId);
 }

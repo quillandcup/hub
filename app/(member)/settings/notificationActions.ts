@@ -142,20 +142,15 @@ async function savePushSubscriptionImpl(
     return { error: "Browser notifications aren't available to you yet." };
   }
 
-  const { error } = await service.from("push_subscriptions").upsert(
-    {
-      member_id: identity.memberId,
+  try {
+    await createRepos(service).pushSubscriptions.save({
+      memberId: identity.memberId,
       endpoint: subscription.endpoint,
       p256dh: subscription.keys.p256dh,
       auth: subscription.keys.auth,
-      user_agent: typeof userAgent === "string" ? userAgent.slice(0, 500) : null,
-      deleted_at: null,
-      paused_at: null,
-      disabled_at: null,
-    },
-    { onConflict: "endpoint" }
-  );
-  if (error) {
+      userAgent: typeof userAgent === "string" ? userAgent.slice(0, 500) : null,
+    });
+  } catch (error) {
     console.error("[notifications] Saving push subscription failed", { member: identity.memberId, error });
     return { error: "Couldn't turn on notifications for this device — please try again." };
   }
@@ -171,12 +166,9 @@ async function removePushSubscriptionImpl(endpoint: string): Promise<{ success: 
   if (identity.isSudo) return { error: "Notification settings can't be changed in sudo mode." };
   if (typeof endpoint !== "string" || !endpoint) return { error: "Invalid push subscription" };
 
-  const { error } = await createServiceRoleClient()
-    .from("push_subscriptions")
-    .update({ deleted_at: new Date().toISOString(), disabled_at: new Date().toISOString() })
-    .eq("member_id", identity.memberId)
-    .eq("endpoint", endpoint);
-  if (error) {
+  try {
+    await createRepos(createServiceRoleClient()).pushSubscriptions.removeByEndpoint(identity.memberId, endpoint, new Date().toISOString());
+  } catch (error) {
     console.error("[notifications] Removing push subscription failed", { member: identity.memberId, error });
     return { error: "Couldn't turn off notifications for this device — please try again." };
   }
@@ -192,10 +184,11 @@ export async function pausePushSubscription(endpoint: string): Promise<{ success
   const member = await createRepos(service).members.byUserId(user.id).catch(() => null);
   if (!member) return { error: "Couldn't find your member record" };
   if (!isAllowedPushEndpoint(endpoint)) return { error: "Invalid push subscription" };
-  const { error } = await service.from("push_subscriptions")
-    .update({ paused_at: new Date().toISOString() })
-    .eq("member_id", member.id).eq("endpoint", endpoint).is("disabled_at", null);
-  if (error) return { error: "Couldn't pause notifications for this device" };
+  try {
+    await createRepos(service).pushSubscriptions.pause(member.id, endpoint, new Date().toISOString());
+  } catch {
+    return { error: "Couldn't pause notifications for this device" };
+  }
   return { success: true, memberId: member.id };
 }
 
@@ -214,12 +207,17 @@ export async function resumePushSubscription(
   if (!(await membersWithFeature(service, WEB_PUSH_FEATURE, [identity.memberId])).has(identity.memberId)) {
     return { error: "Browser notifications aren't available to you yet." };
   }
-  const { data, error } = await service.from("push_subscriptions")
-    .update({ endpoint: subscription.endpoint, p256dh: subscription.keys.p256dh, auth: subscription.keys.auth, paused_at: null, deleted_at: null })
-    .eq("member_id", identity.memberId).eq("endpoint", previousEndpoint).is("disabled_at", null)
-    .select("id");
-  if (error) return { error: "Couldn't resume notifications for this device" };
-  if (!data?.length) return { error: "This device needs a new opt-in" };
+  let resumed: boolean;
+  try {
+    resumed = await createRepos(service).pushSubscriptions.resume(identity.memberId, previousEndpoint, {
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    });
+  } catch {
+    return { error: "Couldn't resume notifications for this device" };
+  }
+  if (!resumed) return { error: "This device needs a new opt-in" };
   return { success: true };
 }
 
@@ -265,12 +263,9 @@ export async function removePushDevice(id: string): Promise<{ success: true } | 
   if (identity.isSudo) return { error: "Notification settings can't be changed in sudo mode." };
   if (typeof id !== "string" || !id) return { error: "Invalid device" };
 
-  const { error } = await createServiceRoleClient()
-    .from("push_subscriptions")
-    .update({ deleted_at: new Date().toISOString(), disabled_at: new Date().toISOString() })
-    .eq("member_id", identity.memberId)
-    .eq("id", id);
-  if (error) {
+  try {
+    await createRepos(createServiceRoleClient()).pushSubscriptions.removeById(identity.memberId, id, new Date().toISOString());
+  } catch (error) {
     console.error("[notifications] Removing push device failed", { member: identity.memberId, id, error });
     return { error: "Couldn't remove that device — please try again." };
   }
