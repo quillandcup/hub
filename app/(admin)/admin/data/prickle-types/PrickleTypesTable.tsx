@@ -13,6 +13,7 @@ export interface PrickleTypeRow {
   description: string | null;
   purpose: string;
   solo_task_friendly: boolean;
+  is_specialty: boolean;
 }
 
 const PURPOSE_STYLES: Record<string, string> = {
@@ -34,8 +35,8 @@ function PurposeBadge({ purpose }: { purpose: string }) {
   );
 }
 
-function SoloTaskFriendlyBadge({ soloTaskFriendly }: { soloTaskFriendly: boolean }) {
-  return soloTaskFriendly ? (
+function YesNoBadge({ value }: { value: boolean }) {
+  return value ? (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
       Yes
     </span>
@@ -46,7 +47,7 @@ function SoloTaskFriendlyBadge({ soloTaskFriendly }: { soloTaskFriendly: boolean
   );
 }
 
-type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly";
+type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly" | "specialty";
 
 function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
   switch (column) {
@@ -61,6 +62,8 @@ function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
     case "soloTaskFriendly":
       // Ascending puts "Yes" first.
       return row.solo_task_friendly ? 0 : 1;
+    case "specialty":
+      return row.is_specialty ? 0 : 1;
   }
 }
 
@@ -90,6 +93,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
             {th("Description", "description")}
             {th("Purpose", "purpose")}
             {th("BYO-Task Friendly", "soloTaskFriendly")}
+            {th("Specialty", "specialty")}
             <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Actions
             </th>
@@ -113,7 +117,10 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
                 <PurposeBadge purpose={type.purpose} />
               </td>
               <td className="px-6 py-4">
-                <SoloTaskFriendlyBadge soloTaskFriendly={type.solo_task_friendly} />
+                <YesNoBadge value={type.solo_task_friendly} />
+              </td>
+              <td className="px-6 py-4">
+                <YesNoBadge value={type.is_specialty} />
               </td>
               <td className="px-6 py-4">
                 <Link

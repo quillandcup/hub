@@ -20,7 +20,7 @@ vi.mock("@/lib/data/repos", async () => ({
 
 import { getUnhostedPrickles, setDefaultHost, setRequiresHost } from "@/app/(admin)/admin/data-health/missing-hosts/actions";
 
-const SPRINT = { id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const SPRINT = { id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const prickle = (id: string, start: string, hostId: string | null = null) => ({
   id, typeId: SPRINT.id, hostId, title: null, source: "calendar", calendarEventId: null, startTime: start, endTime: start,
 });

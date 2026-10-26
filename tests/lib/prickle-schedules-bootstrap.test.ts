@@ -67,8 +67,8 @@ const OCTOBER = "2026-10-01";
 const NOVEMBER = "2026-11-01";
 // type-a takes a host; type-b doesn't.
 const TYPES = [
-  { id: "type-a", name: "Type A", normalizedName: "type-a", purpose: "writing", requiresHost: true, soloTaskFriendly: false },
-  { id: "type-b", name: "Type B", normalizedName: "type-b", purpose: "writing", requiresHost: false, soloTaskFriendly: false },
+  { id: "type-a", name: "Type A", normalizedName: "type-a", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false },
+  { id: "type-b", name: "Type B", normalizedName: "type-b", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false },
 ];
 
 // 7pm ET (EDT, UTC-4) on the given October day.

@@ -10,13 +10,13 @@ import {
   countUpcoming,
   groupEvents,
   primaryFilterOf,
-  showsEducationalPrickles,
+  showsSpecialtyPrickles,
   type EventFilter,
   type EventType,
   type PrimaryEventFilter,
   type RetreatFilter,
 } from "@/lib/events-filter";
-import type { EducationalPrickle } from "@/lib/educational-prickles";
+import type { SpecialtyPrickle } from "@/lib/specialty-prickles";
 
 export interface EventRow {
   id: string;
@@ -30,14 +30,14 @@ export interface EventRow {
   cover_photo_id: string | null;
 }
 
-// Type-only (erased at compile time), so none of lib/educational-prickles.ts's server-side
+// Type-only (erased at compile time), so none of lib/specialty-prickles.ts's server-side
 // query code reaches the client bundle. Re-exported for existing importers.
-export type { EducationalPrickle };
+export type { SpecialtyPrickle };
 
-// How many educational prickles the "All" view highlights before linking to the full list.
-const EDUCATIONAL_PREVIEW_COUNT = 4;
+// How many specialty prickles the "All" view highlights before linking to the full list.
+const SPECIALTY_PREVIEW_COUNT = 4;
 
-const EMPTY_LABELS: Record<Exclude<EventFilter, "educational">, string> = {
+const EMPTY_LABELS: Record<Exclude<EventFilter, "specialty">, string> = {
   all: "events",
   retreats: "retreats",
   in_person_retreat: "in-person retreats",
@@ -77,13 +77,13 @@ function syncUrl(filter: EventFilter) {
 export default function EventsBrowser({
   initialFilter,
   events,
-  educationalPrickles,
+  specialtyPrickles,
   today,
   timeZone,
 }: {
   initialFilter: EventFilter;
   events: EventRow[];
-  educationalPrickles: EducationalPrickle[];
+  specialtyPrickles: SpecialtyPrickle[];
   today: string;
   timeZone: string;
 }) {
@@ -94,13 +94,13 @@ export default function EventsBrowser({
   };
 
   const primary = primaryFilterOf(filter);
-  const counts = countUpcoming(events, educationalPrickles.length, today);
+  const counts = countUpcoming(events, specialtyPrickles.length, today);
   const { upcoming, past } = groupEvents(events, filter, today);
 
   const primaryOptions: PillOption<PrimaryEventFilter>[] = [
     { id: "all", label: "All", count: counts.all },
     { id: "retreats", label: "Retreats", count: counts.retreats },
-    { id: "educational", label: "Educational prickles", count: counts.educational },
+    { id: "specialty", label: "Specialty prickles", count: counts.specialty },
     { id: "other", label: "Other events", count: counts.other },
   ];
   const retreatOptions: PillOption<RetreatFilter>[] = [
@@ -124,17 +124,17 @@ export default function EventsBrowser({
       )}
 
       <div className="mt-6">
-        {filter === "educational" ? (
-          <EducationalSection prickles={educationalPrickles} timeZone={timeZone} />
+        {filter === "specialty" ? (
+          <SpecialtySection prickles={specialtyPrickles} timeZone={timeZone} />
         ) : (
           <>
-            {showsEducationalPrickles(filter) && educationalPrickles.length > 0 && (
-              <EducationalSection
-                prickles={educationalPrickles.slice(0, EDUCATIONAL_PREVIEW_COUNT)}
+            {showsSpecialtyPrickles(filter) && specialtyPrickles.length > 0 && (
+              <SpecialtySection
+                prickles={specialtyPrickles.slice(0, SPECIALTY_PREVIEW_COUNT)}
                 timeZone={timeZone}
                 highlighted
-                moreCount={Math.max(0, educationalPrickles.length - EDUCATIONAL_PREVIEW_COUNT)}
-                onSeeAll={() => setFilter("educational")}
+                moreCount={Math.max(0, specialtyPrickles.length - SPECIALTY_PREVIEW_COUNT)}
+                onSeeAll={() => setFilter("specialty")}
               />
             )}
             <EventGrid
@@ -208,14 +208,14 @@ function EventCard({ event }: { event: EventRow }) {
   );
 }
 
-function EducationalSection({
+function SpecialtySection({
   prickles,
   timeZone,
   highlighted = false,
   moreCount = 0,
   onSeeAll,
 }: {
-  prickles: EducationalPrickle[];
+  prickles: SpecialtyPrickle[];
   timeZone: string;
   highlighted?: boolean;
   moreCount?: number;
@@ -224,16 +224,16 @@ function EducationalSection({
   const withSecondary = useWithSecondaryTime();
   return (
     <section
-      aria-label="Upcoming educational prickles"
+      aria-label="Upcoming specialty prickles"
       className={`mb-8 rounded-lg border p-4 ${
         highlighted
           ? "border-plum-200 bg-plum-50 dark:border-plum-900 dark:bg-plum-950/40"
           : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       }`}
     >
-      <SectionHeading>Upcoming educational prickles</SectionHeading>
+      <SectionHeading>Upcoming specialty prickles</SectionHeading>
       {prickles.length === 0 ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">No educational prickles on the calendar right now.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No specialty prickles on the calendar right now.</p>
       ) : (
         <ul>
           {prickles.map((p) => (
@@ -243,6 +243,9 @@ function EducationalSection({
                 className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-white/70 dark:hover:bg-slate-800/50"
               >
                 <div className="min-w-0">
+                  {p.title && p.title !== p.typeName && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide truncate">{p.typeName}</p>
+                  )}
                   <p className="text-sm font-medium truncate">{p.title || p.typeName}</p>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                     {p.hostName ? `Hosted by ${hostShortName(p.hostName)}` : "No host listed"}
@@ -257,12 +260,12 @@ function EducationalSection({
         </ul>
       )}
       {moreCount > 0 && onSeeAll && (
-        <button data-track="events-see-all-educational-prickles"
+        <button data-track="events-see-all-specialty-prickles"
           type="button"
           onClick={onSeeAll}
           className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
         >
-          See all {prickles.length + moreCount} educational prickles →
+          See all {prickles.length + moreCount} specialty prickles →
         </button>
       )}
     </section>

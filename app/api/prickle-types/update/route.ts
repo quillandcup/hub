@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { typeId, name, description, purpose, soloTaskFriendly } = body;
+    const { typeId, name, description, purpose, soloTaskFriendly, isSpecialty } = body;
 
     if (!typeId || !name) {
       return NextResponse.json(
@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
     if (purpose !== undefined && !VALID_PURPOSES.includes(purpose)) {
       return NextResponse.json(
         { error: `Invalid purpose. Must be one of: ${VALID_PURPOSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    if (isSpecialty !== undefined && typeof isSpecialty !== "boolean") {
+      return NextResponse.json(
+        { error: "isSpecialty must be a boolean" },
         { status: 400 }
       );
     }
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
         description: description?.trim() || null,
         ...(purpose !== undefined ? { purpose } : {}),
         ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
+        ...(isSpecialty !== undefined ? { is_specialty: isSpecialty } : {}),
       })
       .eq("id", typeId);
 

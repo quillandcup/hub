@@ -4,7 +4,7 @@ import { createInMemoryRepos } from "@/lib/data/repos";
 import { loadMissingHosts } from "@/lib/missing-hosts";
 
 const type = (id: string, name: string, requiresHost: boolean, defaultHostId: string | null = null) => ({
-  id, name, normalizedName: name.toLowerCase(), purpose: "writing", requiresHost, soloTaskFriendly: false, defaultHostId,
+  id, name, normalizedName: name.toLowerCase(), purpose: "writing", requiresHost, soloTaskFriendly: false, isSpecialty: false, defaultHostId,
 });
 const prickle = (id: string, typeId: string | null, hostId: string | null, source = "calendar") => ({
   id, typeId, hostId, title: null, source, calendarEventId: null, startTime: "2026-10-19T15:00:00Z", endTime: "2026-10-19T16:00:00Z",

@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 
 import { GET } from "@/app/api/zoom/prickles/route";
 
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
 const pup = (id: string, uuid: string, start: string, typeId: string | null = SPRINT.id) => ({
   id, typeId, hostId: null, title: null, source: "zoom", calendarEventId: null, zoomMeetingUuid: uuid, startTime: start, endTime: start,
 });

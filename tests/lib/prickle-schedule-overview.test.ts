@@ -17,8 +17,8 @@ const NOW = new Date("2026-09-23T16:00:00.000Z");
 const TZ = "America/New_York";
 const HOST_A = { id: "host-a", name: "Pat Legalname", displayName: "Penny Quill" };
 const HOST_B = { id: "host-b", name: "Robin Example", displayName: null };
-const SPRINT_TYPE = { id: "t-sprint", name: "Morning Sprint", normalizedName: "morning-sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
-const DEEP_TYPE = { id: "t-deep", name: "Deep Work", normalizedName: "deep-work", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const SPRINT_TYPE = { id: "t-sprint", name: "Morning Sprint", normalizedName: "morning-sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
+const DEEP_TYPE = { id: "t-deep", name: "Deep Work", normalizedName: "deep-work", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 
 function prickle(id: string, start: string, typeId: string | null, hostId: string | null): Prickle {
   const end = new Date(new Date(start).getTime() + 60 * 60 * 1000).toISOString();

@@ -52,7 +52,7 @@ function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown =
   return calls;
 }
 
-const SPRINT = { id: "ptyp-sprint", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const SPRINT = { id: "ptyp-sprint", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
 const social = { ...SPRINT, id: "ptyp-social", name: "Social Hour", normalizedName: "social-hour", purpose: "social" };
 
 /** A prickle of `type` the member (member-1) attended, starting at `start`. */

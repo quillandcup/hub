@@ -29,7 +29,7 @@ vi.mock("@/lib/data/repos", async () => ({
 import { addPrickleToMyCalendar } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { getCheckModalData } from "@/app/(member)/prickles/checkin-actions";
 
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
 const HOST = { id: "mbr_AAAAAAAAAAA9", name: "Jenn Parker" };
 const prickle = (id: string, typeId: string | null, extra: object = {}) => ({
   id,

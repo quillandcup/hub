@@ -3,7 +3,7 @@ import {
   parseEventFilter,
   primaryFilterOf,
   eventMatchesFilter,
-  showsEducationalPrickles,
+  showsSpecialtyPrickles,
   groupEvents,
   countUpcoming,
   localDateString,
@@ -27,7 +27,11 @@ describe('parseEventFilter', () => {
   it('accepts allowlisted values', () => {
     expect(parseEventFilter('retreats')).toBe('retreats')
     expect(parseEventFilter('virtual_retreat')).toBe('virtual_retreat')
-    expect(parseEventFilter('educational')).toBe('educational')
+    expect(parseEventFilter('specialty')).toBe('specialty')
+  })
+
+  it('maps the old educational filter in saved links to specialty', () => {
+    expect(parseEventFilter('educational')).toBe('specialty')
   })
 
   it('falls back to all for missing or unknown values', () => {
@@ -48,7 +52,7 @@ describe('primaryFilterOf', () => {
     expect(primaryFilterOf('in_person_retreat')).toBe('retreats')
     expect(primaryFilterOf('virtual_retreat')).toBe('retreats')
     expect(primaryFilterOf('retreats')).toBe('retreats')
-    expect(primaryFilterOf('educational')).toBe('educational')
+    expect(primaryFilterOf('specialty')).toBe('specialty')
     expect(primaryFilterOf('all')).toBe('all')
   })
 })
@@ -64,17 +68,17 @@ describe('eventMatchesFilter', () => {
   })
 
   it('never matches events for the educational filter', () => {
-    expect(eventMatchesFilter('in_person_retreat', 'educational')).toBe(false)
-    expect(eventMatchesFilter('other', 'educational')).toBe(false)
+    expect(eventMatchesFilter('in_person_retreat', 'specialty')).toBe(false)
+    expect(eventMatchesFilter('other', 'specialty')).toBe(false)
   })
 })
 
-describe('showsEducationalPrickles', () => {
+describe('showsSpecialtyPrickles', () => {
   it('only for all and educational', () => {
-    expect(showsEducationalPrickles('all')).toBe(true)
-    expect(showsEducationalPrickles('educational')).toBe(true)
-    expect(showsEducationalPrickles('retreats')).toBe(false)
-    expect(showsEducationalPrickles('other')).toBe(false)
+    expect(showsSpecialtyPrickles('all')).toBe(true)
+    expect(showsSpecialtyPrickles('specialty')).toBe(true)
+    expect(showsSpecialtyPrickles('retreats')).toBe(false)
+    expect(showsSpecialtyPrickles('other')).toBe(false)
   })
 })
 
@@ -98,7 +102,7 @@ describe('groupEvents', () => {
   })
 
   it('returns no events for the educational filter', () => {
-    expect(groupEvents(EVENTS, 'educational', TODAY)).toEqual({ upcoming: [], past: [] })
+    expect(groupEvents(EVENTS, 'specialty', TODAY)).toEqual({ upcoming: [], past: [] })
   })
 
   it('does not mutate its input', () => {
@@ -109,13 +113,13 @@ describe('groupEvents', () => {
 })
 
 describe('countUpcoming', () => {
-  it('counts upcoming events per filter plus educational prickles', () => {
+  it('counts upcoming events per filter plus specialty prickles', () => {
     expect(countUpcoming(EVENTS, 3, TODAY)).toEqual({
       all: 7,
       retreats: 2,
       in_person_retreat: 1,
       virtual_retreat: 1,
-      educational: 3,
+      specialty: 3,
       other: 2,
     })
   })

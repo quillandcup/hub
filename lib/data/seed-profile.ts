@@ -159,6 +159,7 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     purpose: "writing",
     requiresHost: profile.weeklyPattern.some((s) => typeNamed(s.summary) === name && hostNamed(s.summary) !== null),
     soloTaskFriendly: false,
+    isSpecialty: false,
   }));
   const typeId = new Map(prickleTypes.map((t) => [t.name, t.id]));
 

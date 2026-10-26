@@ -24,7 +24,7 @@ vi.mock("@/app/(admin)/admin/stats/CommunityStatsCharts", () => ({
 
 import CommunityStatsPage from "@/app/(admin)/admin/stats/page";
 
-const WRITING = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const WRITING = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example" };
 const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example" };
 const day = (d: number) => new Date(Date.UTC(2026, 5, d, 14)).toISOString();

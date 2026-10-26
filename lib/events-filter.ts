@@ -1,8 +1,7 @@
 // Filtering/grouping for the member Events page (app/(member)/events). One page with a
-// pill filter rather than separate Retreats / Educational pages: retreats and other
-// events share the `events` table (distinguished by `event_type`), and educational
-// prickles are ordinary prickles whose type is `prickle_types.normalized_name =
-// 'educational'` -- so a single page can show "what's happening" across both, and
+// pill filter rather than separate Retreats / Specialty pages: retreats and other
+// events share the `events` table (distinguished by `event_type`), and specialty
+// prickles are ordinary prickles whose type has `prickle_types.is_specialty` -- so a single page can show "what's happening" across both, and
 // the filter is just a view over data it already loads.
 
 export const EVENT_TYPES = ["in_person_retreat", "virtual_retreat", "other"] as const;
@@ -21,16 +20,17 @@ export const EVENT_FILTER_IDS = [
   "retreats",
   "in_person_retreat",
   "virtual_retreat",
-  "educational",
+  "specialty",
   "other",
 ] as const;
 export type EventFilter = (typeof EVENT_FILTER_IDS)[number];
 
-export type PrimaryEventFilter = "all" | "retreats" | "educational" | "other";
+export type PrimaryEventFilter = "all" | "retreats" | "specialty" | "other";
 export type RetreatFilter = "retreats" | "in_person_retreat" | "virtual_retreat";
 
 export function parseEventFilter(raw: string | string[] | undefined | null): EventFilter {
-  const value = Array.isArray(raw) ? raw[0] : raw;
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  const value = first === "educational" ? "specialty" : first; // the filter's old name, still in saved links
   return (EVENT_FILTER_IDS as readonly string[]).includes(value ?? "") ? (value as EventFilter) : "all";
 }
 
@@ -53,14 +53,14 @@ export function eventMatchesFilter(eventType: string, filter: EventFilter): bool
       return eventType === filter;
     case "other":
       return !isRetreatType(eventType);
-    case "educational":
-      return false; // educational prickles aren't rows in `events`
+    case "specialty":
+      return false; // specialty prickles aren't rows in `events`
   }
 }
 
-/** Whether the educational-prickles list belongs in this view. */
-export function showsEducationalPrickles(filter: EventFilter): boolean {
-  return filter === "all" || filter === "educational";
+/** Whether the specialty-prickles list belongs in this view. */
+export function showsSpecialtyPrickles(filter: EventFilter): boolean {
+  return filter === "all" || filter === "specialty";
 }
 
 export interface EventLike {
@@ -91,20 +91,20 @@ export interface FilterCounts {
   retreats: number;
   in_person_retreat: number;
   virtual_retreat: number;
-  educational: number;
+  specialty: number;
   other: number;
 }
 
-/** Upcoming-item counts per filter, for pill badges. `all` counts events plus educational prickles. */
-export function countUpcoming(events: readonly EventLike[], educationalCount: number, today: string): FilterCounts {
+/** Upcoming-item counts per filter, for pill badges. `all` counts events plus specialty prickles. */
+export function countUpcoming(events: readonly EventLike[], specialtyCount: number, today: string): FilterCounts {
   const upcoming = events.filter((e) => e.ends_at >= today);
   const count = (f: EventFilter) => upcoming.filter((e) => eventMatchesFilter(e.event_type, f)).length;
   return {
-    all: upcoming.length + educationalCount,
+    all: upcoming.length + specialtyCount,
     retreats: count("retreats"),
     in_person_retreat: count("in_person_retreat"),
     virtual_retreat: count("virtual_retreat"),
-    educational: educationalCount,
+    specialty: specialtyCount,
     other: count("other"),
   };
 }

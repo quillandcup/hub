@@ -18,6 +18,7 @@ export default function NewPrickleTypeForm() {
   const [description, setDescription] = useState("");
   const [purpose, setPurpose] = useState<PrickleTypePurpose>("writing");
   const [soloTaskFriendly, setSoloTaskFriendly] = useState(true);
+  const [isSpecialty, setIsSpecialty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export default function NewPrickleTypeForm() {
           description: description.trim(),
           purpose,
           soloTaskFriendly,
+          isSpecialty,
         }),
       });
 
@@ -141,6 +143,23 @@ export default function NewPrickleTypeForm() {
             Can a hedgie zone out on an unrelated task (especially non-writing work) here? Turn this off for
             structured/participatory sessions (workshops, sprints, pitches, educational) and very chatty ones
             (Craft & Chat).
+          </p>
+        </div>
+
+        {/* Specialty */}
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={isSpecialty}
+              onChange={(e) => setIsSpecialty(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Specialty prickle
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Call these out on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches).
+            Leave off for everyday progress and sprint prickles.
           </p>
         </div>
 

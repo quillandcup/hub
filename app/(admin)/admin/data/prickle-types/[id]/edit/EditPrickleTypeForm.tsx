@@ -20,6 +20,7 @@ interface EditPrickleTypeFormProps {
     description: string | null;
     purpose: PrickleTypePurpose;
     solo_task_friendly: boolean;
+    is_specialty: boolean;
   };
 }
 
@@ -31,6 +32,7 @@ export default function EditPrickleTypeForm({
   const [description, setDescription] = useState(prickleType.description || "");
   const [purpose, setPurpose] = useState<PrickleTypePurpose>(prickleType.purpose);
   const [soloTaskFriendly, setSoloTaskFriendly] = useState(prickleType.solo_task_friendly);
+  const [isSpecialty, setIsSpecialty] = useState(prickleType.is_specialty);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +51,7 @@ export default function EditPrickleTypeForm({
           description: description.trim(),
           purpose,
           soloTaskFriendly,
+          isSpecialty,
         }),
       });
 
@@ -145,6 +148,23 @@ export default function EditPrickleTypeForm({
             Can a hedgie zone out on an unrelated task (especially non-writing work) here? Turn this off for
             structured/participatory sessions (workshops, sprints, pitches, educational) and very chatty ones
             (Craft & Chat) — being writing-purpose doesn&apos;t automatically make a slot friendly for this.
+          </p>
+        </div>
+
+        {/* Specialty */}
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={isSpecialty}
+              onChange={(e) => setIsSpecialty(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Specialty prickle
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Call these out on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches).
+            Leave off for everyday progress and sprint prickles.
           </p>
         </div>
 
