@@ -454,6 +454,56 @@ async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Pr
   return out;
 }
 
+interface ReactionRow {
+  message_id: string;
+  emoji: string;
+  member_id: string | null;
+  slack_user_id: string | null;
+}
+
+/** The API returns at most this many rows per request (1000 in production), however many match. */
+const REACTION_PAGE = 1000;
+
+/**
+ * Every live reaction on these messages. A busy conversation can carry more than one page of them
+ * (production has pages with over 2,500), and a single unordered request returns an arbitrary first
+ * thousand: whole messages then lose their reactions, and which ones changes as rows are updated.
+ * So: a stable order, the rest fetched in parallel once the first page says how many there are, and
+ * a database error is an error, not an empty list (an empty list reads as "everyone took theirs back").
+ */
+export async function loadReactionRows(supabase: SupabaseClient, messageIds: string[]): Promise<ReactionRow[]> {
+  if (messageIds.length === 0) return [];
+  const page = (from: number) =>
+    supabase
+      .from("chat_reactions")
+      .select("message_id, emoji, member_id, slack_user_id", from === 0 ? { count: "exact" } : undefined)
+      .in("message_id", messageIds)
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, from + REACTION_PAGE - 1);
+  const first = await page(0);
+  if (first.error) throw new Error(`chat_reactions read failed: ${first.error.message}`);
+  const rows = (first.data ?? []) as ReactionRow[];
+  if (rows.length < REACTION_PAGE) return rows;
+  const fetchPage = async (from: number) => {
+    const next = await page(from);
+    if (next.error) throw new Error(`chat_reactions read failed: ${next.error.message}`);
+    return (next.data ?? []) as ReactionRow[];
+  };
+  // The first page reported the total: fetch the rest side by side. Without it, go on until a short page.
+  if (typeof first.count === "number") {
+    const starts: number[] = [];
+    for (let from = REACTION_PAGE; from < first.count; from += REACTION_PAGE) starts.push(from);
+    return rows.concat(...(await Promise.all(starts.map(fetchPage))));
+  }
+  let all = rows;
+  for (let from = REACTION_PAGE; ; from += REACTION_PAGE) {
+    const next = await fetchPage(from);
+    all = all.concat(next);
+    if (next.length < REACTION_PAGE) return all;
+  }
+}
+
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
   supabase: SupabaseClient,
@@ -484,7 +534,7 @@ export async function buildMessageViews(
   timer?.note("roots", threadRoots.length);
   timer?.note("unmatched", unmatched.length);
 
-  const [profiles, slackAuthorByTs, { data: reactionRows }, replies, userMembers, hubNames, channelNames] = await Promise.all([
+  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames] = await Promise.all([
     t("b1.profiles", memberProfiles(supabase, matched)),
     t(
       "b1.slackAuthors",
@@ -492,14 +542,7 @@ export async function buildMessageViews(
         ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
         : Promise.resolve({} as Record<string, string>)
     ),
-    t(
-      "b1.reactions",
-      supabase
-        .from("chat_reactions")
-        .select("message_id, emoji, member_id, slack_user_id")
-        .in("message_id", rows.map((r) => r.id))
-        .is("deleted_at", null)
-    ),
+    t("b1.reactions", loadReactionRows(supabase, rows.map((r) => r.id))),
     t("b1.replyAuthors", loadReplyAuthors(supabase, threadRoots)),
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
