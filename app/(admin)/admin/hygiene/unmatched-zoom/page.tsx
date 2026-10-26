@@ -16,12 +16,12 @@ export default async function AliasSearchPage() {
   // Get members, aliases, ignored names, and staff in parallel; paginate zoom_attendees separately
   const [
     allMembers,
-    { data: aliases },
+    aliases,
     { data: ignoredNames },
     { data: staffMembers },
   ] = await Promise.all([
     createRepos(supabase).members.identities(),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).aliases.nameAliases(),
     supabase.from("ignored_zoom_names").select("zoom_name"),
     supabase.from("staff").select("name, email"),
   ]);

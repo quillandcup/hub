@@ -51,11 +51,11 @@ export async function POST(request: NextRequest) {
     // STEP 1: Load reference data in parallel
     const [
       members,
-      { data: aliases },
+      aliases,
       { data: slackUsers },
     ] = await Promise.all([
       createRepos(supabase).members.identities(),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.schema('bronze').from("slack_users").select("user_id, email, real_name"),
     ]);
 

@@ -13,17 +13,8 @@ export interface Member {
   email: string;
 }
 
-export interface MemberAlias {
-  member_id: string;
-  alias: string;
-  /** 'zoom' or 'slack' (the column is plain text with a check constraint). */
-  source: string;
-}
-
-export interface MemberEmailAlias {
-  alias_email: string;
-  canonical_email: string;
-}
+export type { MemberAlias, MemberEmailAlias } from "@/lib/data/aliases";
+import type { MemberAlias, MemberEmailAlias } from "@/lib/data/aliases";
 
 export interface MatchResult {
   member_id: string;

@@ -110,12 +110,8 @@ export async function rebuildCourseAccess(
       ))
     );
   }
-  const { data: aliases, error: aliasError } = await supabase
-    .from("member_email_aliases")
-    .select("alias_email, canonical_email")
-    .eq("active", true);
-  if (aliasError) throw new Error(`member_email_aliases read failed: ${aliasError.message}`);
-  const aliasMap = buildAliasMap(aliases ?? []);
+  const aliases = await createRepos(supabase).aliases.emailAliases({ activeOnly: true });
+  const aliasMap = buildAliasMap(aliases);
   const emailByCustomerId = new Map<string, string>();
   for (const c of customers) if (c.email) emailByCustomerId.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));
 

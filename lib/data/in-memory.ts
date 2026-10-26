@@ -1,5 +1,6 @@
 import type { AttendanceRow } from "./attendance";
 import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
+import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
@@ -49,6 +50,8 @@ export class InMemoryDataset {
   attendance: AttendanceRow[];
   notificationPreferences: NotificationPreference[];
   inAppNotifications: InAppNotificationRow[];
+  nameAliases: NameAliasRow[];
+  emailAliases: EmailAliasRow[];
   pushSubscriptions: PushSubscriptionRow[];
   reminderLog: ReminderLogRow[];
   badgeTypes: BadgeType[];
@@ -59,7 +62,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -68,6 +71,8 @@ export class InMemoryDataset {
     this.attendance = (init.attendance ?? []).map((row) => ({ ...row }));
     this.notificationPreferences = (init.notificationPreferences ?? []).map((row) => ({ ...row }));
     this.inAppNotifications = (init.inAppNotifications ?? []).map((row) => ({ ...row }));
+    this.nameAliases = (init.nameAliases ?? []).map((row) => ({ ...row }));
+    this.emailAliases = (init.emailAliases ?? []).map((row) => ({ ...row }));
     this.pushSubscriptions = (init.pushSubscriptions ?? []).map((row) => ({ ...row }));
     this.reminderLog = (init.reminderLog ?? []).map((row) => ({ ...row }));
     this.badgeTypes = (init.badgeTypes ?? []).map((row) => ({ ...row }));

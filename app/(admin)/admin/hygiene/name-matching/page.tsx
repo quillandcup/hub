@@ -24,10 +24,10 @@ export default async function NameMatchingReportPage() {
 
   // Active members, all members and aliases in parallel
   const repos = createRepos(supabase);
-  const [activeMembers, allMembers, { data: aliases }] = await Promise.all([
+  const [activeMembers, allMembers, aliases] = await Promise.all([
     repos.members.list({ status: "active", orderBy: "name" }),
     repos.members.identities(),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).aliases.nameAliases(),
   ]);
   const attendedIds = await repos.attendance.membersWhoAttended(activeMembers.map((m) => m.id));
 

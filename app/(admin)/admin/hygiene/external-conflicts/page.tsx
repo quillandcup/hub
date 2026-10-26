@@ -42,7 +42,7 @@ export default async function ExternalConflictsPage() {
     kajabiActivePurchases,
     kajabiCustomers,
   ] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email, canonical_email").then(r => r.data ?? []),
+    createRepos(supabase).aliases.emailAliases(),
     paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
       .select("kajabi_contact_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("stripe_customers")

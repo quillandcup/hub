@@ -53,18 +53,7 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Load reference data upfront (members and aliases can exceed 1000 rows)
     const members = await createRepos(supabase).members.identities();
-    const aliases: { alias: string; member_id: string; source: string }[] = [];
-    for (let offset = 0; ; offset += BATCH_SIZE) {
-      const { data: a, error: ae } = await supabase
-        .from("member_name_aliases")
-        .select("alias, member_id, source")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (ae) throw ae;
-      aliases.push(...(a ?? []));
-      if ((a?.length ?? 0) < BATCH_SIZE) break;
-    }
+    const aliases = await createRepos(supabase).aliases.nameAliases({ activeOnly: true });
     const { data: slackUsers, error: usersError } = await supabase
       .schema("bronze")
       .from("slack_users")

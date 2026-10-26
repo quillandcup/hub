@@ -192,22 +192,8 @@ export async function loadPresenceByMember(
 
   const [members, aliases, emailAliases] = await Promise.all([
     createRepos(supabase).members.identities(),
-    fetchAllPaginated<MemberAlias>((offset) =>
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias, source")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberEmailAlias>((offset) =>
-      supabase
-        .from("member_email_aliases")
-        .select("alias_email, canonical_email")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
 
   // One match per participant (name/email), not per event.

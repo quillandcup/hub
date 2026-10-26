@@ -96,12 +96,12 @@ export async function POST(request: NextRequest) {
     // STEP 1b: Load all reference data in parallel
     const [
       members,
-      { data: aliases },
+      aliases,
       { data: prickleTypes },
       { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
       createRepos(supabase).members.identities({ status: "active" }),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase

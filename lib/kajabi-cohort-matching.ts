@@ -228,12 +228,11 @@ export async function findKajabiCandidatesForCohort(
   }
 
   const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
-  const [{ data: customers, error: customersError }, { data: emailAliases, error: aliasesError }] = await Promise.all([
+  const [{ data: customers, error: customersError }, emailAliases] = await Promise.all([
     supabase.schema("bronze").from("kajabi_customers").select("kajabi_customer_id, email").in("kajabi_customer_id", customerIds),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
   if (customersError) throw customersError;
-  if (aliasesError) throw aliasesError;
 
   const aliasMap = buildAliasMap(emailAliases || []);
   const emailByCustomerId = new Map<string, string>();

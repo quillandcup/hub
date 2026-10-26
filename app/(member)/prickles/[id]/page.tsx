@@ -131,13 +131,13 @@ export default async function PrickleDetailPage({
         .lt("join_time", prickle.endTime)
         .gt("leave_time", prickle.startTime),
       createRepos(supabase).members.identities(),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.from("ignored_zoom_names").select("zoom_name"),
       supabase.from("staff").select("name, email"),
     ]);
 
     const members = membersResult;
-    const aliases = aliasesResult.data || [];
+    const aliases = aliasesResult;
     const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
     const staff = staffResult.data || [];
     allMembersForMatching = members;

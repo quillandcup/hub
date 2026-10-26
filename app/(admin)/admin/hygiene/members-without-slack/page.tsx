@@ -16,14 +16,14 @@ export default async function MembersWithoutSlackPage() {
   const [
     members,
     { data: slackUsers },
-    { data: aliases },
+    aliases,
   ] = await Promise.all([
     createRepos(supabase).members.list({ orderBy: "name" }),
     supabase
       .schema("bronze")
       .from("slack_users")
       .select("user_id, email, real_name, display_name, is_bot, is_deleted"),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).aliases.nameAliases(),
   ]);
 
   // Reuses the exact same matching logic as /admin/hygiene/unmatched-slack —
