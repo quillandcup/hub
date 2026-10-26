@@ -14,7 +14,7 @@ vi.mock("@/lib/data/repos", async () => {
 });
 
 const NOW = new Date("2026-10-19T15:00:00Z");
-const WRITING = { id: "pt1", name: "Writing", normalizedName: "writing", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const WRITING = { id: "pt1", name: "Writing", normalizedName: "writing", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
 const runningPrickle = (extra: object = {}) => ({
   id: "p1",
   typeId: WRITING.id,

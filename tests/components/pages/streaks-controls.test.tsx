@@ -48,7 +48,7 @@ beforeEach(() => {
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   repos = createInMemoryRepos(
     new InMemoryDataset({
-      prickleTypes: [{ id: "ptyp-1", name: "Morning Writing", normalizedName: "morning-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false }],
+      prickleTypes: [{ id: "ptyp-1", name: "Morning Writing", normalizedName: "morning-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false }],
       prickles: [
         { id: "prickle-1", typeId: "ptyp-1", hostId: null, title: null, startTime: "2026-11-02T15:00:00Z", endTime: "2026-11-02T16:00:00Z", source: "calendar", calendarEventId: null },
       ],

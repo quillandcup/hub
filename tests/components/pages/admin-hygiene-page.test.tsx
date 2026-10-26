@@ -22,7 +22,7 @@ vi.mock("@/app/(admin)/admin/hygiene/ProcessOrphanedMeetingsButton", () => ({ de
 
 import DataHygienePage from "@/app/(admin)/admin/hygiene/page";
 
-const TAKES_HOST = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const TAKES_HOST = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const prickle = (id: string, extra: object) => ({
   id, typeId: TAKES_HOST.id, hostId: null, title: null, source: "calendar",
   startTime: "2026-10-19T15:00:00Z", endTime: "2026-10-19T16:00:00Z", calendarEventId: null, ...extra,

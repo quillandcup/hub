@@ -20,7 +20,7 @@ vi.mock("@/components/CalendarWeekView", () => ({
 
 import CalendarPage from "@/app/(admin)/admin/calendar/page";
 
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example" };
 const prickle = (id: string, hostId: string | null, start: string, end: string, typeId: string | null = SPRINT.id) => ({
   id, typeId, hostId, title: null, startTime: start, endTime: end, source: "calendar", calendarEventId: null,

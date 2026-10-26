@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const repos = createInMemoryRepos(
   new InMemoryDataset({
     members: [{ id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" }],
-    prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false }],
+    prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false }],
     prickles: [
       { id: "p1", typeId: "prty_AAAAAAAAAAA1", hostId: "mbr_AAAAAAAAAAA1", title: null, startTime: "2026-10-05T17:00:00Z", endTime: "2026-10-05T18:00:00Z", source: "calendar", calendarEventId: null },
     ],

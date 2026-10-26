@@ -15,7 +15,7 @@ const prickle: PrickleDetail = {
   source: "calendar",
   calendarEventId: null,
   host: { id: "h1", name: "Jenn Parker", displayName: null },
-  type: { id: "t1", name: "Progress Prickle", normalizedName: "progress", description: null, purpose: "writing", requiresHost: true, soloTaskFriendly: false },
+  type: { id: "t1", name: "Progress Prickle", normalizedName: "progress", description: null, purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false },
 };
 
 const record = {

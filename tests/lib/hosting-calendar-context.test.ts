@@ -17,7 +17,7 @@ import { getHostingCalendarContext } from "@/app/(member)/hosting/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const prickle = (id: string, typeId: string | null, hostId: string | null, start: string) => ({
   id,
   typeId,

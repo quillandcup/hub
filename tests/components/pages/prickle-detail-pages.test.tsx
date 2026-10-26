@@ -47,7 +47,7 @@ vi.mock("@/app/(admin)/admin/prickles/[id]/TestCheckinDMs", () => ({ default: ()
 import MemberPrickleDetailPage, { generateMetadata as memberMetadata } from "@/app/(member)/prickles/[id]/page";
 import AdminPrickleDetailPage, { generateMetadata as adminMetadata } from "@/app/(admin)/admin/prickles/[id]/page";
 
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const HOST = { id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" };
 const prickle = (extra: object = {}) => ({
   id: "prkl_AAAAAAAAAAA1", typeId: SPRINT.id, hostId: HOST.id, title: null, source: "calendar", calendarEventId: null,

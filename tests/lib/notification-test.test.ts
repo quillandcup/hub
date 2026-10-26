@@ -30,7 +30,7 @@ vi.mock("@/lib/newcomer-signals", () => ({ loadIntroChannelId: mocks.introChanne
 import { sampleMessages, sendTestNotification, UNREACHABLE_REASON } from "@/lib/notification-test";
 
 const NOW = new Date("2026-10-18T15:00:00Z");
-const POMODORO = { id: "pt1", name: "Pomodoro", normalizedName: "pomodoro", purpose: "writing", requiresHost: false, soloTaskFriendly: false };
+const POMODORO = { id: "pt1", name: "Pomodoro", normalizedName: "pomodoro", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
 const prickle = {
   id: "p1",
   typeId: POMODORO.id,

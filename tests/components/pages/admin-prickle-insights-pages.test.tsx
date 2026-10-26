@@ -11,7 +11,7 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: vi.fn(async () => undefined) }));
 // Prickles, types and members come from the in-memory repositories over a dataset; attendance is a
 // separate in-memory repository the tests seed and spy on.
-const TYPE = { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false };
+const TYPE = { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
 const PAST = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
 const prickle = (id: string, days: number) => ({
   id,

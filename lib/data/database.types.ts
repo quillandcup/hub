@@ -4437,6 +4437,7 @@ export type Database = {
           default_host_id: string | null
           description: string | null
           id: string
+          is_specialty: boolean
           name: string
           normalized_name: string
           purpose: string
@@ -4448,6 +4449,7 @@ export type Database = {
           default_host_id?: string | null
           description?: string | null
           id?: string
+          is_specialty?: boolean
           name: string
           normalized_name: string
           purpose?: string
@@ -4459,6 +4461,7 @@ export type Database = {
           default_host_id?: string | null
           description?: string | null
           id?: string
+          is_specialty?: boolean
           name?: string
           normalized_name?: string
           purpose?: string

@@ -976,6 +976,16 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Managing events in the Hub: the rest of the plan _(Needs Scheduling)_
+**Done:** specialty prickles (webinars, Hedgies on First, Monthly Goal Review, pitches) are called out on the member Events page; `prickle_types.is_specialty` is the flag, edited on the prickle type. **Still open**, from a conversation with the community lead, in the order to build it:
+1. **Events model.** `events` has a closed `event_type` (retreats and "other"), date-only start/end and no audience fields. Add explicit flags rather than audience tiers: announced publicly, guests allowed, registration (`none`, `signup`, `application`), capacity and selection mode (first come or selected). Replace `event_type` with a small lookup of kinds (default image and default flags per kind), add guest speakers (members or free text), an image picked from the kind's defaults or uploaded, and a time of day. Fix the table while there: `new_id('evt')` default (it still has a uuid default) and admin-only write policies (any signed-in user can write today).
+2. **Registration and application.** A registrations table (member, event, status `registered`/`applied`/`accepted`/`waitlisted`/`declined`, application answers) for the workshop that needs an application (a query workshop with two sessions attendees must both attend) and sign-ups. Notifications go through `createNotifier`.
+3. **Series and the calendar link.** A nullable `parent_event_id` for a group of events (book fair slots, a writing marathon) and a link from an event to a `calendar_events` row or prickle, so Google-sourced sessions show in Events without being copied. Local events stay local until the calendar is managed in Google.
+4. **Programs.** Challenges (an invitation, opt-in, held accountable in a channel, a badge, possibly a word-count project) are closer to `programs` and cohorts than to events; an event could point at a program. Book launches ("releasing in 10 days", pre-orders open) and a "where are you in the process" badge (drafting, editing, querying) are separate ideas to scope.
+5. **Public listing.** Only members see Events today. A signed-out page for announced events with guest registration needs email capture, anti-spam and an unsubscribe path.
+
+**Why deferred:** each step is its own PR (this one only generalized the educational-prickle list); the audience flags and the program/event boundary were agreed in principle, not yet confirmed with the community lead. **Where to start:** `supabase/migrations/20260905000000_create_events_and_event_photos.sql`, `app/(member)/events/`, `app/(admin)/admin/events/`, `lib/events-filter.ts`.
+
 ### Daily coaching videos: member submissions in the Hub _(Needs Scheduling)_
 Members who want to teach a daily coaching video fill out an external **coaching video sign-up form**, and a separate shared list of **proposed coaching videos** gives them ideas. The Hub has courses and lessons (`docs/COURSES.md`) but no way for a member to propose, claim or schedule a video, and no list of proposals. The Kajabi lesson "Submit a Daily Coaching Video" stays in Kajabi until this exists.
 

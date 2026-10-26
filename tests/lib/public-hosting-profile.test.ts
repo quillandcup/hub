@@ -287,7 +287,7 @@ describe("getMemberHostingSchedule", () => {
   it("scopes to the host's upcoming prickles within the window", async () => {
     repoOverride = createInMemoryRepos(
       new InMemoryDataset({
-        prickleTypes: [{ id: "t1", name: "PP", normalizedName: "pp", purpose: "writing", requiresHost: true, soloTaskFriendly: false }],
+        prickleTypes: [{ id: "t1", name: "PP", normalizedName: "pp", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false }],
         prickles: [
           prickle("mine", "host", "2026-09-29T14:00:00.000Z"),
           prickle("someone-elses", "other", "2026-09-29T15:00:00.000Z"),
