@@ -36,7 +36,7 @@ export default async function DataHygienePage() {
     hostCoverage,
     { count: totalZoomAttendees },
     totalMembers,
-    { count: totalAliases },
+    totalAliases,
     { data: ambiguousNameRows },
     { data: slackUsersForMatching },
     { data: ignoredSlackUsers },
@@ -59,7 +59,7 @@ export default async function DataHygienePage() {
     createRepos(supabase).prickles.hostCoverage("calendar"),
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
     createRepos(supabase).members.count(),
-    supabase.from("member_name_aliases").select("*", { count: "exact", head: true }),
+    createRepos(supabase).aliases.nameAliasCount(),
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
     supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
@@ -187,9 +187,9 @@ export default async function DataHygienePage() {
   // Otherwise orphaned count will include unmatched attendee time ranges that never get processed
 
   // Load members and aliases for matching (same as processing does)
-  const [membersForMatching, { data: aliasesForMatching }] = await Promise.all([
+  const [membersForMatching, aliasesForMatching] = await Promise.all([
     createRepos(supabase).members.identities(),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).aliases.nameAliases(),
   ]);
 
   // Unmatched Slack users (not matched, not ignored, not bots) — mirrors
@@ -362,7 +362,7 @@ export default async function DataHygienePage() {
     stripeCustomersForConflicts,
     slackUsersForConflicts,
   ] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email, canonical_email").then(r => r.data ?? []),
+    createRepos(supabase).aliases.emailAliases(),
     paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
       .select("kajabi_contact_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("stripe_customers")

@@ -27,12 +27,12 @@ export async function GET(request: NextRequest) {
   try {
     const [
       members,
-      { data: nameAliases },
-      { data: emailAliases },
+      nameAliases,
+      emailAliases,
     ] = await Promise.all([
       createRepos(supabase).members.list(),
-      supabase.from("member_name_aliases").select("alias, member_id, source"),
-      supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+      createRepos(supabase).aliases.nameAliases(),
+      createRepos(supabase).aliases.emailAliases(),
     ]);
 
     const memberStatusMap = new Map(

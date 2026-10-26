@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     .filter(Boolean);
   if (ids.length === 0) return NextResponse.json({ members: {} });
 
-  const [members, { data: emailAliases }] = await Promise.all([
+  const [members, emailAliases] = await Promise.all([
     createRepos(supabase).members.byIds(ids),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+    createRepos(supabase).aliases.emailAliases(),
   ]);
 
   if (members.length === 0) return NextResponse.json({ members: {} });

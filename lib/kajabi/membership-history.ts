@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
@@ -255,9 +256,7 @@ export async function fetchMembershipHistory(
     .select("kajabi_customer_id, email")
     .in("kajabi_customer_id", customerIds);
 
-  const { data: emailAliases } = await supabase
-    .from("member_email_aliases")
-    .select("alias_email, canonical_email");
+  const emailAliases = await createRepos(supabase).aliases.emailAliases();
 
   const aliasMap = buildAliasMap(emailAliases || []);
   const firstEmail = customers?.find((c: any) => c.email)?.email;

@@ -93,7 +93,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
     fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id, email", (q) =>
       q.in("kajabi_customer_id", customerIds)
     ),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+    createRepos(supabase).aliases.emailAliases(),
   ]);
 
   // The same first two tests as isRealMembershipStint: a subscription offer that is the membership
@@ -103,7 +103,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
       .filter((o) => o.data?.attributes?.subscription === true && isMembershipOffer(o.name ?? ""))
       .map((o) => o.kajabi_offer_id)
   );
-  const aliasMap = buildAliasMap(aliasRows.data ?? []);
+  const aliasMap = buildAliasMap(aliasRows);
   const emailByCustomer = new Map<string, string>();
   for (const c of customers as { kajabi_customer_id: string; email: string | null }[]) {
     if (c.email) emailByCustomer.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));

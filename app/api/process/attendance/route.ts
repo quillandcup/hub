@@ -260,10 +260,10 @@ export async function POST(request: NextRequest) {
       type_id: p.typeId,
     }));
 
-    const [members, { data: aliases }, { data: emailAliases }] = await Promise.all([
+    const [members, aliases, emailAliases] = await Promise.all([
       createRepos(supabase).members.identities(),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
-      supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+      createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
     ]);
 
     // Helper to find overlapping prickles in memory

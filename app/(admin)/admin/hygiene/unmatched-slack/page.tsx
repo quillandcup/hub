@@ -17,12 +17,12 @@ export default async function UnmatchedSlackUsersPage() {
   const [
     { data: slackUsers },
     allMembers,
-    { data: aliases },
+    aliases,
     { data: ignoredUsers },
   ] = await Promise.all([
     supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted").neq("user_id", SLACKBOT_USER_ID),
     createRepos(supabase).members.identities(),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).aliases.nameAliases(),
     supabase.from("ignored_slack_users").select("user_id"),
   ]);
 

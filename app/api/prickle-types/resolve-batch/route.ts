@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
     // Only try to match if a host was provided
     if (host && host.trim()) {
       // Load members and aliases for matching
-      const [members, { data: aliases }] = await Promise.all([
+      const [members, aliases] = await Promise.all([
         createRepos(supabase).members.identities({ status: "active" }),
-        supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
+        createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       ]);
 
       // Try to match the host to a member using centralized matching

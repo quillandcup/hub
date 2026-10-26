@@ -89,22 +89,8 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
     createRepos(supabase)
       .members.identities()
       .then((rows) => rows.map((m) => ({ id: m.id, name: m.name, email: m.email, display_name: m.displayName }))),
-    fetchAllPaginated<MemberAlias>((offset) =>
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias, source")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberEmailAlias>((offset) =>
-      supabase
-        .from("member_email_aliases")
-        .select("alias_email, canonical_email")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
     createRepos(supabase).prickles.inProgressAt(now.toISOString()),
   ]);
 
