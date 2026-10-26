@@ -1,5 +1,7 @@
 import type { AttendanceRow } from "./attendance";
 import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
+import type { PushSubscriptionRow } from "./push-subscriptions";
+import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
 
@@ -47,6 +49,8 @@ export class InMemoryDataset {
   attendance: AttendanceRow[];
   notificationPreferences: NotificationPreference[];
   inAppNotifications: InAppNotificationRow[];
+  pushSubscriptions: PushSubscriptionRow[];
+  reminderLog: ReminderLogRow[];
   badgeTypes: BadgeType[];
   badgeLevels: BadgeLevel[];
   memberBadges: MemberBadge[];
@@ -55,7 +59,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -64,6 +68,8 @@ export class InMemoryDataset {
     this.attendance = (init.attendance ?? []).map((row) => ({ ...row }));
     this.notificationPreferences = (init.notificationPreferences ?? []).map((row) => ({ ...row }));
     this.inAppNotifications = (init.inAppNotifications ?? []).map((row) => ({ ...row }));
+    this.pushSubscriptions = (init.pushSubscriptions ?? []).map((row) => ({ ...row }));
+    this.reminderLog = (init.reminderLog ?? []).map((row) => ({ ...row }));
     this.badgeTypes = (init.badgeTypes ?? []).map((row) => ({ ...row }));
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
