@@ -5727,6 +5727,7 @@ export type Database = {
           unread: number
         }[]
       }
+      chat_visible_channel_ids: { Args: never; Returns: string[] }
       check_prickle_commitment_slot_overlap: {
         Args: { p_commitment_id: string }
         Returns: undefined
