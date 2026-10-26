@@ -14,6 +14,7 @@ import {
   buildSlackAuthorizeUrl,
   disconnectSlack,
   exchangeSlackCode,
+  getSlackConnectionStatus,
   getSlackUserToken,
   hasReadSyncScopes,
   SLACK_USER_SCOPES,
@@ -251,5 +252,17 @@ describe("hasReadSyncScopes", () => {
     expect(hasReadSyncScopes([...SLACK_USER_SCOPES])).toBe(true);
     expect(hasReadSyncScopes(["chat:write", "reactions:write"])).toBe(false);
     expect(hasReadSyncScopes([])).toBe(false);
+  });
+});
+
+describe("getSlackConnectionStatus", () => {
+  const status = (row: Record<string, unknown> | null) =>
+    getSlackConnectionStatus({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }) }) } as never, "member-fern");
+
+  it("says never connected, connected with every scope, connected before the scopes it needs now, and revoked", async () => {
+    await expect(status(null)).resolves.toMatchObject({ connected: false, sharesReadState: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: true, sharesReadState: true, revoked: false, slackUserId: "U1" });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: ["chat:write"] })).resolves.toMatchObject({ connected: true, sharesReadState: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: "2026-10-20T00:00:00Z", scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: false, slackUserId: null, revoked: true });
   });
 });

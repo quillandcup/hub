@@ -239,15 +239,15 @@ describe("toggleChatReaction", () => {
     expect(m.afterCallbacks).toHaveLength(0);
   });
 
-  it("won't hide a reaction made in Slack from a member who hasn't connected Slack, and says what to do", async () => {
-    m.slackReactionRows = [{ id: "r1" }];
+  it("refuses a reaction, saving nothing, when the member has no working Slack connection: it could only stay in the Hub", async () => {
     m.connected.mockResolvedValue({ connected: false });
 
     await expect(toggleChatReaction(MESSAGE, "tada")).resolves.toEqual({
       ok: false,
-      error: "You reacted in Slack. Connect Slack in Settings to take it back from here.",
+      error: "Connect Slack in Settings to react: your reactions are sent as you.",
     });
     expect(m.rpc).not.toHaveBeenCalled();
+    expect(m.afterCallbacks).toHaveLength(0);
   });
 
   it("takes back a reaction made in Slack for a member who has connected Slack, and removes it in Slack", async () => {
