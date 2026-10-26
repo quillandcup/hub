@@ -68,5 +68,37 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
 
       expect(mine).toHaveLength(1050);
     });
+
+    it("lists a member's own names newest first, finds one by its text, and adds only unused text", async () => {
+      const [a, b] = ctx.memberIds;
+      await ctx.seed({});
+      const first = ctx.unique("Pen One");
+      const second = ctx.unique("Pen Two");
+
+      expect(await ctx.repo().addName(a, first, "member")).toBe(true);
+      expect(await ctx.repo().addName(a, second, "member")).toBe(true);
+      expect(await ctx.repo().addName(b, first, "member")).toBe(false); // taken by another member
+      expect(await ctx.repo().addName(a, first, "member")).toBe(false); // and by the same one
+
+      expect((await ctx.repo().namesOf(a)).map((n) => [n.alias, n.source, n.active])).toEqual([[second, "member", true], [first, "member", true]]);
+      expect(await ctx.repo().namesOf(b)).toEqual([]);
+      expect(await ctx.repo().findName(a, first)).toEqual({ id: expect.any(String), active: true });
+      expect(await ctx.repo().findName(b, first)).toBeNull();
+    });
+
+    it("turns a member's own name on and off, and refuses another member's", async () => {
+      const [a, b] = ctx.memberIds;
+      await ctx.seed({});
+      const alias = ctx.unique("Toggle");
+      await ctx.repo().addName(a, alias, "member");
+      const { id } = (await ctx.repo().findName(a, alias))!;
+
+      expect(await ctx.repo().setNameActive(a, id, false)).toBe(true);
+      expect((await ctx.repo().findName(a, alias))!.active).toBe(false);
+      expect(await ctx.repo().setNameActive(b, id, true)).toBe(false);
+      expect((await ctx.repo().findName(a, alias))!.active).toBe(false);
+      expect(await ctx.repo().setNameActive(a, id, true)).toBe(true);
+      expect((await ctx.repo().findName(a, alias))!.active).toBe(true);
+    });
   });
 }

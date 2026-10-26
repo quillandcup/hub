@@ -30,7 +30,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_name_aliases: [
     "app/(admin)/admin/data/aliases/page.tsx",
     "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
-    "app/(member)/settings/identityActions.ts",
     "app/(member)/wheel-of-wonder/actions.ts",
     "app/api/admin/aliases/[id]/route.ts",
     "app/api/admin/apply-aliases/route.ts",
