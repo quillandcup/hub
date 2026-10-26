@@ -100,5 +100,61 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       expect(await ctx.repo().setNameActive(a, id, true)).toBe(true);
       expect((await ctx.repo().findName(a, alias))!.active).toBe(true);
     });
+
+    it("finds which name aliases a member owns, moves some to another member, and deletes some", async () => {
+      const [a, b] = ctx.memberIds;
+      const [one, two, three] = [ctx.unique("Move One"), ctx.unique("Move Two"), ctx.unique("Move Three")];
+      await ctx.seed({ names: [{ member: 0, alias: one, source: "zoom" }, { member: 0, alias: two, source: "zoom" }, { member: 1, alias: three, source: "slack" }] });
+      const id = async (member: string, alias: string) => (await ctx.repo().findName(member, alias))!.id;
+      const [idOne, idTwo, idThree] = [await id(a, one), await id(a, two), await id(b, three)];
+
+      expect((await ctx.repo().ownedNameIds(a, [idOne, idThree])).sort()).toEqual([idOne]);
+      expect(await ctx.repo().ownedNameIds(a, [])).toEqual([]);
+
+      await ctx.repo().moveNames([idOne], b);
+      expect((await ctx.repo().namesOf(b)).map((n) => n.alias).sort()).toEqual([one, three].sort());
+      expect((await ctx.repo().namesOf(a)).map((n) => n.alias)).toEqual([two]);
+
+      await ctx.repo().removeNames([idTwo, idThree]);
+      expect((await ctx.repo().namesOf(a)).length + (await ctx.repo().namesOf(b)).length).toBe(1);
+    });
+
+    it("upserts a name alias, taking it over from another member", async () => {
+      const [a, b] = ctx.memberIds;
+      const alias = ctx.unique("Taken Over");
+      await ctx.seed({ names: [{ member: 0, alias, source: "slack" }] });
+
+      await ctx.repo().upsertName(b, alias, "zoom");
+
+      expect(await ctx.repo().findName(a, alias)).toBeNull();
+      expect(await ctx.repo().findName(b, alias)).not.toBeNull();
+      expect((await ctx.repo().namesOf(b)).filter((n) => n.alias === alias)).toHaveLength(1);
+    });
+
+    it("finds, moves and deletes email aliases, and upserts one onto another member", async () => {
+      const [a, b] = ctx.memberIds;
+      const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;
+      const [e1, e2, e3, e4] = [email("e1"), email("e2"), email("e3"), email("e4")];
+      await ctx.seed({ emails: [{ member: 0, email: e1 }, { member: 0, email: e2 }, { member: 1, email: e3 }] });
+      const held = async (address: string) => (await ctx.repo().findEmail(address))!;
+
+      expect(await ctx.repo().findEmail(email("nobody"))).toBeNull();
+      expect(await held(e1)).toEqual({ id: expect.any(String), memberId: a });
+      expect((await ctx.repo().ownedEmails(a, [(await held(e1)).id, (await held(e3)).id])).map((r) => r.alias_email)).toEqual([e1]);
+
+      await ctx.repo().moveEmails([(await held(e1)).id], b);
+      expect((await held(e1)).memberId).toBe(b);
+
+      await ctx.repo().moveAllEmails(a, b);
+      expect((await held(e2)).memberId).toBe(b);
+
+      await ctx.repo().removeEmails([(await held(e3)).id]);
+      expect(await ctx.repo().findEmail(e3)).toBeNull();
+
+      await ctx.repo().upsertEmail(a, e4, "manual");
+      expect((await held(e4)).memberId).toBe(a);
+      await ctx.repo().upsertEmail(b, e4, "manual");
+      expect((await held(e4)).memberId).toBe(b);
+    });
   });
 }

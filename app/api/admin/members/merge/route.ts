@@ -77,33 +77,18 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Handle name aliases carefully — alias column is UNIQUE so we can't blindly reassign
-    const [{ data: primaryAliases }, { data: secondaryAliases }] = await Promise.all([
-      supabase.from("member_name_aliases").select("alias").eq("member_id", primaryId),
-      supabase.from("member_name_aliases").select("id, alias").eq("member_id", secondaryId),
-    ]);
+    const aliases = createRepos(supabase).aliases;
+    const [primaryAliases, secondaryAliases] = await Promise.all([aliases.namesOf(primaryId), aliases.namesOf(secondaryId)]);
 
-    const primaryAliasSet = new Set((primaryAliases || []).map((a) => a.alias));
-    const conflicting = (secondaryAliases || []).filter((a) => primaryAliasSet.has(a.alias));
-    const nonConflicting = (secondaryAliases || []).filter((a) => !primaryAliasSet.has(a.alias));
+    const primaryAliasSet = new Set(primaryAliases.map((a) => a.alias));
+    const conflicting = secondaryAliases.filter((a) => primaryAliasSet.has(a.alias));
+    const nonConflicting = secondaryAliases.filter((a) => !primaryAliasSet.has(a.alias));
 
     const aliasOps: Promise<unknown>[] = [];
-    if (conflicting.length > 0) {
-      aliasOps.push(run(
-        supabase.from("member_name_aliases").delete().in("id", conflicting.map((a) => a.id))
-      ));
-    }
-    if (nonConflicting.length > 0) {
-      aliasOps.push(run(
-        supabase.from("member_name_aliases").update({ member_id: primaryId }).in("id", nonConflicting.map((a) => a.id))
-      ));
-    }
+    if (conflicting.length > 0) aliasOps.push(aliases.removeNames(conflicting.map((a) => a.id)));
+    if (nonConflicting.length > 0) aliasOps.push(aliases.moveNames(nonConflicting.map((a) => a.id), primaryId));
     if (secondary.name !== primary.name && !primaryAliasSet.has(secondary.name)) {
-      aliasOps.push(run(
-        supabase.from("member_name_aliases").upsert(
-          { member_id: primaryId, alias: secondary.name, source: "zoom" },
-          { onConflict: "alias" }
-        )
-      ));
+      aliasOps.push(aliases.upsertName(primaryId, secondary.name, "zoom"));
     }
     await Promise.all(aliasOps);
 
@@ -160,11 +145,8 @@ export async function POST(request: NextRequest) {
     // Email aliases belong to a member (member_id, ON DELETE CASCADE): move the secondary's
     // to the primary, then record the secondary's own email as one of the primary's. Both
     // must land before the delete below.
-    await run(supabase.from("member_email_aliases").update({ member_id: primaryId }).eq("member_id", secondaryId));
-    await run(supabase.from("member_email_aliases").upsert(
-      { member_id: primaryId, alias_email: secondary.email.toLowerCase(), source: "manual" } as Insert<"member_email_aliases">, // canonical_email: the trigger
-      { onConflict: "alias_email" }
-    ));
+    await aliases.moveAllEmails(secondaryId, primaryId);
+    await aliases.upsertEmail(primaryId, secondary.email.toLowerCase(), "manual");
 
     // Patch primary with any external IDs it was missing, and clean up derived records that
     // will be recomputed for the primary.

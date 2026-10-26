@@ -49,7 +49,7 @@ function makeSupabaseMock(failOn?: { table: string; op: string }) {
     };
     return builder;
   });
-  return { from, calls };
+  return { from, calls, failOn };
 }
 
 function makeRequest() {
