@@ -1,5 +1,5 @@
-import { fetchAllRows } from "@/lib/supabase/paginate";
-import type { Db } from "./db";
+import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** A name a member is known by elsewhere (in Zoom, in Slack), matched against attendee names. */
@@ -25,6 +25,9 @@ export interface MemberNameAlias {
   createdAt: string;
 }
 
+/** Ids per `.in(...)` write or lookup, so the request URL stays under the length limit. */
+const ID_CHUNK = 100;
+
 /**
  * The identity aliases that tie external names and emails to members: the stored side of member
  * matching (lib/member-matching.ts). This first slice is the read side every matcher needs, as
@@ -47,6 +50,29 @@ export interface AliasRepository {
   addName(memberId: string, alias: string, source: string): Promise<boolean>;
   /** Turns the member's own alias on or off; false when the id isn't theirs. Never a hard delete. */
   setNameActive(memberId: string, id: string, active: boolean): Promise<boolean>;
+
+  // Admin identity fixes (merge, split, move aliases). Aliases are unique across all members, so a
+  // move to a member who already has the text is the caller's to avoid (see `namesOf`).
+  /** Which of these name alias ids belong to the member. */
+  ownedNameIds(memberId: string, ids: string[]): Promise<string[]>;
+  /** The member's email aliases among these ids. */
+  ownedEmails(memberId: string, ids: string[]): Promise<{ id: string; alias_email: string }[]>;
+  /** Who holds this exact email alias, or null. */
+  findEmail(address: string): Promise<{ id: string; memberId: string } | null>;
+  /** Re-files these name aliases under another member. */
+  moveNames(ids: string[], toMemberId: string): Promise<void>;
+  /** Re-files these email aliases under another member. */
+  moveEmails(ids: string[], toMemberId: string): Promise<void>;
+  /** Re-files every email alias of one member under another. */
+  moveAllEmails(fromMemberId: string, toMemberId: string): Promise<void>;
+  /** Deletes these name aliases. */
+  removeNames(ids: string[]): Promise<void>;
+  /** Deletes these email aliases. */
+  removeEmails(ids: string[]): Promise<void>;
+  /** Gives the member this name alias, taking it over if another member had it. */
+  upsertName(memberId: string, alias: string, source: string): Promise<void>;
+  /** Gives the member this email alias, taking it over if another member had it (the database fills in the canonical email). */
+  upsertEmail(memberId: string, email: string, source: string): Promise<void>;
 }
 
 type Page<T> = { data: T[] | null; error: { message: string } | null };
@@ -105,6 +131,77 @@ export class SupabaseAliasRepository implements AliasRepository {
     if (error) throw new Error(error.message);
     return (data?.length ?? 0) > 0;
   }
+
+  async ownedNameIds(memberId: string, ids: string[]): Promise<string[]> {
+    const owned: string[] = [];
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { data, error } = await this.db.from("member_name_aliases").select("id").eq("member_id", memberId).in("id", part);
+      if (error) throw new Error(error.message);
+      owned.push(...(data ?? []).map((r) => r.id));
+    }
+    return owned;
+  }
+
+  async ownedEmails(memberId: string, ids: string[]) {
+    const owned: { id: string; alias_email: string }[] = [];
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { data, error } = await this.db.from("member_email_aliases").select("id, alias_email").eq("member_id", memberId).in("id", part);
+      if (error) throw new Error(error.message);
+      owned.push(...(data ?? []));
+    }
+    return owned;
+  }
+
+  async findEmail(address: string) {
+    const { data, error } = await this.db.from("member_email_aliases").select("id, member_id").eq("alias_email", address).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? { id: data.id, memberId: data.member_id } : null;
+  }
+
+  async moveNames(ids: string[], toMemberId: string) {
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { error } = await this.db.from("member_name_aliases").update({ member_id: toMemberId }).in("id", part);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async moveEmails(ids: string[], toMemberId: string) {
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { error } = await this.db.from("member_email_aliases").update({ member_id: toMemberId }).in("id", part);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async moveAllEmails(fromMemberId: string, toMemberId: string) {
+    const { error } = await this.db.from("member_email_aliases").update({ member_id: toMemberId }).eq("member_id", fromMemberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async removeNames(ids: string[]) {
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { error } = await this.db.from("member_name_aliases").delete().in("id", part);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async removeEmails(ids: string[]) {
+    for (const part of chunk(ids, ID_CHUNK)) {
+      const { error } = await this.db.from("member_email_aliases").delete().in("id", part);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertName(memberId: string, alias: string, source: string) {
+    const { error } = await this.db.from("member_name_aliases").upsert({ member_id: memberId, alias, source }, { onConflict: "alias" });
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertEmail(memberId: string, email: string, source: string) {
+    const { error } = await this.db
+      .from("member_email_aliases")
+      .upsert({ member_id: memberId, alias_email: email, source } as Insert<"member_email_aliases">, { onConflict: "alias_email" }); // canonical_email: the trigger
+    if (error) throw new Error(error.message);
+  }
 }
 
 /** The stored rows the twin keeps; the scans return the matcher shapes. */
@@ -159,5 +256,69 @@ export class InMemoryAliasRepository implements AliasRepository {
     if (!row) return false;
     row.active = active;
     return true;
+  }
+
+  async ownedNameIds(memberId: string, ids: string[]) {
+    const wanted = new Set(ids);
+    return this.data.nameAliases.filter((a) => a.member_id === memberId && wanted.has(a.id)).map((a) => a.id);
+  }
+
+  async ownedEmails(memberId: string, ids: string[]) {
+    const wanted = new Set(ids);
+    return this.data.emailAliases.filter((a) => a.memberId === memberId && wanted.has(a.id)).map((a) => ({ id: a.id, alias_email: a.alias_email }));
+  }
+
+  async findEmail(address: string) {
+    const row = this.data.emailAliases.find((a) => a.alias_email === address);
+    return row ? { id: row.id, memberId: row.memberId } : null;
+  }
+
+  async moveNames(ids: string[], toMemberId: string) {
+    const wanted = new Set(ids);
+    for (const a of this.data.nameAliases) if (wanted.has(a.id)) a.member_id = toMemberId;
+  }
+
+  async moveEmails(ids: string[], toMemberId: string) {
+    const wanted = new Set(ids);
+    for (const a of this.data.emailAliases) if (wanted.has(a.id)) this.refile(a, toMemberId);
+  }
+
+  async moveAllEmails(fromMemberId: string, toMemberId: string) {
+    for (const a of this.data.emailAliases) if (a.memberId === fromMemberId) this.refile(a, toMemberId);
+  }
+
+  async removeNames(ids: string[]) {
+    const gone = new Set(ids);
+    this.data.nameAliases = this.data.nameAliases.filter((a) => !gone.has(a.id));
+  }
+
+  async removeEmails(ids: string[]) {
+    const gone = new Set(ids);
+    this.data.emailAliases = this.data.emailAliases.filter((a) => !gone.has(a.id));
+  }
+
+  async upsertName(memberId: string, alias: string, source: string) {
+    const existing = this.data.nameAliases.find((a) => a.alias === alias);
+    if (existing) Object.assign(existing, { member_id: memberId, source });
+    else this.data.nameAliases.push({ id: `nal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, member_id: memberId, alias, source, active: true });
+  }
+
+  async upsertEmail(memberId: string, email: string, source: string) {
+    const existing = this.data.emailAliases.find((a) => a.alias_email === email);
+    if (existing) {
+      this.refile(existing, memberId);
+      return;
+    }
+    this.data.emailAliases.push({ id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, memberId, alias_email: email, canonical_email: this.primaryEmail(memberId), active: true });
+  }
+
+  /** An email alias is canonicalized to its member's primary email (a database trigger), so moving it re-derives that. */
+  private refile(alias: EmailAliasRow, memberId: string) {
+    alias.memberId = memberId;
+    alias.canonical_email = this.primaryEmail(memberId);
+  }
+
+  private primaryEmail(memberId: string) {
+    return this.data.members.find((m) => m.id === memberId)?.email ?? "";
   }
 }
