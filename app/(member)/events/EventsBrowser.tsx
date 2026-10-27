@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { hostShortName } from "@/lib/formatters";
+import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import {
   EVENT_TYPE_LABELS,
@@ -178,6 +179,7 @@ function EventGrid({ heading, events, empty }: { heading: string; events: EventR
 }
 
 function EventCard({ event }: { event: EventRow }) {
+  const where = locationDisplay(event.location);
   return (
     <Link data-track="events-event-location-event-focus"
       href={`/events/${event.slug}`}
@@ -200,7 +202,7 @@ function EventCard({ event }: { event: EventRow }) {
         <h3 className="font-semibold mt-0.5">{event.title}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           {fmtDateRange(event.starts_at, event.ends_at)}
-          {event.location ? ` · ${event.location}` : ""}
+          {where ? ` · ${where.text}` : ""}
         </p>
         {event.focus && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{event.focus}</p>}
       </div>

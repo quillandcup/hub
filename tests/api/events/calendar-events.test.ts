@@ -325,6 +325,35 @@ describe("an event made from a prickle", () => {
     expect(flags(plain)).toEqual({ announced_publicly: false, guests_allowed: false });
   });
 
+  it("starts with its prickle's guest speaker, a cleaned title and the title's [Category] as its focus", async () => {
+    const calendarId = await calendarEvent("speaker", { summary: `Quill & Cup [Craft] Prickle: ${token} Outlining with Ada Example`, location: "https://us06web.zoom.us/j/123?pwd=x" });
+    const { data: type } = await db
+      .from("prickle_types")
+      .insert({ name: `${token} speaker`, normalized_name: `${token}-speaker` })
+      .select("id")
+      .single();
+    const { data: prickle } = await db
+      .from("prickles")
+      .insert({ type_id: type!.id, start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z", source: "calendar", calendar_event_id: calendarId, guest_speaker: "Ada Example" })
+      .select("id")
+      .single();
+    cleanups.push(async () => {
+      await db.from("prickles").delete().eq("id", prickle!.id);
+      await db.from("prickle_types").delete().eq("id", type!.id);
+    });
+
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    expect(await eventRow(made.event.id)).toMatchObject({
+      title: `${token} Outlining`,
+      focus: "Craft",
+      speakers: "Ada Example",
+      location: "https://us06web.zoom.us/j/123?pwd=x", // stored as the calendar has it; members see "Online (Zoom)"
+    });
+  });
+
   it("starts members only when the calendar item is no prickle", async () => {
     const calendarId = await calendarEvent("audience-none");
     const made = await elevateCalendarEvent(db, calendarId, null);
