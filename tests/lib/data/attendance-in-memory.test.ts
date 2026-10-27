@@ -11,8 +11,8 @@ const members = [
   { id: memberIds[2], name: "Gale Example", displayName: null, email: "gale@example.test" },
 ] as const satisfies readonly ContractMember[];
 const types = [
-  { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false },
-  { id: "ptyp_AAAAAAAAAAA2", name: "Social Hour", normalizedName: "social-hour", purpose: "social", requiresHost: false, soloTaskFriendly: true, listedInEvents: false, announcedPublicly: false, guestsAllowed: false },
+  { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false, eventKind: "session" },
+  { id: "ptyp_AAAAAAAAAAA2", name: "Social Hour", normalizedName: "social-hour", purpose: "social", requiresHost: false, soloTaskFriendly: true, listedInEvents: false, announcedPublicly: false, guestsAllowed: false, eventKind: "session" },
 ] as const satisfies readonly PrickleType[];
 const prickle = (i: number, typeId: string, hostId: string | null): Prickle => ({
   id: prickleIds[i],

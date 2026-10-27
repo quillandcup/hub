@@ -245,7 +245,7 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
     const slug = attempt === 1 ? base : `${base}-${attempt}`;
     const { data, error } = await db
       .from("events")
-      .insert({ ...fields, ...audience, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
+      .insert({ ...fields, ...audience, slug, event_type: prickle ? (prickle.type?.eventKind ?? "session") : "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
       .select("id, slug")
       .single();
     if (!error) return { ok: true, created: true, event: { ...data, hidden: false } };

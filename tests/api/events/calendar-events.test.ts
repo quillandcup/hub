@@ -285,7 +285,7 @@ describe("POST /api/admin/events/[id]/visibility", () => {
 });
 
 describe("an event made from a prickle", () => {
-  async function prickleOfType(label: string, flags: { listed_in_events: boolean; announced_publicly: boolean; guests_allowed: boolean }) {
+  async function prickleOfType(label: string, flags: { listed_in_events: boolean; announced_publicly: boolean; guests_allowed: boolean; event_kind?: string }) {
     const calendarId = await calendarEvent(label);
     const { data: type } = await db
       .from("prickle_types")
@@ -323,6 +323,18 @@ describe("an event made from a prickle", () => {
     expect(flags(open)).toEqual({ announced_publicly: true, guests_allowed: true });
     expect(flags(members)).toEqual({ announced_publicly: true, guests_allowed: false });
     expect(flags(plain)).toEqual({ announced_publicly: false, guests_allowed: false });
+  });
+
+  it("starts as the kind of event its prickle type says, a session when the type says nothing", async () => {
+    const edu = await prickleOfType("kind-edu", { listed_in_events: false, announced_publicly: false, guests_allowed: false, event_kind: "educational" });
+    const plain = await prickleOfType("kind-plain", { listed_in_events: false, announced_publicly: false, guests_allowed: false });
+
+    await ensureCalendarEvents(db, [edu, plain]);
+
+    const { data: rows } = await db.from("events").select("id, calendar_event_id, event_type").in("calendar_event_id", [edu, plain]);
+    eventIds.push(...rows!.map((r) => r.id));
+    expect(rows!.find((r) => r.calendar_event_id === edu)!.event_type).toBe("educational");
+    expect(rows!.find((r) => r.calendar_event_id === plain)!.event_type).toBe("session");
   });
 
   it("starts with its prickle's guest speaker, a cleaned title and the title's [Category] as its focus", async () => {

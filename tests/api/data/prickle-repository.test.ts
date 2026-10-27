@@ -34,7 +34,7 @@ beforeAll(async () => {
       { name: `Contract Sprint ${RUN}`, normalized_name: `contract-sprint-${RUN}`, purpose: "writing", requires_host: true, solo_task_friendly: false, listed_in_events: true },
       { name: `Contract Chat ${RUN}`, normalized_name: `contract-chat-${RUN}`, purpose: "social", requires_host: false, solo_task_friendly: true, listed_in_events: false },
     ])
-    .select("id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed");
+    .select("id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, event_kind");
   if (typeError) throw new Error(typeError.message);
   const asType = (r: NonNullable<typeof typeRows>[number]): PrickleType => ({
     id: r.id,
@@ -48,6 +48,7 @@ beforeAll(async () => {
     listedInEvents: r.listed_in_events,
     announcedPublicly: r.announced_publicly,
     guestsAllowed: r.guests_allowed,
+    eventKind: r.event_kind,
   });
   const byName = (n: string) => asType(typeRows!.find((r) => r.name === n)!);
   types = [byName(`Contract Sprint ${RUN}`), byName(`Contract Chat ${RUN}`)];

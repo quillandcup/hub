@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseEventFilter,
-  primaryFilterOf,
-  eventMatchesFilter,
-  showsEventPrickles,
+  eventTier,
+  tierMatchesFilter,
   groupEvents,
   countUpcoming,
   localDateString,
@@ -14,91 +13,78 @@ const TODAY = '2026-09-26'
 const EVENTS = [
   { id: 'a', event_type: 'in_person_retreat', starts_at: '2026-11-01', ends_at: '2026-11-04' },
   { id: 'b', event_type: 'virtual_retreat', starts_at: '2026-10-10', ends_at: '2026-10-11' },
-  { id: 'c', event_type: 'other', starts_at: '2026-12-01', ends_at: '2026-12-01' },
+  { id: 'c', event_type: 'social', starts_at: '2026-12-01', ends_at: '2026-12-01' },
   { id: 'd', event_type: 'in_person_retreat', starts_at: '2026-03-01', ends_at: '2026-03-05' },
-  { id: 'e', event_type: 'virtual_retreat', starts_at: '2026-06-01', ends_at: '2026-06-02' },
+  { id: 'e', event_type: 'educational', starts_at: '2026-06-01', ends_at: '2026-06-02' },
   // In progress: started before today, ends today -> still upcoming
-  { id: 'f', event_type: 'other', starts_at: '2026-09-25', ends_at: '2026-09-26' },
+  { id: 'f', event_type: 'session', starts_at: '2026-09-25', ends_at: '2026-09-26' },
+  { id: 'g', event_type: 'educational', starts_at: '2026-10-20', ends_at: '2026-10-20' },
 ]
 
 const ids = (rows: { id: string }[]) => rows.map((r) => r.id)
 
 describe('parseEventFilter', () => {
   it('accepts allowlisted values', () => {
-    expect(parseEventFilter('retreats')).toBe('retreats')
-    expect(parseEventFilter('virtual_retreat')).toBe('virtual_retreat')
-    expect(parseEventFilter('prickles')).toBe('prickles')
+    for (const id of ['big', 'educational', 'events', 'sessions']) expect(parseEventFilter(id)).toBe(id)
   })
 
-  it('falls back to all for missing or unknown values', () => {
-    expect(parseEventFilter(undefined)).toBe('all')
-    expect(parseEventFilter(null)).toBe('all')
-    expect(parseEventFilter('')).toBe('all')
-    expect(parseEventFilter('bogus')).toBe('all')
-    expect(parseEventFilter('__proto__')).toBe('all')
+  it('falls back to all for missing or unknown values, including the old ones', () => {
+    for (const bad of [undefined, null, '', 'bogus', '__proto__', 'retreats', 'prickles', 'other']) expect(parseEventFilter(bad)).toBe('all')
   })
 
   it('uses the first value of a repeated param', () => {
-    expect(parseEventFilter(['other', 'retreats'])).toBe('other')
+    expect(parseEventFilter(['sessions', 'big'])).toBe('sessions')
   })
 })
 
-describe('primaryFilterOf', () => {
-  it('maps retreat sub-filters to retreats', () => {
-    expect(primaryFilterOf('in_person_retreat')).toBe('retreats')
-    expect(primaryFilterOf('virtual_retreat')).toBe('retreats')
-    expect(primaryFilterOf('retreats')).toBe('retreats')
-    expect(primaryFilterOf('prickles')).toBe('prickles')
-    expect(primaryFilterOf('all')).toBe('all')
+describe('eventTier', () => {
+  it('puts retreats and workshops among the big events', () => {
+    for (const t of ['in_person_retreat', 'virtual_retreat', 'workshop']) expect(eventTier({ event_type: t })).toBe('big')
+  })
+
+  it('makes anything that takes a sign-up a big event, whatever its kind', () => {
+    expect(eventTier({ event_type: 'educational', registration: 'required' })).toBe('big')
+    expect(eventTier({ event_type: 'session', registration: 'application' })).toBe('big')
+    expect(eventTier({ event_type: 'educational', registration: 'none' })).toBe('educational')
+    expect(eventTier({ event_type: 'session', registration: null })).toBe('session')
+  })
+
+  it('keeps educational, sessions and everything else apart', () => {
+    expect(eventTier({ event_type: 'educational' })).toBe('educational')
+    expect(eventTier({ event_type: 'session' })).toBe('session')
+    for (const t of ['social', 'book_launch', 'other', 'unknown']) expect(eventTier({ event_type: t })).toBe('event')
   })
 })
 
-describe('eventMatchesFilter', () => {
-  it('matches by type', () => {
-    expect(eventMatchesFilter('in_person_retreat', 'retreats')).toBe(true)
-    expect(eventMatchesFilter('virtual_retreat', 'retreats')).toBe(true)
-    expect(eventMatchesFilter('other', 'retreats')).toBe(false)
-    expect(eventMatchesFilter('virtual_retreat', 'in_person_retreat')).toBe(false)
-    expect(eventMatchesFilter('other', 'other')).toBe(true)
-    expect(eventMatchesFilter('other', 'all')).toBe(true)
-  })
-
-  it('never matches events for the prickles filter', () => {
-    expect(eventMatchesFilter('in_person_retreat', 'prickles')).toBe(false)
-    expect(eventMatchesFilter('other', 'prickles')).toBe(false)
-  })
-})
-
-describe('showsEventPrickles', () => {
-  it('only for all and prickles', () => {
-    expect(showsEventPrickles('all')).toBe(true)
-    expect(showsEventPrickles('prickles')).toBe(true)
-    expect(showsEventPrickles('retreats')).toBe(false)
-    expect(showsEventPrickles('other')).toBe(false)
+describe('tierMatchesFilter', () => {
+  it('matches each tier with its filter, and all with everything', () => {
+    expect(tierMatchesFilter('big', 'big')).toBe(true)
+    expect(tierMatchesFilter('educational', 'educational')).toBe(true)
+    expect(tierMatchesFilter('event', 'events')).toBe(true)
+    expect(tierMatchesFilter('session', 'sessions')).toBe(true)
+    expect(tierMatchesFilter('session', 'events')).toBe(false)
+    expect(tierMatchesFilter('big', 'educational')).toBe(false)
+    expect(tierMatchesFilter('session', 'all')).toBe(true)
   })
 })
 
 describe('groupEvents', () => {
   it('splits upcoming (soonest first) from past (most recent first)', () => {
     const { upcoming, past } = groupEvents(EVENTS, 'all', TODAY)
-    expect(ids(upcoming)).toEqual(['f', 'b', 'a', 'c'])
+    expect(ids(upcoming)).toEqual(['f', 'b', 'g', 'a', 'c'])
     expect(ids(past)).toEqual(['e', 'd'])
   })
 
   it('treats an event ending today as upcoming', () => {
-    const { upcoming } = groupEvents(EVENTS, 'other', TODAY)
-    expect(ids(upcoming)).toEqual(['f', 'c'])
+    expect(ids(groupEvents(EVENTS, 'sessions', TODAY).upcoming)).toEqual(['f'])
   })
 
-  it('filters retreats and retreat formats', () => {
-    expect(ids(groupEvents(EVENTS, 'retreats', TODAY).upcoming)).toEqual(['b', 'a'])
-    expect(ids(groupEvents(EVENTS, 'retreats', TODAY).past)).toEqual(['e', 'd'])
-    expect(ids(groupEvents(EVENTS, 'in_person_retreat', TODAY).upcoming)).toEqual(['a'])
-    expect(ids(groupEvents(EVENTS, 'virtual_retreat', TODAY).past)).toEqual(['e'])
-  })
-
-  it('returns no events for the prickles filter', () => {
-    expect(groupEvents(EVENTS, 'prickles', TODAY)).toEqual({ upcoming: [], past: [] })
+  it('filters by tier', () => {
+    expect(ids(groupEvents(EVENTS, 'big', TODAY).upcoming)).toEqual(['b', 'a'])
+    expect(ids(groupEvents(EVENTS, 'big', TODAY).past)).toEqual(['d'])
+    expect(ids(groupEvents(EVENTS, 'educational', TODAY).upcoming)).toEqual(['g'])
+    expect(ids(groupEvents(EVENTS, 'educational', TODAY).past)).toEqual(['e'])
+    expect(ids(groupEvents(EVENTS, 'events', TODAY).upcoming)).toEqual(['c'])
   })
 
   it('does not mutate its input', () => {
@@ -109,15 +95,8 @@ describe('groupEvents', () => {
 })
 
 describe('countUpcoming', () => {
-  it('counts upcoming events per filter plus prickle events', () => {
-    expect(countUpcoming(EVENTS, 3, TODAY)).toEqual({
-      all: 7,
-      retreats: 2,
-      in_person_retreat: 1,
-      virtual_retreat: 1,
-      prickles: 3,
-      other: 2,
-    })
+  it('counts upcoming events per filter, adding the featured prickles to sessions and all', () => {
+    expect(countUpcoming(EVENTS, 3, TODAY)).toEqual({ all: 8, big: 2, educational: 1, events: 1, sessions: 4 })
   })
 })
 

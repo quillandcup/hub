@@ -36,7 +36,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const [{ data: events }, eventPrickles] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
+      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
     fetchUpcomingEventPrickles(supabase, now),
   ]);
@@ -51,6 +51,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     starts_at: e.starts_at,
     ends_at: e.ends_at,
     focus: e.focus,
+    registration: e.registration,
     cover_photo_id: (e.event_photos || []).find((p) => !p.hidden_at)?.id ?? null,
   }));
 
@@ -58,7 +59,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     <div className="container mx-auto px-6 py-6 max-w-5xl">
       <h1 className="text-2xl font-bold mb-1">Events</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        Retreats, prickle events, and other gatherings — what&apos;s coming up and where we&apos;ve been.
+        Retreats, educational events, sessions and other gatherings — what&apos;s coming up and where we&apos;ve been.
       </p>
       <EventsBrowser
         key={initialFilter}

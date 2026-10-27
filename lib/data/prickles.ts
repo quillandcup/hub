@@ -14,6 +14,8 @@ export type PrickleType = {
   purpose: string;
   requiresHost: boolean;
   soloTaskFriendly: boolean;
+  /** The kind of event an event made from a prickle of this type starts as (`events.event_type`): session, educational, social... */
+  eventKind?: string;
   /** A special session (webinar, pitch, goal review) the Events page calls out, not an everyday progress or sprint prickle. */
   listedInEvents: boolean;
   /** Included in public marketing (announced outside the community). */
@@ -164,7 +166,7 @@ export interface PrickleRepository {
   listedInEventsActiveBetween(options: { from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
 }
 
-const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed";
+const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, event_kind";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
 const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, guest_speaker, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
@@ -189,6 +191,7 @@ type TypeRow = {
   listed_in_events: boolean;
   announced_publicly: boolean;
   guests_allowed: boolean;
+  event_kind: string;
 };
 type HostRow = { id: string; name: string; display_name: string | null };
 export type DetailRow = {
@@ -222,6 +225,7 @@ const toType = (row: TypeRow): PrickleType => ({
   listedInEvents: row.listed_in_events,
   announcedPublicly: row.announced_publicly,
   guestsAllowed: row.guests_allowed,
+  eventKind: row.event_kind,
 });
 
 export function toDetail(row: DetailRow): PrickleDetail {
@@ -793,7 +797,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     const existing = this.data.prickleTypes.find((t) => t.normalizedName === normalizedName);
     if (existing) return existing.id;
     const id = `prty_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-    this.data.prickleTypes.push({ id, name, normalizedName, description: description ?? null, purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false });
+    this.data.prickleTypes.push({ id, name, normalizedName, description: description ?? null, purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false, eventKind: "session" });
     return id;
   }
 

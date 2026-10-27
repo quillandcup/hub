@@ -1,3 +1,4 @@
+import { isEventType } from "@/lib/events-filter";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing, triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed, defaultHostId, summaryAliases, namesGuestSpeaker } = body;
+    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed, eventKind, defaultHostId, summaryAliases, namesGuestSpeaker } = body;
 
     if (!typeId || !name) {
       return NextResponse.json(
@@ -45,6 +46,9 @@ export async function POST(request: NextRequest) {
         { error: "announcedPublicly must be a boolean" },
         { status: 400 }
       );
+    }
+    if (eventKind !== undefined && !isEventType(eventKind)) {
+      return NextResponse.json({ error: "eventKind is not a kind of event" }, { status: 400 });
     }
     if (guestsAllowed !== undefined && typeof guestsAllowed !== "boolean") {
       return NextResponse.json(
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
         ...(listedInEvents !== undefined ? { listed_in_events: listedInEvents } : {}),
         ...(announcedPublicly !== undefined ? { announced_publicly: announcedPublicly } : {}),
         ...(guestsAllowed !== undefined ? { guests_allowed: guestsAllowed } : {}),
+        ...(eventKind !== undefined ? { event_kind: eventKind } : {}),
         ...(defaultHostId !== undefined ? { default_host_id: defaultHostId } : {}),
         ...(aliases !== undefined ? { summary_aliases: aliases } : {}),
         ...(namesGuestSpeaker !== undefined ? { names_guest_speaker: namesGuestSpeaker } : {}),
