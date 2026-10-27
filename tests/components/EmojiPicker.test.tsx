@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -147,5 +147,40 @@ describe("EmojiPicker on narrow screens", () => {
     await open();
     expect(screen.getByRole("dialog").style.transform).toMatch(/^translateX\(-/);
     spy.mockRestore();
+  });
+});
+
+describe("EmojiPicker position inside a scrolling pane", () => {
+  const rectOf = (left: number, right: number) => ({ left, right, top: 100, bottom: 400, width: right - left, height: 300, x: left, y: 100, toJSON: () => ({}) }) as DOMRect;
+
+  function openIn(pane: { left: number; right: number }, dialog: { left: number; right: number }) {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("role") === "dialog") return rectOf(dialog.left, dialog.right);
+      if (this.dataset.testid === "pane") return rectOf(pane.left, pane.right);
+      return rectOf(0, 0);
+    });
+    render(
+      <div data-testid="pane" style={{ overflowY: "auto" }}>
+        <div>
+          <EmojiPicker custom={CUSTOM} onPick={vi.fn()} onClose={vi.fn()} />
+        </div>
+      </div>
+    );
+    return screen.getByRole("dialog", { name: "Pick an emoji" });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("moves in when the pane's left edge would cut it off (a thread open beside the conversation)", () => {
+    // The pane starts at 225px (after the sidebar); the picker would start at 192px, inside the sidebar.
+    expect(openIn({ left: 225, right: 608 }, { left: 192, right: 512 })).toHaveStyle({ transform: "translateX(41px)" });
+  });
+
+  it("moves in when the pane's right edge would cut it off, without crossing the left edge", () => {
+    expect(openIn({ left: 225, right: 608 }, { left: 300, right: 620 })).toHaveStyle({ transform: "translateX(-20px)" });
+  });
+
+  it("stays put when it fits", () => {
+    expect(openIn({ left: 225, right: 900 }, { left: 400, right: 720 })).not.toHaveAttribute("style");
   });
 });
