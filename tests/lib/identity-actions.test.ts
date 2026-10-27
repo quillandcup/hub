@@ -235,13 +235,13 @@ describe("setCustomDisplayName", () => {
     expect(mock.__memberUpdate).toHaveBeenCalledWith({ display_name: "River Wilde" });
   });
 
-  it("reactivates an existing inactive pen name instead of adding a duplicate", async () => {
+  it("won't switch a deactivated pen name back on, and sends the member to support", async () => {
     const mock = makeMock({ existing: { active: false } });
     vi.mocked(createClient).mockResolvedValue(mock as any);
 
-    expect(await setCustomDisplayName("River Wilde")).toEqual({ success: true });
-    expect(aliasData.nameAliases.map((a) => [a.alias, a.active])).toEqual([["River Wilde", true]]);
-    expect(mock.__memberUpdate).toHaveBeenCalledWith({ display_name: "River Wilde" });
+    expect(await setCustomDisplayName("River Wilde")).toEqual({ error: expect.stringContaining(SUPPORT_EMAIL) });
+    expect(aliasData.nameAliases.map((a) => [a.alias, a.active])).toEqual([["River Wilde", false]]);
+    expect(mock.__memberUpdate).not.toHaveBeenCalled();
   });
 
   it("just chooses an existing active pen name", async () => {
