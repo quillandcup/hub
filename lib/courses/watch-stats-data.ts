@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
 import { buildOutline, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
@@ -119,12 +120,12 @@ export async function loadCourseWatchStats(
     if (options.withSessions) sessionsByVideo.set(videoId, computePlaySessions(segments, durations.get(videoId) ?? stats.durationSeconds, views));
   }
 
-  // Names for the session list (staff-only pages; the people who watched, by name).
+  // Names for the session list (staff-only pages; the people who watched, by the name they are known by).
   const names = new Map<string, string>();
   const userIds = new Map<string, string>();
   const memberIds = [...new Set([...sessionsByVideo.values()].flatMap((list) => list.map((x) => x.memberId)))];
   for (const m of await createRepos(supabase).members.byIds(memberIds)) {
-    names.set(m.id, m.name ?? "Unknown member");
+    names.set(m.id, m.name ? getMemberDisplayName({ name: m.name, display_name: m.displayName }) : "Unknown member");
     if (m.userId) userIds.set(m.id, m.userId);
   }
 

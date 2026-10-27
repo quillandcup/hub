@@ -24,7 +24,7 @@ import { GET } from "@/app/api/analyze/subscription-reconciliation/route";
 const call = () => GET(new NextRequest("http://localhost/api/analyze/subscription-reconciliation"));
 
 const MEMBERS = [
-  { id: "m-paying", name: "Paying Example", email: "paying@example.test", kajabiId: "kj-paying" }, // Stripe active, Kajabi inactive
+  { id: "m-paying", name: "Paying Example", displayName: "Pay E", email: "paying@example.test", kajabiId: "kj-paying" }, // Stripe active, Kajabi inactive
   { id: "m-kajabi", name: "Kajabi Only", email: "kajabi@example.test" }, // Kajabi active, no Stripe
   { id: "m-gift", name: "Gift Example", email: "gift@example.test" }, // gift override, nothing else
   { id: "m-paused", name: "Paused Example", email: "paused@example.test" }, // paused in Stripe, inactive in Kajabi
@@ -106,9 +106,9 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
     const byId = Object.fromEntries(members.map((m: { member_id: string }) => [m.member_id, m]));
 
     // Paying in Stripe (matched through the Kajabi id in the customer's metadata) but inactive in Kajabi.
-    expect(byId["m-paying"]).toMatchObject({ expected_kajabi_state: "active", actual_kajabi_state: "inactive", stripe_state: "paying", has_discrepancy: true });
+    expect(byId["m-paying"]).toMatchObject({ member_name: "Paying Example", member_display_name: "Pay E", expected_kajabi_state: "active", actual_kajabi_state: "inactive", stripe_state: "paying", has_discrepancy: true });
     // Active in Kajabi (matched by email, any case) with nothing in Stripe.
-    expect(byId["m-kajabi"]).toMatchObject({ expected_kajabi_state: "inactive", actual_kajabi_state: "active", stripe_state: "none", has_discrepancy: true });
+    expect(byId["m-kajabi"]).toMatchObject({ member_display_name: null, expected_kajabi_state: "inactive", actual_kajabi_state: "active", stripe_state: "none", has_discrepancy: true });
     // A gift override keeps them active without a subscription.
     expect(byId["m-gift"]).toMatchObject({ expected_kajabi_state: "active", actual_kajabi_state: "inactive", override_type: "gift", override_reason: "180 program", has_discrepancy: true });
     // Paused in Stripe, inactive in Kajabi: as expected.

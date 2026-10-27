@@ -31,6 +31,7 @@ export default async function MergeFixPage() {
   const allMembers = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
     id: m.id,
     name: m.name,
+    displayName: m.displayName,
     email: m.email,
     status: m.status,
     stripe_customer_id: m.stripeCustomerId,
@@ -64,6 +65,7 @@ export default async function MergeFixPage() {
         const raw = memberById.get(m.id);
         return {
           ...m,
+          displayName: raw?.displayName ?? null,
           stripe_customer_id: raw?.stripe_customer_id ?? null,
           stripe_active: raw?.stripe_customer_id ? activeStripeCustomers.has(raw.stripe_customer_id) : false,
         };

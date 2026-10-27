@@ -181,22 +181,33 @@ export async function fetchActivityFeed(
 
 /**
  * The SQL function names members by legal name. Admins know them by display name too, so swap it in
- * for the member, the member an admin was viewing as, and a member actor's label (staff actors are
- * labelled by their own account and stay as they are).
+ * for the member, the member an admin was viewing as, and an actor's label when it is a member's legal
+ * name: a member actor, or a staff actor, who is labelled by their own member record (found through
+ * their auth user id) and otherwise by their account email, which stays as it is.
  */
 export async function withMemberDisplayNames(supabase: SupabaseClient, rows: ActivityFeedRow[]): Promise<ActivityFeedRow[]> {
-  const ids = [...new Set(rows.flatMap((r) => [r.member_id, r.acting_as_member_id]).filter((id): id is string => !!id))];
+  const repos = createRepos(supabase);
+  const actorUserIds = [...new Set(rows.map((r) => r.actor_user_id).filter((id): id is string => !!id))];
+  const memberIdByUserId = actorUserIds.length > 0 ? await repos.members.idsByUserId(actorUserIds) : new Map<string, string>();
+  const ids = [...new Set([...rows.flatMap((r) => [r.member_id, r.acting_as_member_id]), ...memberIdByUserId.values()].filter((id): id is string => !!id))];
   if (ids.length === 0) return rows;
-  const shown = new Map<string, string>();
-  for (const m of await createRepos(supabase).members.byIds(ids)) shown.set(m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName }));
+  const members = new Map<string, { legal: string; shown: string }>();
+  for (const m of await repos.members.byIds(ids)) members.set(m.id, { legal: m.name, shown: getMemberDisplayName({ name: m.name, display_name: m.displayName }) });
   return rows.map((r) => {
-    const member = r.member_id ? shown.get(r.member_id) : undefined;
-    const actingAs = r.acting_as_member_id ? shown.get(r.acting_as_member_id) : undefined;
+    const member = r.member_id ? members.get(r.member_id) : undefined;
+    const actingAs = r.acting_as_member_id ? members.get(r.acting_as_member_id) : undefined;
+    const staffMember = r.actor_user_id ? members.get(memberIdByUserId.get(r.actor_user_id) ?? "") : undefined;
+    const actor =
+      r.actor_kind === "member" && member && r.actor_label === r.member_name
+        ? member.shown
+        : staffMember && r.actor_label === staffMember.legal
+          ? staffMember.shown
+          : r.actor_label;
     return {
       ...r,
-      member_name: member ?? r.member_name,
-      acting_as_member_name: actingAs ?? r.acting_as_member_name,
-      actor_label: member && r.actor_kind === "member" && r.actor_label === r.member_name ? member : r.actor_label,
+      member_name: member?.shown ?? r.member_name,
+      acting_as_member_name: actingAs?.shown ?? r.acting_as_member_name,
+      actor_label: actor,
     };
   });
 }

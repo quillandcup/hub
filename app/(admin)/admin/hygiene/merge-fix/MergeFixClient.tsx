@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BulkMergeMemberModal from "../../members/BulkMergeMemberModal";
-import type { EnrichedGroup } from "@/lib/merge-fix";
+import type { EnrichedGroup, EnrichedMember } from "@/lib/merge-fix";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { dismissGroup, undismissGroup } from "./actions";
 
 export type { EnrichedGroup };
@@ -20,6 +21,14 @@ const AVATAR_COLORS = [
   "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
 ];
+
+// Duplicates are detected on the legal name, so it stays visible under the display name that leads.
+const shownName = (m: EnrichedMember) => getMemberDisplayName({ name: m.name, display_name: m.displayName });
+
+function LegalName({ member }: { member: EnrichedMember }) {
+  if (shownName(member) === member.name) return null;
+  return <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{member.name}</p>;
+}
 
 function groupKey(group: EnrichedGroup) {
   return group.members.map((m) => m.id).sort().join("|");
@@ -156,7 +165,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         </span>
                       )}
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${AVATAR_COLORS[j % AVATAR_COLORS.length]}`}>
-                        {member.name.charAt(0).toUpperCase()}
+                        {shownName(member).charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -164,12 +173,13 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                             href={`/admin/members/${member.id}`}
                             className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                           >
-                            {member.name}
+                            {shownName(member)}
                           </Link>
                           {j === 0 && (
                             <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                           )}
                         </div>
+                        <LegalName member={member} />
                         <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                           {member.email}
                         </p>
@@ -237,7 +247,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                     </span>
                   )}
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${AVATAR_COLORS[j % AVATAR_COLORS.length]}`}>
-                    {member.name.charAt(0).toUpperCase()}
+                    {shownName(member).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -245,12 +255,13 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         href={`/admin/members/${member.id}`}
                         className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                       >
-                        {member.name}
+                        {shownName(member)}
                       </Link>
                       {j === 0 && (
                         <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                       )}
                     </div>
+                    <LegalName member={member} />
                     <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                       {member.email}
                     </p>
@@ -299,7 +310,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
 
       {mergeTarget && (
         <BulkMergeMemberModal
-          members={mergeTarget.members.map((m) => ({ id: m.id, name: m.name, email: m.email }))}
+          members={mergeTarget.members.map((m) => ({ id: m.id, name: m.name, display_name: m.displayName, email: m.email }))}
           isOpen={true}
           onClose={() => setMergeTarget(null)}
         />
