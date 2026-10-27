@@ -85,9 +85,28 @@ vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
   return {
     ...actual,
-    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), prickles: actual.createInMemoryRepos(dataset).prickles }),
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => {
+      const twins = actual.createInMemoryRepos(dataset);
+      return { ...actual.createRepos(db), prickles: twins.prickles, writing: twins.writing };
+    },
   };
 });
+
+/** Puts the goals (and the projects they sit on) in the in-memory dataset the writing repository reads. */
+function seedGoals(goals: ReturnType<typeof goalRow>[]) {
+  for (const g of goals) {
+    if (!dataset.writingProjects.some((p) => p.id === g.project_id)) {
+      dataset.writingProjects.push({
+        id: g.project_id, member_id: g.member_id, title: g.writing_projects.title, description: null, cover_url: null, external_id: null, phase: "drafting",
+        show_on_profile: false, archived_at: g.writing_projects.archived_at, created_at: "2026-01-01T00:00:00Z",
+      });
+    }
+    dataset.writingGoals.push({
+      id: g.id, member_id: g.member_id, project_id: g.project_id, title: null, description: null, external_id: null, goal_type: "target", habit_period: null, habit_threshold: null,
+      is_starred: false, measure: g.measure, show_on_profile: false, start_date: null, end_date: null, target_amount: 1000, archived_at: null, created_at: "2026-01-01T00:00:00Z",
+    });
+  }
+}
 
 function cronRequest() {
   return new NextRequest("http://localhost/api/internal/prickle-checkins", {
@@ -107,8 +126,8 @@ beforeEach(() => {
 
 describe("prickle check-in route", () => {
   function setup(goals: object[], extra: FakeTables = {}) {
+    seedGoals(goals as ReturnType<typeof goalRow>[]);
     fake = createFakeSupabase({
-      writing_goals: { data: goals },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
       prickle_checkin_dm_log: dmLog(),
@@ -306,6 +325,7 @@ describe("sendCheckoutDMs", () => {
     );
 
   function setup(goals: object[], extra: FakeTables = {}) {
+    seedGoals(goals as ReturnType<typeof goalRow>[]);
     fake = createFakeSupabase({
       // m1 left and rejoined: two attendance rows, still one check-out.
       prickle_attendance: {
@@ -314,7 +334,6 @@ describe("sendCheckoutDMs", () => {
           { id: "a2", member_id: "m1", prickle_id: "p1" },
         ],
       },
-      writing_goals: { data: goals },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
       prickle_checkin_dm_log: dmLog(),
@@ -453,8 +472,8 @@ describe("sendTestCheckinDM", () => {
   });
 
   function setup(extra: FakeTables = {}) {
+    seedGoals([goalRow("g1", "m1", "proj1", "words", "Novel"), goalRow("g2", "m2", "proj2", "scenes", "Memoir")]);
     fake = createFakeSupabase({
-      writing_goals: { data: [goalRow("g1", "m1", "proj1", "words", "Novel"), goalRow("g2", "m2", "proj2", "scenes", "Memoir")] },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       prickle_checkin_dm_log: dmLog(),
       ...extra,

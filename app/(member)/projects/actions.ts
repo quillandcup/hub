@@ -1166,18 +1166,17 @@ async function createGoalImpl(
   const details = buildGoalDetails(input);
   if ("error" in details) return details;
 
-  const { data, error } = await supabase
-    .from("writing_goals")
-    .insert({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to create goal" };
+  let id: string;
+  try {
+    id = await createRepos(supabase).writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
-  return { success: true, id: data.id };
+  return { success: true, id };
 }
 
 export type UpdateGoalInput = Partial<
@@ -1205,11 +1204,8 @@ export async function updateGoal(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
@@ -1230,13 +1226,11 @@ export async function updateGoal(
   const details = buildGoalDetails(patch);
   if ("error" in details) return details;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ ...fields, ...details })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1249,23 +1243,18 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .delete()
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.deleteGoal(effectiveIdentity.memberId, goalId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1283,23 +1272,18 @@ export async function archiveGoal(goalId: string): Promise<{ success: true } | {
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ archived_at: new Date().toISOString(), is_starred: false })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { archived_at: new Date().toISOString(), is_starred: false });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to archive goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1313,13 +1297,8 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: goalRows }, { data: entryRows }, attendance] = await Promise.all([
-    supabase
-      .from("writing_goals")
-      .select(GOAL_SELECT_COLUMNS)
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .not("archived_at", "is", null),
+  const [goalRows, { data: entryRows }, attendance] = await Promise.all([
+    createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
     supabase
       .from("writing_progress_entries")
       .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
@@ -1340,13 +1319,11 @@ export async function toggleGoalStar(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ is_starred: isStarred })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { is_starred: isStarred });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath("/dashboard");
@@ -1361,13 +1338,11 @@ export async function toggleGoalVisibility(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ show_on_profile: showOnProfile })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { show_on_profile: showOnProfile });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -1380,14 +1355,9 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: goals } = await supabase
-    .from("writing_goals")
-    .select(`${GOAL_SELECT_COLUMNS}, writing_projects(title)`)
-    .eq("member_id", effectiveIdentity.memberId)
-    .eq("is_starred", true)
-    .is("archived_at", null);
+  const goals = await createRepos(supabase).writing.starredGoals(effectiveIdentity.memberId).catch(() => []);
 
-  if (!goals || goals.length === 0) return [];
+  if (goals.length === 0) return [];
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
   const [{ data: entries }, attendance] = await Promise.all([
@@ -1401,10 +1371,9 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
 
   const now = new Date();
 
-  return (goals as unknown as (RawGoal & { writing_projects: { title: string } | { title: string }[] | null })[]).map((g) => {
-    const project = singleRelation(g.writing_projects);
+  return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
     const projectEntries = (entries ?? []).filter((e) => e.project_id === g.project_id);
-    return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: project?.title ?? "Untitled project" };
+    return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: g.project_title ?? "Untitled project" };
   });
 }
 

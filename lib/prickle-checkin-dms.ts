@@ -81,28 +81,15 @@ export interface GoalCandidate {
  * only decides what the check-out's progress quick-log asks about.
  */
 export async function getActiveGoalCandidates(supabase: any): Promise<GoalCandidate[]> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("writing_goals")
-      .select(
-        "id, member_id, project_id, measure, writing_projects!inner(title, archived_at)"
-      )
-      .is("archived_at", null)
-      .is("writing_projects.archived_at", null)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
+  const rows = await createRepos(supabase).writing.activeGoalCandidates();
 
-  return rows.map((g) => {
-    const project = Array.isArray(g.writing_projects) ? g.writing_projects[0] : g.writing_projects;
-    return {
-      memberId: g.member_id,
-      goalId: g.id,
-      projectId: g.project_id,
-      projectTitle: project?.title ?? "your project",
-      measure: g.measure as WritingMeasure,
-    };
-  });
+  return rows.map((g) => ({
+    memberId: g.member_id,
+    goalId: g.goal_id,
+    projectId: g.project_id,
+    projectTitle: g.project_title ?? "your project",
+    measure: g.measure as WritingMeasure,
+  }));
 }
 
 /** Candidates grouped by member, in first-seen order. */
