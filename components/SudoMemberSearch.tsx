@@ -4,7 +4,9 @@ import EntitySearch, { type SearchItem } from '@/components/EntitySearch'
 
 export interface SudoMember {
   id: string
+  /** Legal name. */
   name: string
+  displayName?: string | null
   email: string
 }
 
@@ -18,12 +20,22 @@ interface SudoMemberSearchProps {
 
 export const SUDO_SEARCH_LIMIT = 20
 
+/** The members the last search returned, so a pick hands back the member, not the two-part label. */
+let found = new Map<string, SudoMember>()
+
 /** Module-level so EntitySearch gets the same function every render (it re-searches when it changes). */
 async function searchMembers(term: string, signal: AbortSignal): Promise<SearchItem[]> {
   const res = await fetch(`/api/members?search=${encodeURIComponent(term)}&limit=${SUDO_SEARCH_LIMIT}`, { signal })
   if (!res.ok) throw new Error(`Search failed (${res.status})`)
   const json = await res.json()
-  return ((json.members ?? []) as SudoMember[]).map((m) => ({ id: m.id, name: m.name, detail: m.email }))
+  const members = (json.members ?? []) as SudoMember[]
+  found = new Map(members.map((m) => [m.id, m]))
+  // The display name leads, since that is what the member goes by; the legal name stays visible and searchable.
+  return members.map((m) => ({
+    id: m.id,
+    name: m.displayName?.trim() || m.name,
+    detail: m.displayName?.trim() && m.displayName.trim() !== m.name ? `${m.name} · ${m.email}` : m.email,
+  }))
 }
 
 /**
@@ -43,9 +55,9 @@ export default function SudoMemberSearch({
       search={searchMembers}
       debounceMs={debounceMs}
       selectedId={selectedMember?.id ?? null}
-      selectedName={selectedMember?.name}
+      selectedName={selectedMember?.displayName?.trim() || selectedMember?.name}
       selectedDetail={selectedMember?.email}
-      onSelect={(item) => onSelect(item ? { id: item.id, name: item.name, email: item.detail ?? '' } : null)}
+      onSelect={(item) => onSelect(item ? (found.get(item.id) ?? { id: item.id, name: item.name, email: '' }) : null)}
       placeholder={placeholder}
       ariaLabel="Search members"
       emptyText="No members found"

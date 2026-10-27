@@ -66,10 +66,18 @@ describe("GET /api/members search + limit", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       members: [
-        { id: "m1", name: "Alice Example", email: "alice@example.test" },
-        { id: "m3", name: "Cleo Example", email: "cleo@alibi.test" },
+        { id: "m1", name: "Alice Example", displayName: null, email: "alice@example.test" },
+        { id: "m3", name: "Cleo Example", displayName: null, email: "cleo@alibi.test" },
       ],
     });
+  });
+
+  it("finds a member by display name and returns it next to the legal name", async () => {
+    repos = createInMemoryRepos(new InMemoryDataset({ members: [...people, { id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }] }));
+
+    const res = await GET(makeRequest("?search=penny&limit=20"));
+
+    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }]);
   });
 
   it("applies the limit, clamping oversized ones to 50", async () => {
@@ -158,6 +166,6 @@ describe("GET /api/members?email= host eligibility", () => {
 
     const body = await (await GET(makeRequest("?search=ali"))).json();
 
-    expect(body).toEqual({ members: [{ id: "m1", name: "Alice", email: "alice@example.com" }] });
+    expect(body).toEqual({ members: [{ id: "m1", name: "Alice", displayName: null, email: "alice@example.com" }] });
   });
 });

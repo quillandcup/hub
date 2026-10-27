@@ -10,7 +10,7 @@ const MAX_LIMIT = 50;
  *
  * Query params:
  * - email:  exact (case-insensitive) lookup by email
- * - search: case-insensitive substring match on name or email
+ * - search: case-insensitive substring match on name, display name or email
  * - limit:  cap the number of rows returned (1-50). Used by search-as-you-type
  *           pickers (e.g. the sudo "View As Member" modal) so they never pull
  *           the whole table.
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       words: !email && search ? [search] : undefined,
       limit: limit ?? undefined,
     });
-    const members = found.map(({ id, name, email: address }) => ({ id, name, email: address }));
+    const members = found.map(({ id, name, displayName, email: address }) => ({ id, name, displayName, email: address }));
 
     // Exact-email lookups back admin forms that assign a specific member (e.g.
     // "add host" on /admin/hosts), which warn up front when that member hasn't

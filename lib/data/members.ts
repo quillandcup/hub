@@ -58,7 +58,7 @@ export type AdminMember = {
 
 /** Which members a search matches; all given conditions must hold. Results are ordered by name. */
 export type MemberSearch = {
-  /** Each word must appear, in any case, in the name or the email. */
+  /** Each word must appear, in any case, in the name, the display name or the email. */
   words?: string[];
   /** The email, ignoring case, is exactly this. */
   emailEquals?: string;
@@ -291,7 +291,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     let query = this.db.from("members").select(MEMBER_COLUMNS);
     for (const word of words) {
       const clean = neutralize(word);
-      if (clean) query = query.or(`name.ilike."%${clean}%",email.ilike."%${clean}%"`);
+      if (clean) query = query.or(`name.ilike."%${clean}%",display_name.ilike."%${clean}%",email.ilike."%${clean}%"`);
     }
     if (emailEquals !== undefined) query = query.ilike("email", escapeLike(emailEquals));
     if (emailContains !== undefined) query = query.ilike("email", `%${escapeLike(emailContains)}%`);
@@ -563,7 +563,7 @@ export class InMemoryMemberRepository implements MemberRepository {
   async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch) {
     const matches = (text: string, word: string) => text.toLowerCase().includes(neutralize(word).toLowerCase());
     const found = this.all()
-      .filter((m) => words.every((w) => !neutralize(w) || matches(m.name, w) || matches(m.email, w)))
+      .filter((m) => words.every((w) => !neutralize(w) || matches(m.name, w) || matches(m.displayName ?? "", w) || matches(m.email, w)))
       .filter((m) => emailEquals === undefined || m.email.toLowerCase() === emailEquals.toLowerCase())
       .filter((m) => emailContains === undefined || m.email.toLowerCase().includes(emailContains.toLowerCase()))
       .filter((m) => status === undefined || m.status === status)

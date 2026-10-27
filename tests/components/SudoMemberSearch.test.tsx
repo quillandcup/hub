@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import SudoMemberSearch, { type SudoMember, SUDO_SEARCH_LIMIT } from '@/components/SudoMemberSearch'
 
 const alice = { id: 'm1', name: 'Alice Example', email: 'alice@example.com' }
+const penny = { id: 'm3', name: 'Penelope Legal', displayName: 'Penny Pen', email: 'penny@example.com' }
 const alan = { id: 'm2', name: 'Alan Other', email: 'alan@example.com' }
 
 function mockFetchResponse(members: SudoMember[], ok = true) {
@@ -151,5 +152,21 @@ describe('SudoMemberSearch', () => {
 
     await user.keyboard('{Enter}')
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(alan))
+  })
+
+  it('leads with the display name, keeps the legal name beside the email, and hands back the member', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny, alice]) as any)
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(<Harness onSelect={onSelect} />)
+
+    await user.type(screen.getByRole('combobox'), 'pen')
+
+    expect(await screen.findByText('Penny Pen')).toBeInTheDocument()
+    expect(screen.getByText('Penelope Legal · penny@example.com')).toBeInTheDocument()
+    expect(screen.getByText('alice@example.com')).toBeInTheDocument() // no display name: just the email
+
+    await user.click(screen.getByText('Penny Pen'))
+    expect(onSelect).toHaveBeenCalledWith(penny) // the real email, not the two-part label
   })
 })

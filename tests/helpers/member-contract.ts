@@ -180,6 +180,19 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(await found({ words: [ctx.emailOf(ada).toUpperCase()] })).toEqual([ada]); // by email, any case
     });
 
+    it("searches display names as well as legal names", async () => {
+      const [ada, fern] = await ctx.seed([
+        { name: "Zyxel Ada Quill", displayName: "Penny Zyxelpen" },
+        { name: "Zyxel Fern Moss" },
+      ]);
+      const found = async (word: string) => (await ctx.repo().search({ words: [word] })).map((m) => m.id).filter((id) => [ada, fern].includes(id));
+
+      expect(await found("zyxelpen")).toEqual([ada]); // display name only
+      expect(await found("PENNY")).toEqual([ada]);
+      expect(await found("quill")).toEqual([ada]); // legal name still works
+      expect(await found("zyxel")).toEqual([ada, fern]);
+    });
+
     it("matches an email exactly or by what it contains, ignoring case", async () => {
       const [ada, fern] = await ctx.seed([{ name: "Ada Example" }, { name: "Fern Example" }]);
       const found = async (query: Parameters<ReturnType<typeof ctx.repo>["search"]>[0]) =>
