@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 // A member's trial length is not a setting anywhere: Kajabi's offers don't expose it
@@ -55,14 +56,11 @@ export async function fetchTrialWindows(
   if (members.length === 0) return result;
 
   const memberIds = members.map((m) => m.id);
-  const { data: aliasRows } = await supabase
-    .from("member_email_aliases")
-    .select("member_id, alias_email")
-    .in("member_id", memberIds);
+  const aliasRows = await createRepos(supabase).aliases.emailsOfMembers(memberIds);
 
   const memberByEmail = new Map<string, string>();
   for (const m of members) memberByEmail.set(m.email.toLowerCase(), m.id);
-  for (const a of (aliasRows ?? []) as { member_id: string; alias_email: string }[]) {
+  for (const a of aliasRows) {
     memberByEmail.set(a.alias_email.toLowerCase(), a.member_id);
   }
 

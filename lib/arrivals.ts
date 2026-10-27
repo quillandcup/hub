@@ -172,8 +172,8 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
  */
 async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise<boolean> {
   const cutoff = dayMs(c.arrivedOn) - MS_PER_DAY;
-  const [{ data: aliasRows }, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email").eq("member_id", c.memberId),
+  const [aliasRows, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] = await Promise.all([
+    createRepos(supabase).aliases.emailsOf(c.memberId),
     supabase.from("member_hiatus_history").select("id, start_date, end_date, reason, notes").eq("member_id", c.memberId),
     supabase
       .from("member_program_enrollments")
@@ -185,7 +185,7 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
       .eq("member_id", c.memberId),
   ]);
 
-  const emails = [c.email, ...((aliasRows ?? []) as { alias_email: string }[]).map((a) => a.alias_email)];
+  const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
   const kajabiCustomers = await fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id", (q) =>
     q.in("email", emails)
   );

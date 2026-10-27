@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
     const [
       { data: stripeProducts },
       members,
-      { data: emailAliases },
+      emailAliases,
     ] = await Promise.all([
       supabase.schema("bronze").from("stripe_products").select("stripe_product_id").in("name", [...MEMBERSHIP_PRODUCT_NAMES]),
       createRepos(supabase).members.list(),
-      supabase.from("member_email_aliases").select("canonical_email, alias_email"),
+      createRepos(supabase).aliases.emailAliases(),
     ]);
 
     const membershipProductIds = new Set(
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         })
       : allSubscriptions;
 
-    const reverseAliasMap = buildReverseAliasMap(emailAliases ?? []);
+    const reverseAliasMap = buildReverseAliasMap(emailAliases);
 
     const orphans: Array<{
       stripe_customer_id: string;

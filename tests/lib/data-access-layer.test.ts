@@ -26,19 +26,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_badges: [],
   push_subscriptions: [],
   member_reminder_log: [],
-  // Aliases: every name alias query is on AliasRepository; the email ones still to move are the bulk and canonical-email readers.
+  // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
-  member_email_aliases: [
-    "app/(member)/settings/profileActions.ts",
-    "app/api/analyze/stripe-orphans/route.ts",
-    "app/api/analyze/subscription-reconciliation/route.ts",
-    "app/api/process/members/route.ts",
-    "lib/arrivals.ts",
-    "lib/member-status.ts",
-    "lib/processing/login-events.ts",
-    "lib/resubscription-data.ts",
-    "lib/trial-window.ts",
-  ],
+  member_email_aliases: [],
 };
 
 const root = path.resolve(__dirname, "../..");

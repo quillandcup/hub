@@ -30,7 +30,7 @@ function fakeSupabase(sessionCount: number, alreadyMirrored: Set<string>) {
     rpc: () => page(sessions),
     from(table: string) {
       if (table === 'members') return { select: () => page(members) }
-      if (table === 'member_email_aliases') return { select: () => ({ eq: async () => ({ data: [], error: null }) }) }
+      if (table === 'member_email_aliases') return { select: () => ({ eq: () => page([]) }) }
       // member_activities
       return {
         select: () => ({

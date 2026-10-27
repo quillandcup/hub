@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
     // kajabi_contacts, kajabi_customers, kajabi_purchases, kajabi_offers, and
     // stripe_customers can each exceed Supabase's default 1000-row cap, so
     // they're paginated in parallel loops (fetchAllBronzeRows/fetchAllPublicRows).
-    // staff and member_email_aliases are small Local-layer tables and are not
-    // expected to approach that limit.
+    // staff is a small Local-layer table and is not expected to approach that limit;
+    // the email aliases are paginated by their repository.
     const [
       contacts,
       customers,
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       offers,
       slackUsers,
       { data: staffMembers, error: staffError },
-      { data: emailAliases, error: aliasesError },
+      emailAliases,
       stripeCustomers,
       existingMembers,
       hiatusHistory,
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       fetchAllBronzeRows(supabase, "kajabi_offers"),
       fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
       supabase.from("staff").select("*"),
-      supabase.from("member_email_aliases").select("alias_email, member_id").eq("active", true),
+      createRepos(supabase).aliases.emailOwners(),
       fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
       fetchAllPublicRows(supabase, "members", "id, email, kajabi_id, name"),
       fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
@@ -120,14 +120,13 @@ export async function POST(request: NextRequest) {
     ]);
 
     if (staffError) throw staffError;
-    if (aliasesError) throw aliasesError;
 
     // Email alias resolution. Aliases point at a member (member_id); each
     // resolves to the email that member will have after this run — their
     // Kajabi contact's current email — not members.email, which is last
     // run's. See buildMembersRunAliasMap.
     const { aliasMap, runEmailByMemberId } = buildMembersRunAliasMap({
-      aliases: emailAliases || [],
+      aliases: emailAliases,
       members: existingMembers || [],
       contacts: contacts || [],
     });
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
       offers_count: offers?.length || 0,
       slack_users_count: slackUsers?.length || 0,
       staff_count: staffMembers?.length || 0,
-      email_aliases_count: emailAliases?.length || 0,
+      email_aliases_count: emailAliases.length,
       stripe_customers_count: stripeCustomers?.length || 0,
       existing_members_count: existingMembers?.length || 0,
       hiatus_history_count: hiatusHistory?.length || 0,

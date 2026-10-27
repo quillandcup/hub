@@ -34,9 +34,9 @@ export async function recomputeMemberStatus(
     // reprocess_members_atomic's staff_role handling).
     status = "active";
   } else {
-    const [{ data: emailAliasRows }, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] =
+    const [emailAliasRows, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] =
       await Promise.all([
-        supabase.from("member_email_aliases").select("alias_email").eq("member_id", memberId),
+        createRepos(supabase).aliases.emailsOf(memberId),
         supabase
           .from("member_hiatus_history")
           .select("id, start_date, end_date, reason, notes")
@@ -51,7 +51,7 @@ export async function recomputeMemberStatus(
           .eq("member_id", memberId),
       ]);
 
-    const allEmails = [member.email, ...(emailAliasRows ?? []).map((a: any) => a.alias_email)];
+    const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
     const { data: kajabiCustomers } = await supabase
       .schema("bronze")
       .from("kajabi_customers")

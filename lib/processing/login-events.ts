@@ -57,11 +57,8 @@ export async function mirrorLoginEvents(
     return { sessionsSeen: 0, activitiesUpserted: 0 };
   }
 
-  const [members, { data: emailAliases, error: aliasesError }] = await Promise.all([
-    createRepos(supabase).members.list(),
-    supabase.from("member_email_aliases").select("*").eq("active", true),
-  ]);
-  if (aliasesError) throw aliasesError;
+  const repos = createRepos(supabase);
+  const [members, emailAliases] = await Promise.all([repos.members.list(), repos.aliases.emailAliases({ activeOnly: true })]);
 
   const memberIdByUserId = new Map<string, string>();
   const memberIdByEmail = new Map<string, string>();
@@ -69,7 +66,7 @@ export async function mirrorLoginEvents(
     if (m.userId) memberIdByUserId.set(m.userId, m.id);
     if (m.email) memberIdByEmail.set(m.email.toLowerCase(), m.id);
   }
-  const aliasMap = buildAliasMap(emailAliases ?? []);
+  const aliasMap = buildAliasMap(emailAliases);
 
   const activities = loginSessions
     .map((session) => {
