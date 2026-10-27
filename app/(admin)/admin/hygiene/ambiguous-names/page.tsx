@@ -22,7 +22,7 @@ export default async function AmbiguousNamesPage() {
     createRepos(supabase).members.identities(),
   ]);
 
-  const membersById = new Map(allMembers.map((m) => [m.id, { id: m.id, name: m.name, email: m.email }]));
+  const membersById = new Map(allMembers.map((m) => [m.id, { id: m.id, name: m.name, displayName: m.displayName, email: m.email }]));
 
   // Group by zoom_name only -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
   // zoom_email is NULL (Postgres treats each NULL as distinct), so the same bare
@@ -54,7 +54,7 @@ export default async function AmbiguousNamesPage() {
       lastSeenAt: g.lastSeenAt,
       candidates: Array.from(g.candidateIds)
         .map((id) => membersById.get(id))
-        .filter((m): m is { id: string; name: string; email: string } => !!m),
+        .filter((m): m is { id: string; name: string; displayName: string | null; email: string } => !!m),
     }))
     .sort((a, b) => b.occurrenceCount - a.occurrenceCount);
 

@@ -42,7 +42,7 @@ export default async function MembersWithoutSlackPage() {
   const unmatchedMembers = (members || [])
     .filter((m) => m.status === "active")
     .filter((m) => !matchedMemberIds.has(m.id))
-    .map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }));
 
   const searchableSlackUsers = (slackUsers || [])
     .filter((u) => !u.is_bot)

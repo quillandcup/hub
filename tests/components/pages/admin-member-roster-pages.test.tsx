@@ -75,7 +75,7 @@ describe("ambiguous Zoom names page", () => {
     expect(entries[0]).toMatchObject({ zoomName: "Sam", occurrenceCount: 5, lastSeenAt: "2026-10-05T00:00:00Z" });
     // Candidates that no longer exist are left out; the rest are id, name and email only.
     expect(entries[0].candidates.map((c: { id: string }) => c.id).sort()).toEqual([ADA.id, FERN.id, BEA.id].sort());
-    expect(entries[0].candidates.find((c: { id: string }) => c.id === FERN.id)).toEqual({ id: FERN.id, name: FERN.name, email: FERN.email });
+    expect(entries[0].candidates.find((c: { id: string }) => c.id === FERN.id)).toEqual({ id: FERN.id, name: FERN.name, displayName: "Penny", email: FERN.email });
   });
 });
 

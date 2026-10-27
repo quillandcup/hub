@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -147,7 +149,10 @@ export default function MemberSlackSearchForm({
               <div key={member.id} className="p-3">
                 <div className="grid grid-cols-[300px_1fr] gap-4 items-start">
                   <div>
-                    <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{member.name}</div>
+                    <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{getMemberDisplayName({ name: member.name, display_name: member.displayName })}</div>
+                    {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                    )}
                     <div className="text-xs text-slate-600 dark:text-slate-400">{member.email}</div>
                     {errors[member.id] && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors[member.id]}</div>

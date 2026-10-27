@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     .from("prickle_schedules")
     .select(`
       *,
-      member:members(id, name, email),
+      member:members(id, name, display_name, email),
       prickle_type:prickle_types(id, name)
     `)
     .eq("month", month)
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       .insert(insert)
       .select(`
         *,
-        member:members(id, name, email),
+        member:members(id, name, display_name, email),
         prickle_type:prickle_types(id, name)
       `)
       .single();

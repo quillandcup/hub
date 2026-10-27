@@ -37,7 +37,7 @@ export async function PATCH(
       .eq("id", id)
       .select(`
         *,
-        member:members(id, name, email)
+        member:members(id, name, display_name, email)
       `)
       .single();
 

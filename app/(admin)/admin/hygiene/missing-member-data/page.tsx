@@ -17,7 +17,7 @@ export default async function MissingMemberDataPage() {
 
   const missingStripe = (await createRepos(supabase).members.list({ status: "active", orderBy: "name" }))
     .filter((m) => m.stripeCustomerId === null)
-    .map((m) => ({ id: m.id, name: m.name, email: m.email, kajabi_id: m.kajabiId }));
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, kajabi_id: m.kajabiId }));
 
   return (
     <div className="p-6">

@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
         created_at: p.created_at_kajabi,
         member_id: member?.id ?? null,
         member_name: member?.name ?? null,
+        member_display_name: member?.displayName ?? null,
         member_email: email,
         member_status: member?.status ?? null,
       };

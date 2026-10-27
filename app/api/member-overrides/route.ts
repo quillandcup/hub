@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     .from("member_status_overrides")
     .select(`
       *,
-      member:members(id, name, email)
+      member:members(id, name, display_name, email)
     `)
     .order("created_at", { ascending: false });
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       })
       .select(`
         *,
-        member:members(id, name, email)
+        member:members(id, name, display_name, email)
       `)
       .single();
 

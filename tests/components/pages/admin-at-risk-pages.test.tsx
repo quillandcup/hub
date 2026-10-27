@@ -89,6 +89,6 @@ describe("name matching page", () => {
     await renderServerPage(NameMatchingPage, {});
 
     const shown = JSON.parse(screen.getByTestId("never-attended").textContent!);
-    expect(shown).toEqual([{ id: fern.id, name: fern.name, email: fern.email }]);
+    expect(shown).toEqual([expect.objectContaining({ id: fern.id, name: fern.name, email: fern.email })]);
   });
 });

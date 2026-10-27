@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import Link from "next/link";
 import type { Metadata } from "next";
 import PrickleTypesTable from "./PrickleTypesTable";
@@ -20,7 +21,7 @@ export default async function PrickleTypesPage() {
     .order("name");
 
   const hostIds = [...new Set((prickleTypes ?? []).map((t) => t.default_host_id).filter((id): id is string => !!id))];
-  const hostNames = new Map((await createRepos(supabase).members.byIds(hostIds)).map((m) => [m.id, m.name]));
+  const hostNames = new Map((await createRepos(supabase).members.byIds(hostIds)).map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
   const rows = (prickleTypes ?? []).map((t) => ({ ...t, default_host_name: t.default_host_id ? (hostNames.get(t.default_host_id) ?? null) : null }));
 
   return (
