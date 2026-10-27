@@ -169,7 +169,11 @@ describe("the prickle details card", () => {
   });
 
   it("shows the host by the name the community knows them by", async () => {
-    renderDetails(config(), { ...prickle, host: { id: "mbr_AAAAAAAAAAA1", name: "Jennifer Parker", displayName: "Jenny" } });
+    const members = [
+      { id: "mbr_AAAAAAAAAAA1", name: "Jennifer Parker", displayName: "Jenny", email: "jenn@example.test" },
+      { id: "mbr_AAAAAAAAAAA2", name: "Ada Example", email: "ada@example.test" },
+    ];
+    renderDetails(config({ members }), { ...prickle, host: { id: "mbr_AAAAAAAAAAA1", name: "Jennifer Parker", displayName: "Jenny" } });
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     expect(screen.getByText("Jenny")).toBeInTheDocument();
