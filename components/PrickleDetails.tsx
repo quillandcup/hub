@@ -181,6 +181,12 @@ export default function PrickleDetails({
               )}
             </p>
           </div>
+          {prickle.guestSpeaker && (
+            <div>
+              <span className="text-slate-600 dark:text-slate-400">Guest speaker:</span>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.guestSpeaker}</p>
+            </div>
+          )}
           <div>
             <span className="text-slate-600 dark:text-slate-400">Date:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(startTime)}</p>

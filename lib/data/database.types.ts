@@ -4444,10 +4444,12 @@ export type Database = {
           id: string
           listed_in_events: boolean
           name: string
+          names_guest_speaker: boolean
           normalized_name: string
           purpose: string
           requires_host: boolean | null
           solo_task_friendly: boolean
+          summary_aliases: string[]
         }
         Insert: {
           announced_publicly?: boolean
@@ -4458,10 +4460,12 @@ export type Database = {
           id?: string
           listed_in_events?: boolean
           name: string
+          names_guest_speaker?: boolean
           normalized_name: string
           purpose?: string
           requires_host?: boolean | null
           solo_task_friendly?: boolean
+          summary_aliases?: string[]
         }
         Update: {
           announced_publicly?: boolean
@@ -4472,10 +4476,12 @@ export type Database = {
           id?: string
           listed_in_events?: boolean
           name?: string
+          names_guest_speaker?: boolean
           normalized_name?: string
           purpose?: string
           requires_host?: boolean | null
           solo_task_friendly?: boolean
+          summary_aliases?: string[]
         }
         Relationships: [
           {
@@ -4493,6 +4499,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           end_time: string
+          guest_speaker: string | null
           host: string | null
           id: string
           source: string
@@ -4521,6 +4528,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           end_time: string
+          guest_speaker?: string | null
           host?: string | null
           id?: string
           source: string
@@ -4535,6 +4543,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           end_time?: string
+          guest_speaker?: string | null
           host?: string | null
           id?: string
           source?: string

@@ -38,6 +38,8 @@ export type Prickle = {
   title: string | null;
   /** What the host wrote about this session; null when nothing. */
   description?: string | null;
+  /** Who the session is with when they are not the host (an invited speaker); null when nobody. */
+  guestSpeaker?: string | null;
   startTime: string;
   endTime: string;
   source: string;
@@ -156,7 +158,7 @@ export interface PrickleRepository {
 
 const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
-const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
+const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, guest_speaker, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
 const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
 
@@ -187,6 +189,7 @@ export type DetailRow = {
   host_id: string | null;
   title: string | null;
   description: string | null;
+  guest_speaker: string | null;
   start_time: string;
   end_time: string;
   source: string;
@@ -222,6 +225,7 @@ export function toDetail(row: DetailRow): PrickleDetail {
     hostId: row.host_id,
     title: row.title,
     description: row.description,
+    guestSpeaker: row.guest_speaker,
     startTime: row.start_time,
     endTime: row.end_time,
     source: row.source,

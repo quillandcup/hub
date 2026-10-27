@@ -25,6 +25,7 @@ definePrickleContract("InMemoryPrickleRepository", () => {
         hostId: s.host === undefined ? null : hosts[s.host].id,
         title: s.title ?? null,
         description: s.description ?? null,
+        guestSpeaker: s.guestSpeaker ?? null,
         zoomMeetingUuid: s.zoomMeetingUuid ?? null,
         createdAt: s.createdAt ?? null,
         startTime: s.start,

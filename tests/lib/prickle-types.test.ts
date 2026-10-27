@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizePrickleType, parsePrickleFromSummary, prickleTitleFromSummary, plainTextDescription } from '@/lib/prickle-types'
+import { normalizePrickleType, parsePrickleFromSummary, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from '@/lib/prickle-types'
 
 // ---------------------------------------------------------------------------
 // normalizePrickleType
@@ -121,5 +121,62 @@ describe('plainTextDescription', () => {
   it('is null for empty input', () => {
     expect(plainTextDescription(null)).toBeNull()
     expect(plainTextDescription('<p> </p>')).toBeNull()
+  })
+})
+
+describe('typeIdByAlias', () => {
+  const types = [{ id: 'prty_AAAAAAAAAAA1', summary_aliases: ['edu'] }, { id: 'prty_AAAAAAAAAAA2', summary_aliases: [] }, { id: 'prty_AAAAAAAAAAA3' }]
+
+  it('matches a calendar type that starts with an alias word', () => {
+    expect(typeIdByAlias(normalizePrickleType('EDU-PRICKLE: Make It Funny'), types)).toBe('prty_AAAAAAAAAAA1')
+    expect(typeIdByAlias(normalizePrickleType('EDU-PRICKLE Tiny Things That Make a Life'), types)).toBe('prty_AAAAAAAAAAA1')
+    expect(typeIdByAlias('edu', types)).toBe('prty_AAAAAAAAAAA1')
+  })
+
+  it('needs the whole first word, and is null with no alias match', () => {
+    expect(typeIdByAlias('education-night', types)).toBeNull()
+    expect(typeIdByAlias('heads-down', types)).toBeNull()
+  })
+})
+
+describe('prickleTitleFromSummary with type aliases', () => {
+  it('drops the type label the calendar title starts with', () => {
+    expect(prickleTitleFromSummary('EDU-PRICKLE: Make It Funny w/Ellen Example', 'Educational Prickle', ['edu'])).toBe('Make It Funny')
+    expect(prickleTitleFromSummary('EDU-PRICKLE Tiny Things That Make a Life w/Diana', 'Educational Prickle', ['edu'])).toBe('Tiny Things That Make a Life')
+  })
+
+  it('is null when only the label is left, and leaves other titles alone', () => {
+    expect(prickleTitleFromSummary('EDU-PRICKLE w/Ania', 'Educational Prickle', ['edu'])).toBeNull()
+    expect(prickleTitleFromSummary('Educational Webinar: Query Letters w/Sam', 'Educational Prickle', ['edu'])).toBe('Educational Webinar: Query Letters')
+  })
+})
+
+describe('assignHostAndSpeaker', () => {
+  const base = { typedName: 'Ellen Example', memberId: null, memberName: null, defaultHostId: 'mbr_AAAAAAAAAAA1', namesGuestSpeaker: true }
+
+  it('makes the w/ name the host for a type with no guest speaker, falling back to the default host', () => {
+    expect(assignHostAndSpeaker({ ...base, namesGuestSpeaker: false, memberId: 'mbr_AAAAAAAAAAA2' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA2', guestSpeaker: null })
+    expect(assignHostAndSpeaker({ ...base, namesGuestSpeaker: false, typedName: null })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: null })
+  })
+
+  it('keeps the default host and records an outside speaker by their typed name', () => {
+    expect(assignHostAndSpeaker(base)).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: 'Ellen Example' })
+  })
+
+  it('records a member speaker by their member name, with the default host still hosting', () => {
+    expect(assignHostAndSpeaker({ ...base, typedName: 'Diana', memberId: 'mbr_AAAAAAAAAAA2', memberName: 'Diana Example' })).toEqual({
+      hostId: 'mbr_AAAAAAAAAAA1',
+      guestSpeaker: 'Diana Example',
+    })
+  })
+
+  it('has no speaker when the w/ name is the default host, or there is no name', () => {
+    expect(assignHostAndSpeaker({ ...base, typedName: 'Ania', memberId: 'mbr_AAAAAAAAAAA1', memberName: 'Ania Example' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: null })
+    expect(assignHostAndSpeaker({ ...base, typedName: null })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: null })
+  })
+
+  it('without a default host, a member speaker hosts and an outside speaker leaves the host empty', () => {
+    expect(assignHostAndSpeaker({ ...base, defaultHostId: null, typedName: 'Diana', memberId: 'mbr_AAAAAAAAAAA2', memberName: 'Diana Example' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA2', guestSpeaker: null })
+    expect(assignHostAndSpeaker({ ...base, defaultHostId: null })).toEqual({ hostId: null, guestSpeaker: 'Ellen Example' })
   })
 })

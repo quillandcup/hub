@@ -41,6 +41,15 @@ const renderDetails = (props: Partial<React.ComponentProps<typeof PrickleDetails
   );
 
 describe("PrickleDetails attendees", () => {
+  it("shows the guest speaker next to the host, and nothing when there is none", () => {
+    const { unmount } = renderDetails({ prickle: { ...prickle, guestSpeaker: "Ellen Example" } });
+    expect(screen.getByText("Guest speaker:")).toBeInTheDocument();
+    expect(screen.getByText("Ellen Example")).toBeInTheDocument();
+    unmount();
+    renderDetails();
+    expect(screen.queryByText("Guest speaker:")).not.toBeInTheDocument();
+  });
+
   it("invites you to check back for a prickle that hasn't started, rather than saying nobody came", () => {
     renderDetails({ hasStarted: false });
     expect(screen.getByRole("heading", { name: "Who's coming" })).toBeInTheDocument();
