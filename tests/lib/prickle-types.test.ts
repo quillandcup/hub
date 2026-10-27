@@ -133,6 +133,13 @@ describe('typeIdByAlias', () => {
     expect(typeIdByAlias('edu', types)).toBe('prty_AAAAAAAAAAA1')
   })
 
+  it('matches the Daydream Prickle calendar title through the alias the migration stores', () => {
+    const daydream = [{ id: 'prty_AAAAAAAAAAA9', summary_aliases: ['qc-daydream'] }]
+    const type = parsePrickleFromSummary('Q&C DAYDREAM PRICKLE w/Ania').type!
+    expect(normalizePrickleType(type)).toBe('qc-daydream')
+    expect(typeIdByAlias(normalizePrickleType(type), daydream)).toBe('prty_AAAAAAAAAAA9')
+  })
+
   it('needs the whole first word, and is null with no alias match', () => {
     expect(typeIdByAlias('education-night', types)).toBeNull()
     expect(typeIdByAlias('heads-down', types)).toBeNull()

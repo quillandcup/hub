@@ -5,10 +5,18 @@ import { NextRequest } from "next/server";
 // client stands in for Supabase: it captures the written payload and answers "no name clash".
 
 let written: Record<string, unknown> | undefined;
+// The flags the type being updated has now (the route judges a partial update against them).
+let current: Record<string, boolean> = { listed_in_events: false, announced_publicly: false, guests_allowed: false };
 // The clash check answers "no other type has this name"; the write is captured.
 const client = {
   from: () => ({
-    select: () => ({ eq: () => ({ neq: () => ({ single: async () => ({ data: null }) }), single: async () => ({ data: null }) }) }),
+    select: () => ({
+      eq: () => ({
+        neq: () => ({ single: async () => ({ data: null }) }),
+        single: async () => ({ data: null }),
+        maybeSingle: async () => ({ data: current }),
+      }),
+    }),
     insert: (payload: Record<string, unknown>) => {
       written = payload;
       return { select: () => ({ single: async () => ({ data: { id: "prty_AAAAAAAAAAA1", ...payload }, error: null }) }) };
@@ -33,6 +41,7 @@ const post = (route: (request: NextRequest) => Promise<Response>, body: unknown)
 
 beforeEach(() => {
   written = undefined;
+  current = { listed_in_events: false, announced_publicly: false, guests_allowed: false };
   triggers.recent.mockClear();
   triggers.wide.mockClear();
 });
@@ -46,10 +55,32 @@ describe("prickle type routes: dimensions", () => {
   });
 
   it("stores each dimension when updating a type", async () => {
-    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle", listedInEvents: false, announcedPublicly: false, guestsAllowed: true });
+    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle", listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
 
     expect(res.status).toBe(200);
-    expect(written).toMatchObject({ listed_in_events: false, announced_publicly: false, guests_allowed: true });
+    expect(written).toMatchObject({ listed_in_events: true, announced_publicly: true, guests_allowed: true });
+  });
+
+  it.each([
+    [{ announcedPublicly: true }, "Only something listed in Events can be announced publicly"],
+    [{ listedInEvents: true, guestsAllowed: true }, "Guests can only be allowed at something announced publicly"],
+    [{ guestsAllowed: true }, "Guests can only be allowed at something announced publicly"],
+  ])("refuses a type's flags %j that break the chain: %s", async (flags, message) => {
+    for (const route of [create, update]) {
+      const res = await post(route, { typeId: "prty_AAAAAAAAAAA1", name: "X", ...flags });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(message);
+    }
+    expect(written).toBeUndefined();
+  });
+
+  it("judges an update that names one flag against the others as the type has them now", async () => {
+    current = { listed_in_events: true, announced_publicly: true, guests_allowed: false };
+    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", guestsAllowed: true })).status).toBe(200);
+
+    current = { listed_in_events: true, announced_publicly: true, guests_allowed: true };
+    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", announcedPublicly: false })).status).toBe(400);
+    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", announcedPublicly: false, guestsAllowed: false })).status).toBe(200);
   });
 
   it("leaves dimensions alone when the request doesn't mention them", async () => {

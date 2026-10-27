@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing, triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
+import { audienceChainError } from "@/lib/audience-rules";
 import { normalizePrickleType } from "@/lib/prickle-types";
 import { isId } from "@/lib/ids";
 
@@ -50,6 +51,17 @@ export async function POST(request: NextRequest) {
         { error: "guestsAllowed must be a boolean" },
         { status: 400 }
       );
+    }
+    // Guests need public, public needs listed: judged with the flags the type will have, so an update that
+    // names only one of them is judged with the others as they are now.
+    {
+      const { data: now } = await supabase.from("prickle_types").select("listed_in_events, announced_publicly, guests_allowed").eq("id", typeId).maybeSingle();
+      const chain = audienceChainError({
+        listed: listedInEvents ?? now?.listed_in_events ?? false,
+        publicly: announcedPublicly ?? now?.announced_publicly ?? false,
+        guests: guestsAllowed ?? now?.guests_allowed ?? false,
+      });
+      if (chain) return NextResponse.json({ error: chain }, { status: 400 });
     }
     if (soloTaskFriendly !== undefined && typeof soloTaskFriendly !== "boolean") {
       return NextResponse.json(

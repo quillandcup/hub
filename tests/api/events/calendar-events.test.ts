@@ -24,6 +24,7 @@ import { POST as setVisibility } from "@/app/api/admin/events/[id]/visibility/ro
 const token = `cal${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
 const calendarIds: string[] = [];
 const eventIds: string[] = [];
+const cleanups: (() => Promise<void>)[] = []; // rows the prickle-based tests made besides events and calendar events
 
 async function calendarEvent(label: string, extra: Record<string, unknown> = {}) {
   const { data, error } = await db
@@ -56,6 +57,7 @@ async function eventRow(id: string) {
 }
 
 afterAll(async () => {
+  for (const cleanup of cleanups) await cleanup();
   if (eventIds.length) await db.from("events").delete().in("id", eventIds);
   await db.from("events").delete().in("calendar_event_id", calendarIds);
   if (calendarIds.length) await db.schema("bronze").from("calendar_events").delete().in("id", calendarIds);
@@ -279,6 +281,57 @@ describe("POST /api/admin/events/[id]/visibility", () => {
     const again = await elevateCalendarEvent(db, calendarId, null);
 
     expect(again).toMatchObject({ ok: true, created: false, event: { id: made.event.id, hidden: true } });
+  });
+});
+
+describe("an event made from a prickle", () => {
+  async function prickleOfType(label: string, flags: { listed_in_events: boolean; announced_publicly: boolean; guests_allowed: boolean }) {
+    const calendarId = await calendarEvent(label);
+    const { data: type } = await db
+      .from("prickle_types")
+      .insert({ name: `${token} ${label}`, normalized_name: `${token}-${label}`, ...flags })
+      .select("id")
+      .single();
+    const { data: prickle } = await db
+      .from("prickles")
+      .insert({ type_id: type!.id, start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z", source: "calendar", calendar_event_id: calendarId })
+      .select("id")
+      .single();
+    cleanups.push(async () => {
+      await db.from("prickles").delete().eq("id", prickle!.id);
+      await db.from("prickle_types").delete().eq("id", type!.id);
+    });
+    return calendarId;
+  }
+
+  it("starts with its prickle type's audience, whether the sync or an admin makes it", async () => {
+    const open = await prickleOfType("audience-open", { listed_in_events: true, announced_publicly: true, guests_allowed: true });
+    const members = await prickleOfType("audience-members", { listed_in_events: true, announced_publicly: true, guests_allowed: false });
+    const plain = await prickleOfType("audience-plain", { listed_in_events: false, announced_publicly: false, guests_allowed: false });
+
+    await ensureCalendarEvents(db, [open, members]);
+    const byHand = await elevateCalendarEvent(db, plain, null);
+    if (!byHand.ok) throw new Error("elevate failed");
+    eventIds.push(byHand.event.id);
+
+    const { data: rows } = await db.from("events").select("id, calendar_event_id, announced_publicly, guests_allowed").in("calendar_event_id", [open, members, plain]);
+    eventIds.push(...rows!.map((r) => r.id));
+    const flags = (calendarId: string) => {
+      const r = rows!.find((x) => x.calendar_event_id === calendarId)!;
+      return { announced_publicly: r.announced_publicly, guests_allowed: r.guests_allowed };
+    };
+    expect(flags(open)).toEqual({ announced_publicly: true, guests_allowed: true });
+    expect(flags(members)).toEqual({ announced_publicly: true, guests_allowed: false });
+    expect(flags(plain)).toEqual({ announced_publicly: false, guests_allowed: false });
+  });
+
+  it("starts members only when the calendar item is no prickle", async () => {
+    const calendarId = await calendarEvent("audience-none");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    expect(await eventRow(made.event.id)).toMatchObject({ announced_publicly: false, guests_allowed: false });
   });
 });
 

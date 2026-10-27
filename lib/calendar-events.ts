@@ -168,13 +168,18 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
   if (sourceError) return { ok: false, status: 500, error: sourceError.message };
   if (!source) return { ok: false, status: 404, error: "Calendar event not found" };
 
+  // The new event starts with its prickle type's audience (announced publicly, guests allowed), when it is a
+  // prickle; an admin can change it on the event, e.g. to let guests into one educational session.
+  const [prickle] = await createRepos(db).prickles.byCalendarEventIds([calendarEventId]);
+  const audience = { announced_publicly: prickle?.type?.announcedPublicly ?? false, guests_allowed: prickle?.type?.guestsAllowed ?? false };
+
   const fields = calendarEventFields(source);
   const base = `${slugify(fields.title)}-${fields.starts_at}`;
   for (let attempt = 1; attempt <= 5; attempt++) {
     const slug = attempt === 1 ? base : `${base}-${attempt}`;
     const { data, error } = await db
       .from("events")
-      .insert({ ...fields, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
+      .insert({ ...fields, ...audience, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
       .select("id, slug")
       .single();
     if (!error) return { ok: true, created: true, event: { ...data, hidden: false } };

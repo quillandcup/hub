@@ -6,10 +6,12 @@ import { NextRequest } from "next/server";
 
 let written: Record<string, unknown> | undefined;
 const row = () => ({ id: "evt_AAAAAAAAAAA1", ...written });
+// What the event being updated holds now (the route judges a partial update against it); it follows no calendar item.
+let currentEvent: Record<string, unknown> | null = null;
 const client = {
   from: () => ({
     // The update route looks the event up first to see whether it follows the calendar; this one doesn't.
-    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: currentEvent, error: null }) }) }),
     insert: (payload: Record<string, unknown>) => {
       written = payload;
       return { select: () => ({ single: async () => ({ data: row(), error: null }) }) };
@@ -37,6 +39,7 @@ const send = (route: unknown, body: unknown) =>
 
 beforeEach(() => {
   written = undefined;
+  currentEvent = { announced_publicly: true, guests_allowed: false };
 });
 
 describe("POST /api/admin/events: audience", () => {
@@ -70,6 +73,12 @@ describe("POST /api/admin/events: audience", () => {
     expect(written).not.toHaveProperty("capacity");
   });
 
+  it("refuses guests at an event that isn't announced publicly", async () => {
+    const res = await send(create, { ...BASE, guests_allowed: true });
+    expect(res.status).toBe(400);
+    expect(written).toBeUndefined();
+  });
+
   it("rejects an unknown kind of event and a bad audience field", async () => {
     expect((await send(create, { ...BASE, event_type: "party" })).status).toBe(400);
     expect((await send(create, { ...BASE, capacity: 0 })).status).toBe(400);
@@ -84,6 +93,19 @@ describe("PATCH /api/admin/events/[id]: audience", () => {
 
     expect(res.status).toBe(200);
     expect(written).toEqual({ guests_allowed: true, capacity: null, automatic: false }); // an edited event is kept
+  });
+
+  it("refuses guests at an event that isn't announced publicly, judging a partial update against what it holds", async () => {
+    currentEvent = { announced_publicly: false, guests_allowed: false };
+    const res = await send(update, { guests_allowed: true });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Guests can only be allowed at something announced publicly");
+    expect(written).toBeUndefined();
+
+    expect((await send(update, { announced_publicly: true, guests_allowed: true })).status).toBe(200);
+
+    currentEvent = { announced_publicly: true, guests_allowed: true };
+    expect((await send(update, { announced_publicly: false })).status).toBe(400);
   });
 
   it("accepts the new kinds of event and rejects unknown ones and bad audience fields", async () => {
