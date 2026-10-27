@@ -1,4 +1,4 @@
--- pgTAP tests for 20270102000000_search_member_aliases.sql: member search finds a member by an active
+-- pgTAP tests for 20270111000000_search_member_aliases.sql: member search finds a member by an active
 -- name alias even though members can't read each other's aliases. Rolled back; `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
