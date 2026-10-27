@@ -531,7 +531,7 @@ async function loadAddedItems(
     if (eventIds.length === 0) return [];
     const { data: eventRows, error: eventError } = await supabase
       .from("events")
-      .select("id, slug, title, speakers, location, starts_at, ends_at")
+      .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
       .in("id", eventIds)
       .is("deleted_at", null)
       .gte("ends_at", since.toISOString().slice(0, 10));
@@ -539,7 +539,7 @@ async function loadAddedItems(
     return (eventRows ?? []).map((e) => ({
       id: e.id,
       slug: e.slug,
-      title: eventDisplayName(e.title, e.speakers),
+      title: eventDisplayName(e.title, e.speakers, e.host_name),
       location: e.location,
       startsAt: e.starts_at,
       endsAt: e.ends_at,

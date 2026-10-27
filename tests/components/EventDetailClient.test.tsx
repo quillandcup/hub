@@ -75,6 +75,15 @@ describe("EventDetailClient audience", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Autumn Retreat with Ada Example" })).toBeInTheDocument();
   });
 
+  it("names the host in the heading when there is no guest speaker, and the speaker when there is", () => {
+    const { unmount } = render(<EventDetailClient event={{ ...EVENT, title: "Progress Prickle", host_name: "Jenn Parker" }} photos={[]} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Progress Prickle with Jenn P" })).toBeInTheDocument();
+    unmount();
+
+    render(<EventDetailClient event={{ ...EVENT, title: "Query Letters", speakers: "Sam Example", host_name: "Jenn Parker" }} photos={[]} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Query Letters with Sam Example" })).toBeInTheDocument();
+  });
+
   it("labels the new kinds of event", () => {
     render(<EventDetailClient event={{ ...EVENT, event_type: "book_launch" }} photos={[]} />);
     expect(screen.getByText("Book Launch")).toBeInTheDocument();

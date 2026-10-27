@@ -249,8 +249,8 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
     attendedIds = [...new Set((data ?? []).map((r) => r.event_id as string))];
     if (attendedIds.length === 0) return { kind: "events", hits: [], hasMore: false };
   }
-  let query = ctx.supabase.from("events").select("id, slug, title, speakers, event_type, location, starts_at, focus");
-  query = matchEach(query, matchWords(q), ["title", "speakers", "location", "focus", "description"]);
+  let query = ctx.supabase.from("events").select("id, slug, title, speakers, host_name, event_type, location, starts_at, focus");
+  query = matchEach(query, matchWords(q), ["title", "speakers", "host_name", "location", "focus", "description"]);
   if (attendedIds) query = query.in("id", attendedIds);
   if (!ctx.isActingAsAdmin) query = query.is("deleted_at", null); // hidden events are for admins only
   if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
@@ -262,7 +262,7 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
     kind: "events",
     hasMore,
     hits: rows.map((e) => ({
-      kind: "events", id: e.id, title: eventDisplayName(e.title, e.speakers), subtitle: e.location ?? e.focus ?? undefined, date: e.starts_at,
+      kind: "events", id: e.id, title: eventDisplayName(e.title, e.speakers, e.host_name), subtitle: e.location ?? e.focus ?? undefined, date: e.starts_at,
       href: `${base}/${ctx.isActingAsAdmin ? e.id : e.slug}`,
     })),
   };

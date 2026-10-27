@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { normalizePrickleType, parsePrickleFromSummary, plainTextDescription, typeIdByAlias } from "@/lib/prickle-types";
 
 // Events that follow the shared Google calendar (events.calendar_event_id). A calendar item shown
@@ -109,6 +111,24 @@ export function calendarEventFields(source: CalendarSource): CalendarEventFields
   };
 }
 
+/** What an event takes from the prickle it stands for: the prickle is the source for these, not the calendar. */
+export interface PrickleEventFields {
+  title: string | null;
+  description: string | null;
+  speakers: string | null;
+  host_name: string | null;
+}
+
+/** The title is the prickle's own, else its type's name ("Free Writing Hour"); null only when it has neither. */
+export function prickleEventFields(prickle: PrickleDetail): PrickleEventFields {
+  return {
+    title: prickle.title?.trim() || prickle.type?.name || null,
+    description: descriptionWithoutEventTag(prickle.description),
+    speakers: prickle.guestSpeaker?.trim() || null,
+    host_name: prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : null,
+  };
+}
+
 /**
  * The columns a calendar sync may write to an existing row: the dates and times always, and each of
  * title, description and location unless an admin overrode it.
@@ -120,6 +140,24 @@ export function syncableFields(fields: CalendarEventFields, overridden: readonly
   if (!overridden.includes("description")) out.description = description;
   if (!overridden.includes("location")) out.location = location;
   return out;
+}
+
+/**
+ * What the sync writes to an event: the calendar's dates and times and its un-overridden text, and, for an event
+ * that stands for a prickle, the prickle's title, description, guest speaker and host instead of the calendar's
+ * (the prickle already has the calendar's text with an admin's edits on top, so the event follows it).
+ */
+export function eventUpdateFor(
+  source: CalendarSource,
+  overridden: readonly string[],
+  prickle?: PrickleDetail | null,
+): Partial<CalendarEventFields> & { speakers?: string | null; host_name?: string | null } {
+  const fields = calendarEventFields(source);
+  if (!prickle) return syncableFields(fields, overridden);
+
+  const own = prickleEventFields(prickle);
+  const { title: _title, description: _description, ...rest } = syncableFields(fields, overridden);
+  return { ...rest, title: own.title ?? fields.title, description: own.description, speakers: own.speakers, host_name: own.host_name };
 }
 
 /**
@@ -192,16 +230,16 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
 
   // The new event starts with its prickle type's audience (announced publicly, guests allowed), when it is a
   // prickle; an admin can change it on the event, e.g. to let guests into one educational session.
-  // It also starts with the prickle's guest speaker, and the "[Category]" of the calendar title as its focus.
+  // A prickle is the source for its event's title, description, guest speaker and host; the "[Category]" of the
+  // calendar title is the event's focus.
   const [prickle] = await createRepos(db).prickles.byCalendarEventIds([calendarEventId]);
   const audience = {
     announced_publicly: prickle?.type?.announcedPublicly ?? false,
     guests_allowed: prickle?.type?.guestsAllowed ?? false,
-    speakers: prickle?.guestSpeaker ?? null,
     focus: calendarCategory(source.summary),
   };
 
-  const fields = calendarEventFields(source);
+  const fields = { ...calendarEventFields(source), ...(prickle ? eventUpdateFor(source, [], prickle) : { speakers: null, host_name: null }) };
   const base = `${slugify(fields.title)}-${fields.starts_at}`;
   for (let attempt = 1; attempt <= 5; attempt++) {
     const slug = attempt === 1 ? base : `${base}-${attempt}`;
@@ -264,13 +302,19 @@ export async function syncCalendarEvents(db: Db, sources: ({ id: string } & Cale
     linked.push(...(data ?? []));
   }
 
+  // The prickles these events stand for (only for the few that have an event).
+  const prickles = new Map<string, PrickleDetail>();
+  for (const p of await createRepos(db).prickles.byCalendarEventIds(linked.flatMap((r) => (r.calendar_event_id ? [r.calendar_event_id] : [])))) {
+    if (p.calendarEventId) prickles.set(p.calendarEventId, p);
+  }
+
   let updated = 0;
   for (let i = 0; i < linked.length; i += 25) {
     const results = await Promise.all(
       linked.slice(i, i + 25).map(async (row) => {
         const source = byId.get(row.calendar_event_id as string);
         if (!source) return false;
-        const { error } = await db.from("events").update(syncableFields(calendarEventFields(source), row.overridden_fields)).eq("id", row.id);
+        const { error } = await db.from("events").update(eventUpdateFor(source, row.overridden_fields, prickles.get(row.calendar_event_id as string))).eq("id", row.id);
         if (error) throw new Error(error.message);
         return true;
       }),
@@ -361,4 +405,16 @@ export function matchTypeId(summary: string, types: MatchableType[]): string | n
 
   const lower = summary.toLowerCase();
   return types.find((t) => lower.includes(t.name.toLowerCase()))?.id ?? null;
+}
+
+/** Brings the event that stands for this calendar event up to date with the calendar and its prickle, right now. */
+export async function syncCalendarEvent(db: Db, calendarEventId: string): Promise<void> {
+  const { data: source, error } = await db
+    .schema("bronze")
+    .from("calendar_events")
+    .select("id, summary, description, location, start_time, end_time")
+    .eq("id", calendarEventId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (source) await syncCalendarEvents(db, [source]);
 }

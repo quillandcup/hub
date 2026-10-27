@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import type { Db } from "@/lib/data/db";
-import { elevateCalendarEvent, ensureCalendarEvents, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { elevateCalendarEvent, ensureCalendarEvents, reconcileAutomaticEvents, syncCalendarEvent, syncCalendarEvents } from "@/lib/calendar-events";
 
 /**
  * Events that follow the shared calendar, against the local database: showing a calendar item in
@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 }));
 
 import { POST as showInEvents } from "@/app/api/admin/events/calendar/route";
-import { PATCH as editEvent } from "@/app/api/admin/events/[id]/route";
+import { GET as getEvent, PATCH as editEvent } from "@/app/api/admin/events/[id]/route";
 import { POST as revertToCalendar } from "@/app/api/admin/events/[id]/revert-to-calendar/route";
 import { POST as setVisibility } from "@/app/api/admin/events/[id]/visibility/route";
 
@@ -334,7 +334,7 @@ describe("an event made from a prickle", () => {
       .single();
     const { data: prickle } = await db
       .from("prickles")
-      .insert({ type_id: type!.id, start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z", source: "calendar", calendar_event_id: calendarId, guest_speaker: "Ada Example" })
+      .insert({ type_id: type!.id, start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z", source: "calendar", calendar_event_id: calendarId, guest_speaker: "Ada Example", title: `${token} Outlining` })
       .select("id")
       .single();
     cleanups.push(async () => {
@@ -361,6 +361,99 @@ describe("an event made from a prickle", () => {
     eventIds.push(made.event.id);
 
     expect(await eventRow(made.event.id)).toMatchObject({ announced_publicly: false, guests_allowed: false });
+  });
+});
+
+describe("an event that stands for a prickle", () => {
+  async function prickleEvent(label: string, prickleFields: Record<string, unknown> = {}) {
+    const calendarId = await calendarEvent(label, { summary: `${token} ${label} w/Ada`, description: "<p>From the calendar</p>" });
+    const { data: member } = await db
+      .from("members")
+      .insert({ name: `Legal ${token} ${label}`, display_name: "Jenny", email: `${token}-${label}@example.com`, joined_at: "2023-01-01", status: "active" })
+      .select("id")
+      .single();
+    const { data: type } = await db.from("prickle_types").insert({ name: `${token} ${label} type`, normalized_name: `${token}-${label}-type` }).select("id").single();
+    const { data: prickle } = await db
+      .from("prickles")
+      .insert({ type_id: type!.id, host: member!.id, start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z", source: "calendar", calendar_event_id: calendarId, description: "From the prickle", ...prickleFields })
+      .select("id")
+      .single();
+    cleanups.push(async () => {
+      await db.from("prickles").delete().eq("id", prickle!.id);
+      await db.from("prickle_types").delete().eq("id", type!.id);
+      await db.from("members").delete().eq("id", member!.id);
+    });
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+    return { calendarId, prickleId: prickle!.id, eventId: made.event.id, typeName: `${token} ${label} type` };
+  }
+
+  it("is made with the prickle's title (or its type's name), description, guest speaker and host's display name", async () => {
+    const plain = await prickleEvent("stands-plain");
+    const titled = await prickleEvent("stands-titled", { title: `${token} Tiny Things`, guest_speaker: "Ada Example" });
+
+    expect(await eventRow(plain.eventId)).toMatchObject({ title: plain.typeName, description: "From the prickle", speakers: null, host_name: "Jenny" });
+    expect(await eventRow(titled.eventId)).toMatchObject({ title: `${token} Tiny Things`, speakers: "Ada Example", host_name: "Jenny" });
+  });
+
+  it("follows the prickle on every sync, and a title or description set on the event doesn't hold against it", async () => {
+    const { calendarId, prickleId, eventId } = await prickleEvent("stands-follow");
+    await db.from("events").update({ title: "Set on the event", description: "Event words", overridden_fields: ["title", "description"] }).eq("id", eventId);
+
+    await db.from("prickles").update({ title: `${token} Edited title`, description: "Edited description", guest_speaker: "Ada Example" }).eq("id", prickleId);
+    const source = { id: calendarId, summary: `${token} stands-follow w/Ada`, description: "<p>From the calendar</p>", location: "Zoom", start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z" };
+    expect(await syncCalendarEvents(db, [source])).toBe(1);
+
+    expect(await eventRow(eventId)).toMatchObject({ title: `${token} Edited title`, description: "Edited description", speakers: "Ada Example", host_name: "Jenny" });
+    // Without a prickle, the same override would have held (the calendar-only events above).
+  });
+
+  it("is brought up to date by syncCalendarEvent right after the prickle is edited", async () => {
+    const { calendarId, prickleId, eventId } = await prickleEvent("stands-now");
+    await db.from("prickles").update({ title: `${token} Right now` }).eq("id", prickleId);
+
+    await syncCalendarEvent(db, calendarId);
+
+    expect((await eventRow(eventId)).title).toBe(`${token} Right now`);
+  });
+
+  it("is told apart in the admin API, which leaves the prickle's fields to the prickle but still takes the location and audience", async () => {
+    const { prickleId, eventId } = await prickleEvent("stands-api", { title: `${token} Prickle title`, guest_speaker: "Ada Example" });
+    const body = await (await getEvent(new NextRequest("http://localhost/x"), idParams(eventId))).json();
+    expect(body.prickleId).toBe(prickleId);
+
+    const res = await editEvent(json({ title: "Hijacked", description: "Hijacked", speakers: "Someone Else", location: "Room 9", guests_allowed: false, announced_publicly: true }, "PATCH"), idParams(eventId));
+
+    expect(res.status).toBe(200);
+    expect(await eventRow(eventId)).toMatchObject({
+      title: `${token} Prickle title`,
+      description: "From the prickle",
+      speakers: "Ada Example",
+      location: "Room 9",
+      announced_publicly: true,
+      overridden_fields: ["location"],
+    });
+  });
+
+  it("takes its title and description from the prickle again, not the calendar, when it follows the calendar again", async () => {
+    const { eventId } = await prickleEvent("stands-revert", { title: `${token} Prickle title` });
+    await editEvent(json({ location: "Room 9" }, "PATCH"), idParams(eventId));
+
+    const reverted = await revertToCalendar(json({}), idParams(eventId));
+
+    expect(reverted.status).toBe(200);
+    expect(await eventRow(eventId)).toMatchObject({ title: `${token} Prickle title`, description: "From the prickle", location: "Zoom", overridden_fields: [] });
+  });
+
+  it("gets no host or speaker when the calendar item is no prickle", async () => {
+    const calendarId = await calendarEvent("stands-none");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    expect(await eventRow(made.event.id)).toMatchObject({ host_name: null, speakers: null });
+    expect((await (await getEvent(new NextRequest("http://localhost/x"), idParams(made.event.id))).json()).prickleId).toBeNull();
   });
 });
 

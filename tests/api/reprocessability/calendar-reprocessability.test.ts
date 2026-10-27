@@ -659,6 +659,11 @@ describe('Calendar Reprocessability', () => {
       const { data } = await supabase.from('prickles').select('title, description, guest_speaker').eq('calendar_event_id', source!.id).single()
       return data
     }
+    let eventId: string | undefined
+    const readEvent = async () => {
+      const { data } = await supabase.from('events').select('title, description, speakers').eq('id', eventId!).single()
+      return data
+    }
     try {
       await process()
       expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
@@ -674,13 +679,24 @@ describe('Calendar Reprocessability', () => {
       await process()
       expect(await read()).toMatchObject({ title: 'Our own title', description: 'Our own words', guest_speaker: 'Ada Example' })
 
+      // An event that stands for the prickle takes the edited text and the guest speaker, on the same run.
+      const { data: standsFor } = await supabase.from('events').insert({
+        slug: 'test-text-override-2099-06-26', title: 'Stale title', event_type: 'other', starts_at: '2099-06-26', ends_at: '2099-06-26', calendar_event_id: source!.id,
+      }).select('id').single()
+      eventId = standsFor!.id
+      await process()
+      expect(await readEvent()).toMatchObject({ title: 'Our own title', description: 'Our own words', speakers: 'Ada Example' })
+
       // Reprocessing again changes nothing; clearing them brings the calendar's text back.
       await process()
       expect(await read()).toMatchObject({ title: 'Our own title' })
       await supabase.from('unmatched_calendar_events').update({ resolved_title: null, resolved_description: null, resolved_guest_speaker: null }).eq('calendar_event_id', source!.id)
       await process()
       expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
+      expect(await readEvent()).toMatchObject({ description: 'From the calendar', speakers: null })
+      expect((await readEvent())!.title).not.toBe('Our own title')
     } finally {
+      if (eventId) await supabase.from('events').delete().eq('id', eventId)
       await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
       await process()
     }

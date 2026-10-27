@@ -1,0 +1,83 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import "@testing-library/jest-dom/vitest";
+
+vi.mock("next/link", () => ({
+  default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
+}));
+
+import EventDetailClient from "@/app/(admin)/admin/events/[id]/EventDetailClient";
+
+const EVENT = {
+  id: "evt_AAAAAAAAAAA1",
+  slug: "free-writing-hour",
+  title: "Free Writing Hour",
+  event_type: "other",
+  location: "Zoom",
+  starts_at: "2097-05-01",
+  ends_at: "2097-05-01",
+  focus: null,
+  description: "From the prickle",
+  agenda: null,
+  results: null,
+  google_photos_album_url: null,
+  announced_publicly: true,
+  guests_allowed: true,
+  registration: "none",
+  capacity: null,
+  selection: "first_come",
+  speakers: "Ada Example",
+  host_name: "Jenny",
+  calendar_event_id: "00000000-0000-4000-8000-00000000000a",
+  overridden_fields: [] as string[],
+  deleted_at: null as string | null,
+};
+
+function serve(prickleId: string | null) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => ({ event: EVENT, prickleId, photos: [], badgeType: null, attendees: [] }) }) as Response),
+  );
+}
+
+beforeEach(() => {
+  serve("prkl_AAAAAAAAAAA1");
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe("admin event that stands for a prickle", () => {
+  it("says where its title, description, guest speaker and host come from, and links to the prickle", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+
+    expect(await screen.findByText(/This event stands for a prickle: its title, description, guest speaker and host come from it/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit them on the prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
+    expect(screen.getByText(/the location does too until you change it/)).toBeInTheDocument();
+  });
+
+  it("locks the title, description and guest speaker while editing, and leaves the rest editable", async () => {
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(screen.getByDisplayValue("Free Writing Hour")).toBeDisabled();
+    expect(screen.getByDisplayValue("From the prickle")).toBeDisabled();
+    expect(screen.getByLabelText("Guest speakers")).toBeDisabled();
+    expect(screen.getByLabelText("Guests allowed")).toBeEnabled();
+    expect(screen.getByDisplayValue("Zoom")).toBeEnabled();
+  });
+
+  it("is an ordinary event, with everything editable and no note, when it has no prickle", async () => {
+    serve(null);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(screen.queryByText(/This event stands for a prickle/)).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Free Writing Hour")).toBeEnabled();
+    expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
+    expect(screen.getByText(/the title, description and location do too until you change them/)).toBeInTheDocument();
+  });
+});

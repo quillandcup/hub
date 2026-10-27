@@ -3,6 +3,8 @@ import {
   calendarCategory,
   calendarEventFields,
   calendarTitle,
+  eventUpdateFor,
+  prickleEventFields,
   isOverridableField,
   orgDate,
   overridesAfterEdit,
@@ -10,6 +12,7 @@ import {
   syncableFields,
 } from "@/lib/calendar-events";
 import { withoutFollowedEvents, type EventPrickle } from "@/lib/event-prickles";
+import type { PrickleDetail } from "@/lib/data/prickles";
 
 describe("orgDate", () => {
   it("is the Eastern date, not the UTC one", () => {
@@ -199,3 +202,73 @@ describe("withoutFollowedEvents", () => {
     expect(withoutFollowedEvents(list, []).map((p) => p.id)).toEqual(["a", "b", "c"]);
   });
 });
+
+describe("an event that stands for a prickle", () => {
+  const prickle = (over: Partial<PrickleDetail> = {}): PrickleDetail =>
+    ({
+      id: "prkl_AAAAAAAAAAA1",
+      typeId: "prty_AAAAAAAAAAA1",
+      hostId: "mbr_AAAAAAAAAAA1",
+      title: null,
+      description: null,
+      guestSpeaker: null,
+      startTime: "2097-05-02T23:00:00Z",
+      endTime: "2097-05-03T00:00:00Z",
+      source: "calendar",
+      calendarEventId: "00000000-0000-4000-8000-00000000000a",
+      host: { id: "mbr_AAAAAAAAAAA1", name: "Jennifer Parker", displayName: "Jenny" },
+      type: { id: "prty_AAAAAAAAAAA1", name: "Free Writing Hour" } as PrickleDetail["type"],
+      ...over,
+    }) as PrickleDetail;
+
+  const source = {
+    summary: "Free Writing Hour w/Jennifer Parker",
+    description: "<p>From the calendar</p>",
+    location: "Zoom",
+    start_time: "2097-05-02T23:00:00Z",
+    end_time: "2097-05-03T00:00:00Z",
+  };
+
+  describe("prickleEventFields", () => {
+    it("takes the prickle's own title, else its type's name; its description without the #event tag; its speaker; and its host's display name", () => {
+      expect(prickleEventFields(prickle({ title: "  Tiny Things  ", description: "Come #event along", guestSpeaker: " Ada Example " }))).toEqual({
+        title: "Tiny Things",
+        description: "Come along",
+        speakers: "Ada Example",
+        host_name: "Jenny",
+      });
+      expect(prickleEventFields(prickle())).toEqual({ title: "Free Writing Hour", description: null, speakers: null, host_name: "Jenny" });
+    });
+
+    it("has no host name for a prickle with no host, and no title when it has neither a title nor a type", () => {
+      expect(prickleEventFields(prickle({ host: null, hostId: null })).host_name).toBeNull();
+      expect(prickleEventFields(prickle({ type: null, typeId: null })).title).toBeNull();
+    });
+  });
+
+  describe("eventUpdateFor", () => {
+    it("is the calendar's update when there is no prickle", () => {
+      expect(eventUpdateFor(source, ["location"])).toEqual(syncableFields(calendarEventFields(source), ["location"]));
+    });
+
+    it("takes title, description, speaker and host from the prickle, ignoring an override of the title or description on the event", () => {
+      const update = eventUpdateFor(source, ["title", "description", "location"], prickle({ title: "Tiny Things", description: "Edited on the prickle", guestSpeaker: "Ada Example" }));
+
+      expect(update).toMatchObject({
+        title: "Tiny Things",
+        description: "Edited on the prickle",
+        speakers: "Ada Example",
+        host_name: "Jenny",
+        starts_at: "2097-05-02",
+        start_time: source.start_time,
+      });
+      expect(update).not.toHaveProperty("location"); // overridden on the event: the sync leaves it
+    });
+
+    it("falls back to the calendar's title when the prickle has none to give, and clears a description the prickle no longer has", () => {
+      const update = eventUpdateFor(source, [], prickle({ type: null, typeId: null }));
+      expect(update).toMatchObject({ title: "Free Writing Hour", description: null, location: "Zoom" });
+    });
+  });
+});
+

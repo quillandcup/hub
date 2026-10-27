@@ -19,4 +19,16 @@ describe("eventDisplayName", () => {
     expect(eventDisplayName("Craft Talk with Ada Example", "Ada Example")).toBe("Craft Talk with Ada Example");
     expect(eventDisplayName("Craft Talk with ADA EXAMPLE", "Ada Example")).toBe("Craft Talk with ADA EXAMPLE");
   });
+
+  it("names the host when there is no speaker, the way prickle titles do (first name and last initial)", () => {
+    expect(eventDisplayName("Progress Prickle", null, "Jenn Parker")).toBe("Progress Prickle with Jenn P");
+    expect(eventDisplayName("Progress Prickle", undefined, "Bestie")).toBe("Progress Prickle with Bestie");
+    expect(eventDisplayName("Progress Prickle", "  ", "  ")).toBe("Progress Prickle");
+    expect(eventDisplayName("Progress Prickle", null, null)).toBe("Progress Prickle");
+  });
+
+  it("names the speaker rather than the host when there is both, and never says a name twice", () => {
+    expect(eventDisplayName("Query Letters", "Sam Example", "Jenn Parker")).toBe("Query Letters with Sam Example");
+    expect(eventDisplayName("Progress Prickle with Jenn P", null, "Jenn Parker")).toBe("Progress Prickle with Jenn P");
+  });
 });

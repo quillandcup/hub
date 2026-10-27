@@ -2415,6 +2415,7 @@ export type Database = {
           focus: string | null
           google_photos_album_url: string | null
           guests_allowed: boolean
+          host_name: string | null
           id: string
           location: string | null
           overridden_fields: string[]
@@ -2444,6 +2445,7 @@ export type Database = {
           focus?: string | null
           google_photos_album_url?: string | null
           guests_allowed?: boolean
+          host_name?: string | null
           id?: string
           location?: string | null
           overridden_fields?: string[]
@@ -2473,6 +2475,7 @@ export type Database = {
           focus?: string | null
           google_photos_album_url?: string | null
           guests_allowed?: boolean
+          host_name?: string | null
           id?: string
           location?: string | null
           overridden_fields?: string[]
