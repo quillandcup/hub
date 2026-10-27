@@ -17,6 +17,11 @@ const EVENT = {
   agenda: null,
   results: null,
   google_photos_album_url: null,
+  guests_allowed: false,
+  registration: "none",
+  capacity: null,
+  selection: "first_come",
+  speakers: null,
 };
 
 const photos = [
@@ -42,5 +47,35 @@ describe("EventDetailClient photos", () => {
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
+});
+
+describe("EventDetailClient audience", () => {
+  it("shows no audience line for a members-only event with no sign-up", () => {
+    render(<EventDetailClient event={EVENT} photos={[]} />);
+    expect(screen.queryByRole("list", { name: "Who it's for" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^With /)).not.toBeInTheDocument();
+  });
+
+  it("tells members who it's for, how to join, and who is speaking", () => {
+    render(
+      <EventDetailClient
+        event={{ ...EVENT, guests_allowed: true, registration: "application", capacity: 7, selection: "selected", speakers: "Ada Example" }}
+        photos={[]}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Who it's for" });
+    expect(Array.from(list.querySelectorAll("li")).map((li) => li.textContent)).toEqual([
+      "Guests welcome",
+      "Application required",
+      "7 places",
+      "The hosts choose",
+    ]);
+    expect(screen.getByText("With Ada Example")).toBeInTheDocument();
+  });
+
+  it("labels the new kinds of event", () => {
+    render(<EventDetailClient event={{ ...EVENT, event_type: "book_launch" }} photos={[]} />);
+    expect(screen.getByText("Book Launch")).toBeInTheDocument();
   });
 });
