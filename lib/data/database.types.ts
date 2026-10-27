@@ -2388,6 +2388,7 @@ export type Database = {
           capacity: number | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           description: string | null
           end_time: string | null
           ends_at: string
@@ -2415,6 +2416,7 @@ export type Database = {
           capacity?: number | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           end_time?: string | null
           ends_at: string
@@ -2442,6 +2444,7 @@ export type Database = {
           capacity?: number | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           end_time?: string | null
           ends_at?: string

@@ -11,6 +11,7 @@ import { universalSearch, type SearchContext } from "@/lib/search/universal";
 describe("universalSearch (local database)", () => {
   const supabase = getTestSupabaseAdminClient();
   const token = `unisearch${Date.now()}`;
+  const hiddenWord = `hiddenretreat${Date.now()}`;
   const made = { members: [] as string[], books: [] as string[], awards: [] as string[], events: [] as string[], prickles: [] as string[], types: [] as string[] };
   let hostId = "";
   let otherId = "";
@@ -68,6 +69,14 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.events.push(...events.map((e) => e.id));
+    // An event an admin hid: members never find it, admins still do.
+    const hidden = seeded(
+      await supabase
+        .from("events")
+        .insert({ slug: `${hiddenWord}-retreat`, title: `${hiddenWord} Retreat`, event_type: "other", starts_at: "2020-05-01", ends_at: "2020-05-03", deleted_at: new Date().toISOString() })
+        .select("id")
+    );
+    made.events.push(...hidden.map((e) => e.id));
     // Rows go away with the event and member (ON DELETE CASCADE).
     seeded(await supabase.from("event_attendees").insert({ event_id: events[0].id, member_id: otherId }).select("id"));
 
@@ -197,6 +206,11 @@ describe("universalSearch (local database)", () => {
     const event = hitsOf(await run(`in:events lakeside ${token}`), "events")[0];
     expect(event).toMatchObject({ title: `${token} Retreat`, href: `/events/${token}-retreat` });
     expect(hitsOf(await run(`in:events ${token}`, { isActingAsAdmin: true }), "events")[0].href).toMatch(/^\/admin\/events\//);
+  });
+
+  it("leaves a hidden event out for members and keeps it for admins", async () => {
+    expect(hitsOf(await run(`in:events ${hiddenWord}`), "events")).toHaveLength(0);
+    expect(hitsOf(await run(`in:events ${hiddenWord}`, { isActingAsAdmin: true }), "events").map((e) => e.title)).toEqual([`${hiddenWord} Retreat`]);
   });
 
   it("filters events by who attended (from:)", async () => {

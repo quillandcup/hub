@@ -62,6 +62,21 @@ describe("member Events page", () => {
     expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101|Pitch Night");
   });
 
+  it("lists neither a hidden event nor the prickle it stands for", async () => {
+    useFakeSupabase({
+      events: {
+        data: [
+          { id: "evt_AAAAAAAAAAA3", slug: "pitch-night", title: "Pitch Night", event_type: "other", location: null, starts_at: "2097-03-04", ends_at: "2097-03-04", focus: null, calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z", event_photos: [] },
+          { id: "evt_AAAAAAAAAAA4", slug: "spring-retreat", title: "Spring Retreat", event_type: "other", location: null, starts_at: "2097-04-01", ends_at: "2097-04-03", focus: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
+        ],
+      },
+    });
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "prickles" }) });
+
+    expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101|Spring Retreat");
+  });
+
   it("starts on All for an unknown filter", async () => {
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "bogus" }) });
 

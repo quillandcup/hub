@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "Events",
 };
 
-type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
+type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; deleted_at: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const supabase = await createClient();
@@ -35,12 +35,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const [{ data: events }, eventPrickles] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, calendar_event_id, event_photos(id, hidden_at)")
+      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
     fetchUpcomingEventPrickles(supabase, now),
   ]);
 
-  const rows: EventRow[] = ((events ?? []) as RawEvent[]).map((e) => ({
+  // A hidden event isn't listed, and neither is the prickle it stands for.
+  const rows: EventRow[] = ((events ?? []) as RawEvent[]).filter((e) => !e.deleted_at).map((e) => ({
     id: e.id,
     slug: e.slug,
     title: e.title,

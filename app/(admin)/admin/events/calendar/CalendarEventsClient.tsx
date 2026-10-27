@@ -119,7 +119,7 @@ export default function CalendarEventsClient() {
                   href={`/admin/events/${item.event.id}`}
                   className="text-sm text-plum-600 dark:text-plum-400 hover:underline flex-shrink-0"
                 >
-                  In Events · Edit
+                  {item.event.hidden ? "Hidden · Edit" : "In Events · Edit"}
                 </Link>
               ) : (
                 <button

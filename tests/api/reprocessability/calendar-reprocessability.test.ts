@@ -544,4 +544,50 @@ describe('Calendar Reprocessability', () => {
       await process()
     }
   })
+
+  it('makes an event for each upcoming calendar item of a type listed in Events, never twice, and leaves a hidden one hidden', async () => {
+    const word = `Autolisted${Date.now().toString(36)}`
+    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+    const { data: listedType } = await supabase.from('prickle_types')
+      .insert({ name: word, normalized_name: word.toLowerCase(), listed_in_events: true }).select('id').single()
+    const { data: plainType } = await supabase.from('prickle_types')
+      .insert({ name: `${word}Plain`, normalized_name: `${word}plain`.toLowerCase(), listed_in_events: false }).select('id').single()
+    const googleIds = [`${word}-listed`, `${word}-hidden`, `${word}-plain`]
+    await supabase.schema('bronze').from('calendar_events').insert([
+      { google_event_id: googleIds[0], summary: word, start_time: '2099-06-10T15:00:00Z', end_time: '2099-06-10T16:00:00Z', raw_data: {} },
+      { google_event_id: googleIds[1], summary: word, start_time: '2099-06-11T15:00:00Z', end_time: '2099-06-11T16:00:00Z', raw_data: {} },
+      { google_event_id: googleIds[2], summary: `${word}Plain`, start_time: '2099-06-12T15:00:00Z', end_time: '2099-06-12T16:00:00Z', raw_data: {} },
+    ])
+    const eventsFor = async () => {
+      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id, google_event_id').in('google_event_id', googleIds)
+      const { data } = await supabase.from('events').select('id, calendar_event_id, deleted_at, title').in('calendar_event_id', sources!.map((s) => s.id))
+      return { sources: sources!, events: data! }
+    }
+    try {
+      const first = await process()
+      expect((await first.json()).eventsCreated).toBeGreaterThanOrEqual(2)
+      let { sources, events } = await eventsFor()
+      const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
+      expect(events.map((e) => e.calendar_event_id).sort()).toEqual([idOf(googleIds[0]), idOf(googleIds[1])].sort())
+      expect(events.every((e) => e.title === word)).toBe(true)
+
+      // Hiding one keeps it from coming back; a second run adds nothing.
+      const hiddenEvent = events.find((e) => e.calendar_event_id === idOf(googleIds[1]))!
+      await supabase.from('events').update({ deleted_at: new Date().toISOString() }).eq('id', hiddenEvent.id)
+      await process()
+      ;({ events } = await eventsFor())
+      expect(events).toHaveLength(2)
+      expect(events.find((e) => e.id === hiddenEvent.id)!.deleted_at).not.toBeNull()
+    } finally {
+      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
+      if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
+      await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', googleIds)
+      await process()
+      await supabase.from('prickle_types').delete().in('id', [listedType!.id, plainType!.id])
+    }
+  })
 })

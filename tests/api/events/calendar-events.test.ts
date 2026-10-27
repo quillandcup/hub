@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import type { Db } from "@/lib/data/db";
-import { elevateCalendarEvent, syncCalendarEvents } from "@/lib/calendar-events";
+import { elevateCalendarEvent, ensureCalendarEvents, syncCalendarEvents } from "@/lib/calendar-events";
 
 /**
  * Events that follow the shared calendar, against the local database: showing a calendar item in
@@ -19,6 +19,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 import { GET as listCalendar, POST as showInEvents } from "@/app/api/admin/events/calendar/route";
 import { PATCH as editEvent } from "@/app/api/admin/events/[id]/route";
 import { POST as revertToCalendar } from "@/app/api/admin/events/[id]/revert-to-calendar/route";
+import { POST as setVisibility } from "@/app/api/admin/events/[id]/visibility/route";
 
 const token = `cal${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
 const calendarIds: string[] = [];
@@ -244,5 +245,69 @@ describe("editing an event that follows the calendar", () => {
     await db.schema("bronze").from("calendar_events").delete().eq("id", calendarId);
 
     expect((await revertToCalendar(json({}), idParams(made.event.id))).status).toBe(400);
+  });
+});
+
+describe("ensureCalendarEvents", () => {
+  it("creates an event for each calendar event that has none, and leaves existing and hidden ones alone", async () => {
+    const fresh = await calendarEvent("ensure-new");
+    const existing = await calendarEvent("ensure-existing");
+    const hidden = await calendarEvent("ensure-hidden");
+    const made = await elevateCalendarEvent(db, existing, null);
+    const hiddenMade = await elevateCalendarEvent(db, hidden, null);
+    if (!made.ok || !hiddenMade.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id, hiddenMade.event.id);
+    await db.from("events").update({ deleted_at: new Date().toISOString() }).eq("id", hiddenMade.event.id);
+
+    const created = await ensureCalendarEvents(db, [fresh, existing, hidden]);
+
+    expect(created).toBe(1);
+    const { data: rows } = await db.from("events").select("id, calendar_event_id, deleted_at").in("calendar_event_id", [fresh, existing, hidden]);
+    expect(rows).toHaveLength(3);
+    eventIds.push(...rows!.map((r) => r.id));
+    expect(rows!.find((r) => r.calendar_event_id === hidden)!.deleted_at).not.toBeNull();
+    expect(rows!.find((r) => r.calendar_event_id === fresh)!.deleted_at).toBeNull();
+    expect(await ensureCalendarEvents(db, [fresh, existing, hidden])).toBe(0);
+    expect(await ensureCalendarEvents(db, [])).toBe(0);
+  });
+
+  it("fails when a calendar event doesn't exist", async () => {
+    await expect(ensureCalendarEvents(db, ["00000000-0000-4000-8000-000000000000"])).rejects.toThrow("Calendar event not found");
+  });
+});
+
+describe("POST /api/admin/events/[id]/visibility", () => {
+  it("hides an event, shows it again, and says when it can't", async () => {
+    const calendarId = await calendarEvent("visibility");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    const hide = await setVisibility(json({ hidden: true }), idParams(made.event.id));
+    expect(hide.status).toBe(200);
+    expect((await eventRow(made.event.id)).deleted_at).not.toBeNull();
+    // The calendar item still has its event, so listing it says hidden rather than offering to add it.
+    const listed = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} visibility`)}`))).json();
+    expect(listed.items[0].event).toMatchObject({ id: made.event.id, hidden: true });
+
+    const show = await setVisibility(json({ hidden: false }), idParams(made.event.id));
+    expect(show.status).toBe(200);
+    expect((await eventRow(made.event.id)).deleted_at).toBeNull();
+
+    expect((await setVisibility(json({ hidden: "yes" }), idParams(made.event.id))).status).toBe(400);
+    expect((await setVisibility(json({ hidden: true }), idParams("evt_ZZZZZZZZZZZZ"))).status).toBe(404);
+    expect((await setVisibility(new NextRequest("http://localhost/x", { method: "POST", body: "{" }), idParams(made.event.id))).status).toBe(400);
+  });
+
+  it("reports an existing hidden event as hidden when asked to show the calendar item again", async () => {
+    const calendarId = await calendarEvent("elevate-hidden");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+    await db.from("events").update({ deleted_at: new Date().toISOString() }).eq("id", made.event.id);
+
+    const again = await elevateCalendarEvent(db, calendarId, null);
+
+    expect(again).toMatchObject({ ok: true, created: false, event: { id: made.event.id, hidden: true } });
   });
 });

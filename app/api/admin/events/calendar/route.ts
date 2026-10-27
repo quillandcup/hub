@@ -61,20 +61,20 @@ export async function GET(request: NextRequest) {
 
   const prickleTypes = new Map<string, string | null>();
   const pending = new Set<string>();
-  const events = new Map<string, { id: string; slug: string }>();
+  const events = new Map<string, { id: string; slug: string; hidden: boolean }>();
   const repos = createRepos(supabase);
   for (let i = 0; i < ids.length; i += ID_CHUNK) {
     const chunk = ids.slice(i, i + ID_CHUNK);
     const [prickles, unmatched, linkedEvents] = await Promise.all([
       repos.prickles.byCalendarEventIds(chunk),
       supabase.from("unmatched_calendar_events").select("calendar_event_id").in("calendar_event_id", chunk).eq("status", "pending"),
-      supabase.from("events").select("id, slug, calendar_event_id").in("calendar_event_id", chunk),
+      supabase.from("events").select("id, slug, calendar_event_id, deleted_at").in("calendar_event_id", chunk),
     ]);
     if (unmatched.error) return NextResponse.json({ error: unmatched.error.message }, { status: 500 });
     if (linkedEvents.error) return NextResponse.json({ error: linkedEvents.error.message }, { status: 500 });
     for (const p of prickles) if (p.calendarEventId) prickleTypes.set(p.calendarEventId, p.type?.name ?? null);
     for (const u of unmatched.data ?? []) pending.add(u.calendar_event_id);
-    for (const e of linkedEvents.data ?? []) events.set(e.calendar_event_id as string, { id: e.id, slug: e.slug });
+    for (const e of linkedEvents.data ?? []) events.set(e.calendar_event_id as string, { id: e.id, slug: e.slug, hidden: !!e.deleted_at });
   }
 
   const items: CalendarListItem[] = shown.map((r) => ({
