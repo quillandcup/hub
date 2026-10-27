@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { quarterKey } from "@/lib/badges";
 import { isId } from "@/lib/ids";
@@ -118,9 +119,12 @@ export function deriveOutcome(
 export interface MentorshipRow {
   id: string;
   mentorMemberId: string;
+  /** Display name; the legal name is in `mentorRealName` when it differs. */
   mentorName: string;
+  mentorRealName?: string;
   newMemberId: string;
   newMemberName: string;
+  newMemberRealName?: string;
   /** The day their membership began (sign-up, or the program cohort's start). */
   startedOn: string;
   /** From Stripe, for a trial; null otherwise. */
@@ -247,6 +251,7 @@ export function openLoadByMentor(rows: MentorshipRow[]): Map<string, number> {
 interface MemberEmbed {
   id: string;
   name: string;
+  display_name?: string | null;
   status: string | null;
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
@@ -288,9 +293,11 @@ export function toMentorshipRows(dbRows: MentorshipDbRow[], today: string): Ment
     return {
       id: r.id,
       mentorMemberId: r.mentor_member_id,
-      mentorName: mentor?.name ?? "Unknown member",
+      mentorName: mentor ? getMemberDisplayName(mentor) : "Unknown member",
+      mentorRealName: mentor && getMemberDisplayName(mentor) !== mentor.name ? mentor.name : undefined,
       newMemberId: r.new_member_id,
-      newMemberName: newMember?.name ?? "Unknown member",
+      newMemberName: newMember ? getMemberDisplayName(newMember) : "Unknown member",
+      newMemberRealName: newMember && getMemberDisplayName(newMember) !== newMember.name ? newMember.name : undefined,
       startedOn: r.started_on,
       trialEndsOn: r.trial_ends_on,
       kind: r.kind,
@@ -302,7 +309,7 @@ export function toMentorshipRows(dbRows: MentorshipDbRow[], today: string): Ment
   });
 }
 
-const MEMBER_COLUMNS = "id, name, status, first_joined_at, most_recent_joined_at";
+const MEMBER_COLUMNS = "id, name, display_name, status, first_joined_at, most_recent_joined_at";
 
 /** Every match (newest first) with names and the derived outcome. Paginated per CLAUDE.md. */
 export async function getMentorships(supabase: SupabaseClient, today: string): Promise<MentorshipRow[]> {

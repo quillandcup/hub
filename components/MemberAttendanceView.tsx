@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -76,7 +77,7 @@ export default function MemberAttendanceView({
         case "duration":
           return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
         case "host":
-          return record.prickles?.host?.name?.toLowerCase() ?? null;
+          return record.prickles?.host ? getMemberDisplayName(record.prickles.host).toLowerCase() : null;
       }
     },
     [timezone]
@@ -275,7 +276,7 @@ export default function MemberAttendanceView({
                               className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {prickle.host.name}
+                              {getMemberDisplayName(prickle.host)}
                             </Link>
                           ) : (
                             "None"
@@ -414,7 +415,7 @@ export default function MemberAttendanceView({
                                     className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    {prickle.host.name}
+                                    {getMemberDisplayName(prickle.host)}
                                   </Link>
                                 </div>
                               )}

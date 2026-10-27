@@ -38,6 +38,11 @@ describe("buildRoster", () => {
     expect(rows[1]).toMatchObject({ name: "Unknown member", accessActive: false, lastLessonId: null, lastActivityAt: null, completed: 0 });
     expect(rows[2].lastLessonTitle).toBeNull();
   });
+
+  it("carries the legal name beside the display name", () => {
+    const [row] = buildRoster([{ memberId: "m1", startsAt: "2026-01-01T00:00:00Z", endsAt: null, origin: "grant" }], new Map([["m1", "Ada E"]]), lessons, [], NOW, new Map([["m1", "Ada Example"]]));
+    expect(row).toMatchObject({ name: "Ada E", realName: "Ada Example" });
+  });
 });
 
 /** A chainable fake that serves `tables` honoring in(), eq() and range(). */

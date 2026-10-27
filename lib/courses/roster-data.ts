@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { fetchAll, inBatches } from "@/lib/courses/db";
@@ -32,6 +33,7 @@ export async function loadCourseRoster(
   const progress: RosterProgress[] = progressBatches.flat().map((p) => ({ memberId: p.member_id, lessonId: p.lesson_id, completedAt: p.completed_at, updatedAt: p.updated_at }));
 
   const members = await createRepos(supabase).members.byIds(access.map((a) => a.memberId));
-  const names = new Map(members.map((m) => [m.id, m.displayName ?? m.name]));
-  return { course: { id: course.id, title: course.title }, rows: buildRoster(access, names, lessons, progress, now) };
+  const names = new Map(members.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
+  const realNames = new Map(members.filter((m) => getMemberDisplayName({ name: m.name, display_name: m.displayName }) !== m.name).map((m) => [m.id, m.name]));
+  return { course: { id: course.id, title: course.title }, rows: buildRoster(access, names, lessons, progress, now, realNames) };
 }

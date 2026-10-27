@@ -34,6 +34,18 @@ async function renderWithLightboxOpen() {
   await waitFor(() => expect(screen.getAllByAltText('Feedback screenshot')).toHaveLength(2))
 }
 
+describe('FeedbackClient submitter', () => {
+  it('names the submitter by display name', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ ...ITEM, member: { name: 'Ada Example', display_name: 'Ada E', email: 'ada@example.com' } }], total: 1 }),
+    }) as any
+    render(<FeedbackClient />)
+    expect(await screen.findByText('Ada E')).toBeInTheDocument()
+    expect(screen.queryByText('Ada Example')).toBeNull()
+  })
+})
+
 describe('FeedbackClient screenshot lightbox', () => {
   it('closes the lightbox when Escape is pressed', async () => {
     await renderWithLightboxOpen()

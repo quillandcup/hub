@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   actorDisplay,
@@ -8,11 +10,18 @@ import {
   MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
+  fetchRecordHistory,
   pageLabel,
   parseFeedFilters,
   summarizePages,
   type ActivityFeedRow,
 } from "@/lib/activity-feed";
+
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 vi.mock("@/lib/chat/names", () => ({
   withMentionNames: async (rows: { description?: string | null }[]) =>
@@ -293,6 +302,24 @@ describe("fetchActivityFeed", () => {
     expect(result.rows[0].description).toBe("@Fern hello");
   });
 
+  it("shows members by display name, falling back to the legal name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null },
+        ],
+      })
+    );
+    const { supabase } = client(2, [
+      row({ actor_kind: "member", actor_label: "Ada Example", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example", acting_as_member_id: "mbr_AAAAAAAAAAA2", acting_as_member_name: "Bo Example" }),
+      row({ actor_label: "Bramble Admin", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example" }),
+    ]);
+    const { rows } = await fetchActivityFeed(supabase, query(), now);
+    expect(rows[0]).toMatchObject({ member_name: "Ada E", actor_label: "Ada E", acting_as_member_name: "Bo Example" });
+    expect(rows[1]).toMatchObject({ member_name: "Ada E", actor_label: "Bramble Admin" });
+  });
+
   it("clamps a page past the end to the last page", async () => {
     const { supabase, rpc } = client(60, [row({})]);
     const result = await fetchActivityFeed(supabase, query({}, 99, 50), now);
@@ -314,5 +341,28 @@ describe("fetchActivityFeed", () => {
   it("surfaces errors", async () => {
     const failing = client(5, [], new Error("boom"));
     await expect(fetchActivityFeed(failing.supabase, query(), now)).rejects.toThrow("boom");
+  });
+});
+
+describe("fetchRecordHistory", () => {
+  it("shows members by display name, falling back to the legal name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null },
+        ],
+      })
+    );
+    const rpc = vi.fn(async () => ({
+      data: [
+        row({ actor_kind: "member", actor_label: "Ada Example", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example", description: "<@U1> hi" }),
+        row({ member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example" }),
+      ],
+      error: null,
+    }));
+    const rows = await fetchRecordHistory({ rpc } as unknown as SupabaseClient, ["member"], "mbr_AAAAAAAAAAA1");
+    expect(rows[0]).toMatchObject({ member_name: "Ada E", actor_label: "Ada E", description: "@Fern hi" });
+    expect(rows[1]).toMatchObject({ member_name: "Bo Example" });
   });
 });

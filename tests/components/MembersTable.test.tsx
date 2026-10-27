@@ -6,6 +6,10 @@ import userEvent from '@testing-library/user-event'
 import { TimezoneProvider } from '@/components/Timezone'
 import MembersTable, { type MemberRow } from '@/app/(admin)/admin/members/MembersTable'
 
+vi.mock('@/app/(admin)/admin/members/BulkMergeMemberModal', () => ({
+  default: ({ members }: { members: unknown[] }) => <pre data-testid="merge-members">{JSON.stringify(members)}</pre>,
+}))
+
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
     <a href={href} {...props}>
@@ -122,5 +126,39 @@ describe('MembersTable last attended', () => {
     const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T03:00:00Z' } }
     render(<MembersTable members={[row]} />)
     expect(screen.getByText('2/29/2024')).toBeTruthy()
+  })
+})
+
+describe('MembersTable display names', () => {
+  const withDisplay: MemberRow[] = [
+    { ...members[0], id: 'z', name: 'Zelda Example', display_name: 'Ada E' },
+    { ...members[1], id: 'm', name: 'Mary Example', display_name: null },
+  ]
+
+  it('shows the display name as the link with the legal name beneath it', () => {
+    render(<MembersTable members={withDisplay} />)
+    expect(screen.getByRole('link', { name: 'Ada E' })).toHaveAttribute('href', '/admin/members/z')
+    expect(screen.getByText('Zelda Example')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select Ada E')).toBeInTheDocument()
+    // No display name: just the legal name, once.
+    expect(screen.getAllByText('Mary Example')).toHaveLength(1)
+  })
+
+  it('sorts by the displayed name', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByText('Name'))
+    expect(renderedNames()).toEqual(['Ada E', 'Mary Example'])
+  })
+
+  it('hands the selected members, with display names, to the bulk merge', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByLabelText('Select Ada E'))
+    await userEvent.click(screen.getByLabelText('Select Mary Example'))
+    await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+    const passed = JSON.parse(screen.getByTestId('merge-members').textContent!)
+    expect(passed).toEqual([
+      expect.objectContaining({ id: 'z', name: 'Zelda Example', display_name: 'Ada E' }),
+      expect.objectContaining({ id: 'm', name: 'Mary Example' }),
+    ])
   })
 })

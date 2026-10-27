@@ -27,7 +27,9 @@ export interface RosterProgress {
 
 export interface RosterRow {
   memberId: string;
+  /** The display name; `realName` is the legal name when it differs. */
   name: string;
+  realName?: string;
   startsAt: string;
   endsAt: string | null;
   origin: "purchase" | "grant";
@@ -49,7 +51,8 @@ export function buildRoster(
   names: Map<string, string>,
   lessons: RosterLesson[],
   progress: RosterProgress[],
-  now: Date
+  now: Date,
+  realNames: Map<string, string> = new Map()
 ): RosterRow[] {
   const open = new Set(lessons.filter((l) => l.state === "open").map((l) => l.id));
   const lessonById = new Map(lessons.map((l) => [l.id, l]));
@@ -67,6 +70,7 @@ export function buildRoster(
     return {
       memberId: a.memberId,
       name: names.get(a.memberId) ?? "Unknown member",
+      realName: realNames.get(a.memberId),
       startsAt: a.startsAt,
       endsAt: a.endsAt,
       origin: a.origin,

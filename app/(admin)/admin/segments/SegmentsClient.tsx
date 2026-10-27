@@ -7,6 +7,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import MultiMemberSearch from "@/components/MultiMemberSearch";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 
@@ -20,6 +21,7 @@ interface Segment {
 interface SegmentMember {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -553,7 +555,10 @@ export default function SegmentsClient({ allMembers }: { allMembers: SegmentMemb
                   {members.map((m) => (
                     <li key={m.id} className="py-2 flex items-center justify-between">
                       <div>
-                        <div className="text-sm text-slate-900 dark:text-slate-100">{m.name}</div>
+                        <div className="text-sm text-slate-900 dark:text-slate-100">{getMemberDisplayName({ name: m.name, display_name: m.displayName })}</div>
+                        {getMemberDisplayName({ name: m.name, display_name: m.displayName }) !== m.name && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{m.name}</div>
+                        )}
                         <div className="text-xs text-slate-600 dark:text-slate-400">{m.email}</div>
                       </div>
                       <button

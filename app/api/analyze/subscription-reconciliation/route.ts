@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     const members = (await createRepos(supabase).members.list()).map((m) => ({
       id: m.id,
       name: m.name,
+      displayName: m.displayName,
       email: m.email,
       kajabi_id: m.kajabiId,
     }));
@@ -299,6 +300,7 @@ export async function GET(request: NextRequest) {
       return {
         member_id: member.id,
         member_name: member.name,
+        member_display_name: member.displayName,
         member_email: member.email,
         expected_kajabi_state: expectedState,
         actual_kajabi_state: kajabiState,

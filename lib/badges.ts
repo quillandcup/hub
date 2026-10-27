@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseDateOnly } from "@/lib/member-tenure";
 import type { AttendanceRepository } from "@/lib/data/attendance";
@@ -310,7 +311,9 @@ export async function getPublishedBookCount(
 
 export interface BadgeRecipient {
   memberId: string;
+  /** Display name; `memberRealName` is the legal name when it differs. */
   memberName: string;
+  memberRealName?: string;
   memberEmail: string;
   levelName: string;
   level: number | null;
@@ -323,6 +326,7 @@ export interface BadgeRecipient {
 export interface RecipientMember {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
   firstJoinedAt: string | null;
 }
@@ -340,6 +344,11 @@ export interface BulkAutomaticMetrics {
   mentorshipByMember?: Map<string, MentorshipCount>;
 }
 
+function recipientNames(member: RecipientMember): { memberName: string; memberRealName?: string } {
+  const memberName = getMemberDisplayName({ name: member.name, display_name: member.displayName });
+  return memberName === member.name ? { memberName } : { memberName, memberRealName: member.name };
+}
+
 function pushLeveledRecipient(
   recipients: BadgeRecipient[],
   member: RecipientMember,
@@ -350,7 +359,7 @@ function pushLeveledRecipient(
   if (!level) return;
   recipients.push({
     memberId: member.id,
-    memberName: member.name,
+    ...recipientNames(member),
     memberEmail: member.email,
     levelName: level.name,
     level: level.level,
@@ -415,7 +424,7 @@ export function computeBadgeRecipients(
           if (!badge) continue;
           recipients.push({
             memberId,
-            memberName: member.name,
+            ...recipientNames(member),
             memberEmail: member.email,
             levelName: badge.levelName,
             level: badge.level,
@@ -432,7 +441,7 @@ export function computeBadgeRecipients(
           if (!isFoundingHedgie(member.firstJoinedAt)) continue;
           recipients.push({
             memberId: member.id,
-            memberName: member.name,
+            ...recipientNames(member),
             memberEmail: member.email,
             levelName: badgeType.name,
             level: null,
@@ -468,7 +477,7 @@ export function computeBadgeRecipients(
             const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
             recipients.push({
               memberId,
-              memberName: member.name,
+              ...recipientNames(member),
               memberEmail: member.email,
               levelName: level?.name ?? badgeType.name,
               level: level?.level ?? null,
@@ -496,7 +505,7 @@ export function computeBadgeRecipients(
       const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
       recipients.push({
         memberId,
-        memberName: member.name,
+        ...recipientNames(member),
         memberEmail: member.email,
         levelName: level?.name ?? badgeType.name,
         level: level?.level ?? null,
@@ -675,6 +684,7 @@ export async function getBadgeRecipients(
   const members: RecipientMember[] = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
     id: m.id,
     name: m.name,
+    displayName: m.displayName,
     email: m.email,
     firstJoinedAt: m.firstJoinedAt,
   }));

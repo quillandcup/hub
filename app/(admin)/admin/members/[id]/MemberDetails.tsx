@@ -89,7 +89,7 @@ export default function MemberDetails({
     setActiveTabState(tab);
     if (tab === activeTab) return;
     replaceTabPath(basePath, tab, "overview");
-    setTabDocumentTitle({ record: member.name }, MEMBER_TAB_LABELS[tab], tab === "overview");
+    setTabDocumentTitle({ record: member.displayName?.trim() || member.name }, MEMBER_TAB_LABELS[tab], tab === "overview");
   };
 
   const status = member.status as MemberStatus; // members.status is checked to these four values

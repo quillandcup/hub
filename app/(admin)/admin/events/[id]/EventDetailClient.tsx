@@ -21,6 +21,7 @@ interface Attendee {
   id: string;
   memberId: string;
   memberName: string;
+  memberRealName?: string;
   memberEmail: string;
 }
 
@@ -262,12 +263,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           <ul className="divide-y divide-gray-200 dark:divide-slate-800">
             {attendees.map((attendee) => (
               <li key={attendee.id} className="flex items-center justify-between py-2">
-                <Link
-                  href={`/admin/members/${attendee.memberId}`}
-                  className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
-                >
-                  {attendee.memberName}
-                </Link>
+                <span>
+                  <Link
+                    href={`/admin/members/${attendee.memberId}`}
+                    className="text-sm font-medium text-plum-600 dark:text-plum-400 hover:underline"
+                  >
+                    {attendee.memberName}
+                  </Link>
+                  {attendee.memberRealName && (
+                    <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{attendee.memberRealName}</span>
+                  )}
+                </span>
                 <button
                   onClick={() => handleRemoveAttendee(attendee.memberId)}
                   disabled={removingId === attendee.memberId}

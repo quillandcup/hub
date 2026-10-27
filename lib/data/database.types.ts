@@ -5602,6 +5602,7 @@ export type Database = {
       admin_member_engagement: {
         Args: { p_now?: string; p_search?: string }
         Returns: {
+          display_name: string
           email: string
           engagement_score: number
           engagement_tier: string
@@ -5649,6 +5650,7 @@ export type Database = {
           p_sort?: string
         }
         Returns: {
+          display_name: string
           email: string
           engagement_score: number
           engagement_tier: string

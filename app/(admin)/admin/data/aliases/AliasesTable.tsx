@@ -5,10 +5,11 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import AliasBadges from "./AliasBadges";
 
 export interface MemberAliasRow {
-  member: { id: string; name: string; email: string; status: string };
+  member: { id: string; name: string; displayName?: string | null; email: string; status: string };
   aliases: { id: string; alias: string; created_at: string }[];
 }
 
@@ -17,7 +18,7 @@ type SortColumn = "member" | "aliases" | "status";
 function getSortValue(row: MemberAliasRow, column: SortColumn): SortValue {
   switch (column) {
     case "member":
-      return row.member.name.toLowerCase();
+      return getMemberDisplayName({ name: row.member.name, display_name: row.member.displayName }).toLowerCase();
     case "aliases":
       return row.aliases.length;
     case "status":
@@ -60,8 +61,11 @@ export default function AliasesTable({ rows }: { rows: MemberAliasRow[] }) {
                     href={`/admin/members/${member.id}`}
                     className="font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                   >
-                    {member.name}
+                    {getMemberDisplayName({ name: member.name, display_name: member.displayName })}
                   </Link>
+                  {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                  )}
                   <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                 </div>
               </td>

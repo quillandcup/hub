@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -66,7 +67,7 @@ export default async function HedgieversariesPage() {
     fetchAllRows(
       supabase,
       "members",
-      "id, name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
+      "id, name, display_name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"]).not("first_joined_at", "is", null)
     ),
     fetchAllRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
@@ -99,7 +100,8 @@ export default async function HedgieversariesPage() {
 
     return {
       id: m.id,
-      name: m.name,
+      name: getMemberDisplayName(m),
+      legalName: m.name,
       email: m.email,
       firstJoinedAt: m.first_joined_at,
       mostRecentJoinedAt: m.most_recent_joined_at,

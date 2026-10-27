@@ -21,6 +21,7 @@ import {
 } from "@/lib/member-engagement";
 import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
@@ -39,7 +40,7 @@ export function memberTabMetadata(tab: MemberTabId) {
   return async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const { id } = await params;
     const member = await getMemberRow(id);
-    return { title: tabTitle({ record: member?.name ?? "Member" }, MEMBER_TAB_LABELS[tab], tab === "overview") };
+    return { title: tabTitle({ record: member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : "Member" }, MEMBER_TAB_LABELS[tab], tab === "overview") };
   };
 }
 
@@ -230,7 +231,10 @@ export default async function MemberDetailPage({
           </Link>
           <div className="mt-2">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold">{member.name}</h1>
+              <h1 className="text-2xl font-bold">{getMemberDisplayName({ name: member.name, display_name: member.displayName })}</h1>
+              {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                <span className="text-sm text-slate-500 dark:text-slate-400">{member.name}</span>
+              )}
               {aliases && aliases.length > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -315,7 +319,7 @@ export default async function MemberDetailPage({
             </div>
           </div>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={member.name} />
+            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={getMemberDisplayName({ name: member.name, display_name: member.displayName })} />
           </div>
         </div>
       </header>

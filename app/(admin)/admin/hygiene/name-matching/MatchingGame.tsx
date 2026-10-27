@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useState } from "react";
 
 interface UnmatchedAttendee {
@@ -11,6 +12,7 @@ interface UnmatchedAttendee {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -58,7 +60,7 @@ export default function MatchingGame({
           {
             zoomName: draggedItem,
             memberId: member.id,
-            memberName: member.name,
+            memberName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
             memberEmail: member.email,
           },
         ]);
@@ -234,8 +236,11 @@ export default function MatchingGame({
                   }`}
                 >
                   <div className="font-semibold text-slate-900 dark:text-slate-100">
-                    {member.name}
+                    {getMemberDisplayName({ name: member.name, display_name: member.displayName })}
                   </div>
+                  {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                  )}
                   <div className="text-sm text-slate-600 dark:text-slate-400">
                     {member.email}
                   </div>

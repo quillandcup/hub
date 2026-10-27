@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getHostEligibility } from "@/lib/host-eligibility";
 import type { MentorshipRow } from "@/lib/mentorship";
@@ -37,7 +38,9 @@ export function volunteerEligibilityMessage(eligibility: Exclude<VolunteerEligib
 
 export interface Volunteer {
   memberId: string;
+  /** Display name; the legal name is in `realName` when it differs. */
   name: string;
+  realName?: string;
   note: string | null;
   /** When they volunteered (the row's created_at). */
   volunteeredAt: string;
@@ -87,7 +90,7 @@ interface VolunteerDbRow {
   member_id: string;
   note: string | null;
   created_at: string;
-  member: { name: string } | { name: string }[] | null;
+  member: { name: string; display_name?: string | null } | { name: string; display_name?: string | null }[] | null;
 }
 
 /** Current volunteers (not withdrawn), with names. Paginated per CLAUDE.md. */
@@ -99,7 +102,7 @@ export async function getVolunteers(supabase: SupabaseClient): Promise<Volunteer
   while (hasMore) {
     const { data: batch } = await supabase
       .from("big_sister_volunteers")
-      .select("member_id, note, created_at, member:members(name)")
+      .select("member_id, note, created_at, member:members(name, display_name)")
       .is("deleted_at", null)
       .order("member_id")
       .range(offset, offset + BATCH_SIZE - 1);
@@ -113,6 +116,7 @@ export async function getVolunteers(supabase: SupabaseClient): Promise<Volunteer
   }
   return all.map((r) => {
     const member = Array.isArray(r.member) ? r.member[0] : r.member;
-    return { memberId: r.member_id, name: member?.name ?? "Unknown member", note: r.note, volunteeredAt: r.created_at };
+    const shown = member ? getMemberDisplayName(member) : "Unknown member";
+    return { memberId: r.member_id, name: shown, realName: member && shown !== member.name ? member.name : undefined, note: r.note, volunteeredAt: r.created_at };
   });
 }

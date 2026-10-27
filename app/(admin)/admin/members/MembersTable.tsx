@@ -9,11 +9,13 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { useDataTable, type DataTable } from "@/lib/hooks/useDataTable";
 import type { MemberSortColumn } from "@/lib/admin-members-paging";
 import { formatDateInZone } from "@/lib/formatters";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useTimeZone } from "@/components/Timezone";
 
 export interface MemberRow {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
   status: MemberStatus;
   member_metrics: {
@@ -57,7 +59,7 @@ const RISK_ORDER: Record<string, number> = { low: 0, medium: 1, high: 2 };
 function getSortValue(member: MemberRow, column: SortColumn): string | number {
   switch (column) {
     case "name":
-      return member.name.toLowerCase();
+      return getMemberDisplayName(member).toLowerCase();
     case "email":
       return member.email.toLowerCase();
     case "status":
@@ -115,7 +117,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
 
   const selectedMembers = members
     .filter((m) => selectedIds.has(m.id))
-    .map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    .map((m) => ({ id: m.id, name: m.name, display_name: m.display_name, email: m.email }));
 
   return (
     <>
@@ -219,7 +221,7 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                     checked={selectedIds.has(member.id)}
                     onChange={() => toggleOne(member.id)}
                     className="accent-plum-600 cursor-pointer"
-                    aria-label={`Select ${member.name}`}
+                    aria-label={`Select ${getMemberDisplayName(member)}`}
                   />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -227,8 +229,11 @@ export default function MembersTable({ members, table: serverTable }: MembersTab
                     href={`/admin/members/${member.id}`}
                     className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                   >
-                    {member.name}
+                    {getMemberDisplayName(member)}
                   </Link>
+                  {getMemberDisplayName(member) !== member.name && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>

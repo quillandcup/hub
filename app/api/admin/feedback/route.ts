@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("feedback")
-    .select("*, member:members(name, email)", { count: "exact" })
+    .select("*, member:members(name, display_name, email)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 

@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageBounds } from "@/lib/pagination";
 import { isAnyId, isId } from "@/lib/ids";
 import { withMentionNames } from "@/lib/chat/names";
+import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -174,7 +176,29 @@ export async function fetchActivityFeed(
     p_limit: bounds.pageSize,
   });
   if (error) throw error;
-  return { rows: await withMentionNames((data ?? []) as ActivityFeedRow[]), total, page: bounds.page, pageSize: bounds.pageSize };
+  return { rows: await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])), total, page: bounds.page, pageSize: bounds.pageSize };
+}
+
+/**
+ * The SQL function names members by legal name. Admins know them by display name too, so swap it in
+ * for the member, the member an admin was viewing as, and a member actor's label (staff actors are
+ * labelled by their own account and stay as they are).
+ */
+export async function withMemberDisplayNames(supabase: SupabaseClient, rows: ActivityFeedRow[]): Promise<ActivityFeedRow[]> {
+  const ids = [...new Set(rows.flatMap((r) => [r.member_id, r.acting_as_member_id]).filter((id): id is string => !!id))];
+  if (ids.length === 0) return rows;
+  const shown = new Map<string, string>();
+  for (const m of await createRepos(supabase).members.byIds(ids)) shown.set(m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName }));
+  return rows.map((r) => {
+    const member = r.member_id ? shown.get(r.member_id) : undefined;
+    const actingAs = r.acting_as_member_id ? shown.get(r.acting_as_member_id) : undefined;
+    return {
+      ...r,
+      member_name: member ?? r.member_name,
+      acting_as_member_name: actingAs ?? r.acting_as_member_name,
+      actor_label: member && r.actor_kind === "member" && r.actor_label === r.member_name ? member : r.actor_label,
+    };
+  });
 }
 
 /** What else counts as part of one record's history, beyond rows about the record itself. */
@@ -206,7 +230,7 @@ export async function fetchRecordHistory(
     p_member_rows: scope.memberRows ?? false,
   });
   if (error) throw error;
-  return withMentionNames((data ?? []) as ActivityFeedRow[]);
+  return withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]));
 }
 
 // ---------------------------------------------------------------------------

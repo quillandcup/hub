@@ -44,7 +44,7 @@ async function fetchAllPrickles(
   return prickles.map((p) => ({
     id: p.id,
     start_time: p.startTime,
-    members: p.host ? { name: p.host.name } : null,
+    members: p.host ? { name: p.host.displayName?.trim() || p.host.name } : null,
     prickle_types: p.type ? { name: p.type.name, normalized_name: p.type.normalizedName } : null,
   }))
 }

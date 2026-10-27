@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
@@ -32,7 +33,7 @@ export async function GET(
     createRepos(supabase).badges.typeForEvent(id),
     supabase
       .from("event_attendees")
-      .select("id, member_id, members(name, email)")
+      .select("id, member_id, members(name, display_name, email)")
       .eq("event_id", id)
       .order("created_at", { ascending: true }),
   ]);
@@ -50,7 +51,8 @@ export async function GET(
   const attendeeRows = (attendees ?? []).map((a: any) => ({
     id: a.id,
     memberId: a.member_id,
-    memberName: a.members?.name ?? "Unknown",
+    memberName: a.members ? getMemberDisplayName(a.members) : "Unknown",
+    memberRealName: a.members && getMemberDisplayName(a.members) !== a.members.name ? a.members.name : undefined,
     memberEmail: a.members?.email ?? "",
   }));
 

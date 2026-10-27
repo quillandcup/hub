@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextRequest, NextResponse } from "next/server";
@@ -30,8 +31,12 @@ export async function GET(
 
   const memberIds = memberLinks.map((m) => m.member_id);
   const members = (await createRepos(supabase).members.byIds(memberIds))
-    .map(({ id, name, email }) => ({ id, name, email }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map(({ id, name, displayName, email }) => ({ id, name, displayName, email }))
+    .sort((a, b) =>
+      getMemberDisplayName({ name: a.name, display_name: a.displayName }).localeCompare(
+        getMemberDisplayName({ name: b.name, display_name: b.displayName })
+      )
+    );
 
   return NextResponse.json({ segment, members });
 }

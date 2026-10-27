@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical, type ConflictGroup, type ConflictEntry } from "@/lib/external-conflicts";
@@ -63,7 +64,11 @@ export default async function ExternalConflictsPage() {
 
   // Member and Kajabi customer lookups
   const memberByEmail = new Map<string, { id: string; name: string }>();
-  for (const m of members) memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: m.name });
+  // Reconciliation against Kajabi/Stripe: the display name leads, the legal name follows when it differs.
+  for (const m of members) {
+    const shown = getMemberDisplayName({ name: m.name, display_name: m.displayName });
+    memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: shown === m.name ? shown : `${shown} (${m.name})` });
+  }
 
   const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
   const activeSubsByStripeCustomer = new Map<string, number>();

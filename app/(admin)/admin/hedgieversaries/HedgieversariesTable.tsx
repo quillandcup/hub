@@ -10,6 +10,7 @@ import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 export interface HedgieversaryRow {
   id: string;
   name: string;
+  legalName?: string;
   email: string;
   firstJoinedAt: string;
   mostRecentJoinedAt: string | null;
@@ -86,6 +87,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                   <Link
                     href={`/admin/members/${row.id}`}
                     className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
+                    title={row.legalName && row.legalName !== row.name ? row.legalName : undefined}
                   >
                     {row.name}
                   </Link>

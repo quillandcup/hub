@@ -34,7 +34,7 @@ export default async function NameMatchingReportPage() {
   // Filter for members with zero attendance
   const membersWithNoAttendance = activeMembers
     .filter((m) => !attendedIds.has(m.id))
-    .map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }));
 
   // Get unmatched Zoom attendees - those that don't match any member
   const { data: allZoomNames } = await supabase

@@ -408,6 +408,17 @@ describe("computeBadgeRecipients", () => {
     expect(recipients[1].levelName).toBe("10 Prickles");
   });
 
+  it("names a recipient by display name and keeps the legal name beside it", () => {
+    const named: RecipientMember[] = [
+      { id: "mem-ada", name: "Ada Example", displayName: "Ada E", email: "ada@example.com", firstJoinedAt: "2021-06-15" },
+      { id: "mem-bo", name: "Bo Example", displayName: null, email: "bo@example.com", firstJoinedAt: "2021-06-15" },
+    ];
+    const recipients = computeBadgeRecipients(foundingHedgie, [], named, [], NO_BULK_METRICS);
+    expect(recipients[0]).toMatchObject({ memberName: "Ada E", memberRealName: "Ada Example" });
+    expect(recipients[1].memberName).toBe("Bo Example");
+    expect(recipients[1].memberRealName).toBeUndefined();
+  });
+
   it("omits members below the first automatic threshold", () => {
     const recipients = computeBadgeRecipients(hostess, hostessLevels, members, [], {
       ...NO_BULK_METRICS,

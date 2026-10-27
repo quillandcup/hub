@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
@@ -12,6 +13,10 @@ import { formatDateOnly } from "@/lib/formatters";
 export const metadata: Metadata = {
   title: "At-Risk Members",
 };
+
+function shownName(m: { name: string; displayName: string | null }) {
+  return getMemberDisplayName({ name: m.name, display_name: m.displayName });
+}
 
 export default async function AtRiskPage() {
   await requireAdminPage();
@@ -55,7 +60,7 @@ export default async function AtRiskPage() {
   // Sort by days since last attendance (descending), then by name
   membersWithStats.sort((a, b) => {
     if (a.daysSinceLastAttendance === null && b.daysSinceLastAttendance === null) {
-      return a.name.localeCompare(b.name);
+      return shownName(a).localeCompare(shownName(b));
     }
     if (a.daysSinceLastAttendance === null) return -1;
     if (b.daysSinceLastAttendance === null) return 1;
@@ -105,8 +110,11 @@ export default async function AtRiskPage() {
                         href={`/admin/members/${member.id}`}
                         className="font-semibold text-lg text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                       >
-                        {member.name}
+                        {shownName(member)}
                       </Link>
+                      {shownName(member) !== member.name && (
+                        <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">{member.name}</span>
+                      )}
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         {member.email}
                       </div>

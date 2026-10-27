@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Group by name for matching efficiency, preserving meeting_uuids
-    const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; meetings: Set<string> }>();
+    const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; member_display_name: string | null; meetings: Set<string> }>();
 
     for (const attendee of attendees) {
       const result = matchAttendeeToMember(
@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
             inactiveMatchCounts.set(result.member_id, {
               member_id: result.member_id,
               member_name: member?.name ?? result.member_id,
+              member_display_name: member?.displayName ?? null,
               meetings: new Set(),
             });
           }
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
       .map((r) => ({
         member_id: r.member_id,
         member_name: r.member_name,
+        member_display_name: r.member_display_name,
         member_status: "cancelled",
         prickle_count: r.meetings.size,
       }))

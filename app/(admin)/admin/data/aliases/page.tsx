@@ -4,6 +4,7 @@ import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 import AliasesTable from "./AliasesTable";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export default async function AliasListPage() {
   const supabase = await createClient();
 
   // Get all aliases with their member info
-  const aliases = await createRepos(supabase).aliases.namesWithMembers();
+  const repos = createRepos(supabase);
+  const [aliases, identities] = await Promise.all([repos.aliases.namesWithMembers(), repos.members.identities()]);
+  const displayNames = new Map(identities.map((m) => [m.id, m.displayName]));
 
   // Group aliases by member
   const aliasesByMember = new Map<string, typeof aliases>();
@@ -28,10 +31,12 @@ export default async function AliasListPage() {
   // Convert to sorted array
   const memberAliases = Array.from(aliasesByMember.entries())
     .map(([memberId, memberAliases]) => ({
-      member: memberAliases[0].member,
+      member: { ...memberAliases[0].member, displayName: displayNames.get(memberId) ?? null },
       aliases: memberAliases.map((a) => ({ id: a.id, alias: a.alias, created_at: a.createdAt })),
     }))
-    .sort((a, b) => a.member.name.localeCompare(b.member.name));
+    .sort((a, b) => getMemberDisplayName({ name: a.member.name, display_name: a.member.displayName }).localeCompare(
+        getMemberDisplayName({ name: b.member.name, display_name: b.member.displayName }),
+      ));
 
   return (
     <div className="container mx-auto px-6 py-8">

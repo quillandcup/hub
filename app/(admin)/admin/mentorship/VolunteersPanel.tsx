@@ -120,6 +120,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
                     <Link href={`/admin/members/${v.memberId}`} className="text-plum-600 dark:text-plum-400 hover:underline">
                       {v.name}
                     </Link>
+                    {v.realName && <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{v.realName}</div>}
                   </td>
                   <td className={TD}>{v.openLoad}</td>
                   <td className={TD}>{v.totalMatches}</td>
