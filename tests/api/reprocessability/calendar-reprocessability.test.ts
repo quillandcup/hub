@@ -139,6 +139,47 @@ describe('Calendar Reprocessability', () => {
     }
   })
 
+  it('keeps the type and host an admin chose for a calendar event when it is reprocessed', async () => {
+    const { data: heads } = await supabase.from('prickle_types').select('id').eq('normalized_name', 'heads-down').single()
+    const { data: progress } = await supabase.from('prickle_types').select('id').eq('normalized_name', 'progress').single()
+    const { data: host } = await supabase.from('members').select('id').limit(1).single()
+    const calendarEventId = 'test-event-admin-choice'
+    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+
+    const { data: event } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: calendarEventId,
+      summary: 'Heads Down',
+      start_time: '2099-06-21T09:00:00Z',
+      end_time: '2099-06-21T10:00:00Z',
+      raw_data: {},
+    }).select('id').single()
+    try {
+      await process()
+      await supabase.from('unmatched_calendar_events').insert({
+        calendar_event_id: event!.id,
+        raw_summary: 'Heads Down (Test)',
+        status: 'resolved',
+        resolved_type_id: progress!.id,
+        resolved_host_id: host!.id,
+      })
+
+      await process()
+      await process()
+
+      const { data: prickle } = await supabase.from('prickles').select('type_id, host').eq('calendar_event_id', event!.id).single()
+      expect(prickle).toMatchObject({ type_id: progress!.id, host: host!.id })
+      expect(prickle!.type_id).not.toBe(heads!.id)
+    } finally {
+      await supabase.from('unmatched_calendar_events').delete().eq('calendar_event_id', event!.id)
+      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', calendarEventId)
+      await process()
+    }
+  })
+
   it('should create prickles from calendar events on first process', async () => {
     // ARRANGE: Insert Bronze calendar events
     const bronzeEvents = [

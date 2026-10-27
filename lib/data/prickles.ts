@@ -143,6 +143,8 @@ export interface PrickleRepository {
   createCalendarPrickles(rows: NewCalendarPrickle[]): Promise<string[]>;
   /** Gives a prickle another type. */
   setType(prickleId: string, typeId: string): Promise<void>;
+  /** Gives a prickle another host. */
+  setHost(prickleId: string, hostId: string): Promise<void>;
   /** Hands every prickle one member hosts to another (merging duplicate members). */
   reassignHost(fromMemberId: string, toMemberId: string): Promise<void>;
   /** How many different members have ever been the assigned host of a prickle. */
@@ -339,6 +341,11 @@ export class SupabasePrickleRepository implements PrickleRepository {
       }>;
     });
     return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
+  }
+
+  async setHost(prickleId: string, hostId: string): Promise<void> {
+    const { error } = await this.db.from("prickles").update({ host: hostId }).eq("id", prickleId);
+    if (error) throw new Error(error.message);
   }
 
   async setType(prickleId: string, typeId: string): Promise<void> {
@@ -666,6 +673,11 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles
       .filter((p): p is typeof p & { hostId: string } => p.hostId !== null && (!hostId || p.hostId === hostId))
       .map((p) => ({ hostId: p.hostId, startTime: p.startTime }));
+  }
+
+  async setHost(prickleId: string, hostId: string) {
+    const prickle = this.data.prickles.find((p) => p.id === prickleId);
+    if (prickle) prickle.hostId = hostId;
   }
 
   async setType(prickleId: string, typeId: string) {

@@ -177,6 +177,13 @@ describe('assignHostAndSpeaker', () => {
     })
   })
 
+  it('lets an admin-picked host replace the one the title and type give', () => {
+    expect(assignHostAndSpeaker({ ...base, namesGuestSpeaker: false, hostOverrideId: 'mbr_AAAAAAAAAAA3' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA3', guestSpeaker: null })
+    expect(assignHostAndSpeaker({ ...base, hostOverrideId: 'mbr_AAAAAAAAAAA3' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA3', guestSpeaker: 'Ellen Example' })
+    expect(assignHostAndSpeaker({ ...base, memberId: 'mbr_AAAAAAAAAAA3', memberName: 'Ellen Example', hostOverrideId: 'mbr_AAAAAAAAAAA3' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA3', guestSpeaker: null })
+    expect(assignHostAndSpeaker({ ...base, hostOverrideId: null })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: 'Ellen Example' })
+  })
+
   it('has no speaker when the w/ name is the default host, or there is no name', () => {
     expect(assignHostAndSpeaker({ ...base, typedName: 'Ania', memberId: 'mbr_AAAAAAAAAAA1', memberName: 'Ania Example' })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: null })
     expect(assignHostAndSpeaker({ ...base, typedName: null })).toEqual({ hostId: 'mbr_AAAAAAAAAAA1', guestSpeaker: null })
