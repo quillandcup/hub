@@ -325,7 +325,8 @@ function encode(raw: string, out: string, trimSeconds: number, voice: { file: st
     const result = spawnSync("ffmpeg", ["-loglevel", "error", "-y", "-ss", String(trimSeconds), "-i", raw, ...audioInputs, ...audioGraph, ...args], { stdio: "inherit" });
     if (result.status !== 0) throw new Error(`ffmpeg failed for ${raw}`);
   };
-  const audioArgs = (codec: string[]) => (voice.length === 0 ? [] : codec);
+  // 48 kHz: loudnorm otherwise leaves the track at 96 kHz, which social platforms and some players handle badly.
+  const audioArgs = (codec: string[]) => (voice.length === 0 ? [] : [...codec, "-ar", "48000"]);
   run(["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "0", "-crf", "28", ...audioArgs(["-c:a", "libopus", "-b:a", "96k"]), out]);
   run(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", ...audioArgs(["-c:a", "aac", "-b:a", "160k"]), "-movflags", "+faststart", out.replace(/\.webm$/, ".mp4")]);
   rmSync(raw);
