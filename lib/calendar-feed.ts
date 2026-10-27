@@ -1,5 +1,6 @@
 import { joinAt, joinDescription, loadPrickleJoinSettings, type PrickleJoinSetting } from "@/lib/prickle-join";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { eventDisplayName } from "@/lib/event-name";
 import {
   commitmentsFetchWindow,
   computeCommitmentProgress,
@@ -530,7 +531,7 @@ async function loadAddedItems(
     if (eventIds.length === 0) return [];
     const { data: eventRows, error: eventError } = await supabase
       .from("events")
-      .select("id, slug, title, location, starts_at, ends_at")
+      .select("id, slug, title, speakers, location, starts_at, ends_at")
       .in("id", eventIds)
       .is("deleted_at", null)
       .gte("ends_at", since.toISOString().slice(0, 10));
@@ -538,7 +539,7 @@ async function loadAddedItems(
     return (eventRows ?? []).map((e) => ({
       id: e.id,
       slug: e.slug,
-      title: e.title,
+      title: eventDisplayName(e.title, e.speakers),
       location: e.location,
       startsAt: e.starts_at,
       endsAt: e.ends_at,

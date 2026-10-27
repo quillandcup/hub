@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { ensureCalendarEvents, hasEventTag, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { ensureCalendarEvents, hasEventTag, matchTypeId, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
 import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
@@ -215,33 +215,8 @@ export async function POST(request: NextRequest) {
         typeId = userDecision.typeId;
         autoResolvedCount++;
       } else {
-        // Match to prickle type using normalization
-        if (!rawType) {
-          // No type extracted - default to Progress Prickle
-          typeId = typeByNormalizedName.get("progress") || null;
-        } else {
-          // Normalize the extracted type and look up by normalized_name
-          const normalizedType = normalizePrickleType(rawType);
-
-          // If normalization resulted in empty (e.g., just "Prickle"), default to Progress
-          if (!normalizedType || normalizedType === "") {
-            typeId = typeByNormalizedName.get("progress") || null;
-          } else {
-            typeId = typeByNormalizedName.get(normalizedType) || typeIdByAlias(normalizedType, prickleTypes ?? []);
-          }
-
-          // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
-          if (!typeId && prickleTypes) {
-            const summaryLower = event.summary.toLowerCase();
-            for (const type of prickleTypes) {
-              const typeNameLower = type.name.toLowerCase();
-              if (summaryLower.includes(typeNameLower)) {
-                typeId = type.id;
-                break;
-              }
-            }
-          }
-        }
+        // Match to a prickle type by the title's type part, the cleaned title, an alias or a contained name
+        typeId = matchTypeId(event.summary, prickleTypes ?? []);
       }
 
       if (!typeId) {
