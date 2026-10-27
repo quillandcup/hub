@@ -17,6 +17,10 @@ import { getMyMentorships } from "@/lib/my-mentorship";
 import { getSlackDmLinksForMembers } from "@/lib/member-slack-links";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import BigSisterCards from "@/components/member/BigSisterCards";
+import ContinueWatchingCard from "@/components/courses/ContinueWatchingCard";
+import { getCoursesCaller } from "@/lib/courses/caller";
+import { loadContinueWatching } from "@/lib/courses/member";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -72,6 +76,11 @@ export default async function DashboardPage() {
       )
     )
   )
+  // Null when the courses flag is off for them, they have no open course, or nothing is in progress.
+  const coursesCaller = await getCoursesCaller()
+  const continueWatching = coursesCaller
+    ? await loadContinueWatching(createServiceRoleClient(), coursesCaller.scope)
+    : null
   const projects = projectRows ?? []
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
@@ -92,6 +101,8 @@ export default async function DashboardPage() {
       </p>
 
       <BigSisterCards mentorships={mentorships} slackLinks={slackLinks} linkToPage />
+
+      {continueWatching && <ContinueWatchingCard item={continueWatching} />}
 
       {starredGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">

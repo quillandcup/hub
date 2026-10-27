@@ -148,6 +148,75 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
     .sort((a, b) => Number(a.access.kind === "ended") - Number(b.access.kind === "ended") || a.course.title.localeCompare(b.course.title));
 }
 
+export interface ContinueWatching {
+  course: CourseRow;
+  lesson: { id: string; title: string; thumbnail_url: string | null };
+  progress: CourseProgress;
+  /** Seconds saved in the lesson, 0 when the card comes from "the next open lesson" rather than a half-watched one. */
+  positionSeconds: number;
+  href: string;
+}
+
+/**
+ * What the dashboard offers to resume: the lesson the member most recently left part-way through, else the
+ * next open lesson of a course they've started. Only courses whose access is open now (an ended or upcoming
+ * one offers no resume), and nothing for staff acting as themselves, who would otherwise get every course.
+ */
+export async function loadContinueWatching(supabase: SupabaseClient, scope: MemberScope): Promise<ContinueWatching | null> {
+  if (scope.isAdminActing) return null;
+  const items = (await loadCourseList(supabase, scope)).filter((i) => i.access.kind === "open");
+  if (items.length === 0) return null;
+  const byCourse = new Map(items.map((i) => [i.course.id, i]));
+
+  const { data: rows, error } = await supabase
+    .from("lesson_progress")
+    .select("lesson_id, last_position_seconds")
+    .eq("member_id", scope.memberId)
+    .is("completed_at", null)
+    .gt("last_position_seconds", 0)
+    .order("updated_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(`lesson_progress read failed: ${error.message}`);
+  const positions = new Map((rows ?? []).map((r) => [r.lesson_id as string, Number(r.last_position_seconds)]));
+
+  const openLessons = async (lessonIds: string[]) => {
+    if (lessonIds.length === 0) return [];
+    const { data, error: lessonError } = await supabase
+      .from("course_lessons")
+      .select("id, course_id, title, thumbnail_url")
+      .eq("state", "open")
+      .in("id", lessonIds);
+    if (lessonError) throw new Error(`course_lessons read failed: ${lessonError.message}`);
+    return data ?? [];
+  };
+
+  const half = await openLessons(Array.from(positions.keys()));
+  for (const [id, position] of positions) {
+    const lesson = half.find((l) => l.id === id && byCourse.has(l.course_id));
+    if (!lesson) continue;
+    const item = byCourse.get(lesson.course_id)!;
+    return {
+      course: item.course,
+      lesson: { id: lesson.id, title: lesson.title, thumbnail_url: lesson.thumbnail_url ?? null },
+      progress: item.progress,
+      positionSeconds: position,
+      href: `/courses/${item.course.slug}/lessons/${lesson.id}`,
+    };
+  }
+
+  const started = items.find((i) => i.progress.completed > 0 && !i.progress.allDone && i.progress.continueLessonId);
+  if (!started) return null;
+  const [next] = await openLessons([started.progress.continueLessonId!]);
+  if (!next) return null;
+  return {
+    course: started.course,
+    lesson: { id: next.id, title: next.title, thumbnail_url: next.thumbnail_url ?? null },
+    progress: started.progress,
+    positionSeconds: 0,
+    href: `/courses/${started.course.slug}/lessons/${next.id}`,
+  };
+}
+
 export interface CourseView {
   course: CourseRow;
   access: CourseAccess;
