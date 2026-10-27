@@ -188,7 +188,9 @@ export default function MatchesPanel({
                       : "border-slate-200 dark:border-slate-700"
                   }`}
                 >
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{a.memberName}</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100" title={a.memberRealName}>
+                    {a.memberName}
+                  </span>
                   <span className="block text-xs text-slate-600 dark:text-slate-400">
                     {a.kind === "program" && a.programName ? a.programName : KIND_LABEL[a.kind]} · {formatDay(a.arrivedOn)}
                   </span>
@@ -281,6 +283,9 @@ export default function MatchesPanel({
                     >
                       {row.newMemberName}
                     </Link>
+                    {row.newMemberRealName && (
+                      <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{row.newMemberRealName}</div>
+                    )}
                     <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{KIND_LABEL[row.kind]}</div>
                   </td>
                   <td className="px-6 py-3 text-sm">
@@ -290,6 +295,9 @@ export default function MatchesPanel({
                     >
                       {row.mentorName}
                     </Link>
+                    {row.mentorRealName && (
+                      <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{row.mentorRealName}</div>
+                    )}
                   </td>
                   <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400">
                     {formatDay(row.startedOn)}

@@ -42,6 +42,13 @@ beforeEach(() => {
 });
 
 describe("/admin/courses/[id]/roster", () => {
+  it("shows the legal name under a display name", async () => {
+    loadCourseRoster.mockResolvedValue({ course: { id: "c1", title: "Course" }, rows: [row("mbr_AAAAAAAAAAA1", "Ada E", { realName: "Ada Example" })] });
+    await renderServerPage(CourseRosterPage, props);
+    expect(screen.getByRole("link", { name: "Ada E" })).toBeInTheDocument();
+    expect(screen.getByText("Ada Example")).toBeInTheDocument();
+  });
+
   it("sends a member to /no-access", async () => {
     signInAs(MEMBER_USER, null);
     await expectRedirect(CourseRosterPage, props, "/no-access");

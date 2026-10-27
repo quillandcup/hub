@@ -1,9 +1,12 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export interface LeakageRow {
   member_id: string;
+  /** Display name; `member_real_name` is the legal name. */
   member_name: string;
+  member_real_name: string;
   member_email: string;
   member_status: string;
   cohort_name: string;
@@ -29,7 +32,7 @@ export async function GET(
         *,
         member_program_enrollments(
           id, notes, created_at,
-          member:members(id, name, email, status)
+          member:members(id, name, display_name, email, status)
         )
       `)
       .eq("program_id", id)
@@ -51,14 +54,14 @@ export async function GET(
   // an alumna re-enrolled in a newer cohort should not show up as lapsed.
   const latestExpiryByMember = new Map<string, { expiresAt: string; cohortName: string }>();
   const activeMemberIds = new Set<string>();
-  const memberInfo = new Map<string, { name: string; email: string; status: string }>();
+  const memberInfo = new Map<string, { name: string; displayName: string | null; email: string; status: string }>();
 
   for (const cohort of cohorts || []) {
     const isActive = todayMs >= new Date(cohort.starts_at).getTime() && todayMs <= new Date(cohort.expires_at).getTime();
     for (const enrollment of cohort.member_program_enrollments || []) {
       const member = enrollment.member;
       if (!member) continue;
-      memberInfo.set(member.id, { name: member.name, email: member.email, status: member.status });
+      memberInfo.set(member.id, { name: member.name, displayName: member.display_name, email: member.email, status: member.status });
       if (isActive) activeMemberIds.add(member.id);
 
       const existing = latestExpiryByMember.get(member.id);
@@ -76,7 +79,8 @@ export async function GET(
     if (info.status === "active") continue;
     leakage.push({
       member_id: memberId,
-      member_name: info.name,
+      member_name: getMemberDisplayName({ name: info.name, display_name: info.displayName }),
+      member_real_name: info.name,
       member_email: info.email,
       member_status: info.status,
       cohort_name: cohortName,

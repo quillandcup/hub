@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
@@ -79,7 +80,7 @@ export default async function CalendarPage({
 
     return {
       id: prickle.id,
-      host: prickle.host?.name ?? "",
+      host: prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : "",
       host_id: hostId ?? undefined,
       start_time: prickle.startTime,
       end_time: prickle.endTime,

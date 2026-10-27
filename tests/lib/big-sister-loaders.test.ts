@@ -32,6 +32,15 @@ describe("Big Sister query boundaries", () => {
     expect(db.queries[1].calls).toContainEqual({ method: "range", args: [1000, 1999] });
     expect(db.queries[0].calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
   });
+  it("names a volunteer by display name and keeps the legal name beside it", async () => {
+    const db = createFakeSupabase({ big_sister_volunteers: { data: [
+      { member_id: "m1", note: null, created_at: "2026-01-01", member: { name: "Ada Example", display_name: "Ada E" } },
+      { member_id: "m2", note: null, created_at: "2026-01-01", member: { name: "Bo Example", display_name: null } },
+    ] } });
+    const volunteers = await getVolunteers(client(db));
+    expect(volunteers[0]).toMatchObject({ name: "Ada E", realName: "Ada Example" });
+    expect(volunteers[1]).toMatchObject({ name: "Bo Example" }); expect(volunteers[1].realName).toBeUndefined();
+  });
   it("loads all match pages and derives outcomes from membership instead of storing them", async () => {
     const row = { id: "match", mentor_member_id: "a", new_member_id: "b", started_on: "2026-10-01", trial_ends_on: null, kind: "direct", status: "matched", outcome_note: null, mentor: [{ id: "a", name: "Ada" }], new_member: null };
     const db = createFakeSupabase({ mentorships: { data: Array.from({ length: 1000 }, (_, i) => ({ ...row, id: `${i}` })) } });

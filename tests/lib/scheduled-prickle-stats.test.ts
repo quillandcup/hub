@@ -29,7 +29,7 @@ function attend(prickleId: string, memberId: string) {
 function pw(
   id: string,
   isoTime: string,
-  host?: { id: string; name: string } | null
+  host?: { id: string; name: string; display_name?: string | null } | null
 ): PrickleWithHost {
   return { id, type_id: 't1', start_time: isoTime, host: host ?? null };
 }
@@ -286,6 +286,17 @@ describe('computeGroupedPrickleStats — by schedule', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeGroupedPrickleStats — by host', () => {
+  it('labels a host by display name, falling back to the legal name', () => {
+    const ada = { id: 'h1', name: 'Ada Example', display_name: 'Ada E' };
+    const groups = computeGroupedPrickleStats(
+      [pw('p1', '2026-01-05T16:00:00Z', ada), pw('p2', '2026-01-06T16:00:00Z', { id: 'h2', name: 'Bo Example', display_name: ' ' })],
+      [],
+      'host'
+    );
+    expect(groups.map((g) => g.groupLabel)).toEqual(['Ada E', 'Bo Example']);
+    expect(groups[0].prickleSessions[0].hostName).toBe('Ada E');
+  });
+
   const AJ   = { id: 'h1', name: 'AJ' };
   const JENN = { id: 'h2', name: 'Jenn P' };
 

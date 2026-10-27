@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
@@ -30,7 +31,7 @@ async function fetchPricklesForType(
     inclusiveEnd: true,
     typeIds: [typeId],
   });
-  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime, host: p.host ? { id: p.host.id, name: p.host.name } : null }));
+  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime, host: p.host ? { id: p.host.id, name: p.host.name, display_name: p.host.displayName } : null }));
 }
 
 async function fetchAttendanceForPrickles(
@@ -111,7 +112,7 @@ export default async function PrickleKindInsightsPage({
   ]);
 
   const memberNameMap = new Map<string, string>(
-    members.map((m) => [m.id, m.name])
+    members.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })])
   );
 
   const prickleIds = prickles.map((p) => p.id);

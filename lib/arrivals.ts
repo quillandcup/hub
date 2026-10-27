@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
@@ -23,7 +24,9 @@ export type ArrivalKind = "trial" | "direct" | "program";
 
 export interface Arrival {
   memberId: string;
+  /** Display name; the legal name is in `memberRealName` when it differs. */
   memberName: string;
+  memberRealName?: string;
   /** YYYY-MM-DD: the sign-up, or the cohort's start. */
   arrivedOn: string;
   kind: ArrivalKind;
@@ -66,6 +69,7 @@ export function mergeArrivals(candidates: Arrival[]): Arrival[] {
 interface Candidate {
   memberId: string;
   memberName: string;
+  memberRealName?: string;
   email: string;
   arrivedOn: string;
   from: "membership" | "program";
@@ -124,16 +128,24 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
   for (const m of await createRepos(supabase).members.byEmails(emails)) {
     const arrivedOn = startByEmail.get(m.email.toLowerCase());
     if (arrivedOn && !m.staffRole) {
-      found.push({ memberId: m.id, memberName: m.name, email: m.email, arrivedOn, from: "membership", programName: null });
+      found.push({ memberId: m.id, memberName: getMemberDisplayName({ name: m.name, display_name: m.displayName }), memberRealName: m.displayName?.trim() && m.displayName.trim() !== m.name ? m.name : undefined, email: m.email, arrivedOn, from: "membership", programName: null });
     }
   }
   return found;
 }
 
+interface EnrollmentMember {
+  id: string;
+  name: string;
+  display_name: string | null;
+  email: string;
+  staff_role: string | null;
+}
+
 interface EnrollmentRow {
   member_id: string;
   program_cohorts: { starts_at: string; programs: { name: string; includes_membership: boolean } | { name: string; includes_membership: boolean }[] };
-  members: { id: string; name: string; email: string; staff_role: string | null } | { id: string; name: string; email: string; staff_role: string | null }[] | null;
+  members: EnrollmentMember | EnrollmentMember[] | null;
 }
 
 /** Cohorts of programs that include membership that started in [sinceDate, today], by enrolled member. */
@@ -141,7 +153,7 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
   const { data } = await supabase
     .from("member_program_enrollments")
     .select(
-      "member_id, program_cohorts!inner(starts_at, programs!inner(name, includes_membership)), members(id, name, email, staff_role)"
+      "member_id, program_cohorts!inner(starts_at, programs!inner(name, includes_membership)), members(id, name, display_name, email, staff_role)"
     )
     .gte("program_cohorts.starts_at", sinceDate)
     .lte("program_cohorts.starts_at", today)
@@ -154,7 +166,8 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
     if (!member || member.staff_role) continue;
     found.push({
       memberId: member.id,
-      memberName: member.name,
+      memberName: getMemberDisplayName(member),
+      memberRealName: getMemberDisplayName(member) !== member.name ? member.name : undefined,
       email: member.email,
       arrivedOn: row.program_cohorts.starts_at.slice(0, 10),
       from: "program",
@@ -243,12 +256,12 @@ export async function getArrivals(supabase: SupabaseClient, sinceDate: string, t
   return mergeArrivals(
     arriving.map((c): Arrival => {
       if (c.from === "program") {
-        return { memberId: c.memberId, memberName: c.memberName, arrivedOn: c.arrivedOn, kind: "program", trialEndsOn: null, programName: c.programName };
+        return { memberId: c.memberId, memberName: c.memberName, memberRealName: c.memberRealName, arrivedOn: c.arrivedOn, kind: "program", trialEndsOn: null, programName: c.programName };
       }
       const trial = pickTrialWindow(windows.get(c.memberId) ?? [], c.arrivedOn);
       return {
         memberId: c.memberId,
-        memberName: c.memberName,
+        memberName: c.memberName, memberRealName: c.memberRealName,
         arrivedOn: c.arrivedOn,
         kind: trial ? "trial" : "direct",
         trialEndsOn: trial?.end ?? null,

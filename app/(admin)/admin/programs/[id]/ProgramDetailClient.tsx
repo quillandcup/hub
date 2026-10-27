@@ -7,11 +7,13 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { formatDateOnly } from "@/lib/formatters";
 
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
   status?: string;
 }
@@ -35,6 +37,7 @@ interface Cohort {
 interface LeakageRow {
   member_id: string;
   member_name: string;
+  member_real_name?: string;
   member_email: string;
   member_status: string;
   cohort_name: string;
@@ -427,6 +430,9 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                   <tr key={row.member_id}>
                     <td className="px-4 py-2">
                       <div className="font-medium">{row.member_name}</div>
+                      {row.member_real_name && row.member_real_name !== row.member_name && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{row.member_real_name}</div>
+                      )}
                       <div className="text-sm text-gray-600 dark:text-gray-400">{row.member_email}</div>
                     </td>
                     <td className="px-4 py-2 text-sm">{row.cohort_name}</td>
@@ -649,7 +655,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                           key={enrollment.id}
                           className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-xs"
                         >
-                          {enrollment.member.name}
+                          {getMemberDisplayName(enrollment.member)}
                           <button
                             onClick={() => handleRemoveEnrollment(enrollment.id)}
                             className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none"

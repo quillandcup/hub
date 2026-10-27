@@ -14,7 +14,6 @@ const SKIP_DIRS = [path.join("app", "(admin)"), path.join("app", "api", "admin")
 // Files that read `host.name` on purpose, each with the reason.
 const ALLOWED: Record<string, string> = {
   "components/MemberAttendanceView.tsx": "admin-only (the admin member page): staff see legal names",
-  "lib/scheduled-prickle-stats.ts": "admin insights tables (grouped stats by host)",
   "lib/data/prickles.ts": "the repository: maps the row to { name, displayName }",
   "lib/attendance-view.ts": "maps the repository's host to a row with display_name beside name",
   "lib/prickle-schedule.ts": "maps the host to { name, display_name } for getMemberDisplayName",

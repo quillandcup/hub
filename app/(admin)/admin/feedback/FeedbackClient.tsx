@@ -1,5 +1,7 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+
 import { useCallback, useEffect, useState } from "react";
 import { startSudo } from "@/app/actions/sudo";
 
@@ -19,7 +21,7 @@ interface FeedbackItem {
   submitter_email: string | null;
   screenshot_url: string | null;
   member_id: string | null;
-  member: { name: string; email: string } | null;
+  member: { name: string; display_name?: string | null; email: string } | null;
 }
 
 const TYPE_LABELS: Record<FeedbackType, string> = {
@@ -168,7 +170,7 @@ export default function FeedbackClient() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-sm font-medium">{TYPE_LABELS[item.feedback_type]}</span>
                     <span className="text-xs text-slate-600 dark:text-slate-400">
-                      {item.member?.name ?? item.submitter_email ?? item.user_id}
+                      {item.member ? getMemberDisplayName(item.member) : (item.submitter_email ?? item.user_id)}
                       {item.is_sudo && " (via sudo)"}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
