@@ -8,6 +8,7 @@ import { InMemoryPushSubscriptionRepository, SupabasePushSubscriptionRepository,
 import { InMemoryReminderLogRepository, SupabaseReminderLogRepository, type ReminderLogRepository } from "./reminder-log";
 import { InMemoryNotificationRepository, SupabaseNotificationRepository, type NotificationRepository } from "./notifications";
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
+import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -23,6 +24,7 @@ export interface Repos {
   pushSubscriptions: PushSubscriptionRepository;
   reminderLog: ReminderLogRepository;
   aliases: AliasRepository;
+  writing: WritingRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -36,6 +38,7 @@ export function createRepos(db: Db): Repos {
     pushSubscriptions: new SupabasePushSubscriptionRepository(db),
     reminderLog: new SupabaseReminderLogRepository(db),
     aliases: new SupabaseAliasRepository(db),
+    writing: new SupabaseWritingRepository(db),
   };
 }
 
@@ -50,5 +53,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     pushSubscriptions: new InMemoryPushSubscriptionRepository(dataset),
     reminderLog: new InMemoryReminderLogRepository(dataset),
     aliases: new InMemoryAliasRepository(dataset),
+    writing: new InMemoryWritingRepository(dataset),
   };
 }

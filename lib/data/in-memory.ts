@@ -5,6 +5,7 @@ import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
+import type { WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
 export type MemberSeed = {
@@ -59,10 +60,13 @@ export class InMemoryDataset {
   memberBadges: MemberBadge[];
   /** Only what badges link to: an event's title and its member-facing slug. */
   events: { id: string; title: string; slug: string }[];
+  writingProjects: WritingProjectRow[];
+  writingGoals: WritingGoalRow[];
+  writingEntries: WritingEntryRow[];
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -79,5 +83,8 @@ export class InMemoryDataset {
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
     this.events = (init.events ?? []).map((row) => ({ ...row }));
+    this.writingProjects = (init.writingProjects ?? []).map((row) => ({ ...row }));
+    this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
+    this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
   }
 }

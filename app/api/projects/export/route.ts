@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
@@ -19,27 +20,23 @@ export async function GET(request: NextRequest) {
 
   const projectId = request.nextUrl.searchParams.get("projectId");
 
-  let query = supabase
-    .from("writing_progress_entries")
-    .select("entry_date, measure, mode, amount, note, tags, writing_projects(title)")
-    .eq("member_id", effectiveIdentity.memberId)
-    .order("entry_date", { ascending: true });
-  if (projectId) query = query.eq("project_id", projectId);
-
-  const { data: entries, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let entries;
+  try {
+    entries = await createRepos(supabase).writing.exportEntries(effectiveIdentity.memberId, projectId ? { projectId } : {});
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
 
   const header = ["date", "project", "measure", "mode", "amount", "note", "tags"];
-  const rows = (entries ?? []).map((e) => {
-    const project = Array.isArray(e.writing_projects) ? e.writing_projects[0] : e.writing_projects;
+  const rows = entries.map((e) => {
     return [
       e.entry_date,
-      project?.title ?? "",
+      e.project_title ?? "",
       e.measure,
       e.mode,
       String(e.amount),
       e.note ?? "",
-      (e.tags ?? []).join(";"),
+      e.tags.join(";"),
     ]
       .map(csvEscape)
       .join(",");
