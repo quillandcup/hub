@@ -3,11 +3,12 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 let admin = true;
+let dbError: string | null = null;
 const update = vi.fn();
 vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () =>
     admin
-      ? { ok: true, supabase: { from: () => ({ update: (patch: unknown) => ({ eq: (...args: unknown[]) => (update(patch, ...args), Promise.resolve({ error: null })) }) }) } }
+      ? { ok: true, supabase: { from: () => ({ update: (patch: unknown) => ({ eq: (...args: unknown[]) => (update(patch, ...args), Promise.resolve({ error: dbError ? { message: dbError } : null })) }) }) } }
       : { ok: false, error: "Forbidden" },
 }));
 const reprocess = vi.hoisted(() => vi.fn(async () => ({ processed: [{ table: "calendar", success: true }] as { table: string; success: boolean; error?: string }[] })));
@@ -29,6 +30,7 @@ const prickle = (id: string, start: string, hostId: string | null = null) => ({
 
 beforeEach(() => {
   admin = true;
+  dbError = null;
   vi.clearAllMocks();
   repos = createInMemoryRepos(
     new InMemoryDataset({
@@ -86,6 +88,13 @@ describe("missing hosts actions", () => {
     expect(await setDefaultHosts([])).toEqual({ saved: 0 });
     expect(await setDefaultHosts([{ typeId: "t1", memberId: "not-a-member" }])).toEqual({ error: "Pick a member" });
     expect(update).not.toHaveBeenCalled();
+    expect(reprocess).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed save without rebuilding", async () => {
+    dbError = "boom";
+
+    expect(await setDefaultHosts([{ typeId: "t1", memberId: "mbr_AAAAAAAAAAA1" }])).toEqual({ error: "boom" });
     expect(reprocess).not.toHaveBeenCalled();
   });
 
