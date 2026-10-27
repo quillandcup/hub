@@ -186,9 +186,7 @@ export async function GET(request: NextRequest) {
     );
 
     // Load email aliases for cross-email member matching
-    const { data: emailAliases } = await supabase
-      .from("member_email_aliases")
-      .select("canonical_email, alias_email");
+    const emailAliases = await createRepos(supabase).aliases.emailAliases();
 
     // Build lookup maps for performance
     const kajabiCustomerMap = new Map(
@@ -199,7 +197,7 @@ export async function GET(request: NextRequest) {
       stripeCustomers?.map(c => [c.stripe_customer_id, c]) || []
     );
 
-    const reverseAliasMap = buildReverseAliasMap(emailAliases || []);
+    const reverseAliasMap = buildReverseAliasMap(emailAliases);
 
     // Build reconciliation in memory
     // Only include members who have data in at least one system

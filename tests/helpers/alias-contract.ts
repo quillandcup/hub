@@ -235,6 +235,24 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       await expect(ctx.repo().addNames([{ memberId: a, alias: ctx.unique("Fresh"), source: "zoom" }, { memberId: b, alias: one, source: "zoom" }])).rejects.toThrow();
       expect((await ctx.repo().namesOf(a)).map((n) => n.alias)).toEqual([one]);
     });
+
+    it("reads email aliases by owner, by member set, and by the primary email they resolve to", async () => {
+      const [a, b] = ctx.memberIds;
+      const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;
+      const [on, off, other] = [email("on"), email("off"), email("other")];
+      await ctx.seed({ emails: [{ member: 0, email: on }, { member: 0, email: off, active: false }, { member: 1, email: other }] });
+
+      const owners = (await ctx.repo().emailOwners()).filter((r) => [on, off, other].includes(r.alias_email));
+      expect(owners.map((r) => `${r.alias_email}|${r.member_id}`).sort()).toEqual([`${on}|${a}`, `${other}|${b}`].sort());
+
+      const ofBoth = (await ctx.repo().emailsOfMembers([a, b])).map((r) => `${r.member_id}|${r.alias_email}`).sort();
+      expect(ofBoth).toEqual([`${a}|${on}`, `${a}|${off}`, `${b}|${other}`].sort());
+      expect((await ctx.repo().emailsOfMembers([b])).map((r) => r.alias_email)).toEqual([other]);
+      expect(await ctx.repo().emailsOfMembers([])).toEqual([]);
+
+      expect(await ctx.repo().activeEmailsFor(ctx.memberEmails[0])).toEqual([on]);
+      expect(await ctx.repo().activeEmailsFor(email("nobody"))).toEqual([]);
+    });
   });
 }
 

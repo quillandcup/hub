@@ -2,7 +2,6 @@ import { createRepos } from "@/lib/data/repos";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { detectResubscriptions } from "@/lib/resubscription-detection";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
-import type { MemberEmailAlias } from "@/lib/member-matching";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface ResubscribingMember {
@@ -101,24 +100,7 @@ export async function fetchResubscriptionsData(
   const allMembers = await createRepos(supabase).members.list();
 
   // Fetch email aliases and build the standard reverse alias map
-  const emailAliases: MemberEmailAlias[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_email_aliases")
-      .select("canonical_email, alias_email")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      emailAliases.push(...(batch as MemberEmailAlias[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const emailAliases = await createRepos(supabase).aliases.emailAliases();
 
   const reverseAliasMap = buildReverseAliasMap(emailAliases);
 

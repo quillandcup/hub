@@ -76,6 +76,12 @@ export interface AliasRepository {
   /** Turns the member's own alias on or off; false when the id isn't theirs. Never a hard delete. */
   setNameActive(memberId: string, id: string, active: boolean): Promise<boolean>;
 
+  /** Which member each active email alias belongs to, paginated. */
+  emailOwners(): Promise<{ alias_email: string; member_id: string }[]>;
+  /** These members' email aliases (all, active or not), one row per alias. */
+  emailsOfMembers(memberIds: string[]): Promise<{ member_id: string; alias_email: string }[]>;
+  /** The active aliases that resolve to this primary email. */
+  activeEmailsFor(canonicalEmail: string): Promise<string[]>;
   /** A member's email aliases, newest first. */
   emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]>;
   /** Adds an email alias (the database fills in the canonical email); false when that address is already an alias of anyone. */
@@ -204,6 +210,32 @@ export class SupabaseAliasRepository implements AliasRepository {
     const { data, error } = await this.db.from("member_name_aliases").update({ active }).eq("id", id).eq("member_id", memberId).select("id");
     if (error) throw new Error(error.message);
     return (data?.length ?? 0) > 0;
+  }
+
+  async emailOwners() {
+    type Row = { alias_email: string; member_id: string };
+    return fetchAllRows<Row>(
+      (from, to) => this.db.from("member_email_aliases").select("alias_email, member_id").eq("active", true).order("id").range(from, to) as unknown as PromiseLike<Page<Row>>
+    );
+  }
+
+  async emailsOfMembers(memberIds: string[]) {
+    type Row = { member_id: string; alias_email: string };
+    const rows: Row[] = [];
+    for (const part of chunk(memberIds, ID_CHUNK)) {
+      rows.push(
+        ...(await fetchAllRows<Row>(
+          (from, to) => this.db.from("member_email_aliases").select("member_id, alias_email").in("member_id", part).order("id").range(from, to) as unknown as PromiseLike<Page<Row>>
+        ))
+      );
+    }
+    return rows;
+  }
+
+  async activeEmailsFor(canonicalEmail: string) {
+    const { data, error } = await this.db.from("member_email_aliases").select("alias_email").eq("canonical_email", canonicalEmail).eq("active", true);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => r.alias_email);
   }
 
   async emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]> {
@@ -388,6 +420,19 @@ export class InMemoryAliasRepository implements AliasRepository {
     if (!row) return false;
     row.active = active;
     return true;
+  }
+
+  async emailOwners() {
+    return this.data.emailAliases.filter((a) => a.active).map((a) => ({ alias_email: a.alias_email, member_id: a.memberId }));
+  }
+
+  async emailsOfMembers(memberIds: string[]) {
+    const wanted = new Set(memberIds);
+    return this.data.emailAliases.filter((a) => wanted.has(a.memberId)).map((a) => ({ member_id: a.memberId, alias_email: a.alias_email }));
+  }
+
+  async activeEmailsFor(canonicalEmail: string) {
+    return this.data.emailAliases.filter((a) => a.canonical_email === canonicalEmail && a.active).map((a) => a.alias_email);
   }
 
   async emailsOf(memberId: string) {

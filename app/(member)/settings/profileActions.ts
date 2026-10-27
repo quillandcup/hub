@@ -116,13 +116,8 @@ async function loadKajabiProfileSnapshot(
   kajabiId: string,
   memberEmail: string
 ): Promise<KajabiProfileSnapshot> {
-  const { data: aliases, error: aliasError } = await service
-    .from("member_email_aliases")
-    .select("alias_email")
-    .eq("canonical_email", memberEmail)
-    .eq("active", true);
-  if (aliasError) throw aliasError;
-  const emails = [memberEmail, ...(aliases ?? []).map((a) => a.alias_email)].map((e) => e.toLowerCase());
+  const aliases = await createRepos(service).aliases.activeEmailsFor(memberEmail);
+  const emails = [memberEmail, ...aliases].map((e) => e.toLowerCase());
 
   const [contactResult, customersResult] = await Promise.all([
     service.schema("bronze").from("kajabi_contacts").select("data").eq("kajabi_contact_id", kajabiId).maybeSingle(),
