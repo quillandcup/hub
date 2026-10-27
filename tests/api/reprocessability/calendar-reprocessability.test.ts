@@ -640,6 +640,52 @@ describe('Calendar Reprocessability', () => {
     }
   })
 
+  it('keeps the title, description and guest speaker an admin set for a calendar prickle through reprocessing, and returns to the calendar when they are cleared', async () => {
+    const googleId = 'test-event-text-override'
+    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+    const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: googleId,
+      summary: 'Heads Down Prickle w/Cody',
+      description: '<p>From the calendar</p>',
+      start_time: '2099-06-26T09:00:00Z',
+      end_time: '2099-06-26T10:00:00Z',
+      raw_data: {},
+    }).select('id').single()
+    const read = async () => {
+      const { data } = await supabase.from('prickles').select('title, description, guest_speaker').eq('calendar_event_id', source!.id).single()
+      return data
+    }
+    try {
+      await process()
+      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
+
+      await supabase.from('unmatched_calendar_events').insert({
+        calendar_event_id: source!.id,
+        raw_summary: 'Heads Down Prickle w/Cody',
+        status: 'resolved',
+        resolved_title: 'Our own title',
+        resolved_description: 'Our own words',
+        resolved_guest_speaker: 'Ada Example',
+      })
+      await process()
+      expect(await read()).toMatchObject({ title: 'Our own title', description: 'Our own words', guest_speaker: 'Ada Example' })
+
+      // Reprocessing again changes nothing; clearing them brings the calendar's text back.
+      await process()
+      expect(await read()).toMatchObject({ title: 'Our own title' })
+      await supabase.from('unmatched_calendar_events').update({ resolved_title: null, resolved_description: null, resolved_guest_speaker: null }).eq('calendar_event_id', source!.id)
+      await process()
+      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
+    } finally {
+      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
+      await process()
+    }
+  })
+
   it('makes an event for a calendar item tagged #event in Google Calendar, upcoming or past, even with no prickle type, keeps the tag out of its description, and takes the event away when the tag goes', async () => {
     const word = `Tagged${Date.now().toString(36)}`
     const processRange = (fromDate: string, toDate: string) => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {

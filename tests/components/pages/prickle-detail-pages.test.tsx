@@ -32,8 +32,8 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 // The children show what the pages hand them.
 vi.mock("@/components/PrickleDetails", () => ({
-  default: ({ prickle, hostMissing, hostLate, hasStarted, insightsSlotUrl }: { prickle: { id: string }; hostMissing: boolean; hostLate: boolean; hasStarted?: boolean; insightsSlotUrl?: string }) => (
-    <pre data-testid="details">{JSON.stringify({ id: prickle.id, hostMissing, hostLate, hasStarted, insightsSlotUrl })}</pre>
+  default: ({ prickle, hostMissing, hostLate, hasStarted, insightsSlotUrl, edit }: { prickle: { id: string }; hostMissing: boolean; hostLate: boolean; hasStarted?: boolean; insightsSlotUrl?: string; edit?: { types: { id: string }[]; members: { id: string }[]; overridden: object } }) => (
+    <pre data-testid="details">{JSON.stringify({ id: prickle.id, hostMissing, hostLate, hasStarted, insightsSlotUrl, edit: edit && { types: edit.types.map((t) => t.id), members: edit.members.length, overridden: edit.overridden, canSave: typeof edit === "object" } })}</pre>
   ),
 }));
 vi.mock("@/components/ReturnToTab", () => ({ ReturnToTabLink: ({ children }: { children: React.ReactNode }) => <a>{children}</a> }));
@@ -127,6 +127,27 @@ describe("admin prickle page", () => {
 
     expect(JSON.parse(screen.getByTestId("details").textContent!)).toMatchObject({ id: "prkl_AAAAAAAAAAA1", hostLate: true, hostMissing: false });
     expect(screen.getByTestId("test-dms")).toBeInTheDocument();
+  });
+
+  describe("editing", () => {
+    it("makes a calendar prickle editable, with the types, the members and what is already set by hand", async () => {
+      repos = dataset([prickle({ calendarEventId: "00000000-0000-4000-8000-00000000000a" })]);
+      useFakeSupabase({ unmatched_calendar_events: { data: { resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null } } });
+
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+      const { edit } = JSON.parse(screen.getByTestId("details").textContent!);
+      expect(edit.types).toEqual(["prty_AAAAAAAAAAA1"]);
+      expect(edit.overridden).toEqual({ title: true, description: false, guestSpeaker: false });
+    });
+
+    it("leaves a prickle that isn't from the calendar read-only", async () => {
+      repos = dataset([prickle()]);
+
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+      expect(JSON.parse(screen.getByTestId("details").textContent!).edit).toBeUndefined();
+    });
   });
 
   describe("the Events control", () => {

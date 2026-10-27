@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
-        .select("calendar_event_id, resolved_type_id, resolved_host_id, status")
+        .select("calendar_event_id, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, status")
         .in("status", ["resolved", "ignored"]),
     ]);
 
@@ -139,7 +139,14 @@ export async function POST(request: NextRequest) {
     );
     // Map calendar_event_id → { status, resolved_type_id, resolved_host_id } for user decisions
     const userDecisionByEventId = new Map(
-      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, { status: r.status, typeId: r.resolved_type_id, hostId: r.resolved_host_id }]) || []
+      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, {
+        status: r.status,
+        typeId: r.resolved_type_id,
+        hostId: r.resolved_host_id,
+        title: r.resolved_title,
+        description: r.resolved_description,
+        guestSpeaker: r.resolved_guest_speaker,
+      }]) || []
     );
 
     // STEP 2: Process events in memory
@@ -253,10 +260,11 @@ export async function POST(request: NextRequest) {
       pricklesToInsert.push({
         calendar_event_id: event.id,
         type_id: typeId,
-        title: matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary,
-        description: plainTextDescription(event.description),
+        // What an admin set by hand (type and host above, text here) wins over what the calendar says.
+        title: userDecision?.title ?? (matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary),
+        description: userDecision?.description ?? plainTextDescription(event.description),
         host: finalHostId,
-        guest_speaker: guestSpeaker,
+        guest_speaker: userDecision?.guestSpeaker ?? guestSpeaker,
         start_time: event.start_time,
         end_time: event.end_time,
         source: "calendar",

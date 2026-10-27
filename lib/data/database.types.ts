@@ -5020,7 +5020,10 @@ export type Database = {
           id: string
           raw_summary: string
           resolved_at: string | null
+          resolved_description: string | null
+          resolved_guest_speaker: string | null
           resolved_host_id: string | null
+          resolved_title: string | null
           resolved_type_id: string | null
           status: string
           suggested_host: string | null
@@ -5032,7 +5035,10 @@ export type Database = {
           id?: string
           raw_summary: string
           resolved_at?: string | null
+          resolved_description?: string | null
+          resolved_guest_speaker?: string | null
           resolved_host_id?: string | null
+          resolved_title?: string | null
           resolved_type_id?: string | null
           status?: string
           suggested_host?: string | null
@@ -5044,7 +5050,10 @@ export type Database = {
           id?: string
           raw_summary?: string
           resolved_at?: string | null
+          resolved_description?: string | null
+          resolved_guest_speaker?: string | null
           resolved_host_id?: string | null
+          resolved_title?: string | null
           resolved_type_id?: string | null
           status?: string
           suggested_host?: string | null

@@ -145,6 +145,8 @@ export interface PrickleRepository {
   setType(prickleId: string, typeId: string): Promise<void>;
   /** Gives a prickle another host. */
   setHost(prickleId: string, hostId: string): Promise<void>;
+  /** Sets the title, description and guest speaker a prickle has; a field left out is not changed, and null empties it. */
+  setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }): Promise<void>;
   /** Hands every prickle one member hosts to another (merging duplicate members). */
   reassignHost(fromMemberId: string, toMemberId: string): Promise<void>;
   /** How many different members have ever been the assigned host of a prickle. */
@@ -350,6 +352,17 @@ export class SupabasePrickleRepository implements PrickleRepository {
 
   async setType(prickleId: string, typeId: string): Promise<void> {
     const { error } = await this.db.from("prickles").update({ type_id: typeId }).eq("id", prickleId);
+    if (error) throw new Error(error.message);
+  }
+
+  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }): Promise<void> {
+    const update = {
+      ...(text.title !== undefined ? { title: text.title } : {}),
+      ...(text.description !== undefined ? { description: text.description } : {}),
+      ...(text.guestSpeaker !== undefined ? { guest_speaker: text.guestSpeaker } : {}),
+    };
+    if (Object.keys(update).length === 0) return;
+    const { error } = await this.db.from("prickles").update(update).eq("id", prickleId);
     if (error) throw new Error(error.message);
   }
 
@@ -684,6 +697,14 @@ export class InMemoryPrickleRepository implements PrickleRepository {
   async setType(prickleId: string, typeId: string) {
     const prickle = this.data.prickles.find((p) => p.id === prickleId);
     if (prickle) prickle.typeId = typeId;
+  }
+
+  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }) {
+    const prickle = this.data.prickles.find((p) => p.id === prickleId);
+    if (!prickle) return;
+    if (text.title !== undefined) prickle.title = text.title;
+    if (text.description !== undefined) prickle.description = text.description;
+    if (text.guestSpeaker !== undefined) prickle.guestSpeaker = text.guestSpeaker;
   }
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
