@@ -1,6 +1,7 @@
 'use client'
 
 import EntitySearch, { type SearchItem } from '@/components/EntitySearch'
+import { memberMatchHint } from '@/lib/search/member-match-hint'
 
 export interface SudoMember {
   id: string
@@ -22,7 +23,7 @@ interface SudoMemberSearchProps {
 
 export const SUDO_SEARCH_LIMIT = 20
 
-/** The members the last search returned, so a pick hands back the member, not the two-part label. */
+/** The members the last search returned, so a pick hands back the whole member (with its email), not just the row's text. */
 let found = new Map<string, SudoMember>()
 
 /** Module-level so EntitySearch gets the same function every render (it re-searches when it changes). */
@@ -32,13 +33,11 @@ async function searchMembers(term: string, signal: AbortSignal): Promise<SearchI
   const json = await res.json()
   const members = (json.members ?? []) as SudoMember[]
   found = new Map(members.map((m) => [m.id, m]))
-  // The display name leads, since that is what the member goes by; the legal name stays visible and searchable.
+  // The display name leads, with a second line only when it explains why this member matched.
   return members.map((m) => ({
     id: m.id,
     name: m.displayName?.trim() || m.name,
-    detail: [m.displayName?.trim() && m.displayName.trim() !== m.name ? m.name : null, m.email, m.matchedAlias ? `also known as “${m.matchedAlias}”` : null]
-      .filter(Boolean)
-      .join(' · '),
+    detail: memberMatchHint([term], { ...m, aliasFor: () => m.matchedAlias ?? undefined }),
   }))
 }
 

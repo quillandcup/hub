@@ -120,7 +120,7 @@ describe("universalSearch (local database)", () => {
     expect(byStatus.map((h) => h.id)).toEqual([otherId]);
   });
 
-  it("finds a member by display name too, and an admin sees it first with the legal name beside the email", async () => {
+  it("finds a member by display name, legal name, email or nickname, showing the display name and only saying why when it isn't in it", async () => {
     // Its own token: the shared one would add a third member to the paging test below.
     const own = `dispname${Date.now()}`;
     const { data, error } = await supabase
@@ -131,22 +131,36 @@ describe("universalSearch (local database)", () => {
     if (error) throw error;
     made.members.push(data.id);
 
-    const staff = hitsOf(await run(`in:members Penny${own}`, { isActingAsAdmin: true }), "members");
-    expect(staff).toHaveLength(1);
-    expect(staff[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname · ${own}-penny@example.com` });
+    const asAdmin = async (input: string) => hitsOf(await run(input, { isActingAsAdmin: true }), "members");
+    const asMember = async (input: string) => hitsOf(await run(input), "members");
 
-    const byLegal = hitsOf(await run(`in:members ${own} legalname`, { isActingAsAdmin: true }), "members");
-    expect(byLegal.map((h) => h.id)).toEqual([data.id]);
+    // The display name explains itself: just the name.
+    const byDisplay = await asAdmin(`in:members Penny${own}`);
+    expect(byDisplay).toHaveLength(1);
+    expect(byDisplay[0]).toMatchObject({ id: data.id, title: `Penny${own}`, badge: "active", href: `/admin/members/${data.id}` });
+    expect(byDisplay[0].subtitle).toBeUndefined();
 
-    const member = hitsOf(await run(`in:members Penny${own}`), "members");
-    expect(member.map((h) => h.title)).toEqual([`Penny${own}`]);
+    // The legal name, or the email, is the reason: that is what shows.
+    expect((await asAdmin(`in:members ${own} legalname`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname` });
+    expect((await asAdmin(`in:members ${own}-penny`))[0]).toMatchObject({ id: data.id, subtitle: `${own}-penny@example.com` });
 
-    // A nickname finds them too; the result still leads with the display name and says why it matched.
-    const { error: aliasError } = await supabase.from("member_name_aliases").insert({ member_id: data.id, alias: `Nick${own}`, source: "zoom", active: true });
+    // Members see the same name, never the email.
+    const byDisplayMember = await asMember(`in:members Penny${own}`);
+    expect(byDisplayMember.map((h) => h.title)).toEqual([`Penny${own}`]);
+    expect(byDisplayMember[0].subtitle).toBeUndefined();
+    expect((await asMember(`in:members ${own} legalname`))[0]).toMatchObject({ id: data.id, subtitle: `${own} Legalname` });
+
+    // A nickname finds them for staff and members alike; the hint says which one.
+    const { error: aliasError } = await supabase.from("member_name_aliases").insert([
+      { member_id: data.id, alias: `Nick${own}`, source: "zoom", active: true },
+      { member_id: data.id, alias: `Retired${own}`, source: "zoom", active: false },
+    ]);
     if (aliasError) throw aliasError;
-    const byAlias = hitsOf(await run(`in:members nick${own}`, { isActingAsAdmin: true }), "members");
-    expect(byAlias).toHaveLength(1);
-    expect(byAlias[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname · ${own}-penny@example.com · also known as “Nick${own}”` });
+    const hint = `also known as “Nick${own}”`;
+    expect((await asAdmin(`in:members nick${own}`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: hint });
+    expect((await asMember(`in:members nick${own}`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: hint });
+    expect(await asAdmin(`in:members retired${own}`)).toEqual([]);
+    expect(await asMember(`in:members retired${own}`)).toEqual([]);
   });
 
   it("finds a prickle by its type's name or its host's name, titled like the detail page", async () => {

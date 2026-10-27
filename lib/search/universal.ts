@@ -6,7 +6,7 @@
  * Chat reuses searchChat (full text, via search_chat_messages). Word matching is `ilike` on the
  * few fields each kind shows: these tables are small. A prickle's title is its own only when the host named it; otherwise it is computed.
  */
-import { getMemberDisplayName } from "@/lib/member-display-name";
+import { memberMatchHint } from "@/lib/search/member-match-hint";
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { prickleTitle } from "@/lib/domain/prickle";
@@ -124,20 +124,36 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
       kind: "members",
       hasMore,
       hits: rows.map((m) => ({
-        kind: "members", id: m.id, title: getMemberDisplayName({ name: m.name, display_name: m.displayName }), subtitle: [m.displayName && m.displayName !== m.name ? m.name : null, m.email, m.matchedAlias ? `also known as “${m.matchedAlias}”` : null].filter(Boolean).join(" · "), badge: m.status, href: `/admin/members/${m.id}`,
+        kind: "members", id: m.id, title: m.displayName?.trim() || m.name,
+        subtitle: memberMatchHint(words, { ...m, aliasFor: () => m.matchedAlias ?? undefined }) ?? (q.email ? m.email : undefined), badge: m.status, href: `/admin/members/${m.id}`,
       })),
     };
   }
 
+  // Nicknames count as names: one lookup per word, since members can't read each other's aliases directly.
+  const aliasesByWord = new Map(
+    await Promise.all(
+      words.map(async (w) => {
+        const { data: found } = await ctx.supabase.rpc("search_member_aliases", { p_term: w });
+        return [w, new Map(((found ?? []) as { member_id: string; alias: string }[]).map((a) => [a.member_id, a.alias]))] as const;
+      }),
+    ),
+  );
   let query = ctx.supabase.from("member_directory").select("id, name, display_name, photo_url, bio");
-  query = matchEach(query, words, ["name", "display_name", "bio"]);
+  for (const w of words) {
+    const clauses = ["name", "display_name", "bio"].map((f) => `${f}.ilike.${pattern(w)}`);
+    const ids = [...aliasesByWord.get(w)!.keys()];
+    if (ids.length > 0) clauses.push(`id.in.(${ids.join(",")})`);
+    query = query.or(clauses.join(","));
+  }
   const { data } = await query.order("name").range(offset, offset + limit);
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "members",
     hasMore,
     hits: rows.map((m) => ({
-      kind: "members", id: m.id, title: m.display_name || m.name, subtitle: m.display_name ? m.name : (m.bio ?? undefined),
+      kind: "members", id: m.id, title: m.display_name || m.name,
+      subtitle: memberMatchHint(words, { name: m.name, displayName: m.display_name, alsoShown: [m.bio], aliasFor: (w) => aliasesByWord.get(w)?.get(m.id) }) ?? (m.display_name ? undefined : (m.bio ?? undefined)),
       imageUrl: m.photo_url, href: `/members/${m.id}`,
     })),
   };

@@ -154,7 +154,7 @@ describe('SudoMemberSearch', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(alan))
   })
 
-  it('leads with the display name, keeps the legal name beside the email, and hands back the member', async () => {
+  it('shows only the display name, and hands back the whole member when picked', async () => {
     vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny, alice]) as any)
     const onSelect = vi.fn()
     const user = userEvent.setup()
@@ -163,21 +163,30 @@ describe('SudoMemberSearch', () => {
     await user.type(screen.getByRole('combobox'), 'pen')
 
     expect(await screen.findByText('Penny Pen')).toBeInTheDocument()
-    expect(screen.getByText('Penelope Legal · penny@example.com')).toBeInTheDocument()
-    expect(screen.getByText('alice@example.com')).toBeInTheDocument() // no display name: just the email
+    expect(screen.queryByText(/Penelope Legal/)).not.toBeInTheDocument() // the legal name isn't why it matched
+    expect(screen.queryByText(/penny@example.com/)).not.toBeInTheDocument()
 
     await user.click(screen.getByText('Penny Pen'))
-    expect(onSelect).toHaveBeenCalledWith(penny) // the real email, not the two-part label
+    expect(onSelect).toHaveBeenCalledWith(penny) // with the real email
   })
 
-  it('says which nickname matched', async () => {
-    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([{ ...penny, matchedAlias: 'Quillfoot' }]) as any)
+  it('says why when the match is not in the name shown: legal name, email or nickname', async () => {
     const user = userEvent.setup()
     render(<Harness />)
+    const input = screen.getByRole('combobox')
 
-    await user.type(screen.getByRole('combobox'), 'quillfoot')
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny]) as any)
+    await user.type(input, 'penelope')
+    expect(await screen.findByText('Penelope Legal')).toBeInTheDocument()
 
-    expect(await screen.findByText('Penny Pen')).toBeInTheDocument()
-    expect(screen.getByText('Penelope Legal · penny@example.com · also known as “Quillfoot”')).toBeInTheDocument()
+    await user.clear(input)
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny]) as any)
+    await user.type(input, 'penny@ex')
+    expect(await screen.findByText('penny@example.com')).toBeInTheDocument()
+
+    await user.clear(input)
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([{ ...penny, matchedAlias: 'Quillfoot' }]) as any)
+    await user.type(input, 'quillfoot')
+    expect(await screen.findByText('also known as “Quillfoot”')).toBeInTheDocument()
   })
 })
