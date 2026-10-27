@@ -121,6 +121,60 @@ describe("EventDetailsCard edit", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 
+  it("saves a change to every field, each in its own place", async () => {
+    renderCard();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    await userEvent.selectOptions(screen.getByLabelText("Type"), "workshop");
+    await userEvent.clear(screen.getByLabelText("Starts"));
+    await userEvent.type(screen.getByLabelText("Starts"), "2097-05-01");
+    await userEvent.clear(screen.getByLabelText("Ends"));
+    await userEvent.type(screen.getByLabelText("Ends"), "2097-05-02");
+    await userEvent.clear(screen.getByLabelText("Location"));
+    await userEvent.type(screen.getByLabelText("Location"), "Room 9");
+    await userEvent.type(screen.getByLabelText("Focus"), "Deep drafting");
+    await userEvent.clear(screen.getByLabelText("Description"));
+    await userEvent.type(screen.getByLabelText("Description"), "New words");
+    await userEvent.type(screen.getByLabelText("Agenda"), "Friday arrival");
+    await userEvent.type(screen.getByLabelText("Results"), "Ten chapters");
+    await userEvent.type(screen.getByLabelText("Google Photos album"), "https://photos.example.test/album");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "workshop",
+        starts_at: "2097-05-01",
+        ends_at: "2097-05-02",
+        location: "Room 9",
+        focus: "Deep drafting",
+        description: "New words",
+        agenda: "Friday arrival",
+        results: "Ten chapters",
+        google_photos_album_url: "https://photos.example.test/album",
+      }),
+    );
+  });
+
+  it("turns an emptied field back into none, not an empty string", async () => {
+    renderCard({ location: "Cedar Lodge", focus: "Deep drafting" });
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Location"));
+    await userEvent.clear(screen.getByLabelText("Focus"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ location: null, focus: null }));
+  });
+
+  it("shows the album, agenda and results as text when there are some, the album as a link", () => {
+    renderCard({ agenda: "Friday arrival", results: "Ten chapters", google_photos_album_url: "https://photos.example.test/album", focus: "Deep drafting" });
+
+    expect(screen.getByText("Friday arrival")).toBeInTheDocument();
+    expect(screen.getByText("Ten chapters")).toBeInTheDocument();
+    expect(screen.getByText("Deep drafting")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "https://photos.example.test/album" })).toHaveAttribute("href", "https://photos.example.test/album");
+  });
+
   it("stays open, showing why, when saving fails", async () => {
     onSave.mockResolvedValue("Missing required fields");
     renderCard();

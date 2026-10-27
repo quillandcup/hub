@@ -82,3 +82,55 @@ describe("admin event that stands for a prickle", () => {
     expect(screen.getByText(/the title, description and location do too until you change them/)).toBeInTheDocument();
   });
 });
+
+describe("saving from the admin event page", () => {
+  function servePatch(patch: { ok: boolean; body: unknown }) {
+    const calls: { method: string; body?: Record<string, unknown> }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        calls.push({ method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+        if (method === "PATCH") return { ok: patch.ok, json: async () => patch.body } as Response;
+        return { ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", photos: [], badgeType: null, attendees: [] }) } as Response;
+      }),
+    );
+    return calls;
+  }
+
+  it("sends the form, shows what the server kept, and closes", async () => {
+    const calls = servePatch({ ok: true, body: { event: { ...EVENT, location: "Room 9" } } });
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Location"));
+    await userEvent.type(screen.getByLabelText("Location"), "Room 9");
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Room 9")).toBeInTheDocument();
+    expect(calls.find((c) => c.method === "PATCH")!.body).toMatchObject({ location: "Room 9" });
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("stays open and says why when the server refuses", async () => {
+    servePatch({ ok: false, body: { error: "event_type must be one of: workshop" } });
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("event_type must be one of: workshop")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("says so when the server gives no reason", async () => {
+    servePatch({ ok: false, body: {} });
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Failed to save event")).toBeInTheDocument();
+  });
+});
+
