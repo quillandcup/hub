@@ -211,14 +211,8 @@ export async function releaseCheckinDM(
 
 /** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
 async function recentMeasures(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure[]> {
-  const { data } = await supabase
-    .from("writing_progress_entries")
-    .select("measure")
-    .eq("project_id", projectId)
-    .eq("member_id", memberId)
-    .order("created_at", { ascending: false })
-    .limit(50);
-  return [...new Set(((data ?? []) as any[]).map((e) => e.measure as WritingMeasure))];
+  const measures = await createRepos(supabase).writing.recentProjectMeasures(memberId, projectId, 50);
+  return [...new Set(measures as WritingMeasure[])];
 }
 
 export const QUICK_LOG_ACTION_ID = "writing_quick_log";
@@ -757,15 +751,7 @@ async function loadSentCheckouts(supabase: any, prickleIds: string[]): Promise<S
 
 /** `${memberId}:${prickleId}:${projectId}` for every project already logged against these prickles. */
 async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds: string[]): Promise<Set<string>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("writing_progress_entries")
-      .select("id, member_id, prickle_id, project_id")
-      .in("prickle_id", prickleIds)
-      .in("member_id", memberIds)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
+  const rows = await createRepos(supabase).writing.loggedAgainstPrickles(memberIds, prickleIds);
   return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}:${r.project_id}`));
 }
 

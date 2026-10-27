@@ -4,7 +4,6 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
-import type { Update } from "@/lib/data/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -768,23 +767,23 @@ async function logProgressImpl(
   const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
   if (ownershipError) return { error: ownershipError };
 
-  const { data, error } = await supabase
-    .from("writing_progress_entries")
-    .insert({
-      project_id: input.projectId,
-      member_id: effectiveIdentity.memberId,
-      entry_date: input.entryDate,
+  let entryId: string;
+  try {
+    entryId = await createRepos(supabase).writing.addEntry({
+      projectId: input.projectId,
+      memberId: effectiveIdentity.memberId,
+      entryDate: input.entryDate,
       measure: input.measure,
-      mode: input.mode,
+      mode: input.mode as "delta" | "set_total",
       amount: input.amount,
       note: input.note?.trim() || null,
       tags: normalizeTags(input.tags),
-      prickle_id: input.prickleId ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to log progress" };
+      prickleId: input.prickleId ?? null,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to log progress" };
+  }
+  const data = { id: entryId };
 
   // Phase 1, item 11: every progress entry is also an engagement signal -- see the identical
   // insert in app/api/webhooks/slack/interactions/route.ts's writing_quick_log flow, which
@@ -827,11 +826,8 @@ export async function updateEntry(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_progress_entries")
-    .select("id, project_id, member_id, prickle_id")
-    .eq("id", entryId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Entry not found" };
@@ -846,22 +842,19 @@ export async function updateEntry(
   });
   if (validationError) return { error: validationError };
 
-  const updates: Update<"writing_progress_entries"> = {};
-  if (patch.entryDate !== undefined) updates.entry_date = patch.entryDate;
-  if (patch.measure !== undefined) updates.measure = patch.measure;
-  if (patch.mode !== undefined) updates.mode = patch.mode;
-  if (patch.amount !== undefined) updates.amount = patch.amount;
-  if (patch.note !== undefined) updates.note = patch.note.trim() || null;
-  if (patch.tags !== undefined) updates.tags = normalizeTags(patch.tags);
-  if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
-
-  const { error } = await supabase
-    .from("writing_progress_entries")
-    .update(updates)
-    .eq("id", entryId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateEntry(effectiveIdentity.memberId, entryId, {
+      entryDate: patch.entryDate,
+      measure: patch.measure,
+      mode: patch.mode,
+      amount: patch.amount,
+      note: patch.note === undefined ? undefined : patch.note.trim() || null,
+      tags: patch.tags === undefined ? undefined : normalizeTags(patch.tags),
+      prickleId: patch.prickleId,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update entry" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -877,23 +870,18 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_progress_entries")
-    .select("id, project_id, member_id, prickle_id")
-    .eq("id", entryId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Entry not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_progress_entries")
-    .delete()
-    .eq("id", entryId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.deleteEntry(effectiveIdentity.memberId, entryId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete entry" };
+  }
 
   // Phase 1, item 11: don't let a deleted (e.g. bogus) entry permanently inflate engagement.
   // Best-effort: the entry itself is already gone, so a failure here must not turn this into
@@ -963,21 +951,23 @@ export async function getMyEntriesForPrickle(prickleId: string): Promise<Prickle
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data }, timeZone] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select(
-        `id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}, writing_projects!inner(title)`
-      )
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("prickle_id", prickleId)
-      .order("created_at", { ascending: true }),
+  const repos = createRepos(supabase);
+  const [entries, prickle, timeZone] = await Promise.all([
+    repos.writing.prickleEntries(effectiveIdentity.memberId, prickleId),
+    repos.prickles.byId(prickleId),
     viewerTimeZone(),
   ]);
 
-  return ((data ?? []) as unknown as (RawEntry & { writing_projects: { title: string } | { title: string }[] })[]).map(
-    (e) => ({ ...toEntryRow(e, timeZone), projectTitle: one(e.writing_projects)?.title ?? "" })
-  );
+  // Every entry here is linked to this one prickle, so its label is the same for all of them.
+  const embedded: RawEmbeddedPrickle | null = prickle
+    ? {
+        id: prickle.id,
+        start_time: prickle.startTime,
+        host: prickle.host ? { name: prickle.host.name, display_name: prickle.host.displayName } : null,
+        prickle_types: prickle.type ? { name: prickle.type.name } : null,
+      }
+    : null;
+  return entries.map(({ project_title, ...e }) => ({ ...toEntryRow({ ...e, prickle: embedded }, timeZone), projectTitle: project_title }));
 }
 
 const UNLOGGED_LOOKBACK_DAYS = 14;
@@ -993,17 +983,13 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const { supabase, effectiveIdentity } = ctx;
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
-  const [attendance, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
-    createRepos(supabase).attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
+  const repos = createRepos(supabase);
+  const [attendance, linked, { data: dismissed }, timeZone] = await Promise.all([
+    repos.attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
       purpose: "writing",
       prickleStartedSince: since,
     }),
-    supabase
-      .from("writing_progress_entries")
-      .select("prickle_id")
-      .eq("member_id", effectiveIdentity.memberId)
-      .not("prickle_id", "is", null)
-      .gte("created_at", since),
+    repos.writing.prickleIdsLoggedSince(effectiveIdentity.memberId, since),
     supabase
       .from("prickle_checkout_dismissals")
       .select("prickle_id")
@@ -1027,7 +1013,8 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
     .filter((c) => checkoutAnswered(checkinFromRow(c)))
     .map((c) => c.prickle_id);
   const linkedIds = new Set([
-    ...[...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id),
+    ...linked,
+    ...(dismissed ?? []).map((e) => (e as { prickle_id: string }).prickle_id),
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();
@@ -1297,18 +1284,14 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [goalRows, { data: entryRows }, attendance] = await Promise.all([
+  const [goalRows, entryRows, attendance] = await Promise.all([
     createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId),
+    createRepos(supabase).writing.entriesForProjects(effectiveIdentity.memberId, [projectId]),
     getMyPrickleAttendance(),
   ]);
 
   const now = new Date();
-  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows ?? [], now, attendance));
+  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance));
 }
 
 export async function toggleGoalStar(
@@ -1360,19 +1343,18 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
   if (goals.length === 0) return [];
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
-  const [{ data: entries }, attendance] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-      .eq("member_id", effectiveIdentity.memberId)
-      .in("project_id", projectIds.filter((id): id is string => id !== null)),
+  const [entries, attendance] = await Promise.all([
+    createRepos(supabase).writing.entriesForProjects(
+      effectiveIdentity.memberId,
+      projectIds.filter((id): id is string => id !== null)
+    ),
     getMyPrickleAttendance(),
   ]);
 
   const now = new Date();
 
   return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
-    const projectEntries = (entries ?? []).filter((e) => e.project_id === g.project_id);
+    const projectEntries = entries.filter((e) => e.project_id === g.project_id);
     return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: g.project_title ?? "Untitled project" };
   });
 }
@@ -1386,13 +1368,8 @@ export async function getProjectSeries(
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: entries }, { data: startingBalanceRow }] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select("entry_date, mode, amount, created_at")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("measure", measure),
+  const [entries, { data: startingBalanceRow }] = await Promise.all([
+    createRepos(supabase).writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
     supabase
       .from("writing_project_starting_balances")
       .select("amount")
@@ -1403,7 +1380,7 @@ export async function getProjectSeries(
   ]);
 
   const series = computeCumulativeSeries(
-    (entries ?? []).map((e) => ({
+    entries.map((e) => ({
       entryDate: e.entry_date,
       createdAt: e.created_at,
       mode: e.mode as EntryMode,

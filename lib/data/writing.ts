@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -34,6 +35,53 @@ export interface ExportedEntry {
   amount: number;
   note: string | null;
   tags: string[];
+}
+
+// --- progress entries ---
+
+/** Who an entry belongs to and where it sits, for the checks before editing or deleting it. */
+export interface EntryOwner {
+  id: string;
+  project_id: string;
+  member_id: string;
+  prickle_id: string | null;
+}
+
+/** The columns of an entry that goal and total calculations read. */
+export interface EntryColumns {
+  id: string;
+  project_id: string;
+  entry_date: string;
+  measure: string;
+  mode: string;
+  amount: number;
+  note: string | null;
+  tags: string[];
+  created_at: string;
+}
+
+/** An entry logged against a prickle, with its project's title. */
+export interface PrickleEntry extends EntryColumns {
+  prickle_id: string | null;
+  project_title: string;
+}
+
+/** What `updateEntry` changes; a key left out stays as it is. */
+export interface EntryPatch {
+  entryDate?: string;
+  measure?: string;
+  mode?: string;
+  amount?: number;
+  note?: string | null;
+  tags?: string[];
+  prickleId?: string | null;
+}
+
+/** An entry's member, prickle and project, for "already logged for this prickle" lookups. */
+export interface LoggedAgainstPrickle {
+  member_id: string;
+  prickle_id: string;
+  project_id: string;
 }
 
 /**
@@ -117,6 +165,26 @@ export interface WritingRepository {
   starredGoals(memberId: string): Promise<StarredGoal[]>;
   /** Every member's goal that isn't archived on a project that isn't, by goal id. */
   activeGoalCandidates(): Promise<GoalCandidateRow[]>;
+
+  // --- progress entries ---
+  /** The entry's owner and place, or null when there is no such entry (or it isn't visible to this client). */
+  findEntry(entryId: string): Promise<EntryOwner | null>;
+  /** Changes the member's own entry. */
+  updateEntry(memberId: string, entryId: string, patch: EntryPatch): Promise<void>;
+  /** Deletes the member's own entry. */
+  deleteEntry(memberId: string, entryId: string): Promise<void>;
+  /** The member's entries linked to one prickle, with their project's title, in the order they were logged. */
+  prickleEntries(memberId: string, prickleId: string): Promise<PrickleEntry[]>;
+  /** The prickles the member linked an entry to since `since` (ISO, by when the entry was logged). */
+  prickleIdsLoggedSince(memberId: string, since: string): Promise<Set<string>>;
+  /** The member's entries in these projects (no particular order). */
+  entriesForProjects(memberId: string, projectIds: string[]): Promise<EntryColumns[]>;
+  /** The dated amounts the member logged in one project for one measure (no particular order). */
+  seriesEntries(memberId: string, projectId: string, measure: string): Promise<{ entry_date: string; mode: string; amount: number; created_at: string }[]>;
+  /** The measures of the member's latest entries in a project, newest first, `limit` of them (repeats kept). */
+  recentProjectMeasures(memberId: string, projectId: string, limit: number): Promise<string[]>;
+  /** Which of these members logged against which of these prickles, in which project; every row, past 1000. */
+  loggedAgainstPrickles(memberIds: string[], prickleIds: string[]): Promise<LoggedAgainstPrickle[]>;
 }
 
 export class SupabaseWritingRepository implements WritingRepository {
@@ -298,6 +366,106 @@ export class SupabaseWritingRepository implements WritingRepository {
       if ((data?.length ?? 0) < GOAL_PAGE) return out;
     }
   }
+
+  // --- progress entries ---
+  async findEntry(entryId: string) {
+    const { data, error } = await this.db.from("writing_progress_entries").select("id, project_id, member_id, prickle_id").eq("id", entryId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async updateEntry(memberId: string, entryId: string, patch: EntryPatch) {
+    const updates: Update<"writing_progress_entries"> = {};
+    if (patch.entryDate !== undefined) updates.entry_date = patch.entryDate;
+    if (patch.measure !== undefined) updates.measure = patch.measure;
+    if (patch.mode !== undefined) updates.mode = patch.mode;
+    if (patch.amount !== undefined) updates.amount = patch.amount;
+    if (patch.note !== undefined) updates.note = patch.note;
+    if (patch.tags !== undefined) updates.tags = patch.tags;
+    if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
+    const { error } = await this.db.from("writing_progress_entries").update(updates).eq("id", entryId).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteEntry(memberId: string, entryId: string) {
+    const { error } = await this.db.from("writing_progress_entries").delete().eq("id", entryId).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async prickleEntries(memberId: string, prickleId: string): Promise<PrickleEntry[]> {
+    const { data, error } = await this.db
+      .from("writing_progress_entries")
+      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, project:writing_projects!inner(title)")
+      .eq("member_id", memberId)
+      .eq("prickle_id", prickleId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(({ project, ...entry }) => ({ ...entry, project_title: (Array.isArray(project) ? project[0] : project)?.title ?? "" }));
+  }
+
+  async prickleIdsLoggedSince(memberId: string, since: string) {
+    const { data, error } = await this.db
+      .from("writing_progress_entries")
+      .select("prickle_id")
+      .eq("member_id", memberId)
+      .not("prickle_id", "is", null)
+      .gte("created_at", since);
+    if (error) throw new Error(error.message);
+    return new Set((data ?? []).map((e) => e.prickle_id as string));
+  }
+
+  async entriesForProjects(memberId: string, projectIds: string[]) {
+    if (projectIds.length === 0) return [];
+    return fetchAllRows<EntryColumns>((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
+        .eq("member_id", memberId)
+        .in("project_id", projectIds)
+        .order("id")
+        .range(from, to),
+    );
+  }
+
+  async seriesEntries(memberId: string, projectId: string, measure: string) {
+    return fetchAllRows<{ entry_date: string; mode: string; amount: number; created_at: string }>((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select("entry_date, mode, amount, created_at")
+        .eq("project_id", projectId)
+        .eq("member_id", memberId)
+        .eq("measure", measure)
+        .order("id")
+        .range(from, to),
+    );
+  }
+
+  async recentProjectMeasures(memberId: string, projectId: string, limit: number) {
+    const { data, error } = await this.db
+      .from("writing_progress_entries")
+      .select("measure")
+      .eq("project_id", projectId)
+      .eq("member_id", memberId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((e) => e.measure);
+  }
+
+  async loggedAgainstPrickles(memberIds: string[], prickleIds: string[]) {
+    const rows = await fetchAllRows<{ member_id: string; prickle_id: string | null; project_id: string }>((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select("member_id, prickle_id, project_id")
+        .in("prickle_id", prickleIds)
+        .in("member_id", memberIds)
+        .order("id")
+        .range(from, to),
+    );
+    return rows.map((r) => ({ member_id: r.member_id, prickle_id: r.prickle_id as string, project_id: r.project_id }));
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -442,5 +610,66 @@ export class InMemoryWritingRepository implements WritingRepository {
       out.push({ goal_id: g.id, member_id: g.member_id, project_id: project.id, project_title: project.title, measure: g.measure });
     }
     return out;
+  }
+
+  // --- progress entries ---
+  private columns(e: WritingEntryRow): EntryColumns {
+    return { id: e.id, project_id: e.project_id, entry_date: e.entry_date, measure: e.measure, mode: e.mode, amount: e.amount, note: e.note, tags: [...e.tags], created_at: e.created_at };
+  }
+
+  async findEntry(entryId: string) {
+    const e = this.data.writingEntries.find((x) => x.id === entryId);
+    return e ? { id: e.id, project_id: e.project_id, member_id: e.member_id, prickle_id: e.prickle_id } : null;
+  }
+
+  async updateEntry(memberId: string, entryId: string, patch: EntryPatch) {
+    const e = this.data.writingEntries.find((x) => x.id === entryId && x.member_id === memberId);
+    if (!e) return;
+    if (patch.entryDate !== undefined) e.entry_date = patch.entryDate;
+    if (patch.measure !== undefined) e.measure = patch.measure;
+    if (patch.mode !== undefined) e.mode = patch.mode;
+    if (patch.amount !== undefined) e.amount = patch.amount;
+    if (patch.note !== undefined) e.note = patch.note;
+    if (patch.tags !== undefined) e.tags = patch.tags;
+    if (patch.prickleId !== undefined) e.prickle_id = patch.prickleId;
+  }
+
+  async deleteEntry(memberId: string, entryId: string) {
+    this.data.writingEntries = this.data.writingEntries.filter((e) => !(e.id === entryId && e.member_id === memberId));
+  }
+
+  async prickleEntries(memberId: string, prickleId: string): Promise<PrickleEntry[]> {
+    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
+      .reverse()
+      .flatMap((e) => {
+        const project = this.data.writingProjects.find((p) => p.id === e.project_id);
+        return project ? [{ ...this.columns(e), prickle_id: e.prickle_id, project_title: project.title }] : [];
+      });
+  }
+
+  async prickleIdsLoggedSince(memberId: string, since: string) {
+    return new Set(this.data.writingEntries.filter((e) => e.member_id === memberId && e.prickle_id && e.created_at >= since).map((e) => e.prickle_id as string));
+  }
+
+  async entriesForProjects(memberId: string, projectIds: string[]) {
+    return this.data.writingEntries.filter((e) => e.member_id === memberId && projectIds.includes(e.project_id)).map((e) => this.columns(e));
+  }
+
+  async seriesEntries(memberId: string, projectId: string, measure: string) {
+    return this.data.writingEntries
+      .filter((e) => e.member_id === memberId && e.project_id === projectId && e.measure === measure)
+      .map((e) => ({ entry_date: e.entry_date, mode: e.mode, amount: e.amount, created_at: e.created_at }));
+  }
+
+  async recentProjectMeasures(memberId: string, projectId: string, limit: number) {
+    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.project_id === projectId))
+      .slice(0, limit)
+      .map((e) => e.measure);
+  }
+
+  async loggedAgainstPrickles(memberIds: string[], prickleIds: string[]) {
+    return this.data.writingEntries
+      .filter((e) => e.prickle_id && prickleIds.includes(e.prickle_id) && memberIds.includes(e.member_id))
+      .map((e) => ({ member_id: e.member_id, prickle_id: e.prickle_id as string, project_id: e.project_id }));
   }
 }

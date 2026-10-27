@@ -30,7 +30,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // moved; the project/goal/entry editing and the Trackbear import are still to move.
   writing_projects: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
   writing_goals: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
-  writing_progress_entries: ["app/(member)/projects/actions.ts", "lib/prickle-checkin-dms.ts", "lib/trackbear-import-runner.ts"],
+  writing_progress_entries: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

@@ -19,6 +19,7 @@ vi.mock("@/lib/data/repos", async () => ({
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import type { Prickle } from "@/lib/data/prickles";
+import type { WritingEntryRow } from "@/lib/data/writing";
 import { dismissUnloggedPrickle, getMyEntriesForPrickle, getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -61,12 +62,31 @@ function attended(id: string, start: string, type = SPRINT) {
   return { prickle, attendance: { id: `att-${id}`, memberId: "member-1", prickleId: id, joinTime: start, leaveTime: start } };
 }
 
-function attendedDataset(rows: ReturnType<typeof attended>[]) {
+/** A progress entry the member logged `hoursAgo` hours ago against `prickleId`. */
+function loggedEntry(id: string, prickleId: string, hoursAgo: number): WritingEntryRow {
+  return {
+    id,
+    member_id: "member-1",
+    project_id: "wprj_AAAAAAAAAAA1",
+    prickle_id: prickleId,
+    entry_date: "2026-10-20",
+    measure: "words",
+    mode: "delta",
+    amount: 100,
+    note: null,
+    tags: [],
+    external_id: null,
+    created_at: new Date(Date.now() - hoursAgo * 3600_000).toISOString(),
+  };
+}
+
+function attendedDataset(rows: ReturnType<typeof attended>[], writingEntries: WritingEntryRow[] = []) {
   return createInMemoryRepos(
     new InMemoryDataset({
       prickleTypes: [SPRINT, social],
       prickles: rows.map((r) => r.prickle),
       attendance: rows.map((r) => r.attendance),
+      writingEntries,
     }),
   );
 }
@@ -88,9 +108,8 @@ describe("getUnloggedRecentPrickles", () => {
       attended("p-checked-in", recent(1)),
       attended("p-social", recent(1), social), // not a writing prickle: never asked about
       attended("p-long-ago", recent(24 * 60)), // older than the lookback
-    ]);
+    ], [loggedEntry("wpe_AAAAAAAAAAA1", "p-logged", 4)]);
     const calls = makeQueryFake({
-      writing_progress_entries: [{ prickle_id: "p-logged" }],
       prickle_checkout_dismissals: [{ prickle_id: "p-dismissed" }],
       prickle_checkins: [
         { prickle_id: "p-checked-out", ...checkinToRow({ ...EMPTY_CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 }) },
@@ -145,42 +164,43 @@ describe("prickle labels name the host by display name", () => {
         attendance: [row.attendance],
       }),
     );
-    makeQueryFake({ writing_progress_entries: [], prickle_checkout_dismissals: [], prickle_checkins: [] });
+    makeQueryFake({ prickle_checkout_dismissals: [], prickle_checkins: [] });
 
     const [option] = await getUnloggedRecentPrickles();
 
     expect(option.label).toMatch(/Sprint with Bestie$/);
   });
 
-  it("on a prickle's progress entries, from the embedded host (display name, else the legal name, else none)", async () => {
-    const entry = (id: string, host: unknown) => ({
-      id,
-      project_id: "proj-1",
-      entry_date: "2026-10-20",
-      measure: "words",
-      mode: "add",
-      amount: 500,
-      note: null,
-      tags: [],
-      created_at: "2026-10-20T16:00:00Z",
-      prickle_id: "p-1",
-      prickle: { id: "p-1", start_time: "2026-10-20T15:00:00Z", host, prickle_types: { name: "Sprint" } },
-      writing_projects: { title: "Novel" },
-    });
-    makeQueryFake({
-      writing_progress_entries: [
-        entry("e1", { name: "Laura May Best", display_name: "Bestie" }),
-        entry("e2", { name: "Ann Example", display_name: null }),
-        entry("e3", null),
-      ],
-    });
+  it("on a prickle's progress entries (display name, else the legal name, else none)", async () => {
+    const cases: [string | null, string | null, string][] = [
+      ["Laura May Best", "Bestie", "Tue, Oct 20 · 3:00 PM · Sprint with Bestie"],
+      ["Ann Example", null, "Tue, Oct 20 · 3:00 PM · Sprint with Ann"],
+      [null, null, "Tue, Oct 20 · 3:00 PM · Sprint"],
+    ];
+    const labels: (string | null)[] = [];
+    for (const [i, [name, displayName]] of cases.entries()) {
+      const prickleId = `prkl_AAAAAAAAAAA${i + 1}`;
+      repos = createInMemoryRepos(
+        new InMemoryDataset({
+          members: name ? [{ id: "mbr_AAAAAAAAAAA2", name, displayName }] : [],
+          prickleTypes: [SPRINT],
+          prickles: [
+            { id: prickleId, typeId: SPRINT.id, hostId: name ? "mbr_AAAAAAAAAAA2" : null, title: null, startTime: "2026-10-20T15:00:00Z", endTime: "2026-10-20T16:00:00Z", source: "calendar", calendarEventId: null },
+          ],
+          writingProjects: [{ id: "wprj_AAAAAAAAAAA1", member_id: "member-1", title: "Novel", description: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z" }],
+          writingEntries: [loggedEntry("wpe_AAAAAAAAAAA1", prickleId, 1)],
+        }),
+      );
+      const rows = await getMyEntriesForPrickle(prickleId);
+      expect(rows[0].projectTitle).toBe("Novel");
+      labels.push(rows[0].prickleLabel);
+    }
 
-    const rows = await getMyEntriesForPrickle("p-1");
+    expect(labels).toEqual(cases.map((c) => c[2]));
+  });
 
-    expect(rows.map((r) => r.prickleLabel)).toEqual([
-      "Tue, Oct 20 · 3:00 PM · Sprint with Bestie",
-      "Tue, Oct 20 · 3:00 PM · Sprint with Ann",
-      "Tue, Oct 20 · 3:00 PM · Sprint",
-    ]);
+  it("has no entries for a prickle nothing was logged against", async () => {
+    repos = createInMemoryRepos(new InMemoryDataset());
+    expect(await getMyEntriesForPrickle("prkl_AAAAAAAAAAA9")).toEqual([]);
   });
 });
