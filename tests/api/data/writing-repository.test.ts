@@ -11,7 +11,9 @@ let typeId: string;
 let prickleId: string;
 
 const clear = async () => {
-  // Entries and goals go with their projects (ON DELETE CASCADE).
+  // Entries and project goals go with their projects (ON DELETE CASCADE); project-less goals don't.
+  const { error: goalError } = await db.from("writing_goals").delete().in("member_id", memberIds);
+  if (goalError) throw new Error(goalError.message);
   const { error } = await db.from("writing_projects").delete().in("member_id", memberIds);
   if (error) throw new Error(error.message);
 };
@@ -33,7 +35,7 @@ beforeAll(async () => {
   typeId = type.id;
   const { data: prickle, error: prickleError } = await db
     .from("prickles")
-    .insert({ type_id: typeId, host: null, start_time: "2097-01-01T09:00:00Z", end_time: "2097-01-01T10:00:00Z", source: "calendar" })
+    .insert({ type_id: typeId, host: memberIds[1], start_time: "2097-01-01T09:00:00Z", end_time: "2097-01-01T10:00:00Z", source: "calendar" })
     .select("id")
     .single();
   if (prickleError) throw new Error(prickleError.message);
@@ -53,6 +55,12 @@ defineWritingContract("SupabaseWritingRepository", () => ({
   },
   get prickleId() {
     return prickleId;
+  },
+  get prickleTypeName() {
+    return `Writing Contract ${RUN}`;
+  },
+  get prickleHostName() {
+    return `Writing Member 1 ${RUN}`;
   },
   repo: () => new SupabaseWritingRepository(db),
   seed: async ({ projects = [], goals = [], entries = [] }) => {

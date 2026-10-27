@@ -35,7 +35,7 @@ function makeSupabaseMock() {
     if (table === "member_books") return { insert };
     if (table === "writing_projects") {
       return {
-        select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ single: projectSingle })) })) })),
+        select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: projectSingle })) })) })),
         update: projectUpdate,
       };
     }

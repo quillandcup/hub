@@ -4,6 +4,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
+import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -179,39 +180,19 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projects }, { data: entries }, { data: goals }, { data: startingBalances }, attendance, books] =
-    await Promise.all([
-      supabase
-        .from("writing_projects")
-        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("writing_progress_entries")
-        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-        .eq("member_id", effectiveIdentity.memberId),
-      supabase
-        .from("writing_goals")
-        .select(GOAL_SELECT_COLUMNS)
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null),
-      supabase
-        .from("writing_project_starting_balances")
-        .select("project_id, measure, amount")
-        .eq("member_id", effectiveIdentity.memberId),
-      getMyPrickleAttendance(),
-      getMyBooks(),
-    ]);
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, goals, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummaries(memberId),
+    writing.projectEntries(memberId),
+    writing.projectGoals(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
 
-  return buildProjectRows(
-    projects ?? [],
-    entries ?? [],
-    (goals ?? []) as unknown as RawGoal[],
-    startingBalances ?? [],
-    attendance,
-    books
-  );
+  // A goal can be project-less; buildProjectRows only ever matches goals to a project by id.
+  return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
 export async function getProject(
@@ -221,48 +202,24 @@ export async function getProject(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, { data: startingBalances }, attendance, books] =
-    await Promise.all([
-      supabase
-        .from("writing_projects")
-        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
-        .eq("id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .single(),
-      supabase
-        .from("writing_progress_entries")
-        .select(`id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}`)
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("writing_goals")
-        .select(GOAL_SELECT_COLUMNS)
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null),
-      supabase
-        .from("writing_project_starting_balances")
-        .select("project_id, measure, amount")
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId),
-      getMyPrickleAttendance(),
-      getMyBooks(),
-    ]);
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projectRow, entryRows, goalRows, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummary(memberId, projectId),
+    writing.projectEntriesWithPrickles(memberId, projectId),
+    writing.projectGoals(memberId, projectId),
+    writing.startingBalances(memberId, projectId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
 
   if (!projectRow) return { error: "Project not found" };
 
-  const [project] = buildProjectRows(
-    [projectRow],
-    entryRows ?? [],
-    (goalRows ?? []) as unknown as RawGoal[],
-    startingBalances ?? [],
-    attendance,
-    books
-  );
+  const [project] = buildProjectRows([projectRow], entryRows.map(({ prickle: _, ...e }) => e), goalRows as RawGoal[], startingBalances, attendance, books);
   const timeZone = await viewerTimeZone();
-  const entries: EntryRow[] = ((entryRows ?? []) as unknown as RawEntry[]).map((e) => toEntryRow(e, timeZone));
+  const entries: EntryRow[] = entryRows.map(({ prickle, ...e }) =>
+    toEntryRow({ ...e, prickle: prickle && { id: prickle.id, start_time: prickle.start_time, host: prickle.host, prickle_types: prickle.type } }, timeZone)
+  );
 
   return { project, entries };
 }
@@ -489,16 +446,15 @@ async function createProjectImpl(
   if (!trimmed) return { error: "Title is required" };
   if (!PHASES.includes(phase)) return { error: "Invalid phase" };
 
-  const { data, error } = await supabase
-    .from("writing_projects")
-    .insert({ member_id: effectiveIdentity.memberId, title: trimmed, phase })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to create project" };
+  let id: string;
+  try {
+    id = await createRepos(supabase).writing.createProject(effectiveIdentity.memberId, trimmed, phase);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to create project") };
+  }
 
   revalidatePath("/projects", "layout");
-  return { success: true, id: data.id };
+  return { success: true, id };
 }
 
 export async function updateProjectDetails(
@@ -512,13 +468,11 @@ export async function updateProjectDetails(
   const trimmedTitle = fields.title.trim();
   if (!trimmedTitle) return { error: "Title is required" };
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ title: trimmedTitle, description: fields.description.trim() || null })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, {
+    title: trimmedTitle,
+    description: fields.description.trim() || null,
+  });
+  if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -536,13 +490,8 @@ export async function updateProjectCover(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ cover_url: coverUrl })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { cover_url: coverUrl });
+  if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -566,27 +515,15 @@ export async function setStartingBalances(
   const toSet = STARTING_BALANCE_MEASURES.filter(isSet);
   const toClear = STARTING_BALANCE_MEASURES.filter((m) => !isSet(m));
 
-  if (toSet.length > 0) {
-    const { error: upsertError } = await supabase.from("writing_project_starting_balances").upsert(
-      toSet.map((measure) => ({
-        project_id: projectId,
-        member_id: effectiveIdentity.memberId,
-        measure,
-        amount: balances[measure]!,
-      })),
-      { onConflict: "project_id,measure" }
+  try {
+    await createRepos(supabase).writing.replaceStartingBalances(
+      effectiveIdentity.memberId,
+      projectId,
+      toSet.map((measure) => ({ measure, amount: balances[measure]! })),
+      toClear
     );
-    if (upsertError) return { error: upsertError.message };
-  }
-
-  if (toClear.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("writing_project_starting_balances")
-      .delete()
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .in("measure", toClear);
-    if (deleteError) return { error: deleteError.message };
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save starting balances") };
   }
 
   revalidatePath("/projects", "layout");
@@ -602,13 +539,8 @@ export async function toggleProjectVisibility(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ show_on_profile: showOnProfile })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { show_on_profile: showOnProfile });
+  if (failure) return failure;
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -630,13 +562,8 @@ export async function updateProjectPhase(
 
   if (!MANUALLY_SETTABLE_PHASES.includes(phase)) return { error: "Invalid phase" };
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ phase })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase });
+  if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -659,13 +586,27 @@ async function assertOwnsProject(
   memberId: string,
   projectId: string
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("writing_projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("member_id", memberId)
-    .single();
-  return data ? null : "Project not found";
+  const owns = await createRepos(supabase).writing.ownsProject(memberId, projectId).catch(() => false);
+  return owns ? null : "Project not found";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+/** Saves fields of the member's project; returns the failure to hand back, or null when it saved. */
+async function saveProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  projectId: string,
+  patch: ProjectPatch
+): Promise<{ error: string } | null> {
+  try {
+    await createRepos(supabase).writing.updateProject(memberId, projectId, patch);
+    return null;
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save project") };
+  }
 }
 
 /**
@@ -709,13 +650,8 @@ async function publishProjectImpl(
     return { error: insertError.message };
   }
 
-  const { error: updateError } = await supabase
-    .from("writing_projects")
-    .update({ phase: "published" })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (updateError) return { error: updateError.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase: "published" });
+  if (failure) return failure;
 
   // Fire-and-forget: a Slack outage must never block the publish from succeeding.
   notifyStaffNewBook({
@@ -1368,15 +1304,10 @@ export async function getProjectSeries(
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [entries, { data: startingBalanceRow }] = await Promise.all([
-    createRepos(supabase).writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
-    supabase
-      .from("writing_project_starting_balances")
-      .select("amount")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("measure", measure)
-      .maybeSingle(),
+  const { writing } = createRepos(supabase);
+  const [entries, startingBalanceAmount] = await Promise.all([
+    writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
+    writing.startingBalance(effectiveIdentity.memberId, projectId, measure),
   ]);
 
   const series = computeCumulativeSeries(
@@ -1388,7 +1319,7 @@ export async function getProjectSeries(
     }))
   );
 
-  const startingBalance = startingBalanceRow?.amount;
+  const startingBalance = startingBalanceAmount ?? undefined;
   return series.map((point) => ({ ...point, total: applyStartingBalance(point.total, startingBalance) }));
 }
 

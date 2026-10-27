@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
+import type { Db } from "@/lib/data/db";
+import { SupabaseWritingRepository } from "@/lib/data/writing";
 import { runTrackbearImport, type CoverCopier } from "@/lib/trackbear-import-runner";
 import { trackbearExternalId, type TrackbearData } from "@/lib/trackbear-import";
 import { makeTrackbearData } from "../../fixtures/trackbear/data";
@@ -11,6 +13,7 @@ import { makeTrackbearData } from "../../fixtures/trackbear/data";
  */
 describe("TrackBear import idempotency", () => {
   const supabase = getTestSupabaseAdminClient();
+  const writing = new SupabaseWritingRepository(supabase as unknown as Db);
   const ts = Date.now();
   let memberId: string;
   const coverCalls: string[] = [];
@@ -49,7 +52,7 @@ describe("TrackBear import idempotency", () => {
   });
 
   it("first import creates projects, balances, entries, goals, and covers", async () => {
-    const result = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    const result = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
 
     expect(result.created).toEqual({ projects: 2, entries: 4, goals: 2, startingBalances: 2, covers: 1 });
     expect(result.alreadyImported).toEqual({ projects: 0, entries: 0, goals: 0 });
@@ -104,7 +107,7 @@ describe("TrackBear import idempotency", () => {
 
   it("re-importing the same export creates nothing", async () => {
     coverCalls.length = 0;
-    const result = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    const result = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
 
     expect(result.created).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 });
     expect(result.alreadyImported).toEqual({ projects: 2, entries: 4, goals: 2 });
@@ -127,7 +130,7 @@ describe("TrackBear import idempotency", () => {
     data.projects[0].title = "Renamed in TrackBear";
     data.tallies.push({ ...data.tallies[0], id: 99, uuid: "99999999-9999-4999-8999-999999999999", date: "2025-02-01", count: 700 });
 
-    const result = await runTrackbearImport(supabase, memberId, data, fakeCoverCopier);
+    const result = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
     expect(result.created).toMatchObject({ projects: 0, entries: 1, goals: 0 });
 
     const { data: project } = await supabase
@@ -156,7 +159,7 @@ describe("TrackBear import idempotency", () => {
       .eq("member_id", memberId)
       .eq("external_id", targetId);
 
-    const first = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    const first = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
     expect(first.updated).toEqual({ goalDetails: 1 });
     const { data: backfilled } = await supabase
       .from("writing_goals")
@@ -171,7 +174,7 @@ describe("TrackBear import idempotency", () => {
       .update({ title: "Renamed in Hub" })
       .eq("member_id", memberId)
       .eq("external_id", targetId);
-    const second = await runTrackbearImport(supabase, memberId, makeTrackbearData(), fakeCoverCopier);
+    const second = await runTrackbearImport(writing, memberId, makeTrackbearData(), fakeCoverCopier);
     expect(second.updated).toEqual({ goalDetails: 0 });
   });
 
@@ -183,11 +186,11 @@ describe("TrackBear import idempotency", () => {
       data.tallies.push({ ...base, id: 1000 + i, uuid: `eeeeeeee-eeee-4eee-8eee-${hex}` });
     }
 
-    const first = await runTrackbearImport(supabase, memberId, data, fakeCoverCopier);
+    const first = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
     expect(first.created.entries).toBe(1200);
     expect(await countRows("writing_progress_entries")).toBe(1205);
 
-    const second = await runTrackbearImport(supabase, memberId, data, fakeCoverCopier);
+    const second = await runTrackbearImport(writing, memberId, data, fakeCoverCopier);
     expect(second.created.entries).toBe(0);
     expect(second.alreadyImported.entries).toBe(1204); // everything in this export (the Feb tally isn't in it)
     expect(await countRows("writing_progress_entries")).toBe(1205);

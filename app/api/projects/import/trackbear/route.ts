@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { extractTrackbearExport, TrackbearImportError } from "@/lib/trackbear-import";
+import { createRepos } from "@/lib/data/repos";
 import { runTrackbearImport } from "@/lib/trackbear-import-runner";
 import { makeTrackbearCoverCopier } from "@/lib/trackbear-cover";
 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await runTrackbearImport(
-      supabase,
+      createRepos(supabase).writing,
       effectiveIdentity.memberId,
       data,
       makeTrackbearCoverCopier(supabase)

@@ -5,7 +5,7 @@ import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
-import type { WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
+import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
 export type MemberSeed = {
@@ -63,10 +63,11 @@ export class InMemoryDataset {
   writingProjects: WritingProjectRow[];
   writingGoals: WritingGoalRow[];
   writingEntries: WritingEntryRow[];
+  writingBalances: WritingBalanceRow[];
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -86,5 +87,6 @@ export class InMemoryDataset {
     this.writingProjects = (init.writingProjects ?? []).map((row) => ({ ...row }));
     this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
+    this.writingBalances = (init.writingBalances ?? []).map((row) => ({ ...row }));
   }
 }
