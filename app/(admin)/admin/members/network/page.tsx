@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { clock } from "@/lib/clock";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
@@ -113,7 +114,8 @@ export default async function MemberNetworkPage({
   // Build network data
   const nodes = members.map(m => ({
     id: m.id,
-    name: m.name,
+    name: getMemberDisplayName(m),
+    legalName: m.name,
     email: m.email,
     totalPrickles: memberPrickleCounts.get(m.id) || 0,
   }));

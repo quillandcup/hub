@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { clock } from "@/lib/clock";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
@@ -64,7 +65,7 @@ export default async function OutreachPage() {
     fetchAllRows(
       supabase,
       "members",
-      "id, name, email, photo_url, instagram_url, status",
+      "id, name, display_name, email, photo_url, instagram_url, status",
       (q) => q.contains("kajabi_tags", [IDEAL_HEDGIE_TAG]).in("status", OUTREACH_STATUSES).order("name")
     ),
     fetchAllRows(supabase, "outreach_leads", "member_id, status, updated_at"),
@@ -104,7 +105,8 @@ export default async function OutreachPage() {
 
   const rows: OutreachLead[] = leads.map((m) => ({
     id: m.id,
-    name: m.name,
+    name: getMemberDisplayName(m),
+    legalName: m.name,
     email: m.email,
     photoUrl: m.photo_url,
     instagramUrl: m.instagram_url,

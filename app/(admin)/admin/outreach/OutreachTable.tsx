@@ -12,6 +12,8 @@ import { etDate } from "@/lib/community-stats";
 export type LeadStatus = "hot" | "warm" | "cold";
 
 export interface OutreachLead {
+  /** The legal name, when it differs from `name` (the display name). */
+  legalName?: string;
   id: string;
   name: string;
   email: string;
@@ -382,6 +384,9 @@ export default function OutreachTable({ leads, initialTodayCount }: OutreachTabl
                       >
                         {lead.name}
                       </Link>
+                      {lead.legalName && lead.legalName !== lead.name && (
+                        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{lead.legalName}</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">

@@ -38,6 +38,7 @@ export type MemberFilterCounts = Record<MemberFilter, number>;
 export interface AdminMemberPageRow {
   id: string;
   name: string;
+  display_name: string | null;
   email: string;
   status: string;
   user_id: string | null;
@@ -55,6 +56,7 @@ export function toMemberTableRow(row: AdminMemberPageRow) {
   return {
     id: row.id,
     name: row.name,
+    display_name: row.display_name,
     email: row.email,
     status: row.status,
     user_id: row.user_id,

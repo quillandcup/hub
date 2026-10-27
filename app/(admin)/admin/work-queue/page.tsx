@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -79,7 +80,7 @@ export default async function WorkQueuePage() {
     fetchAllRows(
       supabase,
       "members",
-      "id, name, first_joined_at, total_active_months",
+      "id, name, display_name, first_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"])
     ),
     fetchAllRows(supabase, "member_hiatus_history", "id, member_id, start_date, end_date"),
@@ -94,8 +95,9 @@ export default async function WorkQueuePage() {
       : Promise.resolve([]),
   ]);
 
-  const memberInputs: MemberInput[] = members;
-  const membersById = new Map(members.map((m) => [m.id, { name: m.name }]));
+  // The queue shows each member by the name the community knows them by.
+  const memberInputs: MemberInput[] = members.map((m) => ({ ...m, name: getMemberDisplayName(m) }));
+  const membersById = new Map(members.map((m) => [m.id, { name: getMemberDisplayName(m) }]));
   const hiatusInputs: HiatusInput[] = hiatusHistory;
 
   const hiatusWindowsByMember = new Map<string, HiatusWindow[]>();

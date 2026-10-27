@@ -4,9 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { describeChat } from "@/lib/member-network";
 
+function matchesSearch(node: { name: string; legalName?: string }, term: string) {
+  const t = term.toLowerCase();
+  return node.name.toLowerCase().includes(t) || (node.legalName ?? "").toLowerCase().includes(t);
+}
+
 interface Node {
   id: string;
   name: string;
+  /** Legal name; searchable too. */
+  legalName?: string;
   email: string;
   totalPrickles: number;
   x?: number;
@@ -155,7 +162,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
 
   // Filter nodes and edges based on search/selection
   const filteredNodes = nodes.filter(node =>
-    node.name.toLowerCase().includes(searchTerm.toLowerCase())
+    matchesSearch(node, searchTerm)
   );
 
   const highlightedNodeIds = new Set<string>();
@@ -339,7 +346,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                         fill={isSelected ? "#b65a88" : isHighlighted ? "#c7779e" : "#64748b"}
                         stroke={isSelected ? "#733654" : "none"}
                         strokeWidth={isSelected ? 3 : 0}
-                        opacity={searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 0.2 : 1}
+                        opacity={searchTerm && !matchesSearch(node, searchTerm) ? 0.2 : 1}
                       />
                       {(isSelected || isHighlighted) && (
                         <text

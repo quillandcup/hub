@@ -92,3 +92,15 @@ describe("name matching page", () => {
     expect(shown).toEqual([expect.objectContaining({ id: fern.id, name: fern.name, email: fern.email })]);
   });
 });
+
+describe("at-risk page display names", () => {
+  it("shows the display name first with the legal name beside it", async () => {
+    const m = member(1, { displayName: "Ada E" });
+    repos = createInMemoryRepos(new InMemoryDataset({ members: [m], attendance: [] }));
+
+    await renderServerPage(AtRiskPage, {});
+
+    expect(screen.getByRole("link", { name: "Ada E" })).toBeInTheDocument();
+    expect(screen.getByText(m.name)).toBeInTheDocument();
+  });
+});

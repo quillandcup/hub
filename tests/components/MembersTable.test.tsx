@@ -124,3 +124,25 @@ describe('MembersTable last attended', () => {
     expect(screen.getByText('2/29/2024')).toBeTruthy()
   })
 })
+
+describe('MembersTable display names', () => {
+  const withDisplay: MemberRow[] = [
+    { ...members[0], id: 'z', name: 'Zelda Example', display_name: 'Ada E' },
+    { ...members[1], id: 'm', name: 'Mary Example', display_name: null },
+  ]
+
+  it('shows the display name as the link with the legal name beneath it', () => {
+    render(<MembersTable members={withDisplay} />)
+    expect(screen.getByRole('link', { name: 'Ada E' })).toHaveAttribute('href', '/admin/members/z')
+    expect(screen.getByText('Zelda Example')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select Ada E')).toBeInTheDocument()
+    // No display name: just the legal name, once.
+    expect(screen.getAllByText('Mary Example')).toHaveLength(1)
+  })
+
+  it('sorts by the displayed name', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByText('Name'))
+    expect(renderedNames()).toEqual(['Ada E', 'Mary Example'])
+  })
+})

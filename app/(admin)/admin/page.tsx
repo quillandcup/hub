@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
@@ -67,12 +68,13 @@ export default async function DashboardPage() {
       const member = memberMap.get(memberId);
       return member ? {
         id: member.id,
-        name: member.name,
+        name: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
+        legalName: member.name,
         email: member.email,
         count: attendanceCounts.get(memberId) || 0,
       } : null;
     })
-    .filter((m): m is { id: string; name: string; email: string; count: number } => m !== null);
+    .filter((m): m is { id: string; name: string; legalName: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
   const atRiskMembersList = allAtRisk.slice(0, 10);
@@ -251,7 +253,7 @@ export default async function DashboardPage() {
                       {idx + 1}
                     </div>
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors" title={member.legalName}>{member.name}</div>
                       <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>
