@@ -2583,6 +2583,7 @@ export type Database = {
           ignored_at: string
           ignored_by: string | null
           prickle_id: string
+          reason: string | null
           zoom_name: string
         }
         Insert: {
@@ -2590,6 +2591,7 @@ export type Database = {
           ignored_at?: string
           ignored_by?: string | null
           prickle_id: string
+          reason?: string | null
           zoom_name: string
         }
         Update: {
@@ -2597,6 +2599,7 @@ export type Database = {
           ignored_at?: string
           ignored_by?: string | null
           prickle_id?: string
+          reason?: string | null
           zoom_name?: string
         }
         Relationships: [

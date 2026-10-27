@@ -80,11 +80,11 @@ describe("POST /api/zoom/ignore", () => {
     const mock = makeSupabaseMock();
     signInAsAdmin(mock);
 
-    const response = await POST(makeRequest("POST", { zoomName: "iPhone", prickleId: PRICKLE_ID }));
+    const response = await POST(makeRequest("POST", { zoomName: "iPhone", prickleId: PRICKLE_ID, reason: "a guest" }));
 
     expect(response.status).toBe(200);
     expect(mock.upsert).toHaveBeenCalledWith(
-      { prickle_id: PRICKLE_ID, zoom_name: "iPhone", ignored_by: "admin-1" },
+      { prickle_id: PRICKLE_ID, zoom_name: "iPhone", reason: "a guest", ignored_by: "admin-1" },
       { onConflict: "prickle_id,zoom_name", ignoreDuplicates: true }
     );
     expect(mock.insert).not.toHaveBeenCalled();

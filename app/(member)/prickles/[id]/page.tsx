@@ -11,6 +11,7 @@ import { ReturnToTabLink } from "@/components/ReturnToTab";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import IgnoredZoomNames from "@/app/(admin)/admin/prickles/[id]/IgnoredZoomNames";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
@@ -121,6 +122,7 @@ export default async function PrickleDetailPage({
 
   const userTimezone = await getUserTimezonePreference();
 
+  let ignoredHere: Array<{ zoomName: string; reason: string | null }> = [];
   let unmatchedZoomAttendees: Array<{ zoomName: string; appearances: number; emails: string[] }> = [];
   let allMembersForMatching: Array<{ id: string; name: string; email: string }> = [];
 
@@ -133,12 +135,13 @@ export default async function PrickleDetailPage({
       createRepos(supabase).members.identities(),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.from("ignored_zoom_names").select("zoom_name"),
-      supabase.from("ignored_zoom_appearances").select("zoom_name").eq("prickle_id", prickle.id),
+      supabase.from("ignored_zoom_appearances").select("zoom_name, reason").eq("prickle_id", prickle.id),
       supabase.from("staff").select("name, email"),
     ]);
 
     const members = membersResult;
     const aliases = aliasesResult;
+    ignoredHere = (ignoredHereResult.data || []).map((i) => ({ zoomName: i.zoom_name, reason: i.reason }));
     const ignoredNames = [...(ignoredResult.data || []), ...(ignoredHereResult.data || [])].map((i) => i.zoom_name);
     const staff = staffResult.data || [];
     allMembersForMatching = members;
@@ -253,6 +256,7 @@ export default async function PrickleDetailPage({
             hasStarted={started}
             roster={roster}
           />
+          {isActingAsAdmin && <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />}
           {isActingAsAdmin && unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}

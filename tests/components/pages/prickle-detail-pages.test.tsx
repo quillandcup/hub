@@ -46,6 +46,11 @@ vi.mock("@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm", () => ({
     <pre data-testid="alias-form">{JSON.stringify({ names: unmatchedAttendees.map((a) => a.zoomName), prickleId })}</pre>
   ),
 }));
+vi.mock("@/app/(admin)/admin/prickles/[id]/IgnoredZoomNames", () => ({
+  default: ({ items }: { items: { zoomName: string; reason: string | null }[] }) => (
+    <pre data-testid="ignored-here">{JSON.stringify(items)}</pre>
+  ),
+}));
 vi.mock("@/app/(admin)/admin/prickles/[id]/TestCheckinDMs", () => ({ default: () => <div data-testid="test-dms" /> }));
 
 import MemberPrickleDetailPage, { generateMetadata as memberMetadata } from "@/app/(member)/prickles/[id]/page";
@@ -143,7 +148,7 @@ describe("unmatched Zoom names", () => {
     user_profiles: { data: { role } },
     "bronze.zoom_attendees": { data: zoomAttendees },
     ignored_zoom_names: { data: [{ zoom_name: "Everywhere Ignored" }] },
-    ignored_zoom_appearances: { data: [{ zoom_name: "iPhone" }] },
+    ignored_zoom_appearances: { data: [{ zoom_name: "iPhone", reason: "a guest" }] },
     staff: { data: [] },
   });
 
@@ -154,6 +159,7 @@ describe("unmatched Zoom names", () => {
     await renderServerPage(MemberPrickleDetailPage, memberProps);
 
     expect(JSON.parse(screen.getByTestId("alias-form").textContent!)).toEqual({ names: ["Zed Unknown"], prickleId: "prkl_AAAAAAAAAAA1" });
+    expect(JSON.parse(screen.getByTestId("ignored-here").textContent!)).toEqual([{ zoomName: "iPhone", reason: "a guest" }]);
   });
 
   it("member page: a member never sees the form", async () => {
@@ -162,6 +168,7 @@ describe("unmatched Zoom names", () => {
     await renderServerPage(MemberPrickleDetailPage, memberProps);
 
     expect(screen.queryByTestId("alias-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ignored-here")).not.toBeInTheDocument();
   });
 
   it("admin page: the same two ignores apply", async () => {
@@ -171,5 +178,6 @@ describe("unmatched Zoom names", () => {
     await renderServerPage(AdminPrickleDetailPage, memberProps);
 
     expect(JSON.parse(screen.getByTestId("alias-form").textContent!)).toEqual({ names: ["Zed Unknown"], prickleId: "prkl_AAAAAAAAAAA1" });
+    expect(JSON.parse(screen.getByTestId("ignored-here").textContent!)).toEqual([{ zoomName: "iPhone", reason: "a guest" }]);
   });
 });
