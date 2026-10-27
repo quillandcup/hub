@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import MemberDetails, { type MemberView } from '@/app/(admin)/admin/members/[id]/MemberDetails'
 
 vi.mock('next/link', () => ({
@@ -74,5 +74,14 @@ describe('MemberDetails engagement and churn risk', () => {
     renderDetails('active', {})
     expect(screen.getByText('/ 100')).toBeTruthy()
     expect(screen.getByText('low')).toBeTruthy()
+  })
+})
+
+describe('MemberDetails tab titles', () => {
+  it('puts the display name, not the legal name, in the document title when switching tabs', () => {
+    renderDetails('active', { displayName: 'Ada E', metrics: null, engagement: null })
+    fireEvent.click(screen.getByText("Slack Activity (0)"))
+    expect(document.title.startsWith('Ada E')).toBe(true)
+    expect(document.title).not.toContain('Test Member')
   })
 })

@@ -6,6 +6,10 @@ import userEvent from '@testing-library/user-event'
 import { TimezoneProvider } from '@/components/Timezone'
 import MembersTable, { type MemberRow } from '@/app/(admin)/admin/members/MembersTable'
 
+vi.mock('@/app/(admin)/admin/members/BulkMergeMemberModal', () => ({
+  default: ({ members }: { members: unknown[] }) => <pre data-testid="merge-members">{JSON.stringify(members)}</pre>,
+}))
+
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
     <a href={href} {...props}>
@@ -144,5 +148,17 @@ describe('MembersTable display names', () => {
     render(<MembersTable members={withDisplay} />)
     await userEvent.click(screen.getByText('Name'))
     expect(renderedNames()).toEqual(['Ada E', 'Mary Example'])
+  })
+
+  it('hands the selected members, with display names, to the bulk merge', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByLabelText('Select Ada E'))
+    await userEvent.click(screen.getByLabelText('Select Mary Example'))
+    await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+    const passed = JSON.parse(screen.getByTestId('merge-members').textContent!)
+    expect(passed).toEqual([
+      expect.objectContaining({ id: 'z', name: 'Zelda Example', display_name: 'Ada E' }),
+      expect.objectContaining({ id: 'm', name: 'Mary Example' }),
+    ])
   })
 })

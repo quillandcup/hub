@@ -103,4 +103,15 @@ describe("at-risk page display names", () => {
     expect(screen.getByRole("link", { name: "Ada E" })).toBeInTheDocument();
     expect(screen.getByText(m.name)).toBeInTheDocument();
   });
+
+  it("orders never-attended members by display name, not legal name", async () => {
+    const a = member(1, { displayName: "Zed E" });
+    const b = member(2, { displayName: "Abe E" });
+    repos = createInMemoryRepos(new InMemoryDataset({ members: [a, b], attendance: [] }));
+
+    await renderServerPage(AtRiskPage, {});
+
+    const order = screen.getAllByRole("link").map((l) => l.textContent).filter((t) => t?.endsWith(" E"));
+    expect(order).toEqual(["Abe E", "Zed E"]);
+  });
 });

@@ -59,7 +59,7 @@ vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 
-import MemberDetailPage from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
+import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
 
 const MEMBER = { id: "member-moss", name: "Moss Bramble", email: "moss.bramble@example.test", kajabi_id: null, stripe_customer_id: null };
 
@@ -129,5 +129,22 @@ describe("MemberDetailPage", () => {
       .flatMap((q) => q.calls)
       .find((c) => c.method === "args");
     expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
+  });
+
+  it("titles the page with the member's display name, then the tab", async () => {
+    useFakeSupabase({ members: { data: [{ ...MEMBER, display_name: "Moss B" }] } });
+    const params = Promise.resolve({ id: MEMBER.id });
+    const overview = await memberTabMetadata("overview")({ params });
+    const slack = await memberTabMetadata("slack")({ params });
+    expect(String(overview.title)).toContain("Moss B");
+    expect(String(overview.title)).not.toContain("Moss Bramble");
+    expect(String(slack.title)).toContain("Moss B");
+    expect(String(slack.title)).toContain("Slack Activity");
+  });
+
+  it("titles the page 'Member' when the member does not exist", async () => {
+    useFakeSupabase({ members: { data: [] } });
+    const metadata = await memberTabMetadata("overview")({ params: Promise.resolve({ id: "mbr_AAAAAAAAAAA9" }) });
+    expect(String(metadata.title)).toContain("Member");
   });
 });

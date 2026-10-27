@@ -33,4 +33,24 @@ describe("MemberAttendanceView (admin member page)", () => {
     expect(screen.getAllByRole("link", { name: "Ann Example" }).length).toBeGreaterThan(0);
     expect(screen.queryByText("Laura May Best")).not.toBeInTheDocument();
   });
+
+  it("sorts the list by the host's display name", async () => {
+    render(
+      <MemberAttendanceView
+        member={{ id: "mbr_AAAAAAAAAAA1" }}
+        attendanceRecords={[
+          record("a1", { id: "mbr_AAAAAAAAAAA2", name: "Aaa Example", display_name: "Zed E" }),
+          record("a2", { id: "mbr_AAAAAAAAAAA3", name: "Zzz Example", display_name: "Abe E" }),
+        ]}
+        userTimezonePreference="America/New_York"
+        memberBasePath="/admin/members"
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "List" }));
+    await userEvent.click(screen.getByText("Host"));
+
+    const hosts = screen.getAllByRole("link").map((l) => l.textContent).filter((t) => t === "Abe E" || t === "Zed E");
+    expect(hosts).toEqual(["Abe E", "Zed E"]);
+  });
 });
