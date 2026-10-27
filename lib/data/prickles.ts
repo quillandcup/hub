@@ -107,6 +107,8 @@ export interface PrickleRepository {
   byId(id: string): Promise<PrickleDetail | null>;
   /** The prickles that exist among these ids, in no particular order. */
   byIds(ids: string[]): Promise<PrickleDetail[]>;
+  /** The prickles made from these Bronze calendar events (`Prickle.calendarEventId`), in no particular order. */
+  byCalendarEventIds(calendarEventIds: string[]): Promise<PrickleDetail[]>;
   /** Prickles that start in the window, oldest first. */
   startingBetween(window: StartingBetween): Promise<PrickleDetail[]>;
   /** Every prickle type, by name. */
@@ -254,6 +256,21 @@ export class SupabasePrickleRepository implements PrickleRepository {
       const rows = await fetchAllRows<DetailRow>(
         (from, to) =>
           this.db.from("prickles").select(DETAIL_SELECT).in("id", idChunk).order("id").range(from, to) as unknown as PromiseLike<{
+            data: DetailRow[] | null;
+            error: { message: string } | null;
+          }>,
+      );
+      found.push(...rows.map(toDetail));
+    }
+    return found;
+  }
+
+  async byCalendarEventIds(calendarEventIds: string[]): Promise<PrickleDetail[]> {
+    const found: PrickleDetail[] = [];
+    for (const idChunk of chunk(calendarEventIds, ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<DetailRow>(
+        (from, to) =>
+          this.db.from("prickles").select(DETAIL_SELECT).in("calendar_event_id", idChunk).order("id").range(from, to) as unknown as PromiseLike<{
             data: DetailRow[] | null;
             error: { message: string } | null;
           }>,
@@ -605,6 +622,11 @@ export class InMemoryPrickleRepository implements PrickleRepository {
   async byIds(ids: string[]) {
     const wanted = new Set(ids);
     return this.data.prickles.filter((p) => wanted.has(p.id)).map((p) => this.detail(p));
+  }
+
+  async byCalendarEventIds(calendarEventIds: string[]) {
+    const wanted = new Set(calendarEventIds);
+    return this.data.prickles.filter((p) => p.calendarEventId !== null && wanted.has(p.calendarEventId)).map((p) => this.detail(p));
   }
 
   async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId }: StartingBetween) {

@@ -117,11 +117,13 @@ export default function AliasSearchForm({
   };
 
   const handleIgnore = async (zoomName: string, scope: "everywhere" | "here") => {
-    const where = scope === "here" ? "on this prickle" : "everywhere (every prickle, including future ones)";
-    const reason = prompt(
-      `Why are you ignoring "${zoomName}" ${where}?\nA guest, a speaker, a test join...\n(Optional - press OK to skip)`
-    );
-    if (reason === null) return; // User cancelled
+    let reason: string | null = null;
+    if (scope === "everywhere") {
+      reason = prompt(
+        `Why are you ignoring "${zoomName}" everywhere?\nIt will be hidden for every prickle, including future ones.\n(Optional - press OK to skip)`
+      );
+      if (reason === null) return; // User cancelled
+    }
 
     setIgnoring(zoomName);
 

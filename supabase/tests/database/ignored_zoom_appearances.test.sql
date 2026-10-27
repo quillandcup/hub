@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(9);
+SELECT plan(8);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000c1a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'iza-member@example.test'),
@@ -60,8 +60,6 @@ SELECT matches(
 SELECT matches(
   obj_description('public.ignored_zoom_appearances'::regclass, 'pg_class'), '\[id prefix: igza\_\]$',
   'the table comment records the id prefix');
-
-SELECT has_column('public', 'ignored_zoom_appearances', 'reason', 'an ignore records why (a guest, a speaker, a test join)');
 
 DELETE FROM public.prickles WHERE id = 'prkl_IZAtestAAAA1';
 SELECT is(

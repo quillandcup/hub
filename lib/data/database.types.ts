@@ -2384,10 +2384,12 @@ export type Database = {
         Row: {
           agenda: string | null
           announced_publicly: boolean
+          calendar_event_id: string | null
           capacity: number | null
           created_at: string
           created_by: string | null
           description: string | null
+          end_time: string | null
           ends_at: string
           event_type: string
           focus: string | null
@@ -2395,11 +2397,13 @@ export type Database = {
           guests_allowed: boolean
           id: string
           location: string | null
+          overridden_fields: string[]
           registration: string
           results: string | null
           selection: string
           slug: string
           speakers: string | null
+          start_time: string | null
           starts_at: string
           title: string
           updated_at: string
@@ -2407,10 +2411,12 @@ export type Database = {
         Insert: {
           agenda?: string | null
           announced_publicly?: boolean
+          calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_time?: string | null
           ends_at: string
           event_type: string
           focus?: string | null
@@ -2418,11 +2424,13 @@ export type Database = {
           guests_allowed?: boolean
           id?: string
           location?: string | null
+          overridden_fields?: string[]
           registration?: string
           results?: string | null
           selection?: string
           slug: string
           speakers?: string | null
+          start_time?: string | null
           starts_at: string
           title: string
           updated_at?: string
@@ -2430,10 +2438,12 @@ export type Database = {
         Update: {
           agenda?: string | null
           announced_publicly?: boolean
+          calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_time?: string | null
           ends_at?: string
           event_type?: string
           focus?: string | null
@@ -2441,11 +2451,13 @@ export type Database = {
           guests_allowed?: boolean
           id?: string
           location?: string | null
+          overridden_fields?: string[]
           registration?: string
           results?: string | null
           selection?: string
           slug?: string
           speakers?: string | null
+          start_time?: string | null
           starts_at?: string
           title?: string
           updated_at?: string
@@ -2583,7 +2595,6 @@ export type Database = {
           ignored_at: string
           ignored_by: string | null
           prickle_id: string
-          reason: string | null
           zoom_name: string
         }
         Insert: {
@@ -2591,7 +2602,6 @@ export type Database = {
           ignored_at?: string
           ignored_by?: string | null
           prickle_id: string
-          reason?: string | null
           zoom_name: string
         }
         Update: {
@@ -2599,7 +2609,6 @@ export type Database = {
           ignored_at?: string
           ignored_by?: string | null
           prickle_id?: string
-          reason?: string | null
           zoom_name?: string
         }
         Relationships: [

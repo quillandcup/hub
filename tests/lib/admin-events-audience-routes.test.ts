@@ -8,6 +8,8 @@ let written: Record<string, unknown> | undefined;
 const row = () => ({ id: "evt_AAAAAAAAAAA1", ...written });
 const client = {
   from: () => ({
+    // The update route looks the event up first to see whether it follows the calendar; this one doesn't.
+    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
     insert: (payload: Record<string, unknown>) => {
       written = payload;
       return { select: () => ({ single: async () => ({ data: row(), error: null }) }) };

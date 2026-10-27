@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const { error } = await supabase
         .from("ignored_zoom_appearances")
         .upsert(
-          { prickle_id: prickleId, zoom_name: zoomName, reason: reason || null, ignored_by: user.id },
+          { prickle_id: prickleId, zoom_name: zoomName, ignored_by: user.id },
           { onConflict: "prickle_id,zoom_name", ignoreDuplicates: true }
         );
       if (error) {

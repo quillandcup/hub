@@ -30,14 +30,14 @@ describe("AliasSearchForm ignore buttons", () => {
     expect(lastBody()).toEqual({ zoomName: "iPhone", reason: "a phone" });
   });
 
-  it("on a prickle, 'Ignore here' asks for a reason, sends it with the prickle id and hides the row", async () => {
+  it("on a prickle, 'Ignore here' sends the prickle id without asking for a reason and hides the row", async () => {
     render(<AliasSearchForm unmatchedAttendees={unmatched} allMembers={members} prickleId={PRICKLE_ID} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Ignore here" }));
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    expect(window.prompt).toHaveBeenCalledWith(expect.stringContaining("on this prickle"));
-    expect(lastBody()).toEqual({ zoomName: "iPhone", reason: "a phone", prickleId: PRICKLE_ID });
+    expect(window.prompt).not.toHaveBeenCalled();
+    expect(lastBody()).toEqual({ zoomName: "iPhone", reason: null, prickleId: PRICKLE_ID });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Ignore here" })).not.toBeInTheDocument());
   });
 
