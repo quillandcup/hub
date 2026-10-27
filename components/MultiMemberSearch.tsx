@@ -1,10 +1,12 @@
 "use client";
 
 import MultiEntitySearch from "@/components/MultiEntitySearch";
+import { memberSearchItem } from "@/lib/member-search-item";
 
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   /** Optional: admin-only surfaces pass it; member-facing ones never receive other members' emails. */
   email?: string;
 }
@@ -27,7 +29,7 @@ export default function MultiMemberSearch({
 }: MultiMemberSearchProps) {
   return (
     <MultiEntitySearch
-      items={members.map((m) => ({ id: m.id, name: m.name, detail: m.email }))}
+      items={members.map(memberSearchItem)}
       selectedIds={selectedMemberIds}
       onChange={onChange}
       placeholder={placeholder}

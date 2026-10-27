@@ -187,10 +187,10 @@ describe("PrickleDetails summary", () => {
       expect(screen.queryByText("Laura May Best")).not.toBeInTheDocument();
     });
 
-    it("keeps the legal name for admins", () => {
-      renderDetails({ prickle: named, attendanceRecords: [bestAttendee], memberBasePath: "/admin/members", showMemberEmails: true });
-      expect(screen.getAllByRole("link", { name: "Laura May Best" })).toHaveLength(2);
-      expect(screen.queryByText("Bestie")).not.toBeInTheDocument();
+    it("shows admins the display name too, with the legal name beside the email", () => {
+      renderDetails({ prickle: named, attendanceRecords: [{ ...bestAttendee, members: { ...bestAttendee.members, email: "laura@example.test" } }], memberBasePath: "/admin/members", showMemberEmails: true });
+      expect(screen.getAllByRole("link", { name: "Bestie" })).toHaveLength(2);
+      expect(screen.getByText("Laura May Best · laura@example.test")).toBeInTheDocument();
     });
 
     it("sorts attendees by the name shown", async () => {

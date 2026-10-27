@@ -46,14 +46,14 @@ beforeEach(() => {
 });
 
 describe("segments page", () => {
-  it("hands the picker every member by name, with only the fields it shows", async () => {
+  it("hands the picker every member by name and display name, with only the fields it shows", async () => {
     useFakeSupabase({});
 
     await renderServerPage(SegmentsPage, {});
 
     const shown = JSON.parse(screen.getByTestId("segments").textContent!);
     expect(shown.map((m: { name: string }) => m.name)).toEqual(["Ada Example", "Bea Example", "Fern Example"]);
-    expect(shown[0]).toEqual({ id: ADA.id, name: ADA.name, email: ADA.email }); // no auth user id, role or pen name
+    expect(shown[0]).toEqual({ id: ADA.id, name: ADA.name, displayName: null, email: ADA.email }); // no auth user id or role
   });
 });
 

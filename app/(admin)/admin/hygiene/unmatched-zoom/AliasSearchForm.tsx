@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import Modal from "@/components/Modal";
@@ -16,6 +17,7 @@ interface UnmatchedAttendee {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -56,6 +58,11 @@ export default function AliasSearchForm({
     [unmatchedAttendees, matches, ignoredNames]
   );
 
+  // Suggestions come from the matcher with the legal name; show who they are by display name.
+  const memberById = useMemo(() => new Map(allMembers.map((m) => [m.id, m])), [allMembers]);
+  const displayNameOf = (member: { id: string; name: string }) =>
+    getMemberDisplayName({ name: member.name, display_name: memberById.get(member.id)?.displayName });
+
   const suggestionsByZoomName = useMemo(() => {
     const map = new Map<string, ReturnType<typeof suggestMemberMatches>>();
     for (const attendee of availableZoomNames) {
@@ -73,7 +80,7 @@ export default function AliasSearchForm({
       {
         zoomName,
         memberId: member.id,
-        memberName: member.name,
+        memberName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
         memberEmail: member.email,
       },
     ]);
@@ -297,7 +304,7 @@ export default function AliasSearchForm({
                             className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40"
                             title={member.email}
                           >
-                            {member.name}
+                            {displayNameOf(member)}
                           </button>
                         ))}
                       </div>

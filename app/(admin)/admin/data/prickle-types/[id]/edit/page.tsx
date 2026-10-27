@@ -9,6 +9,7 @@ import EditPrickleTypeForm from "./EditPrickleTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
 import type { PrickleTypePurpose } from "@/lib/prickle-picker";
 import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 const getPrickleType = cache(async (id: string) => {
   const supabase = await createClient();
@@ -51,13 +52,13 @@ export default async function EditPrickleTypePage({
     redirect("/admin/data/prickle-types");
   }
 
-  const members = (await createRepos(await createClient()).members.list({ status: "active", orderBy: "name" })).map(({ id, name, email }) => ({ id, name, email }));
+  const members = (await createRepos(await createClient()).members.list({ status: "active", orderBy: "name" })).map(({ id, name, displayName, email }) => ({ id, name, displayName, email }));
   // The default host may no longer be active; still show who it is
-  const defaultHostName = prickleType.default_host_id
-    ? (members.find((m) => m.id === prickleType.default_host_id)?.name ??
-      (await createRepos(await createClient()).members.byIds([prickleType.default_host_id]))[0]?.name ??
-      null)
+  const defaultHost = prickleType.default_host_id
+    ? (members.find((m) => m.id === prickleType.default_host_id) ??
+      (await createRepos(await createClient()).members.byIds([prickleType.default_host_id]))[0])
     : null;
+  const defaultHostName = defaultHost ? getMemberDisplayName({ name: defaultHost.name, display_name: defaultHost.displayName }) : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

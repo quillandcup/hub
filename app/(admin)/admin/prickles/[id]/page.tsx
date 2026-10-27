@@ -18,6 +18,7 @@ import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
 import ChangePrickleType from "./ChangePrickleType";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import ChangePrickleHost from "./ChangePrickleHost";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 
@@ -182,8 +183,8 @@ export default async function AdminPrickleDetailPage({
             <ChangePrickleHost
               prickleId={prickle.id}
               currentHostId={prickle.hostId}
-              currentHostName={prickle.host?.name ?? null}
-              members={members.map((m) => ({ id: m.id, name: m.name, email: m.email }))}
+              currentHostName={prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : null}
+              members={members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }))}
             />
           )}
           {eventsEnabled && prickle.calendarEventId && (

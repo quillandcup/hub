@@ -12,6 +12,6 @@ export default async function SegmentsPage() {
   await requireAdminPage();
   const supabase = await createClient();
   // Only what the picker shows goes to the client component.
-  const members = (await createRepos(supabase).members.list({ orderBy: "name" })).map(({ id, name, email }) => ({ id, name, email }));
+  const members = (await createRepos(supabase).members.list({ orderBy: "name" })).map(({ id, name, displayName, email }) => ({ id, name, displayName, email }));
   return <SegmentsClient allMembers={members} />;
 }
