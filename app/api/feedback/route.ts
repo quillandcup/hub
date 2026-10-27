@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 const FEEDBACK_TYPES = ["bug", "data", "idea"] as const;
 type FeedbackType = (typeof FEEDBACK_TYPES)[number];
@@ -109,7 +110,7 @@ async function notifySlack(params: {
   user: { id: string; email?: string | null };
   effectiveIdentity: EffectiveIdentity | null;
 }) {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   const channel = process.env.SLACK_FEEDBACK_CHANNEL_ID;
   if (!token || !channel) return;
 

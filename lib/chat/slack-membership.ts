@@ -2,6 +2,7 @@ import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { isDeadTokenError } from "@/lib/slack-connect";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
  * Adding and removing people in a Slack conversation, for the Hub's members page (docs/SLACK_BRIDGED_CHAT.md,
@@ -74,7 +75,7 @@ function removeProblem(code: string | undefined): string {
 export async function inviteToSlackChannel(opts: { channel: string; userIds: string[]; slack?: WebClient }): Promise<SlackMembershipResult> {
   if (opts.userIds.length === 0) return { ok: true };
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be added from the live Hub." };
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (!opts.slack && !token) return { ok: false, error: MISSING_BOT };
   try {
     const slack = opts.slack ?? new WebClient(token);
@@ -92,7 +93,7 @@ export async function inviteToSlackChannel(opts: { channel: string; userIds: str
 /** Remove one person (a Slack user id) from a conversation. Not being in it counts as done. */
 export async function kickFromSlackChannel(opts: { channel: string; userId: string; slack?: WebClient }): Promise<SlackMembershipResult> {
   if (!chatSlackWritesEnabled()) return { ok: false, error: "People in Slack can only be removed from the live Hub." };
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (!opts.slack && !token) return { ok: false, error: MISSING_BOT };
   try {
     const slack = opts.slack ?? new WebClient(token);

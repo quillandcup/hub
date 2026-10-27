@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
 import { isId } from "@/lib/ids";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 export const maxDuration = 60;
 
@@ -44,7 +45,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!file.staged) return notFound();
     path = file.staged;
   } else {
-    const copy = await ensureSlackFileCopied(service, process.env.SLACK_BOT_TOKEN ?? "", {
+    const copy = await ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", {
       fileId,
       channelId: channel?.slack_channel_id ?? "",
       messageTs: message?.slack_ts ?? "",

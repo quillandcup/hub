@@ -4858,6 +4858,30 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_bot_token: {
+        Row: {
+          access_secret_id: string
+          expires_at: string | null
+          refresh_secret_id: string | null
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          access_secret_id: string
+          expires_at?: string | null
+          refresh_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          access_secret_id?: string
+          expires_at?: string | null
+          refresh_secret_id?: string | null
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       slack_identities: {
         Row: {
           created_at: string
@@ -4903,6 +4927,21 @@ export type Database = {
           slack_user_id?: string
           token_hash?: string
           used_at?: string | null
+        }
+        Relationships: []
+      }
+      slack_token_refresh_leases: {
+        Row: {
+          held_until: string
+          lease_key: string
+        }
+        Insert: {
+          held_until: string
+          lease_key: string
+        }
+        Update: {
+          held_until?: string
+          lease_key?: string
         }
         Relationships: []
       }
@@ -6194,6 +6233,22 @@ export type Database = {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
       }
+      slack_bot_token_get: {
+        Args: never
+        Returns: {
+          access_token: string
+          expires_at: string
+          refresh_token: string
+        }[]
+      }
+      slack_bot_token_save: {
+        Args: {
+          p_access_token: string
+          p_expires_at: string
+          p_refresh_token: string
+        }
+        Returns: undefined
+      }
       slack_connection_delete_secrets: {
         Args: { p_member: string }
         Returns: undefined
@@ -6235,6 +6290,14 @@ export type Database = {
       slack_is_system_message_type: {
         Args: { p_type: string }
         Returns: boolean
+      }
+      slack_token_refresh_claim: {
+        Args: { p_key: string; p_seconds: number }
+        Returns: boolean
+      }
+      slack_token_refresh_release: {
+        Args: { p_key: string }
+        Returns: undefined
       }
       sync_event_badge_awards: {
         Args: { p_event_id: string }

@@ -27,9 +27,22 @@ import {
 const NOW = Date.parse("2026-10-10T12:00:00Z");
 
 /** A Supabase stand-in: rpc by name, and single-row reads by table. */
-function fakeService(opts: { tokens?: Record<string, unknown> | null; rows?: Record<string, unknown> } = {}) {
+function fakeService(
+  opts: {
+    /** The connection row; a list is read one entry per call (the last repeating), to show it changing under a request. */
+    tokens?: Record<string, unknown> | null | (Record<string, unknown> | null)[];
+    rows?: Record<string, unknown>;
+    /** Whether this request wins the refresh lease; "error" makes claiming it fail. */
+    claim?: boolean | "error";
+  } = {}
+) {
+  let reads = 0;
   const rpc = vi.fn(async (name: string) => {
-    if (name === "slack_connection_tokens") return { data: opts.tokens ? [opts.tokens] : [], error: null };
+    if (name === "slack_connection_tokens") {
+      const row = Array.isArray(opts.tokens) ? opts.tokens[Math.min(reads++, opts.tokens.length - 1)] : opts.tokens;
+      return { data: row ? [row] : [], error: null };
+    }
+    if (name === "slack_token_refresh_claim") return opts.claim === "error" ? { data: null, error: new Error("db down") } : { data: opts.claim ?? true, error: null };
     return { data: null, error: null };
   });
   const from = (table: string) => {
@@ -230,6 +243,59 @@ describe("getSlackUserToken", () => {
     const noRefresh = fakeService({ tokens: row({ expires_at: expiring, refresh_token: null }) });
     await expect(getSlackUserToken(noRefresh, "m1")).resolves.toBeNull();
     expect(noRefresh.rpc).toHaveBeenCalledWith("slack_connection_revoke", { p_member: "m1" });
+  });
+});
+
+describe("refreshing without two requests doing it at once", () => {
+  useFakeClock(() => NOW);
+  const row = (extra: Record<string, unknown> = {}) => ({ slack_user_id: "U_FERN", access_token: "xoxp-live", refresh_token: "xoxe-old", expires_at: null, ...extra });
+  // About to expire (refreshing starts within five minutes) but still good for now.
+  const expiring = () => new Date(NOW + 4 * 60_000).toISOString();
+  const expired = () => new Date(NOW - 60_000).toISOString();
+  const fresh = () => new Date(NOW + 3 * 3600_000).toISOString();
+
+  it("refreshes under the lease and gives it back after", async () => {
+    access.mockResolvedValue({ ok: true, access_token: "xoxp-new", refresh_token: "xoxe-new", expires_in: 43200 });
+    const service = fakeService({ tokens: row({ expires_at: expiring() }) });
+    await getSlackUserToken(service, "m1");
+    expect(service.rpc).toHaveBeenCalledWith("slack_token_refresh_claim", { p_key: "member:m1", p_seconds: 60 });
+    expect(service.rpc).toHaveBeenCalledWith("slack_token_refresh_release", { p_key: "member:m1" });
+  });
+
+  it("uses the token it has, and doesn't refresh, when another request holds the lease and it hasn't expired yet", async () => {
+    const service = fakeService({ tokens: row({ expires_at: expiring() }), claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-live", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+  });
+
+  it("waits for the request that holds the lease when its own token has expired, then uses the refreshed one", async () => {
+    const service = fakeService({ tokens: [row({ expires_at: expired() }), row({ access_token: "xoxp-refreshed", expires_at: fresh() })], claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-refreshed", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+  });
+
+  it("gives up, without disconnecting the member, if the holder never finishes", async () => {
+    const service = fakeService({ tokens: row({ expires_at: expired() }), claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toBeNull();
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+  });
+
+  it("looks again once it holds the lease: another request may have refreshed (and spent the refresh token) before it", async () => {
+    const service = fakeService({ tokens: [row({ expires_at: expiring() }), row({ access_token: "xoxp-by-someone-else", expires_at: fresh() })] });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-by-someone-else", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+  });
+
+  it("doesn't disconnect anyone because the lease couldn't be taken (a database problem), and uses a token that still works", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const service = fakeService({ tokens: row({ expires_at: expiring() }), claim: "error" });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-live", slackUserId: "U_FERN" });
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+
+    const gone = fakeService({ tokens: row({ expires_at: expired() }), claim: "error" });
+    await expect(getSlackUserToken(gone, "m1")).resolves.toBeNull();
+    expect(gone.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
   });
 });
 

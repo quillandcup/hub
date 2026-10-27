@@ -4,6 +4,7 @@ import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { APP_URL } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { withRefreshLease } from "@/lib/slack-token-refresh";
 
 /**
  * Slack connect (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a member connects their own Slack
@@ -201,45 +202,79 @@ export async function getSlackConnectionStatus(service: SupabaseClient, memberId
 /** Refresh a rotating token when it has less than this left. */
 const REFRESH_WITHIN_MS = 5 * 60 * 1000;
 
+interface ConnectionRow {
+  slack_user_id: string;
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string | null;
+}
+
+async function readConnection(service: SupabaseClient, memberId: string): Promise<ConnectionRow | null> {
+  const { data, error } = await service.rpc("slack_connection_tokens", { p_member: memberId });
+  const row = (Array.isArray(data) ? data[0] : data) as ConnectionRow | undefined;
+  return error || !row ? null : row;
+}
+
+const isExpiring = (row: ConnectionRow): boolean => row.expires_at !== null && Date.parse(row.expires_at) - clock.now() < REFRESH_WITHIN_MS;
+const hasNotExpired = (row: ConnectionRow): boolean => row.expires_at === null || Date.parse(row.expires_at) - clock.now() > 60 * 1000;
+const asToken = (row: ConnectionRow) => ({ token: row.access_token, slackUserId: row.slack_user_id });
+
 /**
  * The member's Slack user token, ready to use, or null when they haven't connected or the
- * connection no longer works. Refreshes a rotating (expiring) token first; a refresh Slack
- * refuses revokes the connection so the member is asked to reconnect instead of failing silently.
+ * connection no longer works. Refreshes a rotating (expiring) token first, under a lease so two requests
+ * never refresh one token at once (Slack refresh tokens are single-use: the second would be refused and
+ * the member asked to reconnect; lib/slack-token-refresh.ts); a refresh Slack refuses revokes the
+ * connection so the member is asked to reconnect instead of failing silently.
  */
 export async function getSlackUserToken(service: SupabaseClient, memberId: string): Promise<{ token: string; slackUserId: string } | null> {
-  const { data, error } = await service.rpc("slack_connection_tokens", { p_member: memberId });
-  const row = (Array.isArray(data) ? data[0] : data) as
-    | { slack_user_id: string; access_token: string; refresh_token: string | null; expires_at: string | null }
-    | undefined;
-  if (error || !row) return null;
-
-  const expiring = row.expires_at !== null && Date.parse(row.expires_at) - clock.now() < REFRESH_WITHIN_MS;
-  if (!expiring) return { token: row.access_token, slackUserId: row.slack_user_id };
+  const row = await readConnection(service, memberId);
+  if (!row) return null;
+  if (!isExpiring(row)) return asToken(row);
   if (!row.refresh_token) {
     await service.rpc("slack_connection_revoke", { p_member: memberId });
     return null;
   }
 
   try {
-    const result = await new WebClient().oauth.v2.access({
-      client_id: process.env.SLACK_CLIENT_ID ?? "",
-      client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
-      grant_type: "refresh_token",
-      refresh_token: row.refresh_token,
+    return await withRefreshLease<ReturnType<typeof asToken> | null>(service, `member:${memberId}`, {
+      fallback: hasNotExpired(row) ? asToken(row) : null,
+      reread: async () => {
+        const again = await readConnection(service, memberId);
+        return again && !isExpiring(again) ? asToken(again) : null;
+      },
+      refresh: async () => {
+        // Read again now that this request holds the lease: another may have refreshed (spending the refresh
+        // token read above), or the member may have disconnected, in between.
+        const latest = await readConnection(service, memberId);
+        if (!latest) return null;
+        if (!isExpiring(latest)) return asToken(latest);
+        try {
+          const result = await new WebClient().oauth.v2.access({
+            client_id: process.env.SLACK_CLIENT_ID ?? "",
+            client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
+            grant_type: "refresh_token",
+            refresh_token: latest.refresh_token ?? "",
+          });
+          const access = result.access_token ?? result.authed_user?.access_token;
+          if (!result.ok || !access) throw new Error("Slack did not return a refreshed token");
+          await service.rpc("slack_connection_update_tokens", {
+            p_member: memberId,
+            p_access_token: access,
+            p_refresh_token: result.refresh_token ?? result.authed_user?.refresh_token ?? null,
+            p_expires_at: expiryFrom(result.expires_in ?? result.authed_user?.expires_in),
+          });
+          return { token: access, slackUserId: latest.slack_user_id };
+        } catch (error) {
+          console.error("Slack token refresh failed for member %s:", memberId, error);
+          await service.rpc("slack_connection_revoke", { p_member: memberId });
+          return null;
+        }
+      },
     });
-    const access = result.access_token ?? result.authed_user?.access_token;
-    if (!result.ok || !access) throw new Error("Slack did not return a refreshed token");
-    await service.rpc("slack_connection_update_tokens", {
-      p_member: memberId,
-      p_access_token: access,
-      p_refresh_token: result.refresh_token ?? result.authed_user?.refresh_token ?? null,
-      p_expires_at: expiryFrom(result.expires_in ?? result.authed_user?.expires_in),
-    });
-    return { token: access, slackUserId: row.slack_user_id };
   } catch (error) {
-    console.error("Slack token refresh failed for member %s:", memberId, error);
-    await service.rpc("slack_connection_revoke", { p_member: memberId });
-    return null;
+    // Couldn't coordinate (the database): not a reason to disconnect anyone. Use what works, if anything.
+    console.error("Slack token refresh lease failed for member %s:", memberId, error);
+    return hasNotExpired(row) ? asToken(row) : null;
   }
 }
 

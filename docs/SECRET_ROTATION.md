@@ -116,6 +116,19 @@ management).
   for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
   never needs an uninstall.
 
+### Moving the bot to rotating tokens (one time, irreversible)
+Slack's token rotation replaces the bot's never-expiring token with a 12-hour one that the Hub refreshes by itself, so no later rotation needs an uninstall. **Opting in cannot be undone** (Slack's docs: "token rotation may not be turned off once it's turned on"), and Slack advises trying it on a development app first. The code is `lib/slack-bot-token.ts`, the refresh lease is `slack_token_refresh_claim`, the by-hand tool is `pnpm slack:bot-token`. Members' own tokens rotate the same way and use the same lease. In order:
+1. **Deploy the code and migration** (merge as usual). Nothing changes yet: `SLACK_BOT_TOKEN_ROTATION` is unset, so the bot still uses `SLACK_BOT_TOKEN`.
+2. `pnpm slack:bot-token status` should say no rotating token is stored.
+3. **Opt in**: set `token_rotation_enabled: true` in `slack-app-manifest.yml` and merge (CI pushes the manifest; run `pnpm slack:manifest:diff` first and check it shows only that). Existing tokens keep working. Members who connect Slack from now on get rotating user tokens (those who connected before keep non-rotating ones until they reconnect, which is why this is done before members connect).
+4. **Exchange**: `pnpm slack:bot-token exchange --confirm` trades the current bot token for a rotating one and stores it in Vault. A long-lived token can be exchanged once; the script refuses to run twice. It prints the first expiry, never a token.
+5. **Switch it on**: set `SLACK_BOT_TOKEN_ROTATION=on` in `.env.prod`, `pnpm env:sync --only=SLACK_BOT_TOKEN_ROTATION --target=production`, redeploy. From then on every use of the bot goes through `getSlackBotToken()`, which refreshes the credential in its last hour.
+6. **Check**: `status` shows an expiry; about 11 hours later it moves forward (a refresh happened); the Vercel logs show no `Refreshing the Slack bot token failed` or `CRITICAL` lines; an admin test notification (`/admin/notifications`) reaches Slack. The old `SLACK_BOT_TOKEN` stops working after the first refresh: never `auth.revoke` it (that uninstalls the app); `auth.test` with it confirms it is dead.
+
+How refreshes stay safe: a refresh token is single-use, so two refreshes at once would lose the credential. The refresh happens under a lease row (one holder at a time, 60 seconds, runs out if the holder dies); everyone else keeps using the token they have (it is still valid when refreshing starts) or waits a few seconds for the holder's result, and the holder reads the stored credential again after winning the lease, in case a refresh finished just before. The new pair is stored with retries before anything else, since the old refresh token is spent the moment Slack answers.
+
+If the refresh token is ever lost (`invalid_refresh_token` in the logs, a `CRITICAL` line, or the bot answering `invalid_auth`): reinstall the app from OAuth & Permissions, put the new bot token in `SLACK_BOT_TOKEN`, delete the stored row (`delete from public.slack_bot_token;` in the SQL editor), set `SLACK_BOT_TOKEN_ROTATION` off, redeploy, and exchange again. Slack's documentation doesn't say what a reinstall hands out for an app that has opted in, so check that path on a development app before relying on it.
+
 - **Signing secret** (`SLACK_SIGNING_SECRET`): https://api.slack.com/apps/A0AS93BKT09/general
   -> App Credentials -> Regenerate. Events, interactions and `/hub` are rejected between the
   regenerate and the resync+redeploy.

@@ -33,6 +33,7 @@ import {
   toSlackChannelRow,
 } from '@/lib/slack-capture';
 import { removeFilesGoneFromSlack } from '@/lib/chat/file-cleanup';
+import { getSlackBotToken } from '@/lib/slack-bot-token';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
 
   try {
-    const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+    const SLACK_BOT_TOKEN = await getSlackBotToken();
 
     if (!SLACK_BOT_TOKEN) {
       return NextResponse.json(
