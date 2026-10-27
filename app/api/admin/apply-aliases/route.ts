@@ -76,16 +76,11 @@ export async function POST(request: NextRequest) {
       }
 
       // Create the alias
-      const { error: insertError } = await supabase
-        .from("member_name_aliases")
-        .insert({
-          member_id: member.id,
-          alias: alias,
-        })
-        .select();
-
-      if (insertError) {
-        messages.push(`Error creating alias "${alias}" for ${email}: ${insertError.message}`);
+      try {
+        const added = await createRepos(supabase).aliases.addName(member.id, alias, "zoom");
+        if (!added) throw new Error("that name is already an alias");
+      } catch (insertError) {
+        messages.push(`Error creating alias "${alias}" for ${email}: ${insertError instanceof Error ? insertError.message : insertError}`);
         errors++;
         continue;
       }

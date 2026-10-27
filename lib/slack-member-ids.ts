@@ -10,27 +10,6 @@ import { sendOperationsAlert, type OperationsAlert } from "@/lib/operations-aler
  * service-role client.
  */
 
-const BATCH_SIZE = 1000;
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
-
 /** Full slackUserId -> memberId map, same 3-tier matching (alias > email > normalized name) Wheel of Wonder uses. */
 async function buildSlackUserIdToMemberIdMap(
   supabase: any,
@@ -38,9 +17,7 @@ async function buildSlackUserIdToMemberIdMap(
 ): Promise<Map<string, string>> {
   const [allMembers, aliases, slackUsersResult] = await Promise.all([
     createRepos(supabase).members.identities(),
-    fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
-      supabase.from("member_name_aliases").select("member_id, alias, source").range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).aliases.nameAliases(),
     supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
   ]);
 

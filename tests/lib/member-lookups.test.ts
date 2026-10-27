@@ -44,8 +44,17 @@ describe("email channel addresses", () => {
 
 describe("Slack DM links", () => {
   it("links by confirmed Slack alias first, then by email match in the Slack directory", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [ADA, FERN, GALE],
+        nameAliases: [
+          { id: "nal_1", member_id: ADA.id, alias: "U_ADA_ALIAS", source: "slack", active: true },
+          { id: "nal_2", member_id: FERN.id, alias: "U_FERN_OLD", source: "slack", active: false },
+          { id: "nal_3", member_id: GALE.id, alias: "Gale E", source: "zoom", active: true },
+        ],
+      })
+    );
     service = createFakeSupabase({
-      member_name_aliases: { data: [{ member_id: ADA.id, alias: "U_ADA_ALIAS" }] },
       "bronze.slack_users": { data: [{ user_id: "U_FERN", email: FERN.email }, { user_id: "U_ADA_EMAIL", email: ADA.email }] },
     });
 

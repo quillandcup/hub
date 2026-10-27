@@ -7,7 +7,8 @@ import { createFakeSupabase } from "@/tests/helpers/server-page";
 // POST /api/admin/apply-aliases reads supabase/member-aliases.csv (email,alias per line). Each name
 // is checked like any other new alias (lib/name-alias-conflict.ts) before it is created.
 
-let repos = createInMemoryRepos();
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
@@ -37,12 +38,13 @@ import { POST } from "@/app/api/admin/apply-aliases/route";
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", status: "active", kajabiId: null, stripeCustomerId: null };
 
 const post = () => POST(new NextRequest("http://localhost/api/admin/apply-aliases", { method: "POST" }));
-const inserts = () => fake.queries.filter((q) => q.table === "member_name_aliases" && q.calls.some((c) => c.method === "insert"));
+const inserts = () => dataset.nameAliases;
 
 beforeEach(() => {
   vi.clearAllMocks();
   fake = createFakeSupabase();
-  repos = createInMemoryRepos(new InMemoryDataset({ members: [ADA] }));
+  dataset = new InMemoryDataset({ members: [ADA] });
+  repos = createInMemoryRepos(dataset);
   rpcMock.mockResolvedValue({ data: [], error: null });
   triggerReprocessingMock.mockResolvedValue({ processed: [] });
   csv = "email,alias\nada@example.test,Ada E\n";
@@ -61,6 +63,24 @@ describe("POST /api/admin/apply-aliases", () => {
     expect(body).toMatchObject({ created: 1, skipped: 0, errors: 0 });
     expect(inserts()).toHaveLength(1);
     expect(triggerReprocessingMock).toHaveBeenCalled();
+  });
+
+  it("counts a name someone else grabbed since the check as an error", async () => {
+    dataset.nameAliases.push({ id: "nal_x", member_id: "mbr_AAAAAAAAAAA2", alias: "Ada E", source: "zoom", active: true });
+
+    const body = await (await post()).json();
+
+    expect(body).toMatchObject({ created: 0, errors: 1 });
+    expect(body.messages[0]).toContain('Error creating alias "Ada E"');
+  });
+
+  it("counts an alias the store can't save as an error", async () => {
+    vi.spyOn(repos.aliases, "addName").mockRejectedValue(new Error("db down"));
+
+    const body = await (await post()).json();
+
+    expect(body).toMatchObject({ created: 0, errors: 1 });
+    expect(body.messages[0]).toContain("db down");
   });
 
   it.each(["own", "own_inactive"])("skips a name the member already has (%s)", async (kind) => {

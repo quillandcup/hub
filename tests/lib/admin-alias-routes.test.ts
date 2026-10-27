@@ -61,15 +61,12 @@ describe("POST /api/aliases", () => {
   const post = (body: unknown) => saveAliases(new NextRequest("http://localhost/api/aliases", { method: "POST", body: JSON.stringify(body) }));
 
   it("checks each name for its member, then saves them all", async () => {
-    tables["member_name_aliases"] = { data: [{ id: "a1" }, { id: "a2" }] };
-    fake = createFakeSupabase(tables);
-
     const res = await post({ matches: [{ memberId: ADA.id, zoomName: "Ada E" }, { memberId: FERN.id, zoomName: "Fern E" }] });
 
     expect(res.status).toBe(200);
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Ada E" });
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: FERN.id, p_alias: "Fern E" });
-    expect(writes("member_name_aliases", "insert")).toHaveLength(1);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Ada E", "zoom"], [FERN.id, "Fern E", "zoom"]]);
   });
 
   it("saves nothing when any name is taken, and says whose it is", async () => {
@@ -79,7 +76,7 @@ describe("POST /api/aliases", () => {
 
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe(`"Fern E" is already an alias for Fern Example. Move it from there first.`);
-    expect(writes("member_name_aliases", "insert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
     expect(triggerReprocessingMock).not.toHaveBeenCalled();
   });
 
@@ -102,7 +99,7 @@ describe("POST /api/aliases", () => {
     const res = await post({ matches: [{ memberId: ADA.id, zoomName: "Ada E" }] });
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("rpc down");
-    expect(writes("member_name_aliases", "insert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 });
 
@@ -115,9 +112,19 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
 
     expect(res.status).toBe(200);
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Katie" });
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(1);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Katie", "zoom"]]);
     expect(writes("ambiguous_zoom_names", "update")).toHaveLength(1);
     expect(triggerReprocessingMock).toHaveBeenCalledWith("member_name_aliases", "local");
+  });
+
+  it("reports it when the alias can't be saved, and leaves the name unresolved", async () => {
+    vi.spyOn(repos.aliases, "upsertName").mockRejectedValue(new Error("db down"));
+
+    const res = await post({ zoomName: "Katie", memberId: ADA.id });
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+    expect(writes("ambiguous_zoom_names", "update")).toHaveLength(0);
   });
 
   it("doesn't take the name from another member", async () => {
@@ -127,14 +134,14 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
 
     expect(res.status).toBe(409);
     expect((await res.json()).error).toContain("already an alias for Fern Example");
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
     expect(writes("ambiguous_zoom_names", "update")).toHaveLength(0);
   });
 
   it("doesn't shadow another member's real name", async () => {
     rpcMock.mockResolvedValue(conflictRow("other_name"));
     expect((await post({ zoomName: "Fern Example", memberId: ADA.id })).status).toBe(409);
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 
   it("just resolves when the member already has that name switched on", async () => {
@@ -143,7 +150,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
     const res = await post({ zoomName: "Katie", memberId: ADA.id });
 
     expect(res.status).toBe(200);
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
     expect(writes("ambiguous_zoom_names", "update")).toHaveLength(1);
   });
 
@@ -158,7 +165,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "rpc down" } });
     const res = await post({ zoomName: "Katie", memberId: ADA.id });
     expect(res.status).toBe(500);
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 
   it("ignoring a name doesn't run the check", async () => {

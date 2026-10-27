@@ -18,23 +18,25 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { supabase } = auth;
   const { id } = await params;
 
-  const { data: alias, error: fetchError } = await supabase
-    .from("member_name_aliases")
-    .select("id, member_id, alias")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !alias) {
-    return NextResponse.json({ error: fetchError?.message ?? "Alias not found" }, { status: 404 });
+  const aliases = createRepos(supabase).aliases;
+  let alias: Awaited<ReturnType<typeof aliases.nameById>>;
+  try {
+    alias = await aliases.nameById(id);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 404 });
   }
+  if (!alias) return NextResponse.json({ error: "Alias not found" }, { status: 404 });
 
-  const { error: deleteError } = await supabase.from("member_name_aliases").delete().eq("id", id);
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  try {
+    await aliases.removeNames([id]);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
 
   // The deleted alias may have been the member's default display name --
   // display_name is a plain text column, not a foreign key, so it won't be
   // cleared automatically.
-  await createRepos(supabase).members.clearDisplayNameIfEquals(alias.member_id, alias.alias).catch(() => {});
+  await createRepos(supabase).members.clearDisplayNameIfEquals(alias.memberId, alias.alias).catch(() => {});
 
   return NextResponse.json({ success: true });
 }
