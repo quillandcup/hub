@@ -6118,6 +6118,13 @@ export type Database = {
           rank: number
         }[]
       }
+      search_member_aliases: {
+        Args: { p_term: string }
+        Returns: {
+          alias: string
+          member_id: string
+        }[]
+      }
       set_mentorship_note: {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
