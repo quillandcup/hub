@@ -140,6 +140,13 @@ describe("universalSearch (local database)", () => {
 
     const member = hitsOf(await run(`in:members Penny${own}`), "members");
     expect(member.map((h) => h.title)).toEqual([`Penny${own}`]);
+
+    // A nickname finds them too; the result still leads with the display name and says why it matched.
+    const { error: aliasError } = await supabase.from("member_name_aliases").insert({ member_id: data.id, alias: `Nick${own}`, source: "zoom", active: true });
+    if (aliasError) throw aliasError;
+    const byAlias = hitsOf(await run(`in:members nick${own}`, { isActingAsAdmin: true }), "members");
+    expect(byAlias).toHaveLength(1);
+    expect(byAlias[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname · ${own}-penny@example.com · also known as “Nick${own}”` });
   });
 
   it("finds a prickle by its type's name or its host's name, titled like the detail page", async () => {

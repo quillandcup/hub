@@ -16,6 +16,8 @@ export type MemberSeedRecord = {
   instagramUrl?: string;
   birthday?: [month: number, day: number];
   totalActiveMonths?: number;
+  /** Name aliases (nicknames, pen names); a Supabase run suffixes them, since an alias is unique across members. */
+  aliases?: { alias: string; active?: boolean }[];
 };
 
 export type MemberContractContext = {
@@ -191,6 +193,29 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(await found("PENNY")).toEqual([ada]);
       expect(await found("quill")).toEqual([ada]); // legal name still works
       expect(await found("zyxel")).toEqual([ada, fern]);
+    });
+
+    it("searches a member's active aliases, and not a switched-off one", async () => {
+      const [ada, fern] = await ctx.seed([
+        { name: "Zyxel Ada Quill", aliases: [{ alias: "Qzvnick Byron" }, { alias: "Qzvretired Name", active: false }] },
+        { name: "Zyxel Fern Moss" },
+      ]);
+      const found = async (...words: string[]) => (await ctx.repo().search({ words })).map((m) => m.id).filter((id) => [ada, fern].includes(id));
+
+      expect(await found("qzvnick")).toEqual([ada]);
+      expect(await found("QZVNICK", "zyxel")).toEqual([ada]); // every word: alias for one, legal name for the other
+      expect(await found("qzvnick", "fern")).toEqual([]);
+      expect(await found("qzvretired")).toEqual([]);
+    });
+
+    it("says which alias made a member match, only when nothing shown for them did", async () => {
+      const [ada] = await ctx.seed([{ name: "Zyxel Ada Quill", aliases: [{ alias: "Qzvnick Byron" }] }]);
+      const hit = async (...words: string[]) => (await ctx.repo().search({ words })).find((m) => m.id === ada);
+
+      expect((await hit("qzvnick"))?.matchedAlias).toMatch(/^Qzvnick Byron/);
+      expect((await hit("qzvnick", "zyxel"))?.matchedAlias).toMatch(/^Qzvnick Byron/);
+      expect((await hit("zyxel"))?.matchedAlias).toBeNull(); // the name matched
+      expect((await hit("byron", "ada"))?.matchedAlias).toMatch(/^Qzvnick Byron/);
     });
 
     it("matches an email exactly or by what it contains, ignoring case", async () => {

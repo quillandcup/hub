@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       words: !email && search ? [search] : undefined,
       limit: limit ?? undefined,
     });
-    const members = found.map(({ id, name, displayName, email: address }) => ({ id, name, displayName, email: address }));
+    const members = found.map(({ id, name, displayName, email: address, matchedAlias }) => ({ id, name, displayName, email: address, matchedAlias }));
 
     // Exact-email lookups back admin forms that assign a specific member (e.g.
     // "add host" on /admin/hosts), which warn up front when that member hasn't

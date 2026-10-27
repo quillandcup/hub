@@ -66,8 +66,8 @@ describe("GET /api/members search + limit", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       members: [
-        { id: "m1", name: "Alice Example", displayName: null, email: "alice@example.test" },
-        { id: "m3", name: "Cleo Example", displayName: null, email: "cleo@alibi.test" },
+        { id: "m1", name: "Alice Example", displayName: null, matchedAlias: null, email: "alice@example.test" },
+        { id: "m3", name: "Cleo Example", displayName: null, matchedAlias: null, email: "cleo@alibi.test" },
       ],
     });
   });
@@ -77,7 +77,20 @@ describe("GET /api/members search + limit", () => {
 
     const res = await GET(makeRequest("?search=penny&limit=20"));
 
-    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }]);
+    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", matchedAlias: null, email: "pp@example.test" }]);
+  });
+
+  it("says which nickname matched when nothing shown for the member did", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }],
+        nameAliases: [{ id: "nal_1", member_id: "m4", alias: "Quillfoot", source: "zoom", active: true }],
+      }),
+    );
+
+    const res = await GET(makeRequest("?search=quillfoot&limit=20"));
+
+    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", matchedAlias: "Quillfoot", email: "pp@example.test" }]);
   });
 
   it("applies the limit, clamping oversized ones to 50", async () => {
@@ -166,6 +179,6 @@ describe("GET /api/members?email= host eligibility", () => {
 
     const body = await (await GET(makeRequest("?search=ali"))).json();
 
-    expect(body).toEqual({ members: [{ id: "m1", name: "Alice", displayName: null, email: "alice@example.com" }] });
+    expect(body).toEqual({ members: [{ id: "m1", name: "Alice", displayName: null, matchedAlias: null, email: "alice@example.com" }] });
   });
 });
