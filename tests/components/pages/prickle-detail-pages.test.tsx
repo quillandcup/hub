@@ -41,7 +41,11 @@ vi.mock("@/components/writing/PrickleCheckLinks", () => ({ default: () => <div d
 vi.mock("@/app/(member)/my-prickles/AddToCalendar", () => ({
   AddPrickleToCalendar: ({ typeName }: { typeName: string }) => <div data-testid="add-to-calendar">{typeName}</div>,
 }));
-vi.mock("@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm", () => ({ default: () => null }));
+vi.mock("@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm", () => ({
+  default: ({ unmatchedAttendees, prickleId }: { unmatchedAttendees: { zoomName: string }[]; prickleId?: string }) => (
+    <pre data-testid="alias-form">{JSON.stringify({ names: unmatchedAttendees.map((a) => a.zoomName), prickleId })}</pre>
+  ),
+}));
 vi.mock("@/app/(admin)/admin/prickles/[id]/TestCheckinDMs", () => ({ default: () => <div data-testid="test-dms" /> }));
 
 import MemberPrickleDetailPage, { generateMetadata as memberMetadata } from "@/app/(member)/prickles/[id]/page";
@@ -126,5 +130,46 @@ describe("admin prickle page", () => {
     expect(await adminMetadata(memberProps)).toEqual({ title: "Sunday Sprint with Jenn P" });
     repos = dataset([]);
     expect(await adminMetadata(memberProps)).toEqual({ title: "Prickle" });
+  });
+});
+
+describe("unmatched Zoom names", () => {
+  const zoomAttendees = [
+    { name: "iPhone", email: null },
+    { name: "Zed Unknown", email: null },
+    { name: "Everywhere Ignored", email: null },
+  ];
+  const fakeTables = (role: string) => ({
+    user_profiles: { data: { role } },
+    "bronze.zoom_attendees": { data: zoomAttendees },
+    ignored_zoom_names: { data: [{ zoom_name: "Everywhere Ignored" }] },
+    ignored_zoom_appearances: { data: [{ zoom_name: "iPhone" }] },
+    staff: { data: [] },
+  });
+
+  it("member page: an admin sees names not ignored here or everywhere, scoped to this prickle", async () => {
+    signInAs(ADMIN_USER, MEMBER_IDENTITY);
+    useFakeSupabase(fakeTables("admin"));
+
+    await renderServerPage(MemberPrickleDetailPage, memberProps);
+
+    expect(JSON.parse(screen.getByTestId("alias-form").textContent!)).toEqual({ names: ["Zed Unknown"], prickleId: "prkl_AAAAAAAAAAA1" });
+  });
+
+  it("member page: a member never sees the form", async () => {
+    useFakeSupabase(fakeTables("member"));
+
+    await renderServerPage(MemberPrickleDetailPage, memberProps);
+
+    expect(screen.queryByTestId("alias-form")).not.toBeInTheDocument();
+  });
+
+  it("admin page: the same two ignores apply", async () => {
+    signInAs(ADMIN_USER);
+    useFakeSupabase(fakeTables("admin"));
+
+    await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+    expect(JSON.parse(screen.getByTestId("alias-form").textContent!)).toEqual({ names: ["Zed Unknown"], prickleId: "prkl_AAAAAAAAAAA1" });
   });
 });

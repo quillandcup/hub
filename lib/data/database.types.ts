@@ -2577,6 +2577,38 @@ export type Database = {
         }
         Relationships: []
       }
+      ignored_zoom_appearances: {
+        Row: {
+          id: string
+          ignored_at: string
+          ignored_by: string | null
+          prickle_id: string
+          zoom_name: string
+        }
+        Insert: {
+          id?: string
+          ignored_at?: string
+          ignored_by?: string | null
+          prickle_id: string
+          zoom_name: string
+        }
+        Update: {
+          id?: string
+          ignored_at?: string
+          ignored_by?: string | null
+          prickle_id?: string
+          zoom_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ignored_zoom_appearances_prickle_id_fkey"
+            columns: ["prickle_id"]
+            isOneToOne: false
+            referencedRelation: "prickles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ignored_zoom_names: {
         Row: {
           created_at: string | null

@@ -29,9 +29,12 @@ interface Match {
 export default function AliasSearchForm({
   unmatchedAttendees,
   allMembers,
+  prickleId,
 }: {
   unmatchedAttendees: UnmatchedAttendee[];
   allMembers: Member[];
+  /** On a prickle's page: offers "Ignore here" (this prickle only) next to ignoring the name everywhere. */
+  prickleId?: string;
 }) {
   const timeZone = useTimeZone();
   const [matches, setMatches] = useState<Match[]>([]);
@@ -113,9 +116,14 @@ export default function AliasSearchForm({
     }
   };
 
-  const handleIgnore = async (zoomName: string) => {
-    const reason = prompt(`Why are you ignoring "${zoomName}"?\n(Optional - press OK to skip)`);
-    if (reason === null) return; // User cancelled
+  const handleIgnore = async (zoomName: string, scope: "everywhere" | "here") => {
+    let reason: string | null = null;
+    if (scope === "everywhere") {
+      reason = prompt(
+        `Why are you ignoring "${zoomName}" everywhere?\nIt will be hidden for every prickle, including future ones.\n(Optional - press OK to skip)`
+      );
+      if (reason === null) return; // User cancelled
+    }
 
     setIgnoring(zoomName);
 
@@ -125,7 +133,11 @@ export default function AliasSearchForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ zoomName, reason: reason || null }),
+        body: JSON.stringify({
+          zoomName,
+          reason: reason || null,
+          ...(scope === "here" ? { prickleId } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -299,14 +311,25 @@ export default function AliasSearchForm({
                     />
                   </div>
 
-                  {/* Right: Ignore button */}
-                  <div>
+                  {/* Right: Ignore buttons */}
+                  <div className="flex gap-2">
+                    {prickleId && (
+                      <button
+                        onClick={() => handleIgnore(attendee.zoomName, "here")}
+                        disabled={ignoring === attendee.zoomName}
+                        title="Hide this name on this prickle only"
+                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                      >
+                        Ignore here
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleIgnore(attendee.zoomName)}
+                      onClick={() => handleIgnore(attendee.zoomName, "everywhere")}
                       disabled={ignoring === attendee.zoomName}
+                      title="Hide this name for every prickle, including future ones"
                       className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
                     >
-                      {ignoring === attendee.zoomName ? "Ignoring..." : "Ignore"}
+                      {ignoring === attendee.zoomName ? "Ignoring..." : prickleId ? "Ignore always" : "Ignore"}
                     </button>
                   </div>
                 </div>
