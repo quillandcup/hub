@@ -139,6 +139,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
   admin({ title: "Hosts", href: "/admin/hosts", section: "Accountability", nav: { icon: "🎙️" } }),
   admin({ title: "Events", href: "/admin/events", section: "Community", nav: { icon: "📸" }, feature: "events" }),
+  admin({ title: "Calendar items", href: "/admin/events/calendar", section: "Community", feature: "events", keywords: ["google calendar", "show in events"] }),
   admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" } }),
   admin({ title: "Prickle Insights", href: "/admin/insights/prickles", section: "Accountability", nav: { icon: "✍️" } }),
   admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" } }),

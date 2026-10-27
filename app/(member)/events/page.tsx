@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString, parseEventFilter } from "@/lib/events-filter";
-import { fetchUpcomingEventPrickles } from "@/lib/event-prickles";
+import { fetchUpcomingEventPrickles, withoutFollowedEvents } from "@/lib/event-prickles";
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
 import { ORG_TIMEZONE } from "@/lib/config";
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "Events",
 };
 
-type RawEvent = Omit<EventRow, "cover_photo_id"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
+type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const supabase = await createClient();
@@ -35,7 +35,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const [{ data: events }, eventPrickles] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, event_photos(id, hidden_at)")
+      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, calendar_event_id, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
     fetchUpcomingEventPrickles(supabase, now),
   ]);
@@ -62,7 +62,10 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         key={initialFilter}
         initialFilter={initialFilter}
         events={rows}
-        eventPrickles={eventPrickles}
+        eventPrickles={withoutFollowedEvents(
+          eventPrickles,
+          ((events ?? []) as RawEvent[]).flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : [])),
+        )}
         today={localDateString(now, timeZone)}
         timeZone={timeZone}
       />

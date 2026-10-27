@@ -19,6 +19,8 @@ export interface EventPrickle {
   title: string | null;
   typeName: string;
   hostName: string | null;
+  /** The calendar event it was made from; an event that follows the same one replaces it in the list. */
+  calendarEventId: string | null;
   startTime: string;
   endTime: string;
 }
@@ -45,7 +47,17 @@ export async function fetchUpcomingEventPrickles(
     title: p.title ?? null,
     typeName: p.type?.name ?? "Prickle",
     hostName: p.host?.name ?? null,
+    calendarEventId: p.calendarEventId ?? null,
     startTime: p.startTime,
     endTime: p.endTime,
   }));
+}
+
+/**
+ * The prickles not already shown as an event: an event that follows a prickle's calendar event stands
+ * in for it, so it isn't listed twice.
+ */
+export function withoutFollowedEvents(prickles: EventPrickle[], followedCalendarEventIds: Iterable<string>): EventPrickle[] {
+  const followed = new Set(followedCalendarEventIds);
+  return prickles.filter((p) => !p.calendarEventId || !followed.has(p.calendarEventId));
 }
