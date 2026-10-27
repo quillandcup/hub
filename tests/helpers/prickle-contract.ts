@@ -167,7 +167,7 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().hostedCounts([], at(5))).toEqual(new Map());
     });
 
-    it("lists prickles of specialty types that are running or start within a window, oldest first, capped", async () => {
+    it("lists prickles of types listed in Events that are running or start within a window, oldest first, capped", async () => {
       const [over, running, soon, later, otherType] = await ctx.seed([
         { type: 0, start: at(0), end: at(1) },
         { type: 0, start: at(2), end: at(6) },
@@ -177,10 +177,10 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       ]);
       const window = { from: at(5), to: at(10), limit: 10 };
 
-      const found = await ctx.repo().specialtyActiveBetween(window);
-      const capped = await ctx.repo().specialtyActiveBetween({ ...window, limit: 1 });
+      const found = await ctx.repo().listedInEventsActiveBetween(window);
+      const capped = await ctx.repo().listedInEventsActiveBetween({ ...window, limit: 1 });
 
-      expect(found.map((p) => p.id)).toEqual([running, soon]); // not the one that ended, the later one, or the non-specialty type
+      expect(found.map((p) => p.id)).toEqual([running, soon]); // not the one that ended, the later one, or the unlisted type
       expect(found[0].type).toEqual(ctx.types[0]);
       expect(capped.map((p) => p.id)).toEqual([running]);
       expect([over, later, otherType]).toHaveLength(3);

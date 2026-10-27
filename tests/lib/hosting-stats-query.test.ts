@@ -33,7 +33,7 @@ const IDENTITY = {
   isSudo: false,
 };
 
-const WRITING = { id: "pt1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
+const WRITING = { id: "pt1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const prickle = (id: string, hostId: string | null, startTime: string) => ({
   id,
   typeId: WRITING.id,

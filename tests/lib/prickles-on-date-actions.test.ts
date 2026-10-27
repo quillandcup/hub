@@ -23,7 +23,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 
 const IDENTITY = { memberId: "mbr_AAAAAAAAAAA1", memberName: "Ada Example", memberEmail: "ada@example.test", isSudo: false };
-const TYPE = { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false };
+const TYPE = { id: "ptyp_AAAAAAAAAAA1", name: "Sprint Writing", normalizedName: "sprint-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const prickle = (id: string, start: string): Prickle => ({
   id,
   typeId: TYPE.id,

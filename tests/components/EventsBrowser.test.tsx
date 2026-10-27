@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import EventsBrowser, { type EventRow, type SpecialtyPrickle } from '@/app/(member)/events/EventsBrowser'
+import EventsBrowser, { type EventRow, type EventPrickle } from '@/app/(member)/events/EventsBrowser'
 
 const TODAY = '2026-09-26'
 
@@ -17,7 +17,7 @@ const EVENTS: EventRow[] = [
   event('spring', 'in_person_retreat', '2026-03-01', '2026-03-05'),
 ]
 
-const EDU: SpecialtyPrickle[] = Array.from({ length: 6 }, (_, i) => ({
+const EDU: EventPrickle[] = Array.from({ length: 6 }, (_, i) => ({
   id: `edu${i}`,
   title: `Craft Class ${i}`,
   typeName: 'Webinar Prickle',
@@ -28,7 +28,7 @@ const EDU: SpecialtyPrickle[] = Array.from({ length: 6 }, (_, i) => ({
 
 function renderBrowser(initialFilter: Parameters<typeof EventsBrowser>[0]['initialFilter'] = 'all') {
   return render(
-    <EventsBrowser initialFilter={initialFilter} events={EVENTS} specialtyPrickles={EDU} today={TODAY} timeZone="UTC" />
+    <EventsBrowser initialFilter={initialFilter} events={EVENTS} eventPrickles={EDU} today={TODAY} timeZone="UTC" />
   )
 }
 
@@ -39,20 +39,20 @@ describe('EventsBrowser', () => {
     window.history.replaceState(null, '', '/events')
   })
 
-  it('shows all events plus a highlighted specialty preview by default', () => {
+  it('shows all events plus a highlighted prickle events preview by default', () => {
     renderBrowser()
     expect(within(typeGroup()).getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
-    const edu = screen.getByRole('region', { name: 'Upcoming specialty prickles' })
+    const edu = screen.getByRole('region', { name: 'Upcoming prickle events' })
     expect(within(edu).getAllByRole('link')).toHaveLength(4)
-    expect(within(edu).getByRole('button', { name: /See all 6 specialty prickles/ })).toBeInTheDocument()
+    expect(within(edu).getByRole('button', { name: /See all 6 prickle events/ })).toBeInTheDocument()
     expect(screen.getByText('Event lake')).toBeInTheDocument()
     expect(screen.getByText('Event party')).toBeInTheDocument()
     expect(screen.getByText('Event spring')).toBeInTheDocument()
   })
 
-  it('calls out each specialty prickle\'s type above its title', () => {
-    renderBrowser('specialty')
-    const region = screen.getByRole('region', { name: 'Upcoming specialty prickles' })
+  it('calls out each prickle\'s type above its title', () => {
+    renderBrowser('prickles')
+    const region = screen.getByRole('region', { name: 'Upcoming prickle events' })
     expect(within(region).getAllByText('Webinar Prickle')).toHaveLength(6)
     expect(within(region).getByText('Craft Class 0')).toBeInTheDocument()
   })
@@ -61,7 +61,7 @@ describe('EventsBrowser', () => {
     renderBrowser()
     await userEvent.click(within(typeGroup()).getByRole('button', { name: /Retreats/ }))
     expect(screen.queryByText('Event party')).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Upcoming specialty prickles' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Upcoming prickle events' })).not.toBeInTheDocument()
     expect(screen.getByText('Event lake')).toBeInTheDocument()
     expect(window.location.search).toBe('?type=retreats')
 
@@ -82,13 +82,13 @@ describe('EventsBrowser', () => {
     expect(screen.queryByText('Event zoomy')).not.toBeInTheDocument()
   })
 
-  it('"See all" switches to the full specialty list and clears events', async () => {
+  it('"See all" switches to the full prickle events list and clears events', async () => {
     renderBrowser()
-    await userEvent.click(screen.getByRole('button', { name: /See all 6 specialty prickles/ }))
-    const edu = screen.getByRole('region', { name: 'Upcoming specialty prickles' })
+    await userEvent.click(screen.getByRole('button', { name: /See all 6 prickle events/ }))
+    const edu = screen.getByRole('region', { name: 'Upcoming prickle events' })
     expect(within(edu).getAllByRole('link')).toHaveLength(6)
     expect(screen.queryByText('Event lake')).not.toBeInTheDocument()
-    expect(window.location.search).toBe('?type=specialty')
+    expect(window.location.search).toBe('?type=prickles')
   })
 
   it('removes ?type= when returning to All', async () => {

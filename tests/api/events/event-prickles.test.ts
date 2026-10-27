@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { fetchUpcomingSpecialtyPrickles } from '@/lib/specialty-prickles'
+import { fetchUpcomingEventPrickles } from '@/lib/event-prickles'
 
 /**
- * DB integration test for the Events page's specialty-prickles query
- * (lib/specialty-prickles.ts, called from app/(member)/events/page.tsx).
+ * DB integration test for the Events page's event-prickles query
+ * (lib/event-prickles.ts, called from app/(member)/events/page.tsx).
  *
  * Runs against an isolated far-future window (year 2185) with uniquely named
  * fixtures, and asserts only on the rows it created -- other tests may be
  * writing to the same local DB concurrently.
  */
-describe('fetchUpcomingSpecialtyPrickles', () => {
+describe('fetchUpcomingEventPrickles', () => {
   const supabase = getTestSupabaseAdminClient()
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const now = new Date('2185-01-15T12:00:00.000Z')
@@ -19,25 +19,25 @@ describe('fetchUpcomingSpecialtyPrickles', () => {
   const at = (offsetMs: number) => new Date(now.getTime() + offsetMs).toISOString()
 
   let hostId: string
-  let specialtyTypeId: string
-  let specialtyTypeName: string
+  let eventTypeId: string
+  let eventTypeName: string
   let otherTypeId: string
   const ids: Record<string, string> = {}
 
   beforeAll(async () => {
-    // Own types, so the test doesn't depend on which seeded types are flagged specialty.
+    // Own types, so the test doesn't depend on which seeded types are listed in Events.
     const { data: types, error: typeErr } = await supabase
       .from('prickle_types')
       .insert([
-        { name: `Specialty Test ${suffix}`, normalized_name: `specialty-test-${suffix}`, is_specialty: true },
-        { name: `Everyday Test ${suffix}`, normalized_name: `everyday-test-${suffix}`, is_specialty: false },
+        { name: `Listed Test ${suffix}`, normalized_name: `event-test-${suffix}`, listed_in_events: true },
+        { name: `Everyday Test ${suffix}`, normalized_name: `everyday-test-${suffix}`, listed_in_events: false },
       ])
-      .select('id, name, is_specialty')
+      .select('id, name, listed_in_events')
     expect(typeErr).toBeNull()
-    const specialty = types!.find((t) => t.is_specialty)!
-    specialtyTypeId = specialty.id
-    specialtyTypeName = specialty.name
-    otherTypeId = types!.find((t) => !t.is_specialty)!.id
+    const listed = types!.find((t) => t.listed_in_events)!
+    eventTypeId = listed.id
+    eventTypeName = listed.name
+    otherTypeId = types!.find((t) => !t.listed_in_events)!.id
 
     const { data: host, error: hostErr } = await supabase
       .from('members')
@@ -53,13 +53,13 @@ describe('fetchUpcomingSpecialtyPrickles', () => {
     hostId = host!.id
 
     const fixtures: Record<string, { type_id: string; start: number; end: number; title: string; host: string | null }> = {
-      inProgress: { type_id: specialtyTypeId, start: -0.5 * HOUR, end: 0.5 * HOUR, title: `Live Craft Talk ${suffix}`, host: hostId },
-      soon: { type_id: specialtyTypeId, start: 3 * DAY, end: 3 * DAY + HOUR, title: `Query Letters 101 ${suffix}`, host: hostId },
-      later: { type_id: specialtyTypeId, start: 45 * DAY, end: 45 * DAY + HOUR, title: `Outlining Workshop ${suffix}`, host: null },
-      nearEdge: { type_id: specialtyTypeId, start: 89 * DAY, end: 89 * DAY + HOUR, title: `Edge Session ${suffix}`, host: hostId },
-      past: { type_id: specialtyTypeId, start: -2 * DAY, end: -2 * DAY + HOUR, title: `Past Session ${suffix}`, host: hostId },
-      beyondWindow: { type_id: specialtyTypeId, start: 91 * DAY, end: 91 * DAY + HOUR, title: `Far Session ${suffix}`, host: hostId },
-      nonSpecialty: { type_id: otherTypeId, start: 5 * DAY, end: 5 * DAY + HOUR, title: `Regular Prickle ${suffix}`, host: hostId },
+      inProgress: { type_id: eventTypeId, start: -0.5 * HOUR, end: 0.5 * HOUR, title: `Live Craft Talk ${suffix}`, host: hostId },
+      soon: { type_id: eventTypeId, start: 3 * DAY, end: 3 * DAY + HOUR, title: `Query Letters 101 ${suffix}`, host: hostId },
+      later: { type_id: eventTypeId, start: 45 * DAY, end: 45 * DAY + HOUR, title: `Outlining Workshop ${suffix}`, host: null },
+      nearEdge: { type_id: eventTypeId, start: 89 * DAY, end: 89 * DAY + HOUR, title: `Edge Session ${suffix}`, host: hostId },
+      past: { type_id: eventTypeId, start: -2 * DAY, end: -2 * DAY + HOUR, title: `Past Session ${suffix}`, host: hostId },
+      beyondWindow: { type_id: eventTypeId, start: 91 * DAY, end: 91 * DAY + HOUR, title: `Far Session ${suffix}`, host: hostId },
+      notListed: { type_id: otherTypeId, start: 5 * DAY, end: 5 * DAY + HOUR, title: `Regular Prickle ${suffix}`, host: hostId },
     }
 
     for (const [key, f] of Object.entries(fixtures)) {
@@ -84,26 +84,26 @@ describe('fetchUpcomingSpecialtyPrickles', () => {
     const created = Object.values(ids)
     if (created.length > 0) await supabase.from('prickles').delete().in('id', created)
     if (hostId) await supabase.from('members').delete().eq('id', hostId)
-    await supabase.from('prickle_types').delete().in('id', [specialtyTypeId, otherTypeId].filter(Boolean))
+    await supabase.from('prickle_types').delete().in('id', [eventTypeId, otherTypeId].filter(Boolean))
   })
 
   async function fetchMine() {
     // The lib types its client as the server client; the admin client has the same query API.
-    const all = await fetchUpcomingSpecialtyPrickles(supabase as never, now)
+    const all = await fetchUpcomingEventPrickles(supabase as never, now)
     const mine = new Set(Object.values(ids))
     return all.filter((p) => mine.has(p.id))
   }
 
-  it('returns only specialty prickles that have not ended and start within 90 days, soonest first', async () => {
+  it('returns only prickle events that have not ended and start within 90 days, soonest first', async () => {
     const result = await fetchMine()
     expect(result.map((p) => p.id)).toEqual([ids.inProgress, ids.soon, ids.later, ids.nearEdge])
   })
 
-  it('excludes past, beyond-window, and non-specialty prickles', async () => {
+  it('excludes past, beyond-window, and non-prickle events', async () => {
     const resultIds = new Set((await fetchMine()).map((p) => p.id))
     expect(resultIds.has(ids.past)).toBe(false)
     expect(resultIds.has(ids.beyondWindow)).toBe(false)
-    expect(resultIds.has(ids.nonSpecialty)).toBe(false)
+    expect(resultIds.has(ids.notListed)).toBe(false)
   })
 
   it('maps title, type name, host name, and times into the shape the Events page expects', async () => {
@@ -112,7 +112,7 @@ describe('fetchUpcomingSpecialtyPrickles', () => {
     expect(soon).toEqual({
       id: ids.soon,
       title: `Query Letters 101 ${suffix}`,
-      typeName: specialtyTypeName,
+      typeName: eventTypeName,
       hostName: `Tessaly Inkwright ${suffix}`,
       startTime: expect.any(String),
       endTime: expect.any(String),
@@ -120,7 +120,7 @@ describe('fetchUpcomingSpecialtyPrickles', () => {
     expect(new Date(soon.startTime).toISOString()).toBe(at(3 * DAY))
     expect(new Date(soon.endTime).toISOString()).toBe(at(3 * DAY + HOUR))
 
-    // Hostless specialty prickle: hostName is null rather than the row being dropped.
+    // Hostless prickle: hostName is null rather than the row being dropped.
     const later = result.find((p) => p.id === ids.later)!
     expect(later.hostName).toBeNull()
     expect(later.title).toBe(`Outlining Workshop ${suffix}`)

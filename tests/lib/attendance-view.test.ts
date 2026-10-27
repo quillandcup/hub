@@ -56,7 +56,7 @@ describe("attendance view rows", () => {
         endTime: "2026-10-20T16:00:00Z",
         source: "calendar",
         calendarEventId: null,
-        type: { id: "ptyp_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false },
+        type: { id: "ptyp_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false },
         host: { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", displayName: "Fern" },
       },
     };

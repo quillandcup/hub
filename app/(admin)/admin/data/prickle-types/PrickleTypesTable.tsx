@@ -13,7 +13,9 @@ export interface PrickleTypeRow {
   description: string | null;
   purpose: string;
   solo_task_friendly: boolean;
-  is_specialty: boolean;
+  listed_in_events: boolean;
+  announced_publicly: boolean;
+  guests_allowed: boolean;
 }
 
 const PURPOSE_STYLES: Record<string, string> = {
@@ -47,7 +49,7 @@ function YesNoBadge({ value }: { value: boolean }) {
   );
 }
 
-type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly" | "specialty";
+type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly" | "listedInEvents" | "announcedPublicly" | "guestsAllowed";
 
 function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
   switch (column) {
@@ -62,8 +64,12 @@ function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
     case "soloTaskFriendly":
       // Ascending puts "Yes" first.
       return row.solo_task_friendly ? 0 : 1;
-    case "specialty":
-      return row.is_specialty ? 0 : 1;
+    case "listedInEvents":
+      return row.listed_in_events ? 0 : 1;
+    case "announcedPublicly":
+      return row.announced_publicly ? 0 : 1;
+    case "guestsAllowed":
+      return row.guests_allowed ? 0 : 1;
   }
 }
 
@@ -93,7 +99,9 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
             {th("Description", "description")}
             {th("Purpose", "purpose")}
             {th("BYO-Task Friendly", "soloTaskFriendly")}
-            {th("Specialty", "specialty")}
+            {th("In Events", "listedInEvents")}
+            {th("Public", "announcedPublicly")}
+            {th("Guests", "guestsAllowed")}
             <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Actions
             </th>
@@ -120,7 +128,13 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
                 <YesNoBadge value={type.solo_task_friendly} />
               </td>
               <td className="px-6 py-4">
-                <YesNoBadge value={type.is_specialty} />
+                <YesNoBadge value={type.listed_in_events} />
+              </td>
+              <td className="px-6 py-4">
+                <YesNoBadge value={type.announced_publicly} />
+              </td>
+              <td className="px-6 py-4">
+                <YesNoBadge value={type.guests_allowed} />
               </td>
               <td className="px-6 py-4">
                 <Link

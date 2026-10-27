@@ -15,7 +15,7 @@ export default async function PrickleTypesPage() {
   // Fetch all prickle types
   const { data: prickleTypes } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly, is_specialty")
+    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed")
     .order("name");
 
   return (
