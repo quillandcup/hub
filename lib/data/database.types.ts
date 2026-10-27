@@ -2416,8 +2416,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
-          ends_at: string
           end_time?: string | null
+          ends_at: string
           event_type: string
           focus?: string | null
           google_photos_album_url?: string | null
