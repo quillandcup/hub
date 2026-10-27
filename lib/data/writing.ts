@@ -1,4 +1,4 @@
-import type { Db, Insert, Row } from "./db";
+import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Stored rows, as the database has them; the twin keeps these. */
@@ -42,6 +42,46 @@ export interface ExportedEntry {
  * check-in, Slack's quick log and the CSV export need; the project/goal/entry editing in
  * `app/(member)/projects/actions.ts` follows. Every method throws on a database error.
  */
+/** The columns of a goal the goal editor and the progress cards read. */
+export type GoalColumns = Pick<
+  WritingGoalRow,
+  "id" | "project_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold" | "is_starred" | "title" | "description" | "show_on_profile"
+>;
+
+/** A goal with the member and the fields editing it starts from. */
+export type GoalForEdit = Pick<WritingGoalRow, "id" | "project_id" | "member_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold">;
+
+/** A starred goal with its project's title. */
+export type StarredGoal = GoalColumns & { project_title: string | null };
+
+/** An active goal on an active project, for the check-in and check-out DMs. */
+export interface GoalCandidateRow {
+  goal_id: string;
+  member_id: string;
+  project_id: string;
+  project_title: string | null;
+  measure: string;
+}
+
+const GOAL_COLUMNS = "id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, is_starred, title, description, show_on_profile";
+const GOAL_PAGE = 1000;
+
+const goalColumns = (g: WritingGoalRow): GoalColumns => ({
+  id: g.id,
+  project_id: g.project_id,
+  goal_type: g.goal_type,
+  measure: g.measure,
+  target_amount: g.target_amount,
+  start_date: g.start_date,
+  end_date: g.end_date,
+  habit_period: g.habit_period,
+  habit_threshold: g.habit_threshold,
+  is_starred: g.is_starred,
+  title: g.title,
+  description: g.description,
+  show_on_profile: g.show_on_profile,
+});
+
 export interface WritingRepository {
   /** The member's projects that aren't archived, newest first. */
   activeProjects(memberId: string): Promise<ProjectChoice[]>;
@@ -61,6 +101,22 @@ export interface WritingRepository {
   exportEntries(memberId: string, options?: { projectId?: string }): Promise<ExportedEntry[]>;
   /** Saves an entry and returns its id. */
   addEntry(entry: NewProgressEntry): Promise<string>;
+
+  // --- goals ---
+  /** Saves a goal and returns its id. */
+  createGoal(goal: Insert<"writing_goals">): Promise<string>;
+  /** A goal by id (whoever's it is; the caller checks `member_id`), or null. */
+  goalForEdit(goalId: string): Promise<GoalForEdit | null>;
+  /** Changes the member's goal; a goal that isn't theirs is left alone. */
+  updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">): Promise<void>;
+  /** Deletes the member's goal; a goal that isn't theirs is left alone. */
+  deleteGoal(memberId: string, goalId: string): Promise<void>;
+  /** The member's archived goals on one project, oldest first. */
+  archivedGoals(memberId: string, projectId: string): Promise<GoalColumns[]>;
+  /** The member's starred goals that aren't archived, with their project's title, oldest first. */
+  starredGoals(memberId: string): Promise<StarredGoal[]>;
+  /** Every member's goal that isn't archived on a project that isn't, by goal id. */
+  activeGoalCandidates(): Promise<GoalCandidateRow[]>;
 }
 
 export class SupabaseWritingRepository implements WritingRepository {
@@ -167,6 +223,81 @@ export class SupabaseWritingRepository implements WritingRepository {
     if (error) throw new Error(error.message);
     return data.id;
   }
+
+  // --- goals ---
+  async createGoal(goal: Insert<"writing_goals">) {
+    const { data, error } = await this.db.from("writing_goals").insert(goal).select("id").single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  }
+
+  async goalForEdit(goalId: string): Promise<GoalForEdit | null> {
+    const { data, error } = await this.db
+      .from("writing_goals")
+      .select("id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold")
+      .eq("id", goalId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">) {
+    const { error } = await this.db.from("writing_goals").update(patch).eq("id", goalId).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteGoal(memberId: string, goalId: string) {
+    const { error } = await this.db.from("writing_goals").delete().eq("id", goalId).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async archivedGoals(memberId: string, projectId: string): Promise<GoalColumns[]> {
+    const { data, error } = await this.db
+      .from("writing_goals")
+      .select(GOAL_COLUMNS)
+      .eq("project_id", projectId)
+      .eq("member_id", memberId)
+      .not("archived_at", "is", null)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async starredGoals(memberId: string): Promise<StarredGoal[]> {
+    const { data, error } = await this.db
+      .from("writing_goals")
+      .select(`${GOAL_COLUMNS}, project:writing_projects(title)`)
+      .eq("member_id", memberId)
+      .eq("is_starred", true)
+      .is("archived_at", null)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(({ project, ...goal }) => {
+      const p = Array.isArray(project) ? project[0] : project;
+      return { ...goal, project_title: p?.title ?? null };
+    });
+  }
+
+  async activeGoalCandidates(): Promise<GoalCandidateRow[]> {
+    const out: GoalCandidateRow[] = [];
+    for (let offset = 0; ; offset += GOAL_PAGE) {
+      const { data, error } = await this.db
+        .from("writing_goals")
+        .select("id, member_id, project_id, measure, writing_projects!inner(title, archived_at)")
+        .is("archived_at", null)
+        .is("writing_projects.archived_at", null)
+        .order("id")
+        .range(offset, offset + GOAL_PAGE - 1);
+      if (error) throw new Error(error.message);
+      for (const g of data ?? []) {
+        const p = Array.isArray(g.writing_projects) ? g.writing_projects[0] : g.writing_projects;
+        out.push({ goal_id: g.id, member_id: g.member_id, project_id: g.project_id as string, project_title: p?.title ?? null, measure: g.measure });
+      }
+      if ((data?.length ?? 0) < GOAL_PAGE) return out;
+    }
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -243,5 +374,73 @@ export class InMemoryWritingRepository implements WritingRepository {
       created_at: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
     });
     return id;
+  }
+
+  // --- goals ---
+  private oldestFirst<T extends { created_at: string; id: string }>(rows: T[]) {
+    return [...rows].sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : a.id < b.id ? -1 : 1));
+  }
+
+  async createGoal(goal: Insert<"writing_goals">) {
+    const id = `wgol_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    this.data.writingGoals.push({
+      id,
+      member_id: goal.member_id,
+      project_id: goal.project_id ?? null,
+      title: goal.title ?? null,
+      description: goal.description ?? null,
+      external_id: goal.external_id ?? null,
+      goal_type: goal.goal_type ?? "target",
+      habit_period: goal.habit_period ?? null,
+      habit_threshold: goal.habit_threshold ?? null,
+      is_starred: goal.is_starred ?? false,
+      measure: goal.measure,
+      show_on_profile: goal.show_on_profile ?? false,
+      start_date: goal.start_date ?? null,
+      end_date: goal.end_date ?? null,
+      target_amount: goal.target_amount ?? null,
+      archived_at: goal.archived_at ?? null,
+      created_at: goal.created_at ?? new Date().toISOString(),
+    });
+    return id;
+  }
+
+  async goalForEdit(goalId: string) {
+    const g = this.data.writingGoals.find((x) => x.id === goalId);
+    if (!g) return null;
+    const { id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold } = g;
+    return { id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold };
+  }
+
+  async updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">) {
+    for (const g of this.data.writingGoals) {
+      if (g.id === goalId && g.member_id === memberId) Object.assign(g, patch);
+    }
+  }
+
+  async deleteGoal(memberId: string, goalId: string) {
+    this.data.writingGoals = this.data.writingGoals.filter((g) => !(g.id === goalId && g.member_id === memberId));
+  }
+
+  async archivedGoals(memberId: string, projectId: string) {
+    return this.oldestFirst(this.data.writingGoals.filter((g) => g.member_id === memberId && g.project_id === projectId && g.archived_at)).map(goalColumns);
+  }
+
+  async starredGoals(memberId: string) {
+    return this.oldestFirst(this.data.writingGoals.filter((g) => g.member_id === memberId && g.is_starred && !g.archived_at)).map((g) => ({
+      ...goalColumns(g),
+      project_title: this.data.writingProjects.find((p) => p.id === g.project_id)?.title ?? null,
+    }));
+  }
+
+  async activeGoalCandidates() {
+    const out: GoalCandidateRow[] = [];
+    for (const g of [...this.data.writingGoals].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+      if (g.archived_at) continue;
+      const project = this.data.writingProjects.find((p) => p.id === g.project_id);
+      if (!project || project.archived_at) continue;
+      out.push({ goal_id: g.id, member_id: g.member_id, project_id: project.id, project_title: project.title, measure: g.measure });
+    }
+    return out;
   }
 }

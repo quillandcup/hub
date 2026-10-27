@@ -140,5 +140,88 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(await ctx.repo().entriesForPrickle(a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 250 }]);
       expect(await ctx.repo().exportEntries(a)).toEqual([{ entry_date: "2026-02-05", project_title: "P", measure: "words", mode: "delta", amount: 250, note: null, tags: [] }]);
     });
+
+    // --- goals ---
+    it("creates a goal, reads it back for editing, and changes it only for its owner", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }] });
+
+      const id = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, goal_type: "target", measure: "words", target_amount: 5000 });
+      expect(await ctx.repo().goalForEdit(id)).toEqual({
+        id,
+        project_id: ids.p,
+        member_id: a,
+        goal_type: "target",
+        measure: "words",
+        target_amount: 5000,
+        start_date: null,
+        end_date: null,
+        habit_period: null,
+        habit_threshold: null,
+      });
+      expect(await ctx.repo().goalForEdit("00000000-0000-4000-8000-000000000000")).toBeNull();
+
+      await ctx.repo().updateGoal(b, id, { target_amount: 1 });
+      expect((await ctx.repo().goalForEdit(id))?.target_amount).toBe(5000);
+      await ctx.repo().updateGoal(a, id, { target_amount: 7000 });
+      expect((await ctx.repo().goalForEdit(id))?.target_amount).toBe(7000);
+    });
+
+    it("deletes a goal only for its owner", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }] });
+      const id = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 100 });
+
+      await ctx.repo().deleteGoal(b, id);
+      expect(await ctx.repo().goalForEdit(id)).not.toBeNull();
+      await ctx.repo().deleteGoal(a, id);
+      expect(await ctx.repo().goalForEdit(id)).toBeNull();
+    });
+
+    it("lists a project's archived goals and the member's starred ones with their project's title", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "Novel", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 1, title: "Other", createdAt: "2026-01-01T10:00:00Z" },
+        ],
+      });
+      const done = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 100, title: "Done", archived_at: "2026-06-01T00:00:00Z" });
+      const star = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 10, is_starred: true });
+      await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "scenes", target_amount: 3 });
+      await ctx.repo().createGoal({ member_id: b, project_id: ids.q, measure: "words", target_amount: 9, is_starred: true });
+
+      const archived = await ctx.repo().archivedGoals(a, ids.p);
+      expect(archived.map((g) => [g.id, g.title])).toEqual([[done, "Done"]]);
+      expect(await ctx.repo().archivedGoals(b, ids.p)).toEqual([]);
+
+      const starred = await ctx.repo().starredGoals(a);
+      expect(starred.map((g) => [g.id, g.project_title, g.is_starred])).toEqual([[star, "Novel", true]]);
+      await ctx.repo().updateGoal(a, star, { archived_at: "2026-06-02T00:00:00Z", is_starred: false });
+      expect(await ctx.repo().starredGoals(a)).toEqual([]);
+    });
+
+    it("lists the goals in play on projects in play, for every member", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "Novel", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "gone", member: 1, title: "Shelved", archived: true, createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 1, title: "Memoir", createdAt: "2026-01-01T10:00:00Z" },
+        ],
+      });
+      const mine = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 1 });
+      await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 1, archived_at: "2026-06-01T00:00:00Z" });
+      await ctx.repo().createGoal({ member_id: b, project_id: ids.gone, measure: "words", target_amount: 1 });
+      await ctx.repo().createGoal({ member_id: a, measure: "words", target_amount: 1 });
+      const theirs = await ctx.repo().createGoal({ member_id: b, project_id: ids.q, measure: "scenes", target_amount: 1 });
+
+      const candidates = (await ctx.repo().activeGoalCandidates()).filter((c) => c.goal_id === mine || c.goal_id === theirs);
+      expect(candidates.sort((x, y) => x.measure.localeCompare(y.measure))).toEqual([
+        { goal_id: theirs, member_id: b, project_id: ids.q, project_title: "Memoir", measure: "scenes" },
+        { goal_id: mine, member_id: a, project_id: ids.p, project_title: "Novel", measure: "words" },
+      ]);
+      expect((await ctx.repo().activeGoalCandidates()).every((c) => c.project_id !== ids.gone)).toBe(true);
+    });
   });
 }
