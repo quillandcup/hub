@@ -4,8 +4,8 @@ import type { Page } from "playwright/test";
 
 /** One h1 per page, which axe's WCAG tags don't ask for but a screen reader user navigates by. */
 async function hasOneTitle(page: Page, name: string | RegExp) {
-  // The tab title streams in after the page: wait for it, so a page that never gets one fails here and a slow one doesn't fail the check.
-  await expect(page).toHaveTitle(/\S/);
+  // The tab title streams in after the page, and on a client-side navigation the previous page's stays until it does: wait for this page's own.
+  await expect(page).toHaveTitle(typeof name === "string" ? new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) : name);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 }
@@ -31,8 +31,6 @@ async function settled(page: Page) {
  * The member's courses: the list, a course outline with progress, a lesson with text and a download, a lesson whose
  * video is still being prepared, a module page, and the courses that are ended or not open yet. Every state a
  * member can be in, at every size and colour scheme (phones and tablets put the section list in a disclosure).
- * Staff previews (a draft, a "coming soon" lesson) are not here: the demo admin has no member record, and the
- * Courses pages need one (docs/TODO.md, "Courses in the demo").
  */
 test("a member finds their courses and opens a lesson, at any size", async ({ page, signInAs }, testInfo) => {
   await signInAs("member");
@@ -115,4 +113,30 @@ test("an ended course and one that has not opened yet say so, at any size", asyn
   await hasOneTitle(page, "Plot Like a Pro");
   await expect(page.getByText(/This course opens on/)).toBeVisible();
   await shot(page, testInfo, "course-not-open-yet");
+});
+
+/** Staff open every course and preview what members can't see yet: a draft says it is one. */
+test("an admin sees every course and previews a draft lesson, at any size", async ({ page, signInAs }, testInfo) => {
+  await signInAs("admin");
+
+  await page.goto("/courses");
+  await hasOneTitle(page, "Courses");
+  await expect(page.locator("main").getByRole("heading", { level: 2 })).toHaveCount(3);
+  await shot(page, testInfo, "admin-courses-list");
+
+  await page.goto(`/courses/${SLUGS.current}`);
+  await expect(page.getByText("Bonus interview").first()).toBeVisible();
+  await shot(page, testInfo, "admin-course-outline", { fullPage: true });
+
+  await page.getByRole("link", { name: /Bonus interview/ }).first().click();
+  await hasOneTitle(page, /Bonus interview/);
+  await expect(page.getByText(/this lesson is a draft/)).toBeVisible();
+  await shot(page, testInfo, "admin-draft-preview", { fullPage: true });
+
+  // "Coming soon" lessons open for staff too, as a preview.
+  await page.goto(`/courses/${SLUGS.current}`);
+  await page.getByRole("link", { name: /Celebrate small wins/ }).first().click();
+  await hasOneTitle(page, "Celebrate small wins");
+  await expect(page.getByText(/Coming soon/).first()).toBeVisible();
+  await shot(page, testInfo, "admin-coming-soon-preview", { fullPage: true });
 });
