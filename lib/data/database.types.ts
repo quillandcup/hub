@@ -2383,6 +2383,8 @@ export type Database = {
       events: {
         Row: {
           agenda: string | null
+          announced_publicly: boolean
+          capacity: number | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -2390,16 +2392,22 @@ export type Database = {
           event_type: string
           focus: string | null
           google_photos_album_url: string | null
+          guests_allowed: boolean
           id: string
           location: string | null
+          registration: string
           results: string | null
+          selection: string
           slug: string
+          speakers: string | null
           starts_at: string
           title: string
           updated_at: string
         }
         Insert: {
           agenda?: string | null
+          announced_publicly?: boolean
+          capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -2407,16 +2415,22 @@ export type Database = {
           event_type: string
           focus?: string | null
           google_photos_album_url?: string | null
+          guests_allowed?: boolean
           id?: string
           location?: string | null
+          registration?: string
           results?: string | null
+          selection?: string
           slug: string
+          speakers?: string | null
           starts_at: string
           title: string
           updated_at?: string
         }
         Update: {
           agenda?: string | null
+          announced_publicly?: boolean
+          capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -2424,10 +2438,14 @@ export type Database = {
           event_type?: string
           focus?: string | null
           google_photos_album_url?: string | null
+          guests_allowed?: boolean
           id?: string
           location?: string | null
+          registration?: string
           results?: string | null
+          selection?: string
           slug?: string
+          speakers?: string | null
           starts_at?: string
           title?: string
           updated_at?: string

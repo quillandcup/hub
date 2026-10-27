@@ -2,6 +2,8 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import type { Update } from "@/lib/data/db";
+import { parseEventAudience } from "@/lib/event-audience";
+import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(
   request: NextRequest,
@@ -82,7 +84,13 @@ export async function PATCH(
       google_photos_album_url,
     } = body;
 
-    const updates: Update<"events"> = {};
+    if (event_type !== undefined && !isEventType(event_type)) {
+      return NextResponse.json({ error: `event_type must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
+    }
+    const audience = parseEventAudience(body);
+    if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
+
+    const updates: Update<"events"> = { ...audience.fields };
     if (slug !== undefined) updates.slug = slug;
     if (title !== undefined) updates.title = title;
     if (event_type !== undefined) updates.event_type = event_type;

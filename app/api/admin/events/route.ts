@@ -1,5 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { parseEventAudience } from "@/lib/event-audience";
+import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -45,9 +47,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!isEventType(event_type)) {
+      return NextResponse.json({ error: `event_type must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
+    }
+    const audience = parseEventAudience(body);
+    if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
+
     const { data: event, error } = await supabase
       .from("events")
       .insert({
+        ...audience.fields,
         slug,
         title,
         event_type,

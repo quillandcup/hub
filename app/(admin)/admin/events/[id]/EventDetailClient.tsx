@@ -5,8 +5,11 @@ import Link from "next/link";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateOnly } from "@/lib/formatters";
+import EventAudienceFields from "@/components/EventAudienceFields";
+import { audienceSummary, type EventAudience } from "@/lib/event-audience";
+import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 
-interface EventData {
+interface EventData extends EventAudience {
   id: string;
   slug: string;
   title: string;
@@ -44,12 +47,6 @@ interface BadgeTypeLink {
   name: string;
   icon: string;
 }
-
-const EVENT_TYPES = [
-  { value: "in_person_retreat", label: "In-Person Retreat" },
-  { value: "virtual_retreat", label: "Virtual Retreat" },
-  { value: "other", label: "Other" },
-];
 
 export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventData | null>(null);
@@ -238,7 +235,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   onChange={(e) => setEditForm({ ...editForm, event_type: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
                 >
-                  {EVENT_TYPES.map((t) => (
+                  {EVENT_TYPE_OPTIONS.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
@@ -285,6 +282,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             </div>
             </div>
+            <EventAudienceFields value={editForm} onChange={(audience) => setEditForm({ ...editForm, ...audience })} />
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Focus</label>
               <input
@@ -339,7 +337,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             <dl className="grid grid-cols-1 @pair:grid-cols-2 gap-4 text-sm">
             <div>
               <dt className="text-gray-500 dark:text-gray-400">Type</dt>
-              <dd>{EVENT_TYPES.find((t) => t.value === event.event_type)?.label || event.event_type}</dd>
+              <dd>{EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type}</dd>
             </div>
             <div>
               <dt className="text-gray-500 dark:text-gray-400">Dates</dt>
@@ -352,6 +350,18 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               <div>
                 <dt className="text-gray-500 dark:text-gray-400">Location</dt>
                 <dd>{event.location}</dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-gray-500 dark:text-gray-400">Who it&apos;s for</dt>
+              <dd>
+                {[...audienceSummary(event), ...(event.announced_publicly ? ["Announced publicly"] : [])].join(" · ") || "Members, no sign-up"}
+              </dd>
+            </div>
+            {event.speakers && (
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Guest speakers</dt>
+                <dd>{event.speakers}</dd>
               </div>
             )}
             {event.focus && (

@@ -2,8 +2,15 @@
 
 import { useState, type ReactNode } from "react";
 import PhotoLightbox from "@/components/PhotoLightbox";
+import { audienceSummary } from "@/lib/event-audience";
+import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
 
 interface EventData {
+  guests_allowed: boolean;
+  registration: string;
+  capacity: number | null;
+  selection: string;
+  speakers: string | null;
   id: string;
   title: string;
   event_type: string;
@@ -23,12 +30,6 @@ interface Photo {
   height: number | null;
 }
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  in_person_retreat: "In-Person Retreat",
-  virtual_retreat: "Virtual Retreat",
-  other: "Event",
-};
-
 function fmtDate(d: string) {
   return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 }
@@ -44,19 +45,30 @@ export default function EventDetailClient({
   calendarControl?: ReactNode;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const audience = audienceSummary(event);
   const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}` }));
 
   return (
     <div className="mt-4 space-y-6">
       <div>
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-          {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+          {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
         </p>
         <h1 className="text-2xl font-bold mt-0.5">{event.title}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
           {event.location ? ` · ${event.location}` : ""}
         </p>
+        {event.speakers && <p className="mt-1">With {event.speakers}</p>}
+        {audience.length > 0 && (
+          <ul aria-label="Who it's for" className="mt-3 flex flex-wrap gap-2">
+            {audience.map((a) => (
+              <li key={a} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300">
+                {a}
+              </li>
+            ))}
+          </ul>
+        )}
         {calendarControl && <div className="mt-3">{calendarControl}</div>}
       </div>
 

@@ -4,14 +4,37 @@
 // with `prickle_types.listed_in_events` are ordinary prickles -- so a single page can show
 // "what's happening" across both, and the filter is just a view over data it already loads.
 
-export const EVENT_TYPES = ["in_person_retreat", "virtual_retreat", "other"] as const;
+export const EVENT_TYPES = [
+  "in_person_retreat",
+  "virtual_retreat",
+  "webinar",
+  "workshop",
+  "book_launch",
+  "social",
+  "other",
+] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/** What members see on a card or event page. */
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   in_person_retreat: "In-Person Retreat",
   virtual_retreat: "Virtual Retreat",
+  webinar: "Webinar",
+  workshop: "Workshop",
+  book_launch: "Book Launch",
+  social: "Social",
   other: "Event",
 };
+
+/** The admin picker: the same kinds, with "Other" where members see a plain "Event". */
+export const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = EVENT_TYPES.map((value) => ({
+  value,
+  label: value === "other" ? "Other" : EVENT_TYPE_LABELS[value],
+}));
+
+export function isEventType(value: unknown): value is EventType {
+  return typeof value === "string" && (EVENT_TYPES as readonly string[]).includes(value);
+}
 
 /** Allowlist for the `?type=` param. `in_person_retreat` / `virtual_retreat` are
  * sub-filters of `retreats` -- the primary pill stays on Retreats when they're active. */

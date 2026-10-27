@@ -7,6 +7,9 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { formatDateOnly } from "@/lib/formatters";
+import EventAudienceFields from "@/components/EventAudienceFields";
+import { DEFAULT_AUDIENCE } from "@/lib/event-audience";
+import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 
 interface EventRow {
   id: string;
@@ -18,12 +21,6 @@ interface EventRow {
   ends_at: string;
   photo_count: number;
 }
-
-const EVENT_TYPES = [
-  { value: "in_person_retreat", label: "In-Person Retreat" },
-  { value: "virtual_retreat", label: "Virtual Retreat" },
-  { value: "other", label: "Other" },
-];
 
 function slugify(title: string): string {
   return title
@@ -48,6 +45,7 @@ const emptyForm = {
   agenda: "",
   results: "",
   google_photos_album_url: "",
+  ...DEFAULT_AUDIENCE,
 };
 
 type SortColumn = "title" | "dates" | "location" | "photos";
@@ -170,7 +168,7 @@ export default function EventsClient() {
                 onChange={(e) => setFormData({ ...formData, event_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
               >
-                {EVENT_TYPES.map((t) => (
+                {EVENT_TYPE_OPTIONS.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
@@ -218,6 +216,7 @@ export default function EventsClient() {
             </div>
           </div>
           </div>
+          <EventAudienceFields value={formData} onChange={(audience) => setFormData({ ...formData, ...audience })} />
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-200">Focus (short blurb, optional)</label>
             <input
@@ -322,7 +321,7 @@ export default function EventsClient() {
                       {event.title}
                     </Link>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {EVENT_TYPES.find((t) => t.value === event.event_type)?.label || event.event_type}
+                      {EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm">
