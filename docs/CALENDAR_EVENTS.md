@@ -53,3 +53,7 @@ On the admin prickle page (`/admin/prickles/<id>`) the **Edit** button turns the
 - Changing the type reprocesses the days around the prickle too, since the title and the guest speaker are made from the calendar title with the type's rules.
 - Pop-up prickles (from Zoom) have no calendar event to keep a decision on, so they aren't editable here.
 
+## Editing an event
+
+On the admin event page (`/admin/events/<id>`) **Edit** turns each value of the Details card into its field in the same place, with Save and Cancel (`EventDetailsCard`), including the ones that are empty. One notice at the top says what follows the calendar and, for an event that stands for a prickle, links to the prickle where its title, description, guest speaker and host are edited; those fields are locked here, and so are the dates of any event that follows the calendar. An event made in the Hub has every field editable and no notice.
+

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -51,12 +51,13 @@ afterEach(() => {
 });
 
 describe("admin event that stands for a prickle", () => {
-  it("says where its title, description, guest speaker and host come from, and links to the prickle", async () => {
+  it("says in one notice where its title, description, guest speaker and host come from, and what follows the calendar", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    expect(await screen.findByText(/This event stands for a prickle: its title, description, guest speaker and host come from it/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Edit them on the prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
-    expect(screen.getByText(/the location does too until you change it/)).toBeInTheDocument();
+    const notice = (await screen.findByText(/Stands for a prickle: its title, description, guest speaker and host come from it/)).closest("div")!;
+    expect(notice).toHaveTextContent(/Follows the shared calendar: dates and times come from it; the location does too until you change it/);
+    expect(within(notice).getByRole("link", { name: "edit them on the prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
+    expect(screen.getAllByText(/Follows the shared calendar/)).toHaveLength(1); // not a second notice
   });
 
   it("locks the title, description and guest speaker while editing, and leaves the rest editable", async () => {
