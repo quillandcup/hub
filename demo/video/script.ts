@@ -43,3 +43,46 @@ export const SHORT = {
   chat: "Chat with fellow writers, right in the Hub.",
   close: "Join us in the Hedgie House.",
 } as const;
+
+/** What is on screen while each line is spoken, in plain words: for the person reading it. */
+export const SCREEN_LONG: Record<keyof typeof LONG, string> = {
+  hook: "Title card: Hedgie Hub",
+  meet: "The dashboard, \"Welcome back\"",
+  upcoming: "The dashboard scrolls down to the upcoming Prickles",
+  prickles: "The Prickles page; one Prickle is added to the calendar with a click",
+  commit: "Commitments, and the buttons to sync to Google, Apple or Outlook",
+  googleWeek: "A week in Google Calendar with the Prickles in it",
+  googleEvent: "One Prickle opened: the Zoom link and a 15-minute reminder",
+  history: "Attendance history: the list, then the month, then a week",
+  streaks: "Streaks",
+  projects: "Writing: the list of projects",
+  log: "One project: the progress chart, then logging 650 words",
+  chat: "Chat opens",
+  unread: "A channel with unread messages",
+  thread: "A conversation in its thread, with reactions",
+  post: "A message is written and sent",
+  search: "Searching the messages",
+  members: "The members, with their bios",
+  reminders: "Settings, then the notification choices (Slack, email, phone)",
+  help: "Hedgie Help, then a guide",
+  close: "End card: Write together",
+};
+
+export const SCREEN_SHORT: Record<keyof typeof SHORT, string> = {
+  hook: "Title card",
+  meet: "The dashboard",
+  commit: "Prickles, then Commitments",
+  streaks: "Streaks",
+  log: "A writing project and its progress chart",
+  chat: "Chat: a channel, and a message is sent",
+  close: "End card: Join the Hedgie House",
+};
+
+/**
+ * An id for every line, in script order: L01 to L20 for the long cut, S01 to S07 for the short one. A recorded
+ * reading is matched to its line by this id (voiceover.ts), and the reading sheet numbers the lines the same way.
+ */
+export const LINE_IDS: Map<string, string> = new Map([
+  ...Object.values(LONG).map((text, i): [string, string] => [text, `L${String(i + 1).padStart(2, "0")}`]),
+  ...Object.values(SHORT).map((text, i): [string, string] => [text, `S${String(i + 1).padStart(2, "0")}`]),
+]);

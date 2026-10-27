@@ -53,3 +53,15 @@ Two narrated overview videos of Hedgie Hub for members, recorded from the demo c
 - **No prices, no sign-up call to action beyond "welcome to the Hedgie House"**: where it is shown (an email, the dashboard, Instagram) decides that, so it is a line to add per place.
 - **The Google Calendar frames are stills from a real account**, because Google can't reach the demo's local feed; how they are made is in `docs/DEMO_AND_HELP.md`.
 - **Pacing follows the voice**: each beat waits for whichever is longer, the sentence or the clicks, so a slower voice or a longer line lengthens the video by itself.
+
+## When a person reads it
+
+A recorded reading replaces the synthetic voice line by line, and the video paces itself to it (each beat waits for whichever is longer, the voice or the clicks), so a slower or faster reader just makes a slightly longer or shorter video.
+
+1. **Make the sheet**: `pnpm demo:video` (writes the times to `demo/out/video/overview-long.timing.json` and `overview-short.timing.json`), then `pnpm demo:reading:sheet` writes `demo/out/video/reading-script.pdf` (and `.html`). It has how to record, how to say the names, and every line with its number (`L01` to `L20` for the long cut, `S01` to `S07` for the short one), when it comes in, how long it takes, and what is on screen.
+2. **She records** each cut straight through, in order, with about two seconds between lines (one recording per cut; a phone voice memo is fine).
+3. **Cut it into takes**: `pnpm demo:reading:split long path/to/long.m4a` (and `short`). The pauses between lines are where it cuts; if the number of pieces isn't the number of lines it writes nothing and lists the pieces found, and `--gap=` (the shortest pause that counts, seconds) and `--noise=` (dB) tune it. Takes land in `demo/out/video/reading/` as `L01.wav` and so on (gitignored: a person's voice is not committed).
+4. **Fix a line** by dropping a re-read of it into that folder as `L07.m4a` (any common audio format, named for the line's id); it replaces the split take.
+5. **Record the videos**: `pnpm demo:seed`, then `pnpm demo:video`. Lines without a reading use the synthetic voice and the run says which. `DEMO_HUMAN=0` ignores the readings.
+
+Editing a line in `demo/video/script.ts` changes its reading too: the sheet shows the new words, and the recorded take for that id no longer matches what is said, so it needs re-reading.

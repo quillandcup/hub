@@ -3,7 +3,8 @@ import { startRecording, type Director } from "./director";
 import { acknowledgePost, demoChannelId, forgetPosts } from "./slack-stand-in";
 import { googleCalendarFrames } from "./google-calendar";
 import { LONG as L, SHORT as S } from "./script";
-import { synthesize } from "./voiceover";
+import { recordingOf, synthesize } from "./voiceover";
+import { LINE_IDS } from "./script";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 
 /**
@@ -64,6 +65,11 @@ const baseURL = process.env.DEMO_APP_URL ?? "http://localhost:3101";
 async function startAsMember(browser: Parameters<typeof startRecording>[0], lines: Record<string, string>) {
   // Speak every line first (they are kept after that): a line made while recording would be a silent gap on screen.
   Object.values(lines).forEach(synthesize);
+  // A person's readings and the synthetic voice in one video would jar: say which lines still have no recording.
+  const missing = Object.values(lines).filter((text) => !recordingOf(text));
+  if (missing.length > 0 && missing.length < Object.values(lines).length) {
+    console.warn(`Readings are in use, but these lines have none and use the synthetic voice: ${missing.map((t) => LINE_IDS.get(t)).join(", ")}`);
+  }
   await forgetPosts();
   const lastChannel = await demoChannelId("announcements");
   return startRecording(browser, baseURL, "member", WARM, "light", [{ name: LAST_CHAT_COOKIE, value: lastChannel }]);
