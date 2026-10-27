@@ -18,7 +18,8 @@ vi.mock("@/lib/processing/trigger", () => ({
   triggerReprocessing: (...args: unknown[]) => triggerReprocessingMock(...args),
 }));
 
-import { addEmailAlias, setEmailAliasActive, getIdentitySettings } from "@/app/(member)/settings/identityActions";
+import * as identityActions from "@/app/(member)/settings/identityActions";
+import { addEmailAlias, getIdentitySettings } from "@/app/(member)/settings/identityActions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -127,46 +128,6 @@ describe("addEmailAlias", () => {
   });
 });
 
-describe("setEmailAliasActive", () => {
-  it("scopes the toggle to the acting member by member_id", async () => {
-    const { client, calls } = makeClient(() => ({ data: [{ id: "alias-1" }] }));
-    vi.mocked(createClient).mockResolvedValue(client);
-
-    expect(await setEmailAliasActive("alias-1", false)).toEqual({ success: true });
-
-    const update = calls.find((c) => c.table === "member_email_aliases" && c.op === "update");
-    expect(update?.payload).toEqual({ active: false });
-    expect(update?.filters).toEqual([
-      ["eq", "id", "alias-1"],
-      ["eq", "member_id", "member-1"],
-    ]);
-  });
-
-  it("returns the database's message when the toggle fails", async () => {
-    const { client } = makeClient((table, op) => (table === "member_email_aliases" && op === "update" ? { error: { message: "connection lost" } } : {}));
-    vi.mocked(createClient).mockResolvedValue(client);
-
-    expect(await setEmailAliasActive("alias-1", true)).toEqual({ error: "connection lost" });
-    expect(afterCallbacks).toHaveLength(0);
-  });
-
-  it("reports an alias that isn't the member's", async () => {
-    const { client } = makeClient(() => ({ data: null }));
-    vi.mocked(createClient).mockResolvedValue(client);
-    expect(await setEmailAliasActive("someone-elses", true)).toEqual({ error: "Alias not found" });
-  });
-
-  it("reprocesses on reactivation only", async () => {
-    const { client } = makeClient(() => ({ data: [{ id: "alias-1" }] }));
-    vi.mocked(createClient).mockResolvedValue(client);
-
-    await setEmailAliasActive("alias-1", false);
-    expect(afterCallbacks).toHaveLength(0);
-    await setEmailAliasActive("alias-1", true);
-    expect(afterCallbacks).toHaveLength(1);
-  });
-});
-
 describe("getIdentitySettings", () => {
   it("lists email aliases by member_id, so they survive a change of primary email", async () => {
     const { client, calls } = makeClient((table) =>
@@ -182,5 +143,13 @@ describe("getIdentitySettings", () => {
     const aliasQuery = calls.find((c) => c.table === "member_email_aliases");
     expect(aliasQuery?.filters).toEqual([["eq", "member_id", "member-1"]]);
     expect(settings.emailAliases.map((a) => a.aliasEmail)).toEqual(["old@example.com"]);
+  });
+});
+
+describe("alias activation is not member-callable", () => {
+  // Members can add an alias but not switch one off (or back on): an inactive alias stops matching
+  // the next time recent attendance is reprocessed. Admins do that, through their own routes.
+  it("exports no action that deactivates or reactivates an alias", () => {
+    expect(Object.keys(identityActions).filter((name) => /Active$/.test(name))).toEqual([]);
   });
 });
