@@ -15,9 +15,12 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEMO_PROJECT_ID = "hub-demo";
-export const DEMO_APP_PORT = 3100;
-const PORT_SHIFT = 2000;
+// Another worktree's stack is another project id and another set of ports: `supabase stop` goes by project id, so two
+// worktrees on the default would stop each other's containers. DEMO_STACK_ID=<name> DEMO_PORT_SHIFT=<n> (default
+// 2000, so the app is on 3100 + (n - 2000)) gives this one its own; see docs/DEMO_AND_HELP.md.
+export const DEMO_PROJECT_ID = process.env.DEMO_STACK_ID ?? "hub-demo";
+const PORT_SHIFT = Number(process.env.DEMO_PORT_SHIFT ?? 2000);
+export const DEMO_APP_PORT = 3100 + (PORT_SHIFT - 2000);
 // Services the dev stack also skips; none is needed to run the app.
 const EXCLUDED = ["imgproxy", "edge-runtime", "studio", "logflare", "vector"];
 

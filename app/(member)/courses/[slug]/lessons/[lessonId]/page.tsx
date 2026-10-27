@@ -206,7 +206,7 @@ export default async function LessonPage({
               <details className="group mt-3 overflow-hidden rounded-2xl bg-neutral-900 @outline:hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm font-semibold text-slate-100 [&::-webkit-details-marker]:hidden">
                   <span>Lessons in this section</span>
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                     {section.lessons.length} {section.lessons.length === 1 ? "Lesson" : "Lessons"}
                     <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m5 8 5 5 5-5" />

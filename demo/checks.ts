@@ -221,13 +221,21 @@ export async function measureBoxes(edgeMargin: number): Promise<BoxFinding[]> {
   // to the centre and the point under it asked what is on top.
   const overlays = "[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[aria-modal=true],dialog[open],[data-feedback-widget],[data-environment-indicator],nextjs-portal";
   const interactive = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=link], [role=tab], [role=menuitem]";
+  // Inside a closed <details>: not drawn, so nothing to cover (its summary is, and is still checked).
+  const inClosedDisclosure = (el: Element): boolean => {
+    for (let d = el.closest("details"); d; d = d.parentElement?.closest("details") ?? null) {
+      const summary = el.closest("summary");
+      if (!d.open && !(summary && summary.parentElement === d)) return true;
+    }
+    return false;
+  };
   const covered = new Set<string>();
   const modalOpen = !!document.querySelector("[aria-modal=true],dialog[open]");
   if (!modalOpen) {
     for (const el of Array.from(document.querySelectorAll<HTMLElement>(interactive))) {
       if (covered.size >= 8) break;
       if ((el as HTMLButtonElement).disabled || el.getAttribute("aria-hidden") === "true" || !visible(el)) continue;
-      if (el.closest(overlays)) continue;
+      if (el.closest(overlays) || inClosedDisclosure(el)) continue;
       const before = el.getBoundingClientRect();
       if (before.width < 4 || before.height < 4) continue;
       el.scrollIntoView({ block: "center", inline: "nearest" });
