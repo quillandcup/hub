@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import IgnoredZoomNames from "./IgnoredZoomNames";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
 import { prickleTitle } from "@/lib/domain/prickle";
@@ -89,12 +90,13 @@ export default async function AdminPrickleDetailPage({
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
     supabase.from("ignored_zoom_names").select("zoom_name"),
-    supabase.from("ignored_zoom_appearances").select("zoom_name").eq("prickle_id", prickle.id),
+    supabase.from("ignored_zoom_appearances").select("zoom_name, reason").eq("prickle_id", prickle.id),
     supabase.from("staff").select("name, email"),
   ]);
 
   const members = membersResult;
   const aliases = aliasesResult;
+  const ignoredHere = (ignoredHereResult.data || []).map((i) => ({ zoomName: i.zoom_name, reason: i.reason }));
   const ignoredNames = [...(ignoredResult.data || []), ...(ignoredHereResult.data || [])].map((i) => i.zoom_name);
   const staff = staffResult.data || [];
 
@@ -159,6 +161,7 @@ export default async function AdminPrickleDetailPage({
             insightsSlotUrl={insightsSlotUrl}
           />
           <TestCheckinDMs prickleId={prickle.id} />
+          <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />
           {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
