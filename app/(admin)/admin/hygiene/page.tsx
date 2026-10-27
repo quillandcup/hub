@@ -9,6 +9,7 @@ import { matchAttendeeToMember } from "@/lib/member-matching";
 import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import { findStalePrivateChannels } from "@/lib/private-channel-access";
+import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical } from "@/lib/external-conflicts";
@@ -335,7 +336,8 @@ export default async function DataHygienePage() {
     membersForMatching,
     aliasesForMatching || [],
     (ignoredZoomNamesForCount || []).map(r => r.zoom_name),
-    staffForZoomCount || []
+    staffForZoomCount || [],
+    await loadIgnoredAppearances(supabase)
   ).length;
 
   // External Conflicts count — same multi-account-per-canonical-email check as

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
+import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -27,14 +28,14 @@ export default async function AliasSearchPage() {
   ]);
 
   // Paginate zoom_attendees — table exceeds 1000 rows
-  const allZoomNames: { name: string; email: string | null; meeting_uuid: string | null }[] = [];
+  const allZoomNames: { name: string; email: string | null; meeting_uuid: string | null; join_time: string; leave_time: string }[] = [];
   {
     const BATCH = 1000;
     let offset = 0, hasMore = true;
     while (hasMore) {
       const { data: batch } = await supabase
         .schema('bronze').from("zoom_attendees")
-        .select("name, email, meeting_uuid")
+        .select("name, email, meeting_uuid, join_time, leave_time")
         .range(offset, offset + BATCH - 1);
       if (batch && batch.length > 0) {
         allZoomNames.push(...batch);
@@ -51,7 +52,8 @@ export default async function AliasSearchPage() {
     allMembers || [],
     aliases || [],
     (ignoredNames || []).map((i) => i.zoom_name),
-    staffMembers || []
+    staffMembers || [],
+    await loadIgnoredAppearances(supabase)
   ).sort((a, b) => b.appearances - a.appearances);
 
   return (
