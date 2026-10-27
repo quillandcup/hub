@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription } from "@/lib/prickle-types";
+import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 
 // Extend timeout for processing large batches of events
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       createRepos(supabase).members.identities({ status: "active" }),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
+      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id, summary_aliases, names_guest_speaker"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
 
       // Match host to member ID
       let hostId: string | null = null;
+      let matchedHostName: string | null = null;
       // For unmatched events, suggest the extracted host first (e.g., "Kristin" from "w/Kristin")
       // Fall back to calendar organizer if no host extracted
       let suggestedHostName = extractedHostName || event.creator_name || event.organizer_name || null;
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
 
         if (match && 'member_id' in match) {
           hostId = match.member_id;
+          matchedHostName = members.find((m) => m.id === match.member_id)?.name ?? null;
           // Update suggested name to matched member's name
           const matchedMember = members.find(m => m.id === match.member_id);
           if (matchedMember) {
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest) {
           if (!normalizedType || normalizedType === "") {
             typeId = typeByNormalizedName.get("progress") || null;
           } else {
-            typeId = typeByNormalizedName.get(normalizedType) || null;
+            typeId = typeByNormalizedName.get(normalizedType) || typeIdByAlias(normalizedType, prickleTypes ?? []);
           }
 
           // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
@@ -248,15 +250,22 @@ export async function POST(request: NextRequest) {
       // without the "w/Host" tail; the calendar description comes along as plain text.
       const matchedType = prickleTypes?.find(t => t.id === typeId);
 
-      // Use default host if no host was extracted from "w/Name" pattern
-      const finalHostId = hostId || matchedType?.default_host_id || null;
+      // "w/Name" is the host, except for types led by a guest speaker (educational): the type's default host runs those
+      const { hostId: finalHostId, guestSpeaker } = assignHostAndSpeaker({
+        typedName: extractedHostName,
+        memberId: hostId,
+        memberName: matchedHostName,
+        defaultHostId: matchedType?.default_host_id ?? null,
+        namesGuestSpeaker: matchedType?.names_guest_speaker ?? false,
+      });
 
       pricklesToInsert.push({
         calendar_event_id: event.id,
         type_id: typeId,
-        title: matchedType ? prickleTitleFromSummary(event.summary, matchedType.name) : event.summary,
+        title: matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary,
         description: plainTextDescription(event.description),
         host: finalHostId,
+        guest_speaker: guestSpeaker,
         start_time: event.start_time,
         end_time: event.end_time,
         source: "calendar",

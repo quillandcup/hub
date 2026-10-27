@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { zoomMeetingUuid?: string; description?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" | "zoom" };
+export type PrickleSeed = { zoomMeetingUuid?: string; description?: string; guestSpeaker?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" | "zoom" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -367,6 +367,13 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       const found = new Set((await ctx.repo().timeWindows()).map((w) => w.id));
 
       expect(ids.every((id) => found.has(id))).toBe(true);
+    });
+
+    it("reads a prickle's guest speaker, null when there is none", async () => {
+      const [withSpeaker, without] = await ctx.seed([{ start: at(94), guestSpeaker: "Ellen Example" }, { start: at(95) }]);
+      const found = await ctx.repo().byIds([withSpeaker, without]);
+      expect(found.find((p) => p.id === withSpeaker)?.guestSpeaker).toBe("Ellen Example");
+      expect(found.find((p) => p.id === without)?.guestSpeaker ?? null).toBeNull();
     });
 
     it("reads a prickle's description and its type's description", async () => {

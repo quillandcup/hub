@@ -450,4 +450,49 @@ describe('Calendar Reprocessability', () => {
     await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', 'test-event-unmatched')
     await supabase.from('prickle_types').delete().eq('id', newType!.id)
   })
+
+  it('maps an alias title to its type and splits the guest speaker from the default host, from Bronze every run', async () => {
+    const { data: host } = await supabase.from('members').select('id, name').limit(1).single()
+    const { data: type } = await supabase
+      .from('prickle_types')
+      .insert({ name: 'Guest Led Test Type', normalized_name: 'guest-led-test', summary_aliases: ['gl'], names_guest_speaker: true, default_host_id: host!.id })
+      .select('id')
+      .single()
+    const events = [
+      { id: 'test-event-gl-outside', summary: 'GL-PRICKLE: Make It Funny w/Ellen Example', start: '2099-06-23T10:00:00Z', end: '2099-06-23T11:00:00Z' },
+      { id: 'test-event-gl-host', summary: `GL-PRICKLE Tiny Things w/${host!.name}`, start: '2099-06-24T10:00:00Z', end: '2099-06-24T11:00:00Z' },
+      { id: 'test-event-gl-none', summary: 'GL-PRICKLE: Open Mic', start: '2099-06-25T10:00:00Z', end: '2099-06-25T11:00:00Z' },
+    ]
+    try {
+      for (const e of events) {
+        await supabase.schema('bronze').from('calendar_events').insert({ google_event_id: e.id, summary: e.summary, start_time: e.start, end_time: e.end, raw_data: {} })
+      }
+      const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+        body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+      })
+      const read = async () => {
+        const { data } = await supabase.from('prickles').select('title, host, guest_speaker').eq('type_id', type!.id).order('start_time')
+        return data
+      }
+
+      await process()
+      const expected = [
+        { title: 'Make It Funny', host: host!.id, guest_speaker: 'Ellen Example' },
+        { title: 'Tiny Things', host: host!.id, guest_speaker: null },
+        { title: 'Open Mic', host: host!.id, guest_speaker: null },
+      ]
+      expect(await read()).toEqual(expected)
+
+      // Reprocessing after the speaker is removed from the title clears it
+      await supabase.schema('bronze').from('calendar_events').update({ summary: 'GL-PRICKLE: Make It Funny' }).eq('google_event_id', 'test-event-gl-outside')
+      await process()
+      expect(await read()).toEqual([{ ...expected[0], guest_speaker: null }, expected[1], expected[2]])
+    } finally {
+      await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', events.map((e) => e.id))
+      await supabase.from('prickles').delete().eq('type_id', type!.id)
+      await supabase.from('prickle_types').delete().eq('id', type!.id)
+    }
+  })
 })

@@ -103,14 +103,55 @@ export async function matchPrickleType(
  * and that name is worth keeping. The "w/Host" tail is dropped (the host is its own field),
  * as are wrapping quotes; a bare "{Type}" or "{Type} Prickle" is the standard name, so null.
  */
-export function prickleTitleFromSummary(summary: string, typeName: string): string | null {
+export function prickleTitleFromSummary(summary: string, typeName: string, aliases: string[] = []): string | null {
   const cleaned = summary.replace(/^['"](.+?)['"]$/, "$1").trim();
-  const withoutHost = cleaned.replace(/\s*\bw\/\s*.+$/i, "").replace(/^['"]|['"]$/g, "").trim();
+  let withoutHost = cleaned.replace(/\s*\bw\/\s*.+$/i, "").replace(/^['"]|['"]$/g, "").trim();
+  // "EDU-PRICKLE: Make It Funny": the type's other name is the label, not part of the title.
+  for (const alias of aliases) {
+    const label = new RegExp(`^${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:-?\\s*prickle)?\\s*:?\\s+`, "i");
+    if (label.test(`${withoutHost} `)) withoutHost = `${withoutHost} `.replace(label, "").trim();
+  }
   if (!withoutHost) return null;
   const lower = withoutHost.toLowerCase();
   const typeLower = typeName.toLowerCase();
   if (lower === "prickle" || lower === typeLower || lower === `${typeLower} prickle`) return null;
   return withoutHost;
+}
+
+/**
+ * The type whose alias a normalized calendar type starts with: "edu-make-it-funny" is an Educational
+ * Prickle when the type lists "edu". The alias must be the whole first word, so "education" is not "edu".
+ */
+export function typeIdByAlias<T extends { id: string; summary_aliases?: string[] | null }>(
+  normalizedType: string,
+  types: T[],
+): string | null {
+  for (const type of types) {
+    for (const alias of type.summary_aliases ?? []) {
+      if (normalizedType === alias || normalizedType.startsWith(`${alias}-`)) return type.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Who hosts a prickle and who is its guest speaker, from the name after "w/" on its calendar title.
+ * For most types that name is the host. For a type that names a guest speaker (educational), the
+ * type's default host runs the session and the name is the speaker, unless it is the default host
+ * themself. A member's own name (`memberName`) is preferred over the typed one.
+ */
+export function assignHostAndSpeaker(input: {
+  typedName: string | null;
+  memberId: string | null;
+  memberName: string | null;
+  defaultHostId: string | null;
+  namesGuestSpeaker: boolean;
+}): { hostId: string | null; guestSpeaker: string | null } {
+  const { typedName, memberId, memberName, defaultHostId, namesGuestSpeaker } = input;
+  if (!namesGuestSpeaker) return { hostId: memberId ?? defaultHostId, guestSpeaker: null };
+  const hostId = defaultHostId ?? memberId;
+  if (!typedName || (memberId !== null && memberId === hostId)) return { hostId, guestSpeaker: null };
+  return { hostId, guestSpeaker: memberName ?? typedName };
 }
 
 const HTML_ENTITIES: Record<string, string> = {
