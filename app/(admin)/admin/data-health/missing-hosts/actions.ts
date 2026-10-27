@@ -6,6 +6,7 @@ import { createRepos } from "@/lib/data/repos";
 import { UNHOSTED_LIST_LIMIT } from "@/lib/missing-hosts";
 import { triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
 import { isId } from "@/lib/ids";
+import { saveEventDecision } from "@/lib/prickle-event-decisions";
 
 const PAGE = "/admin/data-health/missing-hosts";
 
@@ -67,4 +68,49 @@ export async function getUnhostedPrickles(typeId: string): Promise<{ error: stri
     console.error("Error loading unhosted prickles:", err);
     return { error: (err as Error).message };
   }
+}
+
+const ASSIGN_ROUND = 200;
+const ASSIGN_PARALLEL = 10;
+
+/**
+ * Credits one member as the host of every calendar prickle of a type that has none, the way "Change host"
+ * does on a single prickle (the event's decision first, so a reprocess keeps it, then the prickle). For a
+ * type nobody hosts any more, where the past ones should still say who did. Any member will do, a former
+ * one included, since this is a record of who hosted.
+ */
+export async function assignHostToUnhostedPrickles(typeId: string, memberId: string): Promise<{ error?: string; assigned?: number }> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  if (!isId(memberId, "mbr")) return { error: "Pick a member" };
+
+  const repos = createRepos(auth.supabase);
+  if (!(await repos.members.byId(memberId))) return { error: "Member not found" };
+
+  let assigned = 0;
+  // Each round takes the prickles that still have no host, so it ends when none are left.
+  for (let rounds = 0; rounds < 50; rounds++) {
+    const round = await repos.prickles.hostlessCalendarOfType(typeId, ASSIGN_ROUND);
+    if (round.length === 0) break;
+    for (let i = 0; i < round.length; i += ASSIGN_PARALLEL) {
+      const results = await Promise.all(
+        round.slice(i, i + ASSIGN_PARALLEL).map(async (p) => {
+          if (!p.calendarEventId) return { error: "A prickle has no calendar event" };
+          const failed = await saveEventDecision(auth.supabase, p.calendarEventId, { resolved_host_id: memberId });
+          if (failed) return failed;
+          await repos.prickles.setHost(p.id, memberId);
+          return null;
+        })
+      );
+      assigned += results.filter((r) => r === null).length;
+      const failure = results.find((r) => r !== null);
+      if (failure) {
+        revalidatePath(PAGE);
+        return { error: `${failure.error}. Assigned ${assigned} before it stopped.`, assigned };
+      }
+    }
+  }
+
+  revalidatePath(PAGE);
+  return { assigned };
 }

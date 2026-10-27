@@ -19,17 +19,17 @@ export type MissingHostsData = {
   /** Types that have unhosted calendar prickles: ones that need a host first, then by how many. */
   stats: UnhostedTypeStat[];
   coverage: HostCoverage;
-  /** Active members, to pick a default host from. */
-  members: { id: string; name: string; displayName: string | null; email: string }[];
+  /** Every member, with their status: active ones to pick a default host from, any of them to credit as the host of past prickles. */
+  members: { id: string; name: string; displayName: string | null; email: string; status: string }[];
 };
 
 /** What the Prickles Missing Hosts page shows, read through the repositories. */
 export async function loadMissingHosts(repos: Pick<Repos, "prickles" | "members">): Promise<MissingHostsData> {
-  const [counts, types, coverage, activeMembers] = await Promise.all([
+  const [counts, types, coverage, allMembers] = await Promise.all([
     repos.prickles.hostlessCalendarCountsByType(),
     repos.prickles.types(),
     repos.prickles.hostCoverage("calendar"),
-    repos.members.list({ status: "active", orderBy: "name" }),
+    repos.members.list({ orderBy: "name" }),
   ]);
 
   const typesWithGaps = types.filter((t) => counts.has(t.id));
@@ -48,5 +48,5 @@ export async function loadMissingHosts(repos: Pick<Repos, "prickles" | "members"
     // Types that need a host first, then the ones with the most gaps.
     .sort((a, b) => (a.requiresHost === b.requiresHost ? b.missingCount - a.missingCount : a.requiresHost ? -1 : 1));
 
-  return { stats, coverage, members: activeMembers.map(({ id, name, displayName, email }) => ({ id, name, displayName, email })) };
+  return { stats, coverage, members: allMembers.map(({ id, name, displayName, email, status }) => ({ id, name, displayName, email, status })) };
 }

@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendTestCheckinDM, type CheckinDMKind } from "@/lib/prickle-checkin-dms";
 import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
+import { saveEventDecision } from "@/lib/prickle-event-decisions";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -37,28 +38,6 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
   return "error" in result ? { error: result.error } : { success: true as const, delivered: result.delivered };
 }
 
-type Admin = Extract<Awaited<ReturnType<typeof requireAdminAction>>, { ok: true }>;
-
-/**
- * Stores an admin's choice for a calendar prickle as its event's decision (`unmatched_calendar_events`),
- * because that is what `/api/process/calendar` applies on every reprocess; changing only the prickle
- * would be undone by the next run. An event matched automatically has no such row yet, so one is added.
- */
-async function saveEventDecision(auth: Admin, calendarEventId: string, choice: { resolved_type_id: string } | { resolved_host_id: string }) {
-  const decision = { status: "resolved", resolved_at: new Date().toISOString(), ...choice };
-  const { data: existing, error: findError } = await auth.supabase.from("unmatched_calendar_events").select("id").eq("calendar_event_id", calendarEventId);
-  if (findError) return { error: "Couldn't save the change" };
-
-  if (existing && existing.length > 0) {
-    const { error } = await auth.supabase.from("unmatched_calendar_events").update(decision).eq("calendar_event_id", calendarEventId);
-    return error ? { error: "Couldn't save the change" } : null;
-  }
-  const { data: event } = await auth.supabase.schema("bronze").from("calendar_events").select("summary").eq("id", calendarEventId).maybeSingle();
-  if (!event?.summary) return { error: "The calendar event is gone, so the change wouldn't last" };
-  const { error } = await auth.supabase.from("unmatched_calendar_events").insert({ calendar_event_id: calendarEventId, raw_summary: event.summary, ...decision });
-  return error ? { error: "Couldn't save the change" } : null;
-}
-
 /** Changes a calendar prickle's type, for a calendar event that was filed under the wrong one. */
 export async function changePrickleType(prickleId: string, typeId: string) {
   const auth = await requireAdminAction();
@@ -70,7 +49,7 @@ export async function changePrickleType(prickleId: string, typeId: string) {
   if (!prickle.calendarEventId) return { error: "Only prickles made from a calendar event can change type here" };
   if (!types.some((t) => t.id === typeId)) return { error: "Unknown prickle type" };
 
-  const failed = await saveEventDecision(auth, prickle.calendarEventId, { resolved_type_id: typeId });
+  const failed = await saveEventDecision(auth.supabase, prickle.calendarEventId, { resolved_type_id: typeId });
   if (failed) return failed;
   await repos.prickles.setType(prickleId, typeId);
   revalidatePath(`/admin/prickles/${prickleId}`);
@@ -88,7 +67,7 @@ export async function changePrickleHost(prickleId: string, memberId: string) {
   if (!prickle.calendarEventId) return { error: "Only prickles made from a calendar event can change host here" };
   if (!member) return { error: "Member not found" };
 
-  const failed = await saveEventDecision(auth, prickle.calendarEventId, { resolved_host_id: memberId });
+  const failed = await saveEventDecision(auth.supabase, prickle.calendarEventId, { resolved_host_id: memberId });
   if (failed) return failed;
   await repos.prickles.setHost(prickleId, memberId);
   revalidatePath(`/admin/prickles/${prickleId}`);

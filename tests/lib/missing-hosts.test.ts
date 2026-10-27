@@ -44,17 +44,17 @@ describe("loadMissingHosts", () => {
     expect(stats.find((s) => s.typeName === "Workshop")).toMatchObject({ defaultHostId: null, defaultHostName: null });
   });
 
-  it("includes the host coverage and the active members to pick from", async () => {
+  it("includes the host coverage and every member, with their status, to pick from", async () => {
     const { coverage, members } = await loadMissingHosts(repos);
 
     expect(coverage).toMatchObject({ total: 9, requiresHost: { withHost: 1, withoutHost: 3 }, optionalHost: { withHost: 1, withoutHost: 3 } });
-    expect(members.map((m) => m.name)).toEqual(["Ada Example", "Fern Example"]); // not the cancelled one
+    expect(members.map((m) => [m.name, m.status])).toEqual([["Ada Example", "active"], ["Fern Example", "active"], ["Gale Example", "cancelled"]]);
   });
 
   it("gives the picker each member's display name, so searching it finds them", async () => {
     const { members } = await loadMissingHosts(repos);
 
-    expect(members.map((m) => [m.name, m.displayName])).toEqual([["Ada Example", null], ["Fern Example", "Fernie"]]);
+    expect(members.map((m) => [m.name, m.displayName])).toEqual([["Ada Example", null], ["Fern Example", "Fernie"], ["Gale Example", null]]);
   });
 
   it("names a default host by display name", async () => {
