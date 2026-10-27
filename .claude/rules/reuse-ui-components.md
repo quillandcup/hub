@@ -15,3 +15,9 @@ Before building UI, look in `components/` for what already does the job, and use
 - **Copy**: short, no "optional" labels, an obvious next step. A button says "Skip it" rather than a paragraph saying it's optional.
 - Match the Quill & Cup colors and fonts already in the theme; don't introduce new colors inline.
 - Layout rules (viewport vs container queries, breakpoints) are in `CLAUDE.md`; check a change just either side of each breakpoint it touches.
+
+**Bars and banners** (`components/announcements/`):
+- A bar across the app above the header (sudo, install the app, connect Slack) is an `AnnouncementBar` placed by `AnnouncementStack` in `app/(member)/layout.tsx`: one item with an `id`, a `priority` from `ANNOUNCEMENT_PRIORITY` and the element, keeping its own show condition in the layout. They all stack, highest priority first, so a critical bar is never hidden. Don't render a bar of your own markup there.
+- State of one page ("you're previewing") is a `PageBanner` first in the page, under the header. Not a bar in the layout.
+- An event the app sends (time-sensitive, stored, read/unread) is a notification (`timeSensitiveUntil`), not a bar; the notification banners share the `notice` look through `ANNOUNCEMENT_TONE_CLASSES`.
+- Tones: `info` (something worth doing), `notice` (state of the page, notification), `critical` (sudo). Dismissal is `dismiss` on the bar (`scope` "session" or "device"), never your own storage code.

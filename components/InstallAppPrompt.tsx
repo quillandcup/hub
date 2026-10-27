@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AnnouncementBar from "@/components/announcements/AnnouncementBar";
 
 const DISMISSED_KEY = "install-app-prompt-dismissed";
 
@@ -79,43 +80,19 @@ export function InstallAppPrompt() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem(DISMISSED_KEY) === "1";
-    } catch {
-      // Storage blocked: show it every visit rather than never.
-    }
-    setShow(!dismissed && isIosBrowserTab());
+    setShow(isIosBrowserTab());
   }, []);
 
   if (!show) return null;
 
-  const dismiss = () => {
-    try {
-      localStorage.setItem(DISMISSED_KEY, "1");
-    } catch {
-      // Dismissed for this visit only.
-    }
-    setShow(false);
-  };
-
   return (
-    <section
+    <AnnouncementBar
+      tone="info"
       aria-label="Install the Hub"
-      className="flex items-start gap-3 border-b border-plum-200 bg-plum-50 px-4 py-3 text-sm text-plum-900 dark:border-plum-900 dark:bg-plum-950 dark:text-plum-100"
+      dismiss={{ dismissKey: DISMISSED_KEY, scope: "device", track: "install-app-dismiss" }}
     >
-      <div className="min-w-0 flex-1">
-        <div className="font-medium">Add the Hub to your Home Screen to get notifications</div>
-        <InstallSteps />
-      </div>
-      <button
-        type="button"
-        onClick={dismiss}
-        data-track="install-app-dismiss"
-        className="shrink-0 rounded-md px-2 py-1 font-medium hover:bg-plum-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 dark:hover:bg-plum-900"
-      >
-        Not now
-      </button>
-    </section>
+      <div className="font-medium">Add the Hub to your Home Screen to get notifications</div>
+      <InstallSteps />
+    </AnnouncementBar>
   );
 }

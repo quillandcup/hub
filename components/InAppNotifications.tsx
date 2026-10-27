@@ -14,6 +14,7 @@ import type { InAppNotification } from "@/lib/channels/in-app";
 import { formatRelativeTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { track } from "@/lib/analytics/client";
+import { ANNOUNCEMENT_TONE_CLASSES } from "@/components/announcements/tones";
 
 /** At most this many banners at once; the rest are still in the bell. */
 export const MAX_BANNERS = 3;
@@ -163,7 +164,7 @@ function BannerStrips() {
       {banners.map((n, i) => (
         <div
           key={n.id}
-          className={`${i === 0 ? "flex" : "hidden sm:flex"} items-center gap-3 border-b border-plum-700 bg-plum-600 px-6 py-2 text-sm text-white`}
+          className={`${i === 0 ? "flex" : "hidden sm:flex"} items-center gap-3 ${ANNOUNCEMENT_TONE_CLASSES.notice} px-6 py-2 text-sm`}
         >
           <p className="min-w-0 flex-1">
             {n.text}

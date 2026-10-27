@@ -1,6 +1,7 @@
 'use client'
 
 import { exitSudo } from '@/app/actions/sudo'
+import AnnouncementBar from '@/components/announcements/AnnouncementBar'
 
 interface SudoBannerProps {
   memberName: string
@@ -9,18 +10,14 @@ interface SudoBannerProps {
 
 export default function SudoBanner({ memberName, memberEmail }: SudoBannerProps) {
   return (
-    <div className="bg-red-600 text-white px-6 py-2 flex items-center justify-between flex-shrink-0 z-40">
-      <span className="text-sm font-medium">
+    <AnnouncementBar
+      tone="critical"
+      aria-label="Sudo mode"
+      action={{ label: 'Exit Sudo', track: 'sudo-exit', formAction: exitSudo }}
+    >
+      <span className="font-medium">
         Viewing as <strong>{memberName}</strong> ({memberEmail})
       </span>
-      <form action={exitSudo}>
-        <button
-          type="submit"
-          className="text-sm font-medium underline hover:no-underline ml-4 cursor-pointer"
-        >
-          Exit Sudo
-        </button>
-      </form>
-    </div>
+    </AnnouncementBar>
   )
 }

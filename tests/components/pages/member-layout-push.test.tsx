@@ -16,14 +16,14 @@ vi.mock("@/lib/onboarding.server", () => ({ getOnboardingState: async () => (tou
 const slack = vi.hoisted(() => ({ configured: true, status: { connected: true, sharesReadState: true, revoked: false } }));
 vi.mock("@/lib/slack-connect", () => ({ isSlackConnectConfigured: () => slack.configured, getSlackConnectionStatus: async () => slack.status }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
-vi.mock("@/components/SlackConnectPrompt", () => ({ default: ({ need }: { need: string }) => <p data-testid="slack-prompt">{need}</p> }));
+vi.mock("@/components/SlackConnectPrompt", () => ({ default: ({ need }: { need: string }) => <p data-testid="slack-prompt"><span data-testid="bar">slack</span>{need}</p> }));
 vi.mock("@/components/MemberNavigation", () => ({ default: () => null }));
 vi.mock("@/components/MemberFooter", () => ({ default: ({ showPrivacy }: { showPrivacy: boolean }) => <p data-testid="footer">privacy: {String(showPrivacy)}</p> }));
 vi.mock("@/components/UserMenu", () => ({ default: () => null }));
 vi.mock("@/components/search/SearchPalette", () => ({ default: () => null }));
 vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
-vi.mock("@/components/SudoBanner", () => ({ default: () => null }));
-vi.mock("@/components/InstallAppPrompt", () => ({ InstallAppPrompt: () => null }));
+vi.mock("@/components/SudoBanner", () => ({ default: () => <p data-testid="bar">sudo</p> }));
+vi.mock("@/components/InstallAppPrompt", () => ({ InstallAppPrompt: () => <p data-testid="bar">install</p> }));
 vi.mock("@/components/TimezoneInitializer", () => ({ TimezoneInitializer: () => null }));
 vi.mock("@/components/FeedbackWidget", () => ({ default: () => null }));
 vi.mock("@/components/PageViewTracker", () => ({ default: () => null }));
@@ -106,4 +106,18 @@ it("leaves the Slack bar out while the Getting started tour is running, which ha
   tour.active = true;
   render(await MemberLayout({ children: <div>Member content</div> }));
   expect(screen.queryByTestId("slack-prompt")).not.toBeInTheDocument();
+});
+
+it("stacks the bars above the header by priority: sudo, then install, then Slack", async () => {
+  effectiveMemberHasFeature.mockResolvedValue(true);
+  slack.status = { connected: false, sharesReadState: false, revoked: false };
+  identity.isSudo = true;
+  // Sudo hides the Slack bar (the member's own connection), so check that pair first.
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  expect(screen.getAllByTestId("bar").map((el) => el.textContent)).toEqual(["sudo", "install"]);
+  cleanup();
+
+  identity.isSudo = false;
+  render(await MemberLayout({ children: <div>Member content</div> }));
+  expect(screen.getAllByTestId("bar").map((el) => el.textContent)).toEqual(["install", "slack"]);
 });
