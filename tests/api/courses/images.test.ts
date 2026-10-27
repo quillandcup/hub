@@ -72,8 +72,8 @@ describe('Course images step', () => {
     const a = await lesson('a')
     expect(a.thumbnail_path).toBe(`${ids.course}/lessons/${a.id}.png`)
     expect(await exists(a.thumbnail_path)).toBe(true)
-    const module = (await supabase.from('course_modules').select('*').eq('source_key', `${COURSE}-m`).single()).data!
-    expect(await exists(module.poster_path)).toBe(true)
+    const poster = (await supabase.from('course_modules').select('*').eq('source_key', `${COURSE}-m`).single()).data!
+    expect(await exists(poster.poster_path)).toBe(true)
     expect((await lesson('none')).thumbnail_path).toBeNull()
   })
 
