@@ -16,6 +16,8 @@ import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
+import ShowInEvents from "./ShowInEvents";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
@@ -130,6 +132,13 @@ export default async function AdminPrickleDetailPage({
     }
   }
 
+  // The event that follows this prickle's calendar event, if it has one (events are behind a feature preview).
+  const eventsEnabled = (await getUserFeaturePreviews(user.id)).includes("events");
+  const eventFollowing =
+    eventsEnabled && prickle.calendarEventId
+      ? (await supabase.from("events").select("id, deleted_at").eq("calendar_event_id", prickle.calendarEventId).maybeSingle()).data
+      : null;
+
   const normalizedName = prickle.type?.normalizedName;
   let insightsSlotUrl: string | undefined;
   if (normalizedName) {
@@ -160,6 +169,12 @@ export default async function AdminPrickleDetailPage({
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
           />
+          {eventsEnabled && prickle.calendarEventId && (
+            <ShowInEvents
+              calendarEventId={prickle.calendarEventId}
+              initial={eventFollowing ? { id: eventFollowing.id, hidden: !!eventFollowing.deleted_at } : null}
+            />
+          )}
           <TestCheckinDMs prickleId={prickle.id} />
           <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />
           {unmatchedZoomAttendees.length > 0 && (

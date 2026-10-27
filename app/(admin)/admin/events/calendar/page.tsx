@@ -28,7 +28,8 @@ export default async function CalendarEventsPage() {
           <h1 className="text-2xl font-bold mt-1">Calendar items</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Everything coming up on the shared calendar. Show an item in Events to give it a page members can open; its title, description and
-            location follow the calendar until you change them.
+            location follow the calendar until you change them. You can also add #event to an item&apos;s description in Google Calendar, or
+            open it from the admin calendar.
           </p>
         </div>
       </header>

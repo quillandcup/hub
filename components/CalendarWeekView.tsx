@@ -16,6 +16,8 @@ export interface Prickle {
   attendance_count: number;
   host_missing?: boolean;
   host_late?: boolean;
+  /** Shown in Events (an event follows it), or hidden from members. Absent when it has no event. */
+  in_events?: "shown" | "hidden";
 }
 
 // A non-navigable, informational block (e.g. another host's proposed/confirmed
@@ -473,6 +475,7 @@ export default function CalendarWeekView({
                               <div className="text-xs font-semibold truncate">
                                 {prickle.prickle_type}
                                 {mode !== "member" && (prickle.host_missing || prickle.host_late) && " ⚠️"}
+                                {prickle.in_events === "shown" && <span title="In Events"> ★</span>}
                               </div>
                               <div className="text-[10px] @pair:text-xs truncate">
                                 <span className="@pair:hidden">{compactStartTime}</span>
@@ -499,6 +502,7 @@ export default function CalendarWeekView({
                               >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
+                                {prickle.in_events && <div>{prickle.in_events === "shown" ? "In Events" : "Hidden from Events"}</div>}
                                 {showAttendanceDetails && (
                                   <>
                                     {attendanceLabel(prickle, attendanceDataThrough) && (

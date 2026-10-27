@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { ensureCalendarEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { ensureCalendarEvents, hasEventTag, syncCalendarEvents } from "@/lib/calendar-events";
 import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
@@ -143,15 +143,18 @@ export async function POST(request: NextRequest) {
     );
 
     // STEP 2: Process events in memory
-    // Upcoming calendar events of prickle types listed in Events: each gets an event (see ensureCalendarEvents).
-    const listedCalendarEventIds: string[] = [];
+    // Upcoming calendar events that get an event (see ensureCalendarEvents): those of a prickle type listed in
+    // Events, and any tagged #event in their Google Calendar description.
+    const listedCalendarEventIds = new Set<string>();
     const pricklesToInsert: any[] = [];
     const unmatchedEvents: any[] = [];
     let skippedNoSummary = 0;
     let autoResolvedCount = 0;
     let ignoredCount = 0;
 
+    const now = clock.now();
     for (const event of allEvents) {
+      if (hasEventTag(event.description) && new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
       if (!event.summary) {
         skippedNoSummary++;
         continue;
@@ -253,7 +256,7 @@ export async function POST(request: NextRequest) {
       // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
       // without the "w/Host" tail; the calendar description comes along as plain text.
       const matchedType = prickleTypes?.find(t => t.id === typeId);
-      if (matchedType?.listed_in_events && new Date(event.end_time).getTime() >= clock.now()) listedCalendarEventIds.push(event.id);
+      if (matchedType?.listed_in_events && new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
 
       // "w/Name" is the host, except for types led by a guest speaker (educational): the type's default host runs those
       const { hostId: finalHostId, guestSpeaker } = assignHostAndSpeaker({
@@ -341,7 +344,7 @@ export async function POST(request: NextRequest) {
     // STEP 5: Events shown in Events (events rows that follow a calendar event) keep their dates, times
     // and any text an admin hasn't overridden in step with the calendar.
     const eventsSynced = await syncCalendarEvents(supabase, allEvents);
-    const eventsCreated = await ensureCalendarEvents(supabase, listedCalendarEventIds);
+    const eventsCreated = await ensureCalendarEvents(supabase, [...listedCalendarEventIds]);
 
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
