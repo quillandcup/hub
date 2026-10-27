@@ -7,7 +7,6 @@
 export const EVENT_TYPES = [
   "in_person_retreat",
   "virtual_retreat",
-  "webinar",
   "workshop",
   "book_launch",
   "social",
@@ -19,7 +18,6 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   in_person_retreat: "In-Person Retreat",
   virtual_retreat: "Virtual Retreat",
-  webinar: "Webinar",
   workshop: "Workshop",
   book_launch: "Book Launch",
   social: "Social",
