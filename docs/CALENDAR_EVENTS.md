@@ -43,3 +43,12 @@ Writing changes back to Google Calendar (the service account is read-only), defa
 
 The sync (`matchTypeId` in `lib/calendar-events.ts`) tries, in order: the type part of the title ("Heads Down Prickle w/Cody" -> "Heads Down Prickle") against the types' names and aliases, then the **cleaned title** (the organization's label, the "[Category]" and "Prickle:" taken off) against the same, then a type whose name the title contains. So "Quill & Cup [Mindset] Prickle: Get Your Spark Back!" and "Quill & Cup: Get Your Spark Back Prickle with Ania" both find the type named "Get Your Spark Back Prickle". A title that matches no type waits in the unmatched queue (`/admin/hygiene/unmatched-events`), where an admin resolves it; give a type an alias (Admin → Prickle Types, "other names") for a wording that never matches by itself, such as "Quill & Cup Holiday Party (AM)!" for the "Q&C Holiday Party" type. The calendar import covers 90 days back and 90 days ahead, so older items need a manual import over a wider range before they can match.
 
+## Editing a calendar prickle
+
+On the admin prickle page (`/admin/prickles/<id>`) the **Edit** button turns the title, description, type, host and guest speaker into fields, with Save and Cancel; the date and time stay as text, since the calendar owns them. What you set is kept as the calendar event's decision row (`unmatched_calendar_events`: `resolved_type_id`, `resolved_host_id`, `resolved_title`, `resolved_description`, `resolved_guest_speaker`), because the sync rebuilds every calendar prickle from the calendar (Silver) and applies that Local decision on top, so edits survive reprocessing (`updatePrickle` in `app/(admin)/admin/prickles/[id]/actions.ts`).
+
+- Only what changed is saved: a form saved untouched sets nothing.
+- **Empty means follow the calendar.** Emptying the title, description or guest speaker that had been set by hand removes the override and the calendar's text comes back (the days around the prickle are reprocessed straight away). A field marked "(edited)" is one that was set by hand.
+- Changing the type reprocesses the days around the prickle too, since the title and the guest speaker are made from the calendar title with the type's rules.
+- Pop-up prickles (from Zoom) have no calendar event to keep a decision on, so they aren't editable here.
+

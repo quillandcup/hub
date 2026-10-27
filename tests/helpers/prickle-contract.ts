@@ -306,6 +306,25 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(found.find((p) => p.id === untouched)?.hostId).toBe(ctx.hosts[0].id);
     });
 
+    it("sets a prickle's title, description and guest speaker: a field left out is kept, null empties it, others are untouched", async () => {
+      const [changed, untouched] = await ctx.seed([
+        { title: "Old title", description: "Old description", guestSpeaker: "Old Speaker", start: at(43) },
+        { title: "Same title", start: at(44) },
+      ]);
+
+      await ctx.repo().setText(changed, { title: "New title", guestSpeaker: "Ada Example" });
+      let found = await ctx.repo().byIds([changed, untouched]);
+      expect(found.find((p) => p.id === changed)).toMatchObject({ title: "New title", description: "Old description", guestSpeaker: "Ada Example" });
+      expect(found.find((p) => p.id === untouched)?.title).toBe("Same title");
+
+      await ctx.repo().setText(changed, { description: null, guestSpeaker: null });
+      found = await ctx.repo().byIds([changed]);
+      expect(found[0]).toMatchObject({ title: "New title", description: null, guestSpeaker: null });
+
+      await ctx.repo().setText(changed, {}); // nothing to change
+      expect((await ctx.repo().byIds([changed]))[0].title).toBe("New title");
+    });
+
     it("hands one member's prickles to another", async () => {
       const [mine, theirs, hostless] = await ctx.seed([{ host: 0, start: at(40) }, { host: 1, start: at(41) }, { start: at(42) }]);
 

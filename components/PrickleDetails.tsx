@@ -12,6 +12,7 @@ import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
+import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
 const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
@@ -41,6 +42,8 @@ interface PrickleDetailsProps {
   hasStarted?: boolean;
   /** For a prickle that hasn't started: who committed to it or added it to their calendar (lib/prickle-roster.ts). */
   roster?: PrickleRoster | null;
+  /** Admin only: makes the card editable (an Edit button that turns the text into fields, with Save). */
+  edit?: PrickleEditConfig;
 }
 
 type SortColumn = "member" | "join" | "leave" | "duration";
@@ -69,7 +72,9 @@ export default function PrickleDetails({
   insightsSlotUrl,
   hasStarted = true,
   roster = null,
+  edit,
 }: PrickleDetailsProps) {
+  const [editing, setEditing] = useState(false);
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
     // Sort by the name the column shows.
@@ -148,15 +153,26 @@ export default function PrickleDetails({
 
       {/* Prickle Info */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">{prickle.title || "Prickle Details"}</h2>
-        {prickle.description && (
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="text-xl font-bold">{editing ? "Edit prickle" : prickle.title || "Prickle Details"}</h2>
+          {edit && !editing && (
+            <button type="button" onClick={() => setEditing(true)} className="text-sm text-plum-600 dark:text-plum-400 hover:underline flex-shrink-0">
+              Edit
+            </button>
+          )}
+        </div>
+        {editing && edit && <div className="mb-4"><PrickleEditForm prickle={prickle} edit={edit} onDone={() => setEditing(false)} /></div>}
+        {!editing && prickle.description && (
           <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-line">{prickle.description}</p>
         )}
         <div className="grid grid-cols-2 gap-4 text-sm">
+          {!editing && (
           <div>
             <span className="text-slate-600 dark:text-slate-400">Type:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">{prickleType?.name || "Unknown"}</p>
           </div>
+          )}
+          {!editing && (
           <div>
             <span className="text-slate-600 dark:text-slate-400">Host:</span>
             <p className="font-semibold">
@@ -186,7 +202,8 @@ export default function PrickleDetails({
               )}
             </p>
           </div>
-          {prickle.guestSpeaker && (
+          )}
+          {!editing && prickle.guestSpeaker && (
             <div>
               <span className="text-slate-600 dark:text-slate-400">Guest speaker:</span>
               <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.guestSpeaker}</p>

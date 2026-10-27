@@ -17,9 +17,8 @@ import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
-import ChangePrickleType from "./ChangePrickleType";
-import { getMemberDisplayName } from "@/lib/member-display-name";
-import ChangePrickleHost from "./ChangePrickleHost";
+import { updatePrickle } from "./actions";
+import { loadEventDecision } from "@/lib/prickle-event-decisions";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 
 const getPrickle = cache(async (id: string) => {
@@ -142,6 +141,12 @@ export default async function AdminPrickleDetailPage({
       ? (await supabase.from("events").select("id, deleted_at").eq("calendar_event_id", prickle.calendarEventId).maybeSingle()).data
       : null;
 
+  // What an admin can change on a calendar prickle, and what they have already set by hand.
+  const calendarTypes = prickle.calendarEventId ? (await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name })) : [];
+  const decision = prickle.calendarEventId
+    ? await loadEventDecision(supabase, prickle.calendarEventId)
+    : { resolved_title: null, resolved_description: null, resolved_guest_speaker: null };
+
   const normalizedName = prickle.type?.normalizedName;
   let insightsSlotUrl: string | undefined;
   if (normalizedName) {
@@ -171,22 +176,21 @@ export default async function AdminPrickleDetailPage({
             memberBasePath="/admin/members"
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
+            edit={
+              prickle.calendarEventId
+                ? {
+                    types: calendarTypes,
+                    members: members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email })),
+                    overridden: {
+                      title: decision.resolved_title !== null,
+                      description: decision.resolved_description !== null,
+                      guestSpeaker: decision.resolved_guest_speaker !== null,
+                    },
+                    onSave: updatePrickle.bind(null, prickle.id),
+                  }
+                : undefined
+            }
           />
-          {prickle.calendarEventId && (
-            <ChangePrickleType
-              prickleId={prickle.id}
-              currentTypeId={prickle.typeId}
-              types={(await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name }))}
-            />
-          )}
-          {prickle.calendarEventId && (
-            <ChangePrickleHost
-              prickleId={prickle.id}
-              currentHostId={prickle.hostId}
-              currentHostName={prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : null}
-              members={members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }))}
-            />
-          )}
           {eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
