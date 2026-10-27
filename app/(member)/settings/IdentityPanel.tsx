@@ -8,12 +8,8 @@ import {
   setDisplayName,
   setCustomDisplayName,
   addNameAlias,
-  setNameAliasActive,
   addEmailAlias,
-  setEmailAliasActive,
   type IdentitySettings,
-  type NameAliasRow,
-  type EmailAliasRow,
 } from "./identityActions";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
@@ -45,16 +41,12 @@ function AliasChip({
   label,
   source,
   active,
-  pending,
   isDisplayName,
-  onToggle,
 }: {
   label: string;
   isDisplayName?: boolean;
   source: string;
   active: boolean;
-  pending: boolean;
-  onToggle: () => void;
 }) {
   return (
     <div
@@ -75,15 +67,6 @@ function AliasChip({
           </span>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        data-track="settings-identity-toggle-active"
-        disabled={pending}
-        className="shrink-0 text-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {pending ? "…" : active ? "Deactivate" : "Reactivate"}
-      </button>
     </div>
   );
 }
@@ -105,7 +88,6 @@ export function IdentityPanel() {
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
-  const [pendingAliasId, setPendingAliasId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -228,46 +210,6 @@ export function IdentityPanel() {
       await load();
     }
     setAddingEmailAlias(false);
-  }
-
-  async function handleToggleNameAlias(alias: NameAliasRow) {
-    if (alias.active) {
-      const warning = data?.hasAttendanceHistory
-        ? `Deactivate "${alias.alias}"? You have prickle attendance history, and there's no way to know for certain whether this name was used to match some of it. Deactivating only stops it from matching NEW attendance going forward — your existing history stays exactly as recorded. This is usually safe if you no longer go by this name in Zoom/Slack.`
-        : `Deactivate "${alias.alias}"? It will stop matching new attendance going forward. You can reactivate it later.`;
-      if (!confirm(warning)) return;
-    }
-    setPendingAliasId(alias.id);
-    setError(null);
-    setMessage(null);
-    const result = await setNameAliasActive(alias.id, !alias.active);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setMessage(alias.active ? "Deactivated." : "Reactivated.");
-      await load();
-    }
-    setPendingAliasId(null);
-  }
-
-  async function handleToggleEmailAlias(alias: EmailAliasRow) {
-    if (alias.active) {
-      const warning = data?.hasAttendanceHistory
-        ? `Deactivate "${alias.aliasEmail}"? It will stop matching new imports going forward — your existing history stays exactly as recorded. This is usually safe if you no longer use this email.`
-        : `Deactivate "${alias.aliasEmail}"? It will stop matching new imports going forward. You can reactivate it later.`;
-      if (!confirm(warning)) return;
-    }
-    setPendingAliasId(alias.id);
-    setError(null);
-    setMessage(null);
-    const result = await setEmailAliasActive(alias.id, !alias.active);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setMessage(alias.active ? "Deactivated." : "Reactivated.");
-      await load();
-    }
-    setPendingAliasId(null);
   }
 
   if (loading) {
@@ -403,9 +345,7 @@ export function IdentityPanel() {
               label={alias.alias}
               source={alias.source}
               active={alias.active}
-              pending={pendingAliasId === alias.id}
               isDisplayName={alias.alias === data.displayName}
-              onToggle={() => handleToggleNameAlias(alias)}
             />
           ))}
         </div>
@@ -446,8 +386,6 @@ export function IdentityPanel() {
               label={alias.aliasEmail}
               source={alias.source}
               active={alias.active}
-              pending={pendingAliasId === alias.id}
-              onToggle={() => handleToggleEmailAlias(alias)}
             />
           ))}
         </div>

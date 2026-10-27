@@ -13,9 +13,7 @@ vi.mock('@/app/(member)/settings/identityActions', () => ({
   setDisplayName: vi.fn(),
   setCustomDisplayName: vi.fn(),
   addNameAlias: vi.fn(),
-  setNameAliasActive: vi.fn(),
   addEmailAlias: vi.fn(),
-  setEmailAliasActive: vi.fn(),
 }))
 
 const baseSettings = {
@@ -124,5 +122,27 @@ describe('IdentityPanel', () => {
     expect(identityActions.setCustomDisplayName).toHaveBeenCalledWith('River Wilde')
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Display name updated.'))
     expect(screen.queryByLabelText('Your own display name')).not.toBeInTheDocument()
+  })
+
+  it('lists active and inactive aliases without a way to deactivate or reactivate them', async () => {
+    vi.mocked(identityActions.getIdentitySettings).mockResolvedValue({
+      ...baseSettings,
+      nameAliases: [
+        { id: 'n1', alias: 'Ada Pen', source: 'member', active: true, createdAt: '2026-01-01' },
+        { id: 'n2', alias: 'Old Zoom Name', source: 'zoom', active: false, createdAt: '2026-01-01' },
+      ],
+      emailAliases: [
+        { id: 'e1', aliasEmail: 'ada.old@example.com', source: 'auto_detected', active: true, createdAt: '2026-01-01' },
+        { id: 'e2', aliasEmail: 'ada.zoom@example.com', source: 'zoom', active: false, createdAt: '2026-01-01' },
+      ],
+    })
+
+    render(<IdentityPanel />)
+    await waitFor(() => expect(screen.getByDisplayValue('Ada Lovelace')).toBeInTheDocument())
+
+    for (const label of ['Ada Pen', 'Old Zoom Name', 'ada.old@example.com', 'ada.zoom@example.com']) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    }
+    expect(screen.queryByRole('button', { name: /deactivate|reactivate/i })).not.toBeInTheDocument()
   })
 })

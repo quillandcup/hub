@@ -250,7 +250,7 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   return { success: true };
 }
 
-export async function setNameAliasActive(
+async function setNameAliasActive(
   id: string,
   active: boolean
 ): Promise<{ success: true } | { error: string }> {
@@ -309,30 +309,6 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true } | { e
   }
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
-
-  revalidatePath("/settings", "layout");
-  return { success: true };
-}
-
-export async function setEmailAliasActive(
-  id: string,
-  active: boolean
-): Promise<{ success: true } | { error: string }> {
-  const ctx = await requireIdentity();
-  if ("error" in ctx) return ctx;
-  const { supabase, effectiveIdentity } = ctx;
-
-  let found: boolean;
-  try {
-    found = await createRepos(supabase).aliases.setEmailActive(effectiveIdentity.memberId, id, active);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Alias not found" };
-  }
-  if (!found) return { error: "Alias not found" };
-
-  if (active) {
-    after(() => triggerReprocessing("member_email_aliases", "local"));
-  }
 
   revalidatePath("/settings", "layout");
   return { success: true };
