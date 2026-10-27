@@ -7,7 +7,8 @@ import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page
 // Admin routes that look members up through their repository (in memory here); the bronze
 // tables they join to are faked.
 
-let repos = createInMemoryRepos();
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
@@ -29,7 +30,8 @@ const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", email: "Fern@Exampl
 beforeEach(() => {
   signedIn = true;
   tables = {};
-  repos = createInMemoryRepos(new InMemoryDataset({ members: [ADA, FERN] }));
+  dataset = new InMemoryDataset({ members: [ADA, FERN] });
+  repos = createInMemoryRepos(dataset);
 });
 
 describe("GET /api/admin/members/external-status", () => {
@@ -152,5 +154,26 @@ describe("POST /api/aliases/slack", () => {
     const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Slack user not found" });
+  });
+
+  it("links the Slack user to the member, taking the link over if another member had it", async () => {
+    tables = { "bronze.slack_users": { data: [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }] } };
+    dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "U1", source: "slack", active: true });
+
+    const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
+
+    expect(res.status).toBe(200);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "U1", "slack"]]);
+  });
+
+  it("reports it when the link can't be saved", async () => {
+    tables = { "bronze.slack_users": { data: [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }] } };
+    vi.spyOn(repos.aliases, "upsertName").mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
   });
 });

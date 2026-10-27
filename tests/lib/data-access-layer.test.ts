@@ -26,18 +26,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_badges: [],
   push_subscriptions: [],
   member_reminder_log: [],
-  // Aliases: the matching scans are on AliasRepository; the per-member lists and the writes are still to move.
-  member_name_aliases: [
-    "app/(admin)/admin/data/aliases/page.tsx",
-    "app/(member)/wheel-of-wonder/actions.ts",
-    "app/api/admin/aliases/[id]/route.ts",
-    "app/api/admin/apply-aliases/route.ts",
-    "app/api/aliases/route.ts",
-    "app/api/aliases/slack/route.ts",
-    "app/api/zoom/resolve-ambiguous/route.ts",
-    "lib/member-slack-links.ts",
-    "lib/slack-member-ids.ts",
-  ],
+  // Aliases: every name alias query is on AliasRepository; the email ones still to move are the bulk and canonical-email readers.
+  member_name_aliases: [],
   member_email_aliases: [
     "app/(member)/settings/profileActions.ts",
     "app/api/analyze/stripe-orphans/route.ts",

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
@@ -65,11 +66,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!conflict) {
-      const { error: aliasError } = await supabase
-        .from("member_name_aliases")
-        .upsert({ member_id: memberId, alias: zoomName, source: "zoom" }, { onConflict: "alias" });
-
-      if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
+      try {
+        await createRepos(supabase).aliases.upsertName(memberId, zoomName, "zoom");
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
     }
 
     const { error: resolveError } = await supabase

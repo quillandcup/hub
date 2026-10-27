@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
@@ -14,40 +15,21 @@ export default async function AliasListPage() {
   const supabase = await createClient();
 
   // Get all aliases with their member info
-  const { data: aliases } = await supabase
-    .from("member_name_aliases")
-    .select(`
-      id,
-      alias,
-      member:members (
-        id,
-        name,
-        email,
-        status
-      ),
-      created_at
-    `)
-    .order("alias");
+  const aliases = await createRepos(supabase).aliases.namesWithMembers();
 
   // Group aliases by member
-  const aliasesByMember = new Map<string, any[]>();
-  aliases?.forEach((alias: any) => {
-    // Supabase returns member as an array when using select with joins
-    const member = Array.isArray(alias.member) ? alias.member[0] : alias.member;
-    if (!member) return;
-
-    const memberId = member.id;
-    if (!aliasesByMember.has(memberId)) {
-      aliasesByMember.set(memberId, []);
-    }
-    aliasesByMember.get(memberId)!.push({ ...alias, member });
-  });
+  const aliasesByMember = new Map<string, typeof aliases>();
+  for (const alias of aliases) {
+    const list = aliasesByMember.get(alias.member.id) ?? [];
+    list.push(alias);
+    aliasesByMember.set(alias.member.id, list);
+  }
 
   // Convert to sorted array
   const memberAliases = Array.from(aliasesByMember.entries())
     .map(([memberId, memberAliases]) => ({
       member: memberAliases[0].member,
-      aliases: memberAliases.map((a) => ({ id: a.id, alias: a.alias, created_at: a.created_at })),
+      aliases: memberAliases.map((a) => ({ id: a.id, alias: a.alias, created_at: a.createdAt })),
     }))
     .sort((a, b) => a.member.name.localeCompare(b.member.name));
 
@@ -83,7 +65,7 @@ export default async function AliasListPage() {
       {/* Summary */}
       <div className="mb-6 p-4 bg-plum-50 dark:bg-plum-900/20 border border-plum-200 dark:border-plum-800 rounded-lg">
         <p className="text-sm text-plum-900 dark:text-plum-100">
-          <span className="font-bold">{aliases?.length || 0} aliases</span> configured for{" "}
+          <span className="font-bold">{aliases.length} aliases</span> configured for{" "}
           <span className="font-bold">{memberAliases.length} members</span>
         </p>
       </div>

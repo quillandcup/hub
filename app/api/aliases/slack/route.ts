@@ -40,17 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert alias (or update if already exists)
-    const { error } = await supabase
-      .from("member_name_aliases")
-      .upsert({
-        member_id,
-        alias: slack_user_id,
-        source: "slack",
-      }, {
-        onConflict: "alias",
-      });
-
-    if (error) throw error;
+    await createRepos(supabase).aliases.upsertName(member_id, slack_user_id, "slack");
 
     return NextResponse.json({
       success: true,

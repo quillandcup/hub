@@ -103,13 +103,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
           .gte("occurred_at", activityWindowStart)
           .range(offset, offset + BATCH_SIZE - 1)
       ),
-      fetchAllPaginated<{ member_id: string; alias: string; source: string }>((offset) =>
-        supabase
-          .from("member_name_aliases")
-          .select("member_id, alias, source")
-          .eq("active", true)
-          .range(offset, offset + BATCH_SIZE - 1)
-      ),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
     ]);
 

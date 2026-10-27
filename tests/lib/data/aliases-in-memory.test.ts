@@ -5,7 +5,12 @@ import { defineAliasContract } from "@/tests/helpers/alias-contract";
 const memberIds = ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"] as const;
 
 defineAliasContract("InMemoryAliasRepository", () => {
-  const data = new InMemoryDataset();
+  const data = new InMemoryDataset({
+    members: [
+      { id: memberIds[0], name: "Ada Example", email: "ada@example.test" },
+      { id: memberIds[1], name: "Fern Example", email: "fern@example.test" },
+    ],
+  });
   let n = 0;
   return {
     memberIds,

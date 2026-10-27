@@ -194,5 +194,47 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       await ctx.repo().upsertEmail(a, flipped, "manual");
       expect((await ctx.repo().emailsOf(a)).find((e) => e.alias_email === flipped)!.active).toBe(true);
     });
+
+    it("lists every alias with its member, by alias text, and finds one by id", async () => {
+      const [a, b] = ctx.memberIds;
+      const [late, early] = [ctx.unique("Zed"), ctx.unique("Abe")];
+      await ctx.seed({ names: [{ member: 0, alias: late, source: "zoom" }, { member: 1, alias: early, source: "slack" }] });
+
+      const all = await ctx.repo().namesWithMembers();
+      const ours = all.filter((r) => [late, early].includes(r.alias));
+      expect(ours.map((r) => [r.alias, r.member.id])).toEqual([[early, b], [late, a]]);
+      expect(ours[0].member).toMatchObject({ id: b, name: expect.any(String), status: expect.any(String) });
+
+      const id = (await ctx.repo().findName(a, late))!.id;
+      expect(await ctx.repo().nameById(id)).toEqual({ id, memberId: a, alias: late });
+      expect(await ctx.repo().nameById("00000000-0000-4000-8000-000000000000")).toBeNull();
+    });
+
+    it("finds the active Slack ids members are linked to, not zoom names or switched-off ones", async () => {
+      const [a, b] = ctx.memberIds;
+      const [slack, off, zoom] = [ctx.unique("U1"), ctx.unique("U2"), ctx.unique("Zoom Name")];
+      await ctx.seed({
+        names: [
+          { member: 0, alias: slack, source: "slack" },
+          { member: 0, alias: off, source: "slack", active: false },
+          { member: 1, alias: zoom, source: "zoom" },
+        ],
+      });
+
+      expect(await ctx.repo().slackLinks([a, b])).toEqual([{ member_id: a, alias: slack }]);
+      expect(await ctx.repo().slackLinks([])).toEqual([]);
+    });
+
+    it("adds several names at once, all or nothing", async () => {
+      const [a, b] = ctx.memberIds;
+      const [one, two] = [ctx.unique("Bulk A"), ctx.unique("Bulk B")];
+      await ctx.seed({});
+
+      expect(await ctx.repo().addNames([])).toBe(0);
+      expect(await ctx.repo().addNames([{ memberId: a, alias: one, source: "zoom" }, { memberId: b, alias: two, source: "zoom" }])).toBe(2);
+      await expect(ctx.repo().addNames([{ memberId: a, alias: ctx.unique("Fresh"), source: "zoom" }, { memberId: b, alias: one, source: "zoom" }])).rejects.toThrow();
+      expect((await ctx.repo().namesOf(a)).map((n) => n.alias)).toEqual([one]);
+    });
   });
 }
+

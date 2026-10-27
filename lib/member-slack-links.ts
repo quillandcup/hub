@@ -17,17 +17,10 @@ export async function getSlackDmLinksForMembers(memberIds: string[]): Promise<Ma
   if (memberIds.length === 0) return links;
 
   const service = createServiceRoleClient();
-  const [{ data: slackAliases }, members] = await Promise.all([
-    service
-      .from("member_name_aliases")
-      .select("member_id, alias")
-      .in("member_id", memberIds)
-      .eq("source", "slack")
-      .eq("active", true),
-    createRepos(service).members.byIds(memberIds),
-  ]);
+  const repos = createRepos(service);
+  const [slackAliases, members] = await Promise.all([repos.aliases.slackLinks(memberIds), repos.members.byIds(memberIds)]);
 
-  for (const a of slackAliases ?? []) {
+  for (const a of slackAliases) {
     links.set(a.member_id, `https://quillandcup.slack.com/app_redirect?channel=${a.alias}`);
   }
 

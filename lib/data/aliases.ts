@@ -28,6 +28,14 @@ export interface MemberNameAlias {
 /** Ids per `.in(...)` write or lookup, so the request URL stays under the length limit. */
 const ID_CHUNK = 100;
 
+/** A name alias with the member who owns it, for the admin list of everyone's aliases. */
+export interface NameAliasWithMember {
+  id: string;
+  alias: string;
+  createdAt: string;
+  member: { id: string; name: string; email: string; status: string };
+}
+
 /** One of a member's own email aliases, as their settings page and the admin page list it. */
 export interface MemberEmailAliasEntry {
   id: string;
@@ -51,6 +59,14 @@ export interface AliasRepository {
   emailAliases(options?: { activeOnly?: boolean }): Promise<MemberEmailAlias[]>;
   /** How many name aliases there are. */
   nameAliasCount(): Promise<number>;
+  /** Every name alias with its member, by alias text, paginated. */
+  namesWithMembers(): Promise<NameAliasWithMember[]>;
+  /** One name alias by id, or null. */
+  nameById(id: string): Promise<{ id: string; memberId: string; alias: string } | null>;
+  /** The active Slack user ids (alias text) these members are linked to, one row per link. */
+  slackLinks(memberIds: string[]): Promise<{ member_id: string; alias: string }[]>;
+  /** Adds several name aliases in one statement: all or nothing, throws if any text is taken. Returns how many were added. */
+  addNames(rows: { memberId: string; alias: string; source: string }[]): Promise<number>;
   /** A member's name aliases, newest first. */
   namesOf(memberId: string): Promise<MemberNameAlias[]>;
   /** The member's alias with exactly this text, or null. */
@@ -118,6 +134,46 @@ export class SupabaseAliasRepository implements AliasRepository {
     const { count, error } = await this.db.from("member_name_aliases").select("id", { count: "exact", head: true });
     if (error) throw new Error(error.message);
     return count ?? 0;
+  }
+
+  async namesWithMembers(): Promise<NameAliasWithMember[]> {
+    type Row = { id: string; alias: string; created_at: string | null; member: { id: string; name: string; email: string | null; status: string } | null };
+    const rows = await fetchAllRows<Row>(
+      (from, to) =>
+        this.db
+          .from("member_name_aliases")
+          .select("id, alias, created_at, member:members(id, name, email, status)")
+          .order("alias")
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page<Row>>
+    );
+    return rows.flatMap((r) => (r.member ? [{ id: r.id, alias: r.alias, createdAt: r.created_at ?? "", member: { ...r.member, email: r.member.email ?? "" } }] : []));
+  }
+
+  async nameById(id: string) {
+    const { data, error } = await this.db.from("member_name_aliases").select("id, member_id, alias").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? { id: data.id, memberId: data.member_id, alias: data.alias } : null;
+  }
+
+  async slackLinks(memberIds: string[]) {
+    const links: { member_id: string; alias: string }[] = [];
+    for (const part of chunk(memberIds, ID_CHUNK)) {
+      const { data, error } = await this.db.from("member_name_aliases").select("member_id, alias").in("member_id", part).eq("source", "slack").eq("active", true);
+      if (error) throw new Error(error.message);
+      links.push(...(data ?? []));
+    }
+    return links;
+  }
+
+  async addNames(rows: { memberId: string; alias: string; source: string }[]) {
+    if (rows.length === 0) return 0;
+    const { data, error } = await this.db
+      .from("member_name_aliases")
+      .insert(rows.map((r) => ({ member_id: r.memberId, alias: r.alias, source: r.source })))
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
   }
 
   async namesOf(memberId: string): Promise<MemberNameAlias[]> {
@@ -271,6 +327,33 @@ export class InMemoryAliasRepository implements AliasRepository {
 
   async nameAliasCount() {
     return this.data.nameAliases.length;
+  }
+
+  async namesWithMembers() {
+    return this.data.nameAliases
+      .flatMap((a) => {
+        const m = this.data.members.find((x) => x.id === a.member_id);
+        return m ? [{ id: a.id, alias: a.alias, createdAt: a.createdAt ?? new Date(0).toISOString(), member: { id: m.id, name: m.name, email: m.email ?? "", status: m.status ?? "active" } }] : [];
+      })
+      .sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : a.id < b.id ? -1 : 1));
+  }
+
+  async nameById(id: string) {
+    const row = this.data.nameAliases.find((a) => a.id === id);
+    return row ? { id: row.id, memberId: row.member_id, alias: row.alias } : null;
+  }
+
+  async slackLinks(memberIds: string[]) {
+    const wanted = new Set(memberIds);
+    return this.data.nameAliases.filter((a) => wanted.has(a.member_id) && a.source === "slack" && a.active).map((a) => ({ member_id: a.member_id, alias: a.alias }));
+  }
+
+  async addNames(rows: { memberId: string; alias: string; source: string }[]) {
+    const taken = new Set(this.data.nameAliases.map((a) => a.alias));
+    const incoming = rows.map((r) => r.alias);
+    if (incoming.some((alias) => taken.has(alias)) || new Set(incoming).size !== incoming.length) throw new Error("duplicate key value violates unique constraint");
+    for (const r of rows) await this.addName(r.memberId, r.alias, r.source);
+    return rows.length;
   }
 
   async namesOf(memberId: string) {
