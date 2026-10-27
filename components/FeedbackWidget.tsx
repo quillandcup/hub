@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type FeedbackType = "bug" | "data" | "idea";
 type ScreenshotStatus = "idle" | "capturing" | "captured" | "failed";
@@ -12,8 +12,8 @@ const TYPES: { value: FeedbackType; label: string; icon: string }[] = [
   { value: "idea", label: "I have an idea", icon: "💡" },
 ];
 
-export default function FeedbackWidget() {
-  const [isOpen, setIsOpen] = useState(false);
+/** The feedback form, opened from the Help menu in the top bar (`HelpMenu`): it only draws the panel, the menu owns `open`. */
+export default function FeedbackWidget({ open: isOpen, onClose }: { open: boolean; onClose: () => void }) {
   const [feedbackType, setFeedbackType] = useState<FeedbackType>("bug");
   const [message, setMessage] = useState("");
   const [screenshotBlob, setScreenshotBlob] = useState<Blob | null>(null);
@@ -47,11 +47,11 @@ export default function FeedbackWidget() {
     }
   }, []);
 
-  function open() {
-    setIsOpen(true);
+  useEffect(() => {
+    if (!isOpen) return;
     setSubmitStatus("idle");
     void captureScreenshot();
-  }
+  }, [isOpen, captureScreenshot]);
 
   async function submit() {
     const trimmed = message.trim();
@@ -80,15 +80,15 @@ export default function FeedbackWidget() {
   }
 
   return (
-    <div data-feedback-widget className="fixed bottom-5 right-5 z-50">
+    <div data-feedback-widget className="fixed right-4 top-16 z-50">
       {isOpen && (
-        <div className="absolute bottom-16 right-0 w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="mt-2 w-80 bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Send feedback
             </h3>
             <button data-track="feedback-widget-close"
-              onClick={() => setIsOpen(false)}
+              onClick={onClose}
               aria-label="Close"
               className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
             >
@@ -150,14 +150,6 @@ export default function FeedbackWidget() {
         </div>
       )}
 
-      <button
-        onClick={() => (isOpen ? setIsOpen(false) : open())}
-        data-track="feedback-open"
-        aria-label="Send feedback"
-        className="w-12 h-12 rounded-full bg-plum-600 hover:bg-plum-700 text-white shadow-lg flex items-center justify-center text-xl transition-colors"
-      >
-        💬
-      </button>
     </div>
   );
 }

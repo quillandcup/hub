@@ -6,7 +6,6 @@ import AdminNavigation from "./admin/AdminNavigation";
 import UserMenu from "@/components/UserMenu";
 import AppHeader from "@/components/AppHeader";
 import WithInAppNotifications from "@/components/WithInAppNotifications";
-import FeedbackWidget from "@/components/FeedbackWidget";
 import PageViewTracker from "@/components/PageViewTracker";
 import { TimezoneProvider } from "@/components/Timezone";
 import { getViewerTimeZone } from "@/lib/timezone";
@@ -43,7 +42,6 @@ export default async function AdminLayout({
           </TimezoneProvider>
         </WithInAppNotifications>
       </div>
-      <FeedbackWidget />
       <PageViewTracker />
     </div>
   );
