@@ -20,7 +20,6 @@ import { SecondaryTimezoneProvider } from '@/components/SecondaryTimezone'
 import { TimezoneProvider } from '@/components/Timezone'
 import { resolveTimeZone } from '@/lib/timezone'
 import { isValidTimeZone } from '@/lib/time-zone'
-import FeedbackWidget from '@/components/FeedbackWidget'
 import PageViewTracker from '@/components/PageViewTracker'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide'
 import { getOnboardingState } from '@/lib/onboarding.server'
@@ -94,7 +93,7 @@ export default async function MemberLayout({
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
-          <AppHeader resultsPath="/search" isAdmin={isAdmin} helpHref="/help">
+          <AppHeader resultsPath="/search" isAdmin={isAdmin}>
             <UserMenu
               userEmail={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
               memberId={effectiveIdentity.memberId}
@@ -110,7 +109,6 @@ export default async function MemberLayout({
         </TimezoneProvider>
         <TimezoneInitializer storedTimezone={storedTimezone} isSudo={effectiveIdentity.isSudo} />
       </div>
-      <FeedbackWidget />
       <PageViewTracker />
       {onboardingState && (
         // useSearchParams needs a Suspense boundary.
