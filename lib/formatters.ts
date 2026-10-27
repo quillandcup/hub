@@ -4,6 +4,7 @@
  */
 
 import { ORG_TIMEZONE } from "@/lib/config";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 // A bare toLocaleDateString() formats in the host's zone and locale, so the server (UTC) and the
 // browser print different text and React reports a hydration mismatch. These name the zone.
@@ -127,7 +128,7 @@ export function hostShortName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}`;
 }
 
-type NameRef = { name: string } | { name: string }[] | null | undefined;
+type NameRef = { name: string; displayName?: string | null } | { name: string; displayName?: string | null }[] | null | undefined;
 
 function unwrapRef<T extends { name: string }>(ref: T | T[] | null | undefined): T | undefined {
   return Array.isArray(ref) ? ref[0] : ref ?? undefined;
@@ -147,7 +148,7 @@ export function formatPrickleTitle(prickle: {
   const prickleType = unwrapRef(prickle.prickle_types);
   const weekday = new Date(prickle.start_time).toLocaleDateString("en-US", { weekday: "long", timeZone: ORG_TIMEZONE });
   const typeName = prickleType?.name ?? "Prickle";
-  return host?.name ? `${weekday} ${typeName} with ${hostShortName(host.name)}` : `${weekday} ${typeName}`;
+  return host?.name ? `${weekday} ${typeName} with ${hostShortName(getMemberDisplayName({ name: host.name, display_name: host.displayName }))}` : `${weekday} ${typeName}`;
 }
 
 /**

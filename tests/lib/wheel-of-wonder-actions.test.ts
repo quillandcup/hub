@@ -48,9 +48,9 @@ vi.mock("@/lib/data/repos", async () => {
   return {
     ...actual,
     createRepos: () => {
-      const rows = (tables.data.members ?? []) as { id: string; name: string; photo_url: string | null }[];
+      const rows = (tables.data.members ?? []) as { id: string; name: string; display_name?: string | null; photo_url: string | null }[];
       return actual.createInMemoryRepos(
-        new InMemoryDataset({ members: rows.map((r) => ({ id: r.id, name: r.name, email: `${r.id}@example.test`, photoUrl: r.photo_url })) }),
+        new InMemoryDataset({ members: rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name ?? null, email: `${r.id}@example.test`, photoUrl: r.photo_url })) }),
       );
     },
   };
@@ -88,6 +88,12 @@ describe("Wheel of Wonder actions", () => {
       expect(slack.conversations.open).not.toHaveBeenCalled();
       expect(slack.chat.postMessage).not.toHaveBeenCalled();
       expect(insert).not.toHaveBeenCalled();
+    });
+
+    it("names the match by display name", async () => {
+      tables.data = { members: [{ id: "mbr_winner", name: "Laura May Best", display_name: "Bestie", photo_url: null }] };
+
+      expect(await spinWheel()).toMatchObject({ winner: { memberId: "mbr_winner", memberName: "Bestie" } });
     });
 
     it("reports no one available when nobody is active on Slack", async () => {

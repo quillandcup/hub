@@ -81,6 +81,20 @@ describe("getPricklesOnDate", () => {
     expect(options[0].label).toBe("Tue, Oct 20 · 7:00 PM · Sprint Writing with Fern");
   });
 
+  it("labels a prickle with the host's display name, not their legal first name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "mbr_AAAAAAAAAAA2", name: "Laura May Best", displayName: "Bestie" }],
+        prickleTypes: [TYPE],
+        prickles: [prickle("prkl_AAAAAAAAAAA1", "2026-10-20T15:00:00Z")],
+      }),
+    );
+
+    const [option] = await getPricklesOnDate("2026-10-20");
+
+    expect(option.label).toBe("Tue, Oct 20 · 3:00 PM · Sprint Writing with Bestie");
+  });
+
   it("skips the attendance lookup when nothing happened that day", async () => {
     const attendedAmong = vi.spyOn(repos.attendance, "attendedAmong");
 

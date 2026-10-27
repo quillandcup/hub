@@ -16,10 +16,11 @@ const attendee: Attendee = {
 
 describe("attendance view rows", () => {
   it("gives an attendee row the member's id and name, and an email only when there is one", () => {
-    expect(attendeeRow(attendee).members).toEqual({ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" });
+    expect(attendeeRow(attendee).members).toEqual({ id: "mbr_AAAAAAAAAAA1", name: "Ada Example", display_name: null });
     expect(attendeeRow({ ...attendee, email: "ada@example.test" }).members).toEqual({
       id: "mbr_AAAAAAAAAAA1",
       name: "Ada Example",
+      display_name: null,
       email: "ada@example.test",
     });
     expect(attendeeRow(attendee)).toMatchObject({ id: "att-1", member_id: "mbr_AAAAAAAAAAA1", join_time: "2026-10-20T15:00:00Z", confidence_score: "high" });
@@ -63,7 +64,7 @@ describe("attendance view rows", () => {
 
     expect(attendedPrickleRow(record).prickles).toEqual({
       id: "prkl_AAAAAAAAAAA1",
-      host: { id: "mbr_AAAAAAAAAAA2", name: "Fern Example" },
+      host: { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", display_name: "Fern" },
       start_time: "2026-10-20T15:00:00Z",
       end_time: "2026-10-20T16:00:00Z",
       prickle_types: { name: "Sprint" },

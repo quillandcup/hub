@@ -16,7 +16,7 @@ export function attendeeRow(a: Attendee) {
     leave_time: a.leaveTime,
     confidence_score: a.confidenceScore,
     member_id: a.memberId,
-    members: a.name === null ? null : { id: a.memberId, name: a.name, ...(a.email === null ? {} : { email: a.email }) },
+    members: a.name === null ? null : { id: a.memberId, name: a.name, display_name: a.displayName, ...(a.email === null ? {} : { email: a.email }) },
   };
 }
 
@@ -31,7 +31,7 @@ export function attendedPrickleRow(a: AttendedPrickle) {
     prickles: p
       ? {
           id: p.id,
-          host: p.host ? { id: p.host.id, name: p.host.name } : null,
+          host: p.host ? { id: p.host.id, name: p.host.name, display_name: p.host.displayName } : null,
           start_time: p.startTime,
           end_time: p.endTime,
           prickle_types: p.type ? { name: p.type.name } : null,

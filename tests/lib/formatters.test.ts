@@ -51,6 +51,15 @@ describe('formatPrickleTitle', () => {
     expect(title).toBe('Monday Progress Prickle with Jenn P')
   })
 
+  it('uses the host\'s display name over their legal name', () => {
+    const title = formatPrickleTitle({
+      start_time: MONDAY,
+      host: { name: 'Laura May Best', displayName: 'Bestie' },
+      prickle_types: { name: 'Midnight Crew' },
+    })
+    expect(title).toBe('Monday Midnight Crew with Bestie')
+  })
+
   it('omits "with {host}" when there is no host', () => {
     const title = formatPrickleTitle({
       start_time: MONDAY,

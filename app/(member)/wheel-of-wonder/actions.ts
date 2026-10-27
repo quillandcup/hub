@@ -1,5 +1,6 @@
 "use server";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
@@ -109,7 +110,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
 
   const members = membersResult
     .filter((m) => m.id !== viewerMemberId)
-    .map((m) => ({ id: m.id, name: m.name, photo_url: m.photoUrl }));
+    .map((m) => ({ id: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.displayName }), photo_url: m.photoUrl }));
 
   // Same matching logic the Slack data-hygiene pages use (alias > email >
   // normalized name), not just a raw alias lookup — otherwise a member

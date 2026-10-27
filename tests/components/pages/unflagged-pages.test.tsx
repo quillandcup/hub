@@ -106,6 +106,16 @@ describe("retired feature flags: pages render for a member with no feature previ
     expect(redirect).not.toHaveBeenCalled();
   });
 
+  it("Prickle Picker lists members by display name", async () => {
+    useFakeSupabase({
+      member_directory: { data: [{ id: "member-laura", name: "Laura May Best", display_name: "Bestie" }, ...OTHER_MEMBERS] },
+    });
+    await renderServerPage(MyPricklesPage, myPricklesProps("find"));
+    const wizard = within(screen.getByRole("tabpanel")).getByTestId("prickle-wizard");
+    expect(wizard).toHaveTextContent("Bestie");
+    expect(wizard).not.toHaveTextContent("Laura May Best");
+  });
+
   it("Wheel of Wonder renders the wheel with the confirmed-connection count", async () => {
     useFakeSupabase({ wheel_of_wonder_matches: { count: 7 } });
     await renderServerPage(WheelOfWonderPage, {});

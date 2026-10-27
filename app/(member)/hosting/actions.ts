@@ -1,5 +1,6 @@
 "use server";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -198,7 +199,7 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
     supabase
       .from("prickle_schedules")
       .select(
-        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:schedule_host(name)"
+        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:schedule_host(name, display_name)"
       )
       .eq("month", month)
       .in("status", ["proposed", "confirmed"])
@@ -207,7 +208,7 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
 
   const prickles: HostingCalendarPrickle[] = monthPrickles.map((p) => ({
     id: p.id,
-    host: p.host?.name ?? "",
+    host: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : "",
     start_time: p.startTime,
     end_time: p.endTime,
     prickle_type: p.type?.name ?? "Prickle",
@@ -235,7 +236,7 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
       const end = new Date(start.getTime() + DEFAULT_SLOT_DURATION_MINUTES * 60000);
       proposedSlots.push({
         id: `${row.id}-${dateStr}`,
-        label: `${row.prickle_types?.name ?? "Prickle"} — ${row.member?.name ?? "a host"}`,
+        label: `${row.prickle_types?.name ?? "Prickle"} — ${row.member ? getMemberDisplayName(row.member) : "a host"}`,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         status: row.status,

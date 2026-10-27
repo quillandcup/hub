@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildCalendarFeedEvents,
+  toFeedPrickle,
   calendarFeedUrls,
   cleanEventDescription,
   parseFeedToken,
@@ -263,5 +264,19 @@ describe("loadEventNotes", () => {
 
     const failing = createFakeSupabase({ "bronze.calendar_events": { error: { message: "boom" } } });
     await expect(loadEventNotes(failing as never, [prickle("p1", "ce1")])).rejects.toThrow("boom");
+  });
+});
+
+describe("toFeedPrickle", () => {
+  const detail = {
+    id: "p1", typeId: "t1", hostId: "h1", title: null, description: null,
+    startTime: "2026-10-20T15:00:00Z", endTime: "2026-10-20T16:00:00Z", source: "calendar", calendarEventId: null,
+    type: { id: "t1", name: "Midnight Crew" },
+  } as Parameters<typeof toFeedPrickle>[0];
+
+  it("names the host by display name, falling back to the legal name, and handles no host", () => {
+    expect(toFeedPrickle({ ...detail, host: { id: "h1", name: "Laura May Best", displayName: "Bestie" } }).hostName).toBe("Bestie");
+    expect(toFeedPrickle({ ...detail, host: { id: "h1", name: "Laura May Best", displayName: null } }).hostName).toBe("Laura May Best");
+    expect(toFeedPrickle({ ...detail, host: null }).hostName).toBeNull();
   });
 });
