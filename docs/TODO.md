@@ -880,6 +880,20 @@ Let members choose which of their alternate names show on their public profile. 
 
 **Priority:** Not scoped yet — idea only, no code started.
 
+### Member Emergency Contact _(Idea, Not a Priority)_
+A member (early adopter) pointed out that if a Hedgie has an urgent health issue or emergency on a Zoom, hosts wouldn't know who to alert or how. Idea: members optionally save an emergency contact in settings, hidden from other members, which a host can reveal in an emergency without waiting for staff. Nothing built; deferred as not a priority.
+
+Decisions so far:
+- **Storage:** nullable `emergency_contact_name`, `_phone`, `_relationship`, `_note` columns on `members`, not a new table. `members` is already own-row-or-admin RLS (`20260926000700_restrict_member_readable_data.sql`), so other members can't read them, and Hub-owned columns that `reprocess_members_atomic` ignores have a precedent (`20260906020000_add_member_birthday.sql`). Keep them out of `member_directory` and the shared profile column list in `lib/data/members.ts`; give the repository its own read/write method.
+- **Admins** may see it (members aren't worried about that); the concern is other members.
+- **No country / local emergency number:** we can't call another country's emergency services anyway, so only the contact is useful.
+- **Reveal:** a host (or admin) of a prickle can reveal the contact of someone currently attending it, with no staff in the loop. Hosts can't read `members` rows, so it is a server action using the service role after checking host/admin and an open attendance record. A prominent warning dialog comes before the reveal (real emergency only, the member will be told, it is recorded).
+- **After the reveal:** a row in a service-role-only `emergency_contact_accesses` table (who, whose contact, which prickle, when); an immediate, non-opt-out notification to the member through `createNotifier` (new kind, with its sample message and email template); a staff alert (pattern in `docs/SLACK_OPERATIONS_ALERTS.md`). The member can see their own access history in settings.
+- **Docs:** a host emergency protocol (local emergency services first, then the contact, then tell staff) in `/help` and `docs/`. If this is built, the protocol ships with it.
+- **Plan:** two PRs: (1) columns, settings form, docs; (2) reveal, access log, notification, alert. Tests: pgTAP for the columns and log table, server-action tests for refusal (non-host, not attending), log, notification and alert, and an analytics event with no property that could hold the values.
+
+**Priority:** Not a priority; pick up when scheduled.
+
 ---
 
 ## Analytics & Matching
