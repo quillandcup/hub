@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { audienceSummary } from "@/lib/event-audience";
+import { locationDisplay } from "@/lib/location-display";
 import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
 
 interface EventData {
@@ -46,6 +47,7 @@ export default function EventDetailClient({
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const audience = audienceSummary(event);
+  const where = locationDisplay(event.location);
   const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}` }));
 
   return (
@@ -57,7 +59,14 @@ export default function EventDetailClient({
         <h1 className="text-2xl font-bold mt-0.5">{event.title}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
-          {event.location ? ` · ${event.location}` : ""}
+          {where && " · "}
+          {where?.href ? (
+            <a href={where.href} target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 hover:underline">
+              {where.joinLabel}
+            </a>
+          ) : (
+            where?.text
+          )}
         </p>
         {event.speakers && <p className="mt-1">With {event.speakers}</p>}
         {audience.length > 0 && (

@@ -24,6 +24,7 @@ Events made in the Hub are never automatic.
 - **Follows the calendar:** the dates and times always. The title, description and location too, until an admin changes one; a changed field is recorded in `events.overridden_fields` and the sync leaves it alone.
 - **Empty means follow the calendar.** Clearing a field on the event's edit form (or "Follow the calendar again" for all of them) removes its override and takes the calendar's current value.
 - **The Hub's own:** everything Google Calendar has no place for: the audience fields (guests allowed, announced publicly, how people join, places, how places are given out), speakers, the photo gallery. An event keeps these however it was made.
+- **A tidier title and location for members.** The calendar's title is written for prickles ("Quill & Cup [Authorpreneurship] Prickle: A Way to Make Money with Sam"); the event's title is "A Way to Make Money": the organization's label ("Quill & Cup" or "Q&C" before a "[Category]" or colon), the "[Category]" and a "Prickle:" label come off, and so does the host or guest after "w/" or "with" (the last "with", so "Writing with Friends with Ana" keeps its title; a title that itself ends in "with Someone" loses that part: override it on the event). A new event starts with the "[Category]" as its focus and the prickle's guest speaker as its speakers. A location that is only a video call link shows as "Online (Zoom)" with a "Join on Zoom" link on the event page; the link and its meeting password are not printed.
 - **Audience starts from the prickle type.** A new event made from a prickle takes its type's "Announced publicly" and "Guests allowed"; one made from an item that is no prickle starts members only. Change it on the event (e.g. to let guests into one educational session that takes sign-ups).
 
 ## The audience chain
@@ -36,4 +37,4 @@ Who may attend depends on how widely something is announced: **guests allowed** 
 
 ## Not yet
 
-Writing changes back to Google Calendar (the service account is read-only), default images and audience per prickle type, cleaning up calendar titles and locations for display, and matching an item to a prickle type from the Events side. See `docs/TODO.md`, "Managing events in the Hub".
+Writing changes back to Google Calendar (the service account is read-only), default images and audience per prickle type, and matching an item to a prickle type from the Events side. See `docs/TODO.md`, "Managing events in the Hub".

@@ -100,3 +100,17 @@ describe('EventsBrowser', () => {
     expect(window.location.search).toBe('')
   })
 })
+
+describe('EventsBrowser locations', () => {
+  it('shows a video call link as Online (Zoom) and a place as typed, without printing the link', () => {
+    const online = { ...event('talk', 'other', '2026-12-05'), location: 'https://us06web.zoom.us/j/87106462893?pwd=secret' }
+    const place = { ...event('retreat', 'in_person_retreat', '2026-12-06'), location: 'Cedar Lodge' }
+    render(<EventsBrowser initialFilter="all" events={[online, place]} eventPrickles={[]} today={TODAY} timeZone="UTC" />)
+
+    expect(screen.getByText(/· Online \(Zoom\)/)).toBeInTheDocument()
+    expect(screen.getByText(/· Cedar Lodge/)).toBeInTheDocument()
+    expect(screen.queryByText(/zoom\.us/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
+  })
+})
+

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calendarCategory,
   calendarEventFields,
   calendarTitle,
   isOverridableField,
@@ -35,8 +36,42 @@ describe("calendarTitle", () => {
     ["", "Untitled event"],
     [null, "Untitled event"],
     ["w/Sam", "Untitled event"],
+    // The community's calendar titles: the organization's label, the [Category] and the "Prickle:" label come off,
+    // and so does the guest after "with".
+    [
+      "Quill & Cup [Authorpreneurship] Prickle: A Way to Make Money as an Author with Brayden Bonnesen of AuthorTip",
+      "A Way to Make Money as an Author",
+    ],
+    [
+      "Quill & Cup [Authorpreneurship] Prickle: Meeting What Readers Want (at Book Events) with Fantasy Author Birgit Schreiber",
+      "Meeting What Readers Want (at Book Events)",
+    ],
+    ["Quill & Cup [Challenge]: Taper Caper Kick-Off!", "Taper Caper Kick-Off!"],
+    ["Q&C [Craft] Prickle: Tiny Things w/Ada", "Tiny Things"],
+    ["[Craft] Prickle: Outlining", "Outlining"],
+    // A name that only starts like the label is a name.
+    ["Quill & Cup Challenge", "Quill & Cup Challenge"],
+    ["Q&C Birthday Party", "Q&C Birthday Party"],
+    ["Q&C DAYDREAM PRICKLE w/Ania", "Q&C DAYDREAM PRICKLE"],
+    // Nothing is left of the title: the category stands in.
+    ["Quill & Cup [Challenge]", "Challenge"],
+    ["Quill & Cup [Challenge]:", "Challenge"],
   ])("%j -> %j", (summary, title) => {
     expect(calendarTitle(summary)).toBe(title);
+  });
+});
+
+describe("calendarCategory", () => {
+  it.each([
+    ["Quill & Cup [Authorpreneurship] Prickle: A Way to Make Money with Sam", "Authorpreneurship"],
+    ["Quill & Cup [Challenge]: Taper Caper Kick-Off!", "Challenge"],
+    ["[Craft] Outlining", "Craft"],
+    ["Heads Down Prickle", null],
+    ["Quill & Cup Challenge", null],
+    ["Prickle [not a category] w/Ada", null],
+    [null, null],
+  ])("%j -> %j", (summary, category) => {
+    expect(calendarCategory(summary)).toBe(category);
   });
 });
 

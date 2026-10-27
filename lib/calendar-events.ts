@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
-import { plainTextDescription } from "@/lib/prickle-types";
+import { parsePrickleFromSummary, plainTextDescription } from "@/lib/prickle-types";
 
 // Events that follow the shared Google calendar (events.calendar_event_id). A calendar item shown
 // in Events gets an events row; its title, description and location follow the calendar until an
@@ -62,14 +62,36 @@ export function orgDate(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 }
 
-/** A calendar summary without its "w/Host" tail and wrapping quotes: "Query Letters w/Sam" -> "Query Letters". */
-export function calendarTitle(summary: string | null): string {
-  const cleaned = (summary ?? "")
-    .replace(/^['"](.+?)['"]$/, "$1")
-    .replace(/\s*\bw\/\s*.+$/i, "")
-    .replace(/^['"]|['"]$/g, "")
+/** "Quill & Cup" (or "Q&C") before a "[Category]" or a colon is the organization's label on the item, not part of its title. */
+const ORG_LABEL = /^(?:quill\s*&\s*cup|q\s*&\s*c)\s*(?=[\[:])/i;
+
+/**
+ * What a calendar summary says besides the host: the title, with the organization's label, the "[Category]" and a
+ * "Prickle:" or ":" label taken off, and the category. "Quill & Cup [Authorpreneurship] Prickle: A Way to Make
+ * Money with Sam" -> { title: "A Way to Make Money", category: "Authorpreneurship" }. The host or guest ("w/Sam",
+ * "with Sam") is not part of the title. A name that is only an organization label ("Quill & Cup Challenge") is left alone.
+ */
+function splitCalendarSummary(summary: string | null): { title: string; category: string | null } {
+  const { type } = parsePrickleFromSummary(summary ?? "");
+  const named = type && !/^w\//i.test(type) ? type.trim() : "";
+  const withoutOrg = named.replace(ORG_LABEL, "").trim();
+  const bracket = withoutOrg.match(/^\[([^\]]+)\]\s*/);
+  const category = bracket ? bracket[1].trim() || null : null;
+  const title = (bracket ? withoutOrg.slice(bracket[0].length) : withoutOrg)
+    .replace(/^prickle\s*:\s*/i, "")
+    .replace(/^:\s*/, "")
     .trim();
-  return cleaned || "Untitled event";
+  return { title: title || category || named, category };
+}
+
+/** The title of an event made from a calendar summary: "Quill & Cup [Category] Prickle: Title with Sam" -> "Title". */
+export function calendarTitle(summary: string | null): string {
+  return splitCalendarSummary(summary).title || "Untitled event";
+}
+
+/** The "[Category]" of a calendar summary ("Authorpreneurship", "Challenge"), or null. */
+export function calendarCategory(summary: string | null): string | null {
+  return splitCalendarSummary(summary).category;
 }
 
 /** What an events row holds for a calendar item. An event that ends exactly at midnight ends the day before. */
@@ -170,8 +192,14 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
 
   // The new event starts with its prickle type's audience (announced publicly, guests allowed), when it is a
   // prickle; an admin can change it on the event, e.g. to let guests into one educational session.
+  // It also starts with the prickle's guest speaker, and the "[Category]" of the calendar title as its focus.
   const [prickle] = await createRepos(db).prickles.byCalendarEventIds([calendarEventId]);
-  const audience = { announced_publicly: prickle?.type?.announcedPublicly ?? false, guests_allowed: prickle?.type?.guestsAllowed ?? false };
+  const audience = {
+    announced_publicly: prickle?.type?.announcedPublicly ?? false,
+    guests_allowed: prickle?.type?.guestsAllowed ?? false,
+    speakers: prickle?.guestSpeaker ?? null,
+    focus: calendarCategory(source.summary),
+  };
 
   const fields = calendarEventFields(source);
   const base = `${slugify(fields.title)}-${fields.starts_at}`;

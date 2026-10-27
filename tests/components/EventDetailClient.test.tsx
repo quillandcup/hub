@@ -79,3 +79,28 @@ describe("EventDetailClient audience", () => {
     expect(screen.getByText("Book Launch")).toBeInTheDocument();
   });
 });
+
+describe("EventDetailClient location", () => {
+  it("shows a place as typed", () => {
+    render(<EventDetailClient event={EVENT} photos={[]} />);
+    expect(screen.getByText(/Cedar Lodge/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Join/ })).not.toBeInTheDocument();
+  });
+
+  it("shows a video call link as a Join control, not as the link itself", () => {
+    const url = "https://us06web.zoom.us/j/87106462893?pwd=secret";
+    render(<EventDetailClient event={{ ...EVENT, location: url }} photos={[]} />);
+
+    const join = screen.getByRole("link", { name: "Join on Zoom" });
+    expect(join).toHaveAttribute("href", url);
+    expect(join).toHaveAttribute("target", "_blank");
+    expect(join).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.queryByText(/pwd=secret/)).not.toBeInTheDocument();
+  });
+
+  it("shows no location line when there is none", () => {
+    render(<EventDetailClient event={{ ...EVENT, location: null }} photos={[]} />);
+    expect(screen.queryByText(/Cedar Lodge/)).not.toBeInTheDocument();
+  });
+});
+
