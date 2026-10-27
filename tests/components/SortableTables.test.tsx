@@ -201,6 +201,21 @@ describe('server-page tables extracted into sortable client components', () => {
     expect(firstColumn()).toEqual(['Beta', 'Alpha'])
   })
 
+  it('PrickleTypesTable sorts by each dimension, Yes first', async () => {
+    const base = { description: null, purpose: 'writing', solo_task_friendly: false, listed_in_events: false, announced_publicly: false, guests_allowed: false }
+    const rows = [
+      { ...base, id: '1', name: 'Alpha', normalized_name: 'alpha' },
+      { ...base, id: '2', name: 'Beta', normalized_name: 'beta', listed_in_events: true, announced_publicly: true, guests_allowed: true },
+    ]
+    render(<PrickleTypesTable rows={rows} />)
+    for (const column of ['In Events', 'Public', 'Guests']) {
+      await userEvent.click(screen.getByText(column))
+      expect(firstColumn()).toEqual(['Beta', 'Alpha'])
+      await userEvent.click(screen.getByText(column))
+      expect(firstColumn()).toEqual(['Alpha', 'Beta'])
+    }
+  })
+
   it('AliasesTable sorts by alias count', async () => {
     const entry = (id: string, name: string, aliasCount: number) => ({
       member: { id, name, email: `${id}@example.com`, status: 'active' },
