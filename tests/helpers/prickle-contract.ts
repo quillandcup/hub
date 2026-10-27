@@ -286,6 +286,16 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().createCalendarPrickles([])).toEqual([]);
     });
 
+    it("gives a prickle another type and leaves the others alone", async () => {
+      const [changed, untouched] = await ctx.seed([{ type: 0, start: at(38) }, { type: 0, start: at(39) }]);
+
+      await ctx.repo().setType(changed, ctx.types[1].id);
+
+      const found = await ctx.repo().byIds([changed, untouched]);
+      expect(found.find((p) => p.id === changed)?.typeId).toBe(ctx.types[1].id);
+      expect(found.find((p) => p.id === untouched)?.typeId).toBe(ctx.types[0].id);
+    });
+
     it("hands one member's prickles to another", async () => {
       const [mine, theirs, hostless] = await ctx.seed([{ host: 0, start: at(40) }, { host: 1, start: at(41) }, { start: at(42) }]);
 

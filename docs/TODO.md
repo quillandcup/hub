@@ -1280,6 +1280,11 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### Calendar prickles: correcting a host from the admin prickle page
+- **Missing:** the admin prickle page can change a calendar prickle's type (`ChangePrickleType`, stored as the event's resolved decision in `unmatched_calendar_events`), but not its host. The resolve routes (`/api/prickle-types/resolve*`) match the "w/Name" in the title to a member, and a wrong or missing match (for example "w/Ania & Jude C") can't be corrected afterwards.
+- **Why deferred:** `/api/process/calendar` derives the host from the title on every run (`assignHostAndSpeaker`), so a host picked by hand would be overwritten by the next reprocess. It needs a stored per-event host override that the processor applies, like the type decision.
+- **Start:** `app/api/process/calendar/route.ts` (host matching), `app/(admin)/admin/prickles/[id]/actions.ts`, `unmatched_calendar_events` (a `resolved_host_id` column), `ChangePrickleType.tsx`.
+
 ### MemberCalendarClient: week and month navigation still use the host's zone
 - **Missing:** `components/MemberCalendarClient.tsx` computes the current week start (`setDate`/`setHours(0,0,0,0)`) and the initial/previous/next month from the browser's zone, while the data and the grid cells are keyed in the member's `timezone` preference. When the two differ, the "current week" and "current month" can be the wrong one around midnight. `AttendanceMonthGrid` cell keys and "today" were fixed (they shifted a whole day); the navigation state was not.
 - **Why deferred:** found while making unit tests zone-independent; a fuller fix means holding the week/month as zone-free calendar dates (see `startOfWeek` in `app/(member)/my-prickles/AllPricklesCalendar.tsx` for the pattern) and needs boundary tests.
