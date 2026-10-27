@@ -1,7 +1,8 @@
 import type { BrowserContext, Locator, Page } from "playwright/test";
-import { mkdirSync, renameSync, rmSync } from "node:fs";
+import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { synthesize } from "./voiceover";
+import { LINE_IDS } from "./script";
 import path from "node:path";
 import { sessionCookies } from "../auth";
 
@@ -182,7 +183,7 @@ export async function startRecording(
   const startedAt = Date.now();
   let loadedAfterMs: number | null = null;
   /** The spoken lines and when each starts, in ms after the page was created; mixed into the video by finish(). */
-  const voice: { file: string; atMs: number }[] = [];
+  const voice: { file: string; atMs: number; text: string; durationMs: number }[] = [];
   let narrating = false;
   /** The line being spoken: a full page load drops the caption from the page, so it is put back after one. */
   let spoken = "";
@@ -197,7 +198,7 @@ export async function startRecording(
     async narrate(text, during, padMs = 400) {
       const clip = synthesize(text);
       trace(`narrate (${((Date.now() - startedAt) / 1000).toFixed(1)}s, ${(clip.durationMs / 1000).toFixed(1)}s of voice) ${text}`);
-      voice.push({ file: clip.file, atMs: Date.now() - startedAt });
+      voice.push({ file: clip.file, atMs: Date.now() - startedAt, text, durationMs: clip.durationMs });
       spoken = text;
       await page.evaluate((t) => (window as unknown as { __director?: { caption(t: string): void } }).__director?.caption(t), text);
       narrating = true;
@@ -287,7 +288,13 @@ export async function startRecording(
       const raw = path.join(VIDEO_DIR, `${name}.raw.webm`);
       await video?.saveAs(raw);
       const trimSeconds = loadedAfterMs === null ? 0 : Math.max(0, loadedAfterMs - 300) / 1000;
-      return encode(raw, out, trimSeconds, voice.map((v) => ({ file: v.file, atMs: Math.max(0, v.atMs - trimSeconds * 1000) })));
+      const lines = voice.map((v) => ({ ...v, atMs: Math.max(0, v.atMs - trimSeconds * 1000) }));
+      // When each line starts and how long it takes, in the finished video: the reading sheet's times.
+      writeFileSync(
+        path.join(VIDEO_DIR, `${name}.timing.json`),
+        JSON.stringify(lines.map((v) => ({ id: LINE_IDS.get(v.text) ?? null, text: v.text, startSeconds: Math.round(v.atMs / 100) / 10, lengthSeconds: Math.round(v.durationMs / 100) / 10 })), null, 2),
+      );
+      return encode(raw, out, trimSeconds, lines);
     },
   };
   return director;
