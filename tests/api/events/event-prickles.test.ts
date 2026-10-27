@@ -114,6 +114,7 @@ describe('fetchUpcomingEventPrickles', () => {
       title: `Query Letters 101 ${suffix}`,
       typeName: eventTypeName,
       hostName: `Tessaly Inkwright ${suffix}`,
+      calendarEventId: null,
       startTime: expect.any(String),
       endTime: expect.any(String),
     })

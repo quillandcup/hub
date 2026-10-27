@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { syncCalendarEvents } from "@/lib/calendar-events";
 
 // Extend timeout for processing large batches of events
 export const maxDuration = 300; // 5 minutes
@@ -333,6 +334,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // STEP 5: Events shown in Events (events rows that follow a calendar event) keep their dates, times
+    // and any text an admin hasn't overridden in step with the calendar.
+    const eventsSynced = await syncCalendarEvents(supabase, allEvents);
+
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
     return NextResponse.json({
@@ -344,6 +349,7 @@ export async function POST(request: NextRequest) {
       skipped: skippedNoSummary,
       autoResolved: autoResolvedCount,
       ignored: ignoredCount,
+      eventsSynced,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);

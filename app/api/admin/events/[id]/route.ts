@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import type { Update } from "@/lib/data/db";
 import { parseEventAudience } from "@/lib/event-audience";
+import { overriddenAfterEdit } from "@/lib/calendar-events";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(
@@ -91,17 +92,30 @@ export async function PATCH(
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
 
     const updates: Update<"events"> = { ...audience.fields };
+
+    // An event that follows the calendar: the calendar owns its dates and times, and a changed
+    // title, description or location is remembered as an override so the next sync keeps it.
+    const { data: current } = await supabase
+      .from("events")
+      .select("title, description, location, overridden_fields, calendar_event_id")
+      .eq("id", id)
+      .maybeSingle();
+    const followsCalendar = !!current?.calendar_event_id;
     if (slug !== undefined) updates.slug = slug;
     if (title !== undefined) updates.title = title;
     if (event_type !== undefined) updates.event_type = event_type;
     if (location !== undefined) updates.location = location;
-    if (starts_at !== undefined) updates.starts_at = starts_at;
-    if (ends_at !== undefined) updates.ends_at = ends_at;
+    if (starts_at !== undefined && !followsCalendar) updates.starts_at = starts_at;
+    if (ends_at !== undefined && !followsCalendar) updates.ends_at = ends_at;
     if (focus !== undefined) updates.focus = focus;
     if (description !== undefined) updates.description = description;
     if (agenda !== undefined) updates.agenda = agenda;
     if (results !== undefined) updates.results = results;
     if (google_photos_album_url !== undefined) updates.google_photos_album_url = google_photos_album_url;
+
+    if (current && followsCalendar) {
+      updates.overridden_fields = overriddenAfterEdit(current, { title, description, location });
+    }
 
     const { data: event, error } = await supabase
       .from("events")

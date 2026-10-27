@@ -11,12 +11,13 @@ let hosts: [{ id: string; name: string }, { id: string; name: string }];
 const created: string[] = [];
 
 async function clearPrickles() {
-  if (created.length === 0) return;
   const ids = created.splice(0);
   for (let i = 0; i < ids.length; i += 100) {
     const { error } = await db.from("prickles").delete().in("id", ids.slice(i, i + 100));
     if (error) throw new Error(error.message);
   }
+  const { error: bronzeError } = await db.schema("bronze").from("calendar_events").delete().like("google_event_id", `prickle-contract-${RUN}-%`);
+  if (bronzeError) throw new Error(bronzeError.message);
 }
 
 beforeAll(async () => {
@@ -71,7 +72,21 @@ definePrickleContract("SupabasePrickleRepository", () => ({
   },
   seed: async (seeds: PrickleSeed[]) => {
     await clearPrickles();
-    const rows = seeds.map((s) => ({
+    // A prickle made from a calendar event points at a Bronze row, so give those a row to point at.
+    const calendarIds = new Map<number, string>();
+    for (const [i, s] of seeds.entries()) {
+      if (!s.calendarEvent) continue;
+      const { data, error } = await db
+        .schema("bronze")
+        .from("calendar_events")
+        .insert({ google_event_id: `prickle-contract-${RUN}-${i}`, summary: "Contract", start_time: s.start, end_time: new Date(Date.parse(s.start) + 3_600_000).toISOString(), raw_data: {} })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      calendarIds.set(i, data!.id);
+    }
+    const rows = seeds.map((s, i) => ({
+      calendar_event_id: calendarIds.get(i) ?? null,
       title: s.title ?? null,
       description: s.description ?? null,
       guest_speaker: s.guestSpeaker ?? null,

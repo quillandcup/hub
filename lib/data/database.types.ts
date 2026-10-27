@@ -2384,10 +2384,12 @@ export type Database = {
         Row: {
           agenda: string | null
           announced_publicly: boolean
+          calendar_event_id: string | null
           capacity: number | null
           created_at: string
           created_by: string | null
           description: string | null
+          end_time: string | null
           ends_at: string
           event_type: string
           focus: string | null
@@ -2395,11 +2397,13 @@ export type Database = {
           guests_allowed: boolean
           id: string
           location: string | null
+          overridden_fields: string[]
           registration: string
           results: string | null
           selection: string
           slug: string
           speakers: string | null
+          start_time: string | null
           starts_at: string
           title: string
           updated_at: string
@@ -2407,22 +2411,26 @@ export type Database = {
         Insert: {
           agenda?: string | null
           announced_publicly?: boolean
+          calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           ends_at: string
+          end_time?: string | null
           event_type: string
           focus?: string | null
           google_photos_album_url?: string | null
           guests_allowed?: boolean
           id?: string
           location?: string | null
+          overridden_fields?: string[]
           registration?: string
           results?: string | null
           selection?: string
           slug: string
           speakers?: string | null
+          start_time?: string | null
           starts_at: string
           title: string
           updated_at?: string
@@ -2430,10 +2438,12 @@ export type Database = {
         Update: {
           agenda?: string | null
           announced_publicly?: boolean
+          calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_time?: string | null
           ends_at?: string
           event_type?: string
           focus?: string | null
@@ -2441,11 +2451,13 @@ export type Database = {
           guests_allowed?: boolean
           id?: string
           location?: string | null
+          overridden_fields?: string[]
           registration?: string
           results?: string | null
           selection?: string
           slug?: string
           speakers?: string | null
+          start_time?: string | null
           starts_at?: string
           title?: string
           updated_at?: string

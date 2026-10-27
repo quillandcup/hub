@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PrickleRepository, PrickleType } from "@/lib/data/prickles";
 
 /** A seeded prickle, naming its type and host by position in the context's lists. */
-export type PrickleSeed = { zoomMeetingUuid?: string; description?: string; guestSpeaker?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" | "zoom" };
+export type PrickleSeed = { calendarEvent?: boolean; zoomMeetingUuid?: string; description?: string; guestSpeaker?: string; createdAt?: string; title?: string; type?: 0 | 1; host?: 0 | 1; start: string; end?: string; source?: "calendar" | "sheets" | "zoom" };
 
 export type PrickleContractContext = {
   repo: () => PrickleRepository;
@@ -25,6 +25,24 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
     let ctx: PrickleContractContext;
     beforeEach(() => {
       ctx = setup();
+    });
+
+    it("finds the prickles made from calendar events by the calendar event ids", async () => {
+      const [fromCalendar, alsoFromCalendar, hostOnly] = await ctx.seed([
+        { calendarEvent: true, type: 0, start: at(0) },
+        { calendarEvent: true, start: at(1) },
+        { start: at(2) },
+      ]);
+      const [first, second] = await ctx.repo().byIds([fromCalendar, alsoFromCalendar]).then((found) => [fromCalendar, alsoFromCalendar].map((id) => found.find((p) => p.id === id)!));
+      expect(first.calendarEventId).not.toBeNull();
+
+      const found = await ctx.repo().byCalendarEventIds([first.calendarEventId!, "00000000-0000-4000-8000-000000000000"]);
+
+      expect(found.map((p) => p.id)).toEqual([fromCalendar]);
+      expect(found[0].type).toEqual(ctx.types[0]);
+      expect((await ctx.repo().byCalendarEventIds([first.calendarEventId!, second.calendarEventId!])).map((p) => p.id).sort()).toEqual([fromCalendar, alsoFromCalendar].sort());
+      expect(await ctx.repo().byCalendarEventIds([])).toEqual([]);
+      expect(hostOnly).toBeTruthy();
     });
 
     it("joins the type and host onto a prickle, and leaves them null when there are none", async () => {

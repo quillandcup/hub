@@ -22,6 +22,8 @@ interface EventData extends EventAudience {
   agenda: string | null;
   results: string | null;
   google_photos_album_url: string | null;
+  calendar_event_id: string | null;
+  overridden_fields: string[];
 }
 
 interface Photo {
@@ -59,6 +61,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EventData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showHidden, setShowHidden] = useState(false);
@@ -165,6 +168,21 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     }
   };
 
+  const handleRevert = async () => {
+    setError(null);
+    setReverting(true);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/revert-to-calendar`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to follow the calendar again");
+      setEvent(body.event);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setReverting(false);
+    }
+  };
+
   const toggleHidden = async (photoId: string, hidden: boolean) => {
     setTogglingId(photoId);
     try {
@@ -214,6 +232,27 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           )}
         </div>
 
+        {event.calendar_event_id && (
+          <div className="mb-4 p-3 rounded bg-plum-50 dark:bg-plum-900/20 text-sm">
+            <p>
+              Follows the shared calendar: dates and times come from it
+              {event.overridden_fields.length > 0
+                ? `, and you changed the ${event.overridden_fields.join(", ")}.`
+                : "; the title, description and location do too until you change them."}
+            </p>
+            {event.overridden_fields.length > 0 && (
+              <button
+                type="button"
+                disabled={reverting}
+                onClick={handleRevert}
+                className="mt-1 text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-50"
+              >
+                {reverting ? "Updating..." : "Follow the calendar again"}
+              </button>
+            )}
+          </div>
+        )}
+
         {editing && editForm ? (
           <form onSubmit={handleSave} className="space-y-3">
             <div className="@container">
@@ -247,6 +286,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <input
                   type="date"
                   value={editForm.starts_at}
+                  disabled={!!editForm.calendar_event_id}
                   onChange={(e) => setEditForm({ ...editForm, starts_at: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
                   required
@@ -257,6 +297,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <input
                   type="date"
                   value={editForm.ends_at}
+                  disabled={!!editForm.calendar_event_id}
                   onChange={(e) => setEditForm({ ...editForm, ends_at: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
                   required
