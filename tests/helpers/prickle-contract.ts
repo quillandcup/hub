@@ -329,6 +329,19 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().startingBetween({ from: at(1), hostId: ctx.hosts[0].id })).toEqual([]);
     });
 
+    it("searches prickles by their guest speaker, and every word still has to match", async () => {
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const [spoken, other] = await ctx.seed([
+        { start: at(70), guestSpeaker: `Dr Bailey Lang ${suffix}` },
+        { start: at(71), guestSpeaker: `Someone Else ${suffix}` },
+      ]);
+      const mine = async (text: string) =>
+        (await ctx.repo().search({ words: text.split(" ").map((t) => ({ text: t, hostIds: [] })), limit: 50, offset: 0, after: at(69), before: at(80) })).map((p) => p.id).filter((id) => [spoken, other].includes(id));
+
+      expect(await mine(`bailey lang ${suffix}`)).toEqual([spoken]);
+      expect(await mine(`bailey else ${suffix}`)).toEqual([]);
+    });
+
     it("searches prickles by title, type name or the host's name, every word, newest first", async () => {
       const suffix = Math.random().toString(36).slice(2, 8);
       const [titled, byType, byHost, other] = await ctx.seed([

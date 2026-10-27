@@ -164,7 +164,7 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   const words = matchWords(q);
   // A prickle is named for its type and host ("Monday Progress Prickle with Jenn P") unless the host
   // gave it a title of its own ("Tiny Things Practice Workshop"), so each word must match the type's
-  // name, the host's name or the title.
+  // name, the host's name, the title or the guest speaker.
   const [hosts, wordHosts] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
     words.map(async (w) => {
       const { data } = await ctx.supabase.from("member_directory").select("id").or(`name.ilike.${pattern(w)},display_name.ilike.${pattern(w)}`).limit(100);
