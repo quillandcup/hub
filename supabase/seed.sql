@@ -15,7 +15,9 @@ TRUNCATE member_status_overrides CASCADE;
 TRUNCATE member_name_aliases CASCADE;
 TRUNCATE prickles CASCADE;
 TRUNCATE bronze.zoom_attendees CASCADE;
-TRUNCATE bronze.calendar_events CASCADE;
+-- DELETE, not TRUNCATE ... CASCADE: events point at calendar events (events.calendar_event_id), and a
+-- cascading truncate would empty events and then everything that references them, badge definitions included.
+DELETE FROM bronze.calendar_events;
 TRUNCATE bronze.kajabi_members CASCADE;
 TRUNCATE bronze.subscription_history CASCADE;
 TRUNCATE bronze.slack_messages CASCADE;
