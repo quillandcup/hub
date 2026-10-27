@@ -214,6 +214,7 @@ SELECT is(
   'a volunteer''s own changes are audited (net effect of the transaction)'
 );
 
+SELECT diag('DIAG role=' || current_user || ' badge_types=' || (SELECT count(*) FROM public.badge_types) || ' keys=' || coalesce((SELECT string_agg(key, ',' ORDER BY key) FROM public.badge_types), '') || ' levels=' || (SELECT count(*) FROM public.badge_levels) || ' events=' || (SELECT count(*) FROM public.events) || ' member_badges=' || (SELECT count(*) FROM public.member_badges) || ' bronze_calendar=' || (SELECT count(*) FROM bronze.calendar_events));
 -- The Hedgie Mentor badge is computed now and has the higher tiers.
 SELECT is(
   (SELECT is_automatic FROM public.badge_types WHERE key = 'hedgie_mentor'),
