@@ -1287,6 +1287,12 @@ When Slack token rotation is adopted (see `docs/SLACK_BRIDGED_CHAT.md`, "Slack a
 
 ## Bug Fixes
 
+### Admin display names: pages left on the legal name
+- **Missing:** the display-name sweep of admin (CLAUDE.md, "Display Names") left a few places on the legal name: the duplicate-detection page (`app/(admin)/admin/hygiene/merge-fix/*`, which works on legal names via `lib/merge-fix.ts`), the course watch stats (`lib/courses/watch-stats-data.ts` maps `memberName` from `name`), and the activity feed's staff actor labels (the SQL function labels a staff actor with the admin's own legal member name, found only through the auth user id, so `withMemberDisplayNames` in `lib/activity-feed.ts` can't swap it).
+- **Why deferred:** merge-fix needs its detection data changed, not just the label; the feed label needs a SQL change; the watch stats were outside the sweep's file list.
+- **Start:** show the display name with the legal name beside it (see the members table). For the feed, return the actor's member id from the function so the label can be resolved like `member_name`.
+- **Also untested:** `ReconciliationClient`, `HostsClient`, `MemberOverridesClient`, `UnmatchedEventsTable`, the external-conflicts page, the three `/api/analyze/*` routes' `member_display_name`, the programs route's `member_real_name`, the feedback route and the calendar page host: they pass the existing tests but nothing asserts their display-name output.
+
 ### MemberCalendarClient: week and month navigation still use the host's zone
 - **Missing:** `components/MemberCalendarClient.tsx` computes the current week start (`setDate`/`setHours(0,0,0,0)`) and the initial/previous/next month from the browser's zone, while the data and the grid cells are keyed in the member's `timezone` preference. When the two differ, the "current week" and "current month" can be the wrong one around midnight. `AttendanceMonthGrid` cell keys and "today" were fixed (they shifted a whole day); the navigation state was not.
 - **Why deferred:** found while making unit tests zone-independent; a fuller fix means holding the week/month as zone-free calendar dates (see `startOfWeek` in `app/(member)/my-prickles/AllPricklesCalendar.tsx` for the pattern) and needs boundary tests.
