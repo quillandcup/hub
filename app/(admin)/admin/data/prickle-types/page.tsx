@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import PrickleTypesTable from "./PrickleTypesTable";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Prickle Types",
@@ -15,8 +16,12 @@ export default async function PrickleTypesPage() {
   // Fetch all prickle types
   const { data: prickleTypes } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed")
+    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, default_host_id, summary_aliases")
     .order("name");
+
+  const hostIds = [...new Set((prickleTypes ?? []).map((t) => t.default_host_id).filter((id): id is string => !!id))];
+  const hostNames = new Map((await createRepos(supabase).members.byIds(hostIds)).map((m) => [m.id, m.name]));
+  const rows = (prickleTypes ?? []).map((t) => ({ ...t, default_host_name: t.default_host_id ? (hostNames.get(t.default_host_id) ?? null) : null }));
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -39,7 +44,7 @@ export default async function PrickleTypesPage() {
             + Add Type
           </Link>
         </div>
-        <PrickleTypesTable rows={prickleTypes ?? []} />
+        <PrickleTypesTable rows={rows} />
       </div>
     </div>
   );

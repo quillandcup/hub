@@ -8,12 +8,13 @@ import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
 import type { PrickleTypePurpose } from "@/lib/prickle-picker";
+import { createRepos } from "@/lib/data/repos";
 
 const getPrickleType = cache(async (id: string) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed")
+    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, default_host_id, summary_aliases, names_guest_speaker")
     .eq("id", id)
     .single();
   return data;
@@ -50,6 +51,14 @@ export default async function EditPrickleTypePage({
     redirect("/data/prickle-types");
   }
 
+  const members = (await createRepos(await createClient()).members.list({ status: "active", orderBy: "name" })).map(({ id, name, email }) => ({ id, name, email }));
+  // The default host may no longer be active; still show who it is
+  const defaultHostName = prickleType.default_host_id
+    ? (members.find((m) => m.id === prickleType.default_host_id)?.name ??
+      (await createRepos(await createClient()).members.byIds([prickleType.default_host_id]))[0]?.name ??
+      null)
+    : null;
+
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -77,7 +86,11 @@ export default async function EditPrickleTypePage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-2xl">
-          <EditPrickleTypeForm prickleType={{ ...prickleType, purpose: prickleType.purpose as PrickleTypePurpose }} />
+          <EditPrickleTypeForm
+            prickleType={{ ...prickleType, purpose: prickleType.purpose as PrickleTypePurpose }}
+            members={members}
+            defaultHostName={defaultHostName}
+          />
         </div>
       </main>
     </div>

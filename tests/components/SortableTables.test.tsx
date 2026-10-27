@@ -201,6 +201,18 @@ describe('server-page tables extracted into sortable client components', () => {
     expect(firstColumn()).toEqual(['Beta', 'Alpha'])
   })
 
+  it('PrickleTypesTable sorts by Default host, people without one last', async () => {
+    const base = { description: null, purpose: 'writing', solo_task_friendly: false, listed_in_events: false, announced_publicly: false, guests_allowed: false }
+    const rows = [
+      { ...base, id: '1', name: 'Alpha', normalized_name: 'alpha', default_host_name: null },
+      { ...base, id: '2', name: 'Beta', normalized_name: 'beta', default_host_name: 'Zed Example' },
+      { ...base, id: '3', name: 'Gamma', normalized_name: 'gamma', default_host_name: 'Ada Example' },
+    ]
+    render(<PrickleTypesTable rows={rows} />)
+    await userEvent.click(screen.getByText('Default host'))
+    expect(firstColumn()).toEqual(['Gamma', 'Beta', 'Alpha'])
+  })
+
   it('PrickleTypesTable sorts by each dimension, Yes first', async () => {
     const base = { description: null, purpose: 'writing', solo_task_friendly: false, listed_in_events: false, announced_publicly: false, guests_allowed: false }
     const rows = [

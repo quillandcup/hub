@@ -180,10 +180,8 @@ everything else per import instead of silently dropping it. Closing these gaps n
 
 Educational prickles (`EDU-PRICKLE: Title w/Name`) map to the Educational type through `prickle_types.summary_aliases`, and the name after `w/` is stored as `prickles.guest_speaker` while the type's default host hosts (`prickle_types.names_guest_speaker`). Deferred:
 
-- **Set the default host.** Educational has no `default_host_id` yet, so until an admin sets one on its edit page the `w/` name is still the host when it matches a member, and the speaker is recorded either way. Set it, then reprocess the calendar to fill in past prickles.
-- **Edit aliases and the speaker flag in the admin.** Both columns are changed only by migration today (`app/(admin)/admin/data/prickle-types/[id]/edit/EditPrickleTypeForm.tsx`, `app/api/prickle-types/update/route.ts`).
 - **Someone other than the default host hosting** (the usual host is away): the calendar title can't say so, because `w/Name` is the speaker. Needs a way to override the host on one prickle that survives reprocessing (a Local table keyed by calendar event).
-- **Titles without `w/`** ("... with Brayden ..." in a webinar title) aren't parsed for a speaker, and ones that don't start with a known type name still go to the unmatched queue to be resolved by hand.
+- **Titles that don't start with a known type name or alias** (a webinar titled "Quill & Cup [Topic] Prickle: ...") still go to the unmatched queue to be resolved by hand; once resolved, a speaker after `w/` or `with` is read as usual.
 
 ## Infrastructure & Deployment
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import MemberSearch from "@/components/MemberSearch";
 
 type PrickleTypePurpose = "writing" | "work" | "social" | "mixed";
 
@@ -23,11 +24,19 @@ interface EditPrickleTypeFormProps {
     listed_in_events: boolean;
     announced_publicly: boolean;
     guests_allowed: boolean;
+    default_host_id?: string | null;
+    summary_aliases?: string[];
+    names_guest_speaker?: boolean;
   };
+  /** Active members to pick the default host from. */
+  members?: { id: string; name: string; email: string }[];
+  defaultHostName?: string | null;
 }
 
 export default function EditPrickleTypeForm({
   prickleType,
+  members = [],
+  defaultHostName = null,
 }: EditPrickleTypeFormProps) {
   const router = useRouter();
   const [name, setName] = useState(prickleType.name);
@@ -37,6 +46,9 @@ export default function EditPrickleTypeForm({
   const [listedInEvents, setListedInEvents] = useState(prickleType.listed_in_events);
   const [announcedPublicly, setAnnouncedPublicly] = useState(prickleType.announced_publicly);
   const [guestsAllowed, setGuestsAllowed] = useState(prickleType.guests_allowed);
+  const [defaultHostId, setDefaultHostId] = useState<string | null>(prickleType.default_host_id ?? null);
+  const [aliases, setAliases] = useState((prickleType.summary_aliases ?? []).join(", "));
+  const [namesGuestSpeaker, setNamesGuestSpeaker] = useState(prickleType.names_guest_speaker ?? false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +70,9 @@ export default function EditPrickleTypeForm({
           listedInEvents,
           announcedPublicly,
           guestsAllowed,
+          defaultHostId,
+          summaryAliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
+          namesGuestSpeaker,
         }),
       });
 
@@ -199,6 +214,51 @@ export default function EditPrickleTypeForm({
           </label>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Non-members may attend. Not used by any page yet.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Default host</label>
+          <MemberSearch
+            members={members}
+            selectedMemberId={defaultHostId}
+            selectedMemberName={defaultHostName}
+            onSelect={(member) => setDefaultHostId(member?.id ?? null)}
+          />
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Hosts prickles of this type that name nobody. Saving rebuilds this type&apos;s prickles from the calendar.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label htmlFor="summary-aliases" className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
+            Other names
+          </label>
+          <input
+            id="summary-aliases"
+            type="text"
+            value={aliases}
+            onChange={(e) => setAliases(e.target.value)}
+            placeholder="e.g., edu"
+            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+          />
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Comma-separated. A calendar title that starts with one of these (&quot;EDU-PRICKLE: Make It Funny&quot;) is this type.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={namesGuestSpeaker}
+              onChange={(e) => setNamesGuestSpeaker(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Name after &quot;w/&quot; is the guest speaker
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            The default host hosts and the name on the calendar title is shown as the guest speaker.
           </p>
         </div>
 

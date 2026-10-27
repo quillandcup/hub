@@ -1,7 +1,8 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { triggerReprocessing, triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizePrickleType } from "@/lib/prickle-types";
+import { isId } from "@/lib/ids";
 
 /**
  * Update an existing prickle type
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed } = body;
+    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed, defaultHostId, summaryAliases, namesGuestSpeaker } = body;
 
     if (!typeId || !name) {
       return NextResponse.json(
@@ -57,6 +58,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (defaultHostId !== undefined && defaultHostId !== null && !isId(defaultHostId, "mbr")) {
+      return NextResponse.json({ error: "defaultHostId must be a member id or null" }, { status: 400 });
+    }
+    if (summaryAliases !== undefined && (!Array.isArray(summaryAliases) || summaryAliases.some((a) => typeof a !== "string"))) {
+      return NextResponse.json({ error: "summaryAliases must be a list of names" }, { status: 400 });
+    }
+    if (namesGuestSpeaker !== undefined && typeof namesGuestSpeaker !== "boolean") {
+      return NextResponse.json({ error: "namesGuestSpeaker must be a boolean" }, { status: 400 });
+    }
+
+    // Aliases are stored the way calendar titles are matched: normalized, no blanks, no repeats
+    const aliases =
+      summaryAliases === undefined
+        ? undefined
+        : [...new Set((summaryAliases as string[]).map((a) => normalizePrickleType(a)).filter(Boolean))];
+
     // Regenerate normalized_name from the new name
     const normalizedName = normalizePrickleType(name);
 
@@ -87,6 +104,9 @@ export async function POST(request: NextRequest) {
         ...(listedInEvents !== undefined ? { listed_in_events: listedInEvents } : {}),
         ...(announcedPublicly !== undefined ? { announced_publicly: announcedPublicly } : {}),
         ...(guestsAllowed !== undefined ? { guests_allowed: guestsAllowed } : {}),
+        ...(defaultHostId !== undefined ? { default_host_id: defaultHostId } : {}),
+        ...(aliases !== undefined ? { summary_aliases: aliases } : {}),
+        ...(namesGuestSpeaker !== undefined ? { names_guest_speaker: namesGuestSpeaker } : {}),
       })
       .eq("id", typeId);
 
@@ -98,9 +118,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-trigger calendar prickles reprocessing (last 90 days)
+    // Auto-trigger calendar prickles reprocessing. Changing who hosts, other names or the speaker flag
+    // reaches back to the type's older prickles; other edits only need the recent window.
     console.log('Triggering calendar reprocessing from prickle_types change');
-    await triggerReprocessing('prickle_types', 'local');
+    if (defaultHostId !== undefined || aliases !== undefined || namesGuestSpeaker !== undefined) {
+      await triggerPrickleTypeReprocessing();
+    } else {
+      await triggerReprocessing('prickle_types', 'local');
+    }
 
     return NextResponse.json({
       success: true,
