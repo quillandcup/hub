@@ -24,7 +24,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("events")) redirect("/dashboard");
 
-  const { data: event } = await supabase.from("events").select("*").eq("slug", slug).single();
+  const { data: event } = await supabase.from("events").select("*").eq("slug", slug).is("deleted_at", null).single();
   if (!event) notFound();
 
   const [{ data: visiblePhotos }, effectiveIdentity, calendarItems] = await Promise.all([

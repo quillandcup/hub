@@ -251,6 +251,7 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   let query = ctx.supabase.from("events").select("id, slug, title, event_type, location, starts_at, focus");
   query = matchEach(query, matchWords(q), ["title", "location", "focus", "description"]);
   if (attendedIds) query = query.in("id", attendedIds);
+  if (!ctx.isActingAsAdmin) query = query.is("deleted_at", null); // hidden events are for admins only
   if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
   if (q.before) query = query.lt("starts_at", q.before.slice(0, 10));
   const { data } = await query.order("starts_at", { ascending: false }).range(offset, offset + limit);

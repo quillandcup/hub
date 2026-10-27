@@ -24,6 +24,7 @@ interface EventData extends EventAudience {
   google_photos_album_url: string | null;
   calendar_event_id: string | null;
   overridden_fields: string[];
+  deleted_at: string | null;
 }
 
 interface Photo {
@@ -62,6 +63,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [editForm, setEditForm] = useState<EventData | null>(null);
   const [saving, setSaving] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [changingVisibility, setChangingVisibility] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showHidden, setShowHidden] = useState(false);
@@ -168,6 +170,25 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     }
   };
 
+  const setHidden = async (hidden: boolean) => {
+    setError(null);
+    setChangingVisibility(true);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/visibility`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hidden }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Failed to change whether the event is hidden");
+      setEvent(body.event);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setChangingVisibility(false);
+    }
+  };
+
   const handleRevert = async () => {
     setError(null);
     setReverting(true);
@@ -226,11 +247,27 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Details</h2>
           {!editing && (
-            <button onClick={startEdit} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
-              Edit
-            </button>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                disabled={changingVisibility}
+                onClick={() => setHidden(!event.deleted_at)}
+                className="text-plum-600 dark:text-plum-400 hover:underline text-sm disabled:opacity-50"
+              >
+                {event.deleted_at ? "Show to members" : "Hide from members"}
+              </button>
+              <button onClick={startEdit} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
+                Edit
+              </button>
+            </div>
           )}
         </div>
+        {event.deleted_at && (
+          <div className="mb-4 p-3 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
+            Hidden: members don&apos;t see this event in Events, search or their calendar feed.
+            {event.calendar_event_id ? " The calendar sync leaves it hidden." : ""}
+          </div>
+        )}
 
         {event.calendar_event_id && (
           <div className="mb-4 p-3 rounded bg-plum-50 dark:bg-plum-900/20 text-sm">

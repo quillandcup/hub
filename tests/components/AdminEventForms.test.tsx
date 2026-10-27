@@ -32,6 +32,7 @@ const EVENT = {
   speakers: "Ada Example",
   calendar_event_id: null,
   overridden_fields: [] as string[],
+  deleted_at: null as string | null,
 };
 
 type Call = { url: string; method: string; body: Record<string, unknown> | undefined };

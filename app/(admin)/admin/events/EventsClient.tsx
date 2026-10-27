@@ -20,6 +20,7 @@ interface EventRow {
   starts_at: string;
   ends_at: string;
   photo_count: number;
+  deleted_at: string | null;
 }
 
 function slugify(title: string): string {
@@ -322,6 +323,7 @@ export default function EventsClient() {
                     </Link>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       {EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type}
+                      {event.deleted_at ? " · Hidden" : ""}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm">

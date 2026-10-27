@@ -51,7 +51,7 @@ describe("CalendarEventsClient", () => {
         items: [
           item("a", { prickleType: "Sprint Prickle", location: "Zoom" }),
           item("b", { needsType: true }),
-          item("c", { event: { id: "evt_AAAAAAAAAAA1", slug: "c" } }),
+          item("c", { event: { id: "evt_AAAAAAAAAAA1", slug: "c", hidden: false } }),
           item("d", { summary: null }),
         ],
         hasMore: false,
@@ -71,7 +71,7 @@ describe("CalendarEventsClient", () => {
   it("shows an item in Events and then links to its event", async () => {
     respond = (url, init) =>
       init?.method === "POST"
-        ? { body: { event: { id: "evt_AAAAAAAAAAA2", slug: "item-a" } } }
+        ? { body: { event: { id: "evt_AAAAAAAAAAA2", slug: "item-a", hidden: false } } }
         : { body: { items: [item("a")], hasMore: false } };
     render(<CalendarEventsClient />);
 

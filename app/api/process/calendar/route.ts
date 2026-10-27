@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { syncCalendarEvents } from "@/lib/calendar-events";
+import { ensureCalendarEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
 export const maxDuration = 300; // 5 minutes
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       createRepos(supabase).members.identities({ status: "active" }),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id, summary_aliases, names_guest_speaker"),
+      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id, summary_aliases, names_guest_speaker, listed_in_events"),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
@@ -142,6 +143,8 @@ export async function POST(request: NextRequest) {
     );
 
     // STEP 2: Process events in memory
+    // Upcoming calendar events of prickle types listed in Events: each gets an event (see ensureCalendarEvents).
+    const listedCalendarEventIds: string[] = [];
     const pricklesToInsert: any[] = [];
     const unmatchedEvents: any[] = [];
     let skippedNoSummary = 0;
@@ -250,6 +253,7 @@ export async function POST(request: NextRequest) {
       // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
       // without the "w/Host" tail; the calendar description comes along as plain text.
       const matchedType = prickleTypes?.find(t => t.id === typeId);
+      if (matchedType?.listed_in_events && new Date(event.end_time).getTime() >= clock.now()) listedCalendarEventIds.push(event.id);
 
       // "w/Name" is the host, except for types led by a guest speaker (educational): the type's default host runs those
       const { hostId: finalHostId, guestSpeaker } = assignHostAndSpeaker({
@@ -337,6 +341,7 @@ export async function POST(request: NextRequest) {
     // STEP 5: Events shown in Events (events rows that follow a calendar event) keep their dates, times
     // and any text an admin hasn't overridden in step with the calendar.
     const eventsSynced = await syncCalendarEvents(supabase, allEvents);
+    const eventsCreated = await ensureCalendarEvents(supabase, listedCalendarEventIds);
 
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
@@ -350,6 +355,7 @@ export async function POST(request: NextRequest) {
       autoResolved: autoResolvedCount,
       ignored: ignoredCount,
       eventsSynced,
+      eventsCreated,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);

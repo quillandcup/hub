@@ -103,7 +103,7 @@ export function slugify(text: string): string {
 type Db = SupabaseClient<Database>;
 
 export type ElevateResult =
-  | { ok: true; created: boolean; event: { id: string; slug: string } }
+  | { ok: true; created: boolean; event: { id: string; slug: string; hidden: boolean } }
   | { ok: false; status: 404 | 500; error: string };
 
 /**
@@ -111,9 +111,13 @@ export type ElevateResult =
  * already has). Its slug is the title and date, with a numeric suffix if another event has it.
  */
 export async function elevateCalendarEvent(db: Db, calendarEventId: string, userId: string | null): Promise<ElevateResult> {
-  const { data: existing, error: existingError } = await db.from("events").select("id, slug").eq("calendar_event_id", calendarEventId).maybeSingle();
-  if (existingError) return { ok: false, status: 500, error: existingError.message };
-  if (existing) return { ok: true, created: false, event: existing };
+  const existingEvent = async () => {
+    const { data, error } = await db.from("events").select("id, slug, deleted_at").eq("calendar_event_id", calendarEventId).maybeSingle();
+    return { error, event: data ? { id: data.id, slug: data.slug, hidden: !!data.deleted_at } : null };
+  };
+  const existing = await existingEvent();
+  if (existing.error) return { ok: false, status: 500, error: existing.error.message };
+  if (existing.event) return { ok: true, created: false, event: existing.event };
 
   const { data: source, error: sourceError } = await db
     .schema("bronze")
@@ -133,15 +137,42 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
       .insert({ ...fields, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId })
       .select("id, slug")
       .single();
-    if (!error) return { ok: true, created: true, event: data };
+    if (!error) return { ok: true, created: true, event: { ...data, hidden: false } };
     if (error.code === "23505" && error.message.includes("calendar_event_id")) {
       // Someone showed it a moment ago; return theirs.
-      const { data: theirs } = await db.from("events").select("id, slug").eq("calendar_event_id", calendarEventId).maybeSingle();
-      if (theirs) return { ok: true, created: false, event: theirs };
+      const theirs = await existingEvent();
+      if (theirs.event) return { ok: true, created: false, event: theirs.event };
     }
     if (error.code !== "23505") return { ok: false, status: 500, error: error.message };
   }
   return { ok: false, status: 500, error: "Could not find a free address for this event" };
+}
+
+/**
+ * Makes sure each of these calendar events has an event, creating the ones that don't (a hidden event
+ * counts as having one, so it stays hidden). Used by the calendar sync for items of prickle types listed
+ * in Events, so a recurring session needs no click. Returns how many it created.
+ */
+export async function ensureCalendarEvents(db: Db, calendarEventIds: string[]): Promise<number> {
+  if (calendarEventIds.length === 0) return 0;
+
+  const have = new Set<string>();
+  for (let i = 0; i < calendarEventIds.length; i += 100) {
+    const { data, error } = await db.from("events").select("calendar_event_id").in("calendar_event_id", calendarEventIds.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) if (row.calendar_event_id) have.add(row.calendar_event_id);
+  }
+  const missing = calendarEventIds.filter((id) => !have.has(id));
+
+  let created = 0;
+  for (let i = 0; i < missing.length; i += 10) {
+    const results = await Promise.all(missing.slice(i, i + 10).map((id) => elevateCalendarEvent(db, id, null)));
+    for (const result of results) {
+      if (!result.ok) throw new Error(result.error);
+      if (result.created) created++;
+    }
+  }
+  return created;
 }
 
 /**
@@ -193,5 +224,5 @@ export interface CalendarListItem {
   /** Waiting in the unmatched-events queue for a type. */
   needsType: boolean;
   /** The events row that follows it, when it is shown in Events. */
-  event: { id: string; slug: string } | null;
+  event: { id: string; slug: string; hidden: boolean } | null;
 }

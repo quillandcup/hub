@@ -247,7 +247,7 @@ async function addPrickleToMyCalendarImpl(prickleId: string, mode: "once" | "wee
 /** Add an event (e.g. a retreat) to the acting member's calendar feed. */
 async function addEventToMyCalendarImpl(eventId: string): Promise<ItemResult> {
   const supabase = await createClient();
-  const { data: event } = await supabase.from("events").select("id").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase.from("events").select("id").eq("id", eventId).is("deleted_at", null).maybeSingle();
   if (!event) return { error: "That event couldn't be found." };
   return addItem({ kind: "event", event_id: event.id });
 }

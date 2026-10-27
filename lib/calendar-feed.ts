@@ -531,6 +531,7 @@ async function loadAddedItems(
       .from("events")
       .select("id, slug, title, location, starts_at, ends_at")
       .in("id", eventIds)
+      .is("deleted_at", null)
       .gte("ends_at", since.toISOString().slice(0, 10));
     if (eventError) throw new Error(eventError.message);
     return (eventRows ?? []).map((e) => ({
