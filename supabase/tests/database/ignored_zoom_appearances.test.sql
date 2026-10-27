@@ -1,4 +1,4 @@
--- pgTAP tests for ignored_zoom_appearances (20270105000000): a Zoom name ignored for one prickle
+-- pgTAP tests for ignored_zoom_appearances (20270120000000): a Zoom name ignored for one prickle
 -- only. Admins read and write it, members can't, a name is ignored once per prickle, and the
 -- rows go with their prickle. Runs in one transaction that is rolled back.
 -- Run with `pnpm test:pgtap`.
