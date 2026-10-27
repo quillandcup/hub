@@ -10,6 +10,9 @@ export type WritingContractContext = {
   memberIds: readonly [string, string];
   /** A prickle entries can be logged against. */
   prickleId: string;
+  /** The name of that prickle's type and of its host (the second member). */
+  prickleTypeName: string;
+  prickleHostName: string;
   /** Replaces the two members' projects, goals and entries with these; returns each project's id by its key. */
   seed: (data: { projects?: SeedProject[]; goals?: SeedGoal[]; entries?: SeedEntry[] }) => Promise<Record<string, string>>;
 };
@@ -366,6 +369,180 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(rows.map((r) => `${r.member_id}|${r.prickle_id}|${r.project_id}`).sort()).toEqual([`${a}|${ctx.prickleId}|${ids.p}`, `${b}|${ctx.prickleId}|${ids.theirs}`].sort());
       expect(await ctx.repo().loggedAgainstPrickles([a], [ctx.prickleId])).toHaveLength(1);
     });
+    });
+
+    // --- projects and starting balances ---
+
+    it("creates a project, lists it with its columns and finds it by id for its owner only", async () => {
+      const [a, b] = ctx.memberIds;
+      await ctx.seed({});
+
+      const id = await ctx.repo().createProject(a, "Fresh Start", "planning");
+
+      expect(await ctx.repo().projectSummaries(a)).toEqual([
+        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: false, cover_url: null, description: null },
+      ]);
+      expect((await ctx.repo().projectSummary(a, id))?.title).toBe("Fresh Start");
+      expect(await ctx.repo().projectSummary(b, id)).toBeNull();
+      expect(await ctx.repo().projectSummaries(b)).toEqual([]);
+    });
+
+    it("lists active projects newest first and still finds an archived one by id", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Shelved", archived: true, createdAt: "2026-05-01T10:00:00Z" },
+        ],
+      });
+
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["New", "Old"]);
+      expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
+    });
+
+    it("changes only the given fields of the member's own project", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "Before", createdAt: "2026-01-01T10:00:00Z" }] });
+
+      await ctx.repo().updateProject(a, ids.p, { title: "After", description: "About it", cover_url: "https://example.test/c.jpg", show_on_profile: true, phase: "revising" });
+      await ctx.repo().updateProject(b, ids.p, { title: "Hijacked" });
+      await ctx.repo().updateProject(a, ids.p, { description: null });
+
+      expect(await ctx.repo().projectSummary(a, ids.p)).toMatchObject({
+        title: "After",
+        description: null,
+        cover_url: "https://example.test/c.jpg",
+        show_on_profile: true,
+        phase: "revising",
+      });
+    });
+
+    it("lists a member's entries, and one project's entries newest date first with the prickle's type and host", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
+          { key: "theirs", member: 1, title: "T", createdAt: "2026-01-03T10:00:00Z" },
+        ],
+        entries: [
+          { member: 0, project: "p", entryDate: "2026-02-01", measure: "words", mode: "delta", amount: 10, createdAt: "2026-02-01T10:00:00Z" },
+          { member: 0, project: "p", entryDate: "2026-02-03", measure: "pages", mode: "set_total", amount: 4, createdAt: "2026-02-03T10:00:00Z", prickle: true, note: "n", tags: ["x"] },
+          { member: 0, project: "q", entryDate: "2026-02-02", measure: "words", mode: "delta", amount: 7, createdAt: "2026-02-02T10:00:00Z" },
+          { member: 1, project: "theirs", entryDate: "2026-02-02", measure: "words", mode: "delta", amount: 99, createdAt: "2026-02-02T10:00:00Z" },
+        ],
+      });
+
+      expect((await ctx.repo().projectEntries(a)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([4, 7, 10]);
+      expect((await ctx.repo().projectEntries(b)).map((e) => e.amount)).toEqual([99]);
+
+      const detailed = await ctx.repo().projectEntriesWithPrickles(a, ids.p);
+      expect(detailed.map((e) => e.entry_date)).toEqual(["2026-02-03", "2026-02-01"]);
+      expect(detailed[0]).toMatchObject({
+        project_id: ids.p,
+        measure: "pages",
+        mode: "set_total",
+        amount: 4,
+        note: "n",
+        tags: ["x"],
+        prickle_id: ctx.prickleId,
+        prickle: { id: ctx.prickleId, host: { name: ctx.prickleHostName, display_name: null }, type: { name: ctx.prickleTypeName } },
+      });
+      expect(detailed[1]).toMatchObject({ prickle_id: null, prickle: null });
+      expect(await ctx.repo().projectEntriesWithPrickles(b, ids.p)).toEqual([]);
+    });
+
+    it("lists the goals in play, optionally one project's", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
+        ],
+        goals: [
+          { member: 0, project: "p", measure: "words" },
+          { member: 0, project: "q", measure: "pages" },
+          { member: 0, project: "p", measure: "scenes", archived: true },
+          { member: 1, measure: "words" },
+        ],
+      });
+
+      expect((await ctx.repo().projectGoals(a)).map((g) => g.measure).sort()).toEqual(["pages", "words"]);
+      const ofP = await ctx.repo().projectGoals(a, ids.p);
+      expect(ofP).toEqual([
+        expect.objectContaining({ project_id: ids.p, measure: "words", goal_type: "target", is_starred: false, show_on_profile: false, title: null, description: null }),
+      ]);
+      expect((await ctx.repo().projectGoals(b)).map((g) => g.project_id)).toEqual([null]);
+    });
+
+    it("sets, changes and clears starting balances", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
+        ],
+      });
+      expect(await ctx.repo().startingBalance(a, ids.p, "words")).toBeNull();
+
+      await ctx.repo().replaceStartingBalances(a, ids.p, [{ measure: "words", amount: 5000 }, { measure: "pages", amount: 12 }], ["scenes"]);
+      await ctx.repo().replaceStartingBalances(a, ids.q, [{ measure: "words", amount: 1 }], []);
+      expect(await ctx.repo().startingBalances(a, ids.p)).toEqual([
+        { project_id: ids.p, measure: "pages", amount: 12 },
+        { project_id: ids.p, measure: "words", amount: 5000 },
+      ]);
+      expect(await ctx.repo().startingBalances(a)).toHaveLength(3);
+      expect(await ctx.repo().startingBalances(b)).toEqual([]);
+      expect(await ctx.repo().startingBalance(a, ids.p, "words")).toBe(5000);
+
+      await ctx.repo().replaceStartingBalances(a, ids.p, [{ measure: "words", amount: 6000 }], ["pages"]);
+      expect(await ctx.repo().startingBalances(a, ids.p)).toEqual([{ project_id: ids.p, measure: "words", amount: 6000 }]);
+      expect(await ctx.repo().startingBalance(a, ids.p, "pages")).toBeNull();
+      expect(await ctx.repo().startingBalances(a, ids.q)).toHaveLength(1);
+    });
+
+    it("imports projects, balances, entries and goals once, skipping what is already there", async () => {
+      const [a, b] = ctx.memberIds;
+      await ctx.seed({});
+      const repo = ctx.repo();
+      const tag = (s: string) => `trackbear:${s}-${a}`;
+
+      const project = (externalId: string, member = a) => ({ member_id: member, external_id: externalId, title: `Imported ${externalId}`, phase: "drafting", created_at: "2025-01-01T10:00:00Z" });
+      const first = await repo.importProjects([project(tag("p1")), project(tag("p2"))]);
+      expect(first.map((p) => p.external_id).sort()).toEqual([tag("p1"), tag("p2")]);
+      const again = await repo.importProjects([project(tag("p1")), project(tag("p3"))]);
+      expect(again.map((p) => p.external_id)).toEqual([tag("p3")]);
+      await repo.importProjects([project(tag("p1"), b)]);
+      await repo.createProject(a, "Native", "drafting");
+
+      const imported = await repo.importedProjects(a);
+      expect(imported.map((p) => p.external_id).sort()).toEqual([tag("p1"), tag("p2"), tag("p3")]);
+      expect(await repo.importedProjects(b)).toHaveLength(1);
+      const p1 = imported.find((p) => p.external_id === tag("p1"))!.id;
+
+      await repo.importStartingBalances([{ project_id: p1, member_id: a, measure: "words", amount: 100 }]);
+      expect(await repo.startingBalances(a, p1)).toEqual([{ project_id: p1, measure: "words", amount: 100 }]);
+      await expect(repo.importStartingBalances([{ project_id: p1, member_id: a, measure: "words", amount: 1 }])).rejects.toThrow();
+
+      const entry = (externalId: string) => ({ member_id: a, project_id: p1, external_id: externalId, entry_date: "2025-02-01", measure: "words", mode: "delta", amount: 5, note: null, tags: ["t"], created_at: "2025-02-01T10:00:00Z" });
+      expect(await repo.importEntries([entry(tag("e1")), entry(tag("e2"))])).toBe(2);
+      expect(await repo.importEntries([entry(tag("e1")), entry(tag("e3"))])).toBe(1);
+      expect((await repo.importedEntryExternalIds(a)).sort()).toEqual([tag("e1"), tag("e2"), tag("e3")]);
+      expect(await repo.importedEntryExternalIds(b)).toEqual([]);
+
+      const goal = (externalId: string) => ({ member_id: a, project_id: p1, external_id: externalId, goal_type: "target", measure: "words", target_amount: 1000, created_at: "2025-02-01T10:00:00Z" });
+      expect(await repo.importGoals([goal(tag("g1")), goal(tag("g2"))])).toBe(2);
+      expect(await repo.importGoals([goal(tag("g1"))])).toBe(0);
+      expect((await repo.importedGoals(a)).map((g) => ({ ...g })).sort((x, y) => (x.external_id < y.external_id ? -1 : 1))).toEqual([
+        { external_id: tag("g1"), title: null, description: null },
+        { external_id: tag("g2"), title: null, description: null },
+      ]);
+
+      expect(await repo.backfillGoalDetails(a, tag("g1"), { title: "Named", description: null, show_on_profile: true })).toBe(1);
+      expect(await repo.backfillGoalDetails(a, tag("g1"), { title: "Renamed", description: null, show_on_profile: true })).toBe(0);
+      expect(await repo.backfillGoalDetails(a, tag("nope"), { title: "X", description: null, show_on_profile: true })).toBe(0);
+      expect((await repo.importedGoals(a)).find((g) => g.external_id === tag("g1"))?.title).toBe("Named");
     });
   });
 }

@@ -6,15 +6,25 @@ const memberIds = ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"] as const;
 const prickleId = "prkl_AAAAAAAAAAA1";
 
 defineWritingContract("InMemoryWritingRepository", () => {
-  const data = new InMemoryDataset();
+  const data = new InMemoryDataset({
+    members: [
+      { id: memberIds[0], name: "Writing Member 0" },
+      { id: memberIds[1], name: "Writing Member 1" },
+    ],
+    prickleTypes: [{ id: "ptyp_AAAAAAAAAAA1", name: "Writing Contract", normalizedName: "writing-contract", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
+    prickles: [{ id: prickleId, typeId: "ptyp_AAAAAAAAAAA1", hostId: memberIds[1], title: null, startTime: "2097-01-01T09:00:00Z", endTime: "2097-01-01T10:00:00Z", source: "calendar", calendarEventId: null }],
+  });
   let n = 0;
   return {
     memberIds,
     prickleId,
+    prickleTypeName: "Writing Contract",
+    prickleHostName: "Writing Member 1",
     repo: () => new InMemoryWritingRepository(data),
     seed: async ({ projects = [], goals = [], entries = [] }) => {
       const ids: Record<string, string> = {};
-      data.writingProjects = projects.map((p) => {
+      data.writingBalances = [];
+      data.writingProjects =projects.map((p) => {
         ids[p.key] = `wprj_${++n}`;
         return {
           id: ids[p.key],

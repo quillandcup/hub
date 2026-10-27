@@ -27,10 +27,11 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   push_subscriptions: [],
   member_reminder_log: [],
   // Writing (WritingRepository): the dashboard, onboarding, check-in, Slack quick log and CSV export are
-  // moved; the project/goal/entry editing and the Trackbear import are still to move.
-  writing_projects: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
-  writing_goals: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
-  writing_progress_entries: ["app/(member)/projects/actions.ts", "lib/trackbear-import-runner.ts"],
+  // moved, and so are project, goal and entry editing and the Trackbear import.
+  writing_projects: [],
+  writing_project_starting_balances: [],
+  writing_goals: [],
+  writing_progress_entries: [],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

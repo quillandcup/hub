@@ -6,6 +6,29 @@ import type { InMemoryDataset } from "./in-memory";
 export type WritingProjectRow = Row<"writing_projects">;
 export type WritingGoalRow = Row<"writing_goals">;
 export type WritingEntryRow = Row<"writing_progress_entries">;
+export type WritingBalanceRow = Row<"writing_project_starting_balances">;
+
+// --- projects and starting balances: shapes ---
+
+/** A project with the columns the projects pages show. */
+export type ProjectSummary = Pick<WritingProjectRow, "id" | "title" | "phase" | "created_at" | "show_on_profile" | "cover_url" | "description">;
+/** An entry with the columns the project totals need. */
+export type ProjectEntry = Pick<WritingEntryRow, "id" | "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags" | "created_at">;
+/** The prickle an entry was logged against, with its type and host joined in. */
+export interface EntryPrickle {
+  id: string;
+  start_time: string;
+  host: { name: string | null; display_name: string | null } | null;
+  type: { name: string | null } | null;
+}
+export type ProjectEntryDetail = ProjectEntry & { prickle_id: string | null; prickle: EntryPrickle | null };
+export type ProjectGoal = GoalColumns;
+export type StartingBalance = Pick<WritingBalanceRow, "project_id" | "measure" | "amount">;
+export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "show_on_profile" | "phase">>;
+
+const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_url, description";
+const ENTRY_COLUMNS = "id, project_id, entry_date, measure, mode, amount, note, tags, created_at";
+const IMPORT_PREFIX = "trackbear:%";
 
 /** A project as a picker lists it. */
 export interface ProjectChoice {
@@ -185,6 +208,49 @@ export interface WritingRepository {
   recentProjectMeasures(memberId: string, projectId: string, limit: number): Promise<string[]>;
   /** Which of these members logged against which of these prickles, in which project; every row, past 1000. */
   loggedAgainstPrickles(memberIds: string[], prickleIds: string[]): Promise<LoggedAgainstPrickle[]>;
+
+
+  // --- projects and starting balances ---
+
+  /** The member's projects that aren't archived, newest first, with the columns the projects pages show. */
+  projectSummaries(memberId: string): Promise<ProjectSummary[]>;
+  /** One of the member's projects (archived or not), or null when it isn't theirs or doesn't exist. */
+  projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;
+  /** Every entry the member logged, in no particular order (all pages). */
+  projectEntries(memberId: string): Promise<ProjectEntry[]>;
+  /** One project's entries, newest date first, each with the prickle it was logged against (type and host joined). */
+  projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]>;
+  /** The member's goals that aren't archived, optionally one project's. */
+  projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]>;
+  /** The member's starting balances, optionally one project's. */
+  startingBalances(memberId: string, projectId?: string): Promise<StartingBalance[]>;
+  /** The amount of one project's starting balance for a measure, or null when there is none. */
+  startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null>;
+  /** Creates a project and returns its id. */
+  createProject(memberId: string, title: string, phase: string): Promise<string>;
+  /** Changes the given fields of the member's project (a project that isn't theirs is left alone). */
+  updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void>;
+  /** Sets the starting balance of each `set` measure and removes those of the `clear` measures. */
+  replaceStartingBalances(memberId: string, projectId: string, set: { measure: string; amount: number }[], clear: string[]): Promise<void>;
+
+  // --- importing from another tracker (rows carry external ids, unique per member) ---
+
+  /** The member's imported projects (external id starting `trackbear:`). */
+  importedProjects(memberId: string): Promise<{ id: string; external_id: string }[]>;
+  /** External ids of the member's imported entries. */
+  importedEntryExternalIds(memberId: string): Promise<string[]>;
+  /** External ids, titles and descriptions of the member's imported goals. */
+  importedGoals(memberId: string): Promise<{ external_id: string; title: string | null; description: string | null }[]>;
+  /** Inserts projects, skipping ones whose (member, external id) exists; returns only those inserted. */
+  importProjects(rows: Insert<"writing_projects">[]): Promise<{ id: string; external_id: string }[]>;
+  /** Inserts starting balances. */
+  importStartingBalances(rows: Insert<"writing_project_starting_balances">[]): Promise<void>;
+  /** Inserts entries, skipping ones whose (member, external id) exists; returns how many were inserted. */
+  importEntries(rows: Insert<"writing_progress_entries">[]): Promise<number>;
+  /** Inserts goals, skipping ones whose (member, external id) exists; returns how many were inserted. */
+  importGoals(rows: Insert<"writing_goals">[]): Promise<number>;
+  /** Fills in an imported goal's title, description and profile visibility when it has neither title nor description; returns how many rows changed (0 or 1). */
+  backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }): Promise<number>;
 }
 
 export class SupabaseWritingRepository implements WritingRepository {
@@ -466,6 +532,176 @@ export class SupabaseWritingRepository implements WritingRepository {
     );
     return rows.map((r) => ({ member_id: r.member_id, prickle_id: r.prickle_id as string, project_id: r.project_id }));
   }
+
+  // --- projects and starting balances ---
+
+  async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
+    const { data, error } = await this.db
+      .from("writing_projects")
+      .select(SUMMARY_COLUMNS)
+      .eq("member_id", memberId)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
+    const { data, error } = await this.db.from("writing_projects").select(SUMMARY_COLUMNS).eq("id", projectId).eq("member_id", memberId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async projectEntries(memberId: string): Promise<ProjectEntry[]> {
+    return fetchAllRows<ProjectEntry>((from, to) =>
+      this.db.from("writing_progress_entries").select(ENTRY_COLUMNS).eq("member_id", memberId).order("id").range(from, to),
+    );
+  }
+
+  async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
+    const rows = await fetchAllRows((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select(`${ENTRY_COLUMNS}, prickle_id, prickle:prickles(id, start_time, host:prickle_host(name, display_name), prickle_types:type_id(name))`)
+        .eq("project_id", projectId)
+        .eq("member_id", memberId)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+    );
+    const one = <T>(ref: T | T[] | null | undefined): T | null => (Array.isArray(ref) ? ref[0] : ref) ?? null;
+    return rows.map(({ prickle, ...entry }) => {
+      const p = one(prickle);
+      return { ...entry, prickle: p ? { id: p.id, start_time: p.start_time, host: one(p.host), type: one(p.prickle_types) } : null };
+    });
+  }
+
+  async projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]> {
+    return fetchAllRows<ProjectGoal>((from, to) => {
+      let query = this.db.from("writing_goals").select(GOAL_COLUMNS).eq("member_id", memberId).is("archived_at", null);
+      if (projectId) query = query.eq("project_id", projectId);
+      return query.order("id").range(from, to);
+    });
+  }
+
+  async startingBalances(memberId: string, projectId?: string): Promise<StartingBalance[]> {
+    return fetchAllRows<StartingBalance>((from, to) => {
+      let query = this.db.from("writing_project_starting_balances").select("project_id, measure, amount").eq("member_id", memberId);
+      if (projectId) query = query.eq("project_id", projectId);
+      return query.order("project_id").order("measure").range(from, to);
+    });
+  }
+
+  async startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null> {
+    const { data, error } = await this.db
+      .from("writing_project_starting_balances")
+      .select("amount")
+      .eq("project_id", projectId)
+      .eq("member_id", memberId)
+      .eq("measure", measure)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.amount ?? null;
+  }
+
+  async createProject(memberId: string, title: string, phase: string): Promise<string> {
+    const { data, error } = await this.db.from("writing_projects").insert({ member_id: memberId, title, phase }).select("id").single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  }
+
+  async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
+    const { error } = await this.db.from("writing_projects").update(patch).eq("id", projectId).eq("member_id", memberId);
+    if (error) throw new Error(error.message);
+  }
+
+  async replaceStartingBalances(memberId: string, projectId: string, set: { measure: string; amount: number }[], clear: string[]): Promise<void> {
+    if (set.length > 0) {
+      const { error } = await this.db
+        .from("writing_project_starting_balances")
+        .upsert(set.map(({ measure, amount }) => ({ project_id: projectId, member_id: memberId, measure, amount })), { onConflict: "project_id,measure" });
+      if (error) throw new Error(error.message);
+    }
+    if (clear.length > 0) {
+      const { error } = await this.db
+        .from("writing_project_starting_balances")
+        .delete()
+        .eq("project_id", projectId)
+        .eq("member_id", memberId)
+        .in("measure", clear);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  // --- importing from another tracker ---
+
+  async importedProjects(memberId: string) {
+    const rows = await fetchAllRows<{ id: string; external_id: string | null }>((from, to) =>
+      this.db.from("writing_projects").select("id, external_id").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+    );
+    return rows.map((r) => ({ id: r.id, external_id: r.external_id! }));
+  }
+
+  async importedEntryExternalIds(memberId: string) {
+    const rows = await fetchAllRows<{ external_id: string | null }>((from, to) =>
+      this.db.from("writing_progress_entries").select("external_id").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+    );
+    return rows.map((r) => r.external_id!);
+  }
+
+  async importedGoals(memberId: string) {
+    const rows = await fetchAllRows<{ external_id: string | null; title: string | null; description: string | null }>((from, to) =>
+      this.db.from("writing_goals").select("external_id, title, description").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+    );
+    return rows.map((r) => ({ ...r, external_id: r.external_id! }));
+  }
+
+  async importProjects(rows: Insert<"writing_projects">[]) {
+    const { data, error } = await this.db
+      .from("writing_projects")
+      .upsert(rows, { onConflict: "member_id,external_id", ignoreDuplicates: true })
+      .select("id, external_id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ id: r.id, external_id: r.external_id! }));
+  }
+
+  async importStartingBalances(rows: Insert<"writing_project_starting_balances">[]) {
+    const { error } = await this.db.from("writing_project_starting_balances").insert(rows);
+    if (error) throw new Error(error.message);
+  }
+
+  async importEntries(rows: Insert<"writing_progress_entries">[]) {
+    const { data, error } = await this.db
+      .from("writing_progress_entries")
+      .upsert(rows, { onConflict: "member_id,external_id", ignoreDuplicates: true })
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
+  }
+
+  async importGoals(rows: Insert<"writing_goals">[]) {
+    const { data, error } = await this.db
+      .from("writing_goals")
+      .upsert(rows, { onConflict: "member_id,external_id", ignoreDuplicates: true })
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
+  }
+
+  async backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }) {
+    const { data, error } = await this.db
+      .from("writing_goals")
+      .update(details)
+      .eq("member_id", memberId)
+      .eq("external_id", externalId)
+      .is("title", null)
+      .is("description", null)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -672,4 +908,247 @@ export class InMemoryWritingRepository implements WritingRepository {
       .filter((e) => e.prickle_id && prickleIds.includes(e.prickle_id) && memberIds.includes(e.member_id))
       .map((e) => ({ member_id: e.member_id, prickle_id: e.prickle_id as string, project_id: e.project_id }));
   }
+
+  // --- projects and starting balances ---
+
+  private newId(prefix: string) {
+    return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  }
+
+  async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at)).map(summaryOf);
+  }
+
+  async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId);
+    return project ? summaryOf(project) : null;
+  }
+
+  async projectEntries(memberId: string): Promise<ProjectEntry[]> {
+    return this.data.writingEntries
+      .filter((e) => e.member_id === memberId)
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map(entryOf);
+  }
+
+  async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
+    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.project_id === projectId))
+      .sort((a, b) => (a.entry_date < b.entry_date ? 1 : a.entry_date > b.entry_date ? -1 : 0))
+      .map((e) => {
+        const prickle = e.prickle_id ? this.data.prickles.find((p) => p.id === e.prickle_id) : undefined;
+        const host = prickle?.hostId ? this.data.members.find((m) => m.id === prickle.hostId) : undefined;
+        const type = prickle?.typeId ? this.data.prickleTypes.find((t) => t.id === prickle.typeId) : undefined;
+        return {
+          ...entryOf(e),
+          prickle_id: e.prickle_id,
+          prickle: prickle
+            ? {
+                id: prickle.id,
+                start_time: prickle.startTime,
+                host: host ? { name: host.name, display_name: host.displayName ?? null } : null,
+                type: type ? { name: type.name } : null,
+              }
+            : null,
+        };
+      });
+  }
+
+  async projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]> {
+    return this.data.writingGoals
+      .filter((g) => g.member_id === memberId && !g.archived_at && (!projectId || g.project_id === projectId))
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map((g) => ({
+        id: g.id,
+        project_id: g.project_id,
+        goal_type: g.goal_type,
+        measure: g.measure,
+        target_amount: g.target_amount,
+        start_date: g.start_date,
+        end_date: g.end_date,
+        habit_period: g.habit_period,
+        habit_threshold: g.habit_threshold,
+        is_starred: g.is_starred,
+        title: g.title,
+        description: g.description,
+        show_on_profile: g.show_on_profile,
+      }));
+  }
+
+  async startingBalances(memberId: string, projectId?: string): Promise<StartingBalance[]> {
+    return this.data.writingBalances
+      .filter((b) => b.member_id === memberId && (!projectId || b.project_id === projectId))
+      .map(({ project_id, measure, amount }) => ({ project_id, measure, amount }))
+      .sort((a, b) => (a.project_id < b.project_id ? -1 : a.project_id > b.project_id ? 1 : a.measure < b.measure ? -1 : 1));
+  }
+
+  async startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null> {
+    return this.data.writingBalances.find((b) => b.member_id === memberId && b.project_id === projectId && b.measure === measure)?.amount ?? null;
+  }
+
+  async createProject(memberId: string, title: string, phase: string): Promise<string> {
+    const id = this.newId("wprj");
+    this.data.writingProjects.push({
+      id,
+      member_id: memberId,
+      title,
+      phase,
+      description: null,
+      cover_url: null,
+      external_id: null,
+      show_on_profile: false,
+      archived_at: null,
+      created_at: new Date().toISOString(),
+    });
+    return id;
+  }
+
+  async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId);
+    if (project) Object.assign(project, patch);
+  }
+
+  async replaceStartingBalances(memberId: string, projectId: string, set: { measure: string; amount: number }[], clear: string[]): Promise<void> {
+    for (const { measure, amount } of set) {
+      const existing = this.data.writingBalances.find((b) => b.project_id === projectId && b.measure === measure);
+      if (existing) existing.amount = amount;
+      else this.data.writingBalances.push({ project_id: projectId, member_id: memberId, measure, amount });
+    }
+    this.data.writingBalances = this.data.writingBalances.filter((b) => !(b.project_id === projectId && b.member_id === memberId && clear.includes(b.measure)));
+  }
+
+  // --- importing from another tracker ---
+
+  private imported<T extends { member_id: string; external_id: string | null }>(rows: T[], memberId: string) {
+    return rows.filter((r) => r.member_id === memberId && r.external_id?.startsWith("trackbear:"));
+  }
+
+  /** The rows not already present for their member and external id, nor repeated earlier in the batch. */
+  private fresh<T extends { member_id: string; external_id?: string | null }>(existing: { member_id: string; external_id: string | null }[], rows: T[]) {
+    const seen = new Set(existing.filter((r) => r.external_id).map((r) => `${r.member_id}|${r.external_id}`));
+    return rows.filter((r) => {
+      const key = `${r.member_id}|${r.external_id}`;
+      if (r.external_id && seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async importedProjects(memberId: string) {
+    return this.imported(this.data.writingProjects, memberId).map((p) => ({ id: p.id, external_id: p.external_id! }));
+  }
+
+  async importedEntryExternalIds(memberId: string) {
+    return this.imported(this.data.writingEntries, memberId).map((e) => e.external_id!);
+  }
+
+  async importedGoals(memberId: string) {
+    return this.imported(this.data.writingGoals, memberId).map((g) => ({ external_id: g.external_id!, title: g.title, description: g.description }));
+  }
+
+  async importProjects(rows: Insert<"writing_projects">[]) {
+    const created: { id: string; external_id: string }[] = [];
+    for (const r of this.fresh(this.data.writingProjects, rows)) {
+      const id = this.newId("wprj");
+      this.data.writingProjects.push({
+        id,
+        member_id: r.member_id,
+        title: r.title,
+        phase: r.phase ?? "drafting",
+        description: r.description ?? null,
+        cover_url: r.cover_url ?? null,
+        external_id: r.external_id ?? null,
+        show_on_profile: r.show_on_profile ?? false,
+        archived_at: null,
+        created_at: r.created_at ?? new Date().toISOString(),
+      });
+      if (r.external_id) created.push({ id, external_id: r.external_id });
+    }
+    return created;
+  }
+
+  async importStartingBalances(rows: Insert<"writing_project_starting_balances">[]) {
+    for (const r of rows) {
+      if (this.data.writingBalances.some((b) => b.project_id === r.project_id && b.measure === r.measure)) {
+        throw new Error("duplicate key value violates unique constraint");
+      }
+      this.data.writingBalances.push({ project_id: r.project_id, member_id: r.member_id, measure: r.measure, amount: r.amount });
+    }
+  }
+
+  async importEntries(rows: Insert<"writing_progress_entries">[]) {
+    const fresh = this.fresh(this.data.writingEntries, rows);
+    for (const r of fresh) {
+      this.data.writingEntries.push({
+        id: this.newId("wpe"),
+        member_id: r.member_id,
+        project_id: r.project_id,
+        entry_date: r.entry_date,
+        measure: r.measure,
+        mode: r.mode,
+        amount: r.amount,
+        note: r.note ?? null,
+        tags: r.tags ?? [],
+        prickle_id: r.prickle_id ?? null,
+        external_id: r.external_id ?? null,
+        created_at: r.created_at ?? new Date().toISOString(),
+      });
+    }
+    return fresh.length;
+  }
+
+  async importGoals(rows: Insert<"writing_goals">[]) {
+    const fresh = this.fresh(this.data.writingGoals, rows);
+    for (const r of fresh) {
+      this.data.writingGoals.push({
+        id: this.newId("wgol"),
+        member_id: r.member_id,
+        project_id: r.project_id ?? null,
+        goal_type: r.goal_type ?? "target",
+        measure: r.measure,
+        target_amount: r.target_amount ?? null,
+        start_date: r.start_date ?? null,
+        end_date: r.end_date ?? null,
+        habit_period: r.habit_period ?? null,
+        habit_threshold: r.habit_threshold ?? null,
+        is_starred: r.is_starred ?? false,
+        title: r.title ?? null,
+        description: r.description ?? null,
+        show_on_profile: r.show_on_profile ?? false,
+        external_id: r.external_id ?? null,
+        archived_at: null,
+        created_at: r.created_at ?? new Date().toISOString(),
+      });
+    }
+    return fresh.length;
+  }
+
+  async backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }) {
+    const goal = this.data.writingGoals.find((g) => g.member_id === memberId && g.external_id === externalId && g.title === null && g.description === null);
+    if (!goal) return 0;
+    Object.assign(goal, details);
+    return 1;
+  }
 }
+
+
+const summaryOf = (p: WritingProjectRow): ProjectSummary => ({
+  id: p.id,
+  title: p.title,
+  phase: p.phase,
+  created_at: p.created_at,
+  show_on_profile: p.show_on_profile,
+  cover_url: p.cover_url,
+  description: p.description,
+});
+
+const entryOf = (e: WritingEntryRow): ProjectEntry => ({
+  id: e.id,
+  project_id: e.project_id,
+  entry_date: e.entry_date,
+  measure: e.measure,
+  mode: e.mode,
+  amount: e.amount,
+  note: e.note,
+  tags: e.tags,
+  created_at: e.created_at,
+});
