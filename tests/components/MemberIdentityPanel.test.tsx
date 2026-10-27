@@ -326,6 +326,8 @@ describe("MemberIdentityPanel", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Reactivate pen name Edy Hackett" })).not.toBeInTheDocument();
+    // An inactive name can't be picked as the default: its chip is disabled, and Reactivate is the way back.
+    expect(screen.getByText("Old Zoom Name").closest("button")).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Reactivate pen name Old Zoom Name" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));

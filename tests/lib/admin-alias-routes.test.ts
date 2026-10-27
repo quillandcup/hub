@@ -350,4 +350,20 @@ describe("PATCH /api/admin/members/[id] -- switching a pen name", () => {
     expect(await res.json()).toEqual({ error: "That pen name isn't on file for this member" });
     expect(dataset.nameAliases[0].active).toBe(false);
   });
+
+  it("won't make an inactive pen name the default, and does once it is active", async () => {
+    dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "Fern Old", source: "zoom", active: false });
+
+    const refused = await patch(FERN.id, { displayName: "Fern Old" });
+
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: "That pen name is inactive. Reactivate it first." });
+    expect((await repos.members.byId(FERN.id))?.displayName ?? null).toBeNull();
+
+    await patch(FERN.id, { nameAlias: { id: "nal_1", active: true } });
+    const accepted = await patch(FERN.id, { displayName: "Fern Old" });
+
+    expect(accepted.status).toBe(200);
+    expect(await repos.members.byId(FERN.id)).toMatchObject({ displayName: "Fern Old" });
+  });
 });

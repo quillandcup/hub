@@ -112,6 +112,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!aliasRow) {
         return NextResponse.json({ error: "That pen name isn't on file for this member" }, { status: 400 });
       }
+      // An inactive name no longer matches anything, so it can't be what the community sees either.
+      if (!aliasRow.active) {
+        return NextResponse.json({ error: "That pen name is inactive. Reactivate it first." }, { status: 400 });
+      }
     }
 
     try {
