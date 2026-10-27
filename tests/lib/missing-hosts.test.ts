@@ -10,7 +10,7 @@ const prickle = (id: string, typeId: string | null, hostId: string | null, sourc
   id, typeId, hostId, title: null, source, calendarEventId: null, startTime: "2026-10-19T15:00:00Z", endTime: "2026-10-19T16:00:00Z",
 });
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" };
-const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", email: "fern@example.test" };
+const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", displayName: "Fernie", email: "fern@example.test" };
 
 describe("loadMissingHosts", () => {
   const repos = createInMemoryRepos(
@@ -49,5 +49,25 @@ describe("loadMissingHosts", () => {
 
     expect(coverage).toMatchObject({ total: 9, requiresHost: { withHost: 1, withoutHost: 3 }, optionalHost: { withHost: 1, withoutHost: 3 } });
     expect(members.map((m) => m.name)).toEqual(["Ada Example", "Fern Example"]); // not the cancelled one
+  });
+
+  it("gives the picker each member's display name, so searching it finds them", async () => {
+    const { members } = await loadMissingHosts(repos);
+
+    expect(members.map((m) => [m.name, m.displayName])).toEqual([["Ada Example", null], ["Fern Example", "Fernie"]]);
+  });
+
+  it("names a default host by display name", async () => {
+    const withDisplayHost = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [FERN],
+        prickleTypes: [type("t1", "Sprint", true, FERN.id)],
+        prickles: [prickle("p1", "t1", null)],
+      }),
+    );
+
+    const { stats } = await loadMissingHosts(withDisplayHost);
+
+    expect(stats[0]).toMatchObject({ defaultHostName: "Fernie" });
   });
 });

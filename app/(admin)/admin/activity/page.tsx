@@ -27,7 +27,7 @@ type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 // The picker needs every member (paginated by the repository).
 async function loadMembers(supabase: SupabaseServer) {
   const members = await createRepos(supabase).members.list({ orderBy: "name" });
-  return members.map((m) => ({ id: m.id, name: m.name, email: m.email, user_id: m.userId }));
+  return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
 }
 
 /**
@@ -84,7 +84,7 @@ export default async function ActivityLogPage({
       <ActivityFilters
         filters={filters}
         staff={staff}
-        members={members.map(({ id, name, email }) => ({ id, name, email }))}
+        members={members.map(({ id, name, displayName, email }) => ({ id, name, displayName, email }))}
         actorName={actorName}
         memberName={filters.memberId ? (members.find((m) => m.id === filters.memberId)?.name ?? null) : null}
       />

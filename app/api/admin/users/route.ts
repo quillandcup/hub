@@ -19,7 +19,7 @@ function getServiceClient() {
 // silently truncating to the first 1000 rows.
 async function fetchAllMembers(supabase: SupabaseClient) {
   const members = await createRepos(supabase).members.list();
-  return members.map((m) => ({ id: m.id, name: m.name, email: m.email, user_id: m.userId }));
+  return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
 }
 
 export async function GET(request: NextRequest) {

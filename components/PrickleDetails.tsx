@@ -72,9 +72,9 @@ export default function PrickleDetails({
 }: PrickleDetailsProps) {
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
-    // Sort by the name the column shows: the legal name for admins, the display name otherwise.
+    // Sort by the name the column shows.
     getSortValue: (record, column) =>
-      column === "member" && record.members && !showMemberEmails
+      column === "member" && record.members
         ? getMemberDisplayName(record.members).toLowerCase()
         : getSortValue(record, column),
     defaultSort: null,
@@ -163,7 +163,7 @@ export default function PrickleDetails({
               {hostMember ? (
                 <>
                   <Link data-track="prickle-open-host" href={`${memberBasePath}/${hostMember.id}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                    {showMemberEmails ? hostMember.name : getMemberDisplayName({ name: hostMember.name, display_name: hostMember.displayName })}
+                    {getMemberDisplayName({ name: hostMember.name, display_name: hostMember.displayName })}
                   </Link>
                   {(hostMissing || hostLate) && (
                     <span className="ml-2" title={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
@@ -288,11 +288,11 @@ export default function PrickleDetails({
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
                         <Link data-track="prickle-open-attendee" href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                          {showMemberEmails ? member.name : getMemberDisplayName(member)}
+                          {getMemberDisplayName(member)}
                         </Link>
                         {showMemberEmails && (
                           <div className="text-xs text-slate-600 dark:text-slate-400">
-                            {member.email}
+                            {[getMemberDisplayName(member) !== member.name ? member.name : null, member.email].filter(Boolean).join(" · ")}
                           </div>
                         )}
                       </td>

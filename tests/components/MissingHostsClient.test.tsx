@@ -26,7 +26,7 @@ const data: MissingHostsData = {
     { typeId: "t2", typeName: "Chat", requiresHost: false, missingCount: 3, defaultHostId: null, defaultHostName: null },
   ],
   coverage: { total: 20, requiresHost: { withHost: 6, withoutHost: 4 }, optionalHost: { withHost: 7, withoutHost: 3 } },
-  members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" }],
+  members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: null, email: "ada@example.test" }],
 };
 
 const renderPage = () =>

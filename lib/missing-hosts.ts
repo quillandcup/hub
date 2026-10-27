@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { Repos } from "@/lib/data/repos";
 import type { HostCoverage } from "@/lib/data/prickles";
 
@@ -19,7 +20,7 @@ export type MissingHostsData = {
   stats: UnhostedTypeStat[];
   coverage: HostCoverage;
   /** Active members, to pick a default host from. */
-  members: { id: string; name: string; email: string }[];
+  members: { id: string; name: string; displayName: string | null; email: string }[];
 };
 
 /** What the Prickles Missing Hosts page shows, read through the repositories. */
@@ -33,7 +34,7 @@ export async function loadMissingHosts(repos: Pick<Repos, "prickles" | "members"
 
   const typesWithGaps = types.filter((t) => counts.has(t.id));
   const defaultHosts = await repos.members.byIds([...new Set(typesWithGaps.map((t) => t.defaultHostId).filter((id): id is string => !!id))]);
-  const hostName = new Map(defaultHosts.map((m) => [m.id, m.name]));
+  const hostName = new Map(defaultHosts.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
 
   const stats = typesWithGaps
     .map((t) => ({
@@ -47,5 +48,5 @@ export async function loadMissingHosts(repos: Pick<Repos, "prickles" | "members"
     // Types that need a host first, then the ones with the most gaps.
     .sort((a, b) => (a.requiresHost === b.requiresHost ? b.missingCount - a.missingCount : a.requiresHost ? -1 : 1));
 
-  return { stats, coverage, members: activeMembers.map(({ id, name, email }) => ({ id, name, email })) };
+  return { stats, coverage, members: activeMembers.map(({ id, name, displayName, email }) => ({ id, name, displayName, email })) };
 }
