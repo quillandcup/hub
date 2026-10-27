@@ -19,7 +19,7 @@ vi.mock("@/lib/data/repos", async () => ({
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import type { Prickle } from "@/lib/data/prickles";
-import { dismissUnloggedPrickle, getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
+import { dismissUnloggedPrickle, getMyEntriesForPrickle, getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -40,7 +40,7 @@ function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown =
         return Promise.resolve({ error: upsertError });
       },
     };
-    for (const method of ["select", "eq", "gte", "not", "in", "is", "update"]) {
+    for (const method of ["select", "eq", "gte", "not", "in", "is", "update", "order"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
         return builder;
@@ -130,5 +130,57 @@ describe("dismissUnloggedPrickle", () => {
   it("rejects a missing prickle id", async () => {
     makeQueryFake({});
     expect(await dismissUnloggedPrickle("")).toEqual({ error: "Invalid prickle" });
+  });
+});
+
+describe("prickle labels name the host by display name", () => {
+  it("on the dashboard's unlogged prickles", async () => {
+    const start = new Date(Date.now() - 3 * 3600_000).toISOString();
+    const row = attended("p-open", start);
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "mbr_AAAAAAAAAAA2", name: "Laura May Best", displayName: "Bestie" }],
+        prickleTypes: [SPRINT],
+        prickles: [{ ...row.prickle, hostId: "mbr_AAAAAAAAAAA2" }],
+        attendance: [row.attendance],
+      }),
+    );
+    makeQueryFake({ writing_progress_entries: [], prickle_checkout_dismissals: [], prickle_checkins: [] });
+
+    const [option] = await getUnloggedRecentPrickles();
+
+    expect(option.label).toMatch(/Sprint with Bestie$/);
+  });
+
+  it("on a prickle's progress entries, from the embedded host (display name, else the legal name, else none)", async () => {
+    const entry = (id: string, host: unknown) => ({
+      id,
+      project_id: "proj-1",
+      entry_date: "2026-10-20",
+      measure: "words",
+      mode: "add",
+      amount: 500,
+      note: null,
+      tags: [],
+      created_at: "2026-10-20T16:00:00Z",
+      prickle_id: "p-1",
+      prickle: { id: "p-1", start_time: "2026-10-20T15:00:00Z", host, prickle_types: { name: "Sprint" } },
+      writing_projects: { title: "Novel" },
+    });
+    makeQueryFake({
+      writing_progress_entries: [
+        entry("e1", { name: "Laura May Best", display_name: "Bestie" }),
+        entry("e2", { name: "Ann Example", display_name: null }),
+        entry("e3", null),
+      ],
+    });
+
+    const rows = await getMyEntriesForPrickle("p-1");
+
+    expect(rows.map((r) => r.prickleLabel)).toEqual([
+      "Tue, Oct 20 · 3:00 PM · Sprint with Bestie",
+      "Tue, Oct 20 · 3:00 PM · Sprint with Ann",
+      "Tue, Oct 20 · 3:00 PM · Sprint",
+    ]);
   });
 });

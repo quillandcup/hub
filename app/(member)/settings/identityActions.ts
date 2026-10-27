@@ -152,8 +152,8 @@ async function setDisplayNameImpl(alias: string | null): Promise<{ success: true
 }
 
 /**
- * Display name typed by hand: makes sure it's one of the member's active pen names (adding or
- * reactivating it), then chooses it. Typing the Real Name just clears the display name.
+ * Display name typed by hand: makes sure it's one of the member's active pen names (adding it; a
+ * deactivated one is for support to turn back on), then chooses it. Typing the Real Name just clears the display name.
  */
 async function setCustomDisplayNameImpl(name: string): Promise<{ success: true } | { error: string }> {
   const ctx = await requireIdentity();
@@ -173,8 +173,9 @@ async function setCustomDisplayNameImpl(name: string): Promise<{ success: true }
     const added = await addNameAliasImpl(trimmed);
     if ("error" in added) return added;
   } else if (!existing.active) {
-    const reactivated = await setNameAliasActive(existing.id, true);
-    if ("error" in reactivated) return reactivated;
+    // Members can't switch a name back on (an admin does, through support): it stops matching attendance
+    // when it is off, so turning it on again changes what the next reprocess attributes to them.
+    return { error: MEMBER_NAME_ALIAS_CONFLICT_MESSAGES.own_inactive };
   }
 
   return setDisplayNameImpl(trimmed);
@@ -245,38 +246,6 @@ async function addNameAliasImpl(alias: string): Promise<{ success: true } | { er
   // shows up without waiting for the next scheduled reprocess. Runs after
   // the response is sent so the member isn't stuck waiting on it.
   after(() => triggerReprocessing("member_name_aliases", "local"));
-
-  revalidatePath("/settings", "layout");
-  return { success: true };
-}
-
-async function setNameAliasActive(
-  id: string,
-  active: boolean
-): Promise<{ success: true } | { error: string }> {
-  const ctx = await requireIdentity();
-  if ("error" in ctx) return ctx;
-  const { supabase, effectiveIdentity } = ctx;
-
-  // RLS scopes this to the acting member's own rows (or an admin's, during
-  // sudo) -- a zero-row result means the id didn't belong to them, not a
-  // silent no-op. This is always a soft toggle (active flag), never a hard
-  // delete -- see the migration comment for why.
-  let found: boolean;
-  try {
-    found = await createRepos(supabase).aliases.setNameActive(effectiveIdentity.memberId, id, active);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Alias not found" };
-  }
-  if (!found) return { error: "Alias not found" };
-
-  // Reactivating backfills recent matching, same as adding a new one.
-  // Deactivating intentionally does NOT trigger reprocessing -- the whole
-  // point of the soft delete is that existing historical attendance stays
-  // untouched until it's naturally reprocessed for other reasons.
-  if (active) {
-    after(() => triggerReprocessing("member_name_aliases", "local"));
-  }
 
   revalidatePath("/settings", "layout");
   return { success: true };

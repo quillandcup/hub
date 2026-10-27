@@ -46,7 +46,7 @@ export async function findNameAliasConflict(
 /** For the member adding their own name: never says whose it is. */
 export const MEMBER_NAME_ALIAS_CONFLICT_MESSAGES: Record<NameAliasConflictKind, string> = {
   own: "That name is already on your list.",
-  own_inactive: "That name is already on your list, switched off. Turn it back on there instead.",
+  own_inactive: `That name is already on your list, but it was deactivated. Contact support at ${SUPPORT_EMAIL} to use it.`,
   other_alias: `Another member already uses that name in Zoom or Slack, so it can't be added here. If it's really yours, email ${SUPPORT_EMAIL}.`,
   other_name: `That's another member's name, so it can't be added as yours. If it's really what Zoom shows for you, email ${SUPPORT_EMAIL}.`,
 };

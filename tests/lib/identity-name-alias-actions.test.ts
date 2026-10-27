@@ -91,7 +91,7 @@ describe("addNameAlias", () => {
 
   it.each([
     ["own", "already on your list"],
-    ["own_inactive", "switched off"],
+    ["own_inactive", SUPPORT_EMAIL],
     ["other_alias", SUPPORT_EMAIL],
     ["other_name", SUPPORT_EMAIL],
   ])("won't save a name that conflicts (%s) and says why", async (conflict, snippet) => {
