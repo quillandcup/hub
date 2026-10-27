@@ -68,7 +68,7 @@ export default function ShowInEvents({ calendarEventId, initial }: { calendarEve
           </>
         ) : (
           <>
-            <p className="text-slate-600 dark:text-slate-400">{event.hidden ? "Hidden from members." : "Shown in Events."}</p>
+            <p className="text-slate-600 dark:text-slate-400">{event.hidden ? "Removed from Events." : "Shown in Events."}</p>
             <Link href={`/admin/events/${event.id}`} className="text-plum-600 dark:text-plum-400 hover:underline">
               Edit the event
             </Link>
@@ -78,7 +78,7 @@ export default function ShowInEvents({ calendarEventId, initial }: { calendarEve
               onClick={() => setHidden(!event.hidden)}
               className="text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-50"
             >
-              {event.hidden ? "Show to members" : "Hide from members"}
+              {event.hidden ? "Add back to Events" : "Remove from Events"}
             </button>
           </>
         )}

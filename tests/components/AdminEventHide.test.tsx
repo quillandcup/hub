@@ -64,22 +64,22 @@ describe("hiding an event from members", () => {
     serve(EVENT, { ...EVENT, deleted_at: "2097-01-01T00:00:00Z" });
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Hide from members" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove from Events" }));
 
-    expect(await screen.findByText(/Hidden: members don't see this event/)).toBeInTheDocument();
+    expect(await screen.findByText(/Removed from Events: members don't see it/)).toBeInTheDocument();
     expect(calls.find((c) => c.url.endsWith("/visibility"))!.body).toEqual({ hidden: true });
-    expect(screen.getByRole("button", { name: "Show to members" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add back to Events" })).toBeInTheDocument();
   });
 
   it("says the calendar sync leaves a hidden calendar event hidden, and shows it again on request", async () => {
     const hidden = { ...EVENT, calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z" };
     serve(hidden, { ...hidden, deleted_at: null });
     render(<EventDetailClient eventId={EVENT.id} />);
-    expect(await screen.findByText(/The calendar sync leaves it hidden\./)).toBeInTheDocument();
+    expect(await screen.findByText(/The calendar sync leaves it removed\./)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Show to members" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add back to Events" }));
 
-    await waitFor(() => expect(screen.queryByText(/Hidden: members don't see/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/Removed from Events: members don't see/)).not.toBeInTheDocument());
     expect(calls.find((c) => c.url.endsWith("/visibility"))!.body).toEqual({ hidden: false });
   });
 
@@ -87,7 +87,7 @@ describe("hiding an event from members", () => {
     serve(EVENT);
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Hide from members" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Remove from Events" }));
 
     expect(await screen.findByText("Event not found")).toBeInTheDocument();
   });
@@ -102,6 +102,6 @@ describe("hiding an event from members", () => {
     );
     render(<EventsClient />);
 
-    expect(await screen.findByText(/Workshop · Hidden/)).toBeInTheDocument();
+    expect(await screen.findByText(/Workshop · Removed/)).toBeInTheDocument();
   });
 });

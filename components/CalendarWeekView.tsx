@@ -16,7 +16,7 @@ export interface Prickle {
   attendance_count: number;
   host_missing?: boolean;
   host_late?: boolean;
-  /** Shown in Events (an event follows it), or hidden from members. Absent when it has no event. */
+  /** Shown in Events (an event follows it), or removed from Events. Absent when it has no event. */
   in_events?: "shown" | "hidden";
 }
 
@@ -502,7 +502,7 @@ export default function CalendarWeekView({
                               >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
-                                {prickle.in_events && <div>{prickle.in_events === "shown" ? "In Events" : "Hidden from Events"}</div>}
+                                {prickle.in_events && <div>{prickle.in_events === "shown" ? "In Events" : "Removed from Events"}</div>}
                                 {showAttendanceDetails && (
                                   <>
                                     {attendanceLabel(prickle, attendanceDataThrough) && (

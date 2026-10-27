@@ -83,7 +83,7 @@ describe("PATCH /api/admin/events/[id]: audience", () => {
     const res = await send(update, { guests_allowed: true, capacity: null });
 
     expect(res.status).toBe(200);
-    expect(written).toEqual({ guests_allowed: true, capacity: null });
+    expect(written).toEqual({ guests_allowed: true, capacity: null, automatic: false }); // an edited event is kept
   });
 
   it("accepts the new kinds of event and rejects unknown ones and bad audience fields", async () => {

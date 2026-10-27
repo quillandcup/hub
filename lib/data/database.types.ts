@@ -2384,6 +2384,7 @@ export type Database = {
         Row: {
           agenda: string | null
           announced_publicly: boolean
+          automatic: boolean
           calendar_event_id: string | null
           capacity: number | null
           created_at: string
@@ -2412,6 +2413,7 @@ export type Database = {
         Insert: {
           agenda?: string | null
           announced_publicly?: boolean
+          automatic?: boolean
           calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string
@@ -2440,6 +2442,7 @@ export type Database = {
         Update: {
           agenda?: string | null
           announced_publicly?: boolean
+          automatic?: boolean
           calendar_event_id?: string | null
           capacity?: number | null
           created_at?: string

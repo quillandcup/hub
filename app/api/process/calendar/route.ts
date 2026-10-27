@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { ensureCalendarEvents, hasEventTag, syncCalendarEvents } from "@/lib/calendar-events";
+import { ensureCalendarEvents, hasEventTag, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
 import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
@@ -145,7 +145,8 @@ export async function POST(request: NextRequest) {
     // STEP 2: Process events in memory
     // Upcoming calendar events that get an event (see ensureCalendarEvents): those of a prickle type listed in
     // Events, and any tagged #event in their Google Calendar description.
-    const listedCalendarEventIds = new Set<string>();
+    const listedCalendarEventIds = new Set<string>(); // to make an event for: tagged (any time), listed type (upcoming)
+    const qualifyingCalendarEventIds = new Set<string>(); // with a reason to have one: tagged, or of a listed type, past or not
     const pricklesToInsert: any[] = [];
     const unmatchedEvents: any[] = [];
     let skippedNoSummary = 0;
@@ -154,7 +155,10 @@ export async function POST(request: NextRequest) {
 
     const now = clock.now();
     for (const event of allEvents) {
-      if (hasEventTag(event.description) && new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
+      if (hasEventTag(event.description)) {
+        listedCalendarEventIds.add(event.id);
+        qualifyingCalendarEventIds.add(event.id);
+      }
       if (!event.summary) {
         skippedNoSummary++;
         continue;
@@ -256,7 +260,10 @@ export async function POST(request: NextRequest) {
       // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
       // without the "w/Host" tail; the calendar description comes along as plain text.
       const matchedType = prickleTypes?.find(t => t.id === typeId);
-      if (matchedType?.listed_in_events && new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
+      if (matchedType?.listed_in_events) {
+        qualifyingCalendarEventIds.add(event.id);
+        if (new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
+      }
 
       // "w/Name" is the host, except for types led by a guest speaker (educational): the type's default host runs those
       const { hostId: finalHostId, guestSpeaker } = assignHostAndSpeaker({
@@ -345,6 +352,11 @@ export async function POST(request: NextRequest) {
     // and any text an admin hasn't overridden in step with the calendar.
     const eventsSynced = await syncCalendarEvents(supabase, allEvents);
     const eventsCreated = await ensureCalendarEvents(supabase, [...listedCalendarEventIds]);
+    // The automatic events whose reason has gone (the tag taken out, the type un-listed, the calendar item deleted)
+    // are taken away. Only when the prickle types loaded: without them no type would look listed.
+    const eventsRemoved = prickleTypes
+      ? await reconcileAutomaticEvents(supabase, allEvents.map((e) => e.id), qualifyingCalendarEventIds)
+      : 0;
 
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
@@ -359,6 +371,7 @@ export async function POST(request: NextRequest) {
       ignored: ignoredCount,
       eventsSynced,
       eventsCreated,
+      eventsRemoved,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);
