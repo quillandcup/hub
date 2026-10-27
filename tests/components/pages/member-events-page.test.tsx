@@ -82,14 +82,16 @@ describe("member Events page", () => {
       events: {
         data: [
           { id: "evt_AAAAAAAAAAA5", slug: "money", title: "A Way to Make Money", event_type: "other", location: null, starts_at: "2097-04-01", ends_at: "2097-04-01", focus: null, speakers: "Brayden Example", calendar_event_id: null, deleted_at: null, event_photos: [] },
-          { id: "evt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", location: null, starts_at: "2097-05-01", ends_at: "2097-05-01", focus: null, speakers: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
+          { id: "evt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", location: null, starts_at: "2097-05-01", ends_at: "2097-05-01", focus: null, speakers: null, host_name: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
+          { id: "evt_AAAAAAAAAAA7", slug: "progress", title: "Progress Prickle", event_type: "other", location: null, starts_at: "2097-05-02", ends_at: "2097-05-02", focus: null, speakers: null, host_name: "Jenn Parker", calendar_event_id: null, deleted_at: null, event_photos: [] },
         ],
       },
     });
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("A Way to Make Money with Brayden Example,Book Fair");
+    // A speaker names the event; otherwise its host does ("Progress Prickle" alone says nothing with thirty a week).
+    expect(screen.getByTestId("browser")).toHaveTextContent("A Way to Make Money with Brayden Example,Book Fair,Progress Prickle with Jenn P");
   });
 
   it("starts on All for an unknown filter", async () => {

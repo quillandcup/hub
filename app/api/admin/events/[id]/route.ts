@@ -54,7 +54,10 @@ export async function GET(
     memberEmail: a.members?.email ?? "",
   }));
 
-  return NextResponse.json({ event, photos: photos || [], badgeType: badgeType ?? null, attendees: attendeeRows });
+  // The prickle this event stands for, when it has one: it is the source of the event's title, description, guest speaker and host.
+  const [prickle] = event.calendar_event_id ? await createRepos(supabase).prickles.byCalendarEventIds([event.calendar_event_id]) : [];
+
+  return NextResponse.json({ event, prickleId: prickle?.id ?? null, photos: photos || [], badgeType: badgeType ?? null, attendees: attendeeRows });
 }
 
 export async function PATCH(
@@ -101,20 +104,24 @@ export async function PATCH(
     // An event that follows the calendar: the calendar owns its dates and times, and a changed
     // title, description or location is remembered as an override so the next sync keeps it.
     const followsCalendar = !!current?.calendar_event_id;
+    // An event that stands for a prickle takes its title, description, guest speaker and host from it: those are
+    // edited on the prickle, so an update here leaves them alone.
+    const [prickle] = current?.calendar_event_id ? await createRepos(supabase).prickles.byCalendarEventIds([current.calendar_event_id]) : [];
+    const fromPrickle = !!prickle;
     if (slug !== undefined) updates.slug = slug;
-    if (title !== undefined) updates.title = title;
+    if (title !== undefined && !fromPrickle) updates.title = title;
     if (event_type !== undefined) updates.event_type = event_type;
     if (location !== undefined) updates.location = location;
     if (starts_at !== undefined && !followsCalendar) updates.starts_at = starts_at;
     if (ends_at !== undefined && !followsCalendar) updates.ends_at = ends_at;
     if (focus !== undefined) updates.focus = focus;
-    if (description !== undefined) updates.description = description;
+    if (description !== undefined && !fromPrickle) updates.description = description;
     if (agenda !== undefined) updates.agenda = agenda;
     if (results !== undefined) updates.results = results;
     if (google_photos_album_url !== undefined) updates.google_photos_album_url = google_photos_album_url;
 
     if (current && followsCalendar) {
-      const { overridden, follow } = overridesAfterEdit(current, { title, description, location });
+      const { overridden, follow } = overridesAfterEdit(current, fromPrickle ? { location } : { title, description, location });
       updates.overridden_fields = overridden;
       if (follow.length > 0) {
         // A field left empty follows the calendar again: take its value from the calendar item as it is now.
@@ -131,6 +138,7 @@ export async function PATCH(
         }
       }
     }
+    if (fromPrickle) delete updates.speakers;
     // An admin who has edited an event keeps it: the calendar sync no longer takes it away.
     updates.automatic = false;
 

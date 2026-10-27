@@ -55,6 +55,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [badgeType, setBadgeType] = useState<BadgeTypeLink | null>(null);
+  // The prickle this event stands for, when it has one: the source of its title, description, guest speaker and host.
+  const [prickleId, setPrickleId] = useState<string | null>(null);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +92,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setEvent(body.event);
       setPhotos(body.photos);
       setBadgeType(body.badgeType);
+      setPrickleId(body.prickleId ?? null);
       setAttendees(body.attendees);
     } catch (err: any) {
       setError(err.message);
@@ -275,7 +278,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               Follows the shared calendar: dates and times come from it
               {event.overridden_fields.length > 0
                 ? `, and you changed the ${event.overridden_fields.join(", ")}.`
-                : "; the title, description and location do too until you change them."}
+                : prickleId
+                  ? "; the location does too until you change it."
+                  : "; the title, description and location do too until you change them."}
             </p>
             {event.overridden_fields.length > 0 && (
               <button
@@ -290,6 +295,16 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
+        {prickleId && (
+          <div className="mb-4 p-3 rounded bg-plum-50 dark:bg-plum-900/20 text-sm">
+            This event stands for a prickle: its title, description, guest speaker and host come from it.{" "}
+            <Link href={`/admin/prickles/${prickleId}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+              Edit them on the prickle
+            </Link>
+            .
+          </div>
+        )}
+
         {editing && editForm ? (
           <form onSubmit={handleSave} className="space-y-3">
             <div className="@container">
@@ -300,8 +315,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   type="text"
                   value={editForm.title}
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
-                  required
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded disabled:opacity-60"
+                  disabled={!!prickleId}
+                  required={!prickleId}
                 />
               </div>
               <div>
@@ -360,7 +376,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             </div>
             </div>
-            <EventAudienceFields value={editForm} onChange={(audience) => setEditForm({ ...editForm, ...audience })} />
+            <EventAudienceFields value={editForm} onChange={(audience) => setEditForm({ ...editForm, ...audience })} speakersLocked={!!prickleId} />
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Focus</label>
               <input
@@ -375,7 +391,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               <textarea
                 value={editForm.description ?? ""}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value || null })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded disabled:opacity-60"
+                disabled={!!prickleId}
                 rows={2}
               />
             </div>

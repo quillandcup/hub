@@ -13,6 +13,7 @@ interface EventData {
   capacity: number | null;
   selection: string;
   speakers: string | null;
+  host_name?: string | null;
   id: string;
   title: string;
   event_type: string;
@@ -57,7 +58,7 @@ export default function EventDetailClient({
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
         </p>
-        <h1 className="text-2xl font-bold mt-0.5">{eventDisplayName(event.title, event.speakers)}</h1>
+        <h1 className="text-2xl font-bold mt-0.5">{eventDisplayName(event.title, event.speakers, event.host_name)}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
           {where && " · "}

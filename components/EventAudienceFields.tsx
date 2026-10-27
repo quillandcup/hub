@@ -19,9 +19,12 @@ const LABEL = "block text-sm font-medium mb-1 dark:text-gray-200";
 export default function EventAudienceFields({
   value,
   onChange,
+  speakersLocked = false,
 }: {
   value: EventAudience;
   onChange: (next: EventAudience) => void;
+  /** The event stands for a prickle, which is where its guest speaker is edited. */
+  speakersLocked?: boolean;
 }) {
   const set = (patch: Partial<EventAudience>) => onChange({ ...value, ...patch });
   const registers = value.registration !== "none";
@@ -109,7 +112,8 @@ export default function EventAudienceFields({
           type="text"
           value={value.speakers ?? ""}
           onChange={(e) => set({ speakers: e.target.value || null })}
-          className={INPUT}
+          disabled={speakersLocked}
+          className={`${INPUT} disabled:opacity-60`}
         />
       </div>
     </fieldset>

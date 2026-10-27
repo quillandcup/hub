@@ -1,10 +1,13 @@
-// What members read as an event's name. The title is stored without its guest speaker (the speakers are their
-// own field), but "A Way to Make Money with Brayden Bonnesen" is the name the community knows it by, so wherever
-// a member sees the event it is the title and, when there are speakers, "with" them.
+// What members read as an event's name. The title is stored without its guest speaker or host (their own
+// fields), but "A Way to Make Money with Brayden Bonnesen" is the name the community knows it by, and "Progress
+// Prickle" alone says nothing when there are thirty a week: wherever a member sees the event it is the title and,
+// when there is one, "with" its speakers, or else its host.
 
-/** The title with its speakers: "Query Letters" + "Sam Example" -> "Query Letters with Sam Example". */
-export function eventDisplayName(title: string, speakers: string | null | undefined): string {
-  const who = speakers?.trim();
+import { hostShortName } from "@/lib/formatters";
+
+/** The title with who is with it: "Query Letters" + speakers "Sam Example" -> "Query Letters with Sam Example"; with only a host, "Progress Prickle with Jenn P". */
+export function eventDisplayName(title: string, speakers: string | null | undefined, host?: string | null): string {
+  const who = speakers?.trim() || (host?.trim() ? hostShortName(host) : "");
   if (!who || title.toLowerCase().includes(who.toLowerCase())) return title;
   return `${title} with ${who}`;
 }

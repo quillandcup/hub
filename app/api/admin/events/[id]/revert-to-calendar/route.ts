@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { calendarEventFields, syncableFields } from "@/lib/calendar-events";
+import { calendarEventFields, syncCalendarEvent, syncableFields } from "@/lib/calendar-events";
 
 /**
  * Makes an event that follows the calendar follow it again: clears the fields an admin changed and
@@ -43,5 +43,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     console.error("Error reverting event to the calendar:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ event: updated });
+  // An event that stands for a prickle takes its title, description, guest speaker and host from it, not the calendar.
+  await syncCalendarEvent(supabase, event.calendar_event_id);
+  const { data: synced } = await supabase.from("events").select("*").eq("id", id).single();
+  return NextResponse.json({ event: synced ?? updated });
 }

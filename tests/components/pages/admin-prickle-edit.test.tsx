@@ -59,6 +59,9 @@ vi.mock("@/lib/prickle-checkin-dms", () => ({ sendTestCheckinDM: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 const reprocess = vi.hoisted(() => vi.fn(async () => ({ processed: [] })));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: reprocess }));
+// The event that stands for the prickle follows what was saved (its own tests are with the calendar events).
+const syncEvent = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/calendar-events", () => ({ syncCalendarEvent: syncEvent }));
 
 import { updatePrickle } from "@/app/(admin)/admin/prickles/[id]/actions";
 
@@ -70,6 +73,7 @@ beforeEach(() => {
   summaries = { [CAL]: "HEDGIE HOUSE BOOK FAIR INTRO!" };
   writes = [];
   reprocess.mockClear();
+  syncEvent.mockClear();
   repos = createInMemoryRepos(
     new InMemoryDataset({
       members: [{ id: HOST, name: "Julie Example" }],
@@ -86,6 +90,7 @@ describe("updatePrickle", () => {
 
     expect(writes).toEqual([]);
     expect(reprocess).not.toHaveBeenCalled();
+    expect(syncEvent).not.toHaveBeenCalled();
   });
 
   it("keeps new text as the event's decision and shows it at once, without reprocessing", async () => {
@@ -106,6 +111,8 @@ describe("updatePrickle", () => {
     ]);
     expect(await read()).toMatchObject({ title: "Book Fair: Meet the Fair", description: "New words", guestSpeaker: "Ada Example" });
     expect(reprocess).not.toHaveBeenCalled();
+    // The event that stands for this prickle takes the new text at once.
+    expect(syncEvent).toHaveBeenCalledWith(supabase, CAL);
   });
 
   it("rewrites an earlier decision instead of adding another", async () => {

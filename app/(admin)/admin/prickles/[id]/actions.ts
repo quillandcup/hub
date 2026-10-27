@@ -8,6 +8,7 @@ import { prickleTitle } from "@/lib/domain/prickle";
 import { createRepos } from "@/lib/data/repos";
 import { loadEventDecision, saveEventDecision, type EventDecisionChoice } from "@/lib/prickle-event-decisions";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { syncCalendarEvent } from "@/lib/calendar-events";
 import type { PrickleEdits } from "@/components/PrickleEditForm";
 import { revalidatePath } from "next/cache";
 
@@ -92,6 +93,8 @@ export async function updatePrickle(prickleId: string, edits: PrickleEdits) {
   if (choice.resolved_type_id) await repos.prickles.setType(prickleId, choice.resolved_type_id);
   if (choice.resolved_host_id) await repos.prickles.setHost(prickleId, choice.resolved_host_id);
   if (Object.keys(immediate).length > 0) await repos.prickles.setText(prickleId, immediate);
+  // The event that stands for this prickle follows what was just saved.
+  await syncCalendarEvent(auth.supabase, prickle.calendarEventId);
 
   // A new type changes what the calendar title makes of the title and the guest speaker, and text that follows the
   // calendar again has to be taken from it: reprocess the days around this prickle.
