@@ -211,9 +211,18 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SLACK_BOT_TOKEN",
     group: "Slack",
-    description: "Slack bot OAuth token.",
+    description:
+      "Slack bot OAuth token. Once the app has moved to rotating tokens (SLACK_BOT_TOKEN_ROTATION) the live token is kept in Vault and this is only what the one-time exchange starts from.",
     type: "secret",
     destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_BOT_TOKEN_ROTATION",
+    group: "Slack",
+    description:
+      "Set to \"on\" when the Slack app has opted into token rotation and the bot's rotating token has been stored (docs/SECRET_ROTATION.md, \"Moving the bot to rotating tokens\"): the bot's token is then read from Vault and refreshed, not read from SLACK_BOT_TOKEN. Leave unset until then. Production only.",
+    type: "config",
+    destinations: [{ kind: "vercel", target: "production" }],
   },
   {
     name: "SLACK_SIGNING_SECRET",

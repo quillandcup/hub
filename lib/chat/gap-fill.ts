@@ -6,6 +6,7 @@ import { clock } from "@/lib/clock";
 import { slackChannelType } from "@/lib/slack-capture";
 import { markRemovedSlackReactions } from "@/lib/slack-reactions";
 import { addSlackMessage } from "@/lib/slack-messages";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
  * Gap-fill (docs/SLACK_BRIDGED_CHAT.md, "Gap-fill"): when the chat is missing something Slack has,
@@ -264,7 +265,7 @@ export async function fillMessageGap(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel) return NOT_DONE;
   return run(service, claim(service, opts.source, "message", opts.channelId, opts.ts), async () => {
-    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
     const result: any = await slack.reactions.get({ channel: opts.channelId, timestamp: opts.ts, full: true });
     const message = result.message as SlackMsg | undefined;
     if (!message) return { messages: 0, reactions: 0, seen: 0 };
@@ -284,7 +285,7 @@ export async function fillThreadIfRootMissing(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel || (await chatHasMessage(service, opts.channelId, opts.threadTs))) return NOT_DONE;
   return run(service, claim(service, opts.source, "thread", opts.channelId, opts.threadTs), async () => {
-    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
     return storeAndProject(service, opts.channelId, channel, await fetchThread(slack, opts.channelId, opts.threadTs));
   });
 }
@@ -302,7 +303,7 @@ export async function catchUpChannel(
   const channel = await mirroredChannel(service, opts.channelId);
   if (!channel) return NOT_DONE;
   return run(service, claim(service, opts.source, "channel", opts.channelId, null), async () => {
-    const slack = opts.slack ?? new WebClient(process.env.SLACK_BOT_TOKEN);
+    const slack = opts.slack ?? new WebClient(await getSlackBotToken());
     const { data: newest } = await service
       .schema("bronze")
       .from("slack_messages")

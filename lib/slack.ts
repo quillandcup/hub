@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import { APP_URL, isProduction } from "@/lib/config";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
  * Whether outbound Slack DMs sent via this module should be redirected to SLACK_DEV_USER_ID
@@ -26,7 +27,7 @@ export interface SendSlackDMParams {
  * WebClient calls, so their sends are unaffected by SLACK_TEST_MODE.
  */
 export async function sendSlackDM(params: SendSlackDMParams): Promise<void> {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (!token) {
     throw new Error("sendSlackDM: SLACK_BOT_TOKEN not configured");
   }
@@ -63,7 +64,7 @@ export interface NotifyStaffNewBookParams {
  * different purpose). Gated the same way: silently no-ops until both env vars are configured.
  */
 export async function notifyStaffNewBook(params: NotifyStaffNewBookParams): Promise<void> {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   const channel = process.env.SLACK_NEW_BOOKS_CHANNEL_ID;
   if (!token || !channel) return;
 
@@ -94,7 +95,7 @@ export interface NotifyStaffNewAwardParams {
  * notifyStaffNewBook: silently does nothing until both env vars are configured.
  */
 export async function notifyStaffNewAward(params: NotifyStaffNewAwardParams): Promise<void> {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   const channel = process.env.SLACK_NEW_AWARDS_CHANNEL_ID;
   if (!token || !channel) return;
 

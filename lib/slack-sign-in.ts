@@ -11,6 +11,7 @@ import {
 import type { RateLimit } from "@/lib/rate-limit";
 import type { FeatureKey } from "@/lib/features";
 import type { Button, KnownBlock } from "@slack/types";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
  * "Sign in from Slack": the Slack app's Home tab and /hub command give a member a one-click
@@ -92,7 +93,7 @@ function randomCode(): string {
 
 /** The email on the Slack user's live profile (needs the bot's users:read.email scope). */
 async function fetchSlackEmail(slackUserId: string): Promise<string | null> {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (!token) {
     console.error("slack-sign-in: SLACK_BOT_TOKEN not configured");
     return null;
@@ -448,7 +449,7 @@ function expiryMarkup(issued: IssuedSlackSignIn): string {
  * unfurling is off, and wouldn't spend the token anyway (see app/auth/slack/route.ts).
  */
 export async function sendSlackSignInMessage(service: SupabaseClient, slackUserId: string, origin: string): Promise<void> {
-  const botToken = process.env.SLACK_BOT_TOKEN;
+  const botToken = await getSlackBotToken();
   if (!botToken || !assertSigningSecret()) return;
 
   const resolution = await resolveHubUserForSlackUser(service, slackUserId);
@@ -495,7 +496,7 @@ export async function prepareSlackSignIn(
 
 /** (Re)publish this Slack user's Home tab with a fresh sign-in button and code. */
 export async function publishSlackHome(service: SupabaseClient, slackUserId: string, origin: string): Promise<void> {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (!token) {
     console.error("slack-sign-in: SLACK_BOT_TOKEN not configured, can't publish Home tab");
     return;

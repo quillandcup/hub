@@ -47,6 +47,7 @@
     "config:push": "dotenv -e .env.prod -- supabase config push",
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
     "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
+    "slack:bot-token": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-bot-token.ts",
     "github:config:diff": "tsx scripts/github-config.ts diff",
     "github:config:push": "tsx scripts/github-config.ts push",
     "vercel:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/vercel-config.ts diff",

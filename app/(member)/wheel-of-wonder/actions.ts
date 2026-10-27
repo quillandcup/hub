@@ -15,6 +15,7 @@ import {
 } from "@/lib/wheel-of-wonder";
 
 import { actionOutcome, withAction } from "@/lib/analytics/server";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 const BATCH_SIZE = 1000;
 const SLACK_ACTIVITY_WINDOW_DAYS = 45;
 const REEL_SLOT_COUNT = 8;
@@ -182,7 +183,7 @@ async function spinWheelImpl(): Promise<WheelSpinResponse> {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const slackToken = process.env.SLACK_BOT_TOKEN;
+  const slackToken = await getSlackBotToken();
   if (!slackToken) return { error: "Slack isn't configured for this workspace yet" };
 
   const { pool, viewerSlackUserId } = await loadCandidatePool(effectiveIdentity.memberId);
@@ -249,7 +250,7 @@ async function introduceOnSlackImpl(winnerMemberId: string): Promise<WheelIntroR
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const slackToken = process.env.SLACK_BOT_TOKEN;
+  const slackToken = await getSlackBotToken();
   if (!slackToken) return { error: "Slack isn't configured for this workspace yet" };
 
   const { pool, viewerSlackUserId } = await loadCandidatePool(effectiveIdentity.memberId);

@@ -2,6 +2,7 @@ import { WebClient } from "@slack/web-api";
 import * as Sentry from "@sentry/nextjs";
 import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /** Alerts about the member-notification path, delivered outside that path. */
 export type OperationsAlert =
@@ -66,7 +67,7 @@ export async function sendOperationsAlert(service: RateLimitClient, alert: Opera
   }
 
   try {
-    const token = process.env.SLACK_BOT_TOKEN;
+    const token = await getSlackBotToken();
     if (!token) throw new Error("SLACK_BOT_TOKEN is not configured");
     await new WebClient(token).chat.postMessage({
       channel: SLACK_ALERTS_CHANNEL_ID,

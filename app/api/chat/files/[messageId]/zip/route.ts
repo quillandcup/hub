@@ -7,6 +7,7 @@ import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, parseChatFiles } from "@/lib/chat/files";
 import { uniqueZipNames } from "@/lib/chat/zip-names";
 import { isId } from "@/lib/ids";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 export const maxDuration = 300;
 
@@ -49,7 +50,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       if (!file.staged) continue;
       path = file.staged;
     } else {
-      const copy = await ensureSlackFileCopied(service, process.env.SLACK_BOT_TOKEN ?? "", {
+      const copy = await ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", {
         fileId: file.id,
         channelId: channel?.slack_channel_id ?? "",
         messageTs: message?.slack_ts ?? "",

@@ -4,6 +4,7 @@ import { clock } from "@/lib/clock";
 import { isDeadTokenError } from "@/lib/slack-connect";
 import { SLACK_FILES_BUCKET, slackFileStoragePath } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, type ChatFile } from "@/lib/chat/files";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /**
  * The file half of the outbox (docs/SLACK_BRIDGED_CHAT.md, "Files"): a message with files goes to
@@ -64,7 +65,7 @@ export async function lookupFileMessageTs(botToken: string, fileId: string, slac
 
 export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent" | "failed"> {
   const { supabase, messageId, slackChannelId, files } = ctx;
-  const botToken = process.env.SLACK_BOT_TOKEN;
+  const botToken = await getSlackBotToken();
   if (!botToken) return ctx.fail("SLACK_BOT_TOKEN not configured");
 
   let ids = files.map((f) => f.id);

@@ -21,6 +21,7 @@ import {
   SLACK_SEND_LINK_ACTION_ID,
 } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -140,7 +141,7 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
   const blocks = withSavedAnswer(payload.message?.blocks, answer);
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (channelId && messageTs && blocks && token) {
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
   }
@@ -161,7 +162,7 @@ async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: str
 
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
     const text = `Skipped this ${half === "checkin" ? "check-in" : "check-out"}.`;
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
@@ -235,7 +236,7 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
   if (activityError) console.error("writing_quick_log: failed to insert member_activities row", activityError);
 
   if (channelId && messageTs) {
-    const token = process.env.SLACK_BOT_TOKEN;
+    const token = await getSlackBotToken();
     if (token) {
       const slack = new WebClient(token);
       const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;
