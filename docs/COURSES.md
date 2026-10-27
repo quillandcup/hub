@@ -42,7 +42,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 ### Soon after launch (in priority order)
 
 1. "Continue watching" on the dashboard.
-2. Admin course stats: who's where, drop-off per video, a per-viewing heatmap.
+2. Admin course stats: who's where (built: `/admin/courses/<kajabi id>/roster`, `lib/courses/roster.ts`: each member with access, open lessons completed, last lesson and last activity from `lesson_progress`, sortable and paged), drop-off per video and a per-viewing heatmap (built, see Staff watch stats). Still open: last activity from watch segments rather than only progress rows, a per-member stats view.
 3. Audio-only "listen like a podcast" mode (Mux's per-video `audio.m4a`).
 4. Mux config as code (webhook URL, allowed playback domains) and a nightly Mux end-to-end check with a free test video.
 5. A "Sync courses" admin button, and a nightly structure-and-access sync, once step B is automated (see "Ongoing sync after launch").
