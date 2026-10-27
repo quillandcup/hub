@@ -4,7 +4,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadCourseList } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { formatCourseDate } from "@/lib/courses/format";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 
 export const metadata: Metadata = { title: "Courses" };
 
@@ -33,7 +33,7 @@ export default async function CoursesPage() {
             const href = ended || !progress.continueLessonId ? courseHref : `${courseHref}/lessons/${progress.continueLessonId}`;
             const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
             const started = progress.completed > 0;
-            const thumbnail = safeUrl(course.thumbnail_url);
+            const thumbnail = courseImageUrl(course.thumbnail_url);
             return (
               <li
                 key={course.id}

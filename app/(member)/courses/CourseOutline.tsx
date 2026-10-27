@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 import { formatDuration, unreleasedLabel, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 
 interface Props {
@@ -17,7 +17,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
   const duration = formatDuration(lesson.duration_seconds);
   // Not released yet: "Coming soon", or (only staff ever get these) a Kajabi draft.
   const comingSoon = lesson.state !== "open";
-  const thumbnail = safeUrl(lesson.thumbnail_url);
+  const thumbnail = courseImageUrl(lesson.thumbnail_url);
   const content = (
     <>
       <span aria-hidden="true" className="aspect-video w-24 shrink-0 overflow-hidden rounded bg-plum-50 @pair:w-32 dark:bg-slate-800">

@@ -5,7 +5,7 @@ import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptio
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 
@@ -338,7 +338,7 @@ export default function LessonPlayer({
   /** Save watch segments and the playhead. Off in sudo and in a staff preview, which leave no viewing history. */
   trackProgress?: boolean;
 }) {
-  const poster = safeUrl(posterUrl);
+  const poster = courseImageUrl(posterUrl);
   return (
     <div role="group" aria-label={title} className="[&_.media-title]:hidden">
       <VideoPlayer title={title} poster={poster ?? undefined}>

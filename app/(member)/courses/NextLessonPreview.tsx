@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 import { useLessonCompletion } from "./LessonCompletion";
 
 /**
@@ -25,7 +25,7 @@ export default function NextLessonPreview({ slug, next }: { slug: string; next: 
     );
   }
 
-  const thumbnail = safeUrl(next.thumbnail_url);
+  const thumbnail = courseImageUrl(next.thumbnail_url);
   return (
     <Link
       href={`/courses/${slug}/lessons/${next.id}`}
