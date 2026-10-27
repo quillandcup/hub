@@ -128,6 +128,16 @@ test("content passing under a fixed bar while scrolling is not a finding; an ope
   expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
 });
 
+test("a control inside a closed disclosure is not covered, because it is not there; open, it is checked like any other", async ({ page: p }) => {
+  // Closed, its links keep a layout box the browser still reports, which sits under whatever follows the disclosure.
+  const list = '<ul><li><a href="#a">One</a></li><li><a href="#b">Two</a></li></ul>';
+  const article = '<article style="position:relative;z-index:2;background:#eee;height:300px"><button>Next</button></article>';
+  await p.setContent(page(`<details><summary>Lessons</summary>${list}</details>${article}`));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+  await p.setContent(page(`<details open><summary>Lessons</summary>${list}</details>${article}`));
+  expect(kinds(await pageFindings(p))).not.toContain("edge:control-covered");
+});
+
 // A wide grid in a card, inside a scroller: the shape of the week calendar.
 const GRID = '<div style="display:grid;grid-template-columns:repeat(7,280px);width:1960px;height:60px;background:#ddd"><div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div></div>';
 
