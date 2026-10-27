@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Emoji } from "@/components/chat/ChatText";
 import { track } from "@/lib/analytics/client";
+import { scrollParent } from "@/lib/chat/scroll";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import { SKIN_TONES, readTone, withTone, writeTone } from "@/lib/chat/skin-tone";
 import {
@@ -81,14 +82,21 @@ export default function EmojiPicker({
   }, []);
 
   // Opens below its button; above it when the bottom would be cut off and there is room. On a
-  // phone it is a bottom sheet instead (CSS), so this only matters from sm up. Nudged sideways
-  // when its left edge would fall off the window.
+  // phone it is a bottom sheet instead (CSS), so this only matters from sm up. Nudged sideways to
+  // stay inside what clips it: the window, and the pane it opens in when that scrolls (the chat's
+  // conversation column is narrower than the window, and with a thread open it is narrower still,
+  // so the picker used to be cut off at the sidebar's edge).
   useLayoutEffect(() => {
-    const rect = root.current?.getBoundingClientRect();
-    if (!rect) return;
+    const el = root.current;
+    const rect = el?.getBoundingClientRect();
+    if (!el || !rect) return;
     if (rect.bottom > window.innerHeight && rect.top - rect.height - 40 > 0) setFlip(true);
-    if (rect.left < 8) setShift(8 - rect.left);
-    else if (rect.right > window.innerWidth - 8) setShift(window.innerWidth - 8 - rect.right);
+    const pane = scrollParent(el);
+    const paneRect = pane === document.scrollingElement || pane === document.documentElement ? null : pane.getBoundingClientRect();
+    const left = Math.max(8, (paneRect?.left ?? 0) + 8);
+    const right = Math.min(window.innerWidth - 8, (paneRect?.right ?? window.innerWidth) - 8);
+    if (rect.left < left) setShift(left - rect.left);
+    else if (rect.right > right) setShift(Math.max(right - rect.right, left - rect.left));
   }, []);
 
   useEffect(() => {
