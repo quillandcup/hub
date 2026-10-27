@@ -43,9 +43,9 @@ beforeEach(() => {
 
 describe("member Events page", () => {
   it("hands the browser the events and the prickles of types listed in Events", async () => {
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "prickles" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101,Pitch Night|Spring Retreat");
+    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101,Pitch Night|Spring Retreat");
   });
 
   it("lists a prickle once: an event that follows its calendar event stands in for it", async () => {
@@ -57,9 +57,9 @@ describe("member Events page", () => {
       },
     });
 
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "prickles" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101|Pitch Night");
+    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101|Pitch Night");
   });
 
   it("lists neither a hidden event nor the prickle it stands for", async () => {
@@ -72,9 +72,9 @@ describe("member Events page", () => {
       },
     });
 
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "prickles" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101|Spring Retreat");
+    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101|Spring Retreat");
   });
 
   it("names an event with its speakers, the way members know it, and leaves an event with none as it is", async () => {

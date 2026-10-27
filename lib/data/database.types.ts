@@ -4532,6 +4532,7 @@ export type Database = {
           created_at: string | null
           default_host_id: string | null
           description: string | null
+          event_kind: string
           guests_allowed: boolean
           id: string
           listed_in_events: boolean
@@ -4548,6 +4549,7 @@ export type Database = {
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
+          event_kind?: string
           guests_allowed?: boolean
           id?: string
           listed_in_events?: boolean
@@ -4564,6 +4566,7 @@ export type Database = {
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
+          event_kind?: string
           guests_allowed?: boolean
           id?: string
           listed_in_events?: boolean

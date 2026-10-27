@@ -34,6 +34,8 @@ Who may attend depends on how widely something is announced: **guests allowed** 
 
 ## Removing an event from Events
 
+- **Tiers on the member Events page.** Events differ in how much they ask of a member, so the page groups upcoming ones into **Big events** (retreats, workshops, and anything that takes a sign-up or an application: commitment and notice), **Educational** (its own pillar, with its own filter), **Events** (a book launch, a party) and **Sessions** (the regular prickles that are featured, a quiet list together with the listed prickles that have no event yet); past events follow. The tier is derived (`eventTier` in `lib/events-filter.ts`) from the event's kind and its `registration`, not stored. An event made from a prickle starts with the kind its prickle type sets (`prickle_types.event_kind`, edited on the type: a session by default, educational, social...); an admin can change it on the event. A card without a photo shows a gradient and symbol for its kind (`components/EventArt.tsx`) until real images land.
+
 "Remove from Events" on the event page sets `events.deleted_at`: members no longer see it in the Events page, the event page, search (admins still find it) or calendar feeds, and the prickle it stands for stays out of the Events list too. "Add back to Events" undoes it. It exists mainly so an event the calendar sync keeps making (one session of a listed type that you don't want featured) can be taken out without the next sync making it again; a deleted calendar-linked event is made again.
 
 ## Not yet

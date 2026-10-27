@@ -6,16 +6,17 @@ import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { hostShortName } from "@/lib/formatters";
 import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
+import EventArt from "@/components/EventArt";
 import {
+  EVENT_FILTER_IDS,
+  EVENT_FILTER_LABELS,
   EVENT_TYPE_LABELS,
   countUpcoming,
+  eventTier,
   groupEvents,
-  primaryFilterOf,
-  showsEventPrickles,
   type EventFilter,
+  type EventTier,
   type EventType,
-  type PrimaryEventFilter,
-  type RetreatFilter,
 } from "@/lib/events-filter";
 import type { EventPrickle } from "@/lib/event-prickles";
 
@@ -28,6 +29,7 @@ export interface EventRow {
   starts_at: string;
   ends_at: string;
   focus: string | null;
+  registration?: string | null;
   cover_photo_id: string | null;
 }
 
@@ -35,16 +37,20 @@ export interface EventRow {
 // query code reaches the client bundle. Re-exported for existing importers.
 export type { EventPrickle };
 
-// How many prickle events the "All" view highlights before linking to the full list.
-const EVENT_PRICKLE_PREVIEW_COUNT = 4;
-
-const EMPTY_LABELS: Record<Exclude<EventFilter, "prickles">, string> = {
+const EMPTY_LABELS: Record<EventFilter, string> = {
   all: "events",
-  retreats: "retreats",
-  in_person_retreat: "in-person retreats",
-  virtual_retreat: "virtual retreats",
-  other: "other events",
+  big: "big events",
+  educational: "educational events",
+  events: "events",
+  sessions: "sessions",
 };
+
+// What each tier is called as a section, and how its cards look: the big ones get a tall picture, the rest less.
+const TIER_SECTIONS: { tier: EventTier; heading: string; artClass: string }[] = [
+  { tier: "big", heading: "Big events", artClass: "h-40" },
+  { tier: "educational", heading: "Educational", artClass: "h-28" },
+  { tier: "event", heading: "Events", artClass: "h-28" },
+];
 
 function fmtDate(d: string) {
   return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -94,58 +100,54 @@ export default function EventsBrowser({
     syncUrl(next);
   };
 
-  const primary = primaryFilterOf(filter);
   const counts = countUpcoming(events, eventPrickles.length, today);
   const { upcoming, past } = groupEvents(events, filter, today);
-
-  const primaryOptions: PillOption<PrimaryEventFilter>[] = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "retreats", label: "Retreats", count: counts.retreats },
-    { id: "prickles", label: "Prickle events", count: counts.prickles },
-    { id: "other", label: "Other events", count: counts.other },
-  ];
-  const retreatOptions: PillOption<RetreatFilter>[] = [
-    { id: "retreats", label: "All retreats" },
-    { id: "in_person_retreat", label: "In person", count: counts.in_person_retreat },
-    { id: "virtual_retreat", label: "Virtual", count: counts.virtual_retreat },
-  ];
+  const options: PillOption<EventFilter>[] = EVENT_FILTER_IDS.map((id) => ({ id, label: EVENT_FILTER_LABELS[id], count: counts[id] }));
+  const showsPrickles = filter === "all" || filter === "sessions";
+  const sessionEvents = upcoming.filter((e) => eventTier(e) === "session");
+  const hasUpcoming = upcoming.length > 0 || (showsPrickles && eventPrickles.length > 0);
 
   return (
     <div>
-      <PillFilter ariaLabel="Event type" options={primaryOptions} value={primary} onChange={setFilter} />
-      {primary === "retreats" && (
-        <PillFilter
-          ariaLabel="Retreat format"
-          size="sm"
-          className="mt-3"
-          options={retreatOptions}
-          value={filter as RetreatFilter}
-          onChange={setFilter}
-        />
-      )}
+      <PillFilter ariaLabel="Event type" options={options} value={filter} onChange={setFilter} />
 
       <div className="mt-6">
-        {filter === "prickles" ? (
-          <EventPricklesSection prickles={eventPrickles} timeZone={timeZone} />
-        ) : (
-          <>
-            {showsEventPrickles(filter) && eventPrickles.length > 0 && (
-              <EventPricklesSection
-                prickles={eventPrickles.slice(0, EVENT_PRICKLE_PREVIEW_COUNT)}
-                timeZone={timeZone}
-                highlighted
-                moreCount={Math.max(0, eventPrickles.length - EVENT_PRICKLE_PREVIEW_COUNT)}
-                onSeeAll={() => setFilter("prickles")}
-              />
-            )}
-            <EventGrid
-              heading="Upcoming"
-              events={upcoming}
-              empty={`No upcoming ${EMPTY_LABELS[filter]} scheduled yet.`}
-            />
-            <EventGrid heading="Past" events={past} empty={`No past ${EMPTY_LABELS[filter]} yet.`} />
-          </>
+        {TIER_SECTIONS.map(({ tier, heading, artClass }) => {
+          const inTier = upcoming.filter((e) => eventTier(e) === tier);
+          if (inTier.length === 0) return null;
+          return (
+            <section key={tier} aria-label={heading} className="mb-8">
+              <SectionHeading>{heading}</SectionHeading>
+              <div className="@container">
+                <div className="grid grid-cols-1 @pair:grid-cols-2 @columns:grid-cols-3 gap-4">
+                  {inTier.map((event) => (
+                    <EventCard key={event.id} event={event} artClass={artClass} />
+                  ))}
+                </div>
+              </div>
+            </section>
+          );
+        })}
+
+        {showsPrickles && (sessionEvents.length > 0 || eventPrickles.length > 0) && (
+          <SessionsSection events={sessionEvents} prickles={eventPrickles} timeZone={timeZone} />
         )}
+
+        {!hasUpcoming && <p className="mb-8 text-sm text-slate-600 dark:text-slate-400">No upcoming {EMPTY_LABELS[filter]} scheduled yet.</p>}
+
+        {past.length > 0 && (
+          <section aria-label="Past" className="mb-8">
+            <SectionHeading>Past</SectionHeading>
+            <div className="@container">
+              <div className="grid grid-cols-1 @pair:grid-cols-2 @columns:grid-cols-3 gap-4">
+                {past.map((event) => (
+                  <EventCard key={event.id} event={event} artClass="h-20" />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+        {past.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">No past {EMPTY_LABELS[filter]} yet.</p>}
       </div>
     </div>
   );
@@ -159,45 +161,23 @@ function SectionHeading({ children }: { children: ReactNode }) {
   );
 }
 
-function EventGrid({ heading, events, empty }: { heading: string; events: EventRow[]; empty: string }) {
-  return (
-    <section className="mb-8">
-      <SectionHeading>{heading}</SectionHeading>
-      {events.length === 0 ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">{empty}</p>
-      ) : (
-        <div className="@container">
-          <div className="grid grid-cols-1 @pair:grid-cols-2 @columns:grid-cols-3 gap-4">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function EventCard({ event }: { event: EventRow }) {
+function EventCard({ event, artClass }: { event: EventRow; artClass: string }) {
   const where = locationDisplay(event.location);
+  const needsSignUp = !!event.registration && event.registration !== "none";
   return (
     <Link data-track="events-event-location-event-focus"
       href={`/events/${event.slug}`}
       className="block bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
     >
-      <div className="aspect-video bg-slate-100 dark:bg-slate-800">
-        {event.cover_photo_id && (
-          // eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route
-          <img
-            src={`/api/events/${event.id}/photos/${event.cover_photo_id}`}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        )}
-      </div>
+      <EventArt
+        eventType={event.event_type}
+        coverUrl={event.cover_photo_id ? `/api/events/${event.id}/photos/${event.cover_photo_id}` : null}
+        className={artClass}
+      />
       <div className="p-4">
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
+          {needsSignUp ? " · Sign-up required" : ""}
         </p>
         <h3 className="font-semibold mt-0.5">{event.title}</h3>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
@@ -210,66 +190,46 @@ function EventCard({ event }: { event: EventRow }) {
   );
 }
 
-function EventPricklesSection({
-  prickles,
-  timeZone,
-  highlighted = false,
-  moreCount = 0,
-  onSeeAll,
-}: {
-  prickles: EventPrickle[];
-  timeZone: string;
-  highlighted?: boolean;
-  moreCount?: number;
-  onSeeAll?: () => void;
-}) {
+// The regular, drop-in sessions (Pitch Prickle, Goal Review...): a quiet list, since they ask nothing of a member.
+function SessionsSection({ events, prickles, timeZone }: { events: EventRow[]; prickles: EventPrickle[]; timeZone: string }) {
   const withSecondary = useWithSecondaryTime();
   return (
-    <section
-      aria-label="Upcoming prickle events"
-      className={`mb-8 rounded-lg border p-4 ${
-        highlighted
-          ? "border-plum-200 bg-plum-50 dark:border-plum-900 dark:bg-plum-950/40"
-          : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-      }`}
-    >
-      <SectionHeading>Upcoming prickle events</SectionHeading>
-      {prickles.length === 0 ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">No prickle events on the calendar right now.</p>
-      ) : (
-        <ul>
-          {prickles.map((p) => (
-            <li key={p.id}>
-              <Link data-track="events-open-prickle"
-                href={`/prickles/${p.id}`}
-                className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-white/70 dark:hover:bg-slate-800/50"
-              >
-                <div className="min-w-0">
-                  {p.title && p.title !== p.typeName && (
-                    <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide truncate">{p.typeName}</p>
-                  )}
-                  <p className="text-sm font-medium truncate">{p.title || p.typeName}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                    {p.hostName ? `Hosted by ${hostShortName(p.hostName)}` : "No host listed"}
-                  </p>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0 text-right">
-                  {withSecondary(fmtPrickleTime(p.startTime, timeZone), p.startTime, timeZone)}
+    <section aria-label="Sessions" className="mb-8 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <SectionHeading>Sessions</SectionHeading>
+      <ul>
+        {events.map((e) => (
+          <li key={e.id}>
+            <Link data-track="events-open-session"
+              href={`/events/${e.slug}`}
+              className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <p className="text-sm font-medium truncate">{e.title}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0 text-right">{fmtDateRange(e.starts_at, e.ends_at)}</p>
+            </Link>
+          </li>
+        ))}
+        {prickles.map((p) => (
+          <li key={p.id}>
+            <Link data-track="events-open-prickle"
+              href={`/prickles/${p.id}`}
+              className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <div className="min-w-0">
+                {p.title && p.title !== p.typeName && (
+                  <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide truncate">{p.typeName}</p>
+                )}
+                <p className="text-sm font-medium truncate">{p.title || p.typeName}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  {p.hostName ? `Hosted by ${hostShortName(p.hostName)}` : "No host listed"}
                 </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      {moreCount > 0 && onSeeAll && (
-        <button data-track="events-see-all-event-prickles"
-          type="button"
-          onClick={onSeeAll}
-          className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
-        >
-          See all {prickles.length + moreCount} prickle events →
-        </button>
-      )}
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 flex-shrink-0 text-right">
+                {withSecondary(fmtPrickleTime(p.startTime, timeZone), p.startTime, timeZone)}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
