@@ -105,6 +105,14 @@ describe("addEmailAlias", () => {
     expect(await addEmailAlias("not-an-email")).toEqual({ error: "Enter a valid email address" });
   });
 
+  it("returns the database's message for any other failure, and doesn't reprocess", async () => {
+    const { client } = makeClient((table, op) => (table === "member_email_aliases" && op === "insert" ? { error: { message: "connection lost" } } : {}));
+    vi.mocked(createClient).mockResolvedValue(client);
+
+    expect(await addEmailAlias("x@example.com")).toEqual({ error: "connection lost" });
+    expect(afterCallbacks).toHaveLength(0);
+  });
+
   it("explains a duplicate alias", async () => {
     const { client } = makeClient((table, op) =>
       table === "member_email_aliases" && op === "insert" ? { error: { code: "23505", message: "duplicate" } } : {}
@@ -132,6 +140,14 @@ describe("setEmailAliasActive", () => {
       ["eq", "id", "alias-1"],
       ["eq", "member_id", "member-1"],
     ]);
+  });
+
+  it("returns the database's message when the toggle fails", async () => {
+    const { client } = makeClient((table, op) => (table === "member_email_aliases" && op === "update" ? { error: { message: "connection lost" } } : {}));
+    vi.mocked(createClient).mockResolvedValue(client);
+
+    expect(await setEmailAliasActive("alias-1", true)).toEqual({ error: "connection lost" });
+    expect(afterCallbacks).toHaveLength(0);
   });
 
   it("reports an alias that isn't the member's", async () => {

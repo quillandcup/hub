@@ -231,3 +231,69 @@ describe("PATCH /api/admin/members/[id]", () => {
     expect(updateContactMock).not.toHaveBeenCalled();
   });
 });
+
+describe("PATCH /api/admin/members/[id] -- when the alias store fails", () => {
+  const patch = (id: string, body: unknown) =>
+    patchMember(new NextRequest(`http://localhost/api/admin/members/${id}`, { method: "PATCH", body: JSON.stringify(body) }), {
+      params: Promise.resolve({ id }),
+    });
+  const failing = (method: "upsertName" | "addName" | "setEmailActive" | "removeEmailOf" | "addEmail") =>
+    vi.spyOn(repos.aliases, method).mockRejectedValue(new Error("db down"));
+
+  it("reports it when keeping the old name as a pen name can't be saved", async () => {
+    updateContactMock.mockResolvedValue({});
+    failing("upsertName");
+    const res = await patch(ADA.id, { name: "Ada Newname", keepOldNameAsPenName: true });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+    expect(await repos.members.byId(ADA.id)).toMatchObject({ name: "Ada Example" });
+  });
+
+  it("reports it when a new pen name can't be saved", async () => {
+    failing("addName");
+    const res = await patch(ADA.id, { newPenName: "Ada E" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+  });
+
+  it("reports it when an email alias can't be switched", async () => {
+    failing("setEmailActive");
+    const res = await patch(FERN.id, { emailAlias: { id: "eal_x", active: true } });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+  });
+
+  it("reports it when the old primary email can't be kept as an alias", async () => {
+    failing("removeEmailOf");
+    const res = await patch(FERN.id, { email: "fern.new@example.test" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+  });
+
+  it("reports it when a new email alias can't be saved", async () => {
+    failing("addEmail");
+    const res = await patch(FERN.id, { newEmailAlias: "fern.alt@example.test" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+  });
+});
+
+describe("PATCH /api/admin/members/[id] -- the lists it returns", () => {
+  it("returns the member's names and their email aliases ordered by address", async () => {
+    dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "Fern E", source: "zoom", active: true });
+    dataset.emailAliases.push(
+      { id: "eal_1", memberId: FERN.id, alias_email: "zed@example.test", canonical_email: FERN.email, active: true },
+      { id: "eal_2", memberId: FERN.id, alias_email: "ada@example.test", canonical_email: FERN.email, active: false }
+    );
+
+    const res = await patchMember(new NextRequest(`http://localhost/api/admin/members/${FERN.id}`, { method: "PATCH", body: JSON.stringify({}) }), {
+      params: Promise.resolve({ id: FERN.id }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.aliases).toEqual([{ id: "nal_1", alias: "Fern E", source: "zoom", active: true }]);
+    expect(body.emailAliases.map((a: { alias_email: string }) => a.alias_email)).toEqual(["ada@example.test", "zed@example.test"]);
+  });
+});
+
