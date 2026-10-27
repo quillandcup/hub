@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import AnnouncementBar from "@/components/announcements/AnnouncementBar";
 
 const DISMISSED_KEY = "slack-connect-prompt-dismissed";
 
@@ -21,32 +21,17 @@ const COPY: Record<SlackConnectNeed, { text: string; action: string }> = {
  */
 export default function SlackConnectPrompt({ need }: { need: SlackConnectNeed }) {
   const pathname = usePathname();
-  // Hidden until read: sessionStorage doesn't exist on the server, so the first paint can't know.
-  const [dismissed, setDismissed] = useState(true);
-  useEffect(() => {
-    setDismissed(sessionStorage.getItem(DISMISSED_KEY) === "1");
-  }, []);
-
-  if (dismissed || pathname.startsWith("/settings")) return null;
+  if (pathname.startsWith("/settings")) return null;
   const { text, action } = COPY[need];
   return (
-    <div role="region" aria-label="Slack connection" className="flex flex-wrap items-center gap-x-4 gap-y-1 bg-plum-50 px-6 py-2 text-sm text-plum-900 dark:bg-slate-800 dark:text-slate-100">
-      <p className="flex-1">{text}</p>
-      {/* A full navigation: this goes to Slack and comes back through the callback route. */}
-      <a data-track="slack-connect-prompt-connect" href="/api/oauth/slack/start" className="rounded-lg bg-plum-600 px-3 py-1 font-medium text-white hover:bg-plum-700">
-        {action}
-      </a>
-      <button
-        type="button"
-        data-track="slack-connect-prompt-dismiss"
-        onClick={() => {
-          sessionStorage.setItem(DISMISSED_KEY, "1");
-          setDismissed(true);
-        }}
-        className="text-plum-800 underline-offset-2 hover:underline dark:text-slate-300"
-      >
-        Not now
-      </button>
-    </div>
+    <AnnouncementBar
+      tone="info"
+      aria-label="Slack connection"
+      // A full navigation: this goes to Slack and comes back through the callback route.
+      action={{ label: action, track: "slack-connect-prompt-connect", href: "/api/oauth/slack/start", external: true }}
+      dismiss={{ dismissKey: DISMISSED_KEY, scope: "session", track: "slack-connect-prompt-dismiss" }}
+    >
+      <p>{text}</p>
+    </AnnouncementBar>
   );
 }

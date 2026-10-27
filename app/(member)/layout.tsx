@@ -14,6 +14,7 @@ import UserMenu from '@/components/UserMenu'
 import AppHeader from '@/components/AppHeader'
 import WithInAppNotifications from '@/components/WithInAppNotifications'
 import SudoBanner from '@/components/SudoBanner'
+import AnnouncementStack, { ANNOUNCEMENT_PRIORITY } from '@/components/announcements/AnnouncementStack'
 import { InstallAppPrompt } from '@/components/InstallAppPrompt'
 import { TimezoneInitializer } from '@/components/TimezoneInitializer'
 import { SecondaryTimezoneProvider } from '@/components/SecondaryTimezone'
@@ -82,15 +83,29 @@ export default async function MemberLayout({
       <BrowserPushAccountGuard memberId={effectiveIdentity.memberId} isSudo={effectiveIdentity.isSudo} publicKey={showInstallPrompt ? (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null) : null} />
       <MemberNavigation isAdmin={isAdmin} enabledFeatures={enabledFeatures} />
       <div className="flex flex-col flex-1 min-w-0">
-        {effectiveIdentity.isSudo && (
-          <SudoBanner
-            memberName={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
-            memberEmail={effectiveIdentity.memberEmail}
-          />
-        )}
-        {showInstallPrompt && <InstallAppPrompt />}
-        {/* While the Getting started tour runs it has the Slack step (required for chat), so the bar would say it twice. */}
-        {slackNeed && !onboardingState?.active && <SlackConnectPrompt need={slackNeed} />}
+        {/* Bars above the header, stacked by priority (components/announcements/AnnouncementStack.tsx). */}
+        <AnnouncementStack
+          items={[
+            {
+              id: 'sudo',
+              priority: ANNOUNCEMENT_PRIORITY.sudo,
+              element: effectiveIdentity.isSudo && (
+                <SudoBanner
+                  memberName={effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName}
+                  memberEmail={effectiveIdentity.memberEmail}
+                />
+              ),
+            },
+            { id: 'install-app', priority: ANNOUNCEMENT_PRIORITY.installApp, element: showInstallPrompt && <InstallAppPrompt /> },
+            {
+              id: 'slack-connect',
+              priority: ANNOUNCEMENT_PRIORITY.slackConnect,
+              // While the Getting started tour runs it has the Slack step (required for chat), so the bar would say it twice.
+              element: slackNeed && !onboardingState?.active && <SlackConnectPrompt need={slackNeed} />,
+            },
+          ]}
+        />
+
         <TimezoneProvider zone={resolveTimeZone(storedTimezone)}>
         <SecondaryTimezoneProvider zone={secondaryTimezone}>
         <WithInAppNotifications identity={effectiveIdentity}>
