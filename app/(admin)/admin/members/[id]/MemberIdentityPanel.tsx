@@ -369,8 +369,8 @@ export default function MemberIdentityPanel({
               >
                 <button
                   onClick={() => handleSetDefault(alias.alias, alias.id)}
-                  disabled={settingDefaultId === alias.id || isDefault}
-                  aria-label={isDefault ? undefined : `Use ${alias.alias} as the default pen name`}
+                  disabled={settingDefaultId === alias.id || isDefault || !alias.active}
+                  aria-label={isDefault || !alias.active ? undefined : `Use ${alias.alias} as the default pen name`}
                   className="flex items-center gap-2 hover:underline disabled:no-underline"
                 >
                   {alias.alias}
