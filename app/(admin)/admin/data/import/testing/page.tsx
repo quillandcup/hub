@@ -26,12 +26,12 @@ export default async function TestingImportPage() {
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
-          <Link href="/data/import" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
+          <Link href="/admin/data/import" className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block">
             ← Back to Production Import
           </Link>
           <h1 className="text-2xl font-bold">CSV Import (Testing)</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            File-based imports for development and testing. Use the <Link href="/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based imports.
+            File-based imports for development and testing. Use the <Link href="/admin/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based imports.
           </p>
         </div>
       </header>
@@ -97,7 +97,7 @@ export default async function TestingImportPage() {
               TODO: Add CSV upload option for Zoom meeting data for testing purposes.
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-              Use the <Link href="/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based Zoom imports.
+              Use the <Link href="/admin/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based Zoom imports.
             </p>
           </div>
 
@@ -108,7 +108,7 @@ export default async function TestingImportPage() {
               TODO: Add CSV upload option for Google Calendar event data for testing purposes.
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-              Use the <Link href="/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based calendar sync.
+              Use the <Link href="/admin/data/import" className="text-plum-600 dark:text-plum-400 underline">production import page</Link> for API-based calendar sync.
             </p>
           </div>
         </div>

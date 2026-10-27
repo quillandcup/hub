@@ -22,7 +22,7 @@ export default async function NewPrickleTypePage() {
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4">
           <Link
-            href="/data/prickle-types"
+            href="/admin/data/prickle-types"
             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block"
           >
             ← Back to Prickle Types
