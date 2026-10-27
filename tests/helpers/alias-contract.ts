@@ -156,5 +156,43 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       await ctx.repo().upsertEmail(b, e4, "manual");
       expect((await held(e4)).memberId).toBe(b);
     });
+
+    it("lists a member's own email aliases newest first, adds only unused addresses, and toggles their own", async () => {
+      const [a, b] = ctx.memberIds;
+      const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;
+      const [first, second] = [email("own1"), email("own2")];
+      await ctx.seed({});
+
+      expect(await ctx.repo().addEmail(a, first, "manual")).toBe(true);
+      expect(await ctx.repo().addEmail(a, second, "manual")).toBe(true);
+      expect(await ctx.repo().addEmail(b, first, "manual")).toBe(false);
+
+      const mine = await ctx.repo().emailsOf(a);
+      expect(mine.map((e) => [e.alias_email, e.source, e.active])).toEqual([[second, "manual", true], [first, "manual", true]]);
+      expect(await ctx.repo().emailsOf(b)).toEqual([]);
+
+      expect(await ctx.repo().setEmailActive(b, mine[0].id, false)).toBe(false);
+      expect(await ctx.repo().setEmailActive(a, mine[0].id, false)).toBe(true);
+      expect((await ctx.repo().emailsOf(a))[0].active).toBe(false);
+    });
+
+    it("removes a member's alias by address, and upserts one switched on or off", async () => {
+      const [a] = ctx.memberIds;
+      const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;
+      const [gone, kept, flipped] = [email("gone"), email("kept"), email("flip")];
+      await ctx.seed({ emails: [{ member: 0, email: gone }, { member: 1, email: kept }] });
+
+      await ctx.repo().removeEmailOf(a, gone);
+      await ctx.repo().removeEmailOf(a, kept); // not theirs: untouched
+      expect(await ctx.repo().findEmail(gone)).toBeNull();
+      expect(await ctx.repo().findEmail(kept)).not.toBeNull();
+
+      await ctx.repo().upsertEmail(a, flipped, "manual", false);
+      expect((await ctx.repo().emailsOf(a)).find((e) => e.alias_email === flipped)!.active).toBe(false);
+      await ctx.repo().upsertEmail(a, flipped, "manual", true);
+      expect((await ctx.repo().emailsOf(a)).find((e) => e.alias_email === flipped)!.active).toBe(true);
+      await ctx.repo().upsertEmail(a, flipped, "manual");
+      expect((await ctx.repo().emailsOf(a)).find((e) => e.alias_email === flipped)!.active).toBe(true);
+    });
   });
 }

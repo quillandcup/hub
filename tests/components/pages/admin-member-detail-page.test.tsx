@@ -29,7 +29,9 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   default: ({
     slackActivities,
     activityFeed,
+    emailAliases,
   }: {
+    emailAliases: { alias_email: string }[];
     slackActivities: { id: string; description: string | null }[];
     activityFeed: { total: number; page: number };
   }) => (
@@ -42,6 +44,11 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
       <p>
         activity {activityFeed.total} on page {activityFeed.page}
       </p>
+      <ol aria-label="email aliases">
+        {emailAliases.map((a) => (
+          <li key={a.alias_email}>{a.alias_email}</li>
+        ))}
+      </ol>
     </>
   ),
 }));
@@ -89,6 +96,23 @@ describe("MemberDetailPage", () => {
     expect(screen.getByRole("heading", { name: "Moss Bramble" })).toBeInTheDocument();
     const items = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual(["@Fern thanks, see #hub-feedback"]);
+  });
+
+  it("lists the member's email aliases by address", async () => {
+    useFakeSupabase(
+      memberTables({
+        member_email_aliases: {
+          data: [
+            { id: "e1", alias_email: "zed@example.test", source: "manual", active: true, created_at: "2026-02-01T00:00:00Z" },
+            { id: "e2", alias_email: "ada@example.test", source: "manual", active: true, created_at: "2026-01-01T00:00:00Z" },
+            { id: "e3", alias_email: "ada@example.test", source: "manual", active: false, created_at: "2026-03-01T00:00:00Z" },
+          ],
+        },
+      })
+    );
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    const aliases = screen.getByRole("list", { name: "email aliases" });
+    expect(Array.from(aliases.querySelectorAll("li")).map((li) => li.textContent)).toEqual(["ada@example.test", "ada@example.test", "zed@example.test"]);
   });
 
   it("loads the member's own activity feed for the Activity Log tab", async () => {

@@ -75,10 +75,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       if (keepOldNameAsPenName) {
-        const { error: aliasError } = await supabase
-          .from("member_name_aliases")
-          .upsert({ member_id: member.id, alias: member.name, source: "admin" }, { onConflict: "alias" });
-        if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
+        try {
+          await createRepos(supabase).aliases.upsertName(member.id, member.name, "admin");
+        } catch (err) {
+          return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+        }
       }
 
       try {
@@ -96,25 +97,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: adminNameAliasConflictMessage(newPenName.trim(), checked.conflict) }, { status: 409 });
     }
 
-    const { error: insertError } = await supabase
-      .from("member_name_aliases")
-      .insert({ member_id: member.id, alias: newPenName.trim(), source: "admin" });
-    if (insertError) {
-      if (insertError.code === "23505") {
-        return NextResponse.json({ error: "That name is already linked to another member" }, { status: 409 });
-      }
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    try {
+      const added = await createRepos(supabase).aliases.addName(member.id, newPenName.trim(), "admin");
+      if (!added) return NextResponse.json({ error: "That name is already linked to another member" }, { status: 409 });
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
     }
   }
 
   if (displayName !== undefined) {
     if (displayName !== null) {
-      const { data: aliasRow } = await supabase
-        .from("member_name_aliases")
-        .select("id")
-        .eq("member_id", member.id)
-        .eq("alias", displayName)
-        .maybeSingle();
+      const aliasRow = await createRepos(supabase).aliases.findName(member.id, displayName);
       if (!aliasRow) {
         return NextResponse.json({ error: "That pen name isn't on file for this member" }, { status: 400 });
       }
@@ -138,36 +131,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (emailAlias && typeof emailAlias.id === "string" && typeof emailAlias.active === "boolean") {
-    const { data: updated, error: aliasError } = await supabase
-      .from("member_email_aliases")
-      .update({ active: emailAlias.active })
-      .eq("id", emailAlias.id)
-      .eq("member_id", member.id)
-      .select("id")
-      .maybeSingle();
-    if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
+    let updated: boolean;
+    try {
+      updated = await createRepos(supabase).aliases.setEmailActive(member.id, emailAlias.id, emailAlias.active);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
     if (!updated) return NextResponse.json({ error: "That email alias isn't on file for this member" }, { status: 404 });
     // Same as the member's own Settings toggle: reactivating backfills recent
     // matching; deactivating leaves history alone until it's reprocessed.
     if (emailAlias.active) scheduleAliasReprocess();
   }
 
-  const [updated, { data: aliases }, { data: emailAliases }] = await Promise.all([
-    createRepos(supabase).members.byId(member.id),
-    supabase
-      .from("member_name_aliases")
-      .select("id, alias, source, active")
-      .eq("member_id", member.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("member_email_aliases")
-      .select("id, alias_email, source, active")
-      .eq("member_id", member.id)
-      .order("alias_email"),
-  ]);
+  const repos = createRepos(supabase);
+  const [updated, names, emails] = await Promise.all([repos.members.byId(member.id), repos.aliases.namesOf(member.id), repos.aliases.emailsOf(member.id)]);
+  const aliases = names.map(({ id, alias, source, active }) => ({ id, alias, source, active }));
+  const emailAliases = emails
+    .map(({ id, alias_email, source, active }) => ({ id, alias_email, source, active }))
+    .sort((a, b) => (a.alias_email < b.alias_email ? -1 : a.alias_email > b.alias_email ? 1 : 0));
 
   const updatedMember = updated && { name: updated.name, display_name: updated.displayName, email: updated.email };
-  return NextResponse.json({ member: updatedMember, aliases: aliases ?? [], emailAliases: emailAliases ?? [] });
+  return NextResponse.json({ member: updatedMember, aliases, emailAliases });
 }
 
 type MemberRow = { id: string; name: string; email: string; kajabi_id: string | null };
@@ -184,12 +168,9 @@ function normalizeEmail(input: string): string | NextResponse {
  * paper over with an alias.
  */
 async function findEmailOwner(supabase: SupabaseClient, memberId: string, address: string) {
-  const [holder, { data: alias }] = await Promise.all([
-    createRepos(supabase).members.byEmail(address),
-    supabase.from("member_email_aliases").select("member_id").eq("alias_email", address).maybeSingle(),
-  ]);
+  const [holder, alias] = await Promise.all([createRepos(supabase).members.byEmail(address), createRepos(supabase).aliases.findEmail(address)]);
   if (holder && holder.id !== memberId) return { memberId: holder.id, as: "email" as const };
-  if (alias && alias.member_id !== memberId) return { memberId: alias.member_id as string, as: "alias" as const };
+  if (alias && alias.memberId !== memberId) return { memberId: alias.memberId, as: "alias" as const };
   return null;
 }
 
@@ -256,20 +237,13 @@ async function changePrimaryEmail(supabase: SupabaseClient, member: MemberRow, i
   }
 
   // The new address may have been an alias of this member; it's the email now.
-  const { error: cleanupError } = await supabase
-    .from("member_email_aliases")
-    .delete()
-    .eq("member_id", member.id)
-    .eq("alias_email", address);
-  if (cleanupError) return NextResponse.json({ error: cleanupError.message }, { status: 500 });
-
-  const { error: aliasError } = await supabase
-    .from("member_email_aliases")
-    .upsert(
-      { member_id: member.id, alias_email: member.email.toLowerCase(), source: "manual", active: true },
-      { onConflict: "alias_email" }
-    );
-  if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
+  try {
+    const aliases = createRepos(supabase).aliases;
+    await aliases.removeEmailOf(member.id, address);
+    await aliases.upsertEmail(member.id, member.email.toLowerCase(), "manual", true);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
 
   member.email = address;
   scheduleAliasReprocess();
@@ -286,14 +260,11 @@ async function addEmailAlias(supabase: SupabaseClient, member: MemberRow, input:
   const owner = await findEmailOwner(supabase, member.id, address);
   if (owner) return conflictResponse(owner);
 
-  const { error } = await supabase
-    .from("member_email_aliases")
-    .insert({ member_id: member.id, alias_email: address, source: "manual" });
-  if (error) {
-    if (error.code === "23505") {
-      return NextResponse.json({ error: "That email is already an alias of this member" }, { status: 409 });
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    const added = await createRepos(supabase).aliases.addEmail(member.id, address, "manual");
+    if (!added) return NextResponse.json({ error: "That email is already an alias of this member" }, { status: 409 });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 
   scheduleAliasReprocess();

@@ -120,26 +120,14 @@ export default async function MemberDetailPage({
   };
 
   // Fetch member name aliases
-  const { data: aliases } = await supabase
-    .from("member_name_aliases")
-    .select("alias")
-    .eq("member_id", id)
-    .order("alias");
-
-  // Fetch full alias rows for the Identity panel (pen name selection) — the
-  // header chip display above only needs the alias text.
-  const { data: nameAliasRows } = await supabase
-    .from("member_name_aliases")
-    .select("id, alias, source, active")
-    .eq("member_id", id)
-    .order("created_at", { ascending: false });
-
-  // Fetch email aliases
-  const { data: emailAliases } = await supabase
-    .from("member_email_aliases")
-    .select("id, alias_email, source, active")
-    .eq("member_id", id)
-    .order("alias_email");
+  const [allNames, aliasEmails] = await Promise.all([createRepos(supabase).aliases.namesOf(id), createRepos(supabase).aliases.emailsOf(id)]);
+  // The header chips only need the alias text, by name.
+  const aliases = allNames.map((a) => ({ alias: a.alias })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0));
+  // The Identity panel (pen name selection) needs the full rows, newest first.
+  const nameAliasRows = allNames.map(({ id, alias, source, active }) => ({ id, alias, source, active }));
+  const emailAliases = aliasEmails
+    .map(({ id, alias_email, source, active }) => ({ id, alias_email, source, active }))
+    .sort((a, b) => (a.alias_email < b.alias_email ? -1 : a.alias_email > b.alias_email ? 1 : 0));
 
   // Fetch hiatus history — member_hiatus_history is the live source of
   // truth for hiatus tracking.
