@@ -157,7 +157,17 @@ export function assignHostAndSpeaker(input: {
   memberName: string | null;
   defaultHostId: string | null;
   namesGuestSpeaker: boolean;
+  /** A host an admin picked for this event; replaces whoever the title and the type's default would give. */
+  hostOverrideId?: string | null;
 }): { hostId: string | null; guestSpeaker: string | null } {
+  const { hostOverrideId } = input;
+  const assigned = assignFromTitle(input);
+  if (!hostOverrideId) return assigned;
+  // Picking the member the title names as speaker makes them the host, not a guest of themselves.
+  return { hostId: hostOverrideId, guestSpeaker: hostOverrideId === input.memberId ? null : assigned.guestSpeaker };
+}
+
+function assignFromTitle(input: { typedName: string | null; memberId: string | null; memberName: string | null; defaultHostId: string | null; namesGuestSpeaker: boolean }) {
   const { typedName, memberId, memberName, defaultHostId, namesGuestSpeaker } = input;
   if (!namesGuestSpeaker) return { hostId: memberId ?? defaultHostId, guestSpeaker: null };
   const hostId = defaultHostId ?? memberId;

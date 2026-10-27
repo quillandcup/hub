@@ -45,15 +45,16 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
-import { changePrickleType } from "@/app/(admin)/admin/prickles/[id]/actions";
+import { changePrickleHost, changePrickleType } from "@/app/(admin)/admin/prickles/[id]/actions";
 import ChangePrickleType from "@/app/(admin)/admin/prickles/[id]/ChangePrickleType";
+import ChangePrickleHost from "@/app/(admin)/admin/prickles/[id]/ChangePrickleHost";
 
 beforeEach(() => {
   admin = true;
   unmatched = [];
   summaries = { [CAL]: "HEDGIE HOUSE BOOK FAIR INTRO!" };
   writes = [];
-  repos = createInMemoryRepos(new InMemoryDataset({ prickleTypes: [type(TYPE_A, "Hedgie-A-Thon"), type(TYPE_B, "Book Fair")], prickles: [prickle("p1", CAL), prickle("p2", null)] }));
+  repos = createInMemoryRepos(new InMemoryDataset({ members: [{ id: "mbr_AAAAAAAAAAA1", name: "Julie Example" }], prickleTypes: [type(TYPE_A, "Hedgie-A-Thon"), type(TYPE_B, "Book Fair")], prickles: [prickle("p1", CAL), prickle("p2", null)] }));
 });
 afterEach(cleanup);
 
@@ -113,5 +114,60 @@ describe("ChangePrickleType", () => {
     await userEvent.click(screen.getByRole("button", { name: "Change type" }));
 
     expect(await screen.findByText("Only prickles made from a calendar event can change type here")).toBeInTheDocument();
+  });
+});
+
+describe("changePrickleHost", () => {
+  it("stores the host on the event's decision and moves the prickle", async () => {
+    unmatched = [{ id: "u1", calendar_event_id: CAL }];
+
+    await expect(changePrickleHost("p1", "mbr_AAAAAAAAAAA1")).resolves.toEqual({ success: true });
+
+    expect(writes).toEqual([{ op: "update", row: expect.objectContaining({ status: "resolved", resolved_host_id: "mbr_AAAAAAAAAAA1" }) }]);
+    expect((await repos.prickles.byId("p1"))?.hostId).toBe("mbr_AAAAAAAAAAA1");
+  });
+
+  it("adds a decision when the event was matched automatically", async () => {
+    await changePrickleHost("p1", "mbr_AAAAAAAAAAA1");
+
+    expect(writes).toEqual([{ op: "insert", row: expect.objectContaining({ calendar_event_id: CAL, resolved_host_id: "mbr_AAAAAAAAAAA1" }) }]);
+  });
+
+  it("refuses a non-admin, a missing prickle, a prickle without a calendar event and an unknown member", async () => {
+    expect(await changePrickleHost("nope", "mbr_AAAAAAAAAAA1")).toEqual({ error: "Prickle not found" });
+    expect(await changePrickleHost("p2", "mbr_AAAAAAAAAAA1")).toEqual({ error: "Only prickles made from a calendar event can change host here" });
+    expect(await changePrickleHost("p1", "mbr_ZZZZZZZZZZZ9")).toEqual({ error: "Member not found" });
+    admin = false;
+    expect(await changePrickleHost("p1", "mbr_AAAAAAAAAAA1")).toEqual({ error: "Not authorized" });
+    expect(writes).toEqual([]);
+  });
+});
+
+describe("ChangePrickleHost", () => {
+  const members = [{ id: "mbr_AAAAAAAAAAA1", name: "Julie Example", email: "julie@example.com" }];
+
+  it("saves the picked member and refreshes the page", async () => {
+    render(<ChangePrickleHost prickleId="p1" currentHostId={null} currentHostName={null} members={members} />);
+    expect(screen.getByText("No host.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change host" })).toBeDisabled();
+
+    await userEvent.type(screen.getByPlaceholderText("Search for the host..."), "Julie");
+    await userEvent.click(await screen.findByText("Julie Example"));
+    await userEvent.click(screen.getByRole("button", { name: "Change host" }));
+
+    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
+    expect((await repos.prickles.byId("p1"))?.hostId).toBe("mbr_AAAAAAAAAAA1");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("shows the error when saving fails", async () => {
+    render(<ChangePrickleHost prickleId="p2" currentHostId="mbr_OTHER" currentHostName="Ania Example" members={members} />);
+    expect(screen.getByText("Hosted by Ania Example.")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText("Search for the host..."), "Julie");
+    await userEvent.click(await screen.findByText("Julie Example"));
+    await userEvent.click(screen.getByRole("button", { name: "Change host" }));
+
+    expect(await screen.findByText("Only prickles made from a calendar event can change host here")).toBeInTheDocument();
   });
 });

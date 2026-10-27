@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
-        .select("calendar_event_id, resolved_type_id, status")
+        .select("calendar_event_id, resolved_type_id, resolved_host_id, status")
         .in("status", ["resolved", "ignored"]),
     ]);
 
@@ -137,9 +137,9 @@ export async function POST(request: NextRequest) {
     const typeByNormalizedName = new Map(
       prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
     );
-    // Map calendar_event_id → { status, resolved_type_id } for user decisions
+    // Map calendar_event_id → { status, resolved_type_id, resolved_host_id } for user decisions
     const userDecisionByEventId = new Map(
-      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, { status: r.status, typeId: r.resolved_type_id }]) || []
+      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, { status: r.status, typeId: r.resolved_type_id, hostId: r.resolved_host_id }]) || []
     );
 
     // STEP 2: Process events in memory
@@ -272,6 +272,7 @@ export async function POST(request: NextRequest) {
         memberName: matchedHostName,
         defaultHostId: matchedType?.default_host_id ?? null,
         namesGuestSpeaker: matchedType?.names_guest_speaker ?? false,
+        hostOverrideId: userDecision?.hostId ?? null,
       });
 
       pricklesToInsert.push({

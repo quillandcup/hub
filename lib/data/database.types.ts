@@ -5002,6 +5002,7 @@ export type Database = {
           id: string
           raw_summary: string
           resolved_at: string | null
+          resolved_host_id: string | null
           resolved_type_id: string | null
           status: string
           suggested_host: string | null
@@ -5013,6 +5014,7 @@ export type Database = {
           id?: string
           raw_summary: string
           resolved_at?: string | null
+          resolved_host_id?: string | null
           resolved_type_id?: string | null
           status?: string
           suggested_host?: string | null
@@ -5024,12 +5026,20 @@ export type Database = {
           id?: string
           raw_summary?: string
           resolved_at?: string | null
+          resolved_host_id?: string | null
           resolved_type_id?: string | null
           status?: string
           suggested_host?: string | null
           suggested_type?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "unmatched_calendar_events_resolved_host_id_fkey"
+            columns: ["resolved_host_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "unmatched_calendar_events_resolved_type_id_fkey"
             columns: ["resolved_type_id"]
