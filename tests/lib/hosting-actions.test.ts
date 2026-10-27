@@ -88,7 +88,7 @@ function makeSupabaseMock({
             mostRecentJoinedAt: memberJoin.most_recent_joined_at,
           }))
         : [],
-      prickleTypes: [{ id: "type-a", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost, soloTaskFriendly: false, isSpecialty: false }],
+      prickleTypes: [{ id: "type-a", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
       // Prickles the acting member already hosts (an exemption from the one-month rule).
       prickles: Array.from({ length: hostedCount }, (_, i) => ({
         id: `prkl_${String(i).padStart(12, "A")}`,

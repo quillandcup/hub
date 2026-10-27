@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString, parseEventFilter } from "@/lib/events-filter";
-import { fetchUpcomingSpecialtyPrickles } from "@/lib/specialty-prickles";
+import { fetchUpcomingEventPrickles } from "@/lib/event-prickles";
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
 import { ORG_TIMEZONE } from "@/lib/config";
 
@@ -32,12 +32,12 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
 
   const now = new Date();
 
-  const [{ data: events }, specialtyPrickles] = await Promise.all([
+  const [{ data: events }, eventPrickles] = await Promise.all([
     supabase
       .from("events")
       .select("id, slug, title, event_type, location, starts_at, ends_at, focus, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
-    fetchUpcomingSpecialtyPrickles(supabase, now),
+    fetchUpcomingEventPrickles(supabase, now),
   ]);
 
   const rows: EventRow[] = ((events ?? []) as RawEvent[]).map((e) => ({
@@ -56,13 +56,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     <div className="container mx-auto px-6 py-6 max-w-5xl">
       <h1 className="text-2xl font-bold mb-1">Events</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        Retreats, specialty prickles, and other gatherings — what&apos;s coming up and where we&apos;ve been.
+        Retreats, prickle events, and other gatherings — what&apos;s coming up and where we&apos;ve been.
       </p>
       <EventsBrowser
         key={initialFilter}
         initialFilter={initialFilter}
         events={rows}
-        specialtyPrickles={specialtyPrickles}
+        eventPrickles={eventPrickles}
         today={localDateString(now, timeZone)}
         timeZone={timeZone}
       />

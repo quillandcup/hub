@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// The create and update routes carry the "specialty" flag the Events page reads. A small recording
+// The create and update routes carry the "prickles" flag the Events page reads. A small recording
 // client stands in for Supabase: it captures the written payload and answers "no name clash".
 
 let written: Record<string, unknown> | undefined;
@@ -34,30 +34,32 @@ beforeEach(() => {
   written = undefined;
 });
 
-describe("prickle type routes: isSpecialty", () => {
-  it("stores the flag when creating a type", async () => {
-    const res = await post(create, { name: "Book Launch Party", isSpecialty: true });
+describe("prickle type routes: dimensions", () => {
+  it("stores each dimension when creating a type", async () => {
+    const res = await post(create, { name: "Book Launch Party", listedInEvents: true, announcedPublicly: true, guestsAllowed: false });
 
     expect(res.status).toBe(201);
-    expect(written).toMatchObject({ name: "Book Launch Party", is_specialty: true });
+    expect(written).toMatchObject({ name: "Book Launch Party", listed_in_events: true, announced_publicly: true, guests_allowed: false });
   });
 
-  it("stores the flag when updating a type", async () => {
-    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle", isSpecialty: false });
+  it("stores each dimension when updating a type", async () => {
+    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle", listedInEvents: false, announcedPublicly: false, guestsAllowed: true });
 
     expect(res.status).toBe(200);
-    expect(written).toMatchObject({ is_specialty: false });
+    expect(written).toMatchObject({ listed_in_events: false, announced_publicly: false, guests_allowed: true });
   });
 
-  it("leaves the flag alone when the request doesn't mention it", async () => {
+  it("leaves dimensions alone when the request doesn't mention them", async () => {
     await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle" });
 
-    expect(written).not.toHaveProperty("is_specialty");
+    expect(written).not.toHaveProperty("listed_in_events");
+    expect(written).not.toHaveProperty("announced_publicly");
+    expect(written).not.toHaveProperty("guests_allowed");
   });
 
-  it("rejects a flag that isn't a boolean", async () => {
-    expect((await post(create, { name: "X", isSpecialty: "yes" })).status).toBe(400);
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", isSpecialty: 1 })).status).toBe(400);
+  it.each(["listedInEvents", "announcedPublicly", "guestsAllowed"])("rejects %s when it isn't a boolean", async (field) => {
+    expect((await post(create, { name: "X", [field]: "yes" })).status).toBe(400);
+    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", [field]: 1 })).status).toBe(400);
     expect(written).toBeUndefined();
   });
 });

@@ -27,7 +27,7 @@ import { POST as resolveOne } from "@/app/api/prickle-types/resolve/route";
 import { POST as resolveBatch } from "@/app/api/prickle-types/resolve-batch/route";
 
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" };
-const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
+const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 
 const post = (route: typeof resolveOne, body: unknown) =>
   route(new NextRequest("http://localhost/api/prickle-types/resolve", { method: "POST", body: JSON.stringify(body) }));

@@ -15,7 +15,11 @@ export type PrickleType = {
   requiresHost: boolean;
   soloTaskFriendly: boolean;
   /** A special session (webinar, pitch, goal review) the Events page calls out, not an everyday progress or sprint prickle. */
-  isSpecialty: boolean;
+  listedInEvents: boolean;
+  /** Included in public marketing (announced outside the community). */
+  announcedPublicly: boolean;
+  /** Non-members may attend. */
+  guestsAllowed: boolean;
   /** What the type is, in a sentence or two; null when nobody wrote one. */
   description?: string | null;
   /** The member who hosts this kind of prickle unless someone else is assigned. */
@@ -144,13 +148,13 @@ export interface PrickleRepository {
   /** How many prickles each of these members hosted among those that started before `before` (ISO); every member asked about is present, 0 if none. */
   hostedCounts(hostIds: string[], before: string): Promise<Map<string, number>>;
   /**
-   * Prickles of a specialty type (`PrickleType.isSpecialty`) that are not over by `from` and start no later
+   * Prickles of a type shown on the Events page (`PrickleType.listedInEvents`) that are not over by `from` and start no later
    * than `to` (ISO): running at `from` or starting by `to`. Oldest first, at most `limit`.
    */
-  specialtyActiveBetween(options: { from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
+  listedInEventsActiveBetween(options: { from: string; to: string; limit: number }): Promise<PrickleDetail[]>;
 }
 
-const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, is_specialty";
+const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
 const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
@@ -172,7 +176,9 @@ type TypeRow = {
   purpose: string;
   requires_host: boolean | null;
   solo_task_friendly: boolean;
-  is_specialty: boolean;
+  listed_in_events: boolean;
+  announced_publicly: boolean;
+  guests_allowed: boolean;
 };
 type HostRow = { id: string; name: string; display_name: string | null };
 export type DetailRow = {
@@ -202,7 +208,9 @@ const toType = (row: TypeRow): PrickleType => ({
   description: row.description,
   defaultHostId: row.default_host_id,
   soloTaskFriendly: row.solo_task_friendly,
-  isSpecialty: row.is_specialty,
+  listedInEvents: row.listed_in_events,
+  announcedPublicly: row.announced_publicly,
+  guestsAllowed: row.guests_allowed,
 });
 
 export function toDetail(row: DetailRow): PrickleDetail {
@@ -544,8 +552,8 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return counts;
   }
 
-  async specialtyActiveBetween({ from, to, limit }: { from: string; to: string; limit: number }): Promise<PrickleDetail[]> {
-    const { data: types, error: typeError } = await this.db.from("prickle_types").select("id").eq("is_specialty", true);
+  async listedInEventsActiveBetween({ from, to, limit }: { from: string; to: string; limit: number }): Promise<PrickleDetail[]> {
+    const { data: types, error: typeError } = await this.db.from("prickle_types").select("id").eq("listed_in_events", true);
     if (typeError) throw new Error(typeError.message);
     const typeIds = (types ?? []).map((t) => t.id);
     if (typeIds.length === 0) return [];
@@ -713,7 +721,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     const existing = this.data.prickleTypes.find((t) => t.normalizedName === normalizedName);
     if (existing) return existing.id;
     const id = `prty_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-    this.data.prickleTypes.push({ id, name, normalizedName, description: description ?? null, purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false });
+    this.data.prickleTypes.push({ id, name, normalizedName, description: description ?? null, purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false });
     return id;
   }
 
@@ -772,8 +780,8 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return counts;
   }
 
-  async specialtyActiveBetween({ from, to, limit }: { from: string; to: string; limit: number }) {
-    const typeIds = new Set(this.data.prickleTypes.filter((t) => t.isSpecialty).map((t) => t.id));
+  async listedInEventsActiveBetween({ from, to, limit }: { from: string; to: string; limit: number }) {
+    const typeIds = new Set(this.data.prickleTypes.filter((t) => t.listedInEvents).map((t) => t.id));
     const start = new Date(from).getTime();
     const end = new Date(to).getTime();
     return this.data.prickles

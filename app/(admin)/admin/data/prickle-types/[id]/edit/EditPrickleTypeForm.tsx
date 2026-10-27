@@ -20,7 +20,9 @@ interface EditPrickleTypeFormProps {
     description: string | null;
     purpose: PrickleTypePurpose;
     solo_task_friendly: boolean;
-    is_specialty: boolean;
+    listed_in_events: boolean;
+    announced_publicly: boolean;
+    guests_allowed: boolean;
   };
 }
 
@@ -32,7 +34,9 @@ export default function EditPrickleTypeForm({
   const [description, setDescription] = useState(prickleType.description || "");
   const [purpose, setPurpose] = useState<PrickleTypePurpose>(prickleType.purpose);
   const [soloTaskFriendly, setSoloTaskFriendly] = useState(prickleType.solo_task_friendly);
-  const [isSpecialty, setIsSpecialty] = useState(prickleType.is_specialty);
+  const [listedInEvents, setListedInEvents] = useState(prickleType.listed_in_events);
+  const [announcedPublicly, setAnnouncedPublicly] = useState(prickleType.announced_publicly);
+  const [guestsAllowed, setGuestsAllowed] = useState(prickleType.guests_allowed);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +55,9 @@ export default function EditPrickleTypeForm({
           description: description.trim(),
           purpose,
           soloTaskFriendly,
-          isSpecialty,
+          listedInEvents,
+          announcedPublicly,
+          guestsAllowed,
         }),
       });
 
@@ -151,20 +157,48 @@ export default function EditPrickleTypeForm({
           </p>
         </div>
 
-        {/* Specialty */}
         <div className="mb-6">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
-              checked={isSpecialty}
-              onChange={(e) => setIsSpecialty(e.target.checked)}
+              checked={listedInEvents}
+              onChange={(e) => setListedInEvents(e.target.checked)}
               className="rounded border-slate-300 dark:border-slate-600"
             />
-            Specialty prickle
+            Listed in Events
           </label>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            Call these out on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches).
-            Leave off for everyday progress and sprint prickles.
+            Show upcoming prickles of this type on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches). Leave off for everyday progress and sprint prickles.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={announcedPublicly}
+              onChange={(e) => setAnnouncedPublicly(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Announced publicly
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Include in public marketing. Not used by any page yet.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={guestsAllowed}
+              onChange={(e) => setGuestsAllowed(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Guests allowed
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Non-members may attend. Not used by any page yet.
           </p>
         </div>
 

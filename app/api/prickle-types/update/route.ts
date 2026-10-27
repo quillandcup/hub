@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { typeId, name, description, purpose, soloTaskFriendly, isSpecialty } = body;
+    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed } = body;
 
     if (!typeId || !name) {
       return NextResponse.json(
@@ -32,9 +32,21 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (isSpecialty !== undefined && typeof isSpecialty !== "boolean") {
+    if (listedInEvents !== undefined && typeof listedInEvents !== "boolean") {
       return NextResponse.json(
-        { error: "isSpecialty must be a boolean" },
+        { error: "listedInEvents must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (announcedPublicly !== undefined && typeof announcedPublicly !== "boolean") {
+      return NextResponse.json(
+        { error: "announcedPublicly must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (guestsAllowed !== undefined && typeof guestsAllowed !== "boolean") {
+      return NextResponse.json(
+        { error: "guestsAllowed must be a boolean" },
         { status: 400 }
       );
     }
@@ -72,7 +84,9 @@ export async function POST(request: NextRequest) {
         description: description?.trim() || null,
         ...(purpose !== undefined ? { purpose } : {}),
         ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
-        ...(isSpecialty !== undefined ? { is_specialty: isSpecialty } : {}),
+        ...(listedInEvents !== undefined ? { listed_in_events: listedInEvents } : {}),
+        ...(announcedPublicly !== undefined ? { announced_publicly: announcedPublicly } : {}),
+        ...(guestsAllowed !== undefined ? { guests_allowed: guestsAllowed } : {}),
       })
       .eq("id", typeId);
 

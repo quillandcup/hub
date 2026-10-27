@@ -31,7 +31,7 @@ describe("prickles missing hosts page", () => {
     repos = createInMemoryRepos(
       new InMemoryDataset({
         members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }],
-        prickleTypes: [{ id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, isSpecialty: false }],
+        prickleTypes: [{ id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
         prickles: [{ id: "p1", typeId: "t1", hostId: null, title: null, source: "calendar", calendarEventId: null, startTime: "2026-10-19T15:00:00Z", endTime: "2026-10-19T16:00:00Z" }],
       }),
     );

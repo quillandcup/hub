@@ -69,7 +69,7 @@ function dmLog() {
 }
 
 // The prickles the route finds come from their repository, in memory here.
-const PROGRESS = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, isSpecialty: false };
+const PROGRESS = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const PRICKLE = {
   id: "p1",
   typeId: PROGRESS.id,

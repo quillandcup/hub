@@ -50,8 +50,8 @@ VALUES
   ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL, 'writing', false)
 ON CONFLICT (normalized_name) DO NOTHING;
 
--- Same reason: the migration that adds is_specialty ran before these rows existed.
-UPDATE prickle_types SET is_specialty = true
+-- Same reason: the migration that adds listed_in_events ran before these rows existed.
+UPDATE prickle_types SET listed_in_events = true
   WHERE normalized_name IN ('educational', 'hedgies-on-first', 'monthly-goal-review', 'pitch', 'members-only-pitch');
 
 -- =====================================================

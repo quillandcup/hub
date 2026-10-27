@@ -10,13 +10,13 @@ import {
   countUpcoming,
   groupEvents,
   primaryFilterOf,
-  showsSpecialtyPrickles,
+  showsEventPrickles,
   type EventFilter,
   type EventType,
   type PrimaryEventFilter,
   type RetreatFilter,
 } from "@/lib/events-filter";
-import type { SpecialtyPrickle } from "@/lib/specialty-prickles";
+import type { EventPrickle } from "@/lib/event-prickles";
 
 export interface EventRow {
   id: string;
@@ -30,14 +30,14 @@ export interface EventRow {
   cover_photo_id: string | null;
 }
 
-// Type-only (erased at compile time), so none of lib/specialty-prickles.ts's server-side
+// Type-only (erased at compile time), so none of lib/event-prickles.ts's server-side
 // query code reaches the client bundle. Re-exported for existing importers.
-export type { SpecialtyPrickle };
+export type { EventPrickle };
 
-// How many specialty prickles the "All" view highlights before linking to the full list.
-const SPECIALTY_PREVIEW_COUNT = 4;
+// How many prickle events the "All" view highlights before linking to the full list.
+const EVENT_PRICKLE_PREVIEW_COUNT = 4;
 
-const EMPTY_LABELS: Record<Exclude<EventFilter, "specialty">, string> = {
+const EMPTY_LABELS: Record<Exclude<EventFilter, "prickles">, string> = {
   all: "events",
   retreats: "retreats",
   in_person_retreat: "in-person retreats",
@@ -77,13 +77,13 @@ function syncUrl(filter: EventFilter) {
 export default function EventsBrowser({
   initialFilter,
   events,
-  specialtyPrickles,
+  eventPrickles,
   today,
   timeZone,
 }: {
   initialFilter: EventFilter;
   events: EventRow[];
-  specialtyPrickles: SpecialtyPrickle[];
+  eventPrickles: EventPrickle[];
   today: string;
   timeZone: string;
 }) {
@@ -94,13 +94,13 @@ export default function EventsBrowser({
   };
 
   const primary = primaryFilterOf(filter);
-  const counts = countUpcoming(events, specialtyPrickles.length, today);
+  const counts = countUpcoming(events, eventPrickles.length, today);
   const { upcoming, past } = groupEvents(events, filter, today);
 
   const primaryOptions: PillOption<PrimaryEventFilter>[] = [
     { id: "all", label: "All", count: counts.all },
     { id: "retreats", label: "Retreats", count: counts.retreats },
-    { id: "specialty", label: "Specialty prickles", count: counts.specialty },
+    { id: "prickles", label: "Prickle events", count: counts.prickles },
     { id: "other", label: "Other events", count: counts.other },
   ];
   const retreatOptions: PillOption<RetreatFilter>[] = [
@@ -124,17 +124,17 @@ export default function EventsBrowser({
       )}
 
       <div className="mt-6">
-        {filter === "specialty" ? (
-          <SpecialtySection prickles={specialtyPrickles} timeZone={timeZone} />
+        {filter === "prickles" ? (
+          <EventPricklesSection prickles={eventPrickles} timeZone={timeZone} />
         ) : (
           <>
-            {showsSpecialtyPrickles(filter) && specialtyPrickles.length > 0 && (
-              <SpecialtySection
-                prickles={specialtyPrickles.slice(0, SPECIALTY_PREVIEW_COUNT)}
+            {showsEventPrickles(filter) && eventPrickles.length > 0 && (
+              <EventPricklesSection
+                prickles={eventPrickles.slice(0, EVENT_PRICKLE_PREVIEW_COUNT)}
                 timeZone={timeZone}
                 highlighted
-                moreCount={Math.max(0, specialtyPrickles.length - SPECIALTY_PREVIEW_COUNT)}
-                onSeeAll={() => setFilter("specialty")}
+                moreCount={Math.max(0, eventPrickles.length - EVENT_PRICKLE_PREVIEW_COUNT)}
+                onSeeAll={() => setFilter("prickles")}
               />
             )}
             <EventGrid
@@ -208,14 +208,14 @@ function EventCard({ event }: { event: EventRow }) {
   );
 }
 
-function SpecialtySection({
+function EventPricklesSection({
   prickles,
   timeZone,
   highlighted = false,
   moreCount = 0,
   onSeeAll,
 }: {
-  prickles: SpecialtyPrickle[];
+  prickles: EventPrickle[];
   timeZone: string;
   highlighted?: boolean;
   moreCount?: number;
@@ -224,16 +224,16 @@ function SpecialtySection({
   const withSecondary = useWithSecondaryTime();
   return (
     <section
-      aria-label="Upcoming specialty prickles"
+      aria-label="Upcoming prickle events"
       className={`mb-8 rounded-lg border p-4 ${
         highlighted
           ? "border-plum-200 bg-plum-50 dark:border-plum-900 dark:bg-plum-950/40"
           : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       }`}
     >
-      <SectionHeading>Upcoming specialty prickles</SectionHeading>
+      <SectionHeading>Upcoming prickle events</SectionHeading>
       {prickles.length === 0 ? (
-        <p className="text-sm text-slate-600 dark:text-slate-400">No specialty prickles on the calendar right now.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400">No prickle events on the calendar right now.</p>
       ) : (
         <ul>
           {prickles.map((p) => (
@@ -260,12 +260,12 @@ function SpecialtySection({
         </ul>
       )}
       {moreCount > 0 && onSeeAll && (
-        <button data-track="events-see-all-specialty-prickles"
+        <button data-track="events-see-all-event-prickles"
           type="button"
           onClick={onSeeAll}
           className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
         >
-          See all {prickles.length + moreCount} specialty prickles →
+          See all {prickles.length + moreCount} prickle events →
         </button>
       )}
     </section>

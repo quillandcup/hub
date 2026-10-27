@@ -4436,11 +4436,13 @@ export type Database = {
       }
       prickle_types: {
         Row: {
+          announced_publicly: boolean
           created_at: string | null
           default_host_id: string | null
           description: string | null
+          guests_allowed: boolean
           id: string
-          is_specialty: boolean
+          listed_in_events: boolean
           name: string
           normalized_name: string
           purpose: string
@@ -4448,11 +4450,13 @@ export type Database = {
           solo_task_friendly: boolean
         }
         Insert: {
+          announced_publicly?: boolean
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
+          guests_allowed?: boolean
           id?: string
-          is_specialty?: boolean
+          listed_in_events?: boolean
           name: string
           normalized_name: string
           purpose?: string
@@ -4460,11 +4464,13 @@ export type Database = {
           solo_task_friendly?: boolean
         }
         Update: {
+          announced_publicly?: boolean
           created_at?: string | null
           default_host_id?: string | null
           description?: string | null
+          guests_allowed?: boolean
           id?: string
-          is_specialty?: boolean
+          listed_in_events?: boolean
           name?: string
           normalized_name?: string
           purpose?: string

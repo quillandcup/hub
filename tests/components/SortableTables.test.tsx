@@ -191,7 +191,9 @@ describe('server-page tables extracted into sortable client components', () => {
       description: null,
       purpose,
       solo_task_friendly: false,
-      is_specialty: false,
+      listed_in_events: false,
+      announced_publicly: false,
+      guests_allowed: false,
     })
     render(<PrickleTypesTable rows={[type('1', 'Alpha', 'writing'), type('2', 'Beta', 'social')]} />)
     expect(firstColumn()).toEqual(['Alpha', 'Beta'])

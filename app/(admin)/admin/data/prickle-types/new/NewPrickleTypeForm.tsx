@@ -18,7 +18,9 @@ export default function NewPrickleTypeForm() {
   const [description, setDescription] = useState("");
   const [purpose, setPurpose] = useState<PrickleTypePurpose>("writing");
   const [soloTaskFriendly, setSoloTaskFriendly] = useState(true);
-  const [isSpecialty, setIsSpecialty] = useState(false);
+  const [listedInEvents, setListedInEvents] = useState(false);
+  const [announcedPublicly, setAnnouncedPublicly] = useState(false);
+  const [guestsAllowed, setGuestsAllowed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,7 +45,9 @@ export default function NewPrickleTypeForm() {
           description: description.trim(),
           purpose,
           soloTaskFriendly,
-          isSpecialty,
+          listedInEvents,
+          announcedPublicly,
+          guestsAllowed,
         }),
       });
 
@@ -146,20 +150,48 @@ export default function NewPrickleTypeForm() {
           </p>
         </div>
 
-        {/* Specialty */}
         <div className="mb-6">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             <input
               type="checkbox"
-              checked={isSpecialty}
-              onChange={(e) => setIsSpecialty(e.target.checked)}
+              checked={listedInEvents}
+              onChange={(e) => setListedInEvents(e.target.checked)}
               className="rounded border-slate-300 dark:border-slate-600"
             />
-            Specialty prickle
+            Listed in Events
           </label>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            Call these out on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches).
-            Leave off for everyday progress and sprint prickles.
+            Show upcoming prickles of this type on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches). Leave off for everyday progress and sprint prickles.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={announcedPublicly}
+              onChange={(e) => setAnnouncedPublicly(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Announced publicly
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Include in public marketing. Not used by any page yet.
+          </p>
+        </div>
+
+        <div className="mb-6">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={guestsAllowed}
+              onChange={(e) => setGuestsAllowed(e.target.checked)}
+              className="rounded border-slate-300 dark:border-slate-600"
+            />
+            Guests allowed
+          </label>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Non-members may attend. Not used by any page yet.
           </p>
         </div>
 
