@@ -27,6 +27,12 @@ vi.mock("@/app/(admin)/admin/data/prickle-types/[id]/edit/EditPrickleTypeForm", 
   ),
 }));
 
+vi.mock("@/app/(admin)/admin/data/prickle-types/new/NewPrickleTypeForm", () => ({ default: () => null }));
+vi.mock("@/app/(admin)/admin/data/import/KajabiImportForm", () => ({ default: () => null }));
+vi.mock("@/app/(admin)/admin/data/import/SlackImportForm", () => ({ default: () => null }));
+
+import NewPrickleTypePage from "@/app/(admin)/admin/data/prickle-types/new/page";
+import TestingImportPage from "@/app/(admin)/admin/data/import/testing/page";
 import PrickleTypesPage from "@/app/(admin)/admin/data/prickle-types/page";
 import EditPrickleTypePage from "@/app/(admin)/admin/data/prickle-types/[id]/edit/page";
 
@@ -76,10 +82,39 @@ describe("prickle type edit page", () => {
     expect(JSON.parse(screen.getByTestId("form").textContent!)).toEqual({ members: 1, defaultHostName: "Grace Example" });
   });
 
+  it("links back to the list under /admin, and sends a missing type there", async () => {
+    useFakeSupabase({ prickle_types: { data: type("t1", "Educational", null) } });
+    await renderServerPage(EditPrickleTypePage, { params: Promise.resolve({ id: "t1" }) });
+    expect(screen.getByRole("link", { name: /Back to Prickle Types/ })).toHaveAttribute("href", "/admin/data/prickle-types");
+
+    useFakeSupabase({ prickle_types: { data: null } });
+    await expectRedirect(EditPrickleTypePage, { params: Promise.resolve({ id: "gone" }) }, "/admin/data/prickle-types");
+  });
+
   it("sends a visitor who isn't signed in to log in", async () => {
     signInAs(null);
     useFakeSupabase({ prickle_types: { data: type("t1", "Educational", null) } });
 
     await expectRedirect(EditPrickleTypePage, { params: Promise.resolve({ id: "t1" }) }, "/login");
+  });
+});
+
+describe("admin data pages link within /admin", () => {
+  it("the new prickle type page links back to the list", async () => {
+    await renderServerPage(NewPrickleTypePage, {});
+
+    expect(screen.getByRole("link", { name: /Back to Prickle Types/ })).toHaveAttribute("href", "/admin/data/prickle-types");
+  });
+
+  it("the testing import page links to the production import page", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      await renderServerPage(TestingImportPage, {});
+
+      expect(screen.getByRole("link", { name: /Back to Production Import/ })).toHaveAttribute("href", "/admin/data/import");
+      for (const link of screen.getAllByRole("link", { name: /production import page/ })) expect(link).toHaveAttribute("href", "/admin/data/import");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
