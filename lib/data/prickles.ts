@@ -121,7 +121,7 @@ export interface PrickleRepository {
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
   /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
-  /** Prickles matching every word (case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
+  /** Prickles matching every word (in the title, guest speaker, type name or a host's name; case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
   /** How many calendar prickles with a type have no host, by type id (types with none are absent). */
   hostlessCalendarCountsByType(): Promise<Map<string, number>>;
@@ -480,6 +480,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       // One .or() per word: PostgREST ANDs separate filters.
       const ors = [
         `title.ilike."%${neutralize(w.text)}%"`,
+        `guest_speaker.ilike."%${neutralize(w.text)}%"`,
         typeIdsByWord[i].length ? `type_id.in.(${typeIdsByWord[i].join(",")})` : null,
         w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
       ].filter(Boolean);
@@ -760,7 +761,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
         if (start < afterMs || start >= beforeMs) return false;
         if (hostSet && !(p.hostId && hostSet.has(p.hostId))) return false;
         const type = this.data.prickleTypes.find((t) => t.id === p.typeId);
-        return words.every((w) => contains(p.title, w.text) || contains(type?.name, w.text) || (!!p.hostId && w.hostIds.includes(p.hostId)));
+        return words.every((w) => contains(p.title, w.text) || contains(p.guestSpeaker, w.text) || contains(type?.name, w.text) || (!!p.hostId && w.hostIds.includes(p.hostId)));
       })
       .sort((a, b) => -byStartThenId(a, b))
       .slice(offset, offset + limit)
