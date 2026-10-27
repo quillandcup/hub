@@ -1,3 +1,4 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { attendedPrickleRow } from "@/lib/attendance-view";
 import { Suspense } from "react";
@@ -319,12 +320,12 @@ async function fetchOtherMembers(
   while (hasMore) {
     const { data: batch } = await supabase
       .from("member_directory")
-      .select("id, name")
+      .select("id, name, display_name")
       .order("name")
       .order("id")
       .range(offset, offset + MEMBERS_BATCH_SIZE - 1);
     if (batch && batch.length > 0) {
-      members = members.concat(batch);
+      members = members.concat(batch.map((m) => ({ id: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.display_name }) })));
       offset += batch.length;
       hasMore = batch.length === MEMBERS_BATCH_SIZE;
     } else {

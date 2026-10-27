@@ -141,6 +141,10 @@ const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
 
 **Auth lookups in server code**: Use `getCurrentUser()` from `lib/auth.ts` (returns `{ id, email }` or `null`) in layouts, pages, server actions and API routes. It verifies the JWT locally via `supabase.auth.getClaims()` and is memoized per render with React `cache()`, so layout + page share one check. Only `lib/supabase/middleware.ts` (token refresh + live-session check) and code that needs fields absent from the JWT (`last_sign_in_at`, `identities`, etc.) or must confirm the session is still live server-side (e.g. session management in `app/(member)/settings/actions.ts`) should call `supabase.auth.getUser()`.
 
+### Display Names
+
+**RULE**: What the community sees of a member (a host, an attendee, a match, a picker option) is `getMemberDisplayName` (`lib/member-display-name.ts`: the chosen display name, else the legal name), never `member.name`. Select `display_name` beside `name` (the `member_directory` view has it) and carry it through. Admin-only pages keep the legal name. `tests/lib/member-display-names.test.ts` fails on a new `host.name` in member-facing code; list a file there, with a reason, only when it is admin-only or just maps rows.
+
 ### Member Notifications
 
 **RULE**: Anything the app sends a member on its own initiative (reminders, check-ins, alerts) goes through `createNotifier` (`lib/notifications/notify.ts`) as a notification kind registered in `lib/notifications/registry.ts`, never a direct `sendSlackDM`/`chat.postMessage`. That's what makes it show up on `/settings/notifications` and honor the member's opt-outs and channel choices, and it's how new channels (email, push, SMS...) reach every kind at once.

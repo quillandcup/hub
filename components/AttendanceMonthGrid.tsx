@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -126,7 +127,8 @@ export default function AttendanceMonthGrid({
                       <div className="mt-1 space-y-1">
                         {att.slice(0, 3).map((record) => {
                           const typeName = record.prickles?.prickle_types?.name;
-                          const hostName = record.prickles?.host?.name;
+                          const host = record.prickles?.host;
+                          const hostName = host ? getMemberDisplayName(host) : undefined;
                           const label = hostName ? `${typeName} w/ ${shortName(hostName)}` : typeName;
                           return (
                             <div
@@ -191,7 +193,7 @@ export default function AttendanceMonthGrid({
                             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {prickle.host.name}
+                            {getMemberDisplayName(prickle.host)}
                           </Link>
                         </div>
                       )}

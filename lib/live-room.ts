@@ -115,7 +115,7 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
     count: inRoom.length + guests,
     members: inRoom,
     guests,
-    prickle: running ? { id: running.id, title: running.title || running.type?.name || "Prickle", hostName: running.host?.name ?? null } : null,
+    prickle: running ? { id: running.id, title: running.title || running.type?.name || "Prickle", hostName: running.host ? getMemberDisplayName({ name: running.host.name, display_name: running.host.displayName }) : null } : null,
     join,
   };
 }

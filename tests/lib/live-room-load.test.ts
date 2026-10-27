@@ -77,7 +77,7 @@ describe("loadLiveRoom", () => {
 
   it("lists members by display name (one per member across devices), counts guests, and names the running prickle and its host", async () => {
     dataset = new InMemoryDataset({
-      members: [{ id: "m-alice", name: "Alice Quill" }],
+      members: [{ id: "m-alice", name: "Alice Quill", displayName: "Ali" }],
       prickleTypes: [WRITING],
       prickles: [runningPrickle({ title: "Morning Writing", hostId: "m-alice" })],
     });
@@ -103,7 +103,7 @@ describe("loadLiveRoom", () => {
       { memberId: "m-bea", name: "Bea Cup" },
     ]);
     expect(room.guests).toBe(2 - 1 + 0 + 0 === 1 ? 1 : 1);
-    expect(room.prickle).toEqual({ id: "p1", title: "Morning Writing", hostName: "Alice Quill" });
+    expect(room.prickle).toEqual({ id: "p1", title: "Morning Writing", hostName: "Ali" });
   });
 
   it("has no prickle for a Pop-Up Prickle, and falls back to the type name without a title", async () => {

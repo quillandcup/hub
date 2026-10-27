@@ -209,6 +209,31 @@ describe("getWizardRecommendations", () => {
     expect(fake.client.from).not.toHaveBeenCalled();
   });
 
+  it("names each series' host by display name", async () => {
+    const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+    const fake = makeQueryFake({
+      prickle_types: [{ id: "t1", name: "Heads Down", purpose: "writing", solo_task_friendly: true }],
+      member_directory: [
+        { id: "host-a", name: "Laura May Best", display_name: "Bestie" },
+        { id: "host-b", name: "Ann Example", display_name: null },
+      ],
+      prickles: [
+        { id: "p-a", type_id: "t1", host_id: "host-a", start_time: soon(2) },
+        { id: "p-b", type_id: "t1", host_id: "host-b", start_time: soon(3) },
+      ],
+      prickle_host_vibes: [],
+      prickle_attendance: [],
+      prickle_checkins: [],
+    });
+    vi.mocked(createClient).mockResolvedValue(fake.client as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(MEMBER);
+
+    const result = await getWizardRecommendations({ ...BASE_ANSWERS, mood: { pleasant: 2, energy: 4, emotion: null }, need: null });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(Object.fromEntries(result.recommendations.map((r) => [r.hostId, r.hostName]))).toEqual({ "host-a": "Bestie", "host-b": "Ann Example" });
+  });
+
   it("ranks with how well each series met the member's intention at similar times", async () => {
     const soon = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
     const fake = makeQueryFake({

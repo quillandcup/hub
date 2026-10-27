@@ -176,4 +176,35 @@ describe("PrickleDetails summary", () => {
     expect(screen.getByText("Timed writing in company.")).toBeInTheDocument();
     expect(screen.getByText("Pop-Up Prickle (Zoom)")).toBeInTheDocument();
   });
+
+  describe("display names", () => {
+    const named = { ...prickle, host: { id: "h1", name: "Laura May Best", displayName: "Bestie" } };
+    const bestAttendee = { ...record, members: { id: "m1", name: "Laura May Best", display_name: "Bestie" } };
+
+    it("shows the host and attendees by display name to members", () => {
+      renderDetails({ prickle: named, attendanceRecords: [bestAttendee, { ...record, id: "a2", members: { id: "m2", name: "Ann Example", display_name: null } }] });
+      expect(screen.getAllByRole("link", { name: "Bestie" })).toHaveLength(2);
+      expect(screen.queryByText("Laura May Best")).not.toBeInTheDocument();
+    });
+
+    it("keeps the legal name for admins", () => {
+      renderDetails({ prickle: named, attendanceRecords: [bestAttendee], memberBasePath: "/admin/members", showMemberEmails: true });
+      expect(screen.getAllByRole("link", { name: "Laura May Best" })).toHaveLength(2);
+      expect(screen.queryByText("Bestie")).not.toBeInTheDocument();
+    });
+
+    it("sorts attendees by the name shown", async () => {
+      const { default: userEvent } = await import("@testing-library/user-event");
+      // Legal names sort Zed first, display names sort Amy first.
+      renderDetails({
+        attendanceRecords: [
+          { ...record, id: "a1", members: { id: "m1", name: "Abe Example", display_name: "Zed" } },
+          { ...record, id: "a2", members: { id: "m2", name: "Zoe Example", display_name: "Amy" } },
+        ],
+      });
+      await userEvent.click(screen.getByRole("columnheader", { name: /member/i }));
+      const links = screen.getAllByRole("link").filter((l) => ["Amy", "Zed"].includes(l.textContent ?? ""));
+      expect(links.map((l) => l.textContent)).toEqual(["Amy", "Zed"]);
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 // Upcoming prickle events for the member Events page (app/(member)/events).
 // Prickle events (webinars, Hedgies on First, Monthly Goal Review, pitches...) are ordinary
@@ -46,7 +47,7 @@ export async function fetchUpcomingEventPrickles(
     id: p.id,
     title: p.title ?? null,
     typeName: p.type?.name ?? "Prickle",
-    hostName: p.host?.name ?? null,
+    hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null,
     calendarEventId: p.calendarEventId ?? null,
     startTime: p.startTime,
     endTime: p.endTime,

@@ -1,5 +1,6 @@
 "use server";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
@@ -300,20 +301,24 @@ interface RawEntry {
 interface RawEmbeddedPrickle {
   id: string;
   start_time: string;
-  host: { name: string | null } | { name: string | null }[] | null;
+  host: { name: string | null; display_name: string | null } | { name: string | null; display_name: string | null }[] | null;
   prickle_types: { name: string | null } | { name: string | null }[] | null;
 }
 
 /** Embeds the entry's prickle with what formatPrickleLabel needs. */
-const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name), prickle_types:type_id(name))";
+const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name, display_name), prickle_types:type_id(name))";
 
 function one<T>(ref: T | T[] | null | undefined): T | null {
   return (Array.isArray(ref) ? ref[0] : ref) ?? null;
 }
 
+function hostDisplayName(host: { name: string | null; display_name: string | null } | null): string | null {
+  return host?.name ? getMemberDisplayName({ name: host.name, display_name: host.display_name }) : null;
+}
+
 function labelForPrickle(p: RawEmbeddedPrickle, timeZone: string): string {
   return formatPrickleLabel(
-    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: one(p.host)?.name ?? null },
+    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: hostDisplayName(one(p.host)) },
     timeZone
   );
 }
@@ -941,7 +946,7 @@ export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> 
   return sortPrickleOptions(
     onDate.map((p) => ({
       id: p.id,
-      label: formatPrickleLabel({ startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host?.name ?? null }, timeZone),
+      label: formatPrickleLabel({ startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null }, timeZone),
       startTime: p.startTime,
       attended: attendedIds.has(p.id),
     }))
@@ -1029,7 +1034,7 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   for (const { prickle: p } of attendance) {
     if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
     const label = formatPrickleLabel(
-      { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host?.name ?? null },
+      { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null },
       timeZone
     );
     byId.set(p.id, { id: p.id, label, startTime: p.startTime, attended: true });

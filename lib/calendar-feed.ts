@@ -16,6 +16,7 @@ import { chunk } from "@/lib/supabase/paginate";
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { APP_URL } from "@/lib/config";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
  * A member's personal calendar feed (/api/calendar/feed/<token>.ics). It includes the prickles
@@ -268,12 +269,12 @@ function nameOf(ref: NameRef): string | null {
   return row?.name ?? null;
 }
 
-function toFeedPrickle(p: PrickleDetail): FeedPrickle {
+export function toFeedPrickle(p: PrickleDetail): FeedPrickle {
   return {
     id: p.id,
     typeId: p.typeId,
     typeName: p.type?.name ?? "Prickle",
-    hostName: p.host?.name ?? null,
+    hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null,
     startTime: p.startTime,
     endTime: p.endTime,
     calendarEventId: p.calendarEventId,
