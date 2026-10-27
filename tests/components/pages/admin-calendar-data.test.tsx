@@ -65,6 +65,25 @@ describe("admin calendar page data", () => {
     expect(shown[2]).toMatchObject({ host: "", prickle_type: "Unknown", attendance_count: 0, host_missing: false });
   });
 
+  it("shows the host by display name, falling back to the legal name", async () => {
+    const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", displayName: "Fern E" };
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [ADA, FERN],
+        prickleTypes: [SPRINT],
+        prickles: [
+          prickle("prkl_AAAAAAAAAAA1", FERN.id, "2026-10-19T15:00:00Z", "2026-10-19T16:00:00Z"),
+          prickle("prkl_AAAAAAAAAAA2", ADA.id, "2026-10-20T15:00:00Z", "2026-10-20T16:00:00Z"),
+        ],
+      }),
+    );
+
+    await renderServerPage(CalendarPage, { searchParams: Promise.resolve({ week: "2026-10-18" }) });
+
+    const shown = JSON.parse(screen.getByTestId("prickles").textContent!);
+    expect(shown.map((p: { host: string }) => p.host)).toEqual(["Fern E", "Ada Example"]);
+  });
+
   it("marks the prickles that have an event: shown in Events, or hidden from members", async () => {
     const withCalendarEvent = (id: string, calendarEventId: string | null, start: string, end: string) => ({ ...prickle(id, null, start, end), calendarEventId });
     repos = createInMemoryRepos(

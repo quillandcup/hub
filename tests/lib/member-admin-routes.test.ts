@@ -24,7 +24,7 @@ import { GET as kajabiGrants } from "@/app/api/analyze/kajabi-grants/route";
 import { GET as memberNetwork } from "@/app/api/members/network/route";
 import { POST as linkSlackAlias } from "@/app/api/aliases/slack/route";
 
-const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", status: "active", kajabiId: "kaj-ada", stripeCustomerId: "cus_ada" };
+const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", email: "ada@example.test", status: "active", kajabiId: "kaj-ada", stripeCustomerId: "cus_ada" };
 const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", email: "Fern@Example.test", status: "cancelled", kajabiId: null, stripeCustomerId: null };
 
 beforeEach(() => {
@@ -92,10 +92,11 @@ describe("GET /api/analyze/kajabi-grants", () => {
       offer_name: "Quill & Cup Membership",
       member_id: ADA.id,
       member_name: ADA.name,
+      member_display_name: "Ada E",
       member_status: "active",
     });
     // No member has that email.
-    expect(grants.find((g: { kajabi_purchase_id: string }) => g.kajabi_purchase_id === "p-unknown")).toMatchObject({ member_id: null, member_email: "nobody@example.test" });
+    expect(grants.find((g: { kajabi_purchase_id: string }) => g.kajabi_purchase_id === "p-unknown")).toMatchObject({ member_id: null, member_display_name: null, member_email: "nobody@example.test" });
   });
 
   it("is for signed-in admins, and empty when there are no membership offers", async () => {

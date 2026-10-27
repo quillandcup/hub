@@ -19,7 +19,7 @@ describe('Program Cohorts API', () => {
   beforeAll(async () => {
     const { data: member } = await supabase
       .from('members')
-      .insert({ name: 'Program Cohorts Test Member', email: testEmail, joined_at: '2023-01-01', status: 'lead' })
+      .insert({ name: 'Program Cohorts Test Member', display_name: 'Pat Example', email: testEmail, joined_at: '2023-01-01', status: 'lead' })
       .select('id')
       .single()
     memberId = member!.id
@@ -117,6 +117,14 @@ describe('Program Cohorts API', () => {
     const body = await response.json()
     expect(body.cohorts[0].member_program_enrollments).toHaveLength(1)
     expect(body.cohorts[0].member_program_enrollments[0].member.email).toBe(testEmail)
+  })
+
+  it('GET /api/admin/programs/[id] shows an expired, non-active member by display name with the legal name beside it', async () => {
+    await supabase.from('program_cohorts').update({ starts_at: '2020-01-01', expires_at: '2020-07-01' }).eq('id', cohortId)
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
+    const body = await response.json()
+    const row = body.leakage.find((l: any) => l.member_id === memberId)
+    expect(row).toMatchObject({ member_name: 'Pat Example', member_real_name: 'Program Cohorts Test Member' })
   })
 
   it('DELETE /api/admin/program-cohorts/[id] removes the cohort (and its enrollment)', async () => {
