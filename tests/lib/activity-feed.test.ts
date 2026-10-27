@@ -320,6 +320,24 @@ describe("fetchActivityFeed", () => {
     expect(rows[1]).toMatchObject({ member_name: "Ada E", actor_label: "Bramble Admin" });
   });
 
+  it("labels a staff actor by their member's display name when the label was their legal name, and leaves an email label", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", userId: "00000000-0000-4000-8000-000000000001" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null, userId: "00000000-0000-4000-8000-000000000002" },
+        ],
+      })
+    );
+    const { supabase } = client(3, [
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000001", actor_label: "Ada Example" }),
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000001", actor_label: "ada@example.test" }),
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000002", actor_label: "Bo Example" }),
+    ]);
+    const { rows } = await fetchActivityFeed(supabase, query(), now);
+    expect(rows.map((r) => r.actor_label)).toEqual(["Ada E", "ada@example.test", "Bo Example"]);
+  });
+
   it("clamps a page past the end to the last page", async () => {
     const { supabase, rpc } = client(60, [row({})]);
     const result = await fetchActivityFeed(supabase, query({}, 99, 50), now);

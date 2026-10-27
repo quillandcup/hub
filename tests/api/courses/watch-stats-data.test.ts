@@ -26,7 +26,7 @@ describe('loadCourseWatchStats', () => {
   beforeAll(async () => {
     const { data: members, error } = await supabase
       .from('members')
-      .insert(['ann', 'bea', 'staff'].map((who) => ({ name: `Watch Stats ${who}`, email: emailOf(who), joined_at: new Date().toISOString(), status: 'active' })))
+      .insert(['ann', 'bea', 'staff'].map((who) => ({ name: `Watch Stats ${who}`, display_name: who === 'bea' ? 'Watch Bea' : null, email: emailOf(who), joined_at: new Date().toISOString(), status: 'active' })))
       .select('id, email')
     expect(error).toBeNull()
     for (const who of ['ann', 'bea', 'staff']) ids[who] = members!.find((m) => m.email === emailOf(who))!.id
@@ -144,13 +144,13 @@ describe('loadCourseWatchStats', () => {
     const result = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne, withSessions: true })
     const sessions = result!.lessons[0].sessions
     expect(sessions).toHaveLength(5)
-    expect(sessions.every((x) => ['Watch Stats ann', 'Watch Stats bea'].includes(x.memberName))).toBe(true)
+    expect(sessions.every((x) => ['Watch Stats ann', 'Watch Bea'].includes(x.memberName))).toBe(true)
     expect(sessions.filter((x) => x.played)).toHaveLength(3)
     expect(sessions.find((x) => x.userAgent?.includes('Macintosh'))).toMatchObject({ memberName: 'Watch Stats ann', played: false, coveredFraction: 0 })
     // Where a visit came from: Ann's latest located access event before it (Muncie, not the older Boston, and not the later event without a place). Bea has no account.
     const annsMarker = sessions.find((x) => x.userAgent?.includes('Macintosh'))!
     expect(annsMarker.location).toEqual({ place: 'Muncie, IN, US', ip: '203.0.113.7' })
-    expect(sessions.filter((x) => x.memberName === 'Watch Stats bea').every((x) => x.location === null)).toBe(true)
+    expect(sessions.filter((x) => x.memberName === 'Watch Bea').every((x) => x.location === null)).toBe(true)
     const times = sessions.map((x) => x.startedAt ?? '')
     expect(times).toEqual([...times].sort().reverse())
   })
