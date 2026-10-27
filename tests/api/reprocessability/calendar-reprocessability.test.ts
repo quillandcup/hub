@@ -570,7 +570,8 @@ describe('Calendar Reprocessability', () => {
     try {
       const first = await process()
       expect((await first.json()).eventsCreated).toBeGreaterThanOrEqual(2)
-      let { sources, events } = await eventsFor()
+      const { sources, events: made } = await eventsFor()
+      let events = made
       const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
       expect(events.map((e) => e.calendar_event_id).sort()).toEqual([idOf(googleIds[0]), idOf(googleIds[1])].sort())
       expect(events.every((e) => e.title === word)).toBe(true)
