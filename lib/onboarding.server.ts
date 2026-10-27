@@ -111,15 +111,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
     supabase.from("member_profile_overrides").select("member_id").eq("member_id", memberId).maybeSingle(),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
-    supabase
-      .from("writing_projects")
-      .select("id")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("writing_goals").select("id", { count: "exact", head: true }).eq("member_id", memberId),
+    createRepos(supabase).writing.latestActiveProjectId(memberId),
+    createRepos(supabase).writing.goalCount(memberId),
     supabase
       .from("prickle_commitments")
       .select("id", { count: "exact", head: true })
@@ -157,8 +150,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   return buildOnboardingState(
     {
       hasHubProfile: override.data !== null || topics.length > 0,
-      latestProjectId: latestProject.data?.id ?? null,
-      hasGoal: (goals.count ?? 0) > 0,
+      latestProjectId: latestProject,
+      hasGoal: goals > 0,
       hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,
       isHost: hostedEver > 0 || latestScheduleMonth !== null,
       // Month strings are YYYY-MM-DD, so they compare as dates.

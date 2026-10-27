@@ -111,28 +111,14 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
 
   const supabase = await createClient();
   const memberId = identity.memberId;
-  const [prickle, checkin, projectsResult, goalsResult, recentResult, loggedResult, tzPref] = await Promise.all([
-    createRepos(supabase).prickles.byId(prickleId),
+  const repos = createRepos(supabase);
+  const [prickle, checkin, projectRows, goalRows, recentRows, loggedRows, tzPref] = await Promise.all([
+    repos.prickles.byId(prickleId),
     getMyCheckin(prickleId),
-    supabase
-      .from("writing_projects")
-      .select("id, title")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
-    supabase.from("writing_goals").select("project_id, measure").eq("member_id", memberId).is("archived_at", null),
-    supabase
-      .from("writing_progress_entries")
-      .select("project_id, measure")
-      .eq("member_id", memberId)
-      .order("created_at", { ascending: false })
-      .limit(RECENT_ENTRIES),
-    supabase
-      .from("writing_progress_entries")
-      .select("project_id, measure, mode, amount")
-      .eq("member_id", memberId)
-      .eq("prickle_id", prickleId)
-      .order("created_at", { ascending: true }),
+    repos.writing.activeProjects(memberId),
+    repos.writing.activeGoalMeasures(memberId),
+    repos.writing.recentEntryMeasures(memberId, RECENT_ENTRIES),
+    repos.writing.entriesForPrickle(memberId, prickleId),
     getUserTimezonePreference(),
   ]);
   if (!prickle) return null;
@@ -144,13 +130,11 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     for (const row of rows ?? []) map.set(row.project_id, [...(map.get(row.project_id) ?? []), row]);
     return map;
   };
-  const goals = byProject(goalsResult.data as { project_id: string; measure: WritingMeasure }[] | null);
-  const recent = byProject(recentResult.data as { project_id: string; measure: WritingMeasure }[] | null);
-  const logged = byProject(
-    loggedResult.data as { project_id: string; measure: WritingMeasure; mode: "delta" | "set_total"; amount: number }[] | null
-  );
+  const goals = byProject(goalRows.filter((g) => g.project_id !== null) as { project_id: string; measure: WritingMeasure }[]);
+  const recent = byProject(recentRows as { project_id: string; measure: WritingMeasure }[]);
+  const logged = byProject(loggedRows as { project_id: string; measure: WritingMeasure; mode: "delta" | "set_total"; amount: number }[]);
 
-  const projects = (projectsResult.data ?? []).map((p) => {
+  const projects = projectRows.map((p) => {
     const measure = progressMeasureFor(
       (goals.get(p.id) ?? []).map((g) => g.measure),
       (recent.get(p.id) ?? []).map((e) => e.measure)

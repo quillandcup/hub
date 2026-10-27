@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
+import { createRepos } from "@/lib/data/repos"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -53,15 +54,10 @@ export default async function DashboardPage() {
     await getUserFeaturePreviews(user.id)
   )
 
-  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins, mentorships] = await Promise.all([
+  const [ranked, starredGoals, projects, unlogged, checkins, mentorships] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
-    supabase
-      .from("writing_projects")
-      .select("id, title")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
+    createRepos(supabase).writing.activeProjects(memberId),
     getUnloggedRecentPrickles(),
     getMyCheckins(),
     bigSistersOn
@@ -81,7 +77,6 @@ export default async function DashboardPage() {
   const continueWatching = coursesCaller
     ? await loadContinueWatching(createServiceRoleClient(), coursesCaller.scope)
     : null
-  const projects = projectRows ?? []
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
     projects.length > 0
