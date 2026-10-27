@@ -63,3 +63,45 @@ describe("EditPrickleTypeForm dimensions", () => {
     expect(sentBody()).toMatchObject({ typeId: type.id, listedInEvents: false, announcedPublicly: true, guestsAllowed: true });
   });
 });
+
+describe("EditPrickleTypeForm default host, other names and guest speaker", () => {
+  const type = {
+    id: "prty_AAAAAAAAAAA1",
+    name: "Educational Prickle",
+    normalized_name: "educational",
+    description: null,
+    purpose: "work" as const,
+    solo_task_friendly: false,
+    listed_in_events: true,
+    announced_publicly: false,
+    guests_allowed: false,
+    default_host_id: "mbr_AAAAAAAAAAA1",
+    summary_aliases: ["edu"],
+    names_guest_speaker: false,
+  };
+  const members = [
+    { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" },
+    { id: "mbr_AAAAAAAAAAA2", name: "Grace Example", email: "grace@example.test" },
+  ];
+
+  it("shows the saved values and sends changes", async () => {
+    render(<EditPrickleTypeForm prickleType={type} members={members} defaultHostName="Ada Example" />);
+    expect(screen.getByText("Ada Example")).toBeInTheDocument();
+    expect(screen.getByLabelText("Other names")).toHaveValue("edu");
+
+    await userEvent.type(screen.getByLabelText("Other names"), ", learn");
+    await userEvent.click(screen.getByLabelText(/is the guest speaker/));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(sentBody()).toMatchObject({ defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: ["edu", "learn"], namesGuestSpeaker: true });
+  });
+
+  it("clears the default host", async () => {
+    render(<EditPrickleTypeForm prickleType={type} members={members} defaultHostName="Ada Example" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(sentBody()).toMatchObject({ defaultHostId: null });
+  });
+});

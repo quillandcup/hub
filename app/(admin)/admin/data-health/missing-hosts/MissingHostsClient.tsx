@@ -6,7 +6,7 @@ import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { UNHOSTED_LIST_LIMIT, type MissingHostsData } from "@/lib/missing-hosts";
-import { getUnhostedPrickles, setDefaultHost, setRequiresHost, type UnhostedPrickle } from "./actions";
+import { getUnhostedPrickles, setDefaultHosts, setRequiresHost, type UnhostedPrickle } from "./actions";
 
 export default function MissingHostsClient({ stats, coverage, members }: MissingHostsData) {
   const timeZone = useTimeZone();
@@ -46,9 +46,29 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
     if (error) alert(`Failed to update: ${error}`);
   }
 
-  async function changeDefaultHost(typeId: string, member: { id: string } | null) {
-    const { error } = await setDefaultHost(typeId, member?.id ?? null);
-    if (error) alert(`Failed to set default host: ${error}`);
+  // Default hosts picked but not saved yet: type id -> the member chosen (null clears the default).
+  const [staged, setStaged] = useState<Map<string, { id: string; name: string } | null>>(new Map());
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<string | null>(null);
+
+  function stageDefaultHost(typeId: string, currentId: string | null, member: { id: string; name: string } | null) {
+    setSaveResult(null);
+    setStaged((prev) => {
+      const next = new Map(prev);
+      // Choosing what is already saved is no change
+      if ((member?.id ?? null) === currentId) next.delete(typeId);
+      else next.set(typeId, member ? { id: member.id, name: member.name } : null);
+      return next;
+    });
+  }
+
+  async function saveDefaultHosts() {
+    setSaving(true);
+    setSaveResult(null);
+    const { error, saved } = await setDefaultHosts([...staged].map(([typeId, member]) => ({ typeId, memberId: member?.id ?? null })));
+    setSaving(false);
+    if (saved) setStaged(new Map());
+    setSaveResult(error ?? `Saved ${saved} default host${saved === 1 ? "" : "s"} and rebuilt the calendar prickles.`);
   }
 
   const expectedUnhosted = stats.filter(s => !s.requiresHost);
@@ -60,6 +80,33 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
       <h1 className="text-3xl font-bold mb-6 dark:text-slate-100">Prickles Missing Hosts</h1>
 
       <div className="space-y-8">
+          {(staged.size > 0 || saveResult) && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-green-800 dark:text-green-200">Default Hosts to Save ({staged.size})</h3>
+                {staged.size > 0 && (
+                  <button
+                    onClick={saveDefaultHosts}
+                    disabled={saving}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
+                  >
+                    {saving ? "Saving..." : "Save & Reprocess"}
+                  </button>
+                )}
+              </div>
+              {saveResult && <div className="mb-4 p-3 bg-white dark:bg-slate-800 rounded-lg text-sm dark:text-slate-100">{saveResult}</div>}
+              <div className="space-y-2">
+                {[...staged].map(([typeId, member]) => (
+                  <div key={typeId} className="p-3 bg-white dark:bg-slate-800 rounded-lg dark:text-slate-100">
+                    <span className="text-plum-600 dark:text-plum-400">{stats.find((s) => s.typeId === typeId)?.typeName}</span>
+                    <span className="mx-2 text-gray-500">→</span>
+                    <span className="font-semibold">{member?.name ?? "No default host"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Summary */}
           <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4 dark:text-slate-100">Summary</h2>
@@ -130,9 +177,9 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                     <div className="flex items-center gap-2">
                       <MemberSearch
                         members={members}
-                        selectedMemberId={stat.defaultHostId}
-                        selectedMemberName={stat.defaultHostName}
-                        onSelect={(member) => changeDefaultHost(stat.typeId, member)}
+                        selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
+                        selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
+                        onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
                         className="flex-1"
                       />
                       <button
@@ -180,9 +227,9 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                     <div className="flex items-center gap-2">
                       <MemberSearch
                         members={members}
-                        selectedMemberId={stat.defaultHostId}
-                        selectedMemberName={stat.defaultHostName}
-                        onSelect={(member) => changeDefaultHost(stat.typeId, member)}
+                        selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
+                        selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
+                        onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
                         className="flex-1"
                       />
                     </div>

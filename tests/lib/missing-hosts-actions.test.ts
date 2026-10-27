@@ -10,6 +10,8 @@ vi.mock("@/lib/admin-auth", () => ({
       ? { ok: true, supabase: { from: () => ({ update: (patch: unknown) => ({ eq: (...args: unknown[]) => (update(patch, ...args), Promise.resolve({ error: null })) }) }) } }
       : { ok: false, error: "Forbidden" },
 }));
+const reprocess = vi.hoisted(() => vi.fn(async () => ({ processed: [{ table: "calendar", success: true }] as { table: string; success: boolean; error?: string }[] })));
+vi.mock("@/lib/processing/trigger", () => ({ triggerPrickleTypeReprocessing: reprocess }));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 let repos = createInMemoryRepos();
@@ -18,7 +20,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-import { getUnhostedPrickles, setDefaultHost, setRequiresHost } from "@/app/(admin)/admin/data-health/missing-hosts/actions";
+import { getUnhostedPrickles, setDefaultHosts, setRequiresHost } from "@/app/(admin)/admin/data-health/missing-hosts/actions";
 
 const SPRINT = { id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const prickle = (id: string, start: string, hostId: string | null = null) => ({
@@ -54,17 +56,45 @@ describe("missing hosts actions", () => {
 
     expect(await getUnhostedPrickles(SPRINT.id)).toEqual({ error: "Forbidden" });
     expect(await setRequiresHost(SPRINT.id, false)).toEqual({ error: "Forbidden" });
-    expect(await setDefaultHost(SPRINT.id, null)).toEqual({ error: "Forbidden" });
+    expect(await setDefaultHosts([{ typeId: SPRINT.id, memberId: null }])).toEqual({ error: "Forbidden" });
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("flips whether a type needs a host, and sets or clears its default host, then refreshes the page", async () => {
+  it("flips whether a type needs a host, then refreshes the page", async () => {
     expect(await setRequiresHost(SPRINT.id, false)).toEqual({});
-    expect(await setDefaultHost(SPRINT.id, "mbr_AAAAAAAAAAA1")).toEqual({});
-    expect(await setDefaultHost(SPRINT.id, null)).toEqual({});
 
-    expect(update.mock.calls.map((c) => c[0])).toEqual([{ requires_host: false }, { default_host_id: "mbr_AAAAAAAAAAA1" }, { default_host_id: null }]);
-    expect(revalidatePath).toHaveBeenCalledTimes(3);
+    expect(update.mock.calls.map((c) => c[0])).toEqual([{ requires_host: false }]);
     expect(revalidatePath).toHaveBeenCalledWith("/admin/data-health/missing-hosts");
+  });
+
+  it("saves several default hosts, rebuilds the calendar prickles once, and refreshes the page", async () => {
+    const result = await setDefaultHosts([
+      { typeId: "t1", memberId: "mbr_AAAAAAAAAAA1" },
+      { typeId: "t2", memberId: null },
+    ]);
+
+    expect(result).toEqual({ saved: 2 });
+    expect(update.mock.calls.map((c) => [c[0], c[2]])).toEqual([
+      [{ default_host_id: "mbr_AAAAAAAAAAA1" }, "t1"],
+      [{ default_host_id: null }, "t2"],
+    ]);
+    expect(reprocess).toHaveBeenCalledTimes(1);
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/data-health/missing-hosts");
+  });
+
+  it("does nothing for no choices, and rejects an id that isn't a member's", async () => {
+    expect(await setDefaultHosts([])).toEqual({ saved: 0 });
+    expect(await setDefaultHosts([{ typeId: "t1", memberId: "not-a-member" }])).toEqual({ error: "Pick a member" });
+    expect(update).not.toHaveBeenCalled();
+    expect(reprocess).not.toHaveBeenCalled();
+  });
+
+  it("says so when the choices saved but the rebuild failed", async () => {
+    reprocess.mockResolvedValueOnce({ processed: [{ table: "calendar", success: false, error: "timeout" }] });
+
+    expect(await setDefaultHosts([{ typeId: "t1", memberId: "mbr_AAAAAAAAAAA1" }])).toEqual({
+      error: "Saved, but rebuilding the calendar prickles failed: timeout",
+      saved: 1,
+    });
   });
 });

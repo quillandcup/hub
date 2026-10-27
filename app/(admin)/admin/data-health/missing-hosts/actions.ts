@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { createRepos } from "@/lib/data/repos";
 import { UNHOSTED_LIST_LIMIT } from "@/lib/missing-hosts";
+import { triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
+import { isId } from "@/lib/ids";
 
 const PAGE = "/admin/data-health/missing-hosts";
 
@@ -23,18 +25,34 @@ export async function setRequiresHost(typeId: string, requiresHost: boolean): Pr
   return {};
 }
 
-/** Set (or clear, with null) a prickle type's default host. */
-export async function setDefaultHost(typeId: string, memberId: string | null): Promise<{ error?: string }> {
+export type DefaultHostChoice = { typeId: string; memberId: string | null };
+
+/**
+ * Set (or clear, with null) the default host of several prickle types, then rebuild the calendar prickles once so
+ * each type's existing hostless prickles take it. Saving everything before one rebuild is what keeps a batch of
+ * choices from running the (slow) rebuild per type.
+ */
+export async function setDefaultHosts(choices: DefaultHostChoice[]): Promise<{ error?: string; saved?: number }> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
+  if (choices.length === 0) return { saved: 0 };
+  if (choices.some((c) => c.memberId !== null && !isId(c.memberId, "mbr"))) return { error: "Pick a member" };
 
-  const { error } = await auth.supabase.from("prickle_types").update({ default_host_id: memberId }).eq("id", typeId);
-  if (error) {
-    console.error("Error setting default host:", error);
-    return { error: error.message };
+  const results = await Promise.all(
+    choices.map((c) => auth.supabase.from("prickle_types").update({ default_host_id: c.memberId }).eq("id", c.typeId)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    console.error("Error setting default host:", failed.error);
+    revalidatePath(PAGE);
+    return { error: failed.error.message };
   }
+
+  const { processed } = await triggerPrickleTypeReprocessing();
   revalidatePath(PAGE);
-  return {};
+  const calendar = processed.find((p) => p.table === "calendar");
+  if (calendar && !calendar.success) return { error: `Saved, but rebuilding the calendar prickles failed: ${calendar.error}`, saved: choices.length };
+  return { saved: choices.length };
 }
 
 /** The newest calendar prickles of a type that have no host (the detail view of one row). */

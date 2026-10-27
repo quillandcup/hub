@@ -16,6 +16,8 @@ export interface PrickleTypeRow {
   listed_in_events: boolean;
   announced_publicly: boolean;
   guests_allowed: boolean;
+  default_host_name?: string | null;
+  summary_aliases?: string[];
 }
 
 const PURPOSE_STYLES: Record<string, string> = {
@@ -49,7 +51,7 @@ function YesNoBadge({ value }: { value: boolean }) {
   );
 }
 
-type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly" | "listedInEvents" | "announcedPublicly" | "guestsAllowed";
+type SortColumn = "name" | "normalized" | "description" | "purpose" | "soloTaskFriendly" | "listedInEvents" | "announcedPublicly" | "guestsAllowed" | "defaultHost";
 
 function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
   switch (column) {
@@ -70,6 +72,8 @@ function getSortValue(row: PrickleTypeRow, column: SortColumn): SortValue {
       return row.announced_publicly ? 0 : 1;
     case "guestsAllowed":
       return row.guests_allowed ? 0 : 1;
+    case "defaultHost":
+      return row.default_host_name?.toLowerCase() || null;
   }
 }
 
@@ -97,6 +101,7 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
             {th("Name", "name")}
             {th("Normalized", "normalized")}
             {th("Description", "description")}
+            {th("Default host", "defaultHost")}
             {th("Purpose", "purpose")}
             {th("BYO-Task Friendly", "soloTaskFriendly")}
             {th("In Events", "listedInEvents")}
@@ -115,11 +120,17 @@ export default function PrickleTypesTable({ rows }: { rows: PrickleTypeRow[] }) 
               </td>
               <td className="px-6 py-4">
                 <div className="text-sm text-slate-600 dark:text-slate-400 font-mono">{type.normalized_name}</div>
+                {type.summary_aliases && type.summary_aliases.length > 0 && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">also: {type.summary_aliases.join(", ")}</div>
+                )}
               </td>
               <td className="px-6 py-4 max-w-xs">
                 <div className="text-sm text-slate-600 dark:text-slate-400 truncate" title={type.description ?? ""}>
                   {type.description ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}
                 </div>
+              </td>
+              <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
+                {type.default_host_name ?? <span className="text-slate-500 dark:text-slate-600 italic">—</span>}
               </td>
               <td className="px-6 py-4">
                 <PurposeBadge purpose={type.purpose} />

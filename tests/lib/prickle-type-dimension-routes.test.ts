@@ -22,7 +22,8 @@ const client = {
 vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: async () => ({ user: { id: "admin" }, supabase: client }),
 }));
-vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: async () => {} }));
+const triggers = vi.hoisted(() => ({ recent: vi.fn(async () => {}), wide: vi.fn(async () => {}) }));
+vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: triggers.recent, triggerPrickleTypeReprocessing: triggers.wide }));
 
 import { POST as create } from "@/app/api/prickle-types/create/route";
 import { POST as update } from "@/app/api/prickle-types/update/route";
@@ -32,6 +33,8 @@ const post = (route: (request: NextRequest) => Promise<Response>, body: unknown)
 
 beforeEach(() => {
   written = undefined;
+  triggers.recent.mockClear();
+  triggers.wide.mockClear();
 });
 
 describe("prickle type routes: dimensions", () => {
@@ -60,6 +63,45 @@ describe("prickle type routes: dimensions", () => {
   it.each(["listedInEvents", "announcedPublicly", "guestsAllowed"])("rejects %s when it isn't a boolean", async (field) => {
     expect((await post(create, { name: "X", [field]: "yes" })).status).toBe(400);
     expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", [field]: 1 })).status).toBe(400);
+    expect(written).toBeUndefined();
+  });
+});
+
+describe("prickle type update route: default host, other names, guest speaker", () => {
+  const typeId = "prty_AAAAAAAAAAA1";
+
+  it("stores them, normalizing the other names, and rebuilds a year of prickles", async () => {
+    const res = await post(update, { typeId, name: "Educational Prickle", defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: [" EDU-Prickle ", "edu", "", "Learn"], namesGuestSpeaker: true });
+
+    expect(res.status).toBe(200);
+    expect(written).toMatchObject({ default_host_id: "mbr_AAAAAAAAAAA1", summary_aliases: ["edu", "learn"], names_guest_speaker: true });
+    expect(triggers.wide).toHaveBeenCalledTimes(1);
+    expect(triggers.recent).not.toHaveBeenCalled();
+  });
+
+  it("clears the default host with null", async () => {
+    await post(update, { typeId, name: "Educational Prickle", defaultHostId: null });
+
+    expect(written).toMatchObject({ default_host_id: null });
+  });
+
+  it("leaves them alone, and rebuilds only the recent window, when not mentioned", async () => {
+    await post(update, { typeId, name: "Pitch Prickle" });
+
+    expect(written).not.toHaveProperty("default_host_id");
+    expect(written).not.toHaveProperty("summary_aliases");
+    expect(written).not.toHaveProperty("names_guest_speaker");
+    expect(triggers.recent).toHaveBeenCalledTimes(1);
+    expect(triggers.wide).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["defaultHostId", "not-a-member"],
+    ["summaryAliases", "edu"],
+    ["summaryAliases", [1]],
+    ["namesGuestSpeaker", "yes"],
+  ])("rejects %s of %j", async (field, value) => {
+    expect((await post(update, { typeId, name: "X", [field]: value })).status).toBe(400);
     expect(written).toBeUndefined();
   });
 });

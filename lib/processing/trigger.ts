@@ -384,3 +384,19 @@ export async function triggerReprocessing(
 
   return { processed: results };
 }
+
+/** How far back a prickle type change reaches: far enough to cover its past prickles and still-unmatched events. */
+export const TYPE_CHANGE_DAYS_BACK = 365;
+
+/**
+ * Rebuild calendar prickles after a change to what a prickle type means (its default host, other names,
+ * guest speaker flag). The usual local-change window is 90 days back, which misses older prickles of
+ * the type, so this goes back a year and keeps the 90 days forward.
+ */
+export function triggerPrickleTypeReprocessing() {
+  const from = new Date();
+  from.setDate(from.getDate() - TYPE_CHANGE_DAYS_BACK);
+  const to = new Date();
+  to.setDate(to.getDate() + (SILVER_DEPENDENCIES.calendar.localDefaultFutureDays ?? 0));
+  return triggerReprocessing('prickle_types', 'local', { dateRange: { from, to } });
+}

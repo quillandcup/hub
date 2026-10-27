@@ -9,12 +9,12 @@ import type { MissingHostsData } from "@/lib/missing-hosts";
 const actions = vi.hoisted(() => ({
   getUnhostedPrickles: vi.fn(),
   setRequiresHost: vi.fn(async () => ({})),
-  setDefaultHost: vi.fn(async () => ({})),
+  setDefaultHosts: vi.fn(async (choices: unknown[]) => ({ saved: choices.length }) as { saved?: number; error?: string }),
 }));
 vi.mock("@/app/(admin)/admin/data-health/missing-hosts/actions", () => actions);
 vi.mock("@/components/MemberSearch", () => ({
-  default: ({ onSelect }: { onSelect: (m: { id: string } | null) => void }) => (
-    <button onClick={() => onSelect({ id: "mbr_AAAAAAAAAAA1" })}>pick a default host</button>
+  default: ({ onSelect }: { onSelect: (m: { id: string; name: string } | null) => void }) => (
+    <button onClick={() => onSelect({ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" })}>pick a default host</button>
   ),
 }));
 
@@ -73,16 +73,46 @@ describe("MissingHostsClient", () => {
     expect(screen.getByText("Sprint - Missing Hosts")).toBeInTheDocument();
   });
 
-  it("flips whether a type needs a host, and sets its default host", async () => {
+  it("flips whether a type needs a host", async () => {
     renderPage();
 
     await userEvent.click(screen.getByRole("button", { name: "Mark Optional" }));
     await userEvent.click(screen.getByRole("button", { name: "Mark Required" }));
-    await userEvent.click(screen.getAllByRole("button", { name: "pick a default host" })[0]);
 
     expect(actions.setRequiresHost).toHaveBeenNthCalledWith(1, "t1", false);
     expect(actions.setRequiresHost).toHaveBeenNthCalledWith(2, "t2", true);
-    expect(actions.setDefaultHost).toHaveBeenCalledWith("t1", "mbr_AAAAAAAAAAA1");
+  });
+
+  it("collects default host choices and saves them together with one reprocess", async () => {
+    renderPage();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "pick a default host" })[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "pick a default host" })[1]);
+
+    expect(actions.setDefaultHosts).not.toHaveBeenCalled();
+    expect(screen.getByText("Default Hosts to Save (2)")).toBeInTheDocument();
+    expect(screen.getAllByText("Ada Example")).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Reprocess" }));
+
+    expect(actions.setDefaultHosts).toHaveBeenCalledTimes(1);
+    expect(actions.setDefaultHosts).toHaveBeenCalledWith([
+      { typeId: "t1", memberId: "mbr_AAAAAAAAAAA1" },
+      { typeId: "t2", memberId: "mbr_AAAAAAAAAAA1" },
+    ]);
+    expect(await screen.findByText("Saved 2 default hosts and rebuilt the calendar prickles.")).toBeInTheDocument();
+    expect(screen.getByText("Default Hosts to Save (0)")).toBeInTheDocument();
+  });
+
+  it("keeps the choices when saving fails", async () => {
+    actions.setDefaultHosts.mockResolvedValueOnce({ error: "nope" });
+    renderPage();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "pick a default host" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Save & Reprocess" }));
+
+    expect(await screen.findByText("nope")).toBeInTheDocument();
+    expect(screen.getByText("Default Hosts to Save (1)")).toBeInTheDocument();
   });
 
   it("tells the admin when an update fails", async () => {
