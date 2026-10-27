@@ -108,6 +108,24 @@ function seedGoals(goals: ReturnType<typeof goalRow>[]) {
   }
 }
 
+/** A progress entry `memberId` already logged against `prickleId` in `projectId`. */
+function logEntry(memberId: string, prickleId: string, projectId: string, measure = "words") {
+  dataset.writingEntries.push({
+    id: `wpe_${dataset.writingEntries.length + 1}`,
+    member_id: memberId,
+    project_id: projectId,
+    prickle_id: prickleId,
+    entry_date: "2026-10-20",
+    measure,
+    mode: "delta",
+    amount: 100,
+    note: null,
+    tags: [],
+    external_id: null,
+    created_at: new Date().toISOString(),
+  });
+}
+
 function cronRequest() {
   return new NextRequest("http://localhost/api/internal/prickle-checkins", {
     method: "POST",
@@ -407,9 +425,9 @@ describe("sendCheckoutDMs", () => {
   });
 
   it("skips an attendee who answered both questions and logged every project", async () => {
+    logEntry("m1", "p1", "proj1");
     setup([goalRow("g1", "m1", "proj1", "words")], {
       prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
-      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
     });
 
     expect(await checkout()).toBe(0);
@@ -417,9 +435,9 @@ describe("sendCheckoutDMs", () => {
   });
 
   it("still sends a fully answered check-out for a project not yet logged, asking only about that one", async () => {
+    logEntry("m1", "p1", "proj1");
     setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m1", "proj2", "scenes", "Memoir")], {
       prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
-      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
     });
 
     expect(await checkout()).toBe(1);
