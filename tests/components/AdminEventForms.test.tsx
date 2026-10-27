@@ -64,8 +64,8 @@ describe("admin create event form", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Add Event" }));
     const [starts, ends] = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
 
-    await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Pitch Webinar");
-    await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "webinar");
+    await userEvent.type(screen.getByPlaceholderText(/Virginia Retreat/), "Craft Workshop");
+    await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "workshop");
     await userEvent.type(starts, "2097-06-01");
     await userEvent.type(ends, "2097-06-01");
     await userEvent.click(screen.getByLabelText("Guests allowed"));
@@ -76,9 +76,9 @@ describe("admin create event form", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     const post = calls.find((c) => c.method === "POST")!;
     expect(post.body).toMatchObject({
-      title: "Pitch Webinar",
-      slug: "pitch-webinar",
-      event_type: "webinar",
+      title: "Craft Workshop",
+      slug: "craft-workshop",
+      event_type: "workshop",
       guests_allowed: true,
       announced_publicly: false,
       registration: "signup",
