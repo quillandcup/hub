@@ -47,6 +47,7 @@ export default async function CourseWatchStatsPage({
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
         How members watched {data.course.title}, from the player&apos;s watch segments. Times are video time.{" "}
         {data.staffExcluded ? "Staff viewing is left out." : "Staff viewing is included."}{" "}
+        <Link href={`/admin/courses/${id}/roster`} className="text-plum-700 underline dark:text-plum-300">Who&apos;s where</Link>{" · "}
         <Link href={includeStaff ? base : `${base}?staff=1`} data-track="admin-watch-stats-staff-toggle" className="text-plum-700 underline dark:text-plum-300">
           {includeStaff ? "Leave out staff" : "Include staff"}
         </Link>
