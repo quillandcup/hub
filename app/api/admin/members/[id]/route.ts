@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const parsed = await request.json().catch(() => undefined);
   if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const body = parsed;
-  const { name, keepOldNameAsPenName, newPenName, displayName, email, newEmailAlias, emailAlias } = body as {
+  const { name, keepOldNameAsPenName, newPenName, displayName, email, newEmailAlias, emailAlias, nameAlias } = body as {
     name?: string;
     keepOldNameAsPenName?: boolean;
     newPenName?: string;
@@ -42,6 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     email?: string;
     newEmailAlias?: string;
     emailAlias?: { id: string; active: boolean };
+    nameAlias?: { id: string; active: boolean };
   };
 
   const found = await createRepos(supabase).members.byId(id);
@@ -141,6 +142,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // Same as the member's own Settings toggle: reactivating backfills recent
     // matching; deactivating leaves history alone until it's reprocessed.
     if (emailAlias.active) scheduleAliasReprocess();
+  }
+
+  if (nameAlias && typeof nameAlias.id === "string" && typeof nameAlias.active === "boolean") {
+    let updated: boolean;
+    try {
+      updated = await createRepos(supabase).aliases.setNameActive(member.id, nameAlias.id, nameAlias.active);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
+    if (!updated) return NextResponse.json({ error: "That pen name isn't on file for this member" }, { status: 404 });
+    // Reactivating backfills recent matching, same as the email toggle above.
+    if (nameAlias.active) scheduleAliasReprocess("member_name_aliases");
   }
 
   const repos = createRepos(supabase);
@@ -272,12 +285,12 @@ async function addEmailAlias(supabase: SupabaseClient, member: MemberRow, input:
 }
 
 /** Rematch recent attendance and activity against the changed emails. */
-function scheduleAliasReprocess() {
+function scheduleAliasReprocess(table: "member_email_aliases" | "member_name_aliases" = "member_email_aliases") {
   after(async () => {
     try {
-      await triggerReprocessing("member_email_aliases", "local");
+      await triggerReprocessing(table, "local");
     } catch (err) {
-      console.error("[admin] Reprocessing after an email change failed:", err);
+      console.error(`[admin] Reprocessing after a ${table} change failed:`, err);
     }
   });
 }

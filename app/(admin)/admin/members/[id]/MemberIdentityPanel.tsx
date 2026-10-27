@@ -68,6 +68,7 @@ export default function MemberIdentityPanel({
   const [emailAliasInput, setEmailAliasInput] = useState("");
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [togglingEmailAliasId, setTogglingEmailAliasId] = useState<string | null>(null);
+  const [reactivatingNameAliasId, setReactivatingNameAliasId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conflictingMemberId, setConflictingMemberId] = useState<string | null>(null);
 
@@ -128,6 +129,19 @@ export default function MemberIdentityPanel({
       setError(err.message);
     } finally {
       setTogglingEmailAliasId(null);
+    }
+  }
+
+  async function handleReactivateNameAlias(alias: NameAliasRow) {
+    setReactivatingNameAliasId(alias.id);
+    setError(null);
+    try {
+      await patchMember({ nameAlias: { id: alias.id, active: true } });
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setReactivatingNameAliasId(null);
     }
   }
 
@@ -363,6 +377,17 @@ export default function MemberIdentityPanel({
                   <span className="text-xs text-slate-500 dark:text-slate-400">{sourceLabel(alias.source)}</span>
                   {isDefault && <span className="text-xs font-medium">· default</span>}
                 </button>
+                {!alias.active && (
+                  <button
+                    type="button"
+                    onClick={() => handleReactivateNameAlias(alias)}
+                    disabled={reactivatingNameAliasId === alias.id}
+                    aria-label={`Reactivate pen name ${alias.alias}`}
+                    className="text-xs px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    Reactivate
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleRemoveAlias(alias.id)}

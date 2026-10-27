@@ -7,6 +7,9 @@ import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page
 // The admin routes that create name aliases (the names attendance is matched by) refuse a name that
 // belongs to another member (lib/name-alias-conflict.ts) instead of taking it over.
 
+// `after` only runs inside a request; here it runs at once so the reprocess it schedules can be asserted.
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
+
 let dataset = new InMemoryDataset();
 let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
@@ -244,7 +247,7 @@ describe("PATCH /api/admin/members/[id] -- when the alias store fails", () => {
     patchMember(new NextRequest(`http://localhost/api/admin/members/${id}`, { method: "PATCH", body: JSON.stringify(body) }), {
       params: Promise.resolve({ id }),
     });
-  const failing = (method: "upsertName" | "addName" | "setEmailActive" | "removeEmailOf" | "addEmail") =>
+  const failing = (method: "upsertName" | "addName" | "setNameActive" | "setEmailActive" | "removeEmailOf" | "addEmail") =>
     vi.spyOn(repos.aliases, method).mockRejectedValue(new Error("db down"));
 
   it("reports it when keeping the old name as a pen name can't be saved", async () => {
@@ -259,6 +262,13 @@ describe("PATCH /api/admin/members/[id] -- when the alias store fails", () => {
   it("reports it when a new pen name can't be saved", async () => {
     failing("addName");
     const res = await patch(ADA.id, { newPenName: "Ada E" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "db down" });
+  });
+
+  it("reports it when a pen name can't be switched", async () => {
+    failing("setNameActive");
+    const res = await patch(FERN.id, { nameAlias: { id: "nal_x", active: true } });
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "db down" });
   });
@@ -304,3 +314,40 @@ describe("PATCH /api/admin/members/[id] -- the lists it returns", () => {
   });
 });
 
+describe("PATCH /api/admin/members/[id] -- switching a pen name", () => {
+  const patch = (id: string, body: unknown) =>
+    patchMember(new NextRequest(`http://localhost/api/admin/members/${id}`, { method: "PATCH", body: JSON.stringify(body) }), {
+      params: Promise.resolve({ id }),
+    });
+
+  it("reactivates the member's pen name and reprocesses recent attendance", async () => {
+    dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "Fern Old", source: "zoom", active: false });
+
+    const res = await patch(FERN.id, { nameAlias: { id: "nal_1", active: true } });
+
+    expect(res.status).toBe(200);
+    expect(dataset.nameAliases[0].active).toBe(true);
+    expect((await res.json()).aliases).toEqual([{ id: "nal_1", alias: "Fern Old", source: "zoom", active: true }]);
+    expect(triggerReprocessingMock).toHaveBeenCalledWith("member_name_aliases", "local");
+  });
+
+  it("deactivates without reprocessing", async () => {
+    dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "Fern Old", source: "zoom", active: true });
+
+    const res = await patch(FERN.id, { nameAlias: { id: "nal_1", active: false } });
+
+    expect(res.status).toBe(200);
+    expect(dataset.nameAliases[0].active).toBe(false);
+    expect(triggerReprocessingMock).not.toHaveBeenCalled();
+  });
+
+  it("won't switch another member's pen name", async () => {
+    dataset.nameAliases.push({ id: "nal_1", member_id: ADA.id, alias: "Ada Old", source: "zoom", active: false });
+
+    const res = await patch(FERN.id, { nameAlias: { id: "nal_1", active: true } });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "That pen name isn't on file for this member" });
+    expect(dataset.nameAliases[0].active).toBe(false);
+  });
+});
