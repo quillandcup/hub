@@ -77,6 +77,21 @@ describe("member Events page", () => {
     expect(screen.getByTestId("browser")).toHaveTextContent("prickles|Query Letters 101|Spring Retreat");
   });
 
+  it("names an event with its speakers, the way members know it, and leaves an event with none as it is", async () => {
+    useFakeSupabase({
+      events: {
+        data: [
+          { id: "evt_AAAAAAAAAAA5", slug: "money", title: "A Way to Make Money", event_type: "other", location: null, starts_at: "2097-04-01", ends_at: "2097-04-01", focus: null, speakers: "Brayden Example", calendar_event_id: null, deleted_at: null, event_photos: [] },
+          { id: "evt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", location: null, starts_at: "2097-05-01", ends_at: "2097-05-01", focus: null, speakers: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
+        ],
+      },
+    });
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+
+    expect(screen.getByTestId("browser")).toHaveTextContent("A Way to Make Money with Brayden Example,Book Fair");
+  });
+
   it("starts on All for an unknown filter", async () => {
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "bogus" }) });
 

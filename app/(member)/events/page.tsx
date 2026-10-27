@@ -8,12 +8,13 @@ import { localDateString, parseEventFilter } from "@/lib/events-filter";
 import { fetchUpcomingEventPrickles, withoutFollowedEvents } from "@/lib/event-prickles";
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { eventDisplayName } from "@/lib/event-name";
 
 export const metadata: Metadata = {
   title: "Events",
 };
 
-type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; deleted_at: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
+type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; deleted_at: string | null; speakers: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const supabase = await createClient();
@@ -35,7 +36,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const [{ data: events }, eventPrickles] = await Promise.all([
     supabase
       .from("events")
-      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
+      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, speakers, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
       .order("starts_at", { ascending: false }),
     fetchUpcomingEventPrickles(supabase, now),
   ]);
@@ -44,7 +45,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const rows: EventRow[] = ((events ?? []) as RawEvent[]).filter((e) => !e.deleted_at).map((e) => ({
     id: e.id,
     slug: e.slug,
-    title: e.title,
+    title: eventDisplayName(e.title, e.speakers),
     event_type: e.event_type,
     location: e.location,
     starts_at: e.starts_at,

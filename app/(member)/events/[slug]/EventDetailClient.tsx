@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { audienceSummary } from "@/lib/event-audience";
 import { locationDisplay } from "@/lib/location-display";
+import { eventDisplayName } from "@/lib/event-name";
 import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
 
 interface EventData {
@@ -56,7 +57,7 @@ export default function EventDetailClient({
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
         </p>
-        <h1 className="text-2xl font-bold mt-0.5">{event.title}</h1>
+        <h1 className="text-2xl font-bold mt-0.5">{eventDisplayName(event.title, event.speakers)}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
           {where && " · "}
@@ -68,7 +69,6 @@ export default function EventDetailClient({
             where?.text
           )}
         </p>
-        {event.speakers && <p className="mt-1">With {event.speakers}</p>}
         {audience.length > 0 && (
           <ul aria-label="Who it's for" className="mt-3 flex flex-wrap gap-2">
             {audience.map((a) => (

@@ -71,7 +71,8 @@ describe("EventDetailClient audience", () => {
       "7 places",
       "The hosts choose",
     ]);
-    expect(screen.getByText("With Ada Example")).toBeInTheDocument();
+    // The speaker is part of the name members read.
+    expect(screen.getByRole("heading", { level: 1, name: "Autumn Retreat with Ada Example" })).toBeInTheDocument();
   });
 
   it("labels the new kinds of event", () => {

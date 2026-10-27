@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
-import { parsePrickleFromSummary, plainTextDescription } from "@/lib/prickle-types";
+import { normalizePrickleType, parsePrickleFromSummary, plainTextDescription, typeIdByAlias } from "@/lib/prickle-types";
 
 // Events that follow the shared Google calendar (events.calendar_event_id). A calendar item shown
 // in Events gets an events row; its title, description and location follow the calendar until an
@@ -62,8 +62,8 @@ export function orgDate(iso: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 }
 
-/** "Quill & Cup" (or "Q&C") before a "[Category]" or a colon is the organization's label on the item, not part of its title. */
-const ORG_LABEL = /^(?:quill\s*&\s*cup|q\s*&\s*c)\s*(?=[\[:])/i;
+/** "Quill & Cup" (or "Q&C", with or without "Prickle") before a "[Category]" or a colon is the organization's label on the item, not part of its title. */
+const ORG_LABEL = /^(?:quill\s*&\s*cup|q\s*&\s*c)\s*(?:prickle\s*)?(?=[\[:])/i;
 
 /**
  * What a calendar summary says besides the host: the title, with the organization's label, the "[Category]" and a
@@ -328,4 +328,37 @@ export async function reconcileAutomaticEvents(db: Db, sourceIds: string[], qual
     if (error) throw new Error(error.message);
   }
   return removable.length;
+}
+
+/** What the calendar sync needs of a prickle type to match a calendar title to it. */
+export interface MatchableType {
+  id: string;
+  name: string;
+  normalized_name: string;
+  summary_aliases?: string[] | null;
+}
+
+/**
+ * The prickle type a calendar title is for, or null. The type part of the title ("Heads Down Prickle w/Cody" ->
+ * "Heads Down Prickle") is tried against the types' names and aliases, then the cleaned title ("Quill & Cup
+ * [Mindset] Prickle: Get Your Spark Back!" -> "Get Your Spark Back", which is a type's name), then a type whose
+ * name the title contains ("Midnight Open Table" contains "Open Table"). A title with no type, or just "Prickle",
+ * is a Progress Prickle.
+ */
+export function matchTypeId(summary: string, types: MatchableType[]): string | null {
+  const byName = new Map(types.map((t) => [t.normalized_name, t.id]));
+  const { type: rawType } = parsePrickleFromSummary(summary);
+  const normalizedType = rawType ? normalizePrickleType(rawType) : "";
+  if (!normalizedType) return byName.get("progress") ?? null;
+
+  const normalizedTitle = normalizePrickleType(calendarTitle(summary));
+  const found =
+    byName.get(normalizedType) ??
+    (normalizedTitle ? byName.get(normalizedTitle) : undefined) ??
+    typeIdByAlias(normalizedType, types) ??
+    (normalizedTitle ? typeIdByAlias(normalizedTitle, types) : null);
+  if (found) return found;
+
+  const lower = summary.toLowerCase();
+  return types.find((t) => lower.includes(t.name.toLowerCase()))?.id ?? null;
 }
