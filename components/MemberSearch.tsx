@@ -8,6 +8,8 @@ interface Member {
   name: string;
   /** The name the community knows them by; the list shows it first and still finds the legal name. */
   displayName?: string | null;
+  /** Shown beside members who are not "active". */
+  status?: string;
   email: string;
 }
 

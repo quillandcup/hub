@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 import { UNHOSTED_LIST_LIMIT, type MissingHostsData } from "@/lib/missing-hosts";
-import { getUnhostedPrickles, setDefaultHosts, setRequiresHost, type UnhostedPrickle } from "./actions";
+import { assignHostToUnhostedPrickles, getUnhostedPrickles, setDefaultHosts, setRequiresHost, type UnhostedPrickle } from "./actions";
 
 export default function MissingHostsClient({ stats, coverage, members }: MissingHostsData) {
   const timeZone = useTimeZone();
+  const router = useRouter();
+  // A default host is someone who hosts now, so only active members; crediting past prickles takes anyone.
+  const activeMembers = members.filter((m) => m.status === "active");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [prickles, setPrickles] = useState<UnhostedPrickle[]>([]);
   const [showDetailedStats, setShowDetailedStats] = useState(false);
@@ -69,6 +73,26 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
     setSaving(false);
     if (saved) setStaged(new Map());
     setSaveResult(error ?? `Saved ${saved} default host${saved === 1 ? "" : "s"} and rebuilt the calendar prickles.`);
+  }
+
+  // Crediting one member as the host of all of a type's unhosted prickles (the detail view).
+  const [bulkHost, setBulkHost] = useState<{ id: string; name: string } | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const [assignResult, setAssignResult] = useState<string | null>(null);
+
+  async function assignAll(typeId: string, count: number) {
+    if (!bulkHost) return;
+    if (!confirm(`Credit ${bulkHost.name} as the host of all ${count} unhosted prickles of this type?`)) return;
+    setAssigning(true);
+    setAssignResult(null);
+    const { error, assigned } = await assignHostToUnhostedPrickles(typeId, bulkHost.id);
+    setAssigning(false);
+    setAssignResult(error ?? `Credited ${bulkHost.name} as the host of ${assigned} prickle${assigned === 1 ? "" : "s"}.`);
+    if (!error) {
+      setBulkHost(null);
+      setPrickles([]);
+      router.refresh();
+    }
   }
 
   const expectedUnhosted = stats.filter(s => !s.requiresHost);
@@ -176,7 +200,7 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                     </div>
                     <div className="flex items-center gap-2">
                       <MemberSearch
-                        members={members}
+                        members={activeMembers}
                         selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
                         selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
                         onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
@@ -226,7 +250,7 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                     </div>
                     <div className="flex items-center gap-2">
                       <MemberSearch
-                        members={members}
+                        members={activeMembers}
                         selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
                         selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
                         onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
@@ -253,6 +277,38 @@ export default function MissingHostsClient({ stats, coverage, members }: Missing
                   Close
                 </button>
               </div>
+
+              {(() => {
+                const count = stats.find((s) => s.typeId === selectedType)?.missingCount ?? prickles.length;
+                return (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">
+                      Nobody hosts this any more? Credit one member as the host of all {count}, so the past ones say who hosted. Former members can be picked.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <MemberSearch
+                        members={members}
+                        selectedMemberId={bulkHost?.id ?? null}
+                        selectedMemberName={bulkHost?.name}
+                        onSelect={(member) => {
+                          setAssignResult(null);
+                          setBulkHost(member ? { id: member.id, name: member.displayName?.trim() || member.name } : null);
+                        }}
+                        placeholder="Search for the host..."
+                        className="flex-1"
+                      />
+                      <button
+                        onClick={() => assignAll(selectedType, count)}
+                        disabled={!bulkHost || assigning}
+                        className="text-sm px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {assigning ? "Assigning..." : `Assign to all ${count}`}
+                      </button>
+                    </div>
+                    {assignResult && <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{assignResult}</p>}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {prickles.map((prickle) => (

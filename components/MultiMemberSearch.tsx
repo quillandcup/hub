@@ -7,6 +7,8 @@ interface Member {
   id: string;
   name: string;
   displayName?: string | null;
+  /** Shown beside members who are not "active". */
+  status?: string;
   /** Optional: admin-only surfaces pass it; member-facing ones never receive other members' emails. */
   email?: string;
 }
