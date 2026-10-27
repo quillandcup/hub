@@ -121,7 +121,7 @@ describe("addEmailAlias", () => {
 
 describe("setEmailAliasActive", () => {
   it("scopes the toggle to the acting member by member_id", async () => {
-    const { client, calls } = makeClient(() => ({ data: { id: "alias-1" } }));
+    const { client, calls } = makeClient(() => ({ data: [{ id: "alias-1" }] }));
     vi.mocked(createClient).mockResolvedValue(client);
 
     expect(await setEmailAliasActive("alias-1", false)).toEqual({ success: true });
@@ -141,7 +141,7 @@ describe("setEmailAliasActive", () => {
   });
 
   it("reprocesses on reactivation only", async () => {
-    const { client } = makeClient(() => ({ data: { id: "alias-1" } }));
+    const { client } = makeClient(() => ({ data: [{ id: "alias-1" }] }));
     vi.mocked(createClient).mockResolvedValue(client);
 
     await setEmailAliasActive("alias-1", false);

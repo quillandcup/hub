@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { PATCH } from "@/app/api/admin/members/[id]/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
@@ -14,6 +15,8 @@ vi.mock("@/lib/kajabi/client", () => ({
 // The route reads the member before its edit and again after it; members come from the
 // repository, so each read answers with the next record a test queued (the last one repeats).
 const memberWrites: Record<string, unknown>[] = [];
+// The aliases the route reads and writes, in the in-memory alias repository.
+let aliasData = new InMemoryDataset();
 let memberReads: ({ id: string; name: string; email: string; displayName: string | null; kajabiId: string | null } | null)[] = [];
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
@@ -21,6 +24,7 @@ vi.mock("@/lib/data/repos", async () => {
     ...actual,
     createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({
       ...actual.createRepos(db),
+      aliases: actual.createInMemoryRepos(aliasData).aliases,
       members: {
         byId: async () => (memberReads.length > 1 ? memberReads.shift()! : memberReads[0]),
         byEmail: async () => null,
@@ -42,12 +46,17 @@ function makeRequest(body: Record<string, unknown>) {
 function makeSupabaseMock({
   member = { id: "member-1", name: "Edy Hackett", kajabi_id: "kj-1" } as any,
   updateError = undefined as string | undefined,
-  aliasInsertError = undefined as { code?: string; message: string } | undefined,
-  aliasRow = null as { id: string } | null,
-  aliases = [] as any[],
+  takenAlias = undefined as string | undefined,
+  aliases = [] as { id: string; alias: string; source: string; active: boolean }[],
   updatedMember = { name: "Erica Haraldsen", display_name: null } as any,
 } = {}) {
   memberWrites.length = 0;
+  aliasData = new InMemoryDataset({
+    nameAliases: [
+      ...aliases.map((a) => ({ ...a, member_id: "member-1" })),
+      ...(takenAlias ? [{ id: "nal_other", member_id: "member-2", alias: takenAlias, source: "member", active: true }] : []),
+    ],
+  });
   memberReads = [
     member && { id: member.id, name: member.name, email: member.email ?? "member@example.test", displayName: null, kajabiId: member.kajabi_id ?? null },
     updatedMember && { id: member?.id ?? "member-1", name: updatedMember.name, email: updatedMember.email ?? "member@example.test", displayName: updatedMember.display_name ?? null, kajabiId: member?.kajabi_id ?? null },
@@ -57,39 +66,13 @@ function makeSupabaseMock({
   const updateEq = vi.fn().mockResolvedValue(updateResult);
   const update = vi.fn(() => ({ eq: updateEq }));
 
-  const upsert = vi.fn().mockResolvedValue({ error: null });
-  const insert = vi.fn().mockResolvedValue({ error: aliasInsertError ?? null });
-
-  // A single flexible chain that supports both call shapes used against
-  // member_name_aliases: .select(...).eq(...).eq(...).maybeSingle() (the
-  // displayName ownership check) and .select(...).eq(...).order(...) (the
-  // final alias list fetch).
-  const aliasMaybeSingle = vi.fn().mockResolvedValue({ data: aliasRow });
-  const aliasOrder = vi.fn().mockResolvedValue({ data: aliases, error: null });
-  const aliasChain: any = {
-    eq: vi.fn(() => aliasChain),
-    order: aliasOrder,
-    maybeSingle: aliasMaybeSingle,
-  };
-  const aliasSelect = vi.fn(() => aliasChain);
-
-
+  // Members and aliases come from the repositories; nothing else is read.
   const from = vi.fn((table: string) => {
-    if (table === "members") {
-      return { update, upsert, insert };
-    }
-    if (table === "member_name_aliases") {
-      return { select: aliasSelect, upsert, insert };
-    }
-    if (table === "member_email_aliases") {
-      // Only the final email-alias list fetch; the email paths are covered
-      // against the real DB in identity-email.test.ts.
-      return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) })) })) };
-    }
+    if (table === "members") return { update };
     throw new Error(`Unexpected table in test: ${table}`);
   });
 
-  return { from, __update: update, __insert: insert, __upsert: upsert };
+  return { from, __update: update };
 }
 
 beforeEach(() => {
@@ -153,15 +136,12 @@ describe("PATCH /api/admin/members/[id]", () => {
       { params: Promise.resolve({ id: "member-1" }) }
     );
 
-    expect(mock.__upsert).toHaveBeenCalledWith(
-      { member_id: "member-1", alias: "Edy Hackett", source: "admin" },
-      { onConflict: "alias" }
-    );
+    expect(aliasData.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([["member-1", "Edy Hackett", "admin"]]);
     expect(memberWrites).toEqual([expect.objectContaining({ name: "Erica Haraldsen", displayName: "Edy Hackett" })]);
   });
 
   it("rejects a displayName that isn't one of the member's aliases", async () => {
-    const mock = makeSupabaseMock({ aliasRow: null });
+    const mock = makeSupabaseMock();
     vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(
@@ -174,7 +154,7 @@ describe("PATCH /api/admin/members/[id]", () => {
   });
 
   it("returns 409 when a new pen name collides with another member's alias", async () => {
-    const mock = makeSupabaseMock({ aliasInsertError: { code: "23505", message: "duplicate" } });
+    const mock = makeSupabaseMock({ takenAlias: "Taken Name" });
     vi.mocked(requireAdmin).mockResolvedValue({ user: { id: "admin-1" } as any, forbidden: false, supabase: mock as any });
 
     const response = await PATCH(

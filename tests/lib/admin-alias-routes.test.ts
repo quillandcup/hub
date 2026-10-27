@@ -7,7 +7,8 @@ import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page
 // The admin routes that create name aliases (the names attendance is matched by) refuse a name that
 // belongs to another member (lib/name-alias-conflict.ts) instead of taking it over.
 
-let repos = createInMemoryRepos();
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
@@ -52,7 +53,8 @@ beforeEach(() => {
   tables = {};
   fake = createFakeSupabase(tables);
   rpcMock.mockResolvedValue({ data: [], error: null });
-  repos = createInMemoryRepos(new InMemoryDataset({ members: [ADA, FERN] }));
+  dataset = new InMemoryDataset({ members: [ADA, FERN] });
+  repos = createInMemoryRepos(dataset);
 });
 
 describe("POST /api/aliases", () => {
@@ -176,7 +178,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
     expect(res.status).toBe(200);
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Ada E" });
-    expect(writes("member_name_aliases", "insert")).toHaveLength(1);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Ada E", "admin"]]);
   });
 
   it("refuses a new pen name that is another member's, saying whose", async () => {
@@ -186,14 +188,14 @@ describe("PATCH /api/admin/members/[id]", () => {
 
     expect(res.status).toBe(409);
     expect((await res.json()).error).toContain("already an alias for Fern Example");
-    expect(writes("member_name_aliases", "insert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 
   it("refuses a new pen name when the check fails", async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "rpc down" } });
     const res = await patch(ADA.id, { newPenName: "Ada E" });
     expect(res.status).toBe(500);
-    expect(writes("member_name_aliases", "insert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 
   it("won't rename (or touch Kajabi) when keeping the old name would take it from someone else", async () => {
@@ -205,7 +207,7 @@ describe("PATCH /api/admin/members/[id]", () => {
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Ada Example" });
     expect(updateContactMock).not.toHaveBeenCalled();
     expect(writes("members", "update")).toHaveLength(0);
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(0);
+    expect(dataset.nameAliases).toEqual([]);
   });
 
   it("renames and keeps the old name when it is free", async () => {
@@ -213,7 +215,7 @@ describe("PATCH /api/admin/members/[id]", () => {
 
     expect(res.status).toBe(200);
     expect(updateContactMock).toHaveBeenCalled();
-    expect(writes("member_name_aliases", "upsert")).toHaveLength(1);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Ada Example", "admin"]]);
     expect(await repos.members.byId(ADA.id)).toMatchObject({ name: "Ada Newname", displayName: "Ada Example" });
   });
 

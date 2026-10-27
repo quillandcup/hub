@@ -29,11 +29,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Aliases: the matching scans are on AliasRepository; the per-member lists and the writes are still to move.
   member_name_aliases: [
     "app/(admin)/admin/data/aliases/page.tsx",
-    "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
     "app/(member)/wheel-of-wonder/actions.ts",
     "app/api/admin/aliases/[id]/route.ts",
     "app/api/admin/apply-aliases/route.ts",
-    "app/api/admin/members/[id]/route.ts",
     "app/api/aliases/route.ts",
     "app/api/aliases/slack/route.ts",
     "app/api/zoom/resolve-ambiguous/route.ts",
@@ -41,10 +39,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "lib/slack-member-ids.ts",
   ],
   member_email_aliases: [
-    "app/(admin)/admin/members/[id]/MemberDetailPage.tsx",
-    "app/(member)/settings/identityActions.ts",
     "app/(member)/settings/profileActions.ts",
-    "app/api/admin/members/[id]/route.ts",
     "app/api/analyze/stripe-orphans/route.ts",
     "app/api/analyze/subscription-reconciliation/route.ts",
     "app/api/process/members/route.ts",

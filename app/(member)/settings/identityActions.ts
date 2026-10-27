@@ -10,7 +10,6 @@ import { createKajabiClient } from "@/lib/kajabi/client";
 import { revalidatePath } from "next/cache";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
-import type { Insert } from "@/lib/data/db";
 
 import { withAction } from "@/lib/analytics/server";
 export interface NameAliasRow {
@@ -65,10 +64,6 @@ async function requireIdentity(): Promise<IdentityContext> {
   return { supabase, effectiveIdentity };
 }
 
-function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
-  return error?.code === "23505";
-}
-
 export async function getIdentitySettings(): Promise<IdentitySettings | { error: string }> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return ctx;
@@ -77,11 +72,7 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
   const [memberResult, nameAliasResult, emailAliasResult, attendanceCount] = await Promise.all([
     createRepos(supabase).members.profile(effectiveIdentity.memberId),
     createRepos(supabase).aliases.namesOf(effectiveIdentity.memberId),
-    supabase
-      .from("member_email_aliases")
-      .select("id, alias_email, source, active, created_at")
-      .eq("member_id", effectiveIdentity.memberId)
-      .order("created_at", { ascending: false }),
+    createRepos(supabase).aliases.emailsOf(effectiveIdentity.memberId),
     createRepos(supabase).attendance.countForMember(effectiveIdentity.memberId),
   ]);
 
@@ -92,12 +83,12 @@ export async function getIdentitySettings(): Promise<IdentitySettings | { error:
     birthdayMonth: memberResult?.birthdayMonth ?? null,
     birthdayDay: memberResult?.birthdayDay ?? null,
     nameAliases: nameAliasResult,
-    emailAliases: (emailAliasResult.data ?? []).map((row) => ({
+    emailAliases: emailAliasResult.map((row) => ({
       id: row.id,
       aliasEmail: row.alias_email,
       source: row.source,
       active: row.active,
-      createdAt: row.created_at,
+      createdAt: row.createdAt,
     })),
     hasAttendanceHistory: attendanceCount > 0,
     nameChangeLocked: memberResult?.selfServiceNameChangedAt != null,
@@ -305,20 +296,16 @@ async function addEmailAliasImpl(email: string): Promise<{ success: true } | { e
     return { error: "That's already your primary email" };
   }
 
-  // canonical_email is filled in from member_id by a trigger.
-  const { error } = await supabase.from("member_email_aliases").insert({
-    member_id: effectiveIdentity.memberId,
-    alias_email: trimmed,
-    source: "manual",
-  } as Insert<"member_email_aliases">); // canonical_email is filled in by the trigger
-
-  if (error) {
-    if (isUniqueViolation(error)) {
-      return {
-        error: "That email is already registered as an alias, possibly for another member — ask an admin for help.",
-      };
-    }
-    return { error: error.message };
+  let added: boolean;
+  try {
+    added = await createRepos(supabase).aliases.addEmail(effectiveIdentity.memberId, trimmed, "manual");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't add that email" };
+  }
+  if (!added) {
+    return {
+      error: "That email is already registered as an alias, possibly for another member — ask an admin for help.",
+    };
   }
 
   after(() => triggerReprocessing("member_email_aliases", "local"));
@@ -335,15 +322,13 @@ export async function setEmailAliasActive(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data, error } = await supabase
-    .from("member_email_aliases")
-    .update({ active })
-    .eq("id", id)
-    .eq("member_id", effectiveIdentity.memberId)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Alias not found" };
+  let found: boolean;
+  try {
+    found = await createRepos(supabase).aliases.setEmailActive(effectiveIdentity.memberId, id, active);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Alias not found" };
+  }
+  if (!found) return { error: "Alias not found" };
 
   if (active) {
     after(() => triggerReprocessing("member_email_aliases", "local"));

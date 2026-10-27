@@ -28,6 +28,15 @@ export interface MemberNameAlias {
 /** Ids per `.in(...)` write or lookup, so the request URL stays under the length limit. */
 const ID_CHUNK = 100;
 
+/** One of a member's own email aliases, as their settings page and the admin page list it. */
+export interface MemberEmailAliasEntry {
+  id: string;
+  alias_email: string;
+  source: string;
+  active: boolean;
+  createdAt: string;
+}
+
 /**
  * The identity aliases that tie external names and emails to members: the stored side of member
  * matching (lib/member-matching.ts). This first slice is the read side every matcher needs, as
@@ -51,6 +60,15 @@ export interface AliasRepository {
   /** Turns the member's own alias on or off; false when the id isn't theirs. Never a hard delete. */
   setNameActive(memberId: string, id: string, active: boolean): Promise<boolean>;
 
+  /** A member's email aliases, newest first. */
+  emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]>;
+  /** Adds an email alias (the database fills in the canonical email); false when that address is already an alias of anyone. */
+  addEmail(memberId: string, email: string, source: string): Promise<boolean>;
+  /** Turns the member's own email alias on or off; false when the id isn't theirs. */
+  setEmailActive(memberId: string, id: string, active: boolean): Promise<boolean>;
+  /** Deletes the member's alias with this exact address, if they have it. */
+  removeEmailOf(memberId: string, address: string): Promise<void>;
+
   // Admin identity fixes (merge, split, move aliases). Aliases are unique across all members, so a
   // move to a member who already has the text is the caller's to avoid (see `namesOf`).
   /** Which of these name alias ids belong to the member. */
@@ -71,8 +89,8 @@ export interface AliasRepository {
   removeEmails(ids: string[]): Promise<void>;
   /** Gives the member this name alias, taking it over if another member had it. */
   upsertName(memberId: string, alias: string, source: string): Promise<void>;
-  /** Gives the member this email alias, taking it over if another member had it (the database fills in the canonical email). */
-  upsertEmail(memberId: string, email: string, source: string): Promise<void>;
+  /** Gives the member this email alias, taking it over if another member had it (the database fills in the canonical email). With `active`, also switches it on or off. */
+  upsertEmail(memberId: string, email: string, source: string, active?: boolean): Promise<void>;
 }
 
 type Page<T> = { data: T[] | null; error: { message: string } | null };
@@ -130,6 +148,37 @@ export class SupabaseAliasRepository implements AliasRepository {
     const { data, error } = await this.db.from("member_name_aliases").update({ active }).eq("id", id).eq("member_id", memberId).select("id");
     if (error) throw new Error(error.message);
     return (data?.length ?? 0) > 0;
+  }
+
+  async emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]> {
+    const { data, error } = await this.db
+      .from("member_email_aliases")
+      .select("id, alias_email, source, active, created_at")
+      .eq("member_id", memberId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ id: r.id, alias_email: r.alias_email, source: r.source, active: r.active, createdAt: r.created_at ?? "" }));
+  }
+
+  async addEmail(memberId: string, email: string, source: string): Promise<boolean> {
+    const { error } = await this.db
+      .from("member_email_aliases")
+      .insert({ member_id: memberId, alias_email: email, source } as Insert<"member_email_aliases">); // canonical_email: the trigger
+    if (error?.code === "23505") return false;
+    if (error) throw new Error(error.message);
+    return true;
+  }
+
+  async setEmailActive(memberId: string, id: string, active: boolean): Promise<boolean> {
+    const { data, error } = await this.db.from("member_email_aliases").update({ active }).eq("id", id).eq("member_id", memberId).select("id");
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  async removeEmailOf(memberId: string, address: string) {
+    const { error } = await this.db.from("member_email_aliases").delete().eq("member_id", memberId).eq("alias_email", address);
+    if (error) throw new Error(error.message);
   }
 
   async ownedNameIds(memberId: string, ids: string[]): Promise<string[]> {
@@ -196,17 +245,17 @@ export class SupabaseAliasRepository implements AliasRepository {
     if (error) throw new Error(error.message);
   }
 
-  async upsertEmail(memberId: string, email: string, source: string) {
+  async upsertEmail(memberId: string, email: string, source: string, active?: boolean) {
     const { error } = await this.db
       .from("member_email_aliases")
-      .upsert({ member_id: memberId, alias_email: email, source } as Insert<"member_email_aliases">, { onConflict: "alias_email" }); // canonical_email: the trigger
+      .upsert({ member_id: memberId, alias_email: email, source, ...(active === undefined ? {} : { active }) } as Insert<"member_email_aliases">, { onConflict: "alias_email" }); // canonical_email: the trigger
     if (error) throw new Error(error.message);
   }
 }
 
 /** The stored rows the twin keeps; the scans return the matcher shapes. */
 export type NameAliasRow = MemberAlias & { id: string; active: boolean; createdAt?: string };
-export type EmailAliasRow = MemberEmailAlias & { id: string; memberId: string; active: boolean };
+export type EmailAliasRow = MemberEmailAlias & { id: string; memberId: string; active: boolean; source?: string; createdAt?: string };
 
 /** In-memory twin over an `InMemoryDataset`. */
 export class InMemoryAliasRepository implements AliasRepository {
@@ -258,6 +307,40 @@ export class InMemoryAliasRepository implements AliasRepository {
     return true;
   }
 
+  async emailsOf(memberId: string) {
+    return this.data.emailAliases
+      .filter((a) => a.memberId === memberId)
+      .map((a) => ({ id: a.id, alias_email: a.alias_email, source: a.source ?? "manual", active: a.active, createdAt: a.createdAt ?? new Date(0).toISOString() }))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : -1));
+  }
+
+  async addEmail(memberId: string, email: string, source: string) {
+    if (this.data.emailAliases.some((a) => a.alias_email === email)) return false;
+    // Strictly after every earlier one, like the database's clock, so "newest first" never ties.
+    const latest = Math.max(0, ...this.data.emailAliases.map((a) => (a.createdAt ? Date.parse(a.createdAt) : 0)));
+    this.data.emailAliases.push({
+      id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      memberId,
+      alias_email: email,
+      canonical_email: this.primaryEmail(memberId),
+      active: true,
+      source,
+      createdAt: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
+    });
+    return true;
+  }
+
+  async setEmailActive(memberId: string, id: string, active: boolean) {
+    const row = this.data.emailAliases.find((a) => a.id === id && a.memberId === memberId);
+    if (!row) return false;
+    row.active = active;
+    return true;
+  }
+
+  async removeEmailOf(memberId: string, address: string) {
+    this.data.emailAliases = this.data.emailAliases.filter((a) => !(a.memberId === memberId && a.alias_email === address));
+  }
+
   async ownedNameIds(memberId: string, ids: string[]) {
     const wanted = new Set(ids);
     return this.data.nameAliases.filter((a) => a.member_id === memberId && wanted.has(a.id)).map((a) => a.id);
@@ -303,13 +386,14 @@ export class InMemoryAliasRepository implements AliasRepository {
     else this.data.nameAliases.push({ id: `nal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, member_id: memberId, alias, source, active: true });
   }
 
-  async upsertEmail(memberId: string, email: string, source: string) {
+  async upsertEmail(memberId: string, email: string, source: string, active?: boolean) {
     const existing = this.data.emailAliases.find((a) => a.alias_email === email);
     if (existing) {
       this.refile(existing, memberId);
+      if (active !== undefined) existing.active = active;
       return;
     }
-    this.data.emailAliases.push({ id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, memberId, alias_email: email, canonical_email: this.primaryEmail(memberId), active: true });
+    this.data.emailAliases.push({ id: `eal_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, memberId, alias_email: email, canonical_email: this.primaryEmail(memberId), active: active ?? true, source });
   }
 
   /** An email alias is canonicalized to its member's primary email (a database trigger), so moving it re-derives that. */
