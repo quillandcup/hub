@@ -47,7 +47,7 @@ export async function seed(now: Date = new Date()) {
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
   }
 
-  // Members: active, linked to their account. The admin is staff without a member record.
+  // Members: active, linked to their account. Staff are members too: the admin has a record, so the member pages open for them.
   const joinedAt = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000);
   const members = [
     ...PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({

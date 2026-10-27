@@ -51,13 +51,17 @@ describe("buildDataset", () => {
     expect(new Set(d.prickles.map((p) => p.id)).size).toBe(d.prickles.length);
   });
 
-  it("makes members of everyone who has a record, and none for staff without one", () => {
+  it("makes members of everyone who has a record, staff included, and none for staff without one", () => {
     const d = build();
 
     expect(d.members.map((m) => m.name)).toContain("Maya Example");
-    expect(d.members.map((m) => m.name)).not.toContain("Amelia Admin");
+    // Staff are members too (they sign up for the newsletter, and the member pages need a record).
+    expect(d.members.map((m) => m.name)).toContain("Amelia Admin");
     expect(d.members).toHaveLength(COMMUNITY.people.filter((p) => p.joinedDaysAgo !== null).length);
     expect(d.members.find((m) => m.name === "Hazel Hosting")?.bio).toMatch(/early Progress Prickles/);
+
+    const withoutRecord: SeedProfile = { ...COMMUNITY, people: COMMUNITY.people.map((p) => (p.key === "admin" ? { ...p, joinedDaysAgo: null } : p)) };
+    expect(build(NOW, withoutRecord).members.map((m) => m.name)).not.toContain("Amelia Admin");
   });
 
   it("lays the weekly rhythm over the window: this pattern has a slot every weekday, so one prickle for each day from four weeks back to two ahead", () => {
@@ -130,7 +134,7 @@ describe("the profile through the repositories", () => {
   const maya = () => repos.members.byEmail("maya.example@example.com");
 
   it("is a community the member repository can list and search", async () => {
-    expect(await repos.members.count()).toBe(14);
+    expect(await repos.members.count()).toBe(15);
     expect((await repos.members.search({ words: ["hazel"] })).map((m) => m.name)).toEqual(["Hazel Hosting"]);
     expect((await repos.members.profile((await maya())!.id))?.bio).toMatch(/lighthouse bakery/);
   });

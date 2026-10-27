@@ -10,7 +10,7 @@ export const COMMUNITY: SeedProfile = {
   name: "community",
   history: { daysBack: 28, daysAhead: 14 },
   people: [
-    { key: "admin", name: "Amelia Admin", email: "amelia.admin@example.com", signsIn: true, role: "admin", joinedDaysAgo: null, rate: 0 },
+    { key: "admin", name: "Amelia Admin", email: "amelia.admin@example.com", signsIn: true, role: "admin", joinedDaysAgo: 700, rate: 0, bio: "Keeps the Hub running and the kettle on 🫖" },
     {
       key: "member",
       name: "Maya Example",
