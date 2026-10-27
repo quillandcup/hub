@@ -24,6 +24,11 @@ Events made in the Hub are never automatic.
 - **Follows the calendar:** the dates and times always. The title, description and location too, until an admin changes one; a changed field is recorded in `events.overridden_fields` and the sync leaves it alone.
 - **Empty means follow the calendar.** Clearing a field on the event's edit form (or "Follow the calendar again" for all of them) removes its override and takes the calendar's current value.
 - **The Hub's own:** everything Google Calendar has no place for: the audience fields (guests allowed, announced publicly, how people join, places, how places are given out), speakers, the photo gallery. An event keeps these however it was made.
+- **Audience starts from the prickle type.** A new event made from a prickle takes its type's "Announced publicly" and "Guests allowed"; one made from an item that is no prickle starts members only. Change it on the event (e.g. to let guests into one educational session that takes sign-ups).
+
+## The audience chain
+
+Who may attend depends on how widely something is announced: **guests allowed** needs **announced publicly**, which needs **listed in Events** (for an event, being an event is the listing). The forms grey out each checkbox until the one before it is checked and uncheck what depended on it; the routes answer a violation with a message, and the database enforces it (`prickle_types_audience_chain`, `events_audience_chain`). Neither flag is read by a public page yet.
 
 ## Removing an event from Events
 

@@ -38,8 +38,8 @@ describe("EventAudienceFields", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
-    await userEvent.click(screen.getByLabelText("Guests allowed"));
     await userEvent.click(screen.getByLabelText("Announced publicly"));
+    await userEvent.click(screen.getByLabelText("Guests allowed"));
     await userEvent.type(screen.getByLabelText("Places (empty for no limit)"), "5");
     await userEvent.clear(screen.getByLabelText("Places (empty for no limit)"));
     await userEvent.type(screen.getByLabelText("Guest speakers"), "Ada Example");
@@ -49,6 +49,20 @@ describe("EventAudienceFields", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ capacity: 5 }));
     const last = onChange.mock.calls.at(-1)![0];
     expect(last).toMatchObject({ guests_allowed: true, announced_publicly: true, capacity: null, speakers: "Ada Example" });
+  });
+
+  it("greys out guests until the event is announced publicly, and unchecks them when it stops being", async () => {
+    render(<Harness />);
+    expect(screen.getByLabelText("Guests allowed")).toBeDisabled();
+
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    expect(screen.getByLabelText("Guests allowed")).toBeEnabled();
+    await userEvent.click(screen.getByLabelText("Guests allowed"));
+    expect(screen.getByLabelText("Guests allowed")).toBeChecked();
+
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    expect(screen.getByLabelText("Guests allowed")).toBeDisabled();
+    expect(screen.getByLabelText("Guests allowed")).not.toBeChecked();
   });
 
   it("lets the hosts choose when there are more people than places", async () => {

@@ -52,9 +52,12 @@ VALUES
   ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL, 'writing', false)
 ON CONFLICT (normalized_name) DO NOTHING;
 
--- Same reason: the migration that adds listed_in_events ran before these rows existed.
+-- Same reason: the migrations that add the audience flags ran before these rows existed. Listed in Events, and
+-- all but the members-only pitch announced publicly (never guests: they need an event of their own).
+UPDATE prickle_types SET listed_in_events = true, announced_publicly = true
+  WHERE normalized_name IN ('educational', 'hedgies-on-first', 'monthly-goal-review', 'pitch');
 UPDATE prickle_types SET listed_in_events = true
-  WHERE normalized_name IN ('educational', 'hedgies-on-first', 'monthly-goal-review', 'pitch', 'members-only-pitch');
+  WHERE normalized_name = 'members-only-pitch';
 
 -- =====================================================
 -- MEMBERS (Bronze)

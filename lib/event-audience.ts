@@ -1,3 +1,5 @@
+import { audienceChainError } from "@/lib/audience-rules";
+
 // Who an event is for and how people join it (events.announced_publicly, guests_allowed,
 // registration, capacity, selection, speakers). Shared by the admin forms, the create/update
 // routes and the member event page, so they agree on the values and the wording.
@@ -41,10 +43,13 @@ export const DEFAULT_AUDIENCE: EventAudience = {
 export type AudienceParse = { ok: true; fields: Partial<EventAudience> } | { ok: false; error: string };
 
 /**
- * The audience fields present in a request body, checked. A field the body leaves out is left
+ * The audience fields present in a request body, checked (`current` is what the event has now, for an update). A field the body leaves out is left
  * out of the result (so an update changes only what it names); an invalid one is an error.
  */
-export function parseEventAudience(body: Record<string, unknown>): AudienceParse {
+export function parseEventAudience(
+  body: Record<string, unknown>,
+  current: Pick<EventAudience, "announced_publicly" | "guests_allowed"> = DEFAULT_AUDIENCE,
+): AudienceParse {
   const fields: Partial<EventAudience> = {};
 
   for (const key of ["announced_publicly", "guests_allowed"] as const) {
@@ -74,6 +79,14 @@ export function parseEventAudience(body: Record<string, unknown>): AudienceParse
     if (body.speakers !== null && typeof body.speakers !== "string") return { ok: false, error: "speakers must be text" };
     fields.speakers = typeof body.speakers === "string" && body.speakers.trim() ? body.speakers.trim() : null;
   }
+  // Guests only at something announced publicly: checked against the flags the event will have, so an update
+  // that names only one of them is judged with the other as it is now.
+  const rule = audienceChainError({
+    listed: true,
+    publicly: fields.announced_publicly ?? current.announced_publicly,
+    guests: fields.guests_allowed ?? current.guests_allowed,
+  });
+  if (rule) return { ok: false, error: rule };
   return { ok: true, fields };
 }
 

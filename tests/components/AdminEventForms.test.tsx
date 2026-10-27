@@ -24,7 +24,7 @@ const EVENT = {
   agenda: null,
   results: null,
   google_photos_album_url: null,
-  announced_publicly: false,
+  announced_publicly: true,
   guests_allowed: true,
   registration: "application",
   capacity: 7,
@@ -71,6 +71,7 @@ describe("admin create event form", () => {
     await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "workshop");
     await userEvent.type(starts, "2097-06-01");
     await userEvent.type(ends, "2097-06-01");
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
     await userEvent.click(screen.getByLabelText("Guests allowed"));
     await userEvent.selectOptions(screen.getByLabelText("How people join"), "signup");
     await userEvent.type(screen.getByLabelText("Places (empty for no limit)"), "40");
@@ -83,7 +84,7 @@ describe("admin create event form", () => {
       slug: "craft-workshop",
       event_type: "workshop",
       guests_allowed: true,
-      announced_publicly: false,
+      announced_publicly: true,
       registration: "signup",
       capacity: 40,
       selection: "first_come",
@@ -95,7 +96,7 @@ describe("admin event detail", () => {
   it("shows who it's for and the speakers, and saves a changed limit", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    expect(await screen.findByText("Guests welcome · Application required · 7 places · The hosts choose")).toBeInTheDocument();
+    expect(await screen.findByText("Guests welcome · Application required · 7 places · The hosts choose · Announced publicly")).toBeInTheDocument();
     expect(screen.getByText("Ada Example")).toBeInTheDocument();
     expect(screen.getByText("Workshop")).toBeInTheDocument();
 
@@ -108,7 +109,7 @@ describe("admin event detail", () => {
 
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(calls.find((c) => c.method === "PATCH")!.body).toMatchObject({ capacity: 9, registration: "application", guests_allowed: true });
-    expect(await screen.findByText("Guests welcome · Application required · 9 places · The hosts choose")).toBeInTheDocument();
+    expect(await screen.findByText("Guests welcome · Application required · 9 places · The hosts choose · Announced publicly")).toBeInTheDocument();
   });
 
   it("says members, no sign-up, when nothing narrows it", async () => {
@@ -117,7 +118,7 @@ describe("admin event detail", () => {
       vi.fn(async () => ({
         ok: true,
         json: async () => ({
-          event: { ...EVENT, guests_allowed: false, registration: "none", capacity: null, speakers: null },
+          event: { ...EVENT, announced_publicly: false, guests_allowed: false, registration: "none", capacity: null, speakers: null },
           photos: [],
           badgeType: null,
           attendees: [],

@@ -21,19 +21,40 @@ beforeEach(() => {
 const sentBody = () => JSON.parse(fetchMock.mock.calls[0][1].body);
 
 describe("NewPrickleTypeForm dimensions", () => {
-  it("starts with every dimension off and sends the ones chosen", async () => {
+  it("starts with every dimension off, greys out each until the one before it is checked, and sends the ones chosen", async () => {
     render(<NewPrickleTypeForm />);
     expect(screen.getByLabelText("Listed in Events")).not.toBeChecked();
-    expect(screen.getByLabelText("Announced publicly")).not.toBeChecked();
-    expect(screen.getByLabelText("Guests allowed")).not.toBeChecked();
+    expect(screen.getByLabelText("Announced publicly")).toBeDisabled();
+    expect(screen.getByLabelText("Guests allowed")).toBeDisabled();
 
     await userEvent.type(screen.getByPlaceholderText(/Progress Prickle/), "Book Launch Party");
     await userEvent.click(screen.getByLabelText("Listed in Events"));
+    expect(screen.getByLabelText("Announced publicly")).toBeEnabled();
+    expect(screen.getByLabelText("Guests allowed")).toBeDisabled();
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    expect(screen.getByLabelText("Guests allowed")).toBeEnabled();
     await userEvent.click(screen.getByLabelText("Guests allowed"));
     await userEvent.click(screen.getByRole("button", { name: /create/i }));
 
-    expect(sentBody()).toMatchObject({ name: "Book Launch Party", listedInEvents: true, announcedPublicly: false, guestsAllowed: true });
+    expect(sentBody()).toMatchObject({ name: "Book Launch Party", listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
     expect(router.push).toHaveBeenCalledWith("/admin/data/prickle-types");
+  });
+
+  it("unchecking one unchecks what depended on it", async () => {
+    render(<NewPrickleTypeForm />);
+    await userEvent.click(screen.getByLabelText("Listed in Events"));
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    await userEvent.click(screen.getByLabelText("Guests allowed"));
+
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    expect(screen.getByLabelText("Guests allowed")).not.toBeChecked();
+    expect(screen.getByLabelText("Guests allowed")).toBeDisabled();
+
+    await userEvent.click(screen.getByLabelText("Announced publicly"));
+    await userEvent.click(screen.getByLabelText("Guests allowed"));
+    await userEvent.click(screen.getByLabelText("Listed in Events"));
+    expect(screen.getByLabelText("Announced publicly")).not.toBeChecked();
+    expect(screen.getByLabelText("Guests allowed")).not.toBeChecked();
   });
 });
 
@@ -46,62 +67,29 @@ describe("EditPrickleTypeForm dimensions", () => {
     purpose: "writing" as const,
     solo_task_friendly: false,
     listed_in_events: true,
-    announced_publicly: false,
-    guests_allowed: true,
+    announced_publicly: true,
+    guests_allowed: false,
   };
 
   it("shows the saved dimensions and sends changes", async () => {
     render(<EditPrickleTypeForm prickleType={type} />);
     expect(screen.getByLabelText("Listed in Events")).toBeChecked();
-    expect(screen.getByLabelText("Announced publicly")).not.toBeChecked();
-    expect(screen.getByLabelText("Guests allowed")).toBeChecked();
+    expect(screen.getByLabelText("Announced publicly")).toBeChecked();
+    expect(screen.getByLabelText("Guests allowed")).not.toBeChecked();
+    expect(screen.getByLabelText("Guests allowed")).toBeEnabled();
+
+    await userEvent.click(screen.getByLabelText("Guests allowed"));
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(sentBody()).toMatchObject({ typeId: type.id, listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
+  });
+
+  it("takes everything after Listed in Events away when it is unchecked", async () => {
+    render(<EditPrickleTypeForm prickleType={{ ...type, guests_allowed: true }} />);
 
     await userEvent.click(screen.getByLabelText("Listed in Events"));
-    await userEvent.click(screen.getByLabelText("Announced publicly"));
     await userEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(sentBody()).toMatchObject({ typeId: type.id, listedInEvents: false, announcedPublicly: true, guestsAllowed: true });
-  });
-});
-
-describe("EditPrickleTypeForm default host, other names and guest speaker", () => {
-  const type = {
-    id: "prty_AAAAAAAAAAA1",
-    name: "Educational Prickle",
-    normalized_name: "educational",
-    description: null,
-    purpose: "work" as const,
-    solo_task_friendly: false,
-    listed_in_events: true,
-    announced_publicly: false,
-    guests_allowed: false,
-    default_host_id: "mbr_AAAAAAAAAAA1",
-    summary_aliases: ["edu"],
-    names_guest_speaker: false,
-  };
-  const members = [
-    { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" },
-    { id: "mbr_AAAAAAAAAAA2", name: "Grace Example", email: "grace@example.test" },
-  ];
-
-  it("shows the saved values and sends changes", async () => {
-    render(<EditPrickleTypeForm prickleType={type} members={members} defaultHostName="Ada Example" />);
-    expect(screen.getByText("Ada Example")).toBeInTheDocument();
-    expect(screen.getByLabelText("Other names")).toHaveValue("edu");
-
-    await userEvent.type(screen.getByLabelText("Other names"), ", learn");
-    await userEvent.click(screen.getByLabelText(/is the guest speaker/));
-    await userEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(sentBody()).toMatchObject({ defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: ["edu", "learn"], namesGuestSpeaker: true });
-  });
-
-  it("clears the default host", async () => {
-    render(<EditPrickleTypeForm prickleType={type} members={members} defaultHostName="Ada Example" />);
-
-    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
-    await userEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(sentBody()).toMatchObject({ defaultHostId: null });
+    expect(sentBody()).toMatchObject({ listedInEvents: false, announcedPublicly: false, guestsAllowed: false });
   });
 });

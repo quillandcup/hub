@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AudienceChecks from "@/components/AudienceChecks";
 
 type PrickleTypePurpose = "writing" | "work" | "social" | "mixed";
 
@@ -150,50 +151,14 @@ export default function NewPrickleTypeForm() {
           </p>
         </div>
 
-        <div className="mb-6">
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={listedInEvents}
-              onChange={(e) => setListedInEvents(e.target.checked)}
-              className="rounded border-slate-300 dark:border-slate-600"
-            />
-            Listed in Events
-          </label>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            Show upcoming prickles of this type on the member Events page (webinars, Hedgies on First, Monthly Goal Review, pitches). Leave off for everyday progress and sprint prickles.
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={announcedPublicly}
-              onChange={(e) => setAnnouncedPublicly(e.target.checked)}
-              className="rounded border-slate-300 dark:border-slate-600"
-            />
-            Announced publicly
-          </label>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            Include in public marketing. Not used by any page yet.
-          </p>
-        </div>
-
-        <div className="mb-6">
-          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={guestsAllowed}
-              onChange={(e) => setGuestsAllowed(e.target.checked)}
-              className="rounded border-slate-300 dark:border-slate-600"
-            />
-            Guests allowed
-          </label>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            Non-members may attend. Not used by any page yet.
-          </p>
-        </div>
+        <AudienceChecks
+          value={{ listed: listedInEvents, publicly: announcedPublicly, guests: guestsAllowed }}
+          onChange={(next) => {
+            setListedInEvents(next.listed);
+            setAnnouncedPublicly(next.publicly);
+            setGuestsAllowed(next.guests);
+          }}
+        />
 
         {/* Actions */}
         <div className="flex gap-4">

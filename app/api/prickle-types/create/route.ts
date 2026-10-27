@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { audienceChainError } from "@/lib/audience-rules";
 
 /**
  * POST /api/prickle-types/create
@@ -48,6 +49,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const chain = audienceChainError({ listed: listedInEvents ?? false, publicly: announcedPublicly ?? false, guests: guestsAllowed ?? false });
+    if (chain) return NextResponse.json({ error: chain }, { status: 400 });
     if (soloTaskFriendly !== undefined && typeof soloTaskFriendly !== "boolean") {
       return NextResponse.json(
         { error: "soloTaskFriendly must be a boolean" },

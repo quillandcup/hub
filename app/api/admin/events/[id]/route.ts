@@ -88,18 +88,18 @@ export async function PATCH(
     if (event_type !== undefined && !isEventType(event_type)) {
       return NextResponse.json({ error: `event_type must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
     }
-    const audience = parseEventAudience(body);
+    const { data: current } = await supabase
+      .from("events")
+      .select("title, description, location, overridden_fields, calendar_event_id, announced_publicly, guests_allowed")
+      .eq("id", id)
+      .maybeSingle();
+    const audience = parseEventAudience(body, current ?? undefined);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
 
     const updates: Update<"events"> = { ...audience.fields };
 
     // An event that follows the calendar: the calendar owns its dates and times, and a changed
     // title, description or location is remembered as an override so the next sync keeps it.
-    const { data: current } = await supabase
-      .from("events")
-      .select("title, description, location, overridden_fields, calendar_event_id")
-      .eq("id", id)
-      .maybeSingle();
     const followsCalendar = !!current?.calendar_event_id;
     if (slug !== undefined) updates.slug = slug;
     if (title !== undefined) updates.title = title;

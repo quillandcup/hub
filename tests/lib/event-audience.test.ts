@@ -4,9 +4,9 @@ import { audienceSummary, parseEventAudience } from "@/lib/event-audience";
 describe("parseEventAudience", () => {
   it("returns only the fields the body names", () => {
     expect(parseEventAudience({ title: "Retreat" })).toEqual({ ok: true, fields: {} });
-    expect(parseEventAudience({ guests_allowed: true, capacity: 12, registration: "signup", selection: "selected" })).toEqual({
+    expect(parseEventAudience({ announced_publicly: true, guests_allowed: true, capacity: 12, registration: "signup", selection: "selected" })).toEqual({
       ok: true,
-      fields: { guests_allowed: true, capacity: 12, registration: "signup", selection: "selected" },
+      fields: { announced_publicly: true, guests_allowed: true, capacity: 12, registration: "signup", selection: "selected" },
     });
   });
 
@@ -33,6 +33,21 @@ describe("parseEventAudience", () => {
     const result = parseEventAudience(body);
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.error).toContain(field);
+  });
+});
+
+describe("parseEventAudience: guests need an event announced publicly", () => {
+  it("refuses guests without public, and public turned off while guests stay", () => {
+    expect(parseEventAudience({ guests_allowed: true })).toEqual({ ok: false, error: "Guests can only be allowed at something announced publicly" });
+    expect(parseEventAudience({ announced_publicly: false }, { announced_publicly: true, guests_allowed: true })).toMatchObject({ ok: false });
+  });
+
+  it("judges what an update names against what the event has now", () => {
+    expect(parseEventAudience({ guests_allowed: true }, { announced_publicly: true, guests_allowed: false })).toEqual({ ok: true, fields: { guests_allowed: true } });
+    expect(parseEventAudience({ announced_publicly: false, guests_allowed: false }, { announced_publicly: true, guests_allowed: true })).toEqual({
+      ok: true,
+      fields: { announced_publicly: false, guests_allowed: false },
+    });
   });
 });
 
