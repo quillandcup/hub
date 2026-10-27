@@ -16,7 +16,7 @@ vi.mock("@/lib/data/repos", async () => ({
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import type { WritingEntryRow, WritingProjectRow } from "@/lib/data/writing";
+import type { WritingEntryRow, WritingGoalRow, WritingProjectRow } from "@/lib/data/writing";
 import { deleteEntry, getArchivedGoals, getProjectSeries, getStarredGoals, logProgress, updateEntry } from "@/app/(member)/projects/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -76,8 +76,29 @@ function fakeSupabase(tables: Record<string, unknown[]> = {}) {
   return inserts;
 }
 
-function useData(writingEntries: WritingEntryRow[]) {
-  repos = createInMemoryRepos(new InMemoryDataset({ writingProjects: [project], writingEntries }));
+const goalRow = (over: Partial<WritingGoalRow> = {}): WritingGoalRow => ({
+  id: "wgol_AAAAAAAAAAA1",
+  member_id: ME,
+  project_id: PROJECT,
+  title: null,
+  description: null,
+  external_id: null,
+  goal_type: "target",
+  habit_period: null,
+  habit_threshold: null,
+  is_starred: false,
+  measure: "words",
+  show_on_profile: false,
+  start_date: null,
+  end_date: null,
+  target_amount: 1000,
+  archived_at: null,
+  created_at: "2026-01-01T00:00:00Z",
+  ...over,
+});
+
+function useData(writingEntries: WritingEntryRow[], writingGoals: WritingGoalRow[] = []) {
+  repos = createInMemoryRepos(new InMemoryDataset({ writingProjects: [project], writingEntries, writingGoals }));
 }
 
 beforeEach(() => {
@@ -220,26 +241,22 @@ describe("totals", () => {
   });
 
   it("gives archived goals their progress from the project's entries", async () => {
-    useData([entry("wpe_AAAAAAAAAAA1", { amount: 300 })]);
-    fakeSupabase({
-      writing_goals: [{ id: "wgol_1", project_id: PROJECT, goal_type: "target", measure: "words", target_amount: 1000, start_date: null, end_date: null, habit_period: null, habit_threshold: null, is_starred: false, title: null, description: null, show_on_profile: false }],
-    });
+    useData([entry("wpe_AAAAAAAAAAA1", { amount: 300 })], [goalRow({ archived_at: "2026-06-01T00:00:00Z" })]);
+    fakeSupabase();
 
     const [goal] = await getArchivedGoals(PROJECT);
 
-    expect(goal).toEqual(expect.objectContaining({ id: "wgol_1", kind: "target", targetAmount: 1000 }));
+    expect(goal).toEqual(expect.objectContaining({ id: "wgol_AAAAAAAAAAA1", kind: "target", targetAmount: 1000 }));
     expect(JSON.stringify(goal)).toContain("300");
   });
 
   it("gives starred goals their project's title and progress", async () => {
-    useData([entry("wpe_AAAAAAAAAAA1", { amount: 300 })]);
-    fakeSupabase({
-      writing_goals: [{ id: "wgol_1", project_id: PROJECT, goal_type: "target", measure: "words", target_amount: 1000, start_date: null, end_date: null, habit_period: null, habit_threshold: null, is_starred: true, title: null, description: null, show_on_profile: false, writing_projects: { title: "Novel" } }],
-    });
+    useData([entry("wpe_AAAAAAAAAAA1", { amount: 300 })], [goalRow({ is_starred: true })]);
+    fakeSupabase();
 
     const [goal] = await getStarredGoals();
 
-    expect(goal).toEqual(expect.objectContaining({ id: "wgol_1", projectTitle: "Novel" }));
+    expect(goal).toEqual(expect.objectContaining({ id: "wgol_AAAAAAAAAAA1", projectTitle: "Novel" }));
     expect(JSON.stringify(goal)).toContain("300");
   });
 });
