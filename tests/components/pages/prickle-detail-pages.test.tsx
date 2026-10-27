@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   ADMIN_USER,
@@ -52,6 +52,11 @@ vi.mock("@/app/(admin)/admin/prickles/[id]/IgnoredZoomNames", () => ({
   ),
 }));
 vi.mock("@/app/(admin)/admin/prickles/[id]/TestCheckinDMs", () => ({ default: () => <div data-testid="test-dms" /> }));
+vi.mock("@/app/(admin)/admin/prickles/[id]/ShowInEvents", () => ({
+  default: (props: object) => <div data-testid="show-in-events">{JSON.stringify(props)}</div>,
+}));
+const features = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => features(id) }));
 
 import MemberPrickleDetailPage, { generateMetadata as memberMetadata } from "@/app/(member)/prickles/[id]/page";
 import AdminPrickleDetailPage, { generateMetadata as adminMetadata } from "@/app/(admin)/admin/prickles/[id]/page";
@@ -122,6 +127,47 @@ describe("admin prickle page", () => {
 
     expect(JSON.parse(screen.getByTestId("details").textContent!)).toMatchObject({ id: "prkl_AAAAAAAAAAA1", hostLate: true, hostMissing: false });
     expect(screen.getByTestId("test-dms")).toBeInTheDocument();
+  });
+
+  describe("the Events control", () => {
+    const CALENDAR_ID = "00000000-0000-4000-8000-00000000000a";
+    const controlProps = () => JSON.parse(screen.getByTestId("show-in-events").textContent!);
+
+    beforeEach(() => {
+      features.mockResolvedValue(["events"]);
+      repos = dataset([prickle({ calendarEventId: CALENDAR_ID })]);
+    });
+
+    it("offers to show a calendar prickle in Events when it has no event yet", async () => {
+      useFakeSupabase({ events: { data: null } });
+
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+
+      expect(controlProps()).toEqual({ calendarEventId: CALENDAR_ID, initial: null });
+    });
+
+    it("starts from the event that follows the prickle, shown or hidden", async () => {
+      useFakeSupabase({ events: { data: { id: "evt_AAAAAAAAAAA1", deleted_at: null } } });
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: false });
+      cleanup();
+
+      useFakeSupabase({ events: { data: { id: "evt_AAAAAAAAAAA1", deleted_at: "2097-01-01T00:00:00Z" } } });
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: true });
+    });
+
+    it("leaves the control out for a prickle with no calendar event, and when events aren't enabled", async () => {
+      repos = dataset([prickle()]);
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+      expect(screen.queryByTestId("show-in-events")).not.toBeInTheDocument();
+      cleanup();
+
+      repos = dataset([prickle({ calendarEventId: CALENDAR_ID })]);
+      features.mockResolvedValue([]);
+      await renderServerPage(AdminPrickleDetailPage, memberProps);
+      expect(screen.queryByTestId("show-in-events")).not.toBeInTheDocument();
+    });
   });
 
   it("links to the type's insights for this weekday and time", async () => {

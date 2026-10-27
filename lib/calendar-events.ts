@@ -14,6 +14,29 @@ export function isOverridableField(value: unknown): value is OverridableField {
   return typeof value === "string" && (OVERRIDABLE_FIELDS as readonly string[]).includes(value);
 }
 
+/** The tag that, in a Google Calendar event's description, shows the event in Events: "#event". */
+const EVENT_TAG = /(^|[\s>(])#event\b/gi;
+
+/** Whether the description carries the #event tag. "#events" and "#eventful" don't count. */
+export function hasEventTag(description: string | null | undefined): boolean {
+  if (!description) return false;
+  EVENT_TAG.lastIndex = 0;
+  return EVENT_TAG.test(description);
+}
+
+/** The plain-text description with the #event tag taken out (it is an instruction, not something to show). */
+export function descriptionWithoutEventTag(description: string | null | undefined): string | null {
+  const plain = plainTextDescription(description);
+  if (!plain) return null;
+  const cleaned = plain
+    .replace(EVENT_TAG, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return cleaned || null;
+}
+
 /** The Bronze calendar event columns an events row is built from. */
 export interface CalendarSource {
   summary: string | null;
@@ -54,7 +77,7 @@ export function calendarEventFields(source: CalendarSource): CalendarEventFields
   const lastMinute = Math.max(start, new Date(source.end_time).getTime() - 60_000);
   return {
     title: calendarTitle(source.summary),
-    description: plainTextDescription(source.description),
+    description: descriptionWithoutEventTag(source.description),
     location: source.location?.trim() || null,
     starts_at: orgDate(source.start_time),
     ends_at: orgDate(new Date(lastMinute).toISOString()),

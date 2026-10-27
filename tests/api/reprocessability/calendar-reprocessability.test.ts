@@ -591,4 +591,39 @@ describe('Calendar Reprocessability', () => {
       await supabase.from('prickle_types').delete().in('id', [listedType!.id, plainType!.id])
     }
   })
+
+  it('makes an event for an upcoming calendar item tagged #event in Google Calendar, even with no prickle type, and keeps the tag out of its description', async () => {
+    const word = `Tagged${Date.now().toString(36)}`
+    const processRange = (fromDate: string, toDate: string) => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate, toDate }),
+    })
+    const googleIds = [`${word}-tagged`, `${word}-plain`, `${word}-past`]
+    await supabase.schema('bronze').from('calendar_events').insert([
+      // No prickle type matches these words, so they never become prickles; the tag alone makes the event.
+      { google_event_id: googleIds[0], summary: `${word} Retreat Kickoff`, description: '<p>Come along</p><p>#event</p>', start_time: '2099-06-14T15:00:00Z', end_time: '2099-06-14T16:00:00Z', raw_data: {} },
+      { google_event_id: googleIds[1], summary: `${word} Quiet Hour`, description: 'Nothing special #events', start_time: '2099-06-15T15:00:00Z', end_time: '2099-06-15T16:00:00Z', raw_data: {} },
+      { google_event_id: googleIds[2], summary: `${word} Old Retreat`, description: '#event', start_time: '2020-02-01T15:00:00Z', end_time: '2020-02-01T16:00:00Z', raw_data: {} },
+    ])
+    const eventsFor = async () => {
+      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id, google_event_id').in('google_event_id', googleIds)
+      const { data } = await supabase.from('events').select('calendar_event_id, title, description').in('calendar_event_id', sources!.map((s) => s.id))
+      return { sources: sources!, events: data! }
+    }
+    try {
+      await processRange(testDateRange.from, testDateRange.to)
+      await processRange('2020-01-30T00:00:00Z', '2020-02-03T00:00:00Z')
+
+      const { sources, events } = await eventsFor()
+      const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
+      expect(events).toEqual([{ calendar_event_id: idOf(googleIds[0]), title: `${word} Retreat Kickoff`, description: 'Come along' }])
+    } finally {
+      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
+      if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
+      await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', googleIds)
+      await processRange(testDateRange.from, testDateRange.to)
+      await processRange('2020-01-30T00:00:00Z', '2020-02-03T00:00:00Z')
+    }
+  })
 })
