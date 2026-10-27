@@ -73,6 +73,13 @@ defineMemberContract("SupabaseMemberRepository", () => ({
       }
     }
     created.push(...ids);
+    const aliasRows = members.flatMap((m, i) =>
+      (m.aliases ?? []).map((a) => ({ member_id: ids[i], alias: `${a.alias} ${RUN}`, source: "zoom", active: a.active ?? true })),
+    );
+    if (aliasRows.length > 0) {
+      const { error } = await db.from("member_name_aliases").insert(aliasRows);
+      if (error) throw new Error(error.message);
+    }
     return ids;
   },
 }));

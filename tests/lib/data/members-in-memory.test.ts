@@ -35,7 +35,10 @@ defineMemberContract("InMemoryMemberRepository", () => {
           totalActiveMonths: m.totalActiveMonths ?? 0,
         };
       });
-      data = new InMemoryDataset({ members: seeded });
+      const nameAliases = members.flatMap((m, i) =>
+        (m.aliases ?? []).map((a, j) => ({ id: `nal_${i}_${j}`, member_id: seeded[i].id, alias: a.alias, source: "zoom", active: a.active ?? true })),
+      );
+      data = new InMemoryDataset({ members: seeded, nameAliases });
       return seeded.map((m) => m.id);
     },
   };

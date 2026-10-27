@@ -58,7 +58,7 @@ export type AdminMember = {
 
 /** Which members a search matches; all given conditions must hold. Results are ordered by name. */
 export type MemberSearch = {
-  /** Each word must appear, in any case, in the name, the display name or the email. */
+  /** Each word must appear, in any case, in the name, the display name, an active name alias or the email. */
   words?: string[];
   /** The email, ignoring case, is exactly this. */
   emailEquals?: string;
@@ -68,6 +68,21 @@ export type MemberSearch = {
   limit?: number;
   offset?: number;
 };
+
+/** A search result: the member, and the alias that made it match when nothing shown for them (name, display name, email) did. */
+export type MemberSearchHit = Member & { matchedAlias: string | null };
+
+/** The alias that explains a match: for a word that none of the member's visible fields contain, the alias that did. */
+function explainByAlias(member: Member, words: string[], aliasFor: (word: string) => string | undefined): string | null {
+  const visible = [member.name, member.displayName ?? "", member.email].map((t) => t.toLowerCase());
+  for (const word of words) {
+    const clean = neutralize(word).toLowerCase();
+    if (!clean || visible.some((t) => t.includes(clean))) continue;
+    const alias = aliasFor(word);
+    if (alias) return alias;
+  }
+  return null;
+}
 
 /** The columns a new member row needs; the rest take the database defaults. */
 export type NewMember = { name: string; email: string; joinedAt: string; status: string; source: "kajabi" | "staff" };
@@ -104,7 +119,7 @@ export interface MemberRepository {
   /** The columns the admin member page shows, or null if there is no such member. */
   adminView(id: string): Promise<AdminMember | null>;
   /** Members matching the search, by name (then id). */
-  search(query: MemberSearch): Promise<Member[]>;
+  search(query: MemberSearch): Promise<MemberSearchHit[]>;
   /** When Kajabi processing last touched a Kajabi member's row, or null if there are none. */
   lastKajabiProcessedAt(): Promise<string | null>;
   /** How many members of this status have no Stripe customer id. */
@@ -215,6 +230,9 @@ const toProfile = (row: ProfileRow): MemberProfile => ({
 });
 
 /** A typed word with the characters that mean something to PostgREST's filter syntax or to LIKE turned into spaces. */
+/** Most members one word can match through aliases; a word this common is not narrowing anything anyway. */
+const ALIAS_MATCH_LIMIT = 200;
+
 const neutralize = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
 /** Text for ILIKE to match literally: its own wildcards escaped. */
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -287,11 +305,25 @@ export class SupabaseMemberRepository implements MemberRepository {
     };
   }
 
-  async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch): Promise<Member[]> {
+  async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch): Promise<MemberSearchHit[]> {
+    const aliasHits = new Map<string, Map<string, string>>();
     let query = this.db.from("members").select(MEMBER_COLUMNS);
     for (const word of words) {
       const clean = neutralize(word);
-      if (clean) query = query.or(`name.ilike."%${clean}%",display_name.ilike."%${clean}%",email.ilike."%${clean}%"`);
+      if (!clean) continue;
+      // A member's own active aliases (nicknames, pen names, the names Zoom and Slack know them by) count as their name.
+      const { data: aliased, error: aliasError } = await this.db
+        .from("member_name_aliases")
+        .select("member_id, alias")
+        .eq("active", true)
+        .ilike("alias", `%${clean}%`)
+        .limit(ALIAS_MATCH_LIMIT);
+      if (aliasError) throw new Error(aliasError.message);
+      aliasHits.set(word, new Map((aliased ?? []).map((a) => [a.member_id, a.alias])));
+      const byAlias = [...aliasHits.get(word)!.keys()];
+      const matches = [`name.ilike."%${clean}%"`, `display_name.ilike."%${clean}%"`, `email.ilike."%${clean}%"`];
+      if (byAlias.length > 0) matches.push(`id.in.(${byAlias.join(",")})`);
+      query = query.or(matches.join(","));
     }
     if (emailEquals !== undefined) query = query.ilike("email", escapeLike(emailEquals));
     if (emailContains !== undefined) query = query.ilike("email", `%${escapeLike(emailContains)}%`);
@@ -300,7 +332,10 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (limit !== undefined) query = query.range(offset, offset + limit - 1);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as MemberRow[]).map(toMember);
+    return ((data ?? []) as unknown as MemberRow[]).map(toMember).map((m) => ({
+      ...m,
+      matchedAlias: explainByAlias(m, words, (word) => aliasHits.get(word)?.get(m.id)),
+    }));
   }
 
   async lastKajabiProcessedAt(): Promise<string | null> {
@@ -561,14 +596,19 @@ export class InMemoryMemberRepository implements MemberRepository {
   }
 
   async search({ words = [], emailEquals, emailContains, status, limit, offset = 0 }: MemberSearch) {
+    const aliasesOf = (id: string) => this.data.nameAliases.filter((a) => a.member_id === id && a.active).map((a) => a.alias);
     const matches = (text: string, word: string) => text.toLowerCase().includes(neutralize(word).toLowerCase());
     const found = this.all()
-      .filter((m) => words.every((w) => !neutralize(w) || matches(m.name, w) || matches(m.displayName ?? "", w) || matches(m.email, w)))
+      .filter((m) => words.every((w) => !neutralize(w) || matches(m.name, w) || matches(m.displayName ?? "", w) || matches(m.email, w) || aliasesOf(m.id).some((a) => matches(a, w))))
       .filter((m) => emailEquals === undefined || m.email.toLowerCase() === emailEquals.toLowerCase())
       .filter((m) => emailContains === undefined || m.email.toLowerCase().includes(emailContains.toLowerCase()))
       .filter((m) => status === undefined || m.status === status)
       .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-    return limit === undefined ? found : found.slice(offset, offset + limit);
+    const page = limit === undefined ? found : found.slice(offset, offset + limit);
+    return page.map((m) => ({
+      ...m,
+      matchedAlias: explainByAlias(m, words, (word) => aliasesOf(m.id).find((a) => matches(a, word))),
+    }));
   }
 
   async lastKajabiProcessedAt() {

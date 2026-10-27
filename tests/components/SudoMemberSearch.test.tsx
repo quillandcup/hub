@@ -169,4 +169,15 @@ describe('SudoMemberSearch', () => {
     await user.click(screen.getByText('Penny Pen'))
     expect(onSelect).toHaveBeenCalledWith(penny) // the real email, not the two-part label
   })
+
+  it('says which nickname matched', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([{ ...penny, matchedAlias: 'Quillfoot' }]) as any)
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    await user.type(screen.getByRole('combobox'), 'quillfoot')
+
+    expect(await screen.findByText('Penny Pen')).toBeInTheDocument()
+    expect(screen.getByText('Penelope Legal · penny@example.com · also known as “Quillfoot”')).toBeInTheDocument()
+  })
 })

@@ -7,6 +7,8 @@ export interface SudoMember {
   /** Legal name. */
   name: string
   displayName?: string | null
+  /** Set when the member matched through a nickname that isn't otherwise on screen. */
+  matchedAlias?: string | null
   email: string
 }
 
@@ -34,7 +36,9 @@ async function searchMembers(term: string, signal: AbortSignal): Promise<SearchI
   return members.map((m) => ({
     id: m.id,
     name: m.displayName?.trim() || m.name,
-    detail: m.displayName?.trim() && m.displayName.trim() !== m.name ? `${m.name} · ${m.email}` : m.email,
+    detail: [m.displayName?.trim() && m.displayName.trim() !== m.name ? m.name : null, m.email, m.matchedAlias ? `also known as “${m.matchedAlias}”` : null]
+      .filter(Boolean)
+      .join(' · '),
   }))
 }
 

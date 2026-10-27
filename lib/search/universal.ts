@@ -124,7 +124,7 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
       kind: "members",
       hasMore,
       hits: rows.map((m) => ({
-        kind: "members", id: m.id, title: getMemberDisplayName({ name: m.name, display_name: m.displayName }), subtitle: m.displayName && m.displayName !== m.name ? `${m.name} · ${m.email}` : m.email, badge: m.status, href: `/admin/members/${m.id}`,
+        kind: "members", id: m.id, title: getMemberDisplayName({ name: m.name, display_name: m.displayName }), subtitle: [m.displayName && m.displayName !== m.name ? m.name : null, m.email, m.matchedAlias ? `also known as “${m.matchedAlias}”` : null].filter(Boolean).join(" · "), badge: m.status, href: `/admin/members/${m.id}`,
       })),
     };
   }
