@@ -90,6 +90,29 @@ describe("CourseFilesPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("1 failed: source answered 403");
   });
 
+  it("copies the course images even when no lesson has a download, and reports them", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 5, removed: 1, alreadyCopied: 0, failed: [] } }),
+    });
+    render(<CourseFilesPanel slug="c" plan={plan([])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Copied 0, images: copied 5, removed 1.");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("shows a failed image as an error", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, removed: 0, alreadyCopied: 0, failed: [{ error: "source answered 404" }] } }),
+    });
+    render(<CourseFilesPanel slug="c" plan={plan([])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 images failed: source answered 404");
+  });
+
   it("has nothing to do when everything is copied, and asks to publish first when the course isn't", () => {
     const { rerender } = render(<CourseFilesPanel slug="c" plan={plan([file({ state: "copied" })])} />);
     expect(screen.getByRole("button", { name: "Copy 0 files" })).toBeDisabled();

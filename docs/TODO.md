@@ -1089,6 +1089,10 @@ The course page (`app/(member)/courses/[slug]/page.tsx`) has a plain plum hero b
 - Render it as the hero backdrop under a dark overlay (`bg-black/60`) so the white title stays readable; with none set, keep the plum band.
 - Until then, the sidebar shows the thumbnail, full width at the top of the card.
 
+**Resolved (course images migration):** the images the public API does give us (course cover `thumbnail_url`, module `poster_image_url`, lesson thumbnails) are now copied into the private `course-images` bucket and served by `/api/courses/image/<kind>/<id>` instead of hotlinked (`lib/courses/images.ts`, `docs/COURSES.md` step D). The course page's sidebar thumbnail also works now (the loader never selected it).
+
+**Still open:** the hero banner itself. The public course API returns no field for it (checked: production's course payloads carry only `created_at`, `description`, `thumbnail_url`, `title`), so it can only come from Kajabi's admin product JSON (`/api/admin/products/{id}`, behind the login the content script already uses). Next: have `scripts/kajabi-course-content.ts` capture that response for each course, find the banner field, store it on `bronze.kajabi_courses`, and add `courses.hero_path`/`hero_source` handled like the other images in `copyCourseImages`; then the hero band uses it under the dark overlay. The admin upload/paste option from the first bullet is also not built. Module posters are copied but no page shows them yet (module rows use their first lesson's thumbnail).
+
 ### Remove legacy `?tab=` redirects _(Cleanup, review on or after 2027-01-03)_
 Tabs became URL paths on 2026-10-03 (`/settings/notifications`, `/my-prickles/all`; see `lib/tab-routes.ts` and CLAUDE.md "Tabbed Pages"). Old `?tab=` links still work because each base page calls `redirectLegacyTabParam`. Nothing is stored; it's four one-line calls plus the helper:
 - `app/(member)/settings/page.tsx`, `app/(member)/my-prickles/page.tsx` (also rewrites `?tab=commitments&slot=X` to `/my-prickles/all?commit=X`), `app/(member)/projects/page.tsx`, `app/(admin)/admin/members/[id]/page.tsx`

@@ -2103,6 +2103,8 @@ export type Database = {
           source: string
           source_key: string | null
           state: string
+          thumbnail_path: string | null
+          thumbnail_source: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -2120,6 +2122,8 @@ export type Database = {
           source?: string
           source_key?: string | null
           state?: string
+          thumbnail_path?: string | null
+          thumbnail_source?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -2137,6 +2141,8 @@ export type Database = {
           source?: string
           source_key?: string | null
           state?: string
+          thumbnail_path?: string | null
+          thumbnail_source?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
@@ -2173,6 +2179,8 @@ export type Database = {
           id: string
           parent_id: string | null
           position: number
+          poster_path: string | null
+          poster_source: string | null
           poster_url: string | null
           source: string
           source_key: string | null
@@ -2186,6 +2194,8 @@ export type Database = {
           id?: string
           parent_id?: string | null
           position?: number
+          poster_path?: string | null
+          poster_source?: string | null
           poster_url?: string | null
           source?: string
           source_key?: string | null
@@ -2199,6 +2209,8 @@ export type Database = {
           id?: string
           parent_id?: string | null
           position?: number
+          poster_path?: string | null
+          poster_source?: string | null
           poster_url?: string | null
           source?: string
           source_key?: string | null
@@ -2235,6 +2247,8 @@ export type Database = {
           slug: string
           source: string
           source_key: string | null
+          thumbnail_path: string | null
+          thumbnail_source: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -2250,6 +2264,8 @@ export type Database = {
           slug: string
           source?: string
           source_key?: string | null
+          thumbnail_path?: string | null
+          thumbnail_source?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -2265,6 +2281,8 @@ export type Database = {
           slug?: string
           source?: string
           source_key?: string | null
+          thumbnail_path?: string | null
+          thumbnail_source?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string

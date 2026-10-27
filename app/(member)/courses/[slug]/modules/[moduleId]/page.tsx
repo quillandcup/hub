@@ -5,7 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { moduleView, nodeLessons, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import PageBanner from "@/components/PageBanner";
 
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 const row = "grid grid-cols-[6rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-lg p-2 transition";
 
 function Thumbnail({ url }: { url: string | null | undefined }) {
-  const src = safeUrl(url);
+  const src = courseImageUrl(url);
   // Decorative (the title is beside it); a plain img so any Kajabi image host works.
   // eslint-disable-next-line @next/next/no-img-element
   return src ? <img src={src} alt="" loading="lazy" className="aspect-video w-full rounded object-cover" /> : <span aria-hidden="true" className="aspect-video w-full rounded bg-slate-100 dark:bg-slate-800" />;

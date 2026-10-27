@@ -40,7 +40,10 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
       if (data.removed > 0) parts.push(`removed ${data.removed}`);
       if (data.needsNewLink.length > 0) parts.push(`${data.needsNewLink.length} need a new link`);
       if (data.failed.length > 0) parts.push(`${data.failed.length} failed: ${data.failed[0].error}`);
-      setMessage({ ok: data.failed.length === 0, text: parts.join(", ") + "." });
+      const images = data.images;
+      if (images && (images.copied > 0 || images.removed > 0)) parts.push(`images: copied ${images.copied}, removed ${images.removed}`);
+      if (images?.failed.length > 0) parts.push(`${images.failed.length} images failed: ${images.failed[0].error}`);
+      setMessage({ ok: data.failed.length === 0 && !(images?.failed.length > 0), text: parts.join(", ") + "." });
       router.refresh();
     } catch (err: any) {
       setMessage({ ok: false, text: err.message || "Failed" });
@@ -92,12 +95,29 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
           ) : (
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Publish the course first; files can then be copied here.</p>
           )}
-          {message && (
-            <p role={message.ok ? "status" : "alert"} className={`mt-3 text-sm ${message.ok ? "" : "text-red-700 dark:text-red-300"}`}>
-              {message.text}
-            </p>
-          )}
         </>
+      )}
+      {slug && (
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <h3 className="text-sm font-semibold">Images</h3>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            The course cover, module posters and lesson thumbnails are shown from the Hub once copied (until then, from Kajabi). Copying also
+            does the files above.
+          </p>
+          <button
+            type="button"
+            onClick={run}
+            disabled={busy}
+            className="mt-3 rounded bg-plum-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-plum-700 disabled:opacity-50"
+          >
+            {busy ? "Working…" : "Copy images"}
+          </button>
+        </div>
+      )}
+      {message && (
+        <p role={message.ok ? "status" : "alert"} className={`mt-3 text-sm ${message.ok ? "" : "text-red-700 dark:text-red-300"}`}>
+          {message.text}
+        </p>
       )}
     </div>
   );

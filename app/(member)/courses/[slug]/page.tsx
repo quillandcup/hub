@@ -7,7 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/images";
 import { formatCourseDate } from "@/lib/courses/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -61,7 +61,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const started = progress.completed > 0;
   const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
 
-  const thumbnail = safeUrl(course.thumbnail_url);
+  const thumbnail = courseImageUrl(course.thumbnail_url);
   const buttonLabel = progress.allDone ? "Review" : started ? "Continue" : "Start";
 
   return (
