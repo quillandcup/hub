@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import EmojiIconField from "@/components/EmojiIconField";
 
 export type Category = "milestone" | "community" | "course" | "retreat" | "special";
 
@@ -215,14 +216,7 @@ export default function BadgeTypeForm({
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Icon</label>
-            <input
-              type="text"
-              value={icon}
-              onChange={(e) => setIcon(e.target.value)}
-              placeholder="🏅"
-              className="w-20 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-center text-lg"
-              maxLength={4}
-            />
+            <EmojiIconField value={icon} onChange={setIcon} />
           </div>
         </div>
 
