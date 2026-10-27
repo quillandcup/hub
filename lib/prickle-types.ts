@@ -25,6 +25,17 @@ export function normalizePrickleType(rawType: string): string {
  * - "Open Table Prickle" → { type: "Open Table Prickle", host: null }
  * - "'Midnight Crew' w/member13-display" → { type: "Midnight Crew", host: "member13-display" }
  */
+/**
+ * Splits a calendar summary at the host separator: "w/" (the first one), or else a standalone
+ * "with" (the last one, so "Writing with Friends with Ania" keeps the title whole). Null when neither.
+ */
+function splitAtHost(cleaned: string): { before: string; host: string } | null {
+  const slash = cleaned.match(/^(.+?)\s*\bw\/\s*(.+?)$/i);
+  if (slash) return { before: slash[1], host: slash[2] };
+  const word = cleaned.match(/^(.+)\s+with\s+(\S.*?)$/i);
+  return word ? { before: word[1], host: word[2] } : null;
+}
+
 export function parsePrickleFromSummary(summary: string): {
   type: string | null;
   host: string | null;
@@ -32,12 +43,12 @@ export function parsePrickleFromSummary(summary: string): {
   // Remove surrounding quotes if present
   const cleaned = summary.replace(/^['"](.+?)['"]$/, "$1").trim();
 
-  // Pattern: [TYPE] w/[HOST]
-  const matchWithHost = cleaned.match(/^(.+?)\s*w\/\s*(.+?)$/i);
+  // Pattern: [TYPE] w/[HOST] or [TYPE] with [HOST]
+  const matchWithHost = splitAtHost(cleaned);
 
   if (matchWithHost) {
-    const beforeW = matchWithHost[1].replace(/^['"]|['"]$/g, "").trim();
-    const host = matchWithHost[2].trim();
+    const beforeW = matchWithHost.before.replace(/^['"]|['"]$/g, "").trim();
+    const host = matchWithHost.host.trim();
 
     // If it's just "Prickle w/Host", that's a Progress Prickle
     if (beforeW.toLowerCase() === "prickle") {
@@ -48,7 +59,7 @@ export function parsePrickleFromSummary(summary: string): {
     return { type: beforeW, host };
   }
 
-  // No "w/" found - it's a standalone prickle type (no host)
+  // No "w/" or "with" found - it's a standalone prickle type (no host)
   // e.g., "Open Table Prickle", "Heads Down Prickle"
   if (cleaned) {
     return { type: cleaned, host: null };
@@ -105,7 +116,7 @@ export async function matchPrickleType(
  */
 export function prickleTitleFromSummary(summary: string, typeName: string, aliases: string[] = []): string | null {
   const cleaned = summary.replace(/^['"](.+?)['"]$/, "$1").trim();
-  let withoutHost = cleaned.replace(/\s*\bw\/\s*.+$/i, "").replace(/^['"]|['"]$/g, "").trim();
+  let withoutHost = (splitAtHost(cleaned)?.before ?? cleaned).replace(/^['"]|['"]$/g, "").trim();
   // "EDU-PRICKLE: Make It Funny": the type's other name is the label, not part of the title.
   for (const alias of aliases) {
     const label = new RegExp(`^${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:-?\\s*prickle)?\\s*:?\\s+`, "i");

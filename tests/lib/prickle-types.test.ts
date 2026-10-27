@@ -180,3 +180,27 @@ describe('assignHostAndSpeaker', () => {
     expect(assignHostAndSpeaker({ ...base, defaultHostId: null })).toEqual({ hostId: null, guestSpeaker: 'Ellen Example' })
   })
 })
+
+describe('"with" as the host separator', () => {
+  it('reads the type and host from "with" like "w/"', () => {
+    expect(parsePrickleFromSummary('Heads Down with Cody')).toEqual({ type: 'Heads Down', host: 'Cody' })
+    expect(parsePrickleFromSummary('Prickle WITH Lili')).toEqual({ type: 'Prickle', host: 'Lili' })
+    expect(parsePrickleFromSummary('EDU-PRICKLE: Make It Funny with Ellen Example')).toEqual({ type: 'EDU-PRICKLE: Make It Funny', host: 'Ellen Example' })
+  })
+
+  it('prefers w/ when both appear, and splits at the last "with" otherwise', () => {
+    expect(parsePrickleFromSummary('Writing with Friends w/Ania')).toEqual({ type: 'Writing with Friends', host: 'Ania' })
+    expect(parsePrickleFromSummary('Writing with Friends with Ania')).toEqual({ type: 'Writing with Friends', host: 'Ania' })
+  })
+
+  it('does not split inside a word or without a name after it', () => {
+    expect(parsePrickleFromSummary('Without Ania')).toEqual({ type: 'Without Ania', host: null })
+    expect(parsePrickleFromSummary('Open Table with')).toEqual({ type: 'Open Table with', host: null })
+    expect(parsePrickleFromSummary('with Cody')).toEqual({ type: 'with Cody', host: null })
+  })
+
+  it('drops the "with Host" tail from the title', () => {
+    expect(prickleTitleFromSummary('Query Letters with Sam', 'Educational Prickle')).toBe('Query Letters')
+    expect(prickleTitleFromSummary('Heads Down with Cody', 'Heads Down')).toBeNull()
+  })
+})
