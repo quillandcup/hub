@@ -17,6 +17,7 @@ import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
 import ShowInEvents from "./ShowInEvents";
+import ChangePrickleType from "./ChangePrickleType";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 
 const getPrickle = cache(async (id: string) => {
@@ -169,6 +170,13 @@ export default async function AdminPrickleDetailPage({
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
           />
+          {prickle.calendarEventId && (
+            <ChangePrickleType
+              prickleId={prickle.id}
+              currentTypeId={prickle.typeId}
+              types={(await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name }))}
+            />
+          )}
           {eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
