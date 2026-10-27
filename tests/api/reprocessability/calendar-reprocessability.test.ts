@@ -495,4 +495,53 @@ describe('Calendar Reprocessability', () => {
       await supabase.from('prickle_types').delete().eq('id', type!.id)
     }
   })
+
+  it('keeps an event that follows a calendar event in step on every run, leaving a field the admin overrode alone', async () => {
+    const googleId = 'test-event-follows-calendar'
+    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
+    })
+
+    const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: googleId,
+      summary: 'Hedgie Open House',
+      description: '<p>Come say hi</p>',
+      location: 'Zoom',
+      start_time: '2099-06-22T23:00:00Z',
+      end_time: '2099-06-23T01:00:00Z',
+      raw_data: {},
+    }).select('id').single()
+    const { data: event } = await supabase.from('events').insert({
+      slug: 'test-follows-calendar-2099-06-22',
+      title: 'Our Open House',
+      event_type: 'other',
+      starts_at: '2099-06-22',
+      ends_at: '2099-06-22',
+      calendar_event_id: source!.id,
+      overridden_fields: ['title'],
+    }).select('id').single()
+    try {
+      await supabase.schema('bronze').from('calendar_events')
+        .update({ summary: 'Hedgie Open House (moved)', location: 'Room 9', start_time: '2099-06-24T23:00:00Z', end_time: '2099-06-25T01:00:00Z' })
+        .eq('google_event_id', googleId)
+      const res = await process()
+      expect((await res.json()).eventsSynced).toBeGreaterThanOrEqual(1)
+
+      const { data: after } = await supabase.from('events').select('title, description, location, starts_at, ends_at, calendar_event_id').eq('id', event!.id).single()
+      expect(after).toMatchObject({
+        title: 'Our Open House', // overridden, kept
+        description: 'Come say hi',
+        location: 'Room 9',
+        starts_at: '2099-06-24',
+        ends_at: '2099-06-24',
+        calendar_event_id: source!.id,
+      })
+    } finally {
+      await supabase.from('events').delete().eq('id', event!.id)
+      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
+      await process()
+    }
+  })
 })

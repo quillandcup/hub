@@ -1,0 +1,248 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { getTestSupabaseAdminClient } from "../../helpers/supabase";
+import type { Db } from "@/lib/data/db";
+import { elevateCalendarEvent, syncCalendarEvents } from "@/lib/calendar-events";
+
+/**
+ * Events that follow the shared calendar, against the local database: showing a calendar item in
+ * Events, keeping it in step with the calendar without losing an admin's edits, the admin list, and
+ * what happens when the calendar event goes away. Far-future dates and a unique token keep this to
+ * its own rows, since other tests share the database.
+ */
+
+const db = getTestSupabaseAdminClient() as unknown as Db;
+vi.mock("@/lib/supabase/api-auth", () => ({
+  requireAdmin: async () => ({ user: { id: "service-role" }, forbidden: false, supabase: getTestSupabaseAdminClient() }),
+}));
+
+import { GET as listCalendar, POST as showInEvents } from "@/app/api/admin/events/calendar/route";
+import { PATCH as editEvent } from "@/app/api/admin/events/[id]/route";
+import { POST as revertToCalendar } from "@/app/api/admin/events/[id]/revert-to-calendar/route";
+
+const token = `cal${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+const calendarIds: string[] = [];
+const eventIds: string[] = [];
+
+async function calendarEvent(label: string, extra: Record<string, unknown> = {}) {
+  const { data, error } = await db
+    .schema("bronze")
+    .from("calendar_events")
+    .insert({
+      google_event_id: `${token}-${label}`,
+      summary: `${token} ${label} w/Ada`,
+      description: "<p>From the calendar</p>",
+      location: "Zoom",
+      start_time: "2185-05-02T23:00:00Z",
+      end_time: "2185-05-03T01:00:00Z",
+      raw_data: {},
+      ...extra,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  calendarIds.push(data!.id);
+  return data!.id;
+}
+
+const json = (body: unknown, method = "POST") =>
+  new NextRequest("http://localhost/api/admin/events", { method, body: JSON.stringify(body) });
+const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function eventRow(id: string) {
+  const { data } = await db.from("events").select("*").eq("id", id).single();
+  return data!;
+}
+
+afterAll(async () => {
+  if (eventIds.length) await db.from("events").delete().in("id", eventIds);
+  await db.from("events").delete().in("calendar_event_id", calendarIds);
+  if (calendarIds.length) await db.schema("bronze").from("calendar_events").delete().in("id", calendarIds);
+});
+
+describe("elevateCalendarEvent", () => {
+  it("creates the event that follows a calendar item, with its text, exact times and Eastern dates", async () => {
+    const calendarId = await calendarEvent("book-fair");
+
+    const result = await elevateCalendarEvent(db, calendarId, null);
+
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (!result.ok) return;
+    eventIds.push(result.event.id);
+    expect(result.event.slug).toBe(`${token}-book-fair-2185-05-02`);
+    expect(await eventRow(result.event.id)).toMatchObject({
+      calendar_event_id: calendarId,
+      title: `${token} book-fair`,
+      description: "From the calendar",
+      location: "Zoom",
+      event_type: "other",
+      starts_at: "2185-05-02",
+      ends_at: "2185-05-02",
+      overridden_fields: [],
+    });
+    expect(new Date((await eventRow(result.event.id)).start_time!).toISOString()).toBe("2185-05-02T23:00:00.000Z");
+  });
+
+  it("returns the event it already made instead of a second one", async () => {
+    const calendarId = await calendarEvent("twice");
+    const first = await elevateCalendarEvent(db, calendarId, null);
+    const second = await elevateCalendarEvent(db, calendarId, null);
+
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    eventIds.push(first.event.id);
+    expect(second).toMatchObject({ created: false, event: { id: first.event.id } });
+  });
+
+  it("gives two calendar items with the same title on the same day their own addresses", async () => {
+    const a = await calendarEvent("same", { summary: `${token} Same Name w/A` });
+    const b = await calendarEvent("same2", { summary: `${token} Same Name w/B` });
+
+    const first = await elevateCalendarEvent(db, a, null);
+    const second = await elevateCalendarEvent(db, b, null);
+
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    eventIds.push(first.event.id, second.event.id);
+    expect(second.event.slug).toBe(`${first.event.slug}-2`);
+  });
+
+  it("says when the calendar item doesn't exist", async () => {
+    expect(await elevateCalendarEvent(db, "00000000-0000-4000-8000-000000000000", null)).toMatchObject({ ok: false, status: 404 });
+  });
+});
+
+describe("syncCalendarEvents", () => {
+  it("brings dates, times and un-overridden text up to date, and leaves overridden text alone", async () => {
+    const calendarId = await calendarEvent("sync");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+    await db.from("events").update({ title: "Our own title", overridden_fields: ["title"] }).eq("id", made.event.id);
+
+    const moved = {
+      id: calendarId,
+      summary: `${token} moved w/Ada`,
+      description: "<p>Changed in Google</p>",
+      location: "Room 9",
+      start_time: "2185-05-09T14:00:00Z",
+      end_time: "2185-05-09T15:00:00Z",
+    };
+    const updated = await syncCalendarEvents(db, [moved, { ...moved, id: "00000000-0000-4000-8000-000000000001" }]);
+
+    expect(updated).toBe(1);
+    expect(await eventRow(made.event.id)).toMatchObject({
+      title: "Our own title", // overridden, kept
+      description: "Changed in Google",
+      location: "Room 9",
+      starts_at: "2185-05-09",
+      ends_at: "2185-05-09",
+    });
+  });
+
+  it("does nothing for no calendar events", async () => {
+    expect(await syncCalendarEvents(db, [])).toBe(0);
+  });
+
+  it("keeps the event, unlinked, when the calendar event is deleted", async () => {
+    const calendarId = await calendarEvent("gone");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    await db.schema("bronze").from("calendar_events").delete().eq("id", calendarId);
+
+    expect(await eventRow(made.event.id)).toMatchObject({ calendar_event_id: null, title: `${token} gone` });
+  });
+});
+
+describe("POST /api/admin/events/calendar", () => {
+  it("shows an item in Events: 201 the first time, 200 after, 400 for a bad id, 404 for an unknown item", async () => {
+    const calendarId = await calendarEvent("route");
+
+    const first = await showInEvents(json({ calendarEventId: calendarId }));
+    const second = await showInEvents(json({ calendarEventId: calendarId }));
+    const bad = await showInEvents(json({ calendarEventId: "nope" }));
+    const unknown = await showInEvents(json({ calendarEventId: "00000000-0000-4000-8000-000000000000" }));
+    const notJson = await showInEvents(new NextRequest("http://localhost/api/admin/events/calendar", { method: "POST", body: "{" }));
+
+    expect([first.status, second.status, bad.status, unknown.status, notJson.status]).toEqual([201, 200, 400, 404, 400]);
+    eventIds.push((await first.json()).event.id);
+  });
+});
+
+describe("GET /api/admin/events/calendar", () => {
+  it("lists upcoming calendar items with what each is, and filters to those shown in Events", async () => {
+    const shown = await calendarEvent("list-shown");
+    await calendarEvent("list-plain");
+    const pending = await calendarEvent("list-pending");
+    await db.from("unmatched_calendar_events").insert({ calendar_event_id: pending, raw_summary: `${token} list-pending`, status: "pending" });
+    const made = await elevateCalendarEvent(db, shown, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+
+    const all = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} list-`)}`))).json();
+    const byId = new Map<string, any>(all.items.map((i: any) => [i.id, i]));
+
+    expect(all.items).toHaveLength(3);
+    expect(byId.get(shown).event).toMatchObject({ id: made.event.id });
+    expect(byId.get(pending)).toMatchObject({ needsType: true, event: null });
+    expect(all.hasMore).toBe(false);
+
+    const inEvents = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} list-`)}&filter=in_events`))).json();
+    expect(inEvents.items.map((i: any) => i.id)).toEqual([shown]);
+
+    const none = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} nothing`)}&filter=in_events`))).json();
+    expect(none).toEqual({ items: [], hasMore: false });
+  });
+});
+
+describe("editing an event that follows the calendar", () => {
+  it("remembers only the fields that changed, keeps the calendar's dates, and can follow the calendar again", async () => {
+    const calendarId = await calendarEvent("edit");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    const id = made.event.id;
+    eventIds.push(id);
+    const before = await eventRow(id);
+
+    // The admin form sends every field; only the title differs.
+    const res = await editEvent(
+      json({ title: "Renamed", description: before.description, location: before.location, starts_at: "2185-12-25", ends_at: "2185-12-26" }, "PATCH"),
+      idParams(id),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await eventRow(id)).toMatchObject({ title: "Renamed", overridden_fields: ["title"], starts_at: "2185-05-02", ends_at: "2185-05-02" });
+
+    const reverted = await revertToCalendar(json({}), idParams(id));
+    expect(reverted.status).toBe(200);
+    expect(await eventRow(id)).toMatchObject({ title: `${token} edit`, overridden_fields: [] });
+  });
+
+  it("lets an event made in the Hub change its dates, and refuses to follow a calendar it doesn't have", async () => {
+    const { data } = await db
+      .from("events")
+      .insert({ slug: `${token}-local`, title: "Local", event_type: "other", starts_at: "2185-06-01", ends_at: "2185-06-01" })
+      .select("id")
+      .single();
+    eventIds.push(data!.id);
+
+    await editEvent(json({ starts_at: "2185-06-02", ends_at: "2185-06-03" }, "PATCH"), idParams(data!.id));
+
+    expect(await eventRow(data!.id)).toMatchObject({ starts_at: "2185-06-02", ends_at: "2185-06-03", overridden_fields: [] });
+    expect((await revertToCalendar(json({}), idParams(data!.id))).status).toBe(400);
+    expect((await revertToCalendar(json({}), idParams("evt_ZZZZZZZZZZZZ"))).status).toBe(404);
+  });
+
+  it("says when the calendar event is gone", async () => {
+    const calendarId = await calendarEvent("revert-gone");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    eventIds.push(made.event.id);
+    // Unlinked after deletion (ON DELETE SET NULL), so it no longer follows anything.
+    await db.schema("bronze").from("calendar_events").delete().eq("id", calendarId);
+
+    expect((await revertToCalendar(json({}), idParams(made.event.id))).status).toBe(400);
+  });
+});

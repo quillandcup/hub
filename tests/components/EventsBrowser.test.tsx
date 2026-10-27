@@ -22,6 +22,7 @@ const EDU: EventPrickle[] = Array.from({ length: 6 }, (_, i) => ({
   title: `Craft Class ${i}`,
   typeName: 'Webinar Prickle',
   hostName: 'Jane Doe',
+  calendarEventId: null,
   startTime: `2026-10-0${i + 1}T16:00:00Z`,
   endTime: `2026-10-0${i + 1}T17:00:00Z`,
 }))

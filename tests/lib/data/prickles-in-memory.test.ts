@@ -31,7 +31,7 @@ definePrickleContract("InMemoryPrickleRepository", () => {
         startTime: s.start,
         endTime: s.end ?? s.start,
         source: s.source ?? "calendar",
-        calendarEventId: null,
+        calendarEventId: s.calendarEvent ? `00000000-0000-4000-8000-${String(i).padStart(12, "0")}` : null,
       }));
       data = new InMemoryDataset({ members: [...hosts], prickleTypes: [...types], prickles });
       return prickles.map((p) => p.id);
