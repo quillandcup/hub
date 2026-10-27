@@ -323,7 +323,7 @@ export default function EventsClient() {
                     </Link>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       {EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type}
-                      {event.deleted_at ? " · Hidden" : ""}
+                      {event.deleted_at ? " · Removed" : ""}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm">

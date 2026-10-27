@@ -4,23 +4,31 @@ Events come from two places: the Hub (`events` rows an admin creates) and the sh
 
 ## How a calendar item becomes an event
 
-1. **Its prickle type is listed in Events.** On a prickle type (Admin → Data → Prickle Types), "Listed in Events" makes every upcoming calendar item of that type an event (Monthly Goal Review, Pitch Prickle, educational prickles...). Done by the calendar sync (`/api/process/calendar`, `ensureCalendarEvents` in `lib/calendar-events.ts`). Past items are not backfilled.
-2. **It is tagged `#event`.** Add `#event` anywhere in the Google Calendar event's description. The next calendar sync makes the event, whatever the item is (a prickle of any type, or something that is no prickle at all, such as a retreat or a book launch). The tag is left out of the event's description. `#events` and similar words don't count.
-3. **An admin shows it by hand.** "Show in Events" on the item's admin prickle page (`/admin/prickles/<id>`, reached from the admin calendar; weeks ahead can be browsed too), or on the list at `/admin/events/calendar`, which also lists items that are no prickle.
+1. **Its prickle type is listed in Events.** On a prickle type (Admin → Data → Prickle Types), "Listed in Events" makes every upcoming calendar item of that type an event (Monthly Goal Review, Pitch Prickle, educational prickles...). Past sessions of a listed type are not backfilled: a recurring series would fill Past with every old session.
+2. **It is tagged `#event`.** Add `#event` anywhere in the Google Calendar event's description. The next calendar sync makes the event, whatever the item is (a prickle of any type, or something that is no prickle at all, such as a retreat or a book launch), upcoming or past, so a past tagged item shows under Past. The tag is left out of the event's description. `#events` and similar words don't count.
+3. **An admin shows it by hand.** "Show in Events" on the item's admin prickle page (`/admin/prickles/<id>`, reached from the admin calendar, which can be paged into future weeks).
 
-The admin calendar (`/admin/calendar`) marks prickles that have an event with a star (hover for whether it is shown or hidden).
+The admin calendar (`/admin/calendar`) marks prickles that have an event with a star (hover for whether it is in Events or was removed). Calendar items that are no prickle can't be opened from the calendar: tag them `#event` in Google Calendar.
+
+## Automatic events follow their reason
+
+Events made by rule 1 or 2 are **automatic** (`events.automatic`). On every calendar sync (`/api/process/calendar`) they are reconciled with the calendar, both ways:
+
+- Taking `#event` out of the description, un-listing the prickle type, or deleting the calendar item **removes** the automatic event on the next sync. An event that has photos, an attendee list or a badge is kept (it has been worked on), and so is any event an admin has shown by hand or edited.
+- **Editing an automatic event, or showing it by hand, keeps it**: it stops being automatic, and the sync no longer takes it away.
+
+Events made in the Hub are never automatic.
 
 ## What follows the calendar, and what is the Hub's
 
-- **Follows the calendar:** the dates and times always. The title, description and location too, until an admin changes one; a changed field is recorded in `events.overridden_fields` and the sync leaves it alone. "Follow the calendar again" on the event page clears the overrides.
+- **Follows the calendar:** the dates and times always. The title, description and location too, until an admin changes one; a changed field is recorded in `events.overridden_fields` and the sync leaves it alone.
+- **Empty means follow the calendar.** Clearing a field on the event's edit form (or "Follow the calendar again" for all of them) removes its override and takes the calendar's current value.
 - **The Hub's own:** everything Google Calendar has no place for: the audience fields (guests allowed, announced publicly, how people join, places, how places are given out), speakers, the photo gallery. An event keeps these however it was made.
 
-## Hiding
+## Removing an event from Events
 
-"Hide from members" on the event page sets `events.deleted_at`. A hidden event is left out of the member Events page, the event page, search (admins still find it) and calendar feeds, the calendar sync leaves it hidden, and the prickle it stands for stays out of the Events list too. Hide it rather than deleting it: a deleted calendar-linked event is made again by the next sync.
-
-Taking `#event` out of a description, or un-listing a prickle type, doesn't remove events already made: hide them.
+"Remove from Events" on the event page sets `events.deleted_at`: members no longer see it in the Events page, the event page, search (admins still find it) or calendar feeds, and the prickle it stands for stays out of the Events list too. "Add back to Events" undoes it. It exists mainly so an event the calendar sync keeps making (one session of a listed type that you don't want featured) can be taken out without the next sync making it again; a deleted calendar-linked event is made again.
 
 ## Not yet
 
-Writing changes back to Google Calendar (the service account is read-only), default images and audience per prickle type, and matching an item to a prickle type from the calendar list. See `docs/TODO.md`, "Managing events in the Hub".
+Writing changes back to Google Calendar (the service account is read-only), default images and audience per prickle type, cleaning up calendar titles and locations for display, and matching an item to a prickle type from the Events side. See `docs/TODO.md`, "Managing events in the Hub".

@@ -4,7 +4,7 @@ import {
   calendarTitle,
   isOverridableField,
   orgDate,
-  overriddenAfterEdit,
+  overridesAfterEdit,
   slugify,
   syncableFields,
 } from "@/lib/calendar-events";
@@ -106,17 +106,32 @@ describe("syncableFields", () => {
   });
 });
 
-describe("overriddenAfterEdit", () => {
-  const current = { title: "Open House", description: null, location: "Zoom", overridden_fields: ["location"] };
+describe("overridesAfterEdit", () => {
+  const current = { title: "Open House", description: "From the calendar", location: "Zoom", overridden_fields: ["location"] };
 
-  it("adds only a field whose value changed, keeping those already overridden, sorted", () => {
-    expect(overriddenAfterEdit(current, { title: "Open House", description: "New text", location: "Zoom" })).toEqual(["description", "location"]);
-    expect(overriddenAfterEdit(current, { title: "Fall Open House" })).toEqual(["location", "title"]);
+  it("overrides a field given text that differs from what the row holds, keeping those already overridden, sorted", () => {
+    expect(overridesAfterEdit(current, { title: "Open House", description: "New text", location: "Zoom" })).toEqual({
+      overridden: ["description", "location"],
+      follow: [],
+    });
+    expect(overridesAfterEdit(current, { title: "Fall Open House" })).toEqual({ overridden: ["location", "title"], follow: [] });
   });
 
-  it("counts an empty string and null as the same, so saving an untouched form changes nothing", () => {
-    expect(overriddenAfterEdit(current, { description: "" })).toEqual(["location"]);
-    expect(overriddenAfterEdit(current, { title: "Open House", description: null, location: "Zoom" })).toEqual(["location"]);
+  it("changes nothing for a form saved untouched, however many fields it sends", () => {
+    expect(overridesAfterEdit(current, { title: "Open House", description: "From the calendar", location: "Zoom" })).toEqual({
+      overridden: ["location"],
+      follow: [],
+    });
+  });
+
+  it("follows the calendar again for a field left empty: no override, and the caller takes the calendar's value", () => {
+    expect(overridesAfterEdit(current, { location: "" })).toEqual({ overridden: [], follow: ["location"] });
+    expect(overridesAfterEdit(current, { description: null })).toEqual({ overridden: ["location"], follow: ["description"] });
+    expect(overridesAfterEdit(current, { title: "   ", description: "" })).toEqual({ overridden: ["location"], follow: ["title", "description"] });
+  });
+
+  it("leaves a field the edit doesn't name alone", () => {
+    expect(overridesAfterEdit(current, {})).toEqual({ overridden: ["location"], follow: [] });
   });
 });
 

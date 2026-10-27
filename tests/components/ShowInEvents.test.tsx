@@ -43,17 +43,17 @@ describe("ShowInEvents", () => {
     expect(await screen.findByText("Shown in Events.")).toBeInTheDocument();
     expect(calls[0]).toEqual({ url: "/api/admin/events/calendar", body: { calendarEventId: CALENDAR_ID } });
     expect(screen.getByRole("link", { name: "Edit the event" })).toHaveAttribute("href", "/admin/events/evt_AAAAAAAAAAA1");
-    expect(screen.getByRole("button", { name: "Hide from members" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove from Events" })).toBeInTheDocument();
   });
 
   it("hides a shown event and shows it again", async () => {
     render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: false }} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Hide from members" }));
-    expect(await screen.findByText("Hidden from members.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remove from Events" }));
+    expect(await screen.findByText("Removed from Events.")).toBeInTheDocument();
     expect(calls[0]).toEqual({ url: "/api/admin/events/evt_AAAAAAAAAAA1/visibility", body: { hidden: true } });
 
-    await userEvent.click(screen.getByRole("button", { name: "Show to members" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add back to Events" }));
     expect(await screen.findByText("Shown in Events.")).toBeInTheDocument();
     expect(calls[1].body).toEqual({ hidden: false });
   });
@@ -61,7 +61,7 @@ describe("ShowInEvents", () => {
   it("starts from a hidden event, and says how to use the Google Calendar tag", () => {
     render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: true }} />);
 
-    expect(screen.getByText("Hidden from members.")).toBeInTheDocument();
+    expect(screen.getByText("Removed from Events.")).toBeInTheDocument();
     expect(screen.getByText(/add #event to the event's description in Google Calendar/)).toBeInTheDocument();
   });
 
@@ -74,7 +74,7 @@ describe("ShowInEvents", () => {
 
     respond = () => ({ ok: false, body: {} });
     render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: false }} />);
-    await userEvent.click(screen.getByRole("button", { name: "Hide from members" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove from Events" }));
     expect(await screen.findByText("That didn't work")).toBeInTheDocument();
   });
 });

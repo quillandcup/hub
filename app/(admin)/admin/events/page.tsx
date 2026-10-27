@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
-import Link from "next/link";
 import EventsClient from "./EventsClient";
 import { requireAdminPage } from "@/lib/admin-auth";
 
@@ -26,9 +25,6 @@ export default async function EventsPage() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
             Retreats and other events — dates, location, agenda, and a photo gallery imported from Google Photos.
           </p>
-          <Link href="/admin/events/calendar" className="inline-block mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline">
-            Show an item from the shared calendar in Events →
-          </Link>
         </div>
       </header>
 

@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import type { Update } from "@/lib/data/db";
 import { parseEventAudience } from "@/lib/event-audience";
-import { overriddenAfterEdit } from "@/lib/calendar-events";
+import { calendarEventFields, overridesAfterEdit } from "@/lib/calendar-events";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(
@@ -114,8 +114,25 @@ export async function PATCH(
     if (google_photos_album_url !== undefined) updates.google_photos_album_url = google_photos_album_url;
 
     if (current && followsCalendar) {
-      updates.overridden_fields = overriddenAfterEdit(current, { title, description, location });
+      const { overridden, follow } = overridesAfterEdit(current, { title, description, location });
+      updates.overridden_fields = overridden;
+      if (follow.length > 0) {
+        // A field left empty follows the calendar again: take its value from the calendar item as it is now.
+        const { data: source } = await supabase
+          .schema("bronze")
+          .from("calendar_events")
+          .select("summary, description, location, start_time, end_time")
+          .eq("id", current.calendar_event_id as string)
+          .maybeSingle();
+        const fromCalendar = source ? calendarEventFields(source) : null;
+        for (const field of follow) {
+          if (fromCalendar) (updates as Record<string, unknown>)[field] = fromCalendar[field];
+          else delete (updates as Record<string, unknown>)[field];
+        }
+      }
     }
+    // An admin who has edited an event keeps it: the calendar sync no longer takes it away.
+    updates.automatic = false;
 
     const { data: event, error } = await supabase
       .from("events")

@@ -254,7 +254,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 onClick={() => setHidden(!event.deleted_at)}
                 className="text-plum-600 dark:text-plum-400 hover:underline text-sm disabled:opacity-50"
               >
-                {event.deleted_at ? "Show to members" : "Hide from members"}
+                {event.deleted_at ? "Add back to Events" : "Remove from Events"}
               </button>
               <button onClick={startEdit} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
                 Edit
@@ -264,8 +264,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         </div>
         {event.deleted_at && (
           <div className="mb-4 p-3 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
-            Hidden: members don&apos;t see this event in Events, search or their calendar feed.
-            {event.calendar_event_id ? " The calendar sync leaves it hidden." : ""}
+            Removed from Events: members don&apos;t see it in Events, search or their calendar feed.
+            {event.calendar_event_id ? " The calendar sync leaves it removed." : ""}
           </div>
         )}
 

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import type { Db } from "@/lib/data/db";
-import { elevateCalendarEvent, ensureCalendarEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { elevateCalendarEvent, ensureCalendarEvents, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
 
 /**
  * Events that follow the shared calendar, against the local database: showing a calendar item in
@@ -16,7 +16,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: async () => ({ user: { id: "service-role" }, forbidden: false, supabase: getTestSupabaseAdminClient() }),
 }));
 
-import { GET as listCalendar, POST as showInEvents } from "@/app/api/admin/events/calendar/route";
+import { POST as showInEvents } from "@/app/api/admin/events/calendar/route";
 import { PATCH as editEvent } from "@/app/api/admin/events/[id]/route";
 import { POST as revertToCalendar } from "@/app/api/admin/events/[id]/revert-to-calendar/route";
 import { POST as setVisibility } from "@/app/api/admin/events/[id]/visibility/route";
@@ -172,32 +172,6 @@ describe("POST /api/admin/events/calendar", () => {
   });
 });
 
-describe("GET /api/admin/events/calendar", () => {
-  it("lists upcoming calendar items with what each is, and filters to those shown in Events", async () => {
-    const shown = await calendarEvent("list-shown");
-    await calendarEvent("list-plain");
-    const pending = await calendarEvent("list-pending");
-    await db.from("unmatched_calendar_events").insert({ calendar_event_id: pending, raw_summary: `${token} list-pending`, status: "pending" });
-    const made = await elevateCalendarEvent(db, shown, null);
-    if (!made.ok) throw new Error("elevate failed");
-    eventIds.push(made.event.id);
-
-    const all = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} list-`)}`))).json();
-    const byId = new Map<string, any>(all.items.map((i: any) => [i.id, i]));
-
-    expect(all.items).toHaveLength(3);
-    expect(byId.get(shown).event).toMatchObject({ id: made.event.id });
-    expect(byId.get(pending)).toMatchObject({ needsType: true, event: null });
-    expect(all.hasMore).toBe(false);
-
-    const inEvents = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} list-`)}&filter=in_events`))).json();
-    expect(inEvents.items.map((i: any) => i.id)).toEqual([shown]);
-
-    const none = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} nothing`)}&filter=in_events`))).json();
-    expect(none).toEqual({ items: [], hasMore: false });
-  });
-});
-
 describe("editing an event that follows the calendar", () => {
   it("remembers only the fields that changed, keeps the calendar's dates, and can follow the calendar again", async () => {
     const calendarId = await calendarEvent("edit");
@@ -286,10 +260,6 @@ describe("POST /api/admin/events/[id]/visibility", () => {
     const hide = await setVisibility(json({ hidden: true }), idParams(made.event.id));
     expect(hide.status).toBe(200);
     expect((await eventRow(made.event.id)).deleted_at).not.toBeNull();
-    // The calendar item still has its event, so listing it says hidden rather than offering to add it.
-    const listed = await (await listCalendar(new NextRequest(`http://localhost/api/admin/events/calendar?q=${encodeURIComponent(`${token} visibility`)}`))).json();
-    expect(listed.items[0].event).toMatchObject({ id: made.event.id, hidden: true });
-
     const show = await setVisibility(json({ hidden: false }), idParams(made.event.id));
     expect(show.status).toBe(200);
     expect((await eventRow(made.event.id)).deleted_at).toBeNull();
@@ -309,5 +279,133 @@ describe("POST /api/admin/events/[id]/visibility", () => {
     const again = await elevateCalendarEvent(db, calendarId, null);
 
     expect(again).toMatchObject({ ok: true, created: false, event: { id: made.event.id, hidden: true } });
+  });
+});
+
+describe("automatic events", () => {
+  it("are made by the sync, and kept once an admin shows the item by hand", async () => {
+    const calendarId = await calendarEvent("automatic-keep");
+    expect(await ensureCalendarEvents(db, [calendarId])).toBe(1);
+    const row = async () => (await db.from("events").select("id, automatic").eq("calendar_event_id", calendarId).single()).data!;
+    const made = await row();
+    eventIds.push(made.id);
+    expect(made.automatic).toBe(true);
+
+    const byHand = await elevateCalendarEvent(db, calendarId, null);
+
+    expect(byHand).toMatchObject({ ok: true, created: false });
+    expect((await row()).automatic).toBe(false);
+  });
+
+  it("an event shown by hand is not automatic, and an edit keeps an automatic one", async () => {
+    const byHandId = await calendarEvent("automatic-by-hand");
+    const byHand = await elevateCalendarEvent(db, byHandId, null);
+    if (!byHand.ok) throw new Error("elevate failed");
+    eventIds.push(byHand.event.id);
+    expect((await eventRow(byHand.event.id)).automatic).toBe(false);
+
+    const autoId = await calendarEvent("automatic-edit");
+    await ensureCalendarEvents(db, [autoId]);
+    const { data: auto } = await db.from("events").select("id").eq("calendar_event_id", autoId).single();
+    eventIds.push(auto!.id);
+    expect((await eventRow(auto!.id)).automatic).toBe(true);
+
+    await editEvent(json({ focus: "Bring a friend" }, "PATCH"), idParams(auto!.id));
+
+    expect(await eventRow(auto!.id)).toMatchObject({ automatic: false, focus: "Bring a friend" });
+  });
+});
+
+describe("reconcileAutomaticEvents", () => {
+  async function automaticEvent(label: string) {
+    const calendarId = await calendarEvent(label);
+    await ensureCalendarEvents(db, [calendarId]);
+    const { data } = await db.from("events").select("id").eq("calendar_event_id", calendarId).single();
+    eventIds.push(data!.id);
+    return { calendarId, eventId: data!.id };
+  }
+  const exists = async (id: string) => (await db.from("events").select("id").eq("id", id)).data!.length === 1;
+
+  it("takes away an automatic event whose reason has stopped applying, and keeps the ones that still have one", async () => {
+    const stale = await automaticEvent("reconcile-stale");
+    const still = await automaticEvent("reconcile-still");
+    const byHand = await calendarEvent("reconcile-by-hand");
+    const handMade = await elevateCalendarEvent(db, byHand, null);
+    if (!handMade.ok) throw new Error("elevate failed");
+    eventIds.push(handMade.event.id);
+
+    const removed = await reconcileAutomaticEvents(db, [stale.calendarId, still.calendarId, byHand], new Set([still.calendarId]));
+
+    expect(removed).toBe(1);
+    expect(await exists(stale.eventId)).toBe(false);
+    expect(await exists(still.eventId)).toBe(true);
+    expect(await exists(handMade.event.id)).toBe(true); // shown by hand: never taken away
+  });
+
+  it("leaves alone an event outside the calendar events just processed", async () => {
+    const outside = await automaticEvent("reconcile-outside");
+
+    await reconcileAutomaticEvents(db, [], new Set());
+
+    expect(await exists(outside.eventId)).toBe(true);
+  });
+
+  it("keeps an automatic event that has been worked on: photos, an attendee list or a badge", async () => {
+    const withPhoto = await automaticEvent("reconcile-photo");
+    await db.from("event_photos").insert({ event_id: withPhoto.eventId, storage_path: `${token}/p.jpg`, google_media_item_id: `${token}-p` });
+    const plain = await automaticEvent("reconcile-plain");
+
+    const removed = await reconcileAutomaticEvents(db, [withPhoto.calendarId, plain.calendarId], new Set());
+
+    expect(removed).toBeGreaterThanOrEqual(1);
+    expect(await exists(withPhoto.eventId)).toBe(true);
+    expect(await exists(plain.eventId)).toBe(false);
+  });
+
+  it("takes away an automatic event whose calendar event was deleted", async () => {
+    const gone = await automaticEvent("reconcile-gone");
+    await db.schema("bronze").from("calendar_events").delete().eq("id", gone.calendarId);
+    expect((await eventRow(gone.eventId)).calendar_event_id).toBeNull();
+
+    const removed = await reconcileAutomaticEvents(db, [], new Set());
+
+    expect(removed).toBeGreaterThanOrEqual(0); // a parallel run may have taken it first
+    expect(await exists(gone.eventId)).toBe(false);
+  });
+});
+
+describe("clearing a field of an event that follows the calendar", () => {
+  it("follows the calendar again for that field, and goes on following it", async () => {
+    const calendarId = await calendarEvent("clear-field");
+    const made = await elevateCalendarEvent(db, calendarId, null);
+    if (!made.ok) throw new Error("elevate failed");
+    const id = made.event.id;
+    eventIds.push(id);
+
+    await editEvent(json({ description: "Our own words" }, "PATCH"), idParams(id));
+    expect(await eventRow(id)).toMatchObject({ description: "Our own words", overridden_fields: ["description"] });
+
+    await db.schema("bronze").from("calendar_events").update({ description: "<p>Changed in Google</p>" }).eq("id", calendarId);
+    const res = await editEvent(json({ description: "" }, "PATCH"), idParams(id));
+
+    expect(res.status).toBe(200);
+    expect(await eventRow(id)).toMatchObject({ description: "Changed in Google", overridden_fields: [] });
+
+    // The next sync keeps it in step, since it is no longer overridden.
+    await syncCalendarEvents(db, [{ id: calendarId, summary: `${token} clear-field w/Ada`, description: "<p>Newer</p>", location: "Zoom", start_time: "2185-05-02T23:00:00Z", end_time: "2185-05-03T01:00:00Z" }]);
+    expect((await eventRow(id)).description).toBe("Newer");
+  });
+
+  it("an event made in the Hub can have a field emptied, since it follows nothing", async () => {
+    const { data } = await db
+      .from("events")
+      .insert({ slug: `${token}-hub-clear`, title: "Hub event", event_type: "other", starts_at: "2185-06-01", ends_at: "2185-06-01", description: "Words" })
+      .select("id")
+      .single();
+    eventIds.push(data!.id);
+
+    await editEvent(json({ description: "" }, "PATCH"), idParams(data!.id));
+
+    expect(await eventRow(data!.id)).toMatchObject({ description: "", overridden_fields: [] });
   });
 });

@@ -39,7 +39,7 @@ describe("CalendarWeekView: prickles in Events", () => {
 
   it.each([
     ["shown" as const, "In Events"],
-    ["hidden" as const, "Hidden from Events"],
+    ["hidden" as const, "Removed from Events"],
   ])("says in the tooltip of a prickle that is %s: %s", (state, label) => {
     renderView([prickle("p", state)]);
 
@@ -55,6 +55,6 @@ describe("CalendarWeekView: prickles in Events", () => {
 
     expect(screen.getByText("Host: Host")).toBeInTheDocument();
     expect(screen.queryByText("In Events", { selector: "div" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Hidden from Events")).not.toBeInTheDocument();
+    expect(screen.queryByText("Removed from Events")).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { createRepos } from "@/lib/data/repos";
 import { plainTextDescription } from "@/lib/prickle-types";
 
 // Events that follow the shared Google calendar (events.calendar_event_id). A calendar item shown
@@ -100,19 +101,28 @@ export function syncableFields(fields: CalendarEventFields, overridden: readonly
 }
 
 /**
- * Which of title, description and location an update changes from what the row holds now, merged into
- * the fields already overridden. Only a real change counts, so saving a form that sends every field
- * doesn't override the ones left alone.
+ * What an edit of title, description and location does to the overrides: a field the edit leaves empty
+ * follows the calendar (`follow`: no override, and the caller copies the calendar's value in), a field
+ * given text that differs from what the row holds is overridden, and anything else is left as it was.
+ * Only a real change counts, so saving a form that sends every field doesn't override the ones left alone.
  */
-export function overriddenAfterEdit(
+export function overridesAfterEdit(
   current: Record<OverridableField, string | null> & { overridden_fields: readonly string[] },
   edit: Partial<Record<OverridableField, string | null>>,
-): string[] {
-  const next = new Set(current.overridden_fields);
+): { overridden: string[]; follow: OverridableField[] } {
+  const overridden = new Set(current.overridden_fields);
+  const follow: OverridableField[] = [];
   for (const field of OVERRIDABLE_FIELDS) {
-    if (edit[field] !== undefined && (edit[field] || null) !== (current[field] || null)) next.add(field);
+    const value = edit[field];
+    if (value === undefined) continue;
+    if (!value || !value.trim()) {
+      overridden.delete(field);
+      follow.push(field);
+    } else if (value !== current[field]) {
+      overridden.add(field);
+    }
   }
-  return [...next].sort();
+  return { overridden: [...overridden].sort(), follow };
 }
 
 export function slugify(text: string): string {
@@ -133,14 +143,21 @@ export type ElevateResult =
  * Shows a calendar item in Events: creates the events row that follows it (or returns the one it
  * already has). Its slug is the title and date, with a numeric suffix if another event has it.
  */
-export async function elevateCalendarEvent(db: Db, calendarEventId: string, userId: string | null): Promise<ElevateResult> {
+export async function elevateCalendarEvent(db: Db, calendarEventId: string, userId: string | null, automatic = false): Promise<ElevateResult> {
   const existingEvent = async () => {
-    const { data, error } = await db.from("events").select("id, slug, deleted_at").eq("calendar_event_id", calendarEventId).maybeSingle();
-    return { error, event: data ? { id: data.id, slug: data.slug, hidden: !!data.deleted_at } : null };
+    const { data, error } = await db.from("events").select("id, slug, deleted_at, automatic").eq("calendar_event_id", calendarEventId).maybeSingle();
+    return { error, event: data ? { id: data.id, slug: data.slug, hidden: !!data.deleted_at } : null, wasAutomatic: !!data?.automatic };
   };
   const existing = await existingEvent();
   if (existing.error) return { ok: false, status: 500, error: existing.error.message };
-  if (existing.event) return { ok: true, created: false, event: existing.event };
+  if (existing.event) {
+    // An admin showing an item the sync made by itself keeps it: the sync no longer takes it away.
+    if (existing.wasAutomatic && !automatic) {
+      const { error } = await db.from("events").update({ automatic: false }).eq("id", existing.event.id);
+      if (error) return { ok: false, status: 500, error: error.message };
+    }
+    return { ok: true, created: false, event: existing.event };
+  }
 
   const { data: source, error: sourceError } = await db
     .schema("bronze")
@@ -157,7 +174,7 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
     const slug = attempt === 1 ? base : `${base}-${attempt}`;
     const { data, error } = await db
       .from("events")
-      .insert({ ...fields, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId })
+      .insert({ ...fields, slug, event_type: "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
       .select("id, slug")
       .single();
     if (!error) return { ok: true, created: true, event: { ...data, hidden: false } };
@@ -172,9 +189,9 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
 }
 
 /**
- * Makes sure each of these calendar events has an event, creating the ones that don't (a hidden event
- * counts as having one, so it stays hidden). Used by the calendar sync for items of prickle types listed
- * in Events, so a recurring session needs no click. Returns how many it created.
+ * Makes sure each of these calendar events has an event, creating the ones that don't as automatic events
+ * (a removed event counts as having one, so it stays removed). Used by the calendar sync for items of prickle
+ * types listed in Events and items tagged #event, so a recurring session needs no click. Returns how many it created.
  */
 export async function ensureCalendarEvents(db: Db, calendarEventIds: string[]): Promise<number> {
   if (calendarEventIds.length === 0) return 0;
@@ -189,7 +206,7 @@ export async function ensureCalendarEvents(db: Db, calendarEventIds: string[]): 
 
   let created = 0;
   for (let i = 0; i < missing.length; i += 10) {
-    const results = await Promise.all(missing.slice(i, i + 10).map((id) => elevateCalendarEvent(db, id, null)));
+    const results = await Promise.all(missing.slice(i, i + 10).map((id) => elevateCalendarEvent(db, id, null, true)));
     for (const result of results) {
       if (!result.ok) throw new Error(result.error);
       if (result.created) created++;
@@ -230,22 +247,52 @@ export async function syncCalendarEvents(db: Db, sources: ({ id: string } & Cale
   return updated;
 }
 
-/** Rows the admin calendar list shows per page. */
-export const CALENDAR_LIST_PAGE_SIZE = 50;
+/**
+ * After the calendar is processed: takes away the automatic events whose reason has stopped applying, so
+ * the events follow the calendar and the prickle types both ways. These are the automatic events that follow
+ * one of `sourceIds` (the calendar events just processed) but are not in `qualifying` (the ones that still
+ * have a reason: a listed prickle type or an #event tag), and the automatic events whose calendar event is
+ * gone. An event with photos, attendees or a badge is kept: it has been worked on, whatever made it.
+ * Returns how many it removed.
+ */
+export async function reconcileAutomaticEvents(db: Db, sourceIds: string[], qualifying: ReadonlySet<string>): Promise<number> {
+  const stale: string[] = [];
 
-export type CalendarListFilter = "upcoming" | "in_events";
+  for (let i = 0; i < sourceIds.length; i += 100) {
+    const { data, error } = await db
+      .from("events")
+      .select("id, calendar_event_id")
+      .eq("automatic", true)
+      .in("calendar_event_id", sourceIds.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) if (row.calendar_event_id && !qualifying.has(row.calendar_event_id)) stale.push(row.id);
+  }
+  // The calendar event is gone (the link was cleared when it was deleted), so nothing can make this event apply.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from("events").select("id").eq("automatic", true).is("calendar_event_id", null).order("id").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    stale.push(...(data ?? []).map((r) => r.id));
+    if ((data ?? []).length < 1000) break;
+  }
+  if (stale.length === 0) return 0;
 
-/** One item on the admin calendar list (/api/admin/events/calendar). */
-export interface CalendarListItem {
-  id: string;
-  summary: string | null;
-  location: string | null;
-  start_time: string;
-  end_time: string;
-  /** The prickle type name, when the item is a prickle. */
-  prickleType: string | null;
-  /** Waiting in the unmatched-events queue for a type. */
-  needsType: boolean;
-  /** The events row that follows it, when it is shown in Events. */
-  event: { id: string; slug: string; hidden: boolean } | null;
+  const worked = new Set<string>(await createRepos(db).badges.linkedEventIds());
+  for (let i = 0; i < stale.length; i += 100) {
+    const chunk = stale.slice(i, i + 100);
+    const [photos, attendees] = await Promise.all([
+      db.from("event_photos").select("event_id").in("event_id", chunk),
+      db.from("event_attendees").select("event_id").in("event_id", chunk),
+    ]);
+    for (const result of [photos, attendees]) {
+      if (result.error) throw new Error(result.error.message);
+      for (const row of result.data ?? []) if (row.event_id) worked.add(row.event_id);
+    }
+  }
+  const removable = stale.filter((id) => !worked.has(id));
+
+  for (let i = 0; i < removable.length; i += 100) {
+    const { error } = await db.from("events").delete().in("id", removable.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+  }
+  return removable.length;
 }

@@ -583,6 +583,13 @@ describe('Calendar Reprocessability', () => {
       ;({ events } = await eventsFor())
       expect(events).toHaveLength(2)
       expect(events.find((e) => e.id === hiddenEvent.id)!.deleted_at).not.toBeNull()
+
+      // Un-listing the type takes the automatic events away again, the hidden one too.
+      await supabase.from('prickle_types').update({ listed_in_events: false }).eq('id', listedType!.id)
+      const afterUnlist = await process()
+      expect((await afterUnlist.json()).eventsRemoved).toBeGreaterThanOrEqual(2)
+      ;({ events } = await eventsFor())
+      expect(events).toHaveLength(0)
     } finally {
       const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
       if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
@@ -592,7 +599,7 @@ describe('Calendar Reprocessability', () => {
     }
   })
 
-  it('makes an event for an upcoming calendar item tagged #event in Google Calendar, even with no prickle type, and keeps the tag out of its description', async () => {
+  it('makes an event for a calendar item tagged #event in Google Calendar, upcoming or past, even with no prickle type, keeps the tag out of its description, and takes the event away when the tag goes', async () => {
     const word = `Tagged${Date.now().toString(36)}`
     const processRange = (fromDate: string, toDate: string) => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
       method: 'POST',
@@ -617,7 +624,16 @@ describe('Calendar Reprocessability', () => {
 
       const { sources, events } = await eventsFor()
       const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
-      expect(events).toEqual([{ calendar_event_id: idOf(googleIds[0]), title: `${word} Retreat Kickoff`, description: 'Come along' }])
+      expect(events.sort((a, b) => a.title.localeCompare(b.title))).toEqual([
+        { calendar_event_id: idOf(googleIds[2]), title: `${word} Old Retreat`, description: null }, // past, tag only: no text left
+        { calendar_event_id: idOf(googleIds[0]), title: `${word} Retreat Kickoff`, description: 'Come along' },
+      ])
+
+      // Taking the tag out of the Google Calendar description takes the automatic event away on the next run.
+      await supabase.schema('bronze').from('calendar_events').update({ description: '<p>Come along</p>' }).eq('google_event_id', googleIds[0])
+      await processRange(testDateRange.from, testDateRange.to)
+      const afterUntag = await eventsFor()
+      expect(afterUntag.events.map((e) => e.calendar_event_id)).toEqual([idOf(googleIds[2])])
     } finally {
       const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
       if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
