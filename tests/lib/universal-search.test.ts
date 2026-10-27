@@ -120,6 +120,28 @@ describe("universalSearch (local database)", () => {
     expect(byStatus.map((h) => h.id)).toEqual([otherId]);
   });
 
+  it("finds a member by display name too, and an admin sees it first with the legal name beside the email", async () => {
+    // Its own token: the shared one would add a third member to the paging test below.
+    const own = `dispname${Date.now()}`;
+    const { data, error } = await supabase
+      .from("members")
+      .insert({ name: `${own} Legalname`, display_name: `Penny${own}`, email: `${own}-penny@example.com`, joined_at: "2020-01-01", status: "active" })
+      .select("id")
+      .single();
+    if (error) throw error;
+    made.members.push(data.id);
+
+    const staff = hitsOf(await run(`in:members Penny${own}`, { isActingAsAdmin: true }), "members");
+    expect(staff).toHaveLength(1);
+    expect(staff[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname · ${own}-penny@example.com` });
+
+    const byLegal = hitsOf(await run(`in:members ${own} legalname`, { isActingAsAdmin: true }), "members");
+    expect(byLegal.map((h) => h.id)).toEqual([data.id]);
+
+    const member = hitsOf(await run(`in:members Penny${own}`), "members");
+    expect(member.map((h) => h.title)).toEqual([`Penny${own}`]);
+  });
+
   it("finds a prickle by its type's name or its host's name, titled like the detail page", async () => {
     for (const input of [`in:prickles ${token} sprint`, `in:prickles ${token} hostess`]) {
       const hits = hitsOf(await run(input), "prickles");

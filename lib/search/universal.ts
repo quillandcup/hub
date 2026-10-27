@@ -6,6 +6,7 @@
  * Chat reuses searchChat (full text, via search_chat_messages). Word matching is `ilike` on the
  * few fields each kind shows: these tables are small. A prickle's title is its own only when the host named it; otherwise it is computed.
  */
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { prickleTitle } from "@/lib/domain/prickle";
@@ -123,7 +124,7 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
       kind: "members",
       hasMore,
       hits: rows.map((m) => ({
-        kind: "members", id: m.id, title: m.name, subtitle: m.email, badge: m.status, href: `/admin/members/${m.id}`,
+        kind: "members", id: m.id, title: getMemberDisplayName({ name: m.name, display_name: m.displayName }), subtitle: m.displayName && m.displayName !== m.name ? `${m.name} · ${m.email}` : m.email, badge: m.status, href: `/admin/members/${m.id}`,
       })),
     };
   }
@@ -150,7 +151,7 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   // name, the host's name or the title.
   const [hosts, wordHosts] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
     words.map(async (w) => {
-      const { data } = await ctx.supabase.from("member_directory").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(100);
+      const { data } = await ctx.supabase.from("member_directory").select("id").or(`name.ilike.${pattern(w)},display_name.ilike.${pattern(w)}`).limit(100);
       return { text: w, hostIds: (data ?? []).map((m) => m.id as string) };
     })
   )]);
