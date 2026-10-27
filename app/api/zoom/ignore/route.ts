@@ -1,11 +1,14 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { isId } from "@/lib/ids";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/zoom/ignore
  *
- * Ignore a Zoom name so it no longer appears in the unmatched list
+ * Ignore a Zoom name so it no longer appears in the unmatched list.
+ * With `prickleId` only that prickle's appearance is ignored; without it the name is
+ * ignored everywhere, for every future appearance.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -17,13 +20,31 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { zoomName, reason } = body;
+    const { zoomName, reason, prickleId } = body;
 
     if (!zoomName) {
       return NextResponse.json(
         { error: "zoomName is required" },
         { status: 400 }
       );
+    }
+
+    if (prickleId !== undefined && prickleId !== null) {
+      if (!isId(prickleId, "prkl")) {
+        return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
+      }
+      const { error } = await supabase
+        .from("ignored_zoom_appearances")
+        .upsert(
+          { prickle_id: prickleId, zoom_name: zoomName, ignored_by: user.id },
+          { onConflict: "prickle_id,zoom_name", ignoreDuplicates: true }
+        );
+      if (error) {
+        console.error("Error ignoring Zoom name for one prickle:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      // Attendance processing doesn't read this table, so there is nothing to reprocess.
+      return NextResponse.json({ success: true });
     }
 
     // Insert into ignored list
@@ -57,7 +78,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/zoom/ignore
  *
- * Un-ignore a Zoom name
+ * Un-ignore a Zoom name (with `prickleId`, only that prickle's appearance)
  */
 export async function DELETE(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -69,13 +90,29 @@ export async function DELETE(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { zoomName } = body;
+    const { zoomName, prickleId } = body;
 
     if (!zoomName) {
       return NextResponse.json(
         { error: "zoomName is required" },
         { status: 400 }
       );
+    }
+
+    if (prickleId !== undefined && prickleId !== null) {
+      if (!isId(prickleId, "prkl")) {
+        return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
+      }
+      const { error } = await supabase
+        .from("ignored_zoom_appearances")
+        .delete()
+        .eq("prickle_id", prickleId)
+        .eq("zoom_name", zoomName);
+      if (error) {
+        console.error("Error un-ignoring Zoom name for one prickle:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
     }
 
     const { error } = await supabase

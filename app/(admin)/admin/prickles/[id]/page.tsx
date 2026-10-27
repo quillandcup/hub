@@ -81,7 +81,7 @@ export default async function AdminPrickleDetailPage({
 
   const userTimezone = await getUserTimezonePreference();
 
-  const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
+  const [zoomResult, membersResult, aliasesResult, ignoredResult, ignoredHereResult, staffResult] = await Promise.all([
     supabase.schema("bronze").from("zoom_attendees")
       .select("name, email")
       .lt("join_time", prickle.endTime)
@@ -89,12 +89,13 @@ export default async function AdminPrickleDetailPage({
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
     supabase.from("ignored_zoom_names").select("zoom_name"),
+    supabase.from("ignored_zoom_appearances").select("zoom_name").eq("prickle_id", prickle.id),
     supabase.from("staff").select("name, email"),
   ]);
 
   const members = membersResult;
   const aliases = aliasesResult;
-  const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
+  const ignoredNames = [...(ignoredResult.data || []), ...(ignoredHereResult.data || [])].map((i) => i.zoom_name);
   const staff = staffResult.data || [];
 
   const unmatchedZoomAttendees = findUnmatchedZoomAttendees(
@@ -162,6 +163,7 @@ export default async function AdminPrickleDetailPage({
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
               allMembers={members}
+              prickleId={prickle.id}
             />
           )}
         </div>
