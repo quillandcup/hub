@@ -55,10 +55,10 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 - **Cohort-based courses:** Self-Editing Academy (reflection quizzes, level progression), the 180.
 - **Other courses:** BFF Mindset Training, Hedgies on First, then the membership video library.
 - **Mini player and pop-out window.**
+- **Lesson comments:** see "Lesson comments" below (design proposal, open questions pending).
 
 ### Not planned
 
-- Lesson comments (Slack and Hub chat cover discussion).
 - Kajabi's quizzes and assessments before Self-Editing Academy moves.
 - Moving checkout off Kajabi.
 - Importing Kajabi per-lesson progress. The Ready Writer's first run starts in the Hub, and Kajabi's API has no per-lesson progress.
@@ -250,6 +250,127 @@ Routes, under `app/(member)/`, all using `getEffectiveIdentity`:
 **Built:** the three pages, behind the `courses` feature flag (off; migration `20261111000200`). They read through a service-role client scoped to the *effective* member (`lib/courses/member.ts`), not RLS, because sudo acts for another member and an ended-access member still sees their course; staff open every course only as themselves, and in sudo the member's own access applies. Mark complete is a server action that checks access itself, writes as the member, and is read-only in sudo. Lessons that can't be opened (no access, ended, coming soon) redirect to the course page, which explains why. The player is signed Mux playback with speed and captions remembered per browser, resume position and watch segments (see Watch tracking). **Not built yet:** the speed setting per member, completion from the segments, a per-member stats view, downloads (they need step D's file copy), the "Videos" admin screen. "Continue watching" on the dashboard is built (`loadContinueWatching` in `lib/courses/member.ts`, `components/courses/ContinueWatchingCard.tsx`). `/admin/player-spike` can be deleted once the lesson player has been seen working with a real video.
 
 Progress is counted against *available* lessons, since the course grows as lessons are released. Light and dark themes, keyboard access and mobile layout are part of "done", not polish.
+
+## Lesson comments
+
+_Status: design proposal, not built. Reverses the earlier "Not planned" call: Ania wants comments on lessons, mainly so instructors can see and answer questions where they are asked. The open questions at the end need a decision before any build._
+
+### Recommendation: their own Local tables
+
+Three options were weighed:
+- **Own Local tables (recommended).** Comments belong to a lesson, follow course access, and need instructor badges, an "unanswered" view and rules tied to access. Those are course rules, not chat rules.
+- **Reuse `chat_*`.** Chat mirrors Slack channels (`docs/SLACK_BRIDGED_CHAT.md`): its membership, privacy (restricted channels, break-glass) and bridge model don't fit "everyone with course access", and a channel per lesson would flood the sidebar.
+- **A Slack thread per lesson.** Needs a channel and bot posts per lesson, shows content only to people who connected Slack, and ties course access to Slack membership.
+
+We still copy chat's good parts: soft delete, tombstones, and the escaping and name-resolution helpers (`lib/chat/render.ts`, `lib/chat/names.ts`). Nothing is bridged to Slack; staff hear about new comments through notifications and the admin queue.
+
+### Data model
+
+New Local tables (never reprocessed), text ids per `CLAUDE.md` "New Tables and Ids", grants and RLS in the same migration (`supabase-table-grants.md`):
+- **`lesson_comments`**: `id` (`cmt_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
+- **`lesson_comment_reports`**: `id`, `comment_id`, `reporter_id`, `reason`, `created_at`, `resolved_at`, `resolved_by`. One open report per reporter and comment.
+- **`lesson_comment_follows`**: `(member_id, lesson_id, following)`. Posting or replying follows implicitly; rows exist only for explicit choices and unfollowing is `following = false`.
+- **`lesson_comment_reads`** (phase 3): last-seen per member and lesson, for unread counts.
+
+Decisions:
+- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (proposed `cmt_`); reports, follows and reads stay Tier 2.
+- **Threading depth: one level.** A reply points at a top-level comment; replying to a reply attaches to the same parent, quoting the author's name. Alternatives: flat; unlimited nesting (unreadable on a phone).
+- **Edit window: 15 minutes**, then locked (the author can still delete). Edits set `edited_at` and show "edited". Alternative: always editable, which leaves replies out of context.
+- **Soft delete** with `deleted_at`. A deleted comment with replies shows a tombstone ("Comment removed"); without replies it disappears. Text is cleared by a retention job (below), not at delete time, so staff can undo.
+- **RLS.** Read: members with *current* `has_course_access(course_id)` for the lesson's course, and admins. Insert: the same members as themselves. Update/delete: own rows (edit window, soft delete); admins act through server actions. Reports: insert own, read admin only. Follows and reads: own rows. Everything is **read-only in sudo** (an admin previewing as a member can read, never post, report or follow). Server actions write through the service-role client scoped to the effective member like `lib/courses/member.ts`, with RLS as the second layer.
+- A lesson the member can't open ("Coming soon", hidden) shows no comments.
+- Lessons already upsert on their source key, so comments stay attached across migration re-runs.
+
+### Who can comment
+
+- **Members with current access to the course.** Admins can always read and comment. A per-course instructor list is a later option, if Ania wants non-admin helpers.
+- **Ended access: thread hidden**, matching lessons not opening after access ends. Alternative: visible but read-only.
+- **Instructor replies** carry an "Instructor" badge from `is_staff_reply`. Alternative: badge by current role at render time, which relabels old comments if a role changes.
+
+### Moderation
+
+- **Report**: any member can report a comment with a short reason; the author is never told who.
+- **Hide vs delete**: staff can hide (reversible, tombstone for members) or delete (soft delete). Both write the audit log (`docs/ACTIVITY_AND_AUDIT_LOG.md`): who, which comment, which action, why. Authors can delete their own.
+- **Rate limits** in the server action, not the client: 5 comments a minute and 30 an hour per member.
+- **Spam and links**: links render as plain links with `rel="nofollow noopener"`; a comment with more than two links is held for staff review (visible to its author only). No profanity filter in phase 1: reports and the queue cover it, and filters mangle writing talk ("kill your darlings"). Alternative: a blocklist that holds, never rejects.
+- Admin pages start with `requireAdminPage()` and staff actions with `requireAdminAction()` (`CLAUDE.md` "Admin Route Protection").
+
+### Safety of rendered text
+
+- **Store plain text, render as text.** No HTML and no Markdown in phase 1; React escapes it. Line breaks are kept; only `http(s)` URLs are auto-linked.
+- **Mentions** (phase 4): `@name` autocompletes through `EntitySearch` (`reuse-ui-components.md`) and is stored as a token holding the member id, resolved to the current display name at render, as Slack tokens are (`lib/chat/names.ts`). Only people with access to the course can be mentioned; a mention is a notification.
+- **Escaping lessons from `CLAUDE.md`**: store text as typed, escape only where a target needs it (Slack: `&`, `<`, `>`), never decode on display. Tests use a name containing `&` and `<`, so a literal `&amp;` on screen fails.
+- Comment text never goes into analytics events, logs or Sentry (`docs/ANALYTICS.md`).
+
+### Notifications
+
+Every event is a registry kind sent through `createNotifier` (`lib/notifications/registry.ts`, `sampleMessages` in `lib/notification-test.ts`, an email template in `emails/notifications/`):
+- **`lesson_comment_reply`**: someone replied to my comment. Immediate; in-app and Slack on by default, email off.
+- **`lesson_comment_instructor_reply`**: an instructor replied to me. A distinct kind so a member can mute others' replies but keep instructors'.
+- **`lesson_comment_activity`**: new comments on a lesson I follow. **Daily digest**, opt-in through a "Follow" button, so a busy lesson can't spam.
+- **Staff** get new top-level questions in the admin queue and an instructor digest, not a DM per comment.
+- Links go to the exact comment (`/courses/<slug>/lessons/<id>?comment=<cmt_...>`, which scrolls to and highlights it). Not time-sensitive; no link previews. Check the link with the test message (`/admin/notifications`).
+- **Rollout**: a new automated sender starts in dry run. A `lesson_comment_notifications` flag with `liveFor` (as in `lib/member-reminders.ts`) logs member id, kind, channels and message and writes no dedup row; then widen: Cody, then staff, then everyone. A member with no reachable channel doesn't consume a dedup claim.
+- Opening the thread calls `resolveInAppNotifications` for its notifications.
+
+### UI
+
+- **Where**: a "Comments (N)" section below the downloads on the lesson page, composer first, top-level comments newest first (a new question is seen), replies oldest first. Alternative: a tab beside the outline, which hides comments on mobile.
+- **Layout** follows `CLAUDE.md`: a `@container` wrapper and mobile-first styles, no viewport breakpoints inside the content area, check widths either side of each breakpoint. Nothing `fixed` inside an `@container` ancestor.
+- **Components**: a shared `CommentThread` in `components/courses/` with a component test; `EntitySearch` for mentions; the existing avatar and relative-time pieces.
+- **Accessibility**: a labelled region; the composer has a visible label and a polite character counter; a new comment is announced via `aria-live`; all actions are real buttons reachable by keyboard; focus returns to the composer after posting; tombstones read "Comment removed".
+- **Empty state**: "No questions yet. Stuck on something in this lesson? Ask here."
+- **Video timestamps** ("at 3:42"): not in phase 1. Useful for questions, but needs a `video_seconds` column and a player seek hook. Add later if Ania mostly teaches through video.
+- Relative dates with the full date on hover, in the viewer's zone (`dates-and-timezones.md`).
+- In sudo the thread shows with the composer disabled ("Read-only while previewing").
+
+### Analytics
+
+Declared in `lib/analytics/events.ts` with no names, emails or text as properties; posting wrapped with `withAction`:
+- `lesson_comment_posted` (`course_id`, `is_reply`, `has_mention`, `is_staff`), `lesson_comment_edited`, `lesson_comment_deleted`, `lesson_comment_reported`, `lesson_comments_viewed` (`course_id`, a count bucket), `lesson_follow_toggled`; notifications are tagged by `createNotifier`.
+- **Funnel** in `lib/analytics/funnels.ts`: lesson viewed, comments seen, comment posted, instructor replied. Admin measures: share of lessons with a question, median time to an instructor reply, share of questions answered within 48 hours.
+
+### Admin view
+
+Under `/admin/courses/<id>/comments`, every page starting with `requireAdminPage()`:
+- **Unanswered questions** (the likely reason Ania asked): top-level comments with no staff reply, oldest first, per course and lesson, linking to the thread, with "Mark handled" for comments that need no answer.
+- **Moderation queue**: open reports and held comments with Hide, Delete and Dismiss, each audited.
+- **Per-lesson counts** (total, unanswered) beside the course outline for staff, using `SortableTh` and `DataTablePager`.
+- Staff answer on the lesson page itself; the admin view only finds work.
+
+### Kajabi migration
+
+Kajabi comments, if any exist, are **not imported**: we don't rely on an API for them, mapping authors would have no consent trail, and The Ready Writer starts fresh in the Hub like progress does. Say so in the launch announcement. The tables are Local, so the reprocess pipeline never touches them.
+
+### Privacy and retention
+
+- When a member leaves, their comments stay for the thread's sake but show as "Former member" with no profile link after 90 days. On a deletion request the author and text are cleared and replies keep a tombstone.
+- Deleted comments keep their text 30 days (staff undo, report evidence), then a retention job clears `body`. Reports, follows and reads are deleted with the member.
+- The privacy page and data export list lesson comments. Comments are visible to course members and staff only, never public or indexed, and admins can read them (no break-glass); say so under the composer.
+
+### Phased build plan
+
+1. **Read, post, reply (smallest useful):** `lesson_comments`, RLS, pgTAP, the thread on the lesson page, plain text, one-level replies, edit window, delete own, rate limit, a `lesson_comments` feature flag, analytics events, the unanswered-questions admin list.
+2. **Moderation:** reports, hide/delete by staff with the audit log, the queue, held-link review.
+3. **Notifications:** follows, reply and instructor-reply kinds in dry run then live, the follow digest, unread counts.
+4. **Polish:** mentions, video timestamps, instructor list, counts in the outline, Realtime updates.
+
+### Tests it will need
+
+- `supabase/tests/database/lesson_comments.test.sql` (pgTAP): access-gated read, own-row writes, no anon access, ended access sees nothing, grants (fails without them).
+- A repository contract suite run against the Supabase class and the in-memory twin, including more than 1,000 rows.
+- Server action tests: unauthenticated, no access, ended access, sudo blocked, rate limit, edit window, length, `&` and `<` in text and names.
+- Component tests for the thread (empty state, reply, tombstone, disabled in sudo, keyboard use) and page tests under `tests/components/pages/`.
+- Admin auth coverage (`tests/components/pages/admin-auth.test.tsx`), notification kind and `sampleMessages` tests, a dry-run `liveFor` test, analytics declarations, and a retention-job test across a day boundary with the fake clock.
+
+### Open questions for the user
+
+1. **Ended access:** hide the thread (recommended, consistent with lessons not opening) or keep it read-only?
+2. **Id prefix:** approve a Tier 1 `cmt_` prefix for comments (recommended, since notification links expose the id)?
+3. **Instructors:** admins only to start (recommended), or a per-course instructor list from day one?
+4. **Mentions and video timestamps:** both after the first release (recommended), or one in phase 1?
+5. **Notification defaults:** direct and instructor replies on in Slack and in-app, follow digest opt-in, email off (recommended). Right?
+6. **Moderation:** hold comments with more than two links for review and no profanity filter (recommended), or add a blocklist?
 
 ## Timeline (two-week target)
 
