@@ -41,6 +41,11 @@ describe("updateTimezonePreference", () => {
     makeSupabase();
     expect(await updateTimezonePreference("Europe/Dublin")).toEqual({ error: "Not authenticated" });
   });
+
+  it("returns the database's message when the save fails", async () => {
+    makeSupabase({ message: "db down" });
+    expect(await updateTimezonePreference("Europe/Dublin")).toEqual({ error: "db down" });
+  });
 });
 
 describe("updateSecondaryTimezone", async () => {
@@ -65,5 +70,10 @@ describe("updateSecondaryTimezone", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
     makeSupabase();
     expect(await updateSecondaryTimezone("America/New_York")).toEqual({ error: "Not authenticated" });
+  });
+
+  it("returns the database's message when the save fails", async () => {
+    makeSupabase({ message: "db down" });
+    expect(await updateSecondaryTimezone("America/New_York")).toEqual({ error: "db down" });
   });
 });
