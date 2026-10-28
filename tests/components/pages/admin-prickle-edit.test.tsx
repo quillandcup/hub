@@ -34,10 +34,9 @@ vi.mock("@/lib/data/repos", async () => ({
 
 // A minimal stand-in for the table the action touches: what is saved for the calendar event now, and what is written.
 let decision: Record<string, unknown> | null;
-let summaries: Record<string, string>;
+let dataset: InMemoryDataset;
 let writes: { op: string; row: unknown }[];
 const supabase = {
-  schema: () => ({ from: () => ({ select: () => ({ eq: (_c: string, id: string) => ({ maybeSingle: async () => ({ data: summaries[id] ? { summary: summaries[id] } : null }) }) }) }) }),
   from: () => ({
     select: () => ({
       eq: (_c: string, _id: string) => ({
@@ -70,17 +69,23 @@ const read = async () => (await repos.prickles.byId("p1"))!;
 beforeEach(() => {
   admin = true;
   decision = null;
-  summaries = { [CAL]: "HEDGIE HOUSE BOOK FAIR INTRO!" };
   writes = [];
   reprocess.mockClear();
   syncEvent.mockClear();
-  repos = createInMemoryRepos(
-    new InMemoryDataset({
-      members: [{ id: HOST, name: "Julie Example" }],
-      prickleTypes: [type(TYPE_A, "Hedgie-A-Thon"), type(TYPE_B, "Book Fair")],
-      prickles: [prickle("p1", CAL), prickle("p2", null)] as never,
-    }),
-  );
+  dataset = new InMemoryDataset({
+    // The Bronze calendar item the first prickle follows, whose summary a decision records.
+    calendarEvents: [
+      {
+        id: CAL, google_event_id: "g-cal", summary: "HEDGIE HOUSE BOOK FAIR INTRO!", description: null, location: null, raw_data: {},
+        start_time: "2097-03-03T15:00:00Z", end_time: "2097-03-03T16:00:00Z",
+        creator_email: null, creator_name: null, organizer_email: null, organizer_name: null, imported_at: null,
+      },
+    ],
+    members: [{ id: HOST, name: "Julie Example" }],
+    prickleTypes: [type(TYPE_A, "Hedgie-A-Thon"), type(TYPE_B, "Book Fair")],
+    prickles: [prickle("p1", CAL), prickle("p2", null)] as never,
+  });
+  repos = createInMemoryRepos(dataset);
 });
 
 describe("updatePrickle", () => {
@@ -159,7 +164,7 @@ describe("updatePrickle", () => {
   });
 
   it("changes nothing when the calendar event is gone, since the change wouldn't last", async () => {
-    summaries = {};
+    dataset.calendarEvents = [];
 
     expect(await updatePrickle("p1", { title: "New" })).toEqual({ error: "The calendar event is gone, so the change wouldn't last" });
     expect((await read()).title).toBe("Book Fair Intro");

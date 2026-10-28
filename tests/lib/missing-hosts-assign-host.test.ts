@@ -22,7 +22,6 @@ let admin = true;
 let decisions: Record<string, unknown>[];
 let failInsertFor: string | null;
 const supabase = {
-  schema: () => ({ from: () => ({ select: () => ({ eq: (_c: string, id: string) => ({ maybeSingle: async () => ({ data: { summary: `Event ${id}` } }) }) }) }) }),
   from: () => ({
     select: () => ({ eq: async (_c: string, id: string) => ({ data: decisions.filter((d) => d.calendar_event_id === id).map((d) => ({ id: d.calendar_event_id })), error: null }) }),
     update: (row: Record<string, unknown>) => ({
@@ -55,6 +54,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   repos = createInMemoryRepos(
     new InMemoryDataset({
+      // The Bronze calendar items the prickles follow, whose summaries a decision records.
+      calendarEvents: ["cal-1", "cal-2", "cal-3"].map((id) => ({
+        id, google_event_id: `g-${id}`, summary: `Event ${id}`, description: null, location: null, raw_data: {},
+        start_time: "2097-03-03T15:00:00Z", end_time: "2097-03-03T16:00:00Z",
+        creator_email: null, creator_name: null, organizer_email: null, organizer_name: null, imported_at: null,
+      })),
       members: [FORMER, { id: "mbr_AAAAAAAAAAA2", name: "Bea Example" }],
       prickleTypes: [TYPE],
       prickles: [prickle(1), prickle(2), prickle(3, "mbr_AAAAAAAAAAA2")],

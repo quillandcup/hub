@@ -70,30 +70,7 @@ export async function POST(request: NextRequest) {
     // STEP 1a: Fetch all calendar events that overlap the date range
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch events
     // that span across date boundaries
-    const FETCH_BATCH_SIZE = 1000;
-    let allEvents: any[] = [];
-    let offset = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data: batch, error: fetchError } = await supabase
-        .schema('bronze').from("calendar_events")
-        .select("*")
-        .lt("start_time", toDateTime)
-        .gt("end_time", fromDateTime)
-        .order("start_time")
-        .range(offset, offset + FETCH_BATCH_SIZE - 1);
-
-      if (fetchError) throw fetchError;
-
-      if (batch && batch.length > 0) {
-        allEvents = allEvents.concat(batch);
-        offset += batch.length;
-        hasMore = batch.length === FETCH_BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
+    const allEvents = await createRepos(supabase).calendarEvents.overlapping(fromDateTime, toDateTime);
 
     // STEP 1b: Load all reference data in parallel
     const [

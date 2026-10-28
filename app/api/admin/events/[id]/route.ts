@@ -110,12 +110,7 @@ export async function PATCH(
       updates.overridden_fields = overridden;
       if (follow.length > 0) {
         // A field left empty follows the calendar again: take its value from the calendar item as it is now.
-        const { data: source } = await supabase
-          .schema("bronze")
-          .from("calendar_events")
-          .select("summary, description, location, start_time, end_time")
-          .eq("id", current.calendar_event_id as string)
-          .maybeSingle();
+        const source = await createRepos(supabase).calendarEvents.byId(current.calendar_event_id as string).catch(() => null);
         const fromCalendar = source ? calendarEventFields(source) : null;
         for (const field of follow) {
           if (fromCalendar) (updates as Record<string, unknown>)[field] = fromCalendar[field];

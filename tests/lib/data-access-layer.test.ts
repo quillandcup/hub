@@ -42,6 +42,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_directory: [],
   // User profiles (ProfileRepository): every query is moved.
   user_profiles: [],
+  // The Bronze calendar (CalendarEventRepository): every query is moved.
+  calendar_events: [],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

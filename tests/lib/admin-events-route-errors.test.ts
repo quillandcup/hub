@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 
 const remove = vi.fn();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) }, schema: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: calendarSource, error: null }) }) }) }) }) } }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) } } }),
 }));
 
 let calendarSource: unknown = null;
@@ -21,7 +21,13 @@ const events = {
   attendeesOf: vi.fn(),
 };
 vi.mock("@/lib/data/repos", () => ({
-  createRepos: () => ({ events, badges: { typeForEvent: async () => null }, prickles: { byCalendarEventIds: async () => [] } }),
+  createRepos: () => ({
+    events,
+    badges: { typeForEvent: async () => null },
+    prickles: { byCalendarEventIds: async () => [] },
+    // The Bronze calendar item the event follows (the test sets `calendarSource`).
+    calendarEvents: { byId: async () => calendarSource },
+  }),
 }));
 vi.mock("@/lib/calendar-events", async () => ({
   ...(await vi.importActual<typeof import("@/lib/calendar-events")>("@/lib/calendar-events")),

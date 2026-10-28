@@ -221,13 +221,12 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
     return { ok: false, status: 500, error: (e as Error).message };
   }
 
-  const { data: source, error: sourceError } = await db
-    .schema("bronze")
-    .from("calendar_events")
-    .select("summary, description, location, start_time, end_time")
-    .eq("id", calendarEventId)
-    .maybeSingle();
-  if (sourceError) return { ok: false, status: 500, error: sourceError.message };
+  let source;
+  try {
+    source = await createRepos(db).calendarEvents.byId(calendarEventId);
+  } catch (e) {
+    return { ok: false, status: 500, error: (e as Error).message };
+  }
   if (!source) return { ok: false, status: 404, error: "Calendar event not found" };
 
   // The new event starts with its prickle type's audience (announced publicly, guests allowed), when it is a
@@ -381,12 +380,6 @@ export function matchTypeId(summary: string, types: MatchableType[]): string | n
 
 /** Brings the event that stands for this calendar event up to date with the calendar and its prickle, right now. */
 export async function syncCalendarEvent(db: Db, calendarEventId: string): Promise<void> {
-  const { data: source, error } = await db
-    .schema("bronze")
-    .from("calendar_events")
-    .select("id, summary, description, location, start_time, end_time")
-    .eq("id", calendarEventId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const source = await createRepos(db).calendarEvents.byId(calendarEventId);
   if (source) await syncCalendarEvents(db, [source]);
 }
