@@ -1,15 +1,12 @@
 /**
- * A course's hero image from Kajabi's admin (docs/COURSES.md, step B): the banner behind the course title.
- * It is not the thumbnail and Kajabi's public API doesn't return it. The admin product page loads data as JSON
- * (which request is not documented: a direct request to /api/admin/products/{id} never arrives), which
- * scripts/kajabi-course-content.ts searches from a logged-in session and
- * hands to this module. The field's name isn't documented, so the JSON is searched for an image URL under a
- * key that says hero, banner, cover or background (never the thumbnail), and the script prints which key it
- * used, or the image-like keys it saw, so a miss is easy to fix.
- *
- * The URL goes to the Bronze course row (`hero_image_url`, a column the API import never writes); processing
- * copies it to Silver and the course-images copy step stores our own copy. Re-running with the same URL
- * writes nothing.
+ * A course's hero image (docs/COURSES.md, step D, images): the banner behind the course title. It is not the
+ * thumbnail and neither Kajabi's public API nor the admin product page carries it (the banner is a background
+ * image on the member-facing course page; see docs/TODO.md, "Course Hero Image"), so nothing calls this by
+ * default. `scripts/kajabi-course-content.ts --hero` is an experimental caller that searches the JSON the admin
+ * product page loads. `findCourseHero` looks for an image URL under a key that says hero, banner, cover or
+ * background (never the thumbnail); `saveCourseHero` records it on the Bronze course row (`hero_image_url`, a
+ * column the API import never writes); processing copies it to Silver and the course-images copy step stores
+ * our own copy. Re-running with the same URL writes nothing.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";

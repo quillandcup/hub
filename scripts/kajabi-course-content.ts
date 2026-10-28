@@ -8,7 +8,8 @@
  * editor and records the two responses it loads. The script never sees or stores a password or a
  * token; the login lives in the browser profile directory.
  *
- * It also records each course's hero banner (the image behind the course title, from the admin product JSON).
+ * With --hero it also looks for the course's hero banner (the image behind the course title). That is experimental and
+ * finds nothing today: the admin product page doesn't carry it; the banner is on the member-facing course page.
  *
  * Run step A (/api/import/kajabi-courses) first: this only fills in lessons Bronze already has.
  *
@@ -248,7 +249,7 @@ async function main() {
     );
     await ensureLoggedIn(context);
 
-    for (const courseId of new Set(lessons.map((l) => l.course_kajabi_id))) await captureHero(context, courseId);
+    if (args.hero) for (const courseId of new Set(lessons.map((l) => l.course_kajabi_id))) await captureHero(context, courseId);
 
     const queue = [...lessons];
     const run = async () => {

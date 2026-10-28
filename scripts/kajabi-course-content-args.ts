@@ -9,6 +9,8 @@ export interface ContentArgs {
   apply: boolean;
   /** Drafts are captured by default (staff can preview them); this leaves them out. */
   skipDrafts: boolean;
+  /** Also look for the course's hero banner on its admin product page. Off by default: it isn't there (docs/TODO.md, "Course Hero Image"). */
+  hero: boolean;
   concurrency: number;
   headless: boolean;
   /** Browser profile directory, so the Kajabi login survives between runs. */
@@ -24,6 +26,7 @@ export const CONTENT_USAGE = [
   "  --apply         write to the database (default: capture and report only)",
   "  --env           env file with the Supabase URL and service role key (default .env.local)",
   "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
+  "  --hero          also look for the course's hero banner (experimental; the admin product page doesn't carry it)",
   "  --concurrency   lessons captured at once (default 2, max 5)",
   "  --headless      no browser window (only once the saved login is still valid)",
   "  --profile       browser profile directory (default ~/.hub-kajabi-profile)",
@@ -31,7 +34,7 @@ export const CONTENT_USAGE = [
 
 const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile"] as const;
 // include-drafts is the old opt-in, now the default; still accepted so existing commands keep working.
-const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless"] as const;
+const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero"] as const;
 
 export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
   const values: Partial<Record<(typeof VALUE_FLAGS)[number], string>> = {};
@@ -74,6 +77,7 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     envFile: values.env ?? ".env.local",
     apply: flags.has("apply"),
     skipDrafts: flags.has("skip-drafts"),
+    hero: flags.has("hero"),
     concurrency,
     headless: flags.has("headless"),
     profileDir: values.profile ?? null,
