@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
+import { createRepos } from "@/lib/data/repos";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { loadChatChannels, type ChannelSummary } from "@/lib/chat/load";
@@ -26,12 +27,11 @@ export async function getSearcher(): Promise<Searcher | null> {
   if (!user) return null;
   // Every lookup that doesn't depend on another runs together: this is on the path of each keystroke.
   const supabase = await createClient();
-  const [features, { data: profile }, identity] = await Promise.all([
+  const [features, isAdmin, identity] = await Promise.all([
     getUserFeaturePreviews(user.id),
-    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
+    createRepos(supabase).profiles.isAdmin(user.id),
     getEffectiveIdentity(user),
   ]);
-  const isAdmin = profile?.role === "admin";
   const isSudo = identity?.isSudo ?? false;
 
   // Chat follows the viewed member's own chat flag, like the chat pages (lib/chat/access.ts).

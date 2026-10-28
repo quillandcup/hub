@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
 import { ADMIN_NO_ACCESS_PATH } from "@/lib/admin-paths";
 
@@ -33,13 +34,7 @@ export const requireAdminPage = cache(async (): Promise<AuthUser> => {
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profile?.role !== "admin") redirect(ADMIN_NO_ACCESS_PATH);
+  if (!(await createRepos(supabase).profiles.isAdmin(user.id))) redirect(ADMIN_NO_ACCESS_PATH);
 
   return user;
 });
@@ -66,12 +61,6 @@ export async function requireAdminAction(): Promise<AdminActionAuth> {
   if (!user) return { ok: false, error: "Not authenticated" };
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profile?.role !== "admin") return { ok: false, error: "Not authorized" };
+  if (!(await createRepos(supabase).profiles.isAdmin(user.id))) return { ok: false, error: "Not authorized" };
   return { ok: true, user, supabase };
 }

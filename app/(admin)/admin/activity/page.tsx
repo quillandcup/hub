@@ -45,18 +45,18 @@ export default async function ActivityLogPage({
   const filters = parseFeedFilters(params);
   const supabase = await createClient();
 
-  const [feed, members, { data: profiles }] = await Promise.all([
+  const [feed, members, profiles] = await Promise.all([
     fetchActivityFeed(supabase, {
       ...filters,
       page: parsePageParam(params.page),
       pageSize: parsePageSizeParam(params.pageSize),
     }).then(async (page) => ({ ...page, rows: await withReactionEmoji(page.rows) })),
     loadMembers(supabase),
-    supabase.from("user_profiles").select("id, email, role").in("role", ["admin", "assistant"]).order("email"),
+    createRepos(supabase).profiles.staff(),
   ]);
 
   const nameByUserId = new Map(members.filter((m) => m.user_id).map((m) => [m.user_id!, m.name]));
-  const staff: StaffUser[] = (profiles ?? []).map((p) => ({
+  const staff: StaffUser[] = profiles.map((p) => ({
     id: p.id,
     name: nameByUserId.get(p.id) ?? p.email,
     email: p.email,
@@ -66,11 +66,7 @@ export default async function ActivityLogPage({
   // The actor filter can also be a non-staff user (clicked from a member's row).
   let actorName: string | null = null;
   if (filters.actorUserId && !staff.some((s) => s.id === filters.actorUserId)) {
-    const { data: actor } = await supabase
-      .from("user_profiles")
-      .select("email")
-      .eq("id", filters.actorUserId)
-      .maybeSingle();
+    const actor = await createRepos(supabase).profiles.byId(filters.actorUserId);
     actorName = nameByUserId.get(filters.actorUserId) ?? actor?.email ?? "Unknown user";
   }
 

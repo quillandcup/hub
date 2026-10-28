@@ -15,10 +15,8 @@ vi.mock("@/lib/data/repos", async () => ({
 
 const uploadMock = vi.fn();
 const downloadMock = vi.fn();
-const roleMock = vi.fn();
 const supabase = {
   storage: { from: () => ({ upload: uploadMock, download: downloadMock }) },
-  from: () => ({ select: () => ({ eq: () => ({ single: roleMock }) }) }),
 };
 let auth: { user: { id: string } | null; forbidden?: boolean; supabase: typeof supabase } = { user: { id: "admin" }, supabase };
 vi.mock("@/lib/supabase/api-auth", () => ({
@@ -181,10 +179,10 @@ describe("GET /api/events/[eventId]/photos/[photoId]", () => {
     dataset.eventPhotos[0].hidden_at = "2097-01-02T00:00:00Z";
 
     auth = { user: { id: "u1" }, supabase };
-    roleMock.mockResolvedValue({ data: { role: "member" } });
+    dataset.userProfiles = [{ id: "u1", email: "u1@example.test", role: "member" }];
     expect((await call()).status).toBe(404);
 
-    roleMock.mockResolvedValue({ data: { role: "admin" } });
+    dataset.userProfiles[0].role = "admin";
     expect((await call()).status).toBe(200);
 
     auth = { user: { id: "service-role" }, supabase };

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { createRepos } from "@/lib/data/repos";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { createClient } from "@/lib/supabase/server";
@@ -27,11 +28,11 @@ export async function getCoursesCaller(): Promise<CoursesCaller | null> {
   const [identity, ownFeatures, profile] = await Promise.all([
     getEffectiveIdentity(user),
     getUserFeaturePreviews(user.id),
-    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
+    createRepos(supabase).profiles.isAdmin(user.id),
   ]);
   if (!identity) return null;
   if (!(await effectiveMemberHasFeature("courses", identity, ownFeatures))) return null;
-  const isAdmin = profile.data?.role === "admin";
+  const isAdmin = profile;
   return {
     userId: user.id,
     identity,

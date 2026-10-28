@@ -29,11 +29,7 @@ export async function GET(
 
   if (photo.hidden_at) {
     const isPrivileged = user.id === "service-role" || user.id === "cron";
-    const isAdmin =
-      isPrivileged ||
-      (
-        await supabase.from("user_profiles").select("role").eq("id", user.id).single()
-      ).data?.role === "admin";
+    const isAdmin = isPrivileged || (await createRepos(supabase).profiles.isAdmin(user.id));
     if (!isAdmin) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -69,8 +69,7 @@ async function namesOf(memberIds: string[]): Promise<Map<string, string>> {
 
 async function isStaff(caller: ChatCaller): Promise<boolean> {
   const supabase = await createClient();
-  const { data } = await supabase.from("user_profiles").select("role").eq("id", caller.userId).single();
-  return data?.role === "admin";
+  return createRepos(supabase).profiles.isAdmin(caller.userId);
 }
 
 /** Put people in the conversation here (after Slack agreed). A member who left and returns is back, not added twice. */

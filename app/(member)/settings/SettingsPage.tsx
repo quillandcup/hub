@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
@@ -32,8 +33,8 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   if (!user) return null;
 
   const supabase = await createClient();
-  const [{ data: profile }, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
-    supabase.from("user_profiles").select("timezone_preference, secondary_timezone, role").eq("id", user.id).single(),
+  const [profile, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
+    createRepos(supabase).profiles.byId(user.id).catch(() => null),
     getEffectiveIdentity(user),
     getHostedVibes(),
     getNotificationSettings(),

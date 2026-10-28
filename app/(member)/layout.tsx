@@ -1,5 +1,6 @@
 import { BrowserPushAccountGuard } from "@/components/BrowserPushAccountGuard";
 import { createClient } from '@/lib/supabase/server'
+import { createRepos } from '@/lib/data/repos'
 import { getCurrentUser } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { getEffectiveIdentity } from '@/lib/sudo'
@@ -36,11 +37,8 @@ export default async function MemberLayout({
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('role, timezone_preference, secondary_timezone')
-    .eq('id', user.id)
-    .single()
+  // A failed read leaves the defaults (a member, the browser's time zone), as it always has.
+  const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null)
 
   const isAdmin = profile?.role === 'admin'
   const storedTimezone = profile?.timezone_preference ?? 'browser'

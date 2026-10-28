@@ -68,7 +68,12 @@ const prickle = (extra: object = {}) => ({
   startTime: "2097-03-03T15:00:00Z", endTime: "2097-03-03T16:00:00Z", ...extra,
 });
 const dataset = (prickles: object[], attendance: object[] = [], events: object[] = []) =>
-  createInMemoryRepos(new InMemoryDataset({ members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never }));
+  createInMemoryRepos(new InMemoryDataset({
+    userProfiles: [
+      { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
+      { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
+    ],
+    members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never }));
 const memberProps = { params: Promise.resolve({ id: "prkl_AAAAAAAAAAA1" }) };
 
 beforeEach(() => {

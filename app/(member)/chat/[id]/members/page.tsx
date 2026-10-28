@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireChat } from "@/lib/chat/access";
 import { isId } from "@/lib/ids";
 import { loadChannelForMember, loadChannelMembers } from "@/lib/chat/load";
@@ -33,7 +34,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   const [people, features, profile, bridge] = await Promise.all([
     loadChannelMembers(supabase, channel.id),
     getUserFeaturePreviews(user.id),
-    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
+    createRepos(supabase).profiles.isAdmin(user.id),
     supabase.from("chat_channels").select("bridge_mode, bridge_disabled, bridge_status").eq("id", channel.id).maybeSingle(),
   ]);
   const abilities = membershipAbilities({
@@ -43,7 +44,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
     joined: channel.joined,
     postingOn: await effectiveMemberHasFeature("chat_posting", identity, features),
     isSudo: identity.isSudo,
-    isStaff: profile.data?.role === "admin",
+    isStaff: profile,
     bridge: bridge.data ?? null,
     slackChannelId: channel.slackChannelId,
   });

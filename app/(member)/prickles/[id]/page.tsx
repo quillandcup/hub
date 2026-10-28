@@ -67,14 +67,14 @@ export default async function PrickleDetailPage({
   }
 
   const [profileResult, effectiveIdentity, prickle, calendarItems, myPrickleEntries, myCheckin] = await Promise.all([
-    supabase.from("user_profiles").select("role").eq("id", user.id).single(),
+    createRepos(supabase).profiles.isAdmin(user.id),
     getEffectiveIdentity(user),
     getPrickle(id),
     getMyCalendarItems(),
     getMyEntriesForPrickle(id),
     getMyCheckin(id),
   ]);
-  const isAdmin = profileResult.data?.role === "admin";
+  const isAdmin = profileResult;
   const isActingAsAdmin = isAdmin && !effectiveIdentity?.isSudo;
   const memberBasePath = isActingAsAdmin ? "/admin/members" : "/members";
   const backHref = isActingAsAdmin ? "/admin/calendar" : "/my-prickles/history";

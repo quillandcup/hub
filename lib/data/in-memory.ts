@@ -6,6 +6,7 @@ import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
+import type { UserProfileSeed } from "./profiles";
 import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
@@ -71,6 +72,8 @@ export class InMemoryDataset {
   writingBalances: WritingBalanceRow[];
   /** The member activity log. */
   activities: ActivityRow[];
+  /** Signed-in users' profiles (role, time zones), keyed by Supabase Auth user id. */
+  userProfiles: UserProfileSeed[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -79,7 +82,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles">
 
     > = {},
   ) {
@@ -104,6 +107,7 @@ export class InMemoryDataset {
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
     this.writingBalances = (init.writingBalances ?? []).map((row) => ({ ...row }));
     this.activities = (init.activities ?? []).map((row) => ({ ...row }));
+    this.userProfiles = (init.userProfiles ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

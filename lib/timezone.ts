@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { isValidTimeZone } from "@/lib/time-zone";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -19,11 +20,7 @@ export const getUserTimezonePreference = cache(async (): Promise<string> => {
   }
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("timezone_preference")
-    .eq("id", user.id)
-    .single();
+  const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null);
 
   return profile?.timezone_preference || "browser";
 });
@@ -37,11 +34,7 @@ export const getUserSecondaryTimezone = cache(async (): Promise<string | null> =
   if (!user) return null;
 
   const supabase = await createClient();
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("secondary_timezone")
-    .eq("id", user.id)
-    .single();
+  const profile = await createRepos(supabase).profiles.byId(user.id).catch(() => null);
 
   return isValidTimeZone(profile?.secondary_timezone) ? profile.secondary_timezone : null;
 });

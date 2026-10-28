@@ -31,7 +31,7 @@ export async function PATCH(
   const tasks: PromiseLike<unknown>[] = [];
 
   if (role !== undefined) {
-    tasks.push(supabase.from("user_profiles").update({ role }).eq("id", id));
+    tasks.push(createRepos(supabase).profiles.setRole(id, role).catch((error) => console.error("Updating the role failed:", error)));
   }
 
   if (features !== undefined) {
