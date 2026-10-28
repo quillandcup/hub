@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import {
   deletePickerSession,
@@ -38,15 +39,14 @@ export async function POST(
     return NextResponse.json({ error: error.message || "Failed to list picked photos" }, { status: 502 });
   }
 
-  const { data: existingRows, error: existingError } = await supabase
-    .from("event_photos")
-    .select("google_media_item_id")
-    .eq("event_id", id);
-  if (existingError) {
-    console.error("Error checking already-imported photos:", existingError);
-    return NextResponse.json({ error: existingError.message }, { status: 500 });
+  const events = createRepos(supabase).events;
+  let existingIds: Set<string>;
+  try {
+    existingIds = await events.importedPhotoIds(id);
+  } catch (error: any) {
+    console.error("Error checking already-imported photos:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  const existingIds = new Set((existingRows || []).map((r) => r.google_media_item_id));
   const { batch } = planImportBatch(allPicked, existingIds, BATCH_SIZE);
 
   const results = await Promise.all(
@@ -62,7 +62,7 @@ export async function POST(
         const width = item.mediaFile.mediaFileMetadata?.width ? parseInt(item.mediaFile.mediaFileMetadata.width, 10) : null;
         const height = item.mediaFile.mediaFileMetadata?.height ? parseInt(item.mediaFile.mediaFileMetadata.height, 10) : null;
 
-        const { error: insertError } = await supabase.from("event_photos").insert({
+        await events.addPhoto({
           event_id: id,
           storage_path: storagePath,
           google_media_item_id: item.id,
@@ -71,7 +71,6 @@ export async function POST(
           mime_type: item.mediaFile.mimeType,
           taken_at: item.createTime || null,
         });
-        if (insertError) throw insertError;
         return { ok: true as const };
       } catch (error: any) {
         console.error(`Error importing photo ${item.id}:`, error);

@@ -54,9 +54,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   event_photos: [
     "app/(member)/events/[slug]/page.tsx",
     "app/api/admin/events/[id]/route.ts",
-    "app/api/admin/events/[id]/photos/[photoId]/route.ts",
-    "app/api/admin/events/[id]/photos/import/commit/route.ts",
-    "app/api/events/[eventId]/photos/[photoId]/route.ts",
     "lib/calendar-events.ts",
   ],
   // Aliases: every name and email alias query is on AliasRepository.

@@ -4,7 +4,7 @@ import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
-import type { EventRow } from "./events";
+import type { EventPhotoRow, EventRow } from "./events";
 import type { Prickle, PrickleType } from "./prickles";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
@@ -65,10 +65,12 @@ export class InMemoryDataset {
   writingGoals: WritingGoalRow[];
   writingEntries: WritingEntryRow[];
   writingBalances: WritingBalanceRow[];
+  // --- event photos ---
+  eventPhotos: EventPhotoRow[];
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -89,5 +91,6 @@ export class InMemoryDataset {
     this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
     this.writingBalances = (init.writingBalances ?? []).map((row) => ({ ...row }));
+    this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
   }
 }
