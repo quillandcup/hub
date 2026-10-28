@@ -71,28 +71,21 @@ export async function getMySchedules(): Promise<MyScheduleRow[]> {
     await seedNextMonthSchedules(supabase, currentMonth, nextMonth);
   }
 
-  const { data } = await supabase
-    .from("prickle_schedules")
-    .select("*, prickle_types(name)")
-    .eq("host_id", effectiveIdentity.memberId)
-    .in("month", [currentMonth, nextMonth])
-    .is("deleted_at", null)
-    .order("month")
-    .order("created_at");
+  const rows = await createRepos(supabase).prickleSchedules.ofHostInMonths(effectiveIdentity.memberId, [currentMonth, nextMonth]);
 
-  return (data ?? []).map((row: any) => ({
+  return rows.map((row) => ({
     id: row.id,
     typeId: row.type_id,
-    typeName: row.prickle_types?.name ?? "Prickle",
+    typeName: row.typeName ?? "Prickle",
     month: row.month,
-    recurrenceType: row.recurrence_type,
+    recurrenceType: row.recurrence_type as RecurrenceType,
     dayOfWeek: row.day_of_week,
     recurrenceAnchorDate: row.recurrence_anchor_date,
     weekOfMonth: row.week_of_month,
     eventDate: row.event_date,
     startTimeLocal: row.start_time_local,
     timezone: row.timezone,
-    status: row.status,
+    status: row.status as MyScheduleRow["status"],
     notes: row.notes,
     carriedForwardFrom: row.carried_forward_from,
   }));
@@ -137,16 +130,9 @@ async function selfServeHostingBlock(
   };
   if (eligibility.eligible) return null;
 
-  const [hostedCount, { count: confirmedCount }] = await Promise.all([
-    createRepos(supabase).prickles.countHostedBy(memberId),
-    supabase
-      .from("prickle_schedules")
-      .select("id", { count: "exact", head: true })
-      .eq("host_id", memberId)
-      .eq("status", "confirmed")
-      .is("deleted_at", null),
-  ]);
-  if (hostedCount > 0 || (confirmedCount ?? 0) > 0) return null;
+  const repos = createRepos(supabase);
+  const [hostedCount, confirmedCount] = await Promise.all([repos.prickles.countHostedBy(memberId), repos.prickleSchedules.confirmedCountOf(memberId)]);
+  if (hostedCount > 0 || confirmedCount > 0) return null;
 
   return hostEligibilityMessage(eligibility);
 }
@@ -194,16 +180,10 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
   const monthEnd = getMonthEnd(monthStart);
   const rangeEnd = new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000);
 
-  const [monthPrickles, { data: scheduleRows }] = await Promise.all([
-    createRepos(supabase).prickles.startingBetween({ from: monthStart.toISOString(), to: rangeEnd.toISOString() }),
-    supabase
-      .from("prickle_schedules")
-      .select(
-        "id, recurrence_type, day_of_week, recurrence_anchor_date, week_of_month, event_date, start_time_local, timezone, status, prickle_types(name), member:schedule_host(name, display_name)"
-      )
-      .eq("month", month)
-      .in("status", ["proposed", "confirmed"])
-      .is("deleted_at", null),
+  const repos = createRepos(supabase);
+  const [monthPrickles, scheduleRows] = await Promise.all([
+    repos.prickles.startingBetween({ from: monthStart.toISOString(), to: rangeEnd.toISOString() }),
+    repos.prickleSchedules.slotsOfMonth(month),
   ]);
 
   const prickles: HostingCalendarPrickle[] = monthPrickles.map((p) => ({
@@ -216,10 +196,10 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
   }));
 
   const proposedSlots: HostingProposedSlot[] = [];
-  for (const row of (scheduleRows ?? []) as any[]) {
+  for (const row of scheduleRows) {
     const dates = generateScheduleInstanceDates(
       {
-        recurrenceType: row.recurrence_type,
+        recurrenceType: row.recurrence_type as RecurrenceType,
         dayOfWeek: row.day_of_week,
         recurrenceAnchorDate: row.recurrence_anchor_date,
         weekOfMonth: row.week_of_month,
@@ -236,10 +216,10 @@ export async function getHostingCalendarContext(month: string): Promise<HostingC
       const end = new Date(start.getTime() + DEFAULT_SLOT_DURATION_MINUTES * 60000);
       proposedSlots.push({
         id: `${row.id}-${dateStr}`,
-        label: `${row.prickle_types?.name ?? "Prickle"} — ${row.member ? getMemberDisplayName(row.member) : "a host"}`,
+        label: `${row.typeName ?? "Prickle"} — ${row.host ? getMemberDisplayName(row.host) : "a host"}`,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
-        status: row.status,
+        status: row.status as HostingProposedSlot["status"],
       });
     }
   }
@@ -302,23 +282,27 @@ async function requestToHostImpl(
   const eligibilityError = await selfServeHostingBlock(supabase, effectiveIdentity.memberId, new Date());
   if (eligibilityError) return { error: eligibilityError };
 
-  const { error } = await supabase.from("prickle_schedules").insert({
-    host_id: effectiveIdentity.memberId,
-    type_id: input.typeId,
-    month: input.month,
-    recurrence_type: input.recurrenceType,
-    day_of_week: input.dayOfWeek ?? null,
-    recurrence_anchor_date: input.recurrenceAnchorDate ?? null,
-    week_of_month: input.weekOfMonth ?? null,
-    event_date: input.eventDate ?? null,
-    start_time_local: input.startTimeLocal,
-    timezone: input.timezone || DEFAULT_TIMEZONE,
-    notes: input.notes?.trim() || null,
-    status: "proposed",
-    updated_by: user.id,
-  });
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).prickleSchedules.insert([
+      {
+        host_id: effectiveIdentity.memberId,
+        type_id: input.typeId,
+        month: input.month,
+        recurrence_type: input.recurrenceType,
+        day_of_week: input.dayOfWeek ?? null,
+        recurrence_anchor_date: input.recurrenceAnchorDate ?? null,
+        week_of_month: input.weekOfMonth ?? null,
+        event_date: input.eventDate ?? null,
+        start_time_local: input.startTimeLocal,
+        timezone: input.timezone || DEFAULT_TIMEZONE,
+        notes: input.notes?.trim() || null,
+        status: "proposed",
+        updated_by: user.id,
+      },
+    ]);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/my-prickles", "layout");
   return { success: true };
@@ -352,12 +336,8 @@ async function updateMyScheduleImpl(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const { data: existing } = await supabase
-    .from("prickle_schedules")
-    .select("id, host_id, month")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .single();
+  const schedules = createRepos(supabase).prickleSchedules;
+  const existing = await schedules.liveById(id);
 
   if (!existing || existing.host_id !== effectiveIdentity.memberId) {
     return { error: "Schedule not found" };
@@ -377,13 +357,11 @@ async function updateMyScheduleImpl(
   if (patch.timezone !== undefined) updates.timezone = patch.timezone;
   if (patch.notes !== undefined) updates.notes = patch.notes.trim() || null;
 
-  const { error } = await supabase
-    .from("prickle_schedules")
-    .update(updates)
-    .eq("id", id)
-    .eq("host_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await schedules.update(id, updates, { hostId: effectiveIdentity.memberId });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/my-prickles", "layout");
   return { success: true };
@@ -399,12 +377,8 @@ async function withdrawMyScheduleImpl(id: string): Promise<{ success: true } | {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const { data: existing } = await supabase
-    .from("prickle_schedules")
-    .select("id, host_id, month")
-    .eq("id", id)
-    .is("deleted_at", null)
-    .single();
+  const schedules = createRepos(supabase).prickleSchedules;
+  const existing = await schedules.liveById(id);
 
   if (!existing || existing.host_id !== effectiveIdentity.memberId) {
     return { error: "Schedule not found" };
@@ -415,13 +389,11 @@ async function withdrawMyScheduleImpl(id: string): Promise<{ success: true } | {
     return { error: "This month is locked -- ask an admin to unlock it" };
   }
 
-  const { error } = await supabase
-    .from("prickle_schedules")
-    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
-    .eq("id", id)
-    .eq("host_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await schedules.update(id, { deleted_at: new Date().toISOString(), deleted_by: user.id }, { hostId: effectiveIdentity.memberId });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/my-prickles", "layout");
   return { success: true };

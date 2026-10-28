@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { createRepos } from "@/lib/data/repos";
+import type { Insert } from "@/lib/data/db";
 import type { PrickleDetail } from "@/lib/data/prickles";
 
 export type RecurrenceType = "weekly" | "biweekly" | "monthly" | "one_off";
@@ -340,18 +341,14 @@ export async function bootstrapMonthFromCalendar(
   const monthEnd = getMonthEnd(monthStart);
   const nextMonth = getNextMonthStart(monthStart).toISOString().slice(0, 10);
 
-  const [monthPrickles, { data: existingRows, error: existingError }] = await Promise.all([
-    createRepos(supabase).prickles.startingBetween({
+  const repos = createRepos(supabase);
+  const [monthPrickles, existingRows] = await Promise.all([
+    repos.prickles.startingBetween({
       from: monthStart.toISOString(),
       to: new Date(monthEnd.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     }),
-    supabase
-      .from("prickle_schedules")
-      .select("id, host_id, type_id, recurrence_type, day_of_week, week_of_month, status")
-      .eq("month", month)
-      .is("deleted_at", null),
+    repos.prickleSchedules.liveInMonth(month),
   ]);
-  if (existingError) throw new Error(existingError.message);
 
   const groups = new Map<string, { host_id: string; type_id: string; dates: Date[]; timeLocal: string }>();
   // Calendar prickles of a type that takes a host, with a host assigned; startingBetween is oldest first.
@@ -371,7 +368,7 @@ export async function bootstrapMonthFromCalendar(
     }
   }
 
-  const existing = (existingRows ?? []) as BootstrapExistingRow[];
+  const existing = existingRows as BootstrapExistingRow[];
   const existingByKey = new Map<string, BootstrapExistingRow[]>();
   for (const row of existing) {
     const key = continuationKey(row);
@@ -379,7 +376,7 @@ export async function bootstrapMonthFromCalendar(
   }
 
   const now = new Date().toISOString();
-  const toInsert: Record<string, unknown>[] = [];
+  const toInsert: Insert<"prickle_schedules">[] = [];
   const toConfirmIds: string[] = [];
   const calendarKeys = new Set<string>();
   let skippedExisting = 0;
@@ -435,18 +432,10 @@ export async function bootstrapMonthFromCalendar(
   };
   if (dryRun) return result;
 
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from("prickle_schedules").insert(toInsert);
-    if (error) throw new Error(error.message);
-  }
+  await repos.prickleSchedules.insert(toInsert);
 
   if (toConfirmIds.length > 0) {
-    const { error } = await supabase
-      .from("prickle_schedules")
-      .update({ status: "confirmed", confirmed_by: confirmedBy, confirmed_at: now, updated_by: confirmedBy, updated_at: now })
-      .in("id", toConfirmIds)
-      .eq("status", "proposed");
-    if (error) throw new Error(error.message);
+    await repos.prickleSchedules.confirmProposed(toConfirmIds, { confirmedBy, at: now });
     result.confirmedExisting = toConfirmIds.length;
   }
 
@@ -538,6 +527,7 @@ interface SeedableRow {
   start_time_local: string;
   timezone: string;
   notes: string | null;
+  status: string;
 }
 
 function continuationKey(row: Pick<SeedableRow, "host_id" | "type_id" | "recurrence_type" | "day_of_week" | "week_of_month">): string {
@@ -558,27 +548,17 @@ export async function seedNextMonthSchedules(
   fromMonth: string,
   toMonth: string
 ): Promise<number> {
-  const [{ data: fromRows }, { data: toRows }] = await Promise.all([
-    supabase
-      .from("prickle_schedules")
-      .select("id, host_id, type_id, recurrence_type, day_of_week, week_of_month, recurrence_anchor_date, start_time_local, timezone, notes")
-      .eq("month", fromMonth)
-      .eq("status", "confirmed")
-      .neq("recurrence_type", "one_off")
-      .is("deleted_at", null),
-    supabase
-      .from("prickle_schedules")
-      .select("host_id, type_id, recurrence_type, day_of_week, week_of_month")
-      .eq("month", toMonth)
-      .is("deleted_at", null),
-  ]);
+  const schedules = createRepos(supabase).prickleSchedules;
+  const [fromRows, toRows] = await Promise.all([schedules.liveInMonth(fromMonth), schedules.liveInMonth(toMonth)]);
 
-  const existingKeys = new Set((toRows ?? []).map((r) => continuationKey(r)));
-  const toInsert = ((fromRows ?? []) as SeedableRow[]).filter((r) => !existingKeys.has(continuationKey(r)));
+  const existingKeys = new Set(toRows.map((r) => continuationKey(r as SeedableRow)));
+  const toInsert = (fromRows as SeedableRow[]).filter(
+    (r) => r.status === "confirmed" && r.recurrence_type !== "one_off" && !existingKeys.has(continuationKey(r))
+  );
 
   if (toInsert.length === 0) return 0;
 
-  const { error } = await supabase.from("prickle_schedules").insert(
+  await schedules.insert(
     toInsert.map((r) => ({
       host_id: r.host_id,
       type_id: r.type_id,
@@ -595,6 +575,5 @@ export async function seedNextMonthSchedules(
     }))
   );
 
-  if (error) throw new Error(error.message);
   return toInsert.length;
 }

@@ -10,6 +10,7 @@ import { InMemoryNotificationRepository, SupabaseNotificationRepository, type No
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
 import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository } from "./events";
 import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
+import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -27,6 +28,7 @@ export interface Repos {
   aliases: AliasRepository;
   writing: WritingRepository;
   events: EventRepository;
+  prickleSchedules: PrickleScheduleRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -42,6 +44,7 @@ export function createRepos(db: Db): Repos {
     aliases: new SupabaseAliasRepository(db),
     writing: new SupabaseWritingRepository(db),
     events: new SupabaseEventRepository(db),
+    prickleSchedules: new SupabasePrickleScheduleRepository(db),
   };
 }
 
@@ -58,5 +61,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     aliases: new InMemoryAliasRepository(dataset),
     writing: new InMemoryWritingRepository(dataset),
     events: new InMemoryEventRepository(dataset),
+    prickleSchedules: new InMemoryPrickleScheduleRepository(dataset),
   };
 }
