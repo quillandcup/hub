@@ -35,9 +35,9 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   ]),
 }));
 vi.mock("@/app/(member)/events/EventsBrowser", () => ({
-  default: (props: { initialFilter: string; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; badge_icon?: string | null }[] }) => (
-    <div data-testid="browser">
-      {props.initialFilter}|{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
+  default: (props: { initialMonth: string; months: { id: string }[]; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; badge_icon?: string | null }[] }) => (
+    <div data-testid="browser" data-month={props.initialMonth} data-months={props.months.map((m) => m.id).join(",")}>
+      |{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
       <span data-testid="icons">{props.events.map((e) => e.badge_icon ?? "none").join(",")}</span>
       <span data-testid="covers">{props.events.map((e) => e.cover_photo_id ?? "none").join(",")}</span>
     </div>
@@ -62,9 +62,9 @@ beforeEach(() => {
 
 describe("member Events page", () => {
   it("hands the browser the events and the prickles of types listed in Events", async () => {
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101,Pitch Night|Spring Retreat");
+    expect(screen.getByTestId("browser")).toHaveTextContent("|Query Letters 101,Pitch Night|Spring Retreat");
   });
 
   it("uses an event's first visible photo as its cover", async () => {
@@ -92,9 +92,9 @@ describe("member Events page", () => {
   it("lists a prickle once: an event that follows its calendar event stands in for it", async () => {
     seed([{ id: "evnt_AAAAAAAAAAA2", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", calendar_event_id: "00000000-0000-4000-8000-00000000000a" }]);
 
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101|Pitch Night");
+    expect(screen.getByTestId("browser")).toHaveTextContent("|Query Letters 101|Pitch Night");
   });
 
   it("lists neither a hidden event nor the prickle it stands for", async () => {
@@ -103,9 +103,9 @@ describe("member Events page", () => {
       { id: "evnt_AAAAAAAAAAA4", slug: "spring-retreat", title: "Spring Retreat", event_type: "other", starts_at: "2097-04-01", ends_at: "2097-04-03" },
     ]);
 
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101|Spring Retreat");
+    expect(screen.getByTestId("browser")).toHaveTextContent("|Query Letters 101|Spring Retreat");
   });
 
   it("names an event with its speakers, the way members know it, and leaves an event with none as it is", async () => {
@@ -121,10 +121,14 @@ describe("member Events page", () => {
     expect(screen.getByTestId("browser")).toHaveTextContent("Progress Prickle with Jenn P,Book Fair,A Way to Make Money with Brayden Example");
   });
 
-  it("starts on All for an unknown filter", async () => {
-    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "bogus" }) });
+  it("offers this month and the next two, starting on this one unless ?month= names another", async () => {
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ month: "bogus" }) });
+    const months = screen.getByTestId("browser").getAttribute("data-months")!.split(",");
+    expect(months).toHaveLength(3);
+    expect(screen.getByTestId("browser")).toHaveAttribute("data-month", months[0]);
 
-    expect(screen.getByTestId("browser")).toHaveTextContent(/^all\|/);
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({ month: months[2] }) });
+    expect(screen.getAllByTestId("browser").at(-1)).toHaveAttribute("data-month", months[2]);
   });
 
   it("sends a member without the events feature to the dashboard", async () => {

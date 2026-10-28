@@ -141,6 +141,9 @@ export interface EventListItem {
   location: string | null;
   starts_at: string;
   ends_at: string;
+  /** The exact instants, for an event that follows a calendar item; null for one made by hand (dates only). */
+  start_time: string | null;
+  end_time: string | null;
   focus: string | null;
   registration: string;
   speakers: string | null;
@@ -360,7 +363,7 @@ export class SupabaseEventRepository implements EventRepository {
       (from, to) =>
         this.db
           .from("events")
-          .select("id, slug, title, event_type, location, starts_at, ends_at, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
+          .select("id, slug, title, event_type, location, starts_at, ends_at, start_time, end_time, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
           .order("starts_at", { ascending: false })
           .order("id")
           .order("taken_at", { referencedTable: "event_photos", ascending: true, nullsFirst: false })
@@ -640,6 +643,8 @@ export class InMemoryEventRepository implements EventRepository {
       location: e.location ?? null,
       starts_at: e.starts_at ?? "",
       ends_at: e.ends_at ?? e.starts_at ?? "",
+      start_time: e.start_time ?? null,
+      end_time: e.end_time ?? null,
       focus: e.focus ?? null,
       registration: e.registration ?? "none",
       speakers: e.speakers ?? null,
