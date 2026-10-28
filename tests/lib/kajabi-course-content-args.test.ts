@@ -9,6 +9,7 @@ describe("parseContentArgs", () => {
       envFile: ".env.local",
       apply: false,
       skipDrafts: false,
+      hero: false,
       concurrency: 2,
       headless: false,
       profileDir: null,
@@ -16,12 +17,13 @@ describe("parseContentArgs", () => {
   });
 
   it("takes values with = or a space, and the boolean flags", () => {
-    expect(parseContentArgs(["--lesson=55", "--env", ".env.prod", "--apply", "--skip-drafts", "--concurrency=4", "--headless"])).toMatchObject({
+    expect(parseContentArgs(["--lesson=55", "--env", ".env.prod", "--apply", "--skip-drafts", "--concurrency=4", "--headless", "--hero"])).toMatchObject({
       ok: true,
       scope: { lessonId: "55" },
       envFile: ".env.prod",
       apply: true,
       skipDrafts: true,
+      hero: true,
       concurrency: 4,
       headless: true,
     });
