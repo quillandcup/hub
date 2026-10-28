@@ -15,7 +15,7 @@ const getPrickleType = cache(async (id: string) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, event_kind, default_host_id, summary_aliases, names_guest_speaker")
+    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, default_host_id, summary_aliases, names_guest_speaker")
     .eq("id", id)
     .single();
   return data;

@@ -1,6 +1,5 @@
 "use client";
 
-import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AudienceChecks from "@/components/AudienceChecks";
@@ -26,7 +25,6 @@ interface EditPrickleTypeFormProps {
     listed_in_events: boolean;
     announced_publicly: boolean;
     guests_allowed: boolean;
-    event_kind?: string;
     default_host_id?: string | null;
     summary_aliases?: string[];
     names_guest_speaker?: boolean;
@@ -49,7 +47,6 @@ export default function EditPrickleTypeForm({
   const [listedInEvents, setListedInEvents] = useState(prickleType.listed_in_events);
   const [announcedPublicly, setAnnouncedPublicly] = useState(prickleType.announced_publicly);
   const [guestsAllowed, setGuestsAllowed] = useState(prickleType.guests_allowed);
-  const [eventKind, setEventKind] = useState(prickleType.event_kind ?? "session");
   const [defaultHostId, setDefaultHostId] = useState<string | null>(prickleType.default_host_id ?? null);
   const [aliases, setAliases] = useState((prickleType.summary_aliases ?? []).join(", "));
   const [namesGuestSpeaker, setNamesGuestSpeaker] = useState(prickleType.names_guest_speaker ?? false);
@@ -74,7 +71,6 @@ export default function EditPrickleTypeForm({
           listedInEvents,
           announcedPublicly,
           guestsAllowed,
-          eventKind,
           defaultHostId,
           summaryAliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
           namesGuestSpeaker,
@@ -185,23 +181,6 @@ export default function EditPrickleTypeForm({
             setGuestsAllowed(next.guests);
           }}
         />
-
-        <div className="mb-6">
-          <label htmlFor="event-kind" className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Event kind</label>
-          <select
-            id="event-kind"
-            value={eventKind}
-            onChange={(e) => setEventKind(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-          >
-            {EVENT_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-            What an event made from a prickle of this type starts as, which decides where the Events page lists it (a session, educational, social...).
-          </p>
-        </div>
 
         <div className="mb-6">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Default host</label>

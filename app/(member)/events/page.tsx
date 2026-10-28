@@ -32,10 +32,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
 
   const now = new Date();
 
-  const [events, eventPrickles] = await Promise.all([
-    createRepos(supabase).events.listWithCover(),
+  const repos = createRepos(supabase);
+  const [events, eventPrickles, badgeTypes] = await Promise.all([
+    repos.events.listWithCover(),
     fetchUpcomingEventPrickles(supabase, now),
+    repos.badges.types(),
   ]);
+  const badgeIconOf = new Map(badgeTypes.flatMap((b) => (b.event_id ? [[b.event_id, b.icon] as const] : [])));
 
   // A hidden event isn't listed, and neither is the prickle it stands for.
   const rows: EventRow[] = events.filter((e) => !e.deleted_at).map((e) => ({
@@ -48,6 +51,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     ends_at: e.ends_at,
     focus: e.focus,
     registration: e.registration,
+    badge_icon: badgeIconOf.get(e.id) ?? null,
     cover_photo_id: e.coverPhotoId,
   }));
 

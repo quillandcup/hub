@@ -58,6 +58,11 @@ describe('EventsBrowser', () => {
     expect(within(sessions).getByRole('link', { name: /Craft Class/ })).toHaveAttribute('href', '/prickles/p1')
   })
 
+  it('shows the badge icon of a retreat on its card in place of the kind\'s symbol', () => {
+    renderBrowser('all', [{ ...event('autumn', 'virtual_retreat', '2026-10-20'), badge_icon: '💡' }])
+    expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()
+  })
+
   it('says which events need a sign-up', () => {
     renderBrowser('all', [event('class', 'educational', '2026-10-15', '2026-10-15', 'required')])
     const big = screen.getByRole('region', { name: 'Big events' })

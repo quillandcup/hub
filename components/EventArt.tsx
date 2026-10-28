@@ -29,9 +29,9 @@ export function eventArt(eventType: string): Art {
 
 /**
  * The picture at the top of an event card: its cover photo when it has one, else the art for its kind.
- * `className` sets the size (the card decides how tall it should be).
+ * `icon` replaces the kind's symbol (a retreat shows its badge's icon); `className` sets the size.
  */
-export default function EventArt({ eventType, coverUrl, className = "h-28" }: { eventType: string; coverUrl?: string | null; className?: string }) {
+export default function EventArt({ eventType, coverUrl, icon, className = "h-28" }: { eventType: string; coverUrl?: string | null; icon?: string | null; className?: string }) {
   if (coverUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route
@@ -41,7 +41,7 @@ export default function EventArt({ eventType, coverUrl, className = "h-28" }: { 
   const art = eventArt(eventType);
   return (
     <div aria-hidden="true" data-testid="event-art" className={`w-full flex items-center justify-center bg-gradient-to-br ${art.gradient} ${className}`}>
-      <span className="text-4xl opacity-80">{art.symbol}</span>
+      <span className="text-4xl opacity-80">{icon || art.symbol}</span>
     </div>
   );
 }
