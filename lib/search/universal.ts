@@ -55,12 +55,7 @@ function matchEach<T extends { or: (f: string) => any }>(query: T, words: string
 async function memberIdsNamed(ctx: SearchContext, typed: string | undefined): Promise<string[] | null> {
   if (!typed) return null;
   if (typed.toLowerCase() === "me") return ctx.viewerMemberId ? [ctx.viewerMemberId] : [];
-  const { data } = await ctx.supabase
-    .from("member_directory")
-    .select("id")
-    .or(`name.ilike.${pattern(typed)},display_name.ilike.${pattern(typed)}`)
-    .limit(50);
-  return (data ?? []).map((m) => m.id as string);
+  return createRepos(ctx.supabase).directory.idsMatching(typed, 50);
 }
 
 const page = (ctx: SearchContext) => ({ limit: ctx.limit ?? 5, offset: ctx.offset ?? 0 });
@@ -140,14 +135,10 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
       }),
     ),
   );
-  let query = ctx.supabase.from("member_directory").select("id, name, display_name, photo_url, bio");
-  for (const w of words) {
-    const clauses = ["name", "display_name", "bio"].map((f) => `${f}.ilike.${pattern(w)}`);
-    const ids = [...aliasesByWord.get(w)!.keys()];
-    if (ids.length > 0) clauses.push(`id.in.(${ids.join(",")})`);
-    query = query.or(clauses.join(","));
-  }
-  const { data } = await query.order("name").range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).directory.searchWords(
+    words.map((w) => ({ text: w, alsoIds: [...aliasesByWord.get(w)!.keys()] })),
+    { offset, limit: limit + 1 }, // one extra, to know if there are more
+  );
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "members",
@@ -167,10 +158,7 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   // gave it a title of its own ("Tiny Things Practice Workshop"), so each word must match the type's
   // name, the host's name, the title or the guest speaker.
   const [hosts, wordHosts] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
-    words.map(async (w) => {
-      const { data } = await ctx.supabase.from("member_directory").select("id").or(`name.ilike.${pattern(w)},display_name.ilike.${pattern(w)}`).limit(100);
-      return { text: w, hostIds: (data ?? []).map((m) => m.id as string) };
-    })
+    words.map(async (w) => ({ text: w, hostIds: await createRepos(ctx.supabase).directory.idsMatching(w, 100) }))
   )]);
   if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
 

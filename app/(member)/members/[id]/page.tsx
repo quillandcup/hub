@@ -44,14 +44,7 @@ function formatLastPrickle(iso: string, now: Date, timeZone: string): string {
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
-  const { data } = await supabase
-    .from("member_directory")
-    .select(
-      "id, name, display_name, joined_at, first_joined_at, most_recent_joined_at, total_active_months, photo_url, bio, instagram_url, facebook_url, twitter_url"
-    )
-    .eq("id", id)
-    .single()
-  return data
+  return createRepos(supabase).directory.byId(id)
 })
 
 export async function generateMetadata({

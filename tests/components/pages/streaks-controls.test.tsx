@@ -18,7 +18,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ from: () => ({ select: () => ({ data: [] }) }) }) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "UTC" }));
 // Attendance comes from its repository: the member's one attendance, with the prickle's type for the shared-prickle link.
-let repos = createInMemoryRepos();
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
@@ -38,26 +39,26 @@ vi.mock("@/lib/streaks", async (importOriginal) => ({
 
 import StreaksPage from "@/app/(member)/streaks/page";
 
-/** Gale's photo in the member directory (null: no photo); a test sets it before rendering. */
-let galePhoto: string | null = null;
+/** Gives Gale a photo in the member directory (the default is none). */
+const setGalePhoto = (url: string) => {
+  dataset.members[0].photoUrl = url;
+};
 
 beforeEach(() => {
-  galePhoto = null;
   SISTER = { ...SISTER, currentStreak: 3 };
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  repos = createInMemoryRepos(
-    new InMemoryDataset({
+  dataset = new InMemoryDataset({
+      members: [{ id: "member-gale", name: "Gale Prickleton", photoUrl: null }],
       prickleTypes: [{ id: "ptyp-1", name: "Morning Writing", normalizedName: "morning-writing", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
       prickles: [
         { id: "prickle-1", typeId: "ptyp-1", hostId: null, title: null, startTime: "2026-11-02T15:00:00Z", endTime: "2026-11-02T16:00:00Z", source: "calendar", calendarEventId: null },
       ],
       attendance: [{ id: "att-1", memberId: MEMBER_IDENTITY.memberId, prickleId: "prickle-1", joinTime: "2026-11-02T15:00:00Z", leaveTime: "2026-11-02T16:00:00Z" }],
-    }),
-  );
+  });
+  repos = createInMemoryRepos(dataset);
   useFakeSupabase({
     members: { data: { photo_url: null } },
-    member_directory: () => ({ data: [{ id: "member-gale", photo_url: galePhoto }] }),
   });
 });
 
@@ -73,7 +74,7 @@ describe("Streaks: a sister streak's shared prickles", () => {
 
 describe("Streaks: a sister streak's avatar", () => {
   it("shows their photo next to the name, hidden from screen readers (the name is beside it)", async () => {
-    galePhoto = "https://img.example/gale.jpg";
+    setGalePhoto("https://img.example/gale.jpg");
     await renderServerPage(StreaksPage, {});
 
     const photo = document.querySelector('img[src="https://img.example/gale.jpg"]')!;

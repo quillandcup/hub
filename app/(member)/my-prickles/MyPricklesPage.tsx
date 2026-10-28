@@ -35,7 +35,6 @@ import type { CheckinInput } from "@/lib/prickle-checkins";
 const UPCOMING_WINDOW_DAYS = 14;
 const MAX_UPCOMING_DISPLAY = 8;
 const SCHEDULE_LOOKBACK_DAYS = 90;
-const MEMBERS_BATCH_SIZE = 1000;
 
 /** My Prickles tabs, at /my-prickles (Upcoming) and /my-prickles/<id> (lib/tab-routes.ts). */
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId } from "./tabs";
@@ -314,24 +313,10 @@ async function fetchOtherMembers(
 ): Promise<{ id: string; name: string }[]> {
   // Public directory fields only -- other members' emails are admin-only (and this list is
   // passed to a client component).
-  let members: { id: string; name: string }[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_directory")
-      .select("id, name, display_name")
-      .order("name")
-      .order("id")
-      .range(offset, offset + MEMBERS_BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      members = members.concat(batch.map((m) => ({ id: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.display_name }) })));
-      offset += batch.length;
-      hasMore = batch.length === MEMBERS_BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const members: { id: string; name: string }[] = (await createRepos(supabase).directory.all()).map((m) => ({
+    id: m.id,
+    name: getMemberDisplayName({ name: m.name, display_name: m.display_name }),
+  }));
   // Exclude the hedgie herself from the "who do you want to see" picker.
   return members.filter((m) => m.id !== memberId);
 }

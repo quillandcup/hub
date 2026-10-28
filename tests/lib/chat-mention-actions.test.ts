@@ -6,7 +6,7 @@ const m = vi.hoisted(() => ({
   loadChannelMembers: vi.fn(),
   loadChatChannels: vi.fn(),
   slackIds: vi.fn(),
-  directory: { rows: [] as { id: string; name: string; display_name: string | null; photo_url: string | null }[], patterns: [] as string[] },
+  directory: { rows: [] as { id: string; name: string; display_name: string | null; photo_url: string | null }[], typed: [] as string[] },
   inactive: new Set<string>(),
 }));
 vi.mock("@/lib/chat/caller", () => ({ postingCaller: m.postingCaller }));
@@ -17,25 +17,19 @@ vi.mock("@/lib/chat/load", () => ({
 }));
 vi.mock("@/lib/chat/slack-membership", () => ({ slackUserIdsFor: m.slackIds }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ supabase: true }) }));
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceRoleClient: () => ({
-    from: () => {
-      const chain: Record<string, unknown> = {};
-      chain.select = () => chain;
-      chain.ilike = (column: string, pattern: string) => {
-        m.directory.patterns.push(`${column}:${pattern}`);
-        const needle = pattern.replace(/^%|%$/g, "").replace(/\\([\\%_])/g, "$1").toLowerCase();
-        chain.data = m.directory.rows.filter((r) => String(column === "name" ? r.name : r.display_name ?? "").toLowerCase().includes(needle));
-        return chain;
-      };
-      chain.order = () => chain;
-      chain.limit = () => Promise.resolve({ data: chain.data });
-      return chain;
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
+// The directory's own matching (name or display name, wildcards as letters) is in its repository contract; here it is a stand-in.
+vi.mock("@/lib/data/repos", () => ({
+  createRepos: () => ({
+    members: { byIds: async (ids: string[]) => ids.map((id) => ({ id, status: m.inactive.has(id) ? "cancelled" : "active" })) },
+    directory: {
+      matching: async (typed: string, limit: number) => {
+        m.directory.typed.push(typed);
+        const needle = typed.toLowerCase();
+        return m.directory.rows.filter((r) => r.name.toLowerCase().includes(needle) || (r.display_name ?? "").toLowerCase().includes(needle)).slice(0, limit);
+      },
     },
   }),
-}));
-vi.mock("@/lib/data/repos", () => ({
-  createRepos: () => ({ members: { byIds: async (ids: string[]) => ids.map((id) => ({ id, status: m.inactive.has(id) ? "cancelled" : "active" })) } }),
 }));
 
 import { suggestMentions } from "@/app/(member)/chat/mention-actions";
@@ -60,7 +54,7 @@ beforeEach(() => {
     { kind: "group_dm", label: "Gale, Ania", archived: false, slackChannelId: "G_DM" },
   ]);
   m.directory.rows = [];
-  m.directory.patterns = [];
+  m.directory.typed = [];
   m.inactive.clear();
   m.slackIds.mockReset();
   m.slackIds.mockImplementation(async (_s: unknown, ids: string[]) => new Map(ids.filter((id) => !id.endsWith("F5")).map((id) => [id, `U_${id.slice(-2)}`])));
@@ -87,17 +81,17 @@ describe("suggestMentions", () => {
     expect(found[2].token).toBe("<@U_G1>");
   });
 
-  it("matches a display name, and treats % and _ as the letters they are", async () => {
+  it("matches a display name, and passes what was typed on as it was typed", async () => {
     m.directory.rows = [{ id: "mbr_AAAAAAAAAAG3", name: "Rosalind Franklin", display_name: "Roz", photo_url: null }];
     expect((await suggestMentions(CHANNEL, "@", "roz")).map((s) => s.label)).toEqual(["@Roz"]);
     await suggestMentions(CHANNEL, "@", "50%_off");
-    expect(m.directory.patterns).toContain("name:%50\\%\\_off%");
+    expect(m.directory.typed).toContain("50%_off");
   });
 
   it("offers everyone here for a bare @, up to six, without searching the directory", async () => {
     m.loadChannelMembers.mockResolvedValue(Array.from({ length: 12 }, (_, i) => person(10 + i, `Person ${String(i).padStart(2, "0")}`)));
     expect(await suggestMentions(CHANNEL, "@", "")).toHaveLength(6);
-    expect(m.directory.patterns).toEqual([]);
+    expect(m.directory.typed).toEqual([]);
   });
 
   it("offers channels the member can see that match, bridged and not archived, as Slack channels", async () => {

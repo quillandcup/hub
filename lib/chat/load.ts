@@ -124,10 +124,8 @@ export async function memberProfiles(
   memberIds: string[]
 ): Promise<Map<string, { name: string; photoUrl: string | null }>> {
   const profiles = new Map<string, { name: string; photoUrl: string | null }>();
-  const ids = [...new Set(memberIds)];
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase.from("member_directory").select("id, name, display_name, photo_url").in("id", ids.slice(i, i + 200));
-    for (const m of data ?? []) profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
+  for (const m of await createRepos(supabase).directory.byIds(memberIds)) {
+    profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
   }
   return profiles;
 }
@@ -151,12 +149,8 @@ export interface MemberCard {
 
 /** One member's card from member_directory and their "Ask me about…" topics (both readable by any member). */
 export async function loadMemberCard(supabase: SupabaseClient, memberId: string): Promise<MemberCard | null> {
-  const [{ data: m }, { data: topics }] = await Promise.all([
-    supabase
-      .from("member_directory")
-      .select("id, name, display_name, photo_url, bio, first_joined_at, total_active_months, instagram_url, facebook_url, twitter_url")
-      .eq("id", memberId)
-      .maybeSingle(),
+  const [m, { data: topics }] = await Promise.all([
+    createRepos(supabase).directory.byId(memberId),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
   ]);
   if (!m) return null;
