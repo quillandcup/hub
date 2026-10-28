@@ -486,12 +486,13 @@ production:
 - **Webhook delivery check.** The nightly check can't prove Mux reaches us; that needs a throwaway asset created in the environment each run (a few cents a month) and polling the `videos` row, or a Mux "send test event" if one appears in the API.
 - **Signing keys** are created by hand (the private half is shown once); `/system/v1/signing-keys` could list them for a drift check.
 
-### Google Calendar push channel: create and renew it _(Keep; needs scheduling)_
-`/api/webhooks/calendar` receives Google Calendar push notifications (a "watch channel"), but **nothing in the app creates or renews the channel**; `docs/WEBHOOK_SETUP.md` describes creating one by hand with `curl`. Goal: a Google Calendar edit reaches the prickle schedule in minutes instead of by the next nightly reconcile (`/api/reconcile/calendar`, which stays the guaranteed path).
+### Google Calendar push channel: create and renew it _(Mostly done)_
+**Resolved:** `/api/reconcile/calendar` (nightly) opens and renews the watch channel in production (`lib/google-calendar/watch.ts`, table `calendar_watch_channels`, `docs/WEBHOOK_SETUP.md`), so a calendar edit reaches the prickle schedule in seconds; the nightly sync stays the guaranteed path, and a failure to open the channel fails the cron (no heartbeat). The webhook rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN`.
 
-**State on 2026-10-18:** production saw one `GET` verification ping and no `POST`s in a week, so no active channel (channels expire and nothing renews them). The route rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (PR #105; token now in production). Google has no call that lists channels; one is stopped only by its `id` and `resourceId` (`POST /calendar/v3/channels/stop`) from the original watch response.
-
-**Build:** a small `calendar_watch_channels` table (`channel_id`, `resource_id`, `expires_at`), created and renewed by a cron before expiry using the token as the channel token, stopping the old channel when replacing it. Record each gap-fill per "On-Demand Incremental Fetch".
+**Still open:**
+- Each notification runs a full 120-day import and reprocess, and several edits in a row (or the overlap while a channel is replaced) send several; coalesce them (skip when a sync ran in the last few seconds, or use `syncToken` incremental sync with `events.list`).
+- Record each webhook-triggered sync as a gap-fill per "On-Demand Incremental Fetch", and show channel age/expiry on `/admin/data-health`.
+- The channel renews only once a day; if Google ends it early (rare) edits wait for the next 02:00 UTC run. A second, more frequent renewal check would close that.
 
 ### Move Quill & Cup DNS to Cloudflare _(Needs Scoping)_
 The domain is registered at Squarespace, but its DNS records are currently managed at Kajabi. Move DNS to Cloudflare so web and email traffic can be treated differently:

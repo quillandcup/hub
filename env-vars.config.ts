@@ -185,7 +185,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GOOGLE_CALENDAR_WEBHOOK_TOKEN",
     group: "Google Calendar",
     description:
-      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32` and pass it as `token` when creating the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means re-creating the channel with the new token.",
+      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32`. The nightly /api/reconcile/calendar passes it as the `token` when it opens or renews the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means opening a new channel with the new token (mark the live calendar_watch_channels row stopped).",
     type: "secret",
     destinations: vercelAllEnvs,
   },

@@ -63,6 +63,39 @@ export class GoogleCalendarClient {
   }
 
   /**
+   * Open a push channel: Google POSTs to `address` (with `token` in X-Goog-Channel-Token)
+   * whenever an event on the calendar changes. Returns Google's resource id and the real expiry.
+   */
+  async watchEvents(params: {
+    calendarId: string;
+    channelId: string;
+    address: string;
+    token: string;
+    expiration: Date;
+  }): Promise<{ resourceId: string; expiresAt: Date }> {
+    const response = await this.calendar.events.watch({
+      calendarId: params.calendarId,
+      requestBody: {
+        id: params.channelId,
+        type: "web_hook",
+        address: params.address,
+        token: params.token,
+        expiration: String(params.expiration.getTime()),
+      },
+    });
+    const { resourceId, expiration } = response.data;
+    if (!resourceId || !expiration) {
+      throw new Error("Google Calendar watch response is missing resourceId or expiration");
+    }
+    return { resourceId, expiresAt: new Date(Number(expiration)) };
+  }
+
+  /** Stop a push channel. Google needs both ids from the original watch response. */
+  async stopChannel(channelId: string, resourceId: string): Promise<void> {
+    await this.calendar.channels.stop({ requestBody: { id: channelId, resourceId } });
+  }
+
+  /**
    * Get primary calendar ID for the authenticated user
    */
   async getPrimaryCalendarId(): Promise<string> {

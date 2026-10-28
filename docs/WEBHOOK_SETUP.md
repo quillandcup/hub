@@ -47,27 +47,12 @@ Example endpoints:
 
 ### Setup
 
-1. **Enable Google Calendar API** in Google Cloud Console
-2. **Create a watch channel** using the Google Calendar API:
+Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production only) opens the push channel with the service account, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token and `<APP_URL>/api/webhooks/calendar` as the address, and renews it when under 3 days remain (`lib/google-calendar/watch.ts`). The channel is requested for 7 days; the real expiry Google returns is kept in `calendar_watch_channels` (service role only), which is how the old channel is stopped when it is replaced (Google has no call that lists channels). The new channel is opened before the old one is stopped, so no edit falls in a gap.
 
-```bash
-curl -X POST \
-  'https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/watch' \
-  -H 'Authorization: Bearer {access_token}' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "id": "hedgie-hub",
-    "type": "web_hook",
-    "address": "https://hub.quillandcup.com/api/webhooks/calendar",
-    "token": "{your_secret_token}",
-    "expiration": "{unix_timestamp_ms}"
-  }'
-```
-
-3. **Set webhook token** in environment variables:
-   ```bash
-   GOOGLE_CALENDAR_WEBHOOK_TOKEN=your_secret_token
-   ```
+- The service account needs access to the calendar (the same as the import).
+- If opening the channel fails, the reconcile still syncs but returns 500 and skips its Checkly heartbeat, so it alerts. The nightly sync stays the guaranteed path.
+- To check it: `select channel_id, expires_at, stopped_at from calendar_watch_channels order by created_at desc` (prod, read-only), and the `Calendar webhook received` lines in the Vercel logs.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` needs a new channel: mark the live row `stopped_at` (or wait until it is under 3 days from expiry) and the next reconcile opens one with the new token.
 
 ### Testing
 
@@ -210,7 +195,7 @@ Paste the `https://...` address it prints, plus the route, into the vendor's web
 
 Every webhook route verifies its caller itself, whether or not a tunnel or proxy sits in front:
 
-- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The token is set when the watch channel is created, so a channel created without one is rejected once the variable is set: re-create the channel with `"token": "<the value>"`. 
+- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The reconcile cron sets it when it opens the channel, so a channel opened with an older token is rejected once the variable changes: see Setup above.
 - **Slack:** HMAC-SHA256 over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, within a 5-minute window.
 - **Zoom:** HMAC-SHA256 in `X-Zm-Signature` with `ZOOM_WEBHOOK_SECRET_TOKEN`.
 
