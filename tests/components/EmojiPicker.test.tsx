@@ -87,6 +87,22 @@ describe("EmojiPicker", () => {
     expect(track).toHaveBeenCalledWith("chat_reaction_picked", { via: "recent", custom: false });
   });
 
+  it("leaves a recent custom emoji out when the picker was not given custom emoji", async () => {
+    localStorage.setItem("chat-recent-reactions", JSON.stringify(["partyparrot", "tada"]));
+    await open({ custom: {} });
+    const grid = screen.getByRole("group", { name: "Frequently used" });
+    expect(grid.querySelectorAll("button")).toHaveLength(1);
+    expect(within(grid).getByRole("button", { name: "React with :tada:" })).toBeInTheDocument();
+  });
+
+  it("keeps a recent custom emoji when it is in the custom list", async () => {
+    localStorage.setItem("chat-recent-reactions", JSON.stringify(["partyparrot", "tada"]));
+    await open();
+    const grid = screen.getByRole("group", { name: "Frequently used" });
+    expect(within(grid).getByRole("button", { name: "React with :partyparrot:" })).toBeInTheDocument();
+    expect(grid.querySelectorAll("button")).toHaveLength(2);
+  });
+
   it("closes on Escape and on an outside click, not an inside one", async () => {
     const { onClose } = await open();
     fireEvent.mouseDown(screen.getByLabelText("Search emoji"));

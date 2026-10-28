@@ -5,7 +5,8 @@ import { Emoji } from "@/components/chat/ChatText";
 import { track } from "@/lib/analytics/client";
 import { scrollParent } from "@/lib/chat/scroll";
 import type { CustomEmoji } from "@/lib/chat/emoji";
-import { SKIN_TONES, readTone, withTone, writeTone } from "@/lib/chat/skin-tone";
+import { SKIN_TONES, baseName, readTone, withTone, writeTone } from "@/lib/chat/skin-tone";
+import { unicodeEmoji } from "@/lib/chat/emoji";
 import {
   CATEGORIES,
   buildCatalog,
@@ -57,7 +58,8 @@ export default function EmojiPicker({
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [recents] = useState(() => {
-    const own = readRecents();
+    // Recents are shared with chat, so one may be a custom emoji this picker wasn't given (it would show as ":name:").
+    const own = readRecents().filter((name) => baseName(name) in custom || unicodeEmoji(baseName(name)));
     return own.length ? own : DEFAULT_FREQUENT;
   });
   const [active, setActive] = useState<TabId>("recent");
