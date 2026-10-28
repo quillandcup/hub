@@ -32,22 +32,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   writing_project_starting_balances: [],
   writing_goals: [],
   writing_progress_entries: [],
-  // Events (EventRepository): only the badge pickers are moved; the rest are still to move, by table.
-  events: [
-    "app/api/admin/events/[id]/route.ts",
-    "app/api/admin/events/route.ts",
-    "app/api/admin/events/[id]/revert-to-calendar/route.ts",
-    "app/api/admin/events/[id]/visibility/route.ts",
-    "app/(admin)/admin/calendar/page.tsx",
-    "app/(admin)/admin/prickles/[id]/page.tsx",
-    "app/(admin)/admin/events/[id]/page.tsx",
-    "app/(admin)/admin/events/[id]/import-photos/page.tsx",
-    "app/(admin)/admin/badges/[id]/recipients/page.tsx",
-  ],
-  event_attendees: ["app/api/admin/events/[id]/route.ts"],
-  event_photos: [
-    "app/api/admin/events/[id]/route.ts",
-  ],
+  // Events (EventRepository): every query on the three event tables is moved.
+  events: [],
+  event_attendees: [],
+  event_photos: [],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

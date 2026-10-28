@@ -4,16 +4,53 @@ import { defineEventContract, defineEventSyncContract, defineMemberEventContract
 
 defineEventContract("InMemoryEventRepository", () => {
   const data = new InMemoryDataset();
+  let counter = 0;
+  const id = (prefix: string) => `${prefix}_${String(++counter).padStart(12, "0")}`;
   return {
     repo: () => new InMemoryEventRepository(data),
     seed: async (events) => {
       const ids: Record<string, string> = {};
       data.events = events.map((e, i) => {
         ids[e.key] = `evnt_${i}`;
-        return { id: ids[e.key], title: e.title, slug: `slug-${i}`, starts_at: e.startsAt };
+        return {
+          id: ids[e.key],
+          title: e.title,
+          slug: `slug-${i}`,
+          starts_at: e.startsAt,
+          ...(e.calendarEventId ? { calendar_event_id: e.calendarEventId } : {}),
+          ...(e.deletedAt ? { deleted_at: e.deletedAt } : {}),
+        };
       });
+      data.eventPhotos = [];
+      data.eventAttendees = [];
       return ids;
     },
+    calendarEvent: async () => `00000000-0000-4000-8000-${String(++counter).padStart(12, "9")}`,
+    member: async (m) => {
+      const memberId = id("mbr");
+      data.members.push({ id: memberId, name: m.name, displayName: m.displayName, email: m.email });
+      return memberId;
+    },
+    attend: async (eventId, memberId, createdAt) => {
+      data.eventAttendees.push({ id: id("evat"), event_id: eventId, member_id: memberId, created_at: createdAt, created_by: null });
+    },
+    photo: async (eventId, p) => {
+      const photoId = id("evph");
+      data.eventPhotos.push({
+        id: photoId,
+        event_id: eventId,
+        google_media_item_id: photoId,
+        storage_path: p.path,
+        taken_at: p.takenAt,
+        created_at: p.createdAt,
+        hidden_at: p.hidden ? p.createdAt : null,
+        height: null,
+        width: null,
+        mime_type: null,
+      });
+      return photoId;
+    },
+    track: () => {},
   };
 });
 

@@ -1,12 +1,21 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { EventPhotoRow, EventRepository } from "@/lib/data/events";
 
-export type SeedEvent = { key: string; title: string; startsAt: string };
+export type SeedEvent = { key: string; title: string; startsAt: string; calendarEventId?: string; deletedAt?: string };
 
 export type EventContractContext = {
   repo: () => EventRepository;
   /** Replaces the events this context created with these; returns each one's id by its key. */
   seed: (events: SeedEvent[]) => Promise<Record<string, string>>;
+  // --- admin events ---
+  /** Makes an id an event can follow (a calendar event). */
+  calendarEvent: () => Promise<string>;
+  /** Makes a member, returning the id. */
+  member: (m: { name: string; displayName: string | null; email: string }) => Promise<string>;
+  attend: (eventId: string, memberId: string, createdAt: string) => Promise<void>;
+  photo: (eventId: string, p: { path: string; takenAt: string | null; createdAt: string; hidden?: boolean }) => Promise<string>;
+  /** Cleans up an event the test created through the repository. */
+  track: (eventId: string) => void;
 };
 
 /** Behavior every `EventRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -95,6 +104,128 @@ export function defineEventContract(name: string, setup: () => EventContractCont
         expect(await repo.photoFile(b, photo.id)).toBeNull();
         expect(await repo.photoFile(a, missingId)).toBeNull();
         expect(await repo.setPhotoHidden(a, missingId, true)).toBeNull();
+      });
+    });
+
+    describe("admin events", () => {
+      const NONE = "00000000-0000-4000-8000-000000000000";
+      const fields = (extra: object = {}) => ({
+        slug: `contract-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: "Open House",
+        event_type: "other",
+        starts_at: "2097-05-01T09:00:00Z",
+        ends_at: "2097-05-01T10:00:00Z",
+        ...extra,
+      });
+
+      it("creates, reads, updates and deletes an event", async () => {
+        const repo = ctx.repo();
+        const made = await repo.create(fields({ location: "Lakehouse" }));
+        ctx.track(made.id);
+        expect(made).toMatchObject({ title: "Open House", location: "Lakehouse" });
+
+        expect(await repo.byId(made.id)).toMatchObject({ id: made.id, title: "Open House" });
+        expect(await repo.byId(NONE)).toBeNull();
+
+        const updated = await repo.edit(made.id, { title: "Closed House", automatic: false });
+        expect(updated).toMatchObject({ id: made.id, title: "Closed House", automatic: false });
+        await expect(repo.edit(NONE, { title: "Nope" })).rejects.toThrow();
+
+        await repo.remove(made.id);
+        expect(await repo.byId(made.id)).toBeNull();
+      });
+
+      it("throws when the database refuses a write", async () => {
+        await expect(ctx.repo().create({ title: "No slug" } as never)).rejects.toThrow();
+      });
+
+      it("hides and shows an event", async () => {
+        const repo = ctx.repo();
+        const made = await repo.create(fields());
+        ctx.track(made.id);
+
+        const hidden = await repo.setDeletedAt(made.id, "2097-01-01T00:00:00Z");
+        expect(hidden?.deleted_at?.slice(0, 10)).toBe("2097-01-01");
+        expect((await repo.setDeletedAt(made.id, null))?.deleted_at).toBeNull();
+        expect(await repo.setDeletedAt(NONE, null)).toBeNull();
+      });
+
+      it("lists events newest first with the count of photos that are not hidden", async () => {
+        const ids = await ctx.seed([
+          { key: "old", title: "Older", startsAt: "2097-03-01T09:00:00Z" },
+          { key: "new", title: "Newer", startsAt: "2097-09-01T09:00:00Z" },
+        ]);
+        await ctx.photo(ids.new, { path: "a.jpg", takenAt: null, createdAt: "2097-01-01T00:00:00Z" });
+        await ctx.photo(ids.new, { path: "b.jpg", takenAt: null, createdAt: "2097-01-02T00:00:00Z" });
+        await ctx.photo(ids.new, { path: "c.jpg", takenAt: null, createdAt: "2097-01-03T00:00:00Z", hidden: true });
+
+        const ours = (await ctx.repo().listWithPhotoCounts()).filter((e) => Object.values(ids).includes(e.id));
+
+        expect(ours.map((e) => [e.title, e.photo_count])).toEqual([
+          ["Newer", 2],
+          ["Older", 0],
+        ]);
+        expect(ours[0]).not.toHaveProperty("event_photos");
+      });
+
+      it("lists an event's photos oldest first with undated ones last, and their storage paths", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "With photos", startsAt: "2097-03-01T09:00:00Z" }]);
+        await ctx.photo(ids.e, { path: "undated.jpg", takenAt: null, createdAt: "2097-01-01T00:00:00Z" });
+        await ctx.photo(ids.e, { path: "late.jpg", takenAt: "2097-03-01T12:00:00Z", createdAt: "2097-01-02T00:00:00Z" });
+        await ctx.photo(ids.e, { path: "early.jpg", takenAt: "2097-03-01T10:00:00Z", createdAt: "2097-01-03T00:00:00Z" });
+
+        const photos = await ctx.repo().allPhotosOf(ids.e);
+
+        expect(photos.map((p) => p.storage_path)).toEqual(["early.jpg", "late.jpg", "undated.jpg"]);
+        expect((await ctx.repo().photoPaths(ids.e)).sort()).toEqual(["early.jpg", "late.jpg", "undated.jpg"]);
+        expect(await ctx.repo().allPhotosOf(NONE)).toEqual([]);
+        expect(await ctx.repo().photoPaths(NONE)).toEqual([]);
+      });
+
+      it("lists attendees in the order they were added, with the member's names", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "With guests", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: "Ada E", email: "ada@example.com" });
+        const bo = await ctx.member({ name: "Bo Example", displayName: null, email: "bo@example.com" });
+        await ctx.attend(ids.e, bo, "2097-01-02T00:00:00Z");
+        await ctx.attend(ids.e, ada, "2097-01-01T00:00:00Z");
+
+        const attendees = await ctx.repo().attendeesOf(ids.e);
+
+        expect(attendees.map((a) => [a.member_id, a.member])).toEqual([
+          [ada, { name: "Ada Example", display_name: "Ada E", email: expect.stringMatching(/ada@example\.com$/) }],
+          [bo, { name: "Bo Example", display_name: null, email: expect.stringMatching(/bo@example\.com$/) }],
+        ]);
+      });
+
+      it("deleting an event takes its photos and attendees with it", async () => {
+        const ids = await ctx.seed([{ key: "e", title: "Going away", startsAt: "2097-03-01T09:00:00Z" }]);
+        const ada = await ctx.member({ name: "Ada Example", displayName: null, email: "ada@example.com" });
+        await ctx.attend(ids.e, ada, "2097-01-01T00:00:00Z");
+        await ctx.photo(ids.e, { path: "x.jpg", takenAt: null, createdAt: "2097-01-01T00:00:00Z" });
+
+        await ctx.repo().remove(ids.e);
+
+        expect(await ctx.repo().attendeesOf(ids.e)).toEqual([]);
+        expect(await ctx.repo().allPhotosOf(ids.e)).toEqual([]);
+      });
+
+      it("finds the event that follows a calendar event, and whether it is shown or hidden", async () => {
+        const shownCal = await ctx.calendarEvent();
+        const hiddenCal = await ctx.calendarEvent();
+        const noEventCal = await ctx.calendarEvent();
+        const ids = await ctx.seed([
+          { key: "shown", title: "Shown", startsAt: "2097-03-01T09:00:00Z", calendarEventId: shownCal },
+          { key: "hidden", title: "Hidden", startsAt: "2097-04-01T09:00:00Z", calendarEventId: hiddenCal, deletedAt: "2097-01-01T00:00:00Z" },
+        ]);
+
+
+        // More ids than one request carries, so the lookup is chunked.
+        const fillers = Array.from({ length: 150 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+        const visibility = await ctx.repo().visibilityByCalendarEvent([...fillers, shownCal, hiddenCal, noEventCal]);
+        expect(visibility.get(shownCal)).toBe("shown");
+        expect(visibility.get(hiddenCal)).toBe("hidden");
+        expect(visibility.has(noEventCal)).toBe(false);
+        expect((await ctx.repo().visibilityByCalendarEvent([])).size).toBe(0);
       });
     });
   });

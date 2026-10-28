@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parseEventAudience } from "@/lib/event-audience";
@@ -9,23 +10,12 @@ export async function GET(request: NextRequest) {
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
 
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("*, event_photos(id, hidden_at)")
-    .order("starts_at", { ascending: false });
-
-  if (error) {
+  try {
+    return NextResponse.json({ events: await createRepos(supabase).events.listWithPhotoCounts() });
+  } catch (error) {
     console.error("Error fetching events:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to fetch events" }, { status: 500 });
   }
-
-  const withCounts = (events || []).map((e: any) => ({
-    ...e,
-    photo_count: (e.event_photos || []).filter((p: any) => !p.hidden_at).length,
-    event_photos: undefined,
-  }));
-
-  return NextResponse.json({ events: withCounts });
 }
 
 export async function POST(request: NextRequest) {
@@ -53,9 +43,7 @@ export async function POST(request: NextRequest) {
     const audience = parseEventAudience(body);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
 
-    const { data: event, error } = await supabase
-      .from("events")
-      .insert({
+    const event = await createRepos(supabase).events.create({
         ...audience.fields,
         slug,
         title,
@@ -69,14 +57,7 @@ export async function POST(request: NextRequest) {
         results: results || null,
         google_photos_album_url: google_photos_album_url || null,
         created_by: user.id === "service-role" || user.id === "cron" ? null : user.id,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error creating event:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    });
 
     return NextResponse.json({ event }, { status: 201 });
   } catch (error: any) {

@@ -96,16 +96,12 @@ describe("admin calendar page data", () => {
           withCalendarEvent("prkl_AAAAAAAAAAA3", "00000000-0000-4000-8000-000000000003", "2026-10-21T15:00:00Z", "2026-10-21T16:00:00Z"),
           withCalendarEvent("prkl_AAAAAAAAAAA4", null, "2026-10-22T15:00:00Z", "2026-10-22T16:00:00Z"),
         ],
+        events: [
+          { id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", calendar_event_id: "00000000-0000-4000-8000-000000000001", deleted_at: null },
+          { id: "evt_AAAAAAAAAAA2", title: "Hidden one", slug: "hidden-one", calendar_event_id: "00000000-0000-4000-8000-000000000002", deleted_at: "2026-10-01T00:00:00Z" },
+        ],
       }),
     );
-    useFakeSupabase({
-      events: {
-        data: [
-          { calendar_event_id: "00000000-0000-4000-8000-000000000001", deleted_at: null },
-          { calendar_event_id: "00000000-0000-4000-8000-000000000002", deleted_at: "2026-10-01T00:00:00Z" },
-        ],
-      },
-    });
 
     await renderServerPage(CalendarPage, { searchParams: Promise.resolve({ week: "2026-10-18" }) });
 

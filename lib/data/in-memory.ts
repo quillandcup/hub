@@ -74,7 +74,6 @@ export class InMemoryDataset {
   constructor(
     init: Partial<
       Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees">
-
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -91,6 +90,7 @@ export class InMemoryDataset {
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
     this.events = (init.events ?? []).map((row) => ({ ...row }));
+    this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
     this.writingProjects = (init.writingProjects ?? []).map((row) => ({ ...row }));
     this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));

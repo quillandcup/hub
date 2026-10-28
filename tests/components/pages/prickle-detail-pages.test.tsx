@@ -67,8 +67,8 @@ const prickle = (extra: object = {}) => ({
   id: "prkl_AAAAAAAAAAA1", typeId: SPRINT.id, hostId: HOST.id, title: null, source: "calendar", calendarEventId: null,
   startTime: "2097-03-03T15:00:00Z", endTime: "2097-03-03T16:00:00Z", ...extra,
 });
-const dataset = (prickles: object[], attendance: object[] = []) =>
-  createInMemoryRepos(new InMemoryDataset({ members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never }));
+const dataset = (prickles: object[], attendance: object[] = [], events: object[] = []) =>
+  createInMemoryRepos(new InMemoryDataset({ members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never }));
 const memberProps = { params: Promise.resolve({ id: "prkl_AAAAAAAAAAA1" }) };
 
 beforeEach(() => {
@@ -167,13 +167,15 @@ describe("admin prickle page", () => {
       expect(controlProps()).toEqual({ calendarEventId: CALENDAR_ID, initial: null });
     });
 
+    const followingEvent = (deleted_at: string | null) => [{ id: "evt_AAAAAAAAAAA1", title: "Sprint", slug: "sprint", calendar_event_id: CALENDAR_ID, deleted_at }];
+
     it("starts from the event that follows the prickle, shown or hidden", async () => {
-      useFakeSupabase({ events: { data: { id: "evt_AAAAAAAAAAA1", deleted_at: null } } });
+      repos = dataset([prickle({ calendarEventId: CALENDAR_ID })], [], followingEvent(null));
       await renderServerPage(AdminPrickleDetailPage, memberProps);
       expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: false });
       cleanup();
 
-      useFakeSupabase({ events: { data: { id: "evt_AAAAAAAAAAA1", deleted_at: "2097-01-01T00:00:00Z" } } });
+      repos = dataset([prickle({ calendarEventId: CALENDAR_ID })], [], followingEvent("2097-01-01T00:00:00Z"));
       await renderServerPage(AdminPrickleDetailPage, memberProps);
       expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: true });
     });
