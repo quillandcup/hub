@@ -13,6 +13,7 @@ new ApiCheck('mux-webhook-rejects-unsigned', {
   frequency: Frequency.EVERY_24H,
   locations: ['us-east-1'],
   alertChannels: [ownerEmailAlert],
+  shouldFail: true, // Checkly treats a 4xx as a failure unless told it is expected
   request: {
     method: 'POST',
     url: `${appUrl}/api/webhooks/mux`,
@@ -57,6 +58,7 @@ if (muxCheck) {
     frequency: Frequency.EVERY_24H,
     locations: ['us-east-1'],
     alertChannels: [ownerEmailAlert],
+    shouldFail: true,
     request: {
       method: 'GET',
       url: streamUrl,
