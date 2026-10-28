@@ -1,7 +1,7 @@
-// Kinds, tiers and filters for the member Events page (app/(member)/events). Events differ in how much they
+// Kinds and tiers for the member Events page (app/(member)/events). Events differ in how much they
 // ask of a member: a retreat takes commitment and notice to sign up, a Pitch Prickle is a weekly or monthly
-// FYI. The page groups them by that (the tier, below) instead of listing them alike, and has a filter for
-// each tier plus Educational, which is its own pillar of the community.
+// FYI. The page highlights the special and educational ones (the tier, below; Educational is its own pillar of
+// the community) above the month-at-a-glance list of everything (lib/events-agenda.ts).
 
 export const EVENT_TYPES = [
   "in_person_retreat",
@@ -57,72 +57,6 @@ export function eventTier(event: { event_type: string; registration?: string | n
   if (event.event_type === "educational") return "educational";
   if (event.event_type === "session") return "session";
   return "special";
-}
-
-/** Allowlist for the `?type=` param: one filter per tier. */
-export const EVENT_FILTER_IDS = ["all", "special", "educational", "sessions"] as const;
-export type EventFilter = (typeof EVENT_FILTER_IDS)[number];
-
-export const EVENT_FILTER_LABELS: Record<EventFilter, string> = {
-  all: "All",
-  special: "Special events",
-  educational: "Educational",
-  sessions: "Sessions",
-};
-
-const TIER_OF_FILTER: Record<Exclude<EventFilter, "all">, EventTier> = {
-  special: "special",
-  educational: "educational",
-  sessions: "session",
-};
-
-export function parseEventFilter(raw: string | string[] | undefined | null): EventFilter {
-  const first = Array.isArray(raw) ? raw[0] : raw;
-  // Links from before the tiers were merged ("big", "events") land on Special events.
-  const value = first === "big" || first === "events" ? "special" : first;
-  return (EVENT_FILTER_IDS as readonly string[]).includes(value ?? "") ? (value as EventFilter) : "all";
-}
-
-export function tierMatchesFilter(tier: EventTier, filter: EventFilter): boolean {
-  return filter === "all" || TIER_OF_FILTER[filter] === tier;
-}
-
-export interface EventLike {
-  starts_at: string; // YYYY-MM-DD
-  ends_at: string; // YYYY-MM-DD
-  event_type: string;
-  registration?: string | null;
-}
-
-/** Split into upcoming (still in progress or ahead; soonest first) and past (most recent first).
- * `today` is a YYYY-MM-DD date in the viewer's timezone. */
-export function groupEvents<T extends EventLike>(
-  events: readonly T[],
-  filter: EventFilter,
-  today: string
-): { upcoming: T[]; past: T[] } {
-  const matching = events.filter((e) => tierMatchesFilter(eventTier(e), filter));
-  const upcoming = matching
-    .filter((e) => e.ends_at >= today)
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.ends_at.localeCompare(b.ends_at));
-  const past = matching
-    .filter((e) => e.ends_at < today)
-    .sort((a, b) => b.starts_at.localeCompare(a.starts_at) || b.ends_at.localeCompare(a.ends_at));
-  return { upcoming, past };
-}
-
-export type FilterCounts = Record<EventFilter, number>;
-
-/** Upcoming-item counts per filter, for pill badges. `sessions` and `all` include the featured prickles that have no event yet. */
-export function countUpcoming(events: readonly EventLike[], sessionPrickleCount: number, today: string): FilterCounts {
-  const upcoming = events.filter((e) => e.ends_at >= today);
-  const count = (tier: EventTier) => upcoming.filter((e) => eventTier(e) === tier).length;
-  return {
-    all: upcoming.length + sessionPrickleCount,
-    special: count("special"),
-    educational: count("educational"),
-    sessions: count("session") + sessionPrickleCount,
-  };
 }
 
 /** YYYY-MM-DD for `now` in `timeZone` (en-CA formats as ISO date). */

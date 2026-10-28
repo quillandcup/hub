@@ -3,10 +3,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import EventsBrowser, { type EventRow, type EventPrickle } from '@/app/(member)/events/EventsBrowser'
+import { agendaMonths } from '@/lib/events-agenda'
 
 const TODAY = '2026-09-26'
-
-const eventIsNotSpecial = (e: EventRow) => e.event_type === 'educational' || e.event_type === 'session'
+const MONTHS = agendaMonths(TODAY) // September, October, November
 
 function event(id: string, event_type: string, starts_at: string, ends_at = starts_at, registration: string | null = null): EventRow {
   return { id, slug: id, title: `Event ${id}`, event_type, location: null, starts_at, ends_at, focus: null, registration, cover_photo_id: null }
@@ -25,89 +25,132 @@ const PRICKLES: EventPrickle[] = [
   { id: 'p1', title: 'Craft Class', typeName: 'Webinar Prickle', hostName: 'Jane Doe', calendarEventId: null, startTime: '2026-10-02T16:00:00Z', endTime: '2026-10-02T17:00:00Z' },
 ]
 
-function renderBrowser(initialFilter: Parameters<typeof EventsBrowser>[0]['initialFilter'] = 'all', events = EVENTS) {
-  return render(<EventsBrowser initialFilter={initialFilter} events={events} eventPrickles={PRICKLES} today={TODAY} timeZone="UTC" />)
+type Props = Partial<Parameters<typeof EventsBrowser>[0]>
+
+function renderBrowser({ events = EVENTS, eventPrickles = PRICKLES, timeZone = 'America/New_York', initialMonth = MONTHS[0].id, ...rest }: Props = {}) {
+  return render(<EventsBrowser initialMonth={initialMonth} months={MONTHS} events={events} eventPrickles={eventPrickles} today={TODAY} timeZone={timeZone} {...rest} />)
 }
 
-const typeGroup = () => screen.getByRole('group', { name: 'Event type' })
+const monthGroup = () => screen.getByRole('group', { name: 'Month' })
+const glance = (label: string) => screen.getByRole('region', { name: `${label} at a glance` })
 
 describe('EventsBrowser', () => {
   beforeEach(() => {
     window.history.replaceState(null, '', '/events')
   })
 
-  it('groups upcoming events by how big a deal they are, with a picture on each card', () => {
+  it('highlights upcoming special and educational events as cards with a picture, and leaves the past out', () => {
     renderBrowser()
-    expect(within(typeGroup()).getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
-
     const special = screen.getByRole('region', { name: 'Special events' })
-    expect(within(special).getByText('Event lake')).toBeInTheDocument()
-    expect(within(special).getByText('Event zoomy')).toBeInTheDocument()
-    expect(within(special).getByText('Event party')).toBeInTheDocument()
+    for (const name of ['Event lake', 'Event zoomy', 'Event party']) expect(within(special).getByText(name)).toBeInTheDocument()
     expect(within(special).getAllByTestId('event-art')).toHaveLength(3)
     expect(within(screen.getByRole('region', { name: 'Educational' })).getByText('Event webinar')).toBeInTheDocument()
-
-    const past = screen.getByRole('region', { name: 'Past' })
-    expect(within(past).getByText('Event spring')).toBeInTheDocument()
+    expect(screen.queryByText('Event spring')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Past' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Sessions' })).not.toBeInTheDocument()
   })
 
-  it('lists sessions, and the featured prickles, as quiet rows', () => {
+  it('offers this month and the next two, on the first', () => {
     renderBrowser()
-    const sessions = screen.getByRole('region', { name: 'Sessions' })
-    expect(within(sessions).getByRole('link', { name: /Event pitch/ })).toHaveAttribute('href', '/events/pitch')
-    expect(within(sessions).getByText('Craft Class')).toBeInTheDocument()
-    expect(within(sessions).getByText('Webinar Prickle')).toBeInTheDocument()
-    expect(within(sessions).getByRole('link', { name: /Craft Class/ })).toHaveAttribute('href', '/prickles/p1')
+    const buttons = within(monthGroup()).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual([expect.stringMatching(/^September/), expect.stringMatching(/^October/), expect.stringMatching(/^November/)])
+    expect(buttons[0]).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('shows the badge icon of a retreat on its card in place of the kind\'s symbol', () => {
-    renderBrowser('all', [{ ...event('autumn', 'virtual_retreat', '2026-10-20'), badge_icon: '💡' }])
-    expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()
+  it('lists everything in the chosen month by day, sessions and featured prickles with the rest', async () => {
+    renderBrowser({ initialMonth: MONTHS[1].id })
+    const october = glance('October')
+    const links = within(october).getAllByRole('link').map((a) => a.textContent)
+    expect(links[0]).toMatch(/^Craft Class with Jane D/) // Oct 2, a featured prickle
+    expect(links[1]).toMatch(/^Event pitch/) // Oct 5
+    expect(within(october).getByRole('link', { name: /Event pitch/ })).toHaveAttribute('href', '/events/pitch')
+    expect(within(october).getByRole('link', { name: /Craft Class/ })).toHaveAttribute('href', '/prickles/p1')
+    expect(within(october).queryByText(/Event lake/)).not.toBeInTheDocument() // November
   })
 
-  it('offers four filters: All, Special events, Educational and Sessions', () => {
+  it('divides the weeks, and puts the day on the left of its items', () => {
+    renderBrowser({ initialMonth: MONTHS[1].id })
+    const october = glance('October')
+    // Oct 2 (Fri), Oct 5 (Mon), Oct 10-11 (Sat), Oct 15 (Thu): weeks of Sep 27, Oct 4, Oct 11
+    expect(within(october).getAllByRole('separator')).toHaveLength(2)
+    expect(within(october).getByLabelText('Fri, Oct 2')).toBeInTheDocument()
+  })
+
+  it('switches month, syncs ?month=, and drops it on the first month', async () => {
     renderBrowser()
-    expect(within(typeGroup()).getAllByRole('button').map((b) => b.textContent)).toEqual([expect.stringMatching(/^All/), expect.stringMatching(/^Special events/), expect.stringMatching(/^Educational/), expect.stringMatching(/^Sessions/)])
+    await userEvent.click(within(monthGroup()).getByRole('button', { name: /^November/ }))
+    expect(within(glance('November')).getByText('Event lake')).toBeInTheDocument()
+    expect(window.location.search).toBe(`?month=${MONTHS[2].id}`)
+    await userEvent.click(within(monthGroup()).getByRole('button', { name: /^September/ }))
+    expect(window.location.search).toBe('')
+  })
+
+  it('says so when a month has nothing', () => {
+    renderBrowser({ events: [], eventPrickles: [] })
+    expect(screen.getByText('Nothing scheduled in September yet.')).toBeInTheDocument()
   })
 
   it('says which events need a sign-up', () => {
-    renderBrowser('all', [event('class', 'educational', '2026-10-15', '2026-10-15', 'required')])
-    const special = screen.getByRole('region', { name: 'Special events' })
-    expect(within(special).getByText(/Educational · Sign-up required/)).toBeInTheDocument()
+    renderBrowser({ events: [event('class', 'educational', '2026-10-15', '2026-10-15', 'required')] })
+    expect(within(screen.getByRole('region', { name: 'Special events' })).getByText(/Educational · Sign-up required/)).toBeInTheDocument()
   })
 
-  it('filters to one tier and syncs ?type=', async () => {
-    renderBrowser()
-    await userEvent.click(within(typeGroup()).getByRole('button', { name: /Educational/ }))
-    expect(screen.getByText('Event webinar')).toBeInTheDocument()
-    expect(screen.queryByText('Event lake')).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Sessions' })).not.toBeInTheDocument()
-    expect(window.location.search).toBe('?type=educational')
-    expect(screen.getByText('No past educational events yet.')).toBeInTheDocument()
+  it('shows the badge icon of a retreat on its card in place of the kind\'s symbol', () => {
+    renderBrowser({ events: [{ ...event('autumn', 'virtual_retreat', '2026-10-20'), badge_icon: '💡' }] })
+    expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()
   })
 
-  it('shows only sessions and prickles under Sessions', () => {
-    renderBrowser('sessions')
-    expect(screen.getByRole('region', { name: 'Sessions' })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Special events' })).not.toBeInTheDocument()
+  it('takes the organization label and category off a title', () => {
+    renderBrowser({ initialMonth: MONTHS[1].id, events: [{ ...event('x', 'educational', '2026-10-15'), title: 'Quill & Cup [Authorpreneurship] Prickle: A Way to Make Money' }] })
+    expect(within(glance('October')).getByRole('link', { name: 'A Way to Make Money' })).toBeInTheDocument()
+    expect(screen.queryByText(/Quill & Cup/)).not.toBeInTheDocument()
+  })
+})
+
+describe('EventsBrowser times', () => {
+  const timed = (id: string, start_time: string, end_time: string, extra: Partial<EventRow> = {}): EventRow => ({
+    ...event(id, 'educational', '2026-10-20'),
+    start_time,
+    end_time,
+    ...extra,
   })
 
-  it('says so when a filter has nothing upcoming, and drops ?type= on All', async () => {
-    renderBrowser('special', EVENTS.filter((e) => eventIsNotSpecial(e)))
-    expect(screen.getByText('No upcoming special events scheduled yet.')).toBeInTheDocument()
-    await userEvent.click(within(typeGroup()).getByRole('button', { name: /^All/ }))
-    expect(window.location.search).toBe('')
+  it('shows the time of day in the viewer\'s zone, on the card and in the month', () => {
+    renderBrowser({ initialMonth: MONTHS[1].id, events: [timed('talk', '2026-10-20T18:00:00Z', '2026-10-20T19:00:00Z')] })
+    expect(within(screen.getByRole('region', { name: 'Educational' })).getByText(/2 – 3 pm EDT/)).toBeInTheDocument()
+    expect(within(glance('October')).getByText('2 – 3 pm EDT')).toBeInTheDocument()
+  })
+
+  it('files an evening event under the viewer\'s day, not the Eastern one', () => {
+    // 8 pm Eastern on Oct 20 is already Oct 21 in UTC; the viewer in UTC sees it on the 21st at 12 am.
+    renderBrowser({ initialMonth: MONTHS[1].id, timeZone: 'Asia/Tokyo', events: [timed('late', '2026-10-20T23:00:00Z', '2026-10-21T00:00:00Z')] })
+    expect(within(glance('October')).getByLabelText('Wed, Oct 21')).toBeInTheDocument()
+  })
+
+  it('says nothing about time for an all-day event or one with dates only', () => {
+    renderBrowser({
+      initialMonth: MONTHS[1].id,
+      eventPrickles: [],
+      events: [
+        // Midnight to midnight Eastern: all day on Oct 20.
+        timed('allday', '2026-10-20T04:00:00Z', '2026-10-21T04:00:00Z'),
+        event('dates', 'educational', '2026-10-22'),
+      ],
+    })
+    const october = glance('October')
+    expect(within(october).queryByText(/EDT/)).not.toBeInTheDocument()
+    expect(within(october).getByLabelText('Tue, Oct 20')).toBeInTheDocument()
   })
 })
 
 describe('EventsBrowser locations', () => {
-  it('shows a video call link as Online (Zoom) and a place as typed, without printing the link', () => {
-    const online = { ...event('talk', 'social', '2026-12-05'), location: 'https://us06web.zoom.us/j/87106462893?pwd=secret' }
-    const place = { ...event('retreat', 'in_person_retreat', '2026-12-06'), location: 'Cedar Lodge' }
-    render(<EventsBrowser initialFilter="all" events={[online, place]} eventPrickles={[]} today={TODAY} timeZone="UTC" />)
+  it('leaves out Online (Zoom), since online is the default, and shows a place as typed', () => {
+    const online = { ...event('talk', 'social', '2026-10-05'), location: 'https://us06web.zoom.us/j/87106462893?pwd=secret' }
+    const place = { ...event('retreat', 'in_person_retreat', '2026-10-06'), location: 'Cedar Lodge' }
+    renderBrowser({ initialMonth: MONTHS[1].id, events: [online, place], eventPrickles: [] })
 
-    expect(screen.getByText(/· Online \(Zoom\)/)).toBeInTheDocument()
-    expect(screen.getByText(/· Cedar Lodge/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Cedar Lodge/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Online/)).not.toBeInTheDocument()
     expect(screen.queryByText(/zoom\.us/)).not.toBeInTheDocument()
     expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
   })

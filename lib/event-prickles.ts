@@ -29,13 +29,14 @@ export interface EventPrickle {
 /**
  * Prickle events that haven't ended yet (`end_time >= now`, so one in progress still
  * shows) and start within the next EVENT_PRICKLE_WINDOW_DAYS, soonest first, capped at
- * EVENT_PRICKLE_LIMIT.
+ * EVENT_PRICKLE_LIMIT. `windowDays` widens the look-ahead for a page that shows further out.
  */
 export async function fetchUpcomingEventPrickles(
   supabase: SupabaseClient,
   now: Date,
+  windowDays: number = EVENT_PRICKLE_WINDOW_DAYS,
 ): Promise<EventPrickle[]> {
-  const windowEnd = new Date(now.getTime() + EVENT_PRICKLE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
 
   const prickles = await createRepos(supabase).prickles.listedInEventsActiveBetween({
     from: now.toISOString(),

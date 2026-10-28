@@ -1063,6 +1063,12 @@ Dropping files on the profile panel now attaches them to the conversation compos
 ### Move Inline SVGs to the Icon Library
 `lucide-react` is installed (named imports, tree-shaken) and Settings' "Use current location" button uses its `Locate` icon. **Still open:** the other hand-pasted inline SVGs in components; move each to lucide as it's touched (decorative icons keep `aria-hidden="true"`, color via `currentColor`).
 
+### Past Events Page _(Needs Scheduling)_
+The member Events page (`/events`) now shows only what is coming up: the highlighted special and educational events and a "month at a glance" list for this month and the next two. Past events used to be a section at the bottom and are no longer listed anywhere for members (they are still reachable by link, search and the badge pages). **Why deferred:** the month view was the priority and the list needs paging as events accumulate. **Start:** a `/events/past` page (a folder next to `app/(member)/events/`, tab-path style per `CLAUDE.md` if it becomes a tab) reading `repos.events.listWithCover()` filtered to `ends_at < today`, paginated with `DataTablePager`, newest first, reusing the card from `EventsBrowser.tsx`; link it from the Events page.
+
+### Event Times on the Event Page _(Needs Scheduling)_
+The Events list now shows a time of day for events that have `start_time`/`end_time` (calendar-linked events and prickles; all-day and dates-only events show none). The event detail page (`app/(member)/events/[slug]`) still shows dates only, and an event made by hand in admin has no time field, so it never shows one. **Start:** show `formatTimeSpan` (`lib/events-agenda.ts`) under the date on the detail page, and let `EventDetailsCard` in admin set the start and end time.
+
 ### Event Resources and Downloads _(Needs Scheduling)_
 `events` only has text fields (`focus`, `description`, `agenda`, `results`) and a photo gallery (`event_photos`). The member event page (`app/(member)/events/[slug]/EventDetailClient.tsx`) shows the text with `whitespace-pre-wrap`, so there is no place for the files a retreat hands out (worksheets, slides, workbooks, recordings), and a URL in a description is plain text, not a link.
 
