@@ -8,6 +8,7 @@ import { InMemoryPushSubscriptionRepository, SupabasePushSubscriptionRepository,
 import { InMemoryReminderLogRepository, SupabaseReminderLogRepository, type ReminderLogRepository } from "./reminder-log";
 import { InMemoryNotificationRepository, SupabaseNotificationRepository, type NotificationRepository } from "./notifications";
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
+import { InMemoryActivityRepository, SupabaseActivityRepository, type ActivityRepository } from "./activities";
 import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository } from "./events";
 import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
@@ -29,6 +30,7 @@ export interface Repos {
   writing: WritingRepository;
   events: EventRepository;
   prickleSchedules: PrickleScheduleRepository;
+  activities: ActivityRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -45,6 +47,7 @@ export function createRepos(db: Db): Repos {
     writing: new SupabaseWritingRepository(db),
     events: new SupabaseEventRepository(db),
     prickleSchedules: new SupabasePrickleScheduleRepository(db),
+    activities: new SupabaseActivityRepository(db),
   };
 }
 
@@ -62,5 +65,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     writing: new InMemoryWritingRepository(dataset),
     events: new InMemoryEventRepository(dataset),
     prickleSchedules: new InMemoryPrickleScheduleRepository(dataset),
+    activities: new InMemoryActivityRepository(dataset),
   };
 }

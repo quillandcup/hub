@@ -91,22 +91,13 @@ export default async function MemberDetailPage({
   // attendanceRecords panel below.
   const now = new Date();
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: allPrickleAttended }, { data: recentActivities }] = await Promise.all([
-    supabase
-      .from("member_activities")
-      .select("member_id, occurred_at")
-      .eq("member_id", id)
-      .eq("activity_type", "prickle_attended"),
-    supabase
-      .from("member_activities")
-      .select("member_id, activity_type, engagement_value, occurred_at")
-      .eq("member_id", id)
-      .gte("occurred_at", thirtyDaysAgoIso),
+  const [allPrickleAttended, recentActivities] = await Promise.all([
+    createRepos(supabase).activities.prickleAttendances(id),
+    createRepos(supabase).activities.engagementSince(id, thirtyDaysAgoIso),
   ]);
-  const activitiesForMetrics: EngagementActivityRow[] = recentActivities ?? [];
+  const activitiesForMetrics: EngagementActivityRow[] = recentActivities;
 
-  const metrics =
-    computeMemberEngagementMetrics(allPrickleAttended ?? [], [id], now, activitiesForMetrics).get(id) ?? null;
+  const metrics = computeMemberEngagementMetrics(allPrickleAttended, [id], now, activitiesForMetrics).get(id) ?? null;
   const member: MemberView = {
     ...memberRow,
     metrics: metrics
@@ -181,13 +172,7 @@ export default async function MemberDetailPage({
   const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
 
   // Fetch Slack activities
-  const { data: slackActivities } = await supabase
-    .from("member_activities")
-    .select("*")
-    .eq("member_id", id)
-    .eq("source", "slack")
-    .order("occurred_at", { ascending: false })
-    .limit(50);
+  const slackActivities = await createRepos(supabase).activities.slackFeed(id, 50);
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
   // activity, what staff did for or as them, changes to their record), Everything by default.

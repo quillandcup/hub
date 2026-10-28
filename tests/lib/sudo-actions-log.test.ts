@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 
-const insert = vi.fn();
 const cookieJar = new Map<string, string>();
 const getCurrentUser = vi.fn();
 
@@ -22,25 +22,26 @@ vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () => ({
     ok: true,
     user: { id: ADMIN_ID },
-    supabase: fakeSupabase(),
+    supabase: {},
   }),
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fakeSupabase() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 
-function fakeSupabase() {
-  return { from: () => ({ insert }) };
-}
-
-// The member being sudo'd into is read through the members repository (in memory here).
+// The member being sudo'd into and the activity log are in memory.
+let dataset = new InMemoryDataset();
+let failRecord = false;
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  const { InMemoryDataset } = await import("@/lib/data/in-memory");
   return {
     ...actual,
-    createRepos: () => actual.createInMemoryRepos(new InMemoryDataset({ members: [{ id: MEMBER_ID, name: "Fern Example", email: "fern@example.test" }] })),
+    createRepos: () => {
+      const repos = actual.createInMemoryRepos(dataset);
+      if (failRecord) repos.activities.record = async () => Promise.reject(new Error("boom"));
+      return repos;
+    },
   };
 });
 
@@ -49,7 +50,8 @@ import { signSudoCookie } from "@/lib/sudo-cookie";
 
 beforeEach(() => {
   process.env.SUDO_SECRET = "test-secret";
-  insert.mockReset().mockResolvedValue({ error: null });
+  dataset = new InMemoryDataset({ members: [{ id: MEMBER_ID, name: "Fern Example", email: "fern@example.test" }] });
+  failRecord = false;
   cookieJar.clear();
   getCurrentUser.mockReset().mockResolvedValue({ id: ADMIN_ID, email: "admin@example.test" });
 });
@@ -57,23 +59,22 @@ beforeEach(() => {
 describe("sudo activity events", () => {
   it("logs a staff event about the member when sudo starts", async () => {
     await expect(startSudo(MEMBER_ID)).rejects.toThrow("REDIRECT:");
-    expect(insert).toHaveBeenCalledWith(
+    expect(dataset.activities).toEqual([
       expect.objectContaining({
         member_id: MEMBER_ID,
         activity_type: "sudo_started",
         actor_kind: "staff",
         actor_user_id: ADMIN_ID,
         engagement_value: 0,
-      })
-    );
+        source: "sudo",
+      }),
+    ]);
   });
 
   it("logs the end of the session from the signed cookie", async () => {
     cookieJar.set("sudo_as", signSudoCookie(ADMIN_ID, MEMBER_ID));
     await expect(exitSudo()).rejects.toThrow("REDIRECT:");
-    expect(insert).toHaveBeenCalledWith(
-      expect.objectContaining({ member_id: MEMBER_ID, activity_type: "sudo_ended", actor_user_id: ADMIN_ID })
-    );
+    expect(dataset.activities).toEqual([expect.objectContaining({ member_id: MEMBER_ID, activity_type: "sudo_ended", actor_user_id: ADMIN_ID })]);
     expect(cookieJar.has("sudo_as")).toBe(false);
   });
 
@@ -82,11 +83,12 @@ describe("sudo activity events", () => {
     await expect(exitSudo()).rejects.toThrow("REDIRECT:");
     cookieJar.set("sudo_as", `${ADMIN_ID}:${MEMBER_ID}:deadbeef`);
     await expect(exitSudo()).rejects.toThrow("REDIRECT:");
-    expect(insert).not.toHaveBeenCalled();
+    expect(dataset.activities).toEqual([]);
   });
 
   it("still exits when the log write fails", async () => {
-    insert.mockResolvedValue({ error: { message: "boom" } });
+    failRecord = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
     cookieJar.set("sudo_as", signSudoCookie(ADMIN_ID, MEMBER_ID));
     await expect(exitSudo()).rejects.toThrow("REDIRECT:");
     expect(cookieJar.has("sudo_as")).toBe(false);

@@ -17,29 +17,8 @@ import {
 
 import { actionOutcome, withAction } from "@/lib/analytics/server";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
-const BATCH_SIZE = 1000;
 const SLACK_ACTIVITY_WINDOW_DAYS = 45;
 const REEL_SLOT_COUNT = 8;
-
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
 
 export interface WheelWinner {
   memberId: string;
@@ -96,14 +75,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
       createRepos(supabase)
         .attendance.list()
         .then((links) => links.map((l) => ({ member_id: l.memberId, prickle_id: l.prickleId }))),
-      fetchAllPaginated<{ member_id: string }>((offset) =>
-        supabase
-          .from("member_activities")
-          .select("member_id")
-          .eq("source", "slack")
-          .gte("occurred_at", activityWindowStart)
-          .range(offset, offset + BATCH_SIZE - 1)
-      ),
+      createRepos(supabase).activities.slackCountsSince(activityWindowStart),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
     ]);
@@ -146,10 +118,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
     }
   }
 
-  const slackActivityCounts = new Map<string, number>();
-  for (const row of slackActivity) {
-    slackActivityCounts.set(row.member_id, (slackActivityCounts.get(row.member_id) ?? 0) + 1);
-  }
+  const slackActivityCounts = slackActivity;
 
   const pool = members.map((m) => ({
     memberId: m.id,

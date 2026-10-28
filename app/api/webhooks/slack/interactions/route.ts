@@ -217,17 +217,18 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
   // Phase 1, item 11: same engagement signal as a manual log (see
   // app/(member)/projects/actions.ts logProgress) -- this is just a different entry point into
   // the same writing_progress_entries table.
-  const { error: activityError } = await supabase.from("member_activities").insert({
-    member_id: memberId,
-    activity_type: "writing_progress_logged",
-    activity_category: "writing",
-    title: "Logged writing progress",
-    related_id: entryId,
-    engagement_value: 5,
-    occurred_at: new Date().toISOString(),
-    source: "writing_progress",
-  });
-  if (activityError) console.error("writing_quick_log: failed to insert member_activities row", activityError);
+  await createRepos(supabase)
+    .activities.record({
+      memberId,
+      type: "writing_progress_logged",
+      category: "writing",
+      title: "Logged writing progress",
+      relatedId: entryId,
+      engagementValue: 5,
+      occurredAt: new Date().toISOString(),
+      source: "writing_progress",
+    })
+    .catch((activityError) => console.error("writing_quick_log: failed to insert member_activities row", activityError));
 
   if (channelId && messageTs) {
     const token = await getSlackBotToken();

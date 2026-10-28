@@ -1,3 +1,4 @@
+import type { ActivityRow } from "./activities";
 import type { AttendanceRow } from "./attendance";
 import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
 import type { EmailAliasRow, NameAliasRow } from "./aliases";
@@ -68,6 +69,8 @@ export class InMemoryDataset {
   writingGoals: WritingGoalRow[];
   writingEntries: WritingEntryRow[];
   writingBalances: WritingBalanceRow[];
+  /** The member activity log. */
+  activities: ActivityRow[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -76,7 +79,8 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities">
+
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -99,6 +103,7 @@ export class InMemoryDataset {
     this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
     this.writingBalances = (init.writingBalances ?? []).map((row) => ({ ...row }));
+    this.activities = (init.activities ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }
