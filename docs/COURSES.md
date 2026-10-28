@@ -61,7 +61,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 
 - Kajabi's quizzes and assessments before Self-Editing Academy moves.
 - Moving checkout off Kajabi.
-- Importing Kajabi per-lesson progress. The Ready Writer's first run starts in the Hub, and Kajabi's API has no per-lesson progress.
+- Importing Kajabi per-lesson progress for The Ready Writer: its first run starts in the Hub, so there is nothing to import. Other courses are different; see "Importing Kajabi per-lesson progress".
 
 ## What Kajabi gives us
 
@@ -87,6 +87,63 @@ So the migration has two kinds of steps: **API steps** that can run on the serve
 - **A transcript doesn't follow the video.** The replacement video (new media ID) started with no transcript, so a replaced video needs its caption re-uploaded.
 - **Capture gotchas:** the editor caches `/downloads` and the post JSON within a page session, so a script that opens a lesson a second time in one session sees no new request. And a *direct* load of a lesson's edit URL doesn't request the post JSON at all; reach it through the app's router (see "Step B in practice").
 - **Not yet checked:** a lesson from the real course that has PDFs (the shape above is from a test attachment on the duplicate).
+
+## Importing Kajabi per-lesson progress
+
+**Wanted** (decided 2026-10-28): a member who is halfway through a Kajabi course arrives in the Hub with those lessons complete in `lesson_progress`, and ideally the last-watched position. The Ready Writer starts fresh in the Hub, so the likelier users are the courses that move later (Self-Editing Academy, BFF Mindset Training, Hedgies on First). Status: **investigated, not built**; blocked on the open questions below.
+
+### What Kajabi exposes
+
+**Verified 2026-10-28 (read-only, client credentials, public API v1; counts and field names only).** The spec in `lib/kajabi/openapi.yaml` and live probes agree: **there is no per-lesson progress in the public API.**
+
+| Endpoint | Result |
+|---|---|
+| `GET /v1/contacts` (952 contacts) | Profile fields only (name, email, address, phone, `subscribed`, `external_user_id`, timestamps). Relationships: `site`, `offers`. |
+| `GET /v1/customers` (300 customers) | Adds `sign_in_count`, `last_sign_in_at`, `last_request_at`, `net_revenue`, public profile. Relationships: `site`, `contact`, `offers`, `products`. No course data. |
+| `GET /v1/purchases`, `/v1/order_items`, `/v1/offers`, `/v1/courses`, `/v1/products` | Who bought what and when (already used by the purchase and course sync). `products` has `members_aggregate_count` (a count per product, not per member). `courses` has modules and lessons, no student data. |
+| `GET /v1/contacts?filter[completed_assessment_id]=…` (also `passed_` and `failed_`, and the same on `/v1/customers`) | Answers 200. A **quiz-level** yes/no per assessment, but the API has no endpoint that lists assessments and their ids, so the ids would have to come from the admin app. Not lesson progress. |
+| `/v1/enrollments`, `/progress`, `/lesson_progress`, `/lesson_completions`, `/completions`, `/assessments`, `/quizzes`, `/quiz_results`, `/assessment_submissions`, `/activity`, `/events`, `/reports`, `/lessons`, `/posts`, `/members`, `/v1/courses/{id}/enrollments`, `/progress`, `/students`, `/relationships/contacts`, `/v1/contacts/{id}/progress`, `/relationships/courses`, `/enrollments` | **404** (not endpoints). |
+| `/v1/course_progress`, `/v1/hooks` | **403** with our credentials. `/v1/hooks` is webhooks, which the spec lists only for tags, forms, purchases, payments and orders, none for lesson completion. `course_progress` was a guess that answered differently from the 404s, so ask Kajabi whether it is a real, permission-gated endpoint. |
+
+The one usable signal is coarse: `last_sign_in_at` / `last_request_at` per customer (when they last visited Kajabi at all, not which lesson).
+
+**Unverified (needs a logged-in Kajabi admin browser, which an agent cannot do).** Kajabi's admin app very likely has the data, since a product's Students page shows per-student progress, and the editor's own JSON API (`/api/admin/...`, see "What Kajabi gives us") is what such pages call. By analogy with `/api/admin/products/{id}/posts` we would expect a per-product students list with a completion percentage and a per-student view with completed lessons, but **the paths, fields and whether per-lesson completion dates exist are guesses.** Expect the same auth constraint as the editor JSON (not cookie-replayable, 401 outside the page), so a script would have to drive the real pages and record responses, as `scripts/kajabi-course-content.ts` does.
+
+### What the user checks (about 15 minutes, in their own logged-in browser)
+
+1. Open the product (e.g. Self-Editing Academy) in Kajabi admin, then its **Students** (or **Contacts**, filtered by the product) page. Is there a per-student **progress %** column? Does a student's detail page list lessons with a completed mark or date?
+2. Open dev tools, Network, filter on `Fetch/XHR`, reload that page, then open one student. Note the request URLs and the JSON field names that carry completion. Do not paste any student's name or email anywhere public; field names and one redacted sample are enough.
+3. Look for **Reports**/**Analytics** (course completion, quiz results) and an **Export CSV** button on the Students page. A CSV with one row per student and lesson (or one column per lesson) would be enough on its own.
+4. Ask Kajabi support: "Is there an API or export for per-student, per-lesson completion and last position? Is `/v1/course_progress` a real endpoint?"
+5. Check whether Kajabi records completion per lesson for each course at all: it only does when students click "Complete and continue", and a video-only course may show nothing.
+
+### Options, in the order to prefer them
+
+1. **Kajabi export or admin JSON (best, if checks 1 to 3 find it).** Same shape as the other session steps: a local script (`pnpm courses:progress --course <slug>`) run by Ania or Cody in their own logged-in browser; it never sees a password. It reads progress from the page's own responses (or ingests a CSV the user downloads) into Bronze.
+2. **Coarse import from what the public API has.** Treat a lesson as done only for members with a clear signal (a passed assessment via the `completed_assessment_id` filter, once ids are known) and otherwise start at zero. Cheap and safe, but only useful for quiz-bearing courses (Self-Editing Academy).
+3. **Self-service "catch me up".** A one-time prompt on the course outline when a migrated member has access and no progress: "Mark everything up to here as done" (a lesson or module picker). It writes ordinary `lesson_progress` rows as the member, needs no Kajabi data and is honest about being self-reported. Good as the fallback for every course and as the repair path when an import is partial.
+4. **Derive from Hub signals.** Not possible before the member has used the Hub (no watch segments yet), so it only helps after migration. Do not infer completion from a purchase date.
+
+Recommended: run the checks above; if a usable source exists build option 1 (with option 3 as the member-facing repair), otherwise build option 3 alone. Nothing in The Ready Writer launch depends on this.
+
+### Design, if the data is available
+
+- **Bronze `bronze.kajabi_lesson_progress`**: one row per `(contact reference, kajabi_lesson_id)` with `completed_at` (nullable), `position_seconds` (nullable), `percent` (nullable, if only that is given), `raw_payload`, `fetched_at`, `deleted_at`. Upserted on the natural key; a row missing from a fully successful fetch is soft-deleted, and a failed or partial fetch deletes nothing (as in the other Bronze imports). Service role only, since it is member data.
+- **Identity**: Kajabi contact id (or email as a fallback) to `members` through the members repository (`kajabi_id`, then canonical email), **never by name**. Rows that match no member are counted and kept in Bronze, not guessed; they apply later if the member appears.
+- **Silver**: a step after `course_access` (so a member only gets progress for a course they can open) maps Kajabi lesson ids to `course_lessons` and **inserts missing `lesson_progress` rows only**. It never overwrites a row the member already has, never lowers or removes a `completed_at`, and keeps the earlier `completed_at` when both exist. Hub progress is member-written and Local (never reprocessed), so this is an insert-if-absent merge, not DELETE + INSERT; re-running is a no-op. Mark imported rows (a `source` column, `kajabi_import` or `hub`, via a migration) so they can be told apart and a bad import is reversible.
+- **Orphans**: a Kajabi lesson with no Silver lesson (deleted, or still a draft) is skipped and counted; once that lesson is synced, the next run picks up its progress.
+- **Access and launch**: only for members with a `course_access` row. For a course not yet open in the Hub (`launch_at`), the import can run early so members arrive with progress on day one, but nothing shows before launch. Cohort courses (`courses.kind = 'cohort'`) would also need the member's cohort and level, which an import does not carry; defer that until a cohort course is built.
+- **"Complete" means Kajabi's mark, not 90%.** Kajabi completion is an explicit "Complete" click (or the lesson's own rule); the Hub completes at 90% of the playhead or by the button. Take Kajabi's completed flag as complete, with `completed_at` from Kajabi if given, else the fetch date. Never convert a percentage into complete. A last position is imported only if Kajabi gives seconds, and only when the Hub row has none.
+- **Activity and analytics**: imported rows do not write `member_activities` (they are not Hub viewing), so the engagement score and Activity Log are not inflated.
+- **Privacy**: progress is member data. Nothing real in the repo, PR or docs; tests use fake members; reports are counts and shapes. The import takes its input from outside the repo (the browser session or a downloaded CSV kept out of git).
+- **Tests** (per `CLAUDE.md`): Bronze idempotency (first import, re-import without duplicates, changed data updates, soft delete only after a full fetch); Silver reprocessability (insert-if-absent, never overwrites newer Hub progress, orphan lessons and unmatched members skipped, no access means no rows); a parser test over a fake fixture; and a pgTAP check that the Bronze table is service role only.
+
+### Open questions for the user
+
+1. Which courses move first after The Ready Writer, and do their students have progress worth carrying over?
+2. Do the checks find a per-student progress source (page, JSON or CSV), and what does it give: per-lesson completion, dates, positions, or only a percentage?
+3. Is the member-facing "catch me up" (option 3) acceptable on its own where there is no source?
+4. Should imported completion count toward badges and course-completion nudges, or only show in the outline?
 
 ## Data model
 
