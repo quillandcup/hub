@@ -104,7 +104,8 @@ export default function EventsBrowser({
 
   const counts = countUpcoming(events, eventPrickles.length, today);
   const { upcoming, past } = groupEvents(events, filter, today);
-  const options: PillOption<EventFilter>[] = EVENT_FILTER_IDS.map((id) => ({ id, label: EVENT_FILTER_LABELS[id], count: counts[id] }));
+  // The Events pill (one-off gatherings) only appears when there is one, or it is the filter in use.
+  const options: PillOption<EventFilter>[] = EVENT_FILTER_IDS.filter((id) => id !== "events" || counts.events > 0 || filter === "events").map((id) => ({ id, label: EVENT_FILTER_LABELS[id], count: counts[id] }));
   const showsPrickles = filter === "all" || filter === "sessions";
   const sessionEvents = upcoming.filter((e) => eventTier(e) === "session");
   const hasUpcoming = upcoming.length > 0 || (showsPrickles && eventPrickles.length > 0);
