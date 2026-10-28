@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
@@ -23,7 +24,7 @@ export default async function ImportPhotosPage({ params }: { params: Promise<{ i
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("events")) redirect("/admin");
 
-  const { data: event } = await supabase.from("events").select("id, title").eq("id", id).single();
+  const event = await createRepos(supabase).events.byId(id);
   if (!event) notFound();
 
   const session = await getImportSessionCookie(id);

@@ -29,9 +29,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
 
   if (!badgeType) notFound();
 
-  const { data: linkedEvent } = badgeType.event_id
-    ? await supabase.from("events").select("id, title").eq("id", badgeType.event_id).single()
-    : { data: null };
+  const linkedEvent = badgeType.event_id ? await createRepos(supabase).events.byId(badgeType.event_id) : null;
 
   const { data: linkedProgram } = badgeType.program_id
     ? await supabase.from("programs").select("id, name").eq("id", badgeType.program_id).single()

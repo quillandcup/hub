@@ -1,31 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The create and update routes for events carry the audience fields (who it's for, how people
 // join, how many fit). A recording client captures what would be written.
 
 let written: Record<string, unknown> | undefined;
-const row = () => ({ id: "evt_AAAAAAAAAAA1", ...written });
 // What the event being updated holds now (the route judges a partial update against it); it follows no calendar item.
-let currentEvent: Record<string, unknown> | null = null;
-const client = {
-  from: () => ({
-    // The update route looks the event up first to see whether it follows the calendar; this one doesn't.
-    select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: currentEvent, error: null }) }) }),
-    insert: (payload: Record<string, unknown>) => {
-      written = payload;
-      return { select: () => ({ single: async () => ({ data: row(), error: null }) }) };
-    },
-    update: (payload: Record<string, unknown>) => {
-      written = payload;
-      return { eq: () => ({ select: () => ({ single: async () => ({ data: row(), error: null }) }) }) };
-    },
-  }),
-};
+let currentEvent: { announced_publicly: boolean; guests_allowed: boolean };
+let repos = createInMemoryRepos();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: client }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
-vi.mock("@/lib/data/repos", () => ({ createRepos: () => ({}) }));
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 import { POST as create } from "@/app/api/admin/events/route";
 import { PATCH as update } from "@/app/api/admin/events/[id]/route";
@@ -37,10 +28,18 @@ const send = (route: unknown, body: unknown) =>
     { params: Promise.resolve({ id: "evt_AAAAAAAAAAA1" }) },
   );
 
-beforeEach(() => {
+// Records what the routes write to the repository, then lets the in-memory twin carry it out.
+function setUp(event: typeof currentEvent) {
+  currentEvent = event;
   written = undefined;
-  currentEvent = { announced_publicly: true, guests_allowed: false };
-});
+  repos = createInMemoryRepos(new InMemoryDataset({ events: [{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", ...event }] }));
+  const create = repos.events.create.bind(repos.events);
+  const edit = repos.events.edit.bind(repos.events);
+  repos.events.create = async (fields) => ((written = { ...fields }), create(fields));
+  repos.events.edit = async (id, fields) => ((written = { ...fields }), edit(id, fields));
+}
+
+beforeEach(() => setUp({ announced_publicly: true, guests_allowed: false }));
 
 describe("POST /api/admin/events: audience", () => {
   it("stores who it's for, how people join and the speakers", async () => {
@@ -96,7 +95,7 @@ describe("PATCH /api/admin/events/[id]: audience", () => {
   });
 
   it("refuses guests at an event that isn't announced publicly, judging a partial update against what it holds", async () => {
-    currentEvent = { announced_publicly: false, guests_allowed: false };
+    setUp({ announced_publicly: false, guests_allowed: false });
     const res = await send(update, { guests_allowed: true });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("Guests can only be allowed at something announced publicly");
@@ -104,7 +103,7 @@ describe("PATCH /api/admin/events/[id]: audience", () => {
 
     expect((await send(update, { announced_publicly: true, guests_allowed: true })).status).toBe(200);
 
-    currentEvent = { announced_publicly: true, guests_allowed: true };
+    setUp({ announced_publicly: true, guests_allowed: true });
     expect((await send(update, { announced_publicly: false })).status).toBe(400);
   });
 

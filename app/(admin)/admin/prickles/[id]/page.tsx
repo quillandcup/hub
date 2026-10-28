@@ -138,7 +138,7 @@ export default async function AdminPrickleDetailPage({
   const eventsEnabled = (await getUserFeaturePreviews(user.id)).includes("events");
   const eventFollowing =
     eventsEnabled && prickle.calendarEventId
-      ? (await supabase.from("events").select("id, deleted_at").eq("calendar_event_id", prickle.calendarEventId).maybeSingle()).data
+      ? await createRepos(supabase).events.byCalendarEventId(prickle.calendarEventId)
       : null;
 
   // What an admin can change on a calendar prickle, and what they have already set by hand.
@@ -194,7 +194,7 @@ export default async function AdminPrickleDetailPage({
           {eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
-              initial={eventFollowing ? { id: eventFollowing.id, hidden: !!eventFollowing.deleted_at } : null}
+              initial={eventFollowing ? { id: eventFollowing.id, hidden: eventFollowing.hidden } : null}
             />
           )}
           <TestCheckinDMs prickleId={prickle.id} />

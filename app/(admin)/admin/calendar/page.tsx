@@ -54,12 +54,8 @@ export default async function CalendarPage({
   const userTimezone = await getUserTimezonePreference();
 
   // Which of the week's prickles have an event (shown in Events, or hidden from members)
-  const eventByCalendarEvent = new Map<string, "shown" | "hidden">();
   const calendarEventIds = prickles.flatMap((p) => (p.calendarEventId ? [p.calendarEventId] : []));
-  for (let i = 0; i < calendarEventIds.length; i += 100) {
-    const { data: linked } = await supabase.from("events").select("calendar_event_id, deleted_at").in("calendar_event_id", calendarEventIds.slice(i, i + 100));
-    for (const e of linked ?? []) if (e.calendar_event_id) eventByCalendarEvent.set(e.calendar_event_id, e.deleted_at ? "hidden" : "shown");
-  }
+  const eventByCalendarEvent = await repos.events.visibilityByCalendarEvent(calendarEventIds);
 
   // Transform the data to include attendance count and host attendance status
   const pricklesWithCount = prickles.map((prickle) => {

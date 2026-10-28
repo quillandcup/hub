@@ -1,32 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The admin event page lists attendees by display name, with the legal name beside it when it differs.
 
-const tables: Record<string, unknown> = {
-  events: { id: "evt_AAAAAAAAAAA1", title: "Open house", calendar_event_id: null },
-  event_photos: [],
-  event_attendees: [
-    { id: "a1", member_id: "mbr_AAAAAAAAAAA1", members: { name: "Ada Example", display_name: "Ada E", email: "ada@example.com" } },
-    { id: "a2", member_id: "mbr_AAAAAAAAAAA2", members: { name: "Bo Example", display_name: null, email: "bo@example.com" } },
-  ],
-};
-const chain = (table: string) => {
-  const result = { data: tables[table], error: null };
-  const q: Record<string, unknown> = {
-    select: () => q,
-    eq: () => q,
-    order: () => q,
-    single: async () => result,
-    then: (resolve: (v: unknown) => unknown) => resolve(result),
-  };
-  return q;
-};
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { from: (t: string) => chain(t) } }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
-vi.mock("@/lib/data/repos", () => ({
-  createRepos: () => ({ badges: { typeForEvent: async () => null }, prickles: { byCalendarEventIds: async () => [] } }),
+const repos = createInMemoryRepos(
+  new InMemoryDataset({
+    events: [{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", calendar_event_id: null }],
+    members: [
+      { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", email: "ada@example.com" },
+      { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null, email: "bo@example.com" },
+    ],
+    eventAttendees: [
+      { id: "a1", event_id: "evt_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA1", created_at: "2097-01-01T00:00:00Z", created_by: null },
+      { id: "a2", event_id: "evt_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA2", created_at: "2097-01-02T00:00:00Z", created_by: null },
+    ],
+  }),
+);
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
 }));
 
 import { GET } from "@/app/api/admin/events/[id]/route";

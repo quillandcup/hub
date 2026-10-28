@@ -7,15 +7,22 @@ import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 const db = getTestSupabaseAdminClient() as unknown as Db;
 const RUN = `${Date.now()}`;
 const created: string[] = [];
+const calendarIds: string[] = [];
+const memberIds: string[] = [];
 let counter = 0;
 
 const clear = async () => {
-  if (created.length === 0) return;
-  const { error } = await db.from("events").delete().in("id", created.splice(0));
-  if (error) throw new Error(error.message);
+  if (created.length > 0) {
+    const { error } = await db.from("events").delete().in("id", created.splice(0));
+    if (error) throw new Error(error.message);
+  }
 };
 
-afterAll(clear);
+afterAll(async () => {
+  await clear();
+  if (calendarIds.length > 0) await db.schema("bronze").from("calendar_events").delete().in("id", calendarIds);
+  if (memberIds.length > 0) await db.from("members").delete().in("id", memberIds);
+});
 
 defineEventContract("SupabaseEventRepository", () => ({
   repo: () => new SupabaseEventRepository(db),
@@ -31,6 +38,8 @@ defineEventContract("SupabaseEventRepository", () => ({
           event_type: "other",
           starts_at: e.startsAt,
           ends_at: new Date(Date.parse(e.startsAt) + 3_600_000).toISOString(),
+          calendar_event_id: e.calendarEventId ?? null,
+          deleted_at: e.deletedAt ?? null,
         })
         .select("id")
         .single();
@@ -39,6 +48,57 @@ defineEventContract("SupabaseEventRepository", () => ({
       created.push(data.id);
     }
     return ids;
+  },
+  calendarEvent: async () => {
+    const { data, error } = await db
+      .schema("bronze")
+      .from("calendar_events")
+      .insert({
+        google_event_id: `event-contract-${RUN}-${++counter}`,
+        summary: "Contract",
+        start_time: "2097-03-01T09:00:00Z",
+        end_time: "2097-03-01T10:00:00Z",
+        raw_data: {},
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    calendarIds.push(data.id);
+    return data.id;
+  },
+  member: async (m) => {
+    const n = ++counter;
+    const { data, error } = await db
+      .from("members")
+      .insert({ name: m.name, display_name: m.displayName, email: `event-contract-${RUN}-${n}-${m.email}`, status: "active", joined_at: "2097-01-01T00:00:00Z" })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    memberIds.push(data.id);
+    return data.id;
+  },
+  attend: async (eventId, memberId, createdAt) => {
+    const { error } = await db.from("event_attendees").insert({ event_id: eventId, member_id: memberId, created_at: createdAt });
+    if (error) throw new Error(error.message);
+  },
+  photo: async (eventId, p) => {
+    const { data, error } = await db
+      .from("event_photos")
+      .insert({
+        event_id: eventId,
+        google_media_item_id: `event-contract-${RUN}-${++counter}`,
+        storage_path: p.path,
+        taken_at: p.takenAt,
+        created_at: p.createdAt,
+        hidden_at: p.hidden ? p.createdAt : null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  },
+  track: (eventId) => {
+    created.push(eventId);
   },
 }));
 
@@ -127,12 +187,12 @@ defineEventSyncContract("SupabaseEventRepository", () => ({
 // --- member-facing reads ---
 const MEMBER_RUN = `m${Date.now()}`;
 const memberEventIds: string[] = [];
-const memberIds: string[] = [];
+const memberRowIds: string[] = [];
 let memberCounter = 0;
 
 afterAll(async () => {
   if (memberEventIds.length) await db.from("events").delete().in("id", memberEventIds);
-  if (memberIds.length) await db.from("members").delete().in("id", memberIds);
+  if (memberRowIds.length) await db.from("members").delete().in("id", memberRowIds);
 });
 
 defineMemberEventContract("SupabaseEventRepository", () => ({
@@ -184,7 +244,7 @@ defineMemberEventContract("SupabaseEventRepository", () => ({
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    memberIds.push(data.id);
+    memberRowIds.push(data.id);
     return data.id;
   },
   attend: async (eventId, memberId) => {

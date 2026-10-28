@@ -17,49 +17,35 @@ export async function GET(
   const { supabase } = auth;
   const { id } = await params;
 
-  const [
-    { data: event, error: eventError },
-    { data: photos, error: photosError },
-    badgeType,
-    { data: attendees, error: attendeesError },
-  ] = await Promise.all([
-    supabase.from("events").select("*").eq("id", id).single(),
-    supabase
-      .from("event_photos")
-      .select("*")
-      .eq("event_id", id)
-      .order("taken_at", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: true }),
-    createRepos(supabase).badges.typeForEvent(id),
-    supabase
-      .from("event_attendees")
-      .select("id, member_id, members(name, display_name, email)")
-      .eq("event_id", id)
-      .order("created_at", { ascending: true }),
-  ]);
-
-  if (eventError) return NextResponse.json({ error: eventError.message }, { status: 404 });
-  if (photosError) {
-    console.error("Error fetching event photos:", photosError);
-    return NextResponse.json({ error: photosError.message }, { status: 500 });
+  const repos = createRepos(supabase);
+  let event;
+  try {
+    event = await repos.events.byId(id);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load event" }, { status: 404 });
   }
-  if (attendeesError) {
-    console.error("Error fetching event attendees:", attendeesError);
-    return NextResponse.json({ error: attendeesError.message }, { status: 500 });
+  if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+
+  let photos, badgeType, attendees;
+  try {
+    [photos, badgeType, attendees] = await Promise.all([repos.events.allPhotosOf(id), repos.badges.typeForEvent(id), repos.events.attendeesOf(id)]);
+  } catch (error) {
+    console.error("Error fetching event details:", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to load event" }, { status: 500 });
   }
 
-  const attendeeRows = (attendees ?? []).map((a: any) => ({
+  const attendeeRows = attendees.map((a) => ({
     id: a.id,
     memberId: a.member_id,
-    memberName: a.members ? getMemberDisplayName(a.members) : "Unknown",
-    memberRealName: a.members && getMemberDisplayName(a.members) !== a.members.name ? a.members.name : undefined,
-    memberEmail: a.members?.email ?? "",
+    memberName: a.member ? getMemberDisplayName(a.member) : "Unknown",
+    memberRealName: a.member && getMemberDisplayName(a.member) !== a.member.name ? a.member.name : undefined,
+    memberEmail: a.member?.email ?? "",
   }));
 
   // The prickle this event stands for, when it has one: it is the source of the event's title, description, guest speaker and host.
-  const [prickle] = event.calendar_event_id ? await createRepos(supabase).prickles.byCalendarEventIds([event.calendar_event_id]) : [];
+  const [prickle] = event.calendar_event_id ? await repos.prickles.byCalendarEventIds([event.calendar_event_id]) : [];
 
-  return NextResponse.json({ event, prickleId: prickle?.id ?? null, photos: photos || [], badgeType: badgeType ?? null, attendees: attendeeRows });
+  return NextResponse.json({ event, prickleId: prickle?.id ?? null, photos, badgeType: badgeType ?? null, attendees: attendeeRows });
 }
 
 export async function PATCH(
@@ -93,11 +79,8 @@ export async function PATCH(
     if (event_type !== undefined && !isEventType(event_type)) {
       return NextResponse.json({ error: `event_type must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
     }
-    const { data: current } = await supabase
-      .from("events")
-      .select("title, description, location, overridden_fields, calendar_event_id, announced_publicly, guests_allowed")
-      .eq("id", id)
-      .maybeSingle();
+    const repos = createRepos(supabase);
+    const current = await repos.events.byId(id);
     const audience = parseEventAudience(body, current ?? undefined);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
 
@@ -108,7 +91,7 @@ export async function PATCH(
     const followsCalendar = !!current?.calendar_event_id;
     // An event that stands for a prickle takes its title, description, guest speaker and host from it: those are
     // edited on the prickle, so an update here leaves them alone.
-    const [prickle] = current?.calendar_event_id ? await createRepos(supabase).prickles.byCalendarEventIds([current.calendar_event_id]) : [];
+    const [prickle] = current?.calendar_event_id ? await repos.prickles.byCalendarEventIds([current.calendar_event_id]) : [];
     const fromPrickle = !!prickle;
     if (slug !== undefined) updates.slug = slug;
     if (title !== undefined && !fromPrickle) updates.title = title;
@@ -144,17 +127,7 @@ export async function PATCH(
     // An admin who has edited an event keeps it: the calendar sync no longer takes it away.
     updates.automatic = false;
 
-    const { data: event, error } = await supabase
-      .from("events")
-      .update(updates)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating event:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const event = await repos.events.edit(id, updates);
 
     return NextResponse.json({ event });
   } catch (error: any) {
@@ -175,15 +148,14 @@ export async function DELETE(
 
   // Photo rows cascade via the event_photos.event_id FK, but the storage
   // objects don't -- clean those up first so we don't leak blobs.
-  const { data: photos } = await supabase.from("event_photos").select("storage_path").eq("event_id", id);
-  if (photos && photos.length > 0) {
-    await supabase.storage.from("event-photos").remove(photos.map((p) => p.storage_path));
-  }
-
-  const { error } = await supabase.from("events").delete().eq("id", id);
-  if (error) {
+  const events = createRepos(supabase).events;
+  try {
+    const paths = await events.photoPaths(id);
+    if (paths.length > 0) await supabase.storage.from("event-photos").remove(paths);
+    await events.remove(id);
+  } catch (error) {
     console.error("Error deleting event:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to delete event" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

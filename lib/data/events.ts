@@ -74,6 +74,29 @@ export interface EventRepository {
   visibleEndingFrom(eventIds: string[], endsOnOrAfter: string): Promise<FeedEvent[]>;
   /** Events matching every word, newest first, one page. */
   search(query: EventSearchQuery): Promise<EventSearchHit[]>;
+
+  // --- admin events ---
+
+  /** Every event, newest first, each with how many of its photos are not hidden. Paginated. */
+  listWithPhotoCounts(): Promise<EventWithPhotoCount[]>;
+  /** One event by id, or null. */
+  byId(id: string): Promise<Row<"events"> | null>;
+  /** Creates an event and returns it. */
+  create(fields: Insert<"events">): Promise<Row<"events">>;
+  /** Updates an event and returns it; throws when there is no such event. (`update` writes without reading back.) */
+  edit(id: string, fields: Update<"events">): Promise<Row<"events">>;
+  /** Hides an event (`deletedAt` set) or shows it again (null); the event, or null when there is none. */
+  setDeletedAt(id: string, deletedAt: string | null): Promise<Row<"events"> | null>;
+  /** Deletes an event; its photo and attendee rows go with it. */
+  remove(id: string): Promise<void>;
+  /** An event's photos, oldest first (undated last). */
+  allPhotosOf(eventId: string): Promise<Row<"event_photos">[]>;
+  /** The storage paths of an event's photos. Paginated. */
+  photoPaths(eventId: string): Promise<string[]>;
+  /** An event's attendees with the member's names, in the order they were added. */
+  attendeesOf(eventId: string): Promise<EventAttendeeEntry[]>;
+  /** For each given calendar event that has an event, whether it is shown to members or hidden. Chunked. */
+  visibilityByCalendarEvent(calendarEventIds: string[]): Promise<Map<string, "shown" | "hidden">>;
 }
 
 /** An event that follows a calendar event. */
@@ -185,6 +208,19 @@ const photoOrder = (a: EventPhotoRow, b: EventPhotoRow) => {
   if (ta !== tb) return ta === null ? 1 : tb === null ? -1 : ta < tb ? -1 : 1;
   return a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1;
 };
+
+/** An event with its count of photos that are not hidden. */
+export type EventWithPhotoCount = Row<"events"> & { photo_count: number };
+
+/** An event attendee with the member's names (null when the member row is gone). */
+export interface EventAttendeeEntry {
+  id: string;
+  member_id: string;
+  member: { name: string; display_name: string | null; email: string } | null;
+}
+
+const byStartsDesc = (a: { starts_at?: string; id: string }, b: { starts_at?: string; id: string }) =>
+  (a.starts_at ?? "") < (b.starts_at ?? "") ? 1 : (a.starts_at ?? "") > (b.starts_at ?? "") ? -1 : a.id < b.id ? -1 : 1;
 
 export class SupabaseEventRepository implements EventRepository {
   constructor(private readonly db: Db) {}
@@ -341,6 +377,23 @@ export class SupabaseEventRepository implements EventRepository {
     return data;
   }
 
+  // --- admin events ---
+
+  async listWithPhotoCounts() {
+    type Embedded = Row<"events"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
+    type Page = { data: Embedded[] | null; error: { message: string } | null };
+    const rows = await fetchAllRows<Embedded>(
+      (from, to) => this.db.from("events").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
+    );
+    return rows.map(({ event_photos, ...event }) => ({ ...event, photo_count: (event_photos ?? []).filter((p) => !p.hidden_at).length }));
+  }
+
+  async byId(id: string) {
+    const { data, error } = await this.db.from("events").select("*").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
   async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
     const { data, error } = await this.db
       .from("event_photos")
@@ -401,6 +454,78 @@ export class SupabaseEventRepository implements EventRepository {
       .range(q.offset, q.offset + q.limit - 1);
     if (error) throw new Error(error.message);
     return data ?? [];
+  }
+
+  async create(fields: Insert<"events">) {
+    const { data, error } = await this.db.from("events").insert(fields).select("*").single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async edit(id: string, fields: Update<"events">) {
+    const { data, error } = await this.db.from("events").update(fields).eq("id", id).select("*").single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async setDeletedAt(id: string, deletedAt: string | null) {
+    const { data, error } = await this.db.from("events").update({ deleted_at: deletedAt }).eq("id", id).select("*").maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async remove(id: string) {
+    const { error } = await this.db.from("events").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async allPhotosOf(eventId: string) {
+    type Page = { data: Row<"event_photos">[] | null; error: { message: string } | null };
+    return fetchAllRows<Row<"event_photos">>(
+      (from, to) =>
+        this.db
+          .from("event_photos")
+          .select("*")
+          .eq("event_id", eventId)
+          .order("taken_at", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true })
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page>
+    );
+  }
+
+  async photoPaths(eventId: string) {
+    type Page = { data: { storage_path: string }[] | null; error: { message: string } | null };
+    const rows = await fetchAllRows<{ storage_path: string }>(
+      (from, to) => this.db.from("event_photos").select("storage_path").eq("event_id", eventId).order("id").range(from, to) as unknown as PromiseLike<Page>
+    );
+    return rows.map((r) => r.storage_path);
+  }
+
+  async attendeesOf(eventId: string) {
+    type Embedded = { id: string; member_id: string; members: EventAttendeeEntry["member"] };
+    type Page = { data: Embedded[] | null; error: { message: string } | null };
+    const rows = await fetchAllRows<Embedded>(
+      (from, to) =>
+        this.db
+          .from("event_attendees")
+          .select("id, member_id, members(name, display_name, email)")
+          .eq("event_id", eventId)
+          .order("created_at", { ascending: true })
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page>
+    );
+    return rows.map((r) => ({ id: r.id, member_id: r.member_id, member: r.members }));
+  }
+
+  async visibilityByCalendarEvent(calendarEventIds: string[]) {
+    const out = new Map<string, "shown" | "hidden">();
+    for (const ids of chunks(calendarEventIds)) {
+      const { data, error } = await this.db.from("events").select("calendar_event_id, deleted_at").in("calendar_event_id", ids);
+      if (error) throw new Error(error.message);
+      for (const e of data ?? []) if (e.calendar_event_id) out.set(e.calendar_event_id, e.deleted_at ? "hidden" : "shown");
+    }
+    return out;
   }
 }
 
@@ -616,5 +741,89 @@ export class InMemoryEventRepository implements EventRepository {
 
   private photosOf(eventId: string) {
     return this.data.eventPhotos.filter((p) => p.event_id === eventId).sort(photoOrder);
+  }
+
+  // --- admin events ---
+
+  private nextId = 0;
+
+  // The dataset's event rows leave columns out; the twin hands them back as the full row type, so a column a test did not set is undefined.
+  private full(row: EventRow) {
+    return { ...row } as Row<"events">;
+  }
+
+  async listWithPhotoCounts() {
+    return [...this.data.events].sort(byStartsDesc).map((e) => ({
+      ...this.full(e),
+      photo_count: this.data.eventPhotos.filter((p) => p.event_id === e.id && !p.hidden_at).length,
+    }));
+  }
+
+  async byId(id: string) {
+    const row = this.data.events.find((e) => e.id === id);
+    return row ? this.full(row) : null;
+  }
+
+  async create(fields: Insert<"events">) {
+    if (!fields.slug || !fields.title) throw new Error("null value in column violates not-null constraint");
+    const row = { id: `evnt_created${++this.nextId}`, ...fields } as EventRow;
+    this.data.events.push(row);
+    return this.full(row);
+  }
+
+  async edit(id: string, fields: Update<"events">) {
+    const row = this.data.events.find((e) => e.id === id);
+    if (!row) throw new Error("JSON object requested, multiple (or no) rows returned");
+    Object.assign(row, fields);
+    return this.full(row);
+  }
+
+  async setDeletedAt(id: string, deletedAt: string | null) {
+    const row = this.data.events.find((e) => e.id === id);
+    if (!row) return null;
+    row.deleted_at = deletedAt;
+    return this.full(row);
+  }
+
+  async remove(id: string) {
+    this.data.events = this.data.events.filter((e) => e.id !== id);
+    this.data.eventPhotos = this.data.eventPhotos.filter((p) => p.event_id !== id);
+    this.data.eventAttendees = this.data.eventAttendees.filter((a) => a.event_id !== id);
+  }
+
+  async allPhotosOf(eventId: string) {
+    const when = (p: Row<"event_photos">) => p.taken_at;
+    return this.data.eventPhotos
+      .filter((p) => p.event_id === eventId)
+      .sort((a, b) => {
+        if (when(a) !== when(b)) {
+          if (!when(a)) return 1;
+          if (!when(b)) return -1;
+          return when(a)! < when(b)! ? -1 : 1;
+        }
+        return a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1;
+      })
+      .map((p) => ({ ...p }));
+  }
+
+  async photoPaths(eventId: string) {
+    return this.data.eventPhotos.filter((p) => p.event_id === eventId).map((p) => p.storage_path);
+  }
+
+  async attendeesOf(eventId: string) {
+    return this.data.eventAttendees
+      .flatMap((a) => (a.event_id === eventId && a.member_id ? [{ id: a.id ?? "", member_id: a.member_id, created_at: a.created_at ?? "" }] : []))
+      .sort((a, b) => (a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1))
+      .map((a) => {
+        const m = this.data.members.find((x) => x.id === a.member_id);
+        return { id: a.id, member_id: a.member_id, member: m ? { name: m.name, display_name: m.displayName ?? null, email: m.email ?? "" } : null };
+      });
+  }
+
+  async visibilityByCalendarEvent(calendarEventIds: string[]) {
+    const wanted = new Set(calendarEventIds);
+    const out = new Map<string, "shown" | "hidden">();
+    for (const e of this.data.events) if (e.calendar_event_id && wanted.has(e.calendar_event_id)) out.set(e.calendar_event_id, e.deleted_at ? "hidden" : "shown");
+    return out;
   }
 }

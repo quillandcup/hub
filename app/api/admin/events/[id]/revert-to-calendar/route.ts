@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { calendarEventFields, syncCalendarEvent, syncableFields } from "@/lib/calendar-events";
@@ -13,10 +14,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { supabase } = auth;
   const { id } = await params;
 
-  const { data: event, error: eventError } = await supabase.from("events").select("id, calendar_event_id").eq("id", id).maybeSingle();
-  if (eventError) {
+  const events = createRepos(supabase).events;
+  let event;
+  try {
+    event = await events.byId(id);
+  } catch (eventError) {
     console.error("Error loading event to revert to the calendar:", eventError);
-    return NextResponse.json({ error: eventError.message }, { status: 500 });
+    return NextResponse.json({ error: eventError instanceof Error ? eventError.message : "Failed to load event" }, { status: 500 });
   }
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
   if (!event.calendar_event_id) return NextResponse.json({ error: "This event doesn't follow the calendar" }, { status: 400 });
@@ -33,18 +37,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
   if (!source) return NextResponse.json({ error: "The calendar event is gone" }, { status: 404 });
 
-  const { data: updated, error } = await supabase
-    .from("events")
-    .update({ ...syncableFields(calendarEventFields(source), []), overridden_fields: [] })
-    .eq("id", id)
-    .select("*")
-    .single();
-  if (error) {
+  let updated;
+  try {
+    updated = await events.edit(id, { ...syncableFields(calendarEventFields(source), []), overridden_fields: [] });
+  } catch (error) {
     console.error("Error reverting event to the calendar:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to revert event" }, { status: 500 });
   }
   // An event that stands for a prickle takes its title, description, guest speaker and host from it, not the calendar.
   await syncCalendarEvent(supabase, event.calendar_event_id);
-  const { data: synced } = await supabase.from("events").select("*").eq("id", id).single();
+  const synced = await events.byId(id).catch(() => null);
   return NextResponse.json({ event: synced ?? updated });
 }
