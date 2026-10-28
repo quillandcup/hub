@@ -42,17 +42,23 @@ describe("universalSearch pages kind", () => {
 
   it("hides unavailable Hosting settings but keeps the host signup page", async () => {
     vi.mocked(getHostVibeTypes).mockResolvedValue(new Map());
-    const [group] = await universalSearch({ ...ctx, viewerMemberId: "sudo-member" }, parseUniversal("in:pages hosting"));
+    const [group] = await universalSearch({ ...ctx, features: ["hosting"], viewerMemberId: "sudo-member" }, parseUniversal("in:pages hosting"));
     expect(getHostVibeTypes).toHaveBeenCalledWith(ctx.supabase, "sudo-member");
     expect(group.hits.map((h) => h.href)).toEqual(["/my-prickles/hosting"]);
   });
 
   it("shows Hosting settings and its section for eligible hosts", async () => {
     vi.mocked(getHostVibeTypes).mockResolvedValue(new Map([["type-a", "Writing"]]));
-    const [group] = await universalSearch({ ...ctx, viewerMemberId: "member" }, parseUniversal("in:pages hosting"));
+    const [group] = await universalSearch({ ...ctx, features: ["hosting"], viewerMemberId: "member" }, parseUniversal("in:pages hosting"));
     expect(group.hits.map((h) => h.href)).toEqual(expect.arrayContaining([
       "/settings/hosting", "/settings/hosting#prickle-vibe",
     ]));
+  });
+
+  it("hides every Hosting page until the hosting preview is on", async () => {
+    vi.mocked(getHostVibeTypes).mockResolvedValue(new Map([["type-a", "Writing"]]));
+    const [group] = await universalSearch({ ...ctx, viewerMemberId: "member" }, parseUniversal("in:pages hosting"));
+    expect(group.hits).toEqual([]);
   });
 
   it("hides Hosting settings for a viewer without a member record", async () => {

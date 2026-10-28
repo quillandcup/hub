@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { PRIORITY, getRankedUpcomingPrickles, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
@@ -62,6 +63,10 @@ export default async function MyPricklesPage({
 
   const [effectiveIdentity, tzPref] = await Promise.all([getEffectiveIdentity(user), getUserTimezonePreference()]);
   if (!effectiveIdentity) redirect("/admin");
+
+  // Hosting is behind the hosting preview (the sudo'd member's own flag in sudo); an old link opens Upcoming.
+  const hostingOn = await effectiveMemberHasFeature("hosting", effectiveIdentity, await getUserFeaturePreviews(user.id));
+  if (tab === "hosting" && !hostingOn) redirect("/my-prickles");
 
   const memberId = effectiveIdentity.memberId;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
@@ -263,28 +268,32 @@ export default async function MyPricklesPage({
                 </>
               ),
             },
-            {
-              id: "hosting",
-              label: MY_PRICKLES_TAB_LABELS.hosting,
-              content: (
-                <div>
-                  {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
-                  {!settleInFirst && <HostingStats stats={hostingStats} />}
-                  <div data-tour="hosting-schedule">
-                    <HostingScheduleManager
-                      initialSchedules={schedules}
-                      prickleTypes={prickleTypes ?? []}
-                      currentMonth={currentMonth}
-                      nextMonth={nextMonth}
-                      currentMonthLocked={currentMonthLocked}
-                      nextMonthLocked={nextMonthLocked}
-                      hostEligibility={hostEligibility}
-                      calendarHostedCount={hostingStats.totalHosted}
-                    />
-                  </div>
-                </div>
-              ),
-            },
+            ...(hostingOn
+              ? [
+                {
+                  id: "hosting",
+                  label: MY_PRICKLES_TAB_LABELS.hosting,
+                  content: (
+                    <div>
+                      {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
+                      {!settleInFirst && <HostingStats stats={hostingStats} />}
+                      <div data-tour="hosting-schedule">
+                        <HostingScheduleManager
+                          initialSchedules={schedules}
+                          prickleTypes={prickleTypes ?? []}
+                          currentMonth={currentMonth}
+                          nextMonth={nextMonth}
+                          currentMonthLocked={currentMonthLocked}
+                          nextMonthLocked={nextMonthLocked}
+                          hostEligibility={hostEligibility}
+                          calendarHostedCount={hostingStats.totalHosted}
+                        />
+                      </div>
+                    </div>
+                  ),
+                },
+                ]
+              : []),
             {
               id: "history",
               label: MY_PRICKLES_TAB_LABELS.history,
