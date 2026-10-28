@@ -204,19 +204,20 @@ export type ElevateResult =
  * already has). Its slug is the title and date, with a numeric suffix if another event has it.
  */
 export async function elevateCalendarEvent(db: Db, calendarEventId: string, userId: string | null, automatic = false): Promise<ElevateResult> {
+  const events = createRepos(db).events;
   const existingEvent = async () => {
-    const { data, error } = await db.from("events").select("id, slug, deleted_at, automatic").eq("calendar_event_id", calendarEventId).maybeSingle();
-    return { error, event: data ? { id: data.id, slug: data.slug, hidden: !!data.deleted_at } : null, wasAutomatic: !!data?.automatic };
+    const found = await events.byCalendarEventId(calendarEventId);
+    return found ? { id: found.id, slug: found.slug, hidden: found.hidden } : null;
   };
-  const existing = await existingEvent();
-  if (existing.error) return { ok: false, status: 500, error: existing.error.message };
-  if (existing.event) {
-    // An admin showing an item the sync made by itself keeps it: the sync no longer takes it away.
-    if (existing.wasAutomatic && !automatic) {
-      const { error } = await db.from("events").update({ automatic: false }).eq("id", existing.event.id);
-      if (error) return { ok: false, status: 500, error: error.message };
+  try {
+    const existingFull = await events.byCalendarEventId(calendarEventId);
+    if (existingFull) {
+      // An admin showing an item the sync made by itself keeps it: the sync no longer takes it away.
+      if (existingFull.automatic && !automatic) await events.update(existingFull.id, { automatic: false });
+      return { ok: true, created: false, event: { id: existingFull.id, slug: existingFull.slug, hidden: existingFull.hidden } };
     }
-    return { ok: true, created: false, event: existing.event };
+  } catch (e) {
+    return { ok: false, status: 500, error: (e as Error).message };
   }
 
   const { data: source, error: sourceError } = await db
@@ -243,18 +244,25 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
   const base = `${slugify(fields.title)}-${fields.starts_at}`;
   for (let attempt = 1; attempt <= 5; attempt++) {
     const slug = attempt === 1 ? base : `${base}-${attempt}`;
-    const { data, error } = await db
-      .from("events")
-      .insert({ ...fields, ...audience, slug, event_type: prickle ? (prickle.type?.eventKind ?? "session") : "other", calendar_event_id: calendarEventId, created_by: userId, automatic })
-      .select("id, slug")
-      .single();
-    if (!error) return { ok: true, created: true, event: { ...data, hidden: false } };
-    if (error.code === "23505" && error.message.includes("calendar_event_id")) {
-      // Someone showed it a moment ago; return theirs.
-      const theirs = await existingEvent();
-      if (theirs.event) return { ok: true, created: false, event: theirs.event };
+    try {
+      const result = await events.createFromCalendar({
+        ...fields,
+        ...audience,
+        slug,
+        event_type: prickle ? (prickle.type?.eventKind ?? "session") : "other",
+        calendar_event_id: calendarEventId,
+        created_by: userId,
+        automatic,
+      });
+      if (result.status === "created") return { ok: true, created: true, event: { ...result.event, hidden: false } };
+      if (result.on === "calendar_event") {
+        // Someone showed it a moment ago; return theirs.
+        const theirs = await existingEvent();
+        if (theirs) return { ok: true, created: false, event: theirs };
+      }
+    } catch (e) {
+      return { ok: false, status: 500, error: (e as Error).message };
     }
-    if (error.code !== "23505") return { ok: false, status: 500, error: error.message };
   }
   return { ok: false, status: 500, error: "Could not find a free address for this event" };
 }
@@ -267,12 +275,7 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
 export async function ensureCalendarEvents(db: Db, calendarEventIds: string[]): Promise<number> {
   if (calendarEventIds.length === 0) return 0;
 
-  const have = new Set<string>();
-  for (let i = 0; i < calendarEventIds.length; i += 100) {
-    const { data, error } = await db.from("events").select("calendar_event_id").in("calendar_event_id", calendarEventIds.slice(i, i + 100));
-    if (error) throw new Error(error.message);
-    for (const row of data ?? []) if (row.calendar_event_id) have.add(row.calendar_event_id);
-  }
+  const have = await createRepos(db).events.calendarEventIdsWithEvent(calendarEventIds);
   const missing = calendarEventIds.filter((id) => !have.has(id));
 
   let created = 0;
@@ -295,16 +298,12 @@ export async function syncCalendarEvents(db: Db, sources: ({ id: string } & Cale
   const byId = new Map(sources.map((s) => [s.id, s]));
   const ids = [...byId.keys()];
 
-  const linked: { id: string; calendar_event_id: string | null; overridden_fields: string[] }[] = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const { data, error } = await db.from("events").select("id, calendar_event_id, overridden_fields").in("calendar_event_id", ids.slice(i, i + 100));
-    if (error) throw new Error(error.message);
-    linked.push(...(data ?? []));
-  }
+  const repos = createRepos(db);
+  const linked = await repos.events.linkedToCalendarEvents(ids);
 
   // The prickles these events stand for (only for the few that have an event).
   const prickles = new Map<string, PrickleDetail>();
-  for (const p of await createRepos(db).prickles.byCalendarEventIds(linked.flatMap((r) => (r.calendar_event_id ? [r.calendar_event_id] : [])))) {
+  for (const p of await repos.prickles.byCalendarEventIds(linked.flatMap((r) => (r.calendarEventId ? [r.calendarEventId] : [])))) {
     if (p.calendarEventId) prickles.set(p.calendarEventId, p);
   }
 
@@ -312,10 +311,9 @@ export async function syncCalendarEvents(db: Db, sources: ({ id: string } & Cale
   for (let i = 0; i < linked.length; i += 25) {
     const results = await Promise.all(
       linked.slice(i, i + 25).map(async (row) => {
-        const source = byId.get(row.calendar_event_id as string);
+        const source = byId.get(row.calendarEventId as string);
         if (!source) return false;
-        const { error } = await db.from("events").update(eventUpdateFor(source, row.overridden_fields, prickles.get(row.calendar_event_id as string))).eq("id", row.id);
-        if (error) throw new Error(error.message);
+        await repos.events.update(row.id, eventUpdateFor(source, row.overriddenFields, prickles.get(row.calendarEventId as string)));
         return true;
       }),
     );
@@ -333,44 +331,17 @@ export async function syncCalendarEvents(db: Db, sources: ({ id: string } & Cale
  * Returns how many it removed.
  */
 export async function reconcileAutomaticEvents(db: Db, sourceIds: string[], qualifying: ReadonlySet<string>): Promise<number> {
-  const stale: string[] = [];
-
-  for (let i = 0; i < sourceIds.length; i += 100) {
-    const { data, error } = await db
-      .from("events")
-      .select("id, calendar_event_id")
-      .eq("automatic", true)
-      .in("calendar_event_id", sourceIds.slice(i, i + 100));
-    if (error) throw new Error(error.message);
-    for (const row of data ?? []) if (row.calendar_event_id && !qualifying.has(row.calendar_event_id)) stale.push(row.id);
-  }
+  const repos = createRepos(db);
+  const stale: string[] = (await repos.events.automaticFollowing(sourceIds)).filter((r) => !qualifying.has(r.calendarEventId)).map((r) => r.id);
   // The calendar event is gone (the link was cleared when it was deleted), so nothing can make this event apply.
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.from("events").select("id").eq("automatic", true).is("calendar_event_id", null).order("id").range(from, from + 999);
-    if (error) throw new Error(error.message);
-    stale.push(...(data ?? []).map((r) => r.id));
-    if ((data ?? []).length < 1000) break;
-  }
+  stale.push(...(await repos.events.automaticWithoutCalendarEvent()));
   if (stale.length === 0) return 0;
 
-  const worked = new Set<string>(await createRepos(db).badges.linkedEventIds());
-  for (let i = 0; i < stale.length; i += 100) {
-    const chunk = stale.slice(i, i + 100);
-    const [photos, attendees] = await Promise.all([
-      db.from("event_photos").select("event_id").in("event_id", chunk),
-      db.from("event_attendees").select("event_id").in("event_id", chunk),
-    ]);
-    for (const result of [photos, attendees]) {
-      if (result.error) throw new Error(result.error.message);
-      for (const row of result.data ?? []) if (row.event_id) worked.add(row.event_id);
-    }
-  }
+  const worked = new Set<string>(await repos.badges.linkedEventIds());
+  for (const id of await repos.events.idsWithPhotosOrAttendees(stale)) worked.add(id);
   const removable = stale.filter((id) => !worked.has(id));
 
-  for (let i = 0; i < removable.length; i += 100) {
-    const { error } = await db.from("events").delete().in("id", removable.slice(i, i + 100));
-    if (error) throw new Error(error.message);
-  }
+  await repos.events.deleteByIds(removable);
   return removable.length;
 }
 

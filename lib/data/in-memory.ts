@@ -4,7 +4,7 @@ import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
-import type { EventPhotoRow, EventRow } from "./events";
+import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { Prickle, PrickleType } from "./prickles";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
@@ -67,10 +67,14 @@ export class InMemoryDataset {
   writingBalances: WritingBalanceRow[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
+  // --- calendar sync ---
+  /** Attendees of events: the calendar sync keeps an event that has attendees or photos. */
+  eventAttendees: EventAttendeeRow[];
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees">
+
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -92,5 +96,6 @@ export class InMemoryDataset {
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));
     this.writingBalances = (init.writingBalances ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
+    this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }
 }
