@@ -86,7 +86,18 @@ vi.mock("@/lib/data/repos", async () => {
       const ids = [...new Set([FERN, GALE, HAZEL, ...world.active, ...world.directory.map((d) => d.id)])];
       return actual.createInMemoryRepos(
         new InMemoryDataset({
-          members: ids.map((id) => ({ id, name: id, email: `${id}@example.test`, status: world.active.includes(id) ? "active" : "cancelled" })),
+          // The member directory is these members' public fields, so the world's directory names them.
+          members: ids.map((id) => {
+            const listed = world.directory.find((d) => d.id === id);
+            return {
+              id,
+              name: listed?.name ?? id,
+              displayName: listed?.display_name ?? null,
+              photoUrl: listed?.photo_url ?? null,
+              email: `${id}@example.test`,
+              status: world.active.includes(id) ? "active" : "cancelled",
+            };
+          }),
         }),
       );
     },
@@ -465,13 +476,20 @@ describe("searchMembersToAdd", () => {
     expect(results).toEqual([{ memberId: HAZEL, name: "Hazel", photoUrl: null, inSlack: true }]);
   });
 
-  it("searches names and display names with two queries, and treats % and _ as the letters they are", async () => {
-    await searchMembersToAdd(CHANNEL, "50%_off, id.eq.x");
-    const search = queries.filter((q) => q.table === "member_directory");
-    expect(search).toHaveLength(2);
-    expect(search.map((q) => q.calls.find((c) => c.method === "ilike")!.args[0]).sort()).toEqual(["display_name", "name"]);
-    expect(search[0].calls.find((c) => c.method === "ilike")!.args[1]).toBe("%50\\%\\_off, id.eq.x%");
-    expect(search.every((q) => !q.calls.some((c) => c.method === "or"))).toBe(true);
+  it("searches names and display names, and treats % and _ (and commas) as the letters they are", async () => {
+    const LITERAL = "mbr_AAAAAAAAAAF4";
+    const LOOKALIKE = "mbr_AAAAAAAAAAF5";
+    world.directory = [
+      ...world.directory,
+      { id: LITERAL, name: "Wren 50%_off, id.eq.x", display_name: null, photo_url: null },
+      { id: LOOKALIKE, name: "Wren 50xyoff, id.eq.x", display_name: null, photo_url: null },
+    ];
+    world.active = [...world.active, LITERAL, LOOKALIKE];
+    m.slackIds.mockResolvedValue(new Map());
+
+    const results = await searchMembersToAdd(CHANNEL, "50%_off, id.eq.x");
+
+    expect(results.map((r) => r.memberId)).toEqual([LITERAL]);
   });
 
   it("offers nothing to someone who isn't in the conversation or can't change it", async () => {

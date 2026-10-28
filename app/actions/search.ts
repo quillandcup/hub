@@ -170,14 +170,8 @@ export async function suggestOperatorValues(operator: "from" | "channel", typed:
 
   const out: OperatorValue[] = [];
   if ("me".startsWith(needle)) out.push({ value: "me", label: "Me", sublabel: "Your own" });
-  const like = `%${needle.replace(/[\\%_,()"]/g, " ").trim()}%`;
-  const { data } = await searcher.ctx.supabase
-    .from("member_directory")
-    .select("id, name, display_name, photo_url")
-    .or(`name.ilike."${like}",display_name.ilike."${like}"`)
-    .order("name")
-    .limit(VALUE_LIMIT);
-  for (const m of data ?? []) {
+  const data = await createRepos(searcher.ctx.supabase).directory.matching(needle, VALUE_LIMIT);
+  for (const m of data) {
     out.push({ value: m.name, label: m.display_name || m.name, sublabel: m.display_name && m.display_name !== m.name ? m.name : undefined, imageUrl: m.photo_url });
   }
   return out.slice(0, VALUE_LIMIT);

@@ -165,9 +165,7 @@ export async function getWizardRecommendations(
 
   const [types, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
     prickleRepo.types(),
-    fetchAllPaginated<{ id: string; name: string; display_name: string | null }>((offset) =>
-      supabase.from("member_directory").select("id, name, display_name").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ).then((rows): PickerHost[] => rows.map((m) => ({ id: m.id, name: getMemberDisplayName(m) }))),
+    createRepos(supabase).directory.all().then((rows): PickerHost[] => rows.map((m) => ({ id: m.id, name: getMemberDisplayName(m) }))),
     prickleRepo.startingBetween({ from: windowStart, to: fallbackWindowEnd, inclusiveEnd: true }).then(toCandidates),
     prickleRepo.startingBetween({ from: historyStart.toISOString(), to: windowStart }).then(toCandidates),
     // The vibe column is plain text with a check constraint; HostVibeRow narrows it to the Vibe union.

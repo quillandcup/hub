@@ -224,10 +224,7 @@ export default async function StreaksPage() {
   // Photos come from the member directory (public fields), one query for the (at most 10) rows.
   // The Message button lives in the hover card on each name, which resolves the Slack link itself.
   const sisterIds = sisterStreaks.map((s) => s.memberId)
-  const photoRows =
-    sisterIds.length > 0
-      ? await supabase.from("member_directory").select("id, photo_url").in("id", sisterIds).then((r) => r.data ?? [])
-      : ([] as { id: string; photo_url: string | null }[])
+  const photoRows = await createRepos(supabase).directory.byIds(sisterIds)
   const photoByMemberId = new Map(photoRows.map((r) => [r.id, r.photo_url]))
 
   // Map prickle_id → display info for shared prickle links

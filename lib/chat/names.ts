@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
 import { cachedLookup } from "@/lib/chat/lookup-cache";
@@ -47,8 +48,7 @@ async function slackUserNamesUncached(userIds: string[]): Promise<Record<string,
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberNames = new Map<string, { name: string; displayName: string | null }>();
     if (memberIds.length > 0) {
-      const members = ok(await service.from("member_directory").select("id, name, display_name").in("id", memberIds));
-      for (const m of members ?? []) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
+      for (const m of await createRepos(service).directory.byIds(memberIds)) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
     }
     const memberBySlackUser = new Map((authors ?? []).map((a) => [a.slack_user_id as string, memberNames.get(a.member_id)]));
     for (const u of slackUsers ?? []) {
@@ -77,8 +77,8 @@ async function slackUserHubNamesUncached(userIds: string[]): Promise<Record<stri
     const authors = ok(await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch));
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id as string))];
     if (memberIds.length === 0) continue;
-    const members = ok(await service.from("member_directory").select("id, name, display_name").in("id", memberIds));
-    const byMember = new Map((members ?? []).map((m) => [m.id as string, (m.display_name || m.name) as string]));
+    const members = await createRepos(service).directory.byIds(memberIds);
+    const byMember = new Map(members.map((m) => [m.id, m.display_name || m.name]));
     for (const a of authors ?? []) {
       const name = byMember.get(a.member_id as string);
       if (name) out[a.slack_user_id as string] = name;
@@ -139,8 +139,7 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberPhotos = new Map<string, string>();
     if (memberIds.length > 0) {
-      const members = ok(await service.from("member_directory").select("id, photo_url").in("id", memberIds));
-      for (const m of members ?? []) {
+      for (const m of await createRepos(service).directory.byIds(memberIds)) {
         const url = safeUrl(m.photo_url);
         if (url) memberPhotos.set(m.id, url);
       }

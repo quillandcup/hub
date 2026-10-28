@@ -58,17 +58,10 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
   // Anyone can be mentioned, not just the people already in this conversation (Slack lets you): what is typed
   // searches the whole directory, and the people here come first. A bare `@` offers just the people here.
   if (text.length > 0) {
-    // % and _ are wildcards in a LIKE; the person typing meant the letters. Two queries rather than an .or(),
-    // so what was typed never has to be escaped for PostgREST's filter syntax.
-    const pattern = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const [byName, byDisplayName] = await Promise.all([
-      service.from("member_directory").select("id, name, display_name, photo_url").ilike("name", pattern).order("name").limit(40),
-      service.from("member_directory").select("id, name, display_name, photo_url").ilike("display_name", pattern).order("name").limit(40),
-    ]);
-    const matches = [...(byName.data ?? []), ...(byDisplayName.data ?? [])].filter((m) => !found.has(m.id as string));
-    const active = new Set((await createRepos(service).members.byIds(matches.map((m) => m.id as string))).filter((m) => m.status === "active").map((m) => m.id));
+    const matches = (await createRepos(service).directory.matching(text, 40)).filter((m) => !found.has(m.id));
+    const active = new Set((await createRepos(service).members.byIds(matches.map((m) => m.id))).filter((m) => m.status === "active").map((m) => m.id));
     for (const m of matches) {
-      if (active.has(m.id as string)) found.set(m.id as string, { memberId: m.id as string, name: (m.display_name || m.name) as string, photoUrl: (m.photo_url as string | null) ?? null });
+      if (active.has(m.id)) found.set(m.id, { memberId: m.id, name: m.display_name || m.name, photoUrl: m.photo_url ?? null });
     }
   }
 

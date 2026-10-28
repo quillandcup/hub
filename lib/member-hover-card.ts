@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { safeUrl } from "@/lib/url";
 import { getSlackDmLinksForMembers } from "@/lib/member-slack-links";
 
@@ -26,12 +27,8 @@ export interface MemberHoverCardData {
  * or alias reaches the browser. Null when the member isn't visible to the caller.
  */
 export async function loadMemberHoverCard(supabase: SupabaseClient, memberId: string): Promise<MemberHoverCardData | null> {
-  const [{ data: m }, { data: topics }, slackLinks] = await Promise.all([
-    supabase
-      .from("member_directory")
-      .select("id, name, display_name, photo_url, first_joined_at, instagram_url, facebook_url, twitter_url")
-      .eq("id", memberId)
-      .maybeSingle(),
+  const [m, { data: topics }, slackLinks] = await Promise.all([
+    createRepos(supabase).directory.byId(memberId),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
     getSlackDmLinksForMembers([memberId]),
   ]);

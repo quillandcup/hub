@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { buildMessageViews, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
 
 export const SEARCH_PAGE_SIZE = 20;
@@ -41,9 +42,7 @@ const EMPTY: SearchPage = { results: [], hasMore: false, render: { userNames: {}
 
 /** Members whose name contains what was typed (LIKE wildcards escaped), for the "From" filter. */
 async function authorIds(supabase: SupabaseClient, typed: string): Promise<string[]> {
-  const like = `"%${typed.replace(/[\\%_,()"]/g, " ").trim()}%"`;
-  const { data } = await supabase.from("member_directory").select("id").or(`name.ilike.${like},display_name.ilike.${like}`).limit(50);
-  return (data ?? []).map((m) => m.id as string);
+  return createRepos(supabase).directory.idsMatching(typed, 50);
 }
 
 /**

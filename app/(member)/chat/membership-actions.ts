@@ -63,8 +63,8 @@ async function manageableChannel(caller: ChatCaller, channelId: string): Promise
 
 /** The member's name, for saying who couldn't be added. */
 async function namesOf(memberIds: string[]): Promise<Map<string, string>> {
-  const { data } = await createServiceRoleClient().from("member_directory").select("id, name, display_name").in("id", memberIds);
-  return new Map((data ?? []).map((m) => [m.id as string, (m.display_name || m.name) as string]));
+  const members = await createRepos(createServiceRoleClient()).directory.byIds(memberIds);
+  return new Map(members.map((m) => [m.id, m.display_name || m.name]));
 }
 
 async function isStaff(caller: ChatCaller): Promise<boolean> {
@@ -297,18 +297,8 @@ export async function searchMembersToAdd(channelId: string, query: string): Prom
   if (!managed.ok || !managed.channel.joined) return [];
 
   const service = createServiceRoleClient();
-  // % and _ are wildcards in a LIKE; the person typing meant the letters.
-  const pattern = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-  // Two queries, not one .or("name.ilike...,display_name.ilike..."): what was typed would have to be escaped
-  // for PostgREST's filter syntax, and a comma or a parenthesis in it would start a filter of its own.
-  const [byName, byDisplayName] = await Promise.all([
-    service.from("member_directory").select("id, name, display_name, photo_url").ilike("name", pattern).order("name").limit(40),
-    service.from("member_directory").select("id, name, display_name, photo_url").ilike("display_name", pattern).order("name").limit(40),
-  ]);
-  const matches = [...new Map([...(byName.data ?? []), ...(byDisplayName.data ?? [])].map((m) => [m.id as string, m])).values()].sort((a, b) =>
-    String(a.name).localeCompare(String(b.name))
-  );
-  const ids = matches.map((m) => m.id as string).filter((id) => id !== caller.identity.memberId);
+  const matches = await createRepos(service).directory.matching(text, 40);
+  const ids = matches.map((m) => m.id).filter((id) => id !== caller.identity.memberId);
   if (ids.length === 0) return [];
 
   const [candidates, present, slackIds] = await Promise.all([

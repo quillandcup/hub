@@ -38,6 +38,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   event_photos: [],
   // Member activity log (ActivityRepository): every query is moved.
   member_activities: [],
+  // Member directory (MemberDirectoryRepository): every query is moved.
+  member_directory: [],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],
