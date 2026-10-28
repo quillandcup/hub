@@ -55,7 +55,7 @@ export async function reprocessAttendanceRange(
   if (error) throw error;
 }
 
-/** Remember that a Zoom name matched several members (adds `count` to its occurrences). Throws on a database error. */
+/** Remember that a Zoom name matched several members (`count` replaces its occurrences, so reprocessing doesn't inflate it). Throws on a database error. */
 export async function trackAmbiguousZoomName(
   db: Db,
   name: string,
