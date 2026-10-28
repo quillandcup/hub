@@ -52,6 +52,9 @@ jobs:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
           ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
+          MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}
 
   checkly-deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -77,3 +80,6 @@ jobs:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
           ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
+          MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}

@@ -10,3 +10,15 @@ export const appHost = new URL(appUrl).host
 const alertsEmail = process.env.ALERTS_EMAIL
 if (!alertsEmail) throw new Error('ALERTS_EMAIL is not set -- see env-vars.config.ts')
 export const alertEmail: string = alertsEmail
+
+/**
+ * The Mux end-to-end check's test asset, in a separate Mux environment (docs/MUX_CONFIG.md).
+ * Null until all three values are set, so the check is simply not declared before then.
+ */
+const muxKeyId = process.env.MUX_CHECK_SIGNING_KEY_ID
+const muxKeyPrivate = process.env.MUX_CHECK_SIGNING_KEY_PRIVATE
+const muxPlaybackId = process.env.MUX_CHECK_PLAYBACK_ID
+export const muxCheck =
+  muxKeyId && muxKeyPrivate && muxPlaybackId
+    ? { signingKeyId: muxKeyId, signingKeyPrivate: muxKeyPrivate, playbackId: muxPlaybackId }
+    : null
