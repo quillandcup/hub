@@ -21,8 +21,8 @@ SELECT is(
   'one row per name when the email is NULL');
 SELECT is(
   (SELECT occurrence_count FROM public.ambiguous_zoom_names WHERE zoom_name = 'Ada'),
-  5,
-  'occurrence_count adds up across upserts');
+  2,
+  'occurrence_count is the latest observed count, so reprocessing does not inflate it');
 SELECT is(
   (SELECT array_length(candidate_member_ids, 1) FROM public.ambiguous_zoom_names WHERE zoom_name = 'Ada'),
   2,
