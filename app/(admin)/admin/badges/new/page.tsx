@@ -12,12 +12,13 @@ export const metadata: Metadata = {
 export default async function NewBadgePage() {
   await requireAdminPage();
   const supabase = await createClient();
-  const [{ data: allEvents }, linkedEventIds, { data: programs }] = await Promise.all([
-    supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
-    createRepos(supabase).badges.linkedEventIds(),
+  const repos = createRepos(supabase);
+  const [allEvents, linkedEventIds, { data: programs }] = await Promise.all([
+    repos.events.choices(),
+    repos.badges.linkedEventIds(),
     supabase.from("programs").select("id, name").order("name"),
   ]);
-  const events = (allEvents ?? []).filter((e) => !linkedEventIds.has(e.id));
+  const events = allEvents.filter((e) => !linkedEventIds.has(e.id));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
