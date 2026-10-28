@@ -17,6 +17,8 @@ CREATE TABLE public.calendar_watch_channels (
 );
 
 ALTER TABLE public.calendar_watch_channels ENABLE ROW LEVEL SECURITY;
+-- Default privileges would otherwise hand the new table to anon and authenticated.
+REVOKE ALL ON public.calendar_watch_channels FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_watch_channels TO service_role;
 
 COMMENT ON TABLE public.calendar_watch_channels IS
