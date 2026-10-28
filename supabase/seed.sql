@@ -48,7 +48,6 @@ VALUES
   ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal planning', false, NULL, 'work', false),
   ('Pop-Up Prickle', 'pop-up', 'Spontaneous prickles from Zoom', false, NULL, 'writing', true),
   ('Hedgies on First', 'hedgies-on-first', 'First week community onboarding', false, NULL, 'writing', false),
-  ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitching sessions', true, NULL, 'writing', false),
   ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL, 'writing', false)
 ON CONFLICT (normalized_name) DO NOTHING;
 
