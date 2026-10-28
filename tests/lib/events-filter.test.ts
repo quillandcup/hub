@@ -26,45 +26,48 @@ const ids = (rows: { id: string }[]) => rows.map((r) => r.id)
 
 describe('parseEventFilter', () => {
   it('accepts allowlisted values', () => {
-    for (const id of ['big', 'educational', 'events', 'sessions']) expect(parseEventFilter(id)).toBe(id)
+    for (const id of ['special', 'educational', 'sessions']) expect(parseEventFilter(id)).toBe(id)
   })
 
   it('falls back to all for missing or unknown values, including the old ones', () => {
     for (const bad of [undefined, null, '', 'bogus', '__proto__', 'retreats', 'prickles', 'other']) expect(parseEventFilter(bad)).toBe('all')
   })
 
+  it('sends links from before the tiers were merged to Special events', () => {
+    expect(parseEventFilter('big')).toBe('special')
+    expect(parseEventFilter('events')).toBe('special')
+  })
+
   it('uses the first value of a repeated param', () => {
-    expect(parseEventFilter(['sessions', 'big'])).toBe('sessions')
+    expect(parseEventFilter(['sessions', 'special'])).toBe('sessions')
   })
 })
 
 describe('eventTier', () => {
-  it('puts retreats and workshops among the big events', () => {
-    for (const t of ['in_person_retreat', 'virtual_retreat', 'workshop']) expect(eventTier({ event_type: t })).toBe('big')
+  it('puts retreats, workshops and parties among the special events', () => {
+    for (const t of ['in_person_retreat', 'virtual_retreat', 'workshop', 'social', 'book_launch', 'other', 'unknown']) expect(eventTier({ event_type: t })).toBe('special')
   })
 
-  it('makes anything that takes a sign-up a big event, whatever its kind', () => {
-    expect(eventTier({ event_type: 'educational', registration: 'required' })).toBe('big')
-    expect(eventTier({ event_type: 'session', registration: 'application' })).toBe('big')
+  it('makes anything that takes a sign-up a special event, whatever its kind', () => {
+    expect(eventTier({ event_type: 'educational', registration: 'required' })).toBe('special')
+    expect(eventTier({ event_type: 'session', registration: 'application' })).toBe('special')
     expect(eventTier({ event_type: 'educational', registration: 'none' })).toBe('educational')
     expect(eventTier({ event_type: 'session', registration: null })).toBe('session')
   })
 
-  it('keeps educational, sessions and everything else apart', () => {
+  it('keeps educational and sessions apart', () => {
     expect(eventTier({ event_type: 'educational' })).toBe('educational')
     expect(eventTier({ event_type: 'session' })).toBe('session')
-    for (const t of ['social', 'book_launch', 'other', 'unknown']) expect(eventTier({ event_type: t })).toBe('event')
   })
 })
 
 describe('tierMatchesFilter', () => {
   it('matches each tier with its filter, and all with everything', () => {
-    expect(tierMatchesFilter('big', 'big')).toBe(true)
+    expect(tierMatchesFilter('special', 'special')).toBe(true)
     expect(tierMatchesFilter('educational', 'educational')).toBe(true)
-    expect(tierMatchesFilter('event', 'events')).toBe(true)
     expect(tierMatchesFilter('session', 'sessions')).toBe(true)
-    expect(tierMatchesFilter('session', 'events')).toBe(false)
-    expect(tierMatchesFilter('big', 'educational')).toBe(false)
+    expect(tierMatchesFilter('session', 'special')).toBe(false)
+    expect(tierMatchesFilter('special', 'educational')).toBe(false)
     expect(tierMatchesFilter('session', 'all')).toBe(true)
   })
 })
@@ -81,11 +84,10 @@ describe('groupEvents', () => {
   })
 
   it('filters by tier', () => {
-    expect(ids(groupEvents(EVENTS, 'big', TODAY).upcoming)).toEqual(['b', 'a'])
-    expect(ids(groupEvents(EVENTS, 'big', TODAY).past)).toEqual(['d'])
+    expect(ids(groupEvents(EVENTS, 'special', TODAY).upcoming)).toEqual(['b', 'a', 'c'])
+    expect(ids(groupEvents(EVENTS, 'special', TODAY).past)).toEqual(['d'])
     expect(ids(groupEvents(EVENTS, 'educational', TODAY).upcoming)).toEqual(['g'])
     expect(ids(groupEvents(EVENTS, 'educational', TODAY).past)).toEqual(['e'])
-    expect(ids(groupEvents(EVENTS, 'events', TODAY).upcoming)).toEqual(['c'])
   })
 
   it('does not mutate its input', () => {
@@ -97,7 +99,7 @@ describe('groupEvents', () => {
 
 describe('countUpcoming', () => {
   it('counts upcoming events per filter, adding the featured prickles to sessions and all', () => {
-    expect(countUpcoming(EVENTS, 3, TODAY)).toEqual({ all: 8, big: 2, educational: 1, events: 1, sessions: 4 })
+    expect(countUpcoming(EVENTS, 3, TODAY)).toEqual({ all: 8, special: 3, educational: 1, sessions: 4 })
   })
 })
 

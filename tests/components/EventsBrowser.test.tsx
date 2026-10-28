@@ -6,6 +6,8 @@ import EventsBrowser, { type EventRow, type EventPrickle } from '@/app/(member)/
 
 const TODAY = '2026-09-26'
 
+const eventIsNotSpecial = (e: EventRow) => e.event_type === 'educational' || e.event_type === 'session'
+
 function event(id: string, event_type: string, starts_at: string, ends_at = starts_at, registration: string | null = null): EventRow {
   return { id, slug: id, title: `Event ${id}`, event_type, location: null, starts_at, ends_at, focus: null, registration, cover_photo_id: null }
 }
@@ -38,12 +40,12 @@ describe('EventsBrowser', () => {
     renderBrowser()
     expect(within(typeGroup()).getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
 
-    const big = screen.getByRole('region', { name: 'Big events' })
-    expect(within(big).getByText('Event lake')).toBeInTheDocument()
-    expect(within(big).getByText('Event zoomy')).toBeInTheDocument()
-    expect(within(big).getAllByTestId('event-art')).toHaveLength(2)
+    const special = screen.getByRole('region', { name: 'Special events' })
+    expect(within(special).getByText('Event lake')).toBeInTheDocument()
+    expect(within(special).getByText('Event zoomy')).toBeInTheDocument()
+    expect(within(special).getByText('Event party')).toBeInTheDocument()
+    expect(within(special).getAllByTestId('event-art')).toHaveLength(3)
     expect(within(screen.getByRole('region', { name: 'Educational' })).getByText('Event webinar')).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Events' })).getByText('Event party')).toBeInTheDocument()
 
     const past = screen.getByRole('region', { name: 'Past' })
     expect(within(past).getByText('Event spring')).toBeInTheDocument()
@@ -63,18 +65,15 @@ describe('EventsBrowser', () => {
     expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()
   })
 
-  it('hides the Events filter while nothing upcoming is a one-off event, unless it is the one in use', () => {
-    const { unmount } = renderBrowser('all', EVENTS.filter((e) => e.id !== 'party'))
-    expect(within(typeGroup()).queryByRole('button', { name: /^Events/ })).not.toBeInTheDocument()
-    unmount()
-    renderBrowser('events', EVENTS.filter((e) => e.id !== 'party'))
-    expect(within(typeGroup()).getByRole('button', { name: /^Events/ })).toBeInTheDocument()
+  it('offers four filters: All, Special events, Educational and Sessions', () => {
+    renderBrowser()
+    expect(within(typeGroup()).getAllByRole('button').map((b) => b.textContent)).toEqual([expect.stringMatching(/^All/), expect.stringMatching(/^Special events/), expect.stringMatching(/^Educational/), expect.stringMatching(/^Sessions/)])
   })
 
   it('says which events need a sign-up', () => {
     renderBrowser('all', [event('class', 'educational', '2026-10-15', '2026-10-15', 'required')])
-    const big = screen.getByRole('region', { name: 'Big events' })
-    expect(within(big).getByText(/Educational · Sign-up required/)).toBeInTheDocument()
+    const special = screen.getByRole('region', { name: 'Special events' })
+    expect(within(special).getByText(/Educational · Sign-up required/)).toBeInTheDocument()
   })
 
   it('filters to one tier and syncs ?type=', async () => {
@@ -90,12 +89,12 @@ describe('EventsBrowser', () => {
   it('shows only sessions and prickles under Sessions', () => {
     renderBrowser('sessions')
     expect(screen.getByRole('region', { name: 'Sessions' })).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Big events' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Special events' })).not.toBeInTheDocument()
   })
 
   it('says so when a filter has nothing upcoming, and drops ?type= on All', async () => {
-    renderBrowser('events', EVENTS.filter((e) => e.id !== 'party'))
-    expect(screen.getByText('No upcoming events scheduled yet.')).toBeInTheDocument()
+    renderBrowser('special', EVENTS.filter((e) => eventIsNotSpecial(e)))
+    expect(screen.getByText('No upcoming special events scheduled yet.')).toBeInTheDocument()
     await userEvent.click(within(typeGroup()).getByRole('button', { name: /^All/ }))
     expect(window.location.search).toBe('')
   })
