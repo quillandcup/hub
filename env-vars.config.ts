@@ -439,6 +439,33 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },
 
+  // The nightly Mux end-to-end check (__checks__/mux-e2e.check.ts) uses a tiny standing test asset
+  // in a SEPARATE Mux environment, never production's keys. Unset = the stream checks aren't declared.
+  {
+    name: "MUX_CHECK_SIGNING_KEY_ID",
+    group: "Analytics & Monitoring",
+    description:
+      "ID of a Mux URL signing key in the separate Mux environment that holds the nightly check's test asset (docs/MUX_CONFIG.md). Passed to Checkly at `checkly deploy`; GitHub only, not Vercel.",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "MUX_CHECK_SIGNING_KEY_PRIVATE",
+    group: "Analytics & Monitoring",
+    description:
+      "Private half of MUX_CHECK_SIGNING_KEY_ID (base64-encoded PEM as Mux shows it). Only good for the test environment's one tiny asset, never production's videos. GitHub only.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "MUX_CHECK_PLAYBACK_ID",
+    group: "Analytics & Monitoring",
+    description:
+      "Signed playback ID of the nightly check's test asset, in the same separate Mux environment. GitHub only.",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+
   ...Object.values(CRON_HEARTBEATS).map(
     (heartbeat): EnvVarSpec => ({
       name: heartbeat.envVar,

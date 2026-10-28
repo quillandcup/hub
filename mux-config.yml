@@ -1,0 +1,22 @@
+# Source of truth for the Mux settings its API can manage. Applied by scripts/mux-config.ts
+# (`pnpm mux:config:diff` is the read-only preview, `pnpm mux:config:push` applies it; both are
+# run by hand, never by CI). See docs/MUX_CONFIG.md.
+#
+# Not here: spending alerts (dashboard only) and URL signing keys (the private half is shown
+# once, so they are created by hand and their secrets go in .env.prod).
+
+webhook:
+  # The address is <APP_URL>/api/webhooks/mux, APP_URL from app.config.ts. Creating the webhook
+  # prints its signing secret ONCE; it goes in MUX_WEBHOOK_SECRET (docs/MUX_CONFIG.md).
+  path: /api/webhooks/mux
+
+# One playback restriction for the environment. It limits which sites can play a signed video,
+# but only for tokens that carry its id as the `playback_restriction_id` claim (see
+# docs/TODO.md, "Mux configuration as code").
+playbackRestriction:
+  allowedDomains:
+    - "{appHost}" # production, from app.config.ts
+    - "*.vercel.app" # preview deployments (a wildcard covers one subdomain level)
+    - localhost
+  # Apple devices (AirPlay, native Safari playback) send no Referer.
+  allowNoReferrer: true

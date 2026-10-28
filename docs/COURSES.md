@@ -44,7 +44,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 1. "Continue watching" on the dashboard.
 2. Admin course stats: who's where (built: `/admin/courses/<kajabi id>/roster`, `lib/courses/roster.ts`: each member with access, open lessons completed, last lesson and last activity from `lesson_progress`, sortable and paged), drop-off per video and a per-viewing heatmap (built, see Staff watch stats). Still open: last activity from watch segments rather than only progress rows, a per-member stats view.
 3. Audio-only "listen like a podcast" mode (Mux's per-video `audio.m4a`).
-4. Mux config as code (webhook URL, allowed playback domains) and a nightly Mux end-to-end check with a free test video.
+4. ~~Mux config as code and a nightly Mux end-to-end check~~ (built: `docs/MUX_CONFIG.md`). Still open: enforcing the playback restriction in the signed tokens, and a webhook-delivery check (`docs/TODO.md`, "Mux configuration as code").
 5. A "Sync courses" admin button, and a nightly structure-and-access sync, once step B is automated (see "Ongoing sync after launch").
 
 ### Later
@@ -468,7 +468,8 @@ All done as of 2026-10-28:
 
 - [x] Mux keys in `.env.preview` too, and the Mux variables synced to Vercel (Preview and Production).
 - [x] The env var PR (#102) merged and `pnpm env:sync` run.
-- [x] The production Mux webhook for `/api/webhooks/mux` (production logs show its POSTs answering 200).
+- [x] The production Mux webhook for `/api/webhooks/mux` (production logs show its POSTs answering 200). Now declared in `mux-config.yml` (`pnpm mux:config:diff`; `docs/MUX_CONFIG.md`).
+- [ ] Create the playback restriction (`pnpm mux:config:push`) and the Mux "checks" environment's test asset for the nightly check (`docs/MUX_CONFIG.md`); neither blocks launch.
 - [x] A separate migration token (`MUX_MIGRATION_TOKEN_ID`/`MUX_MIGRATION_TOKEN_SECRET` in `.env.prod`); revoke it after launch.
 - [x] Billing alerts in Mux (above $10, $25 and $75).
 - [x] GA: Reporting identity is **Blended** (user ID, device ID, then modeled data), not Observed. GA says modeling is unavailable for this property; it turns on by itself once GA allows it, so there is nothing to do.

@@ -474,26 +474,14 @@ production:
        pipeline: deploy to devel first, run tests, a bake/soak period, then promote to
        production -- rather than today's single `main`-branch-direct-to-prod pipeline.
 
-### Mux configuration as code (`mux:config`) _(Needs Scoping)_
-Mux's settings live in its dashboard, unlike Supabase (`config.toml`), Slack (`slack-app-manifest.yml`), GitHub (`github-repo-config.yml`) and Vercel. Add a committed `mux-config.yml` plus `pnpm mux:config:diff` (read-only) and `:push`, modelled on `scripts/slack-manifest.ts`.
+### Mux configuration as code (`mux:config`) _(Built; follow-ups open)_
+**Resolved:** `mux-config.yml` + `pnpm mux:config:diff` / `:push` (and `:dev` variants for a developer's own tunnel webhook), `scripts/mux-config.ts`, pure logic in `lib/mux-config.ts`, docs in `docs/MUX_CONFIG.md`. It manages the production webhook (`<APP_URL>/api/webhooks/mux`, signing secret saved to the env file, never printed, never overwritten without `--replace-secret`) and the one playback restriction (production host, `*.vercel.app`, `localhost`). Run by hand, not by CI. A nightly Checkly check (`__checks__/mux-e2e.check.ts`) confirms the webhook rejects unsigned calls and, once the separate "checks" Mux environment's values are set, that a signed token gets a manifest and no token gets 403. Spending alerts have no API (dashboard checklist in `docs/MUX_CONFIG.md`).
 
-**What it can manage** (checked 2026-10-18; confirm endpoints before building):
-- **Webhooks:** the Webhooks API (`/system/v1/webhooks`) creates them. It's scoped to the token's Mux environment, rejects a duplicate address with a 400, and returns the signing secret **only in the create response**.
-- **Playback restrictions** (allowed domains/referrers) and **URL signing keys** exist as API resources.
-- A Mux Terraform provider exists, but its resource list wasn't confirmed.
-- **Spending alerts have no API** (dashboard only: up to 3, email only, paid plans). Keep them on a manual checklist in the docs.
-
-**Needs a separate token with the System permission,** kept on the operator's machine or in CI, never in Vercel (the app token has only Mux Video and Mux Data).
-
-**Per-developer webhooks.** A webhook has one URL, and a developer's tunnel domain (`TUNNEL_DOMAIN` in `.env.local`, see `docs/WEBHOOK_SETUP.md`) belongs to their own ngrok account, so every developer who wants real "video ready" notifications locally needs their own webhook. The script should make that one command:
-- Production and preview environments come from `mux-config.yml` (production: `<APP_URL>/api/webhooks/mux`, from `lib/config.ts`).
-- A developer's webhook isn't committed. `pnpm mux:config:push --dev` would create (or update) one pointing at `https://$TUNNEL_DOMAIN/api/webhooks/mux` in that developer's own Mux environment (separate from preview and production), and print the signing secret once for them to put in `.env.local` as `MUX_WEBHOOK_SECRET`.
-- Re-running it is a no-op when the webhook already exists. If the tunnel domain changes, it updates the URL and keeps the secret.
-- Without it, local development polls Mux, which is fine for most work.
-
-**Secret handling:** because the signing secret is shown once, "create" has to hand it straight to the operator and never log it. Rotating means delete and re-create, then update the env files and `pnpm env:sync`.
-
-**Priority:** after the course launch; the production webhook is created by hand once the route deploys.
+**Still open:**
+- **Enforce the restriction.** It only applies to tokens carrying `playback_restriction_id`; `signPlaybackTokens` (`lib/mux.ts`) doesn't add it. Needs the restriction id in a non-secret env var (per environment), passed as a claim, checked in a real browser on production and a preview before shipping (a wrong domain list blocks every member's video).
+- **Read the production webhook.** Listing webhooks needs a System-permission token (`MUX_SYSTEM_TOKEN_ID/SECRET` in `.env.prod`), so the first diff couldn't confirm the webhook; the restriction part was compared with the app token.
+- **Webhook delivery check.** The nightly check can't prove Mux reaches us; that needs a throwaway asset created in the environment each run (a few cents a month) and polling the `videos` row, or a Mux "send test event" if one appears in the API.
+- **Signing keys** are created by hand (the private half is shown once); `/system/v1/signing-keys` could list them for a drift check.
 
 ### Google Calendar push channel: create and renew it _(Keep; needs scheduling)_
 `/api/webhooks/calendar` receives Google Calendar push notifications (a "watch channel"), but **nothing in the app creates or renews the channel**; `docs/WEBHOOK_SETUP.md` describes creating one by hand with `curl`. Goal: a Google Calendar edit reaches the prickle schedule in minutes instead of by the next nightly reconcile (`/api/reconcile/calendar`, which stays the guaranteed path).
