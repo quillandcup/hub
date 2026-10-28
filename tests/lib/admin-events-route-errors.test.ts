@@ -6,10 +6,11 @@ import { NextRequest } from "next/server";
 
 const remove = vi.fn();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) }, schema: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: calendarSource, error: null }) }) }) }) }) } }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: { storage: { from: () => ({ remove }) } } }),
 }));
 
 let calendarSource: unknown = null;
+let calendarFails = false;
 const events = {
   listWithPhotoCounts: vi.fn(),
   byId: vi.fn(),
@@ -21,7 +22,13 @@ const events = {
   attendeesOf: vi.fn(),
 };
 vi.mock("@/lib/data/repos", () => ({
-  createRepos: () => ({ events, badges: { typeForEvent: async () => null }, prickles: { byCalendarEventIds: async () => [] } }),
+  createRepos: () => ({
+    events,
+    badges: { typeForEvent: async () => null },
+    prickles: { byCalendarEventIds: async () => [] },
+    // The Bronze calendar item the event follows (the test sets `calendarSource`, or makes the read fail).
+    calendarEvents: { byId: async () => { if (calendarFails) throw new Error("calendar read failed"); return calendarSource; } },
+  }),
 }));
 vi.mock("@/lib/calendar-events", async () => ({
   ...(await vi.importActual<typeof import("@/lib/calendar-events")>("@/lib/calendar-events")),
@@ -41,6 +48,7 @@ const EVENT = { id: ID, title: "Open house", calendar_event_id: null };
 beforeEach(() => {
   vi.clearAllMocks();
   calendarSource = null;
+  calendarFails = false;
   events.allPhotosOf.mockResolvedValue([]);
   events.attendeesOf.mockResolvedValue([]);
 });
@@ -106,6 +114,17 @@ describe("POST /api/admin/events/[id]/revert-to-calendar", () => {
     expect((await revert(request({}), ctx)).status).toBe(404);
     events.byId.mockResolvedValueOnce(EVENT);
     expect((await revert(request({}), ctx)).status).toBe(400);
+  });
+
+  it("is 500 with the message when the calendar item can't be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    calendarFails = true;
+    events.byId.mockResolvedValueOnce({ ...EVENT, calendar_event_id: "cal" });
+
+    const res = await revert(request({}), ctx);
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("calendar read failed");
   });
 
   it("is 500 when the update fails, and falls back to the updated event when it can't be re-read", async () => {

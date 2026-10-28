@@ -25,15 +25,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
   if (!event.calendar_event_id) return NextResponse.json({ error: "This event doesn't follow the calendar" }, { status: 400 });
 
-  const { data: source, error: sourceError } = await supabase
-    .schema("bronze")
-    .from("calendar_events")
-    .select("summary, description, location, start_time, end_time")
-    .eq("id", event.calendar_event_id)
-    .maybeSingle();
-  if (sourceError) {
+  let source;
+  try {
+    source = await createRepos(supabase).calendarEvents.byId(event.calendar_event_id);
+  } catch (sourceError) {
     console.error("Error loading calendar event to revert to:", sourceError);
-    return NextResponse.json({ error: sourceError.message }, { status: 500 });
+    return NextResponse.json({ error: (sourceError as Error).message }, { status: 500 });
   }
   if (!source) return NextResponse.json({ error: "The calendar event is gone" }, { status: 404 });
 

@@ -32,6 +32,13 @@ const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprin
 const post = (route: typeof resolveOne, body: unknown) =>
   route(new NextRequest("http://localhost/api/prickle-types/resolve", { method: "POST", body: JSON.stringify(body) }));
 
+/** A Bronze calendar item, as the repository holds it. */
+const calendarItem = (id: string, start: string, end: string, description: string | null) => ({
+  id, google_event_id: `g-${id}`, summary: `Item ${id}`, description, location: null, raw_data: {},
+  start_time: start, end_time: end,
+  creator_email: null, creator_name: null, organizer_email: null, organizer_name: null, imported_at: null,
+});
+
 beforeEach(() => {
   signedIn = true;
   tables = { member_name_aliases: { data: [] }, unmatched_calendar_events: { data: [] } };
@@ -76,12 +83,10 @@ describe("POST /api/prickle-types/resolve", () => {
 
 describe("POST /api/prickle-types/resolve-batch", () => {
   it("creates a prickle for each calendar event, stripping the description to text", async () => {
-    tables["bronze.calendar_events"] = {
-      data: [
-        { id: "c1", start_time: "2097-03-03T15:00:00Z", end_time: "2097-03-03T16:00:00Z", description: "<p>Hello</p>" },
-        { id: "c2", start_time: "2097-03-10T15:00:00Z", end_time: "2097-03-10T16:00:00Z", description: null },
-      ],
-    };
+    dataset.calendarEvents = [
+      calendarItem("c1", "2097-03-03T15:00:00Z", "2097-03-03T16:00:00Z", "<p>Hello</p>"),
+      calendarItem("c2", "2097-03-10T15:00:00Z", "2097-03-10T16:00:00Z", null),
+    ];
 
     const res = await post(resolveBatch, { unmatchedEventIds: ["u1", "u2"], calendarEventIds: ["c1", "c2"], mode: "existing", typeId: SPRINT.id, host: "Ada Example" });
 
@@ -94,7 +99,7 @@ describe("POST /api/prickle-types/resolve-batch", () => {
   });
 
   it("creates the new type once for the batch", async () => {
-    tables["bronze.calendar_events"] = { data: [{ id: "c1", start_time: "2097-03-03T15:00:00Z", end_time: "2097-03-03T16:00:00Z", description: null }] };
+    dataset.calendarEvents = [calendarItem("c1", "2097-03-03T15:00:00Z", "2097-03-03T16:00:00Z", null)];
 
     await post(resolveBatch, { unmatchedEventIds: ["u1"], calendarEventIds: ["c1"], mode: "new", newTypeName: "Workshop", newTypeDescription: "A class" });
 

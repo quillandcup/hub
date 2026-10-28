@@ -84,12 +84,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch calendar event details for each event
-    const { data: calendarEvents } = await supabase
-      .schema('bronze').from("calendar_events")
-      .select("id, start_time, end_time, description")
-      .in("id", calendarEventIds);
+    const calendarEvents = await createRepos(supabase).calendarEvents.byIds(calendarEventIds);
 
-    if (!calendarEvents || calendarEvents.length === 0) {
+    if (calendarEvents.length === 0) {
       return NextResponse.json(
         { error: "No calendar events found" },
         { status: 404 }

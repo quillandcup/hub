@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
+import type { CalendarSourceEvent } from "@/lib/data/calendar-events";
+import { createRepos } from "@/lib/data/repos";
 
 // Extend timeout for syncing large calendars
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -61,29 +63,13 @@ export async function POST(request: NextRequest) {
 
     // Load existing events in the sync date range to detect changes and skips.
     // Note: uses service role so SELECT is reliable (unlike the cookie-based client).
-    let existingEvents: any[] = [];
-    let offset = 0;
-    const FETCH_BATCH = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error: fetchError } = await supabase
-        .schema('bronze').from("calendar_events")
-        .select("id, google_event_id, summary, start_time, end_time")
-        .gte("start_time", timeMin)
-        .lte("start_time", timeMax)
-        .range(offset, offset + FETCH_BATCH - 1);
-
-      if (fetchError) {
-        console.error("Error fetching existing bronze calendar events:", fetchError);
-        hasMore = false;
-      } else if (data && data.length > 0) {
-        existingEvents = existingEvents.concat(data);
-        offset += data.length;
-        hasMore = data.length === FETCH_BATCH;
-      } else {
-        hasMore = false;
-      }
+    const calendar = createRepos(supabase).calendarEvents;
+    let existingEvents: CalendarSourceEvent[] = [];
+    try {
+      existingEvents = await calendar.startingBetween(timeMin, timeMax);
+    } catch (fetchError) {
+      // Without them every item looks new; the upsert below is idempotent, so carry on.
+      console.error("Error fetching existing bronze calendar events:", fetchError);
     }
 
     const existingByGoogleId = new Map(
@@ -154,29 +140,21 @@ export async function POST(request: NextRequest) {
       .filter(Boolean);
 
     if (currentGoogleIds.length > 0) {
-      const { data: deletedCount, error: deleteStaleError } = await supabase
-        .rpc('delete_stale_calendar_events', {
-          p_time_min: timeMin,
-          p_time_max: timeMax,
-          p_current_google_ids: currentGoogleIds,
-        });
-      if (deleteStaleError) {
+      try {
+        const deletedCount = await calendar.deleteStale({ from: timeMin, to: timeMax }, currentGoogleIds);
+        if (deletedCount > 0) {
+          console.log(`Deleted ${deletedCount} stale bronze calendar events no longer in Google Calendar`);
+          deleted = deletedCount;
+        }
+      } catch (deleteStaleError) {
         console.error("Error deleting stale calendar events via RPC:", deleteStaleError);
-      } else if (deletedCount > 0) {
-        console.log(`Deleted ${deletedCount} stale bronze calendar events no longer in Google Calendar`);
-        deleted = deletedCount as number;
       }
     }
 
     if (eventsToInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .schema('bronze').from("calendar_events")
-        .upsert(eventsToInsert, {
-          onConflict: 'google_event_id',
-          ignoreDuplicates: false,
-        });
-
-      if (insertError) {
+      try {
+        await calendar.upsert(eventsToInsert);
+      } catch (insertError) {
         console.error("Error inserting calendar events:", insertError);
         return NextResponse.json(
           { error: "Failed to insert calendar events" },
@@ -188,29 +166,16 @@ export async function POST(request: NextRequest) {
 
     // Touch imported_at on all synced events to track last sync time
     if (events.length > 0) {
-      const googleEventIds = events.map(e => e.id);
-      const UPDATE_BATCH = 100;
-
-      for (let i = 0; i < googleEventIds.length; i += UPDATE_BATCH) {
-        const batch = googleEventIds.slice(i, i + UPDATE_BATCH);
-        const { error: touchError } = await supabase
-          .schema('bronze').from("calendar_events")
-          .update({ imported_at: new Date().toISOString() })
-          .in("google_event_id", batch);
-
-        if (touchError) {
-          console.warn("Failed to update imported_at timestamps batch:", touchError);
-        }
+      try {
+        await calendar.touchImported(events.map(e => e.id as string), new Date().toISOString());
+      } catch (touchError) {
+        console.warn("Failed to update imported_at timestamps batch:", touchError);
       }
     }
 
     if (eventsToUpdate.length > 0) {
-      const updatePromises = eventsToUpdate.map(({ id, data }) =>
-        supabase.schema('bronze').from("calendar_events").update(data).eq("id", id)
-      );
-
-      const results = await Promise.all(updatePromises);
-      const errors = results.filter((r) => r.error);
+      const results = await Promise.allSettled(eventsToUpdate.map(({ id, data }) => calendar.update(id, data)));
+      const errors = results.filter((r) => r.status === "rejected");
 
       if (errors.length > 0) {
         console.error(`Failed to update ${errors.length} events`);

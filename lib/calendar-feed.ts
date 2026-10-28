@@ -13,7 +13,6 @@ import {
 } from "@/lib/commitments";
 import { hostShortName } from "@/lib/formatters";
 import { formatUtc, type ICalEvent } from "@/lib/ical";
-import { chunk } from "@/lib/supabase/paginate";
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { APP_URL } from "@/lib/config";
@@ -355,18 +354,7 @@ export function cleanEventDescription(raw: string | null | undefined): string {
 export async function loadEventNotes(supabase: SupabaseClient, prickles: FeedPrickle[]): Promise<Map<string, string>> {
   const ids = [...new Set(prickles.flatMap((p) => (p.calendarEventId ? [p.calendarEventId] : [])))];
   const notes = new Map<string, string>();
-  const batches = await Promise.all(
-    chunk(ids, ID_BATCH_SIZE).map(async (batch) => {
-      const { data, error } = await supabase
-        .schema("bronze")
-        .from("calendar_events")
-        .select("id, description")
-        .in("id", batch);
-      if (error) throw new Error(error.message);
-      return (data ?? []) as { id: string; description: string | null }[];
-    })
-  );
-  for (const row of batches.flat()) {
+  for (const row of await createRepos(supabase).calendarEvents.byIds(ids)) {
     const text = cleanEventDescription(row.description);
     if (text) notes.set(row.id, text);
   }
@@ -488,7 +476,6 @@ interface FeedItemRow {
 }
 
 /** Ids per .in() request -- keeps the URL short (a member adds a handful, but stay safe). */
-const ID_BATCH_SIZE = 100;
 
 /**
  * calendar_feed_items resolved to prickles and events. A 'prickle' item is that prickle (its row

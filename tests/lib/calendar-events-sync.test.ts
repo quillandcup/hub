@@ -14,9 +14,13 @@ import { elevateCalendarEvent, ensureCalendarEvents, reconcileAutomaticEvents, s
 
 const source = { summary: "Open Table", description: null, location: null, start_time: "2097-05-02T23:00:00Z", end_time: "2097-05-03T01:00:00Z" };
 
-/** Only the Bronze read is left on the client; the events go through the repository. */
-const dbWithSource = (row: typeof source | null): Db =>
-  ({ schema: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error: null }) }) }) }) }) }) as unknown as Db;
+/** The calendar item `cal_1` is in the Bronze repository (or isn't); the client itself is not touched. */
+const dbWithSource = (row: typeof source | null): Db => {
+  data.calendarEvents = row
+    ? ["cal_1", "cal_2"].map((id) => ({ id, google_event_id: `g-${id}`, raw_data: {}, creator_email: null, creator_name: null, organizer_email: null, organizer_name: null, imported_at: null, ...row }))
+    : [];
+  return {} as unknown as Db;
+};
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -38,6 +42,12 @@ describe("elevateCalendarEvent", () => {
     vi.spyOn(repos.events, "byCalendarEventId").mockRejectedValueOnce(new Error("db down"));
 
     expect(await elevateCalendarEvent(dbWithSource(null), "cal_1", null)).toEqual({ ok: false, status: 500, error: "db down" });
+  });
+
+  it("reports a calendar read error as a 500", async () => {
+    vi.spyOn(repos.calendarEvents, "byId").mockRejectedValueOnce(new Error("calendar down"));
+
+    expect(await elevateCalendarEvent(dbWithSource(source), "cal_1", null)).toEqual({ ok: false, status: 500, error: "calendar down" });
   });
 
   it("is a 404 when the calendar event does not exist", async () => {

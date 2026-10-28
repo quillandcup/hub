@@ -17,7 +17,9 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 vi.mock("@/app/(admin)/admin/reconciliation/ReconciliationClient", () => ({ default: () => null }));
 vi.mock("@/components/RecordHistoryButton", () => ({ default: () => null }));
-vi.mock("@/app/(admin)/admin/hygiene/ProcessOrphanedButton", () => ({ default: () => null }));
+vi.mock("@/app/(admin)/admin/hygiene/ProcessOrphanedButton", () => ({
+  default: ({ dateRange }: { dateRange: unknown }) => <p data-testid="orphaned-range">{JSON.stringify(dateRange)}</p>,
+}));
 vi.mock("@/app/(admin)/admin/hygiene/ProcessOrphanedMeetingsButton", () => ({ default: () => null }));
 
 import DataHygienePage from "@/app/(admin)/admin/hygiene/page";
@@ -53,6 +55,29 @@ describe("data health page", () => {
 
     expect(screen.getByText(/1\/2 assigned/)).toBeInTheDocument(); // one of two host-taking calendar prickles has a host
     expect(screen.getByText(/1 PUPs with 0 attendees detected/)).toBeInTheDocument(); // only the Pop-Up Prickle without attendance
+  });
+
+  it("offers to reprocess the whole stored calendar span when calendar items have no prickle", async () => {
+    const item = (id: string, start: string, end: string) => ({
+      id, google_event_id: `g-${id}`, summary: id, description: null, location: null, raw_data: {},
+      start_time: start, end_time: end, creator_email: null, creator_name: null, organizer_email: null, organizer_name: null, imported_at: null,
+    });
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        prickleTypes: [TAKES_HOST],
+        prickles: [prickle("prkl_AAAAAAAAAAA1", { calendarEventId: "c1" })],
+        calendarEvents: [
+          item("c1", "2026-10-19T15:00:00Z", "2026-10-19T16:00:00Z"),
+          item("c2", "2026-09-01T15:00:00Z", "2026-09-01T16:00:00Z"),
+          item("c3", "2026-11-30T15:00:00Z", "2026-12-01T16:00:00Z"),
+        ],
+      }),
+    );
+
+    await renderServerPage(DataHygienePage, {});
+
+    expect(screen.getByText(/1\/3 matched/)).toBeInTheDocument();
+    expect(JSON.parse(screen.getByTestId("orphaned-range").textContent!)).toEqual({ fromDate: "2026-09-01T15:00:00Z", toDate: "2026-12-01T16:00:00Z" });
   });
 
   it("shows no Pop-Up Prickle warning when every one has attendance", async () => {

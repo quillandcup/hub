@@ -1,4 +1,5 @@
 import type { Db } from "@/lib/data/db";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * What an admin can decide for a calendar prickle. A text field set to null follows the calendar again
@@ -31,7 +32,7 @@ export async function saveEventDecision(
     const { error } = await supabase.from("unmatched_calendar_events").update(decision).eq("calendar_event_id", calendarEventId);
     return error ? { error: "Couldn't save the change" } : null;
   }
-  const { data: event } = await supabase.schema("bronze").from("calendar_events").select("summary").eq("id", calendarEventId).maybeSingle();
+  const event = await createRepos(supabase).calendarEvents.byId(calendarEventId).catch(() => null);
   if (!event?.summary) return { error: "The calendar event is gone, so the change wouldn't last" };
   const { error } = await supabase.from("unmatched_calendar_events").insert({ calendar_event_id: calendarEventId, raw_summary: event.summary, ...decision });
   return error ? { error: "Couldn't save the change" } : null;

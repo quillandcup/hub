@@ -31,7 +31,7 @@ export default async function DataHygienePage() {
 
   // Fetch data quality metrics
   const [
-    { count: totalCalendarEvents },
+    totalCalendarEvents,
     matchedCalendarEvents,
     { count: unmatchedCalendarEvents },
     hostCoverage,
@@ -42,7 +42,7 @@ export default async function DataHygienePage() {
     { data: slackUsersForMatching },
     { data: ignoredSlackUsers },
     { data: oldUnmatchedEvents },
-    { data: lastSync },
+    lastSyncAt,
     lastProcessingAt,
     { data: lastSlackMessageSync },
     { data: lastSlackReactionSync },
@@ -53,7 +53,7 @@ export default async function DataHygienePage() {
     membersForDuplicates,
     { data: slackChannelsForAccessCheck },
   ] = await Promise.all([
-    supabase.schema('bronze').from("calendar_events").select("*", { count: "exact", head: true }),
+    createRepos(supabase).calendarEvents.count(),
     createRepos(supabase).prickles.countBySource("calendar"),
     supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
     // Prickles with and without hosts, split by whether their type takes a host
@@ -73,12 +73,7 @@ export default async function DataHygienePage() {
       .lt("created_at", "2026-04-06 02:00:00") // Before prickle_types were added
       .limit(10),
     // Last calendar sync (use imported_at which updates on UPSERT)
-    supabase
-      .schema('bronze').from("calendar_events")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).calendarEvents.lastImportedAt(),
     // Last attendance processing (most recent PUP)
     createRepos(supabase).prickles.lastCreatedAt("zoom"),
     // Last Slack sync (bronze import — webhook or bulk import, both set imported_at).
@@ -153,23 +148,10 @@ export default async function DataHygienePage() {
   // The processing uses DELETE + INSERT so it's safe to reprocess the full range
   let orphanedDateRange = null;
   if (orphanedEvents > 0) {
-    const [{ data: minEvent }, { data: maxEvent }] = await Promise.all([
-      supabase
-        .schema('bronze').from("calendar_events")
-        .select("start_time")
-        .order("start_time", { ascending: true })
-        .limit(1)
-        .single(),
-      supabase
-        .schema('bronze').from("calendar_events")
-        .select("end_time")
-        .order("end_time", { ascending: false })
-        .limit(1)
-        .single(),
-    ]);
+    const span = await createRepos(supabase).calendarEvents.span();
 
-    if (minEvent && maxEvent) {
-      orphanedDateRange = { fromDate: minEvent.start_time, toDate: maxEvent.end_time };
+    if (span) {
+      orphanedDateRange = { fromDate: span.start, toDate: span.end };
     }
   }
 
@@ -638,8 +620,8 @@ export default async function DataHygienePage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Last calendar sync:</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {lastSync?.imported_at
-                    ? new Date(lastSync.imported_at).toLocaleString()
+                  {lastSyncAt
+                    ? new Date(lastSyncAt).toLocaleString()
                     : "Never"}
                 </span>
               </div>
