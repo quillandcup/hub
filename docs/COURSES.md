@@ -324,13 +324,13 @@ We still copy chat's good parts: soft delete, tombstones, and the escaping and n
 ### Data model
 
 New Local tables (never reprocessed), text ids per `CLAUDE.md` "New Tables and Ids", grants and RLS in the same migration (`supabase-table-grants.md`):
-- **`lesson_comments`**: `id` (`cmt_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
+- **`lesson_comments`**: `id` (`lcom_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
 - **`lesson_comment_reports`**: `id`, `comment_id`, `reporter_id`, `reason`, `created_at`, `resolved_at`, `resolved_by`. One open report per reporter and comment.
 - **`lesson_comment_follows`**: `(member_id, lesson_id, following)`. Posting or replying follows implicitly; rows exist only for explicit choices and unfollowing is `following = false`.
 - **`lesson_comment_reads`** (phase 3): last-seen per member and lesson, for unread counts.
 
 Decisions:
-- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (proposed `cmt_`); reports, follows and reads stay Tier 2.
+- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (`lcom_`: `cmt_` is already `prickle_commitments`); reports, follows and reads stay Tier 2.
 - **Threading depth: one level.** A reply points at a top-level comment; replying to a reply attaches to the same parent, quoting the author's name. Alternatives: flat; unlimited nesting (unreadable on a phone).
 - **Edit window: 15 minutes**, then locked (the author can still delete). Edits set `edited_at` and show "edited". Alternative: always editable, which leaves replies out of context.
 - **Soft delete** with `deleted_at`. A deleted comment with replies shows a tombstone ("Comment removed"); without replies it disappears. Text is cleared by a retention job (below), not at delete time, so staff can undo.
@@ -341,7 +341,7 @@ Decisions:
 ### Who can comment
 
 - **Members with current access to the course.** Admins can always read and comment. A per-course instructor list is a later option, if Ania wants non-admin helpers.
-- **Ended access: thread hidden**, matching lessons not opening after access ends. Alternative: visible but read-only.
+- **Ended access: the whole course is hidden** (decided 2026-10-28), so its comments go with it. This is stricter than today's course pages, where an ended course still lists with its progress and closed lessons; decide whether that card should go too.
 - **Instructor replies** carry an "Instructor" badge from `is_staff_reply`. Alternative: badge by current role at render time, which relabels old comments if a role changes.
 
 ### Moderation
@@ -366,7 +366,7 @@ Every event is a registry kind sent through `createNotifier` (`lib/notifications
 - **`lesson_comment_instructor_reply`**: an instructor replied to me. A distinct kind so a member can mute others' replies but keep instructors'.
 - **`lesson_comment_activity`**: new comments on a lesson I follow. **Daily digest**, opt-in through a "Follow" button, so a busy lesson can't spam.
 - **Staff** get new top-level questions in the admin queue and an instructor digest, not a DM per comment.
-- Links go to the exact comment (`/courses/<slug>/lessons/<id>?comment=<cmt_...>`, which scrolls to and highlights it). Not time-sensitive; no link previews. Check the link with the test message (`/admin/notifications`).
+- Links go to the exact comment (`/courses/<slug>/lessons/<id>?comment=<lcom_...>`, which scrolls to and highlights it). Not time-sensitive; no link previews. Check the link with the test message (`/admin/notifications`).
 - **Rollout**: a new automated sender starts in dry run. A `lesson_comment_notifications` flag with `liveFor` (as in `lib/member-reminders.ts`) logs member id, kind, channels and message and writes no dedup row; then widen: Cody, then staff, then everyone. A member with no reachable channel doesn't consume a dedup claim.
 - Opening the thread calls `resolveInAppNotifications` for its notifications.
 
@@ -420,14 +420,14 @@ Kajabi comments, if any exist, are **not imported**: we don't rely on an API for
 - Component tests for the thread (empty state, reply, tombstone, disabled in sudo, keyboard use) and page tests under `tests/components/pages/`.
 - Admin auth coverage (`tests/components/pages/admin-auth.test.tsx`), notification kind and `sampleMessages` tests, a dry-run `liveFor` test, analytics declarations, and a retention-job test across a day boundary with the fake clock.
 
-### Open questions for the user
+### Decisions (2026-10-28)
 
-1. **Ended access:** hide the thread (recommended, consistent with lessons not opening) or keep it read-only?
-2. **Id prefix:** approve a Tier 1 `cmt_` prefix for comments (recommended, since notification links expose the id)?
-3. **Instructors:** admins only to start (recommended), or a per-course instructor list from day one?
-4. **Mentions and video timestamps:** both after the first release (recommended), or one in phase 1?
-5. **Notification defaults:** direct and instructor replies on in Slack and in-app, follow digest opt-in, email off (recommended). Right?
-6. **Moderation:** hold comments with more than two links for review and no profanity filter (recommended), or add a blocklist?
+1. **Ended access:** the whole course is hidden, so the thread goes with it (see "Who can comment").
+2. **Id prefix:** `lesson_comments` is Tier 1 (notification links expose the id), but `cmt_` is already `prickle_commitments` (`lib/ids.ts`, `docs/SHORT_IDS_PLAN.md`). Use **`lcom_`** instead (not yet used; confirm before the migration). Reports, follows and reads stay Tier 2.
+3. **Instructors:** admins only to start; a per-course list later if Ania wants non-admin helpers.
+4. **Mentions and video timestamps:** after the first release (phase 4; `docs/TODO.md`, "Lesson Comments on Courses").
+5. **Notification defaults:** direct and instructor replies on in Slack and in-app, email off. The daily digest is for members who press "Follow" on a lesson's thread: one summary a day of new comments on the lessons they follow, and nothing unless they follow.
+6. **Moderation:** hold comments with more than two links for review; no profanity filter.
 
 ## Timeline (two-week target)
 
