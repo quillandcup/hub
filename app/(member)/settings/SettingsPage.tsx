@@ -41,10 +41,12 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
     getUserFeaturePreviews(user.id),
   ]);
   const isAdmin = profile?.role === "admin";
+  // Hosting is behind the hosting preview, and only for hosts.
+  const hostingOn = enabledFeatures.includes("hosting") && hostedVibes.length > 0;
 
   // Hosting is for hosts, Notifications for members and Previews for admins; an old link otherwise opens Account.
   if (
-    (tab === "hosting" && hostedVibes.length === 0) ||
+    (tab === "hosting" && !hostingOn) ||
     (tab === "notifications" && !notificationSettings) ||
     (tab === "previews" && !isAdmin)
   ) {
@@ -147,7 +149,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     },
                   ]
                 : []),
-              ...(hostedVibes.length > 0
+              ...(hostingOn
                 ? [
                     {
                       id: "hosting" as const,

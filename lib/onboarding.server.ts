@@ -106,6 +106,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     birthday,
     slackStatus,
     chatOn,
+    hostingOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
@@ -132,6 +133,8 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
     // Chat needs the connection, so for someone who has it the Slack step can't be skipped.
     membersWithFeature(createServiceRoleClient(), "chat", [memberId]).then((on) => on.has(memberId)),
+    // The hosting steps are behind the hosting preview (this member's own flag).
+    membersWithFeature(createServiceRoleClient(), "hosting", [memberId]).then((on) => on.has(memberId)),
   ]);
   const mentorships = bigSistersOn
     ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
@@ -146,7 +149,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       latestProjectId: latestProject,
       hasGoal: goals > 0,
       hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,
-      isHost: hostedEver > 0 || latestScheduleMonth !== null,
+      isHost: hostingOn && (hostedEver > 0 || latestScheduleMonth !== null),
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: hostedRecently > 0,
