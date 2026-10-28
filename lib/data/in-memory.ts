@@ -5,6 +5,7 @@ import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
+import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
@@ -61,6 +62,8 @@ export class InMemoryDataset {
   memberBadges: MemberBadge[];
   /** Events: at least the title and member-facing slug the badges link to; the other columns are optional. */
   events: EventRow[];
+  /** Hosting schedules (a host's slot for a month). */
+  prickleSchedules: ScheduleRow[];
   writingProjects: WritingProjectRow[];
   writingGoals: WritingGoalRow[];
   writingEntries: WritingEntryRow[];
@@ -73,7 +76,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules">
     > = {},
   ) {
     this.members = (init.members ?? []).map((row) => ({ ...row }));
@@ -91,6 +94,7 @@ export class InMemoryDataset {
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
     this.events = (init.events ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
+    this.prickleSchedules = (init.prickleSchedules ?? []).map((row) => ({ ...row }));
     this.writingProjects = (init.writingProjects ?? []).map((row) => ({ ...row }));
     this.writingGoals = (init.writingGoals ?? []).map((row) => ({ ...row }));
     this.writingEntries = (init.writingEntries ?? []).map((row) => ({ ...row }));

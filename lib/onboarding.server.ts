@@ -121,14 +121,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     supabase.from("calendar_feed_items").select("id", { count: "exact", head: true }).eq("member_id", memberId),
     createRepos(supabase).prickles.countHostedBy(memberId),
     createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
-    supabase
-      .from("prickle_schedules")
-      .select("month")
-      .eq("host_id", memberId)
-      .is("deleted_at", null)
-      .order("month", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    createRepos(supabase).prickleSchedules.latestMonthOf(memberId),
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
     supabase.from("calendar_feed_tokens").select("first_fetched_at").eq("member_id", memberId).maybeSingle(),
     loadNewcomerSignals(supabase, memberId, now),
@@ -143,7 +136,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   const mentorships = bigSistersOn
     ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
     : null;
-  const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
+  const latestScheduleMonth = latestSchedule;
 
   const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
 

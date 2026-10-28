@@ -30,7 +30,7 @@ vi.mock("@/lib/data/repos", async () => ({
 
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { requestToHost, updateMySchedule, withdrawMySchedule } from "@/app/(member)/hosting/actions";
+import { getMySchedules, requestToHost, updateMySchedule, withdrawMySchedule } from "@/app/(member)/hosting/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -61,8 +61,7 @@ function chain(result: any) {
 function makeSupabaseMock({
   requiresHost = true,
   lockOverrides = [] as { month: string; locked: boolean }[],
-  existingRow = null as any,
-  writeError = undefined as string | undefined,
+  existingRow = null as { id: string; host_id: string; month: string; status?: string } | null,
   // Join dates for the acting member (defaults to a long-standing member, who
   // is eligible to host). null = no members row found.
   memberJoin = { first_joined_at: "2020-01-01", most_recent_joined_at: "2020-01-01" } as {
@@ -72,13 +71,8 @@ function makeSupabaseMock({
   hostedCount = 0,
   confirmedScheduleCount = 0,
 }) {
-  const insert = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
-  const updateEqEq = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
-  const update = vi.fn((_updates: Record<string, unknown>) => ({ eq: vi.fn(() => ({ eq: updateEqEq })) }));
-
   const people = [IDENTITY, SUDO_IDENTITY];
-  repos = createInMemoryRepos(
-    new InMemoryDataset({
+  const data = new InMemoryDataset({
       members: memberJoin
         ? people.map((p) => ({
             id: p.memberId,
@@ -100,15 +94,17 @@ function makeSupabaseMock({
         source: "calendar",
         calendarEventId: null,
       })),
-    }),
-  );
+      // The schedule the action edits or withdraws, and the confirmed ones that exempt a new member.
+      prickleSchedules: [
+        ...(existingRow ? [schedule(existingRow)] : []),
+        ...Array.from({ length: confirmedScheduleCount }, (_, i) => schedule({ id: `confirmed-${i}`, host_id: IDENTITY.memberId, month: "2026-08-01", status: "confirmed" })),
+      ],
+  });
+  repos = createInMemoryRepos(data);
 
   const from = vi.fn((table: string) => {
     if (table === "prickle_schedule_locks") {
       return chain({ data: lockOverrides });
-    }
-    if (table === "prickle_schedules") {
-      return { ...chain({ data: existingRow, count: confirmedScheduleCount }), insert, update };
     }
     throw new Error(`Unexpected table in test: ${table}`);
   });
@@ -116,9 +112,44 @@ function makeSupabaseMock({
   return {
     auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "auth-user-1" } }, error: null }) },
     from,
-    __insert: insert,
-    __update: update,
-    __updateEqEq: updateEqEq,
+    /** The schedules stored right now. */
+    __schedules: () => data.prickleSchedules,
+  };
+}
+
+function schedule(over: { id: string; host_id: string; month: string; status?: string }) {
+  return {
+    type_id: "type-a",
+    recurrence_type: "weekly",
+    day_of_week: 2,
+    week_of_month: null,
+    recurrence_anchor_date: null,
+    event_date: null,
+    start_time_local: "19:00",
+    timezone: "America/New_York",
+    status: "proposed",
+    notes: null,
+    deleted_at: null,
+    deleted_by: null,
+    carried_forward_from: null,
+    confirmed_by: null,
+    confirmed_at: null,
+    updated_by: null,
+    updated_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+    ...over,
+  };
+}
+
+/** The schedule repository failing on one method, like a database error. */
+function failSchedules(method: "insert" | "update" | "liveById", message: string) {
+  repos = {
+    ...repos,
+    prickleSchedules: Object.assign(Object.create(repos.prickleSchedules), {
+      [method]: async () => {
+        throw new Error(message);
+      },
+    }),
   };
 }
 
@@ -140,7 +171,7 @@ describe("requestToHost", () => {
       startTimeLocal: "19:00",
     });
     expect(result).toEqual({ error: "Not authenticated" });
-    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__schedules()).toHaveLength(0);
   });
 
   it("rejects an invalid recurrence combination before touching the database", async () => {
@@ -157,7 +188,7 @@ describe("requestToHost", () => {
       // missing recurrenceAnchorDate
     });
     expect(result).toEqual({ error: "recurrence_anchor_date is required for biweekly schedules" });
-    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__schedules()).toHaveLength(0);
   });
 
   it("rejects a type that doesn't require a host", async () => {
@@ -173,7 +204,7 @@ describe("requestToHost", () => {
       startTimeLocal: "19:00",
     });
     expect(result).toEqual({ error: "This prickle type doesn't take a host" });
-    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__schedules()).toHaveLength(0);
   });
 
   it("rejects a request for a locked month", async () => {
@@ -191,7 +222,7 @@ describe("requestToHost", () => {
     expect(result).toEqual({
       error: "This month is locked -- ask an admin to unlock it, or request next month instead",
     });
-    expect(mock.__insert).not.toHaveBeenCalled();
+    expect(mock.__schedules()).toHaveLength(0);
   });
 
   it("scopes the insert to the acting member's own host_id, always as 'proposed'", async () => {
@@ -210,11 +241,21 @@ describe("requestToHost", () => {
     } as any);
 
     expect(result).toEqual({ success: true });
-    expect(mock.__insert).toHaveBeenCalledWith(
-      expect.objectContaining({ host_id: "member-1", status: "proposed" })
-    );
+    expect(mock.__schedules()).toEqual([expect.objectContaining({ host_id: "member-1", status: "proposed", updated_by: "auth-user-1" })]);
     // Hosting lives on the My Prickles "Hosting" tab (there's no standalone /hosting page).
     expect(revalidatePath).toHaveBeenCalledWith("/my-prickles", "layout");
+  });
+
+  it("returns the database's message when the insert fails", async () => {
+    const mock = makeSupabaseMock({ lockOverrides: [{ month: "2027-01-01", locked: false }] });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    failSchedules("insert", "insert failed");
+
+    const result = await requestToHost({ month: "2027-01-01", typeId: "type-a", recurrenceType: "weekly", dayOfWeek: 2, startTimeLocal: "19:00" });
+
+    expect(result).toEqual({ error: "insert failed" });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("scopes the insert to the sudo'd member, not the real admin, while sudo'd", async () => {
@@ -230,7 +271,7 @@ describe("requestToHost", () => {
       startTimeLocal: "19:00",
     });
 
-    expect(mock.__insert).toHaveBeenCalledWith(expect.objectContaining({ host_id: "sudo-target-member" }));
+    expect(mock.__schedules()).toEqual([expect.objectContaining({ host_id: "sudo-target-member" })]);
   });
 
   describe("one-full-month rule", () => {
@@ -263,7 +304,7 @@ describe("requestToHost", () => {
       expect(result).toEqual({
         error: "We invite hedgies to host once they've been a member for a full month — for you, that's October 10, 2026.",
       });
-      expect(mock.__insert).not.toHaveBeenCalled();
+      expect(mock.__schedules()).toHaveLength(0);
     });
 
     it("blocks a member with no join date on record", async () => {
@@ -276,7 +317,7 @@ describe("requestToHost", () => {
 
       const result = await requestToHost(REQUEST);
       expect(result).toEqual({ error: "We invite hedgies to host once they've been a member for a full month." });
-      expect(mock.__insert).not.toHaveBeenCalled();
+      expect(mock.__schedules()).toHaveLength(0);
     });
 
     it("allows a member exactly one month after first joining", async () => {
@@ -288,7 +329,7 @@ describe("requestToHost", () => {
       vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 
       expect(await requestToHost(REQUEST)).toEqual({ success: true });
-      expect(mock.__insert).toHaveBeenCalled();
+      expect(mock.__schedules()).toHaveLength(1);
     });
 
     it("allows a rejoiner who rejoined days ago but first joined years ago", async () => {
@@ -300,7 +341,7 @@ describe("requestToHost", () => {
       vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 
       expect(await requestToHost(REQUEST)).toEqual({ success: true });
-      expect(mock.__insert).toHaveBeenCalled();
+      expect(mock.__schedules()).toHaveLength(1);
     });
 
     it("exempts a new member who has already hosted a prickle", async () => {
@@ -329,6 +370,51 @@ describe("requestToHost", () => {
   });
 });
 
+describe("getMySchedules", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-26T16:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("lists the acting member's schedules for this month and next, seeding next month from this month's confirmed slot", async () => {
+    const mock = makeSupabaseMock({ existingRow: { id: "s1", host_id: "member-1", month: "2026-09-01", status: "confirmed" } });
+    mock.__schedules().push(schedule({ id: "theirs", host_id: "sudo-target-member", month: "2026-09-01" }));
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    const rows = await getMySchedules();
+
+    expect(rows.map((r) => [r.month, r.status, r.typeName, r.carriedForwardFrom])).toEqual([
+      ["2026-09-01", "confirmed", "Sprint", null],
+      ["2026-10-01", "proposed", "Sprint", "s1"],
+    ]);
+    expect(rows[0]).toMatchObject({ typeId: "type-a", recurrenceType: "weekly", dayOfWeek: 2, startTimeLocal: "19:00", timezone: "America/New_York" });
+  });
+
+  it("does not seed a next month that is locked", async () => {
+    const mock = makeSupabaseMock({
+      existingRow: { id: "s1", host_id: "member-1", month: "2026-09-01", status: "confirmed" },
+      lockOverrides: [{ month: "2026-10-01", locked: true }],
+    });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await getMySchedules()).toHaveLength(1);
+    expect(mock.__schedules()).toHaveLength(1);
+  });
+
+  it("is empty with no signed-in member", async () => {
+    const mock = makeSupabaseMock({});
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
+
+    expect(await getMySchedules()).toEqual([]);
+  });
+});
+
 describe("updateMySchedule", () => {
   it("rejects when the row belongs to a different host", async () => {
     const mock = makeSupabaseMock({ existingRow: { id: "s1", host_id: "someone-else", month: "2027-01-01" } });
@@ -337,7 +423,29 @@ describe("updateMySchedule", () => {
 
     const result = await updateMySchedule("s1", { notes: "hi" });
     expect(result).toEqual({ error: "Schedule not found" });
-    expect(mock.__updateEqEq).not.toHaveBeenCalled();
+    expect(mock.__schedules()[0].notes).toBeNull();
+  });
+
+  it("says the schedule is not found when it was already withdrawn", async () => {
+    const mock = makeSupabaseMock({ existingRow: { id: "s1", host_id: "member-1", month: "2027-01-01" } });
+    mock.__schedules()[0].deleted_at = "2026-09-02T00:00:00Z";
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await updateMySchedule("s1", { notes: "hi" })).toEqual({ error: "Schedule not found" });
+  });
+
+  it("returns the database's message when the update fails", async () => {
+    const mock = makeSupabaseMock({
+      existingRow: { id: "s1", host_id: "member-1", month: "2027-01-01" },
+      lockOverrides: [{ month: "2027-01-01", locked: false }],
+    });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    failSchedules("update", "update failed");
+
+    expect(await updateMySchedule("s1", { notes: "hi" })).toEqual({ error: "update failed" });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("rejects an edit to a locked month", async () => {
@@ -350,7 +458,7 @@ describe("updateMySchedule", () => {
 
     const result = await updateMySchedule("s1", { notes: "hi" });
     expect(result).toEqual({ error: "This month is locked -- ask an admin to unlock it" });
-    expect(mock.__updateEqEq).not.toHaveBeenCalled();
+    expect(mock.__schedules()[0].notes).toBeNull();
   });
 
   it("updates the acting member's own row in an unlocked month", async () => {
@@ -363,7 +471,7 @@ describe("updateMySchedule", () => {
 
     const result = await updateMySchedule("s1", { notes: "new notes" });
     expect(result).toEqual({ success: true });
-    expect(mock.__update).toHaveBeenCalledWith(expect.objectContaining({ notes: "new notes" }));
+    expect(mock.__schedules()[0]).toMatchObject({ notes: "new notes", updated_by: "auth-user-1" });
     expect(revalidatePath).toHaveBeenCalledWith("/my-prickles", "layout");
   });
 
@@ -377,9 +485,7 @@ describe("updateMySchedule", () => {
 
     await updateMySchedule("s1", { notes: "x", status: "confirmed", confirmed_by: "attacker" } as any);
 
-    const updatePayload: any = mock.__update.mock.calls[0]?.[0];
-    expect(updatePayload.status).toBeUndefined();
-    expect(updatePayload.confirmed_by).toBeUndefined();
+    expect(mock.__schedules()[0]).toMatchObject({ notes: "x", status: "proposed", confirmed_by: null });
   });
 });
 
@@ -415,9 +521,30 @@ describe("withdrawMySchedule", () => {
 
     const result = await withdrawMySchedule("s1");
     expect(result).toEqual({ success: true });
-    expect(mock.__update).toHaveBeenCalledWith(
-      expect.objectContaining({ deleted_at: expect.any(String), deleted_by: "auth-user-1" })
-    );
+    expect(mock.__schedules()).toEqual([expect.objectContaining({ id: "s1", deleted_at: expect.any(String), deleted_by: "auth-user-1" })]);
     expect(revalidatePath).toHaveBeenCalledWith("/my-prickles", "layout");
+  });
+
+  it("returns the database's message when the withdrawal fails", async () => {
+    const mock = makeSupabaseMock({
+      existingRow: { id: "s1", host_id: "member-1", month: "2027-01-01" },
+      lockOverrides: [{ month: "2027-01-01", locked: false }],
+    });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    failSchedules("update", "withdraw failed");
+
+    expect(await withdrawMySchedule("s1")).toEqual({ error: "withdraw failed" });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a schedule that belongs to someone else or is gone", async () => {
+    const mock = makeSupabaseMock({ existingRow: { id: "s1", host_id: "someone-else", month: "2027-01-01" } });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await withdrawMySchedule("s1")).toEqual({ error: "Schedule not found" });
+    expect(await withdrawMySchedule("missing")).toEqual({ error: "Schedule not found" });
+    expect(mock.__schedules()[0].deleted_at).toBeNull();
   });
 });

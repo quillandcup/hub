@@ -58,6 +58,51 @@ describe("getHostingCalendarContext", () => {
     expect(context.proposedSlots).toEqual([]);
   });
 
+  it("adds other hosts' proposed and confirmed schedules as one-hour slots on each of their dates", async () => {
+    const row = (id: string, status: string, host: string) => ({
+      id,
+      host_id: host,
+      type_id: SPRINT.id,
+      month: "2097-03-01",
+      recurrence_type: "one_off",
+      day_of_week: null,
+      week_of_month: null,
+      recurrence_anchor_date: null,
+      event_date: "2097-03-10",
+      start_time_local: "19:00:00",
+      timezone: "UTC",
+      status,
+      notes: null,
+      deleted_at: null,
+      deleted_by: null,
+      carried_forward_from: null,
+      confirmed_by: null,
+      confirmed_at: null,
+      updated_by: null,
+      updated_at: "2097-01-01T00:00:00Z",
+      created_at: "2097-01-01T00:00:00Z",
+    });
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E." }],
+        prickleTypes: [SPRINT],
+        prickleSchedules: [row("psch_AAAAAAAAAAA1", "confirmed", "mbr_AAAAAAAAAAA1"), row("psch_AAAAAAAAAAA2", "declined", "mbr_AAAAAAAAAAA1")],
+      }),
+    );
+
+    const context = await getHostingCalendarContext("2097-03-01");
+
+    expect(context.proposedSlots).toEqual([
+      {
+        id: "psch_AAAAAAAAAAA1-2097-03-10",
+        label: "Sprint — Ada E.",
+        startTime: "2097-03-10T19:00:00.000Z",
+        endTime: "2097-03-10T20:00:00.000Z",
+        status: "confirmed",
+      },
+    ]);
+  });
+
   it("is empty when nobody is signed in", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
 

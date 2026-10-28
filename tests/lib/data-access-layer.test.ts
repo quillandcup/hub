@@ -39,6 +39,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],
+  // Hosting schedules (PrickleScheduleRepository): every query is moved.
+  prickle_schedules: [],
 };
 
 const root = path.resolve(__dirname, "../..");

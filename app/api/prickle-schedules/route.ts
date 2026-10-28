@@ -4,6 +4,7 @@ import { fetchHostEligibilityByMember } from "@/lib/host-eligibility";
 import { NextRequest, NextResponse } from "next/server";
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { Insert } from "@/lib/data/db";
+import { createRepos } from "@/lib/data/repos";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -21,20 +22,12 @@ export async function GET(request: NextRequest) {
     await seedNextMonthSchedules(supabase, currentMonth, nextMonth);
   }
 
-  const { data: schedules, error } = await supabase
-    .from("prickle_schedules")
-    .select(`
-      *,
-      member:members(id, name, display_name, email),
-      prickle_type:prickle_types(id, name)
-    `)
-    .eq("month", month)
-    .is("deleted_at", null)
-    .order("created_at");
-
-  if (error) {
+  let schedules;
+  try {
+    schedules = await createRepos(supabase).prickleSchedules.detailsOfMonth(month);
+  } catch (error) {
     console.error("Error fetching prickle_schedules:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 
   // Flag hosts who haven't been a member for a full month yet, so admins can
@@ -109,19 +102,12 @@ export async function POST(request: NextRequest) {
       insert.confirmed_at = new Date().toISOString();
     }
 
-    const { data: schedule, error } = await supabase
-      .from("prickle_schedules")
-      .insert(insert)
-      .select(`
-        *,
-        member:members(id, name, display_name, email),
-        prickle_type:prickle_types(id, name)
-      `)
-      .single();
-
-    if (error) {
+    let schedule;
+    try {
+      schedule = await createRepos(supabase).prickleSchedules.insertDetailed(insert);
+    } catch (error) {
       console.error("Error creating prickle_schedule:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: (error as Error).message }, { status: 500 });
     }
 
     return NextResponse.json({ schedule }, { status: 201 });

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).prickles.reassignHost(secondaryId, primaryId),
       // prickle_schedules.host_id is ON DELETE CASCADE, so an untransferred schedule would be
       // silently deleted along with the secondary.
-      run(supabase.from("prickle_schedules").update({ host_id: primaryId }).eq("host_id", secondaryId)),
+      createRepos(supabase).prickleSchedules.reassignHost(secondaryId, primaryId),
       run(supabase.from("prickle_types").update({ default_host_id: primaryId }).eq("default_host_id", secondaryId)),
       run(supabase.from("ambiguous_zoom_names").update({ resolved_member_id: primaryId }).eq("resolved_member_id", secondaryId)),
     ]);
