@@ -1,7 +1,8 @@
 /**
  * A course's hero image from Kajabi's admin (docs/COURSES.md, step B): the banner behind the course title.
- * It is not the thumbnail and Kajabi's public API doesn't return it. The admin loads the product as JSON
- * (`/api/admin/products/{id}`), which scripts/kajabi-course-content.ts records from a logged-in session and
+ * It is not the thumbnail and Kajabi's public API doesn't return it. The admin product page loads data as JSON
+ * (which request is not documented: a direct request to /api/admin/products/{id} never arrives), which
+ * scripts/kajabi-course-content.ts searches from a logged-in session and
  * hands to this module. The field's name isn't documented, so the JSON is searched for an image URL under a
  * key that says hero, banner, cover or background (never the thumbnail), and the script prints which key it
  * used, or the image-like keys it saw, so a miss is easy to fix.

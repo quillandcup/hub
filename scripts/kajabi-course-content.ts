@@ -101,28 +101,60 @@ async function openCoursePage(context: BrowserContext, courseId: string): Promis
 }
 
 /**
- * The course's hero banner: the admin product page loads the product as JSON, and the banner's URL is in it
- * (it is not in the public API). A miss is reported, never fatal: the lessons are still worth capturing.
+ * The course's hero banner: not in the public API, so it is read from what the admin product page loads.
+ * Which request carries it isn't documented, so every JSON response the page makes about this course (the
+ * path or the request body names the course id) is searched for a hero-like image URL. On a miss it prints
+ * what it saw (request paths, the JSON image-field names, and the images on the page, none with their query
+ * strings), which is what to read to point `findCourseHero` at the right field. A miss is reported, never
+ * fatal: the lessons are still worth capturing.
  */
 async function captureHero(context: BrowserContext, courseId: string): Promise<void> {
   const page = await context.newPage();
+  const seen = new Set<string>();
+  const fieldNames = new Set<string>();
+  const pending: Promise<void>[] = [];
+  let found: { url: string; key: string; path: string } | null = null;
+  page.on("response", (r) => {
+    if (!(r.headers()["content-type"] ?? "").includes("json")) return;
+    if (!pathOf(r).includes(courseId) && !r.request().postData()?.includes(courseId)) return;
+    pending.push(
+      (async () => {
+        seen.add(`${r.request().method()} ${r.status()} ${pathOf(r)}`);
+        if (r.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+        const json = await r.json().catch(() => undefined);
+        if (json === undefined) return;
+        for (const name of imageFieldNames(json)) fieldNames.add(name);
+        const hero = findCourseHero(json);
+        if (hero && !found) found = { ...hero, path: pathOf(r) };
+      })()
+    );
+  });
   try {
-    const response = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === `/api/admin/products/${courseId}`, {
-      timeout: RESPONSE_TIMEOUT_MS,
-    });
-    response.catch(() => undefined);
     await page.goto(`${KAJABI_APP}/admin/products/${courseId}`, { waitUntil: "domcontentloaded" });
-    const r = await response;
-    if (r.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
-    if (!r.ok()) throw new Error(`Kajabi answered ${r.status()}`);
-    const product = await r.json();
-    const hero = findCourseHero(product);
-    if (!hero) {
-      console.log(`hero ${courseId}: none found. Image fields in the product JSON: ${imageFieldNames(product).join(", ") || "none"}`);
+    if (!new URL(page.url()).pathname.startsWith("/admin/")) throw new SessionExpiredError("The Kajabi login expired. Run again and log in.");
+    await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined);
+    await Promise.all(pending);
+
+    if (!found) {
+      const pageImages = await page
+        .evaluate(() => {
+          const urls = new Set<string>();
+          for (const img of Array.from(document.images)) if (img.src.startsWith("http")) urls.add(img.src.split("?")[0]);
+          for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) {
+            const m = getComputedStyle(el).backgroundImage.match(/url\("?(https?:[^")]+)/);
+            if (m) urls.add(m[1].split("?")[0]);
+          }
+          return Array.from(urls).slice(0, 15);
+        })
+        .catch(() => [] as string[]);
+      console.log(
+        `hero ${courseId}: none found.\n  JSON about this course: ${[...seen].join("; ") || "none"}\n  image fields in it: ${[...fieldNames].sort().join(", ") || "none"}\n  images on the page: ${pageImages.join(", ") || "none"}`
+      );
       return;
     }
+    const hero: { url: string; key: string; path: string } = found;
     const outcome = await saveCourseHero(supabase, courseId, hero.url, new Date(), { dryRun: !args.apply });
-    console.log(`hero ${courseId}: ${outcome} (from ${hero.key})`);
+    console.log(`hero ${courseId}: ${outcome} (from ${hero.path}, ${hero.key})`);
   } catch (error) {
     if (error instanceof SessionExpiredError) throw error;
     console.log(`hero ${courseId}: failed (${error instanceof Error ? error.message : error})`);
