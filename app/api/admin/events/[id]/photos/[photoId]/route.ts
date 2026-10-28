@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -19,18 +20,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing required field: hidden (boolean)" }, { status: 400 });
   }
 
-  const { data: photo, error } = await supabase
-    .from("event_photos")
-    .update({ hidden_at: body.hidden ? new Date().toISOString() : null })
-    .eq("id", photoId)
-    .eq("event_id", id)
-    .select("*")
-    .single();
-
-  if (error) {
+  try {
+    const photo = await createRepos(supabase).events.setPhotoHidden(id, photoId, body.hidden);
+    if (!photo) return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    return NextResponse.json({ photo });
+  } catch (error: any) {
     console.error("Error updating photo visibility:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  return NextResponse.json({ photo });
 }

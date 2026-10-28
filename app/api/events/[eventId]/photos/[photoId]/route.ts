@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createApiAuth } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -17,14 +18,14 @@ export async function GET(
 
   const { eventId, photoId } = await params;
 
-  const { data: photo, error } = await supabase
-    .from("event_photos")
-    .select("storage_path, mime_type, hidden_at")
-    .eq("id", photoId)
-    .eq("event_id", eventId)
-    .single();
-
-  if (error || !photo) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  let photo: Awaited<ReturnType<ReturnType<typeof createRepos>["events"]["photoFile"]>>;
+  try {
+    photo = await createRepos(supabase).events.photoFile(eventId, photoId);
+  } catch (error) {
+    console.error("Error loading event photo:", error);
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (!photo) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (photo.hidden_at) {
     const isPrivileged = user.id === "service-role" || user.id === "cron";
