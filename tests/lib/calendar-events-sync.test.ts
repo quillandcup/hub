@@ -44,6 +44,12 @@ describe("elevateCalendarEvent", () => {
     expect(await elevateCalendarEvent(dbWithSource(null), "cal_1", null)).toEqual({ ok: false, status: 500, error: "db down" });
   });
 
+  it("reports a calendar read error as a 500", async () => {
+    vi.spyOn(repos.calendarEvents, "byId").mockRejectedValueOnce(new Error("calendar down"));
+
+    expect(await elevateCalendarEvent(dbWithSource(source), "cal_1", null)).toEqual({ ok: false, status: 500, error: "calendar down" });
+  });
+
   it("is a 404 when the calendar event does not exist", async () => {
     expect(await elevateCalendarEvent(dbWithSource(null), "cal_1", null)).toEqual({ ok: false, status: 404, error: "Calendar event not found" });
   });
