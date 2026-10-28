@@ -10,11 +10,15 @@ import { createFakeSupabase } from "@/tests/helpers/server-page";
 let cookieValue: string | undefined;
 let role: string | null = "admin";
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => (name === "sudo_as" && cookieValue ? { value: cookieValue } : undefined) }) }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => createFakeSupabase({ user_profiles: { data: role ? [{ role }] : [] } }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => createFakeSupabase({}) }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
-  createRepos: () => repos,
+  // The signed-in user's profile (their role) is in memory too, with whatever role the test sets.
+  createRepos: () => ({
+    ...repos,
+    profiles: createInMemoryRepos(new InMemoryDataset({ userProfiles: role ? [{ id: "admin-user", email: "admin@example.test", role }] : [] })).profiles,
+  }),
 }));
 
 import { getEffectiveIdentity, signSudoCookie } from "@/lib/sudo";

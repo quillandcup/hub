@@ -110,8 +110,8 @@ async function fetchSlackEmail(slackUserId: string): Promise<string | null> {
 }
 
 async function findProfileById(service: SupabaseClient, userId: string): Promise<ProfileRow | null> {
-  const { data } = await service.from("user_profiles").select("id, email, role").eq("id", userId).maybeSingle();
-  return (data as ProfileRow | null) ?? null;
+  const profile = await createRepos(service).profiles.byId(userId).catch(() => null);
+  return profile ? { id: profile.id, email: profile.email, role: profile.role } : null;
 }
 
 /** A single row matching `column` case-insensitively, or null (none, several, or an error). */

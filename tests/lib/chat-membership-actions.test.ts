@@ -86,6 +86,8 @@ vi.mock("@/lib/data/repos", async () => {
       const ids = [...new Set([FERN, GALE, HAZEL, ...world.active, ...world.directory.map((d) => d.id)])];
       return actual.createInMemoryRepos(
         new InMemoryDataset({
+          // The caller's profile carries their role (staff are admins).
+          userProfiles: [{ id: "auth-fern", email: "fern@example.test", role: m.role.current }],
           // The member directory is these members' public fields, so the world's directory names them.
           members: ids.map((id) => {
             const listed = world.directory.find((d) => d.id === id);

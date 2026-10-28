@@ -45,9 +45,7 @@ export interface CourseWatchStats {
 
 /** Members who are staff (an admin's own member record), whose watching is test data. */
 async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>> {
-  const { data: admins, error } = await supabase.from("user_profiles").select("id").eq("role", "admin");
-  if (error) throw new Error(`user_profiles read failed: ${error.message}`);
-  const ids = (admins ?? []).map((a) => a.id as string);
+  const ids = await createRepos(supabase).profiles.adminIds();
   const staff = new Set<string>();
   for (const memberId of (await createRepos(supabase).members.idsByUserId(ids)).values()) staff.add(memberId);
   return staff;

@@ -13,7 +13,6 @@ import {
   resetServerPageMocks,
   signInAs,
   useFakeSupabase,
-  type FakeQuery,
 } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -22,6 +21,11 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 // The prickle comes from its repository, in memory here.
 const repos = createInMemoryRepos(
   new InMemoryDataset({
+    // Who is an admin comes from the profiles repository too.
+    userProfiles: [
+      { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
+      { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
+    ],
     members: [{ id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" }],
     prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
     prickles: [
@@ -40,17 +44,12 @@ vi.mock("@/lib/prickle-checkin-dms", () => ({ sendTestCheckinDM: (...args: unkno
 
 import { sendTestPrickleDM } from "@/app/(admin)/admin/prickles/[id]/actions";
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
 const ADMIN_IDENTITY = { memberId: "member-bramble", memberName: "Bramble", memberEmail: ADMIN_USER.email!, isSudo: false };
 
 beforeEach(() => {
   resetServerPageMocks();
   sendTestCheckinDM.mockClear();
-  useFakeSupabase({ user_profiles: userProfiles });
+  useFakeSupabase({});
 });
 
 describe("sendTestPrickleDM", () => {

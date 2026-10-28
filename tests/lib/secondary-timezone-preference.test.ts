@@ -1,18 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
-vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({})) }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
+// The signed-in user's profile is read through its repository (in memory here).
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
-import { getUserSecondaryTimezone } from "@/lib/timezone";
+import { getUserSecondaryTimezone, getUserTimezonePreference } from "@/lib/timezone";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 
-function profile(secondary: string | null | undefined) {
-  const eq = vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: secondary === undefined ? null : { secondary_timezone: secondary } }) }));
-  const select = vi.fn(() => ({ eq }));
-  const from = vi.fn(() => ({ select }));
-  vi.mocked(createClient).mockResolvedValue({ from } as never);
-  return { from, select, eq };
+function profile(secondary: string | null | undefined, preference: string | null = null) {
+  dataset = new InMemoryDataset({
+    userProfiles: secondary === undefined ? [] : [{ id: "user-1", email: "m1@example.test", secondary_timezone: secondary, timezone_preference: preference }],
+  });
 }
 
 beforeEach(() => {
@@ -22,11 +28,8 @@ beforeEach(() => {
 
 describe("getUserSecondaryTimezone", () => {
   it("returns the saved zone from the signed-in member's profile", async () => {
-    const sb = profile("America/New_York");
+    profile("America/New_York");
     expect(await getUserSecondaryTimezone()).toBe("America/New_York");
-    expect(sb.from).toHaveBeenCalledWith("user_profiles");
-    expect(sb.select).toHaveBeenCalledWith("secondary_timezone");
-    expect(sb.eq).toHaveBeenCalledWith("id", "user-1");
   });
 
   it.each([null, "", "browser", "Not/AZone", undefined])("is null when the profile holds %j", async (value) => {
@@ -36,8 +39,29 @@ describe("getUserSecondaryTimezone", () => {
 
   it("is null when nobody is signed in, without touching the database", async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null);
-    const sb = profile("America/New_York");
+    profile("America/New_York");
     expect(await getUserSecondaryTimezone()).toBeNull();
-    expect(sb.from).not.toHaveBeenCalled();
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("is null when the profile can't be read, rather than failing the page", async () => {
+    profile("America/New_York");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const repos = createInMemoryRepos(dataset);
+    vi.spyOn(Object.getPrototypeOf(repos.profiles), "byId").mockRejectedValueOnce(new Error("db down"));
+    expect(await getUserSecondaryTimezone()).toBeNull();
+  });
+});
+
+describe("getUserTimezonePreference", () => {
+  it("returns the stored zone, and 'browser' until one is saved or when it can't be read", async () => {
+    profile(null, "America/Chicago");
+    expect(await getUserTimezonePreference()).toBe("America/Chicago");
+
+    profile(null, null);
+    expect(await getUserTimezonePreference()).toBe("browser");
+
+    profile(undefined);
+    expect(await getUserTimezonePreference()).toBe("browser");
   });
 });

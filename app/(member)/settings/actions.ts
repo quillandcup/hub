@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isValidTimeZone } from "@/lib/time-zone";
@@ -124,13 +125,10 @@ async function updateTimezonePreferenceImpl(timezone: string) {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
-    .from("user_profiles")
-    .update({ timezone_preference: timezone })
-    .eq("id", user.id);
-
-  if (error) {
-    return { error: error.message };
+  try {
+    await createRepos(supabase).profiles.setTimezonePreference(user.id, timezone);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your time zone" };
   }
 
   revalidatePath("/settings", "layout");
@@ -151,13 +149,10 @@ async function updateSecondaryTimezoneImpl(timezone: string | null) {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
-    .from("user_profiles")
-    .update({ secondary_timezone: timezone })
-    .eq("id", user.id);
-
-  if (error) {
-    return { error: error.message };
+  try {
+    await createRepos(supabase).profiles.setSecondaryTimezone(user.id, timezone);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your time zone" };
   }
 
   revalidatePath("/", "layout");

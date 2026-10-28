@@ -43,13 +43,7 @@ const resolveEffectiveIdentity = cache(async (
   if (sudoCookieValue) {
     const parsed = parseSudoCookie(sudoCookieValue)
     if (parsed && parsed.adminId === realUserId) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', realUserId)
-        .single()
-
-      if (profile?.role === 'admin') {
+      if (await createRepos(supabase).profiles.isAdmin(realUserId)) {
         const member = await createRepos(supabase).members.byId(parsed.memberId)
 
         if (member) {

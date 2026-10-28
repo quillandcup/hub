@@ -69,6 +69,15 @@ describe("settings routes", () => {
     ]);
   });
 
+  it("still opens Account for someone whose profile can't be read, without admin-only tabs", async () => {
+    useFakeSupabase({ user_profiles: { data: null, error: { message: "db down" } } });
+
+    await renderServerRoute(SettingsIndex, indexProps());
+
+    expect(selectedTab()).toBe("Account");
+    expect(screen.queryByRole("tab", { name: "Previews" })).not.toBeInTheDocument();
+  });
+
   it("/settings/notifications opens Notifications", async () => {
     await renderServerRoute(NotificationsRoute, undefined as never);
     expect(selectedTab()).toBe("Notifications");

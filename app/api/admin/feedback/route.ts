@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
 const PAGE_SIZE = 50;
@@ -31,10 +32,8 @@ export async function GET(request: NextRequest) {
   }
 
   const userIds = Array.from(new Set((data ?? []).map((row) => row.user_id)));
-  const { data: profiles } = userIds.length
-    ? await supabase.from("user_profiles").select("id, email").in("id", userIds)
-    : { data: [] };
-  const emailById = new Map((profiles ?? []).map((p) => [p.id, p.email as string]));
+  const profiles = await createRepos(supabase).profiles.byIds(userIds);
+  const emailById = new Map(profiles.map((p) => [p.id, p.email]));
 
   const items = await Promise.all(
     (data ?? []).map(async (row) => {

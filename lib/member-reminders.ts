@@ -139,17 +139,11 @@ const isSendHour = (memberId: string, kind: MemberReminderKind, sent: number, no
 async function loadMemberTimeZones(supabase: SupabaseClient, members: MemberRow[]): Promise<Map<string, string>> {
   const zones = new Map<string, string>();
   const withAccount = members.filter((m) => m.user_id);
-  for (let i = 0; i < withAccount.length; i += 200) {
-    const chunk = withAccount.slice(i, i + 200);
-    const { data } = await supabase
-      .from("user_profiles")
-      .select("id, timezone_preference")
-      .in("id", chunk.map((m) => m.user_id as string));
-    const zoneByUser = new Map((data ?? []).map((p) => [p.id as string, p.timezone_preference as string | null]));
-    for (const m of chunk) {
-      const zone = zoneByUser.get(m.user_id as string);
-      if (isValidTimeZone(zone)) zones.set(m.id, zone);
-    }
+  const profiles = await createRepos(supabase).profiles.byIds(withAccount.map((m) => m.user_id as string));
+  const zoneByUser = new Map(profiles.map((p) => [p.id, p.timezone_preference]));
+  for (const m of withAccount) {
+    const zone = zoneByUser.get(m.user_id as string);
+    if (isValidTimeZone(zone)) zones.set(m.id, zone);
   }
   return zones;
 }
