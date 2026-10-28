@@ -4,6 +4,7 @@ import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
+import type { EventRow } from "./events";
 import type { Prickle, PrickleType } from "./prickles";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
@@ -58,8 +59,8 @@ export class InMemoryDataset {
   badgeTypes: BadgeType[];
   badgeLevels: BadgeLevel[];
   memberBadges: MemberBadge[];
-  /** Only what badges link to: an event's title and its member-facing slug. */
-  events: { id: string; title: string; slug: string }[];
+  /** Events: at least the title and member-facing slug the badges link to; the other columns are optional. */
+  events: EventRow[];
   writingProjects: WritingProjectRow[];
   writingGoals: WritingGoalRow[];
   writingEntries: WritingEntryRow[];

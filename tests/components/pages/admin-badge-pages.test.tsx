@@ -40,12 +40,13 @@ const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({
-    events: { data: [{ id: "evt-1", title: "Spring", starts_at: "2026-03-01" }, { id: "evt-2", title: "Autumn", starts_at: "2026-09-01" }] },
-    programs: { data: [] },
-  });
+  useFakeSupabase({ programs: { data: [] } });
   dataset = new InMemoryDataset({
     members: [ADA, FERN],
+    events: [
+      { id: "evt-1", title: "Spring", slug: "spring", starts_at: "2026-03-01" },
+      { id: "evt-2", title: "Autumn", slug: "autumn", starts_at: "2026-09-01" },
+    ],
     badgeTypes: [type("kind", { has_levels: true }), type("auto", { is_automatic: true }), type("retreat", { category: "retreat", event_id: "evt-1" })],
     badgeLevels: [{ id: "l1", badge_type_id: "kind", level: 1, name: "Warm", threshold: 1 }, { id: "l2", badge_type_id: "kind", level: 2, name: "Glowing", threshold: 5 }],
     memberBadges: [award("a1", ADA.id, "kind"), award("a2", FERN.id, "kind"), award("a3", ADA.id, "retreat")],
@@ -79,7 +80,7 @@ describe("edit badge page", () => {
     expect(JSON.parse(screen.getByTestId("form").textContent!)).toMatchObject({
       mode: "edit",
       awardCount: 1,
-      events: ["evt-1", "evt-2"],
+      events: ["evt-2", "evt-1"], // newest first
       initial: { name: "Badge retreat", eventId: "evt-1" },
     });
   });

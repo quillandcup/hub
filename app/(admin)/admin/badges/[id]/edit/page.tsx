@@ -24,11 +24,11 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   const supabase = await createClient();
 
   const badges = createRepos(supabase).badges;
-  const [badgeType, levels, awardCounts, { data: allEvents }, linkedEventIds, { data: programs }] = await Promise.all([
+  const [badgeType, levels, awardCounts, allEvents, linkedEventIds, { data: programs }] = await Promise.all([
     badges.typeById(id),
     badges.levelsOf(id),
     badges.awardCounts(),
-    supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
+    createRepos(supabase).events.choices(),
     badges.linkedEventIds({ exceptTypeId: id }),
     supabase.from("programs").select("id, name").order("name"),
   ]);
@@ -36,7 +36,7 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
 
   if (!badgeType) notFound();
 
-  const events = (allEvents ?? []).filter((e) => !linkedEventIds.has(e.id));
+  const events = allEvents.filter((e) => !linkedEventIds.has(e.id));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
