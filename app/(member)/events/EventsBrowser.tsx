@@ -41,17 +41,15 @@ export type { EventPrickle };
 
 const EMPTY_LABELS: Record<EventFilter, string> = {
   all: "events",
-  big: "big events",
+  special: "special events",
   educational: "educational events",
-  events: "events",
   sessions: "sessions",
 };
 
-// What each tier is called as a section, and how its cards look: the big ones get a tall picture, the rest less.
+// What each tier is called as a section, and how its cards look: special events get a tall picture, the rest less.
 const TIER_SECTIONS: { tier: EventTier; heading: string; artClass: string }[] = [
-  { tier: "big", heading: "Big events", artClass: "h-40" },
+  { tier: "special", heading: "Special events", artClass: "h-40" },
   { tier: "educational", heading: "Educational", artClass: "h-28" },
-  { tier: "event", heading: "Events", artClass: "h-28" },
 ];
 
 function fmtDate(d: string) {
@@ -104,8 +102,7 @@ export default function EventsBrowser({
 
   const counts = countUpcoming(events, eventPrickles.length, today);
   const { upcoming, past } = groupEvents(events, filter, today);
-  // The Events pill (one-off gatherings) only appears when there is one, or it is the filter in use.
-  const options: PillOption<EventFilter>[] = EVENT_FILTER_IDS.filter((id) => id !== "events" || counts.events > 0 || filter === "events").map((id) => ({ id, label: EVENT_FILTER_LABELS[id], count: counts[id] }));
+  const options: PillOption<EventFilter>[] = EVENT_FILTER_IDS.map((id) => ({ id, label: EVENT_FILTER_LABELS[id], count: counts[id] }));
   const showsPrickles = filter === "all" || filter === "sessions";
   const sessionEvents = upcoming.filter((e) => eventTier(e) === "session");
   const hasUpcoming = upcoming.length > 0 || (showsPrickles && eventPrickles.length > 0);

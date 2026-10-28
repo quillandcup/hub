@@ -46,41 +46,40 @@ export function isEventType(value: unknown): value is EventType {
 }
 
 /**
- * How big a deal an event is: **big** (a retreat or workshop, or anything that takes a sign-up or an
- * application: commitment and notice), **educational** (its own pillar), **session** (a regular prickle that
- * is featured: the weekly or monthly FYI), or just an **event** (a book launch, a party...).
+ * What an event asks of a member: **special** (a retreat, a workshop, a party, anything that takes a sign-up or
+ * an application: notice, if not always commitment), **educational** (its own pillar), or **session** (a regular
+ * prickle that is featured: the weekly or monthly FYI).
  */
-export type EventTier = "big" | "educational" | "event" | "session";
+export type EventTier = "special" | "educational" | "session";
 
 export function eventTier(event: { event_type: string; registration?: string | null }): EventTier {
-  if (event.event_type === "in_person_retreat" || event.event_type === "virtual_retreat" || event.event_type === "workshop") return "big";
-  if (event.registration && event.registration !== "none") return "big";
+  if (event.registration && event.registration !== "none") return "special";
   if (event.event_type === "educational") return "educational";
   if (event.event_type === "session") return "session";
-  return "event";
+  return "special";
 }
 
 /** Allowlist for the `?type=` param: one filter per tier. */
-export const EVENT_FILTER_IDS = ["all", "big", "educational", "events", "sessions"] as const;
+export const EVENT_FILTER_IDS = ["all", "special", "educational", "sessions"] as const;
 export type EventFilter = (typeof EVENT_FILTER_IDS)[number];
 
 export const EVENT_FILTER_LABELS: Record<EventFilter, string> = {
   all: "All",
-  big: "Big events",
+  special: "Special events",
   educational: "Educational",
-  events: "Events",
   sessions: "Sessions",
 };
 
 const TIER_OF_FILTER: Record<Exclude<EventFilter, "all">, EventTier> = {
-  big: "big",
+  special: "special",
   educational: "educational",
-  events: "event",
   sessions: "session",
 };
 
 export function parseEventFilter(raw: string | string[] | undefined | null): EventFilter {
-  const value = Array.isArray(raw) ? raw[0] : raw;
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  // Links from before the tiers were merged ("big", "events") land on Special events.
+  const value = first === "big" || first === "events" ? "special" : first;
   return (EVENT_FILTER_IDS as readonly string[]).includes(value ?? "") ? (value as EventFilter) : "all";
 }
 
@@ -120,9 +119,8 @@ export function countUpcoming(events: readonly EventLike[], sessionPrickleCount:
   const count = (tier: EventTier) => upcoming.filter((e) => eventTier(e) === tier).length;
   return {
     all: upcoming.length + sessionPrickleCount,
-    big: count("big"),
+    special: count("special"),
     educational: count("educational"),
-    events: count("event"),
     sessions: count("session") + sessionPrickleCount,
   };
 }
