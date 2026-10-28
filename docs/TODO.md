@@ -133,6 +133,9 @@ Today a person posts "Remaining Prickle Times for TUESDAY, JULY 21" in #prickle-
 
 ---
 
+### Importing Kajabi per-lesson progress _(Needs Scheduling)_
+Members partway through a Kajabi course should arrive in the Hub with those lessons marked complete in `lesson_progress`. **Investigated 2026-10-28, not built:** Kajabi's public API has no per-lesson progress (probes and the proposed Bronze/Silver design are in `docs/COURSES.md`, "Importing Kajabi per-lesson progress"). **Why deferred:** the real source, if any, is in Kajabi's admin app (a student's progress page, its JSON, or a CSV export), which only a logged-in browser can check. **Where to start:** the user runs the checks listed in that section (about 15 minutes) and answers its open questions; then build the session script following `scripts/kajabi-course-content.ts`, `bronze.kajabi_lesson_progress`, and an insert-if-absent Silver step into `lesson_progress`. Fallback needing no Kajabi data: a member-facing "mark everything up to here as done" on the course outline. Not needed for The Ready Writer (it starts in the Hub); the first users are Self-Editing Academy, BFF Mindset Training and Hedgies on First.
+
 ### Course videos: a cleanup page for unused and long-draft videos _(Idea)_
 Every video in Mux is billed for storage by the minute (about $2/month for the Ready Writer's ~650 minutes, `docs/COURSES.md`), and nothing today tells staff which uploads are no longer earning their keep. An admin page (under the Courses area, behind the `courses` flag) would list two kinds:
 
