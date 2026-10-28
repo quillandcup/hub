@@ -54,11 +54,17 @@ export interface CourseRow {
   title: string;
   description: string | null;
   thumbnail_url?: string | null;
+  /** The banner behind the course title (the course page only); our copy when there is one. */
+  hero_url?: string | null;
 }
 
 /** A courses row with `thumbnail_url` resolved to our copy of the image when there is one. */
-function withCourseImage({ thumbnail_path, ...course }: any): CourseRow {
-  return { ...course, thumbnail_url: courseImageSrc("course", course.id, thumbnail_path, course.thumbnail_url) };
+function withCourseImage({ thumbnail_path, hero_path, hero_url, ...course }: any): CourseRow {
+  return {
+    ...course,
+    thumbnail_url: courseImageSrc("course", course.id, thumbnail_path, course.thumbnail_url),
+    hero_url: courseImageSrc("hero", course.id, hero_path, hero_url),
+  };
 }
 
 export interface MemberScope {
@@ -235,7 +241,7 @@ export interface CourseView {
 
 /** One course by slug, or null when there is none. */
 export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_path").eq("slug", slug).maybeSingle();
+  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_path, hero_url, hero_path").eq("slug", slug).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!courseRow) return null;
   const course = withCourseImage(courseRow);

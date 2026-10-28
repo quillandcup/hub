@@ -161,7 +161,7 @@ export async function processCourses(
   options: ProcessCoursesOptions = {}
 ): Promise<ProcessCoursesResult> {
   // Which Bronze courses to publish.
-  const bronzeCourses = await fetchAllBronzeRows(supabase, "kajabi_courses", "kajabi_id, title, raw_payload", (q) =>
+  const bronzeCourses = await fetchAllBronzeRows(supabase, "kajabi_courses", "kajabi_id, title, raw_payload, hero_image_url", (q) =>
     q.is("deleted_at", null)
   );
   const existingSilver = await fetchAll(
@@ -195,6 +195,8 @@ export async function processCourses(
     const kajabiId: string = bc.kajabi_id;
     const description: string | null = bc.raw_payload?.attributes?.description ?? null;
     const thumbnailUrl: string | null = bc.raw_payload?.attributes?.thumbnail_url || null;
+    // The banner behind the title: captured from the Kajabi admin, not in the API payload (null until courses:content has run).
+    const heroUrl: string | null = bc.hero_image_url || null;
     let silver = silverByKey.get(kajabiId);
     const created = !silver;
 
@@ -209,6 +211,7 @@ export async function processCourses(
           title: bc.title,
           description,
           thumbnail_url: thumbnailUrl,
+          hero_url: heroUrl,
           source: "kajabi",
           source_key: kajabiId,
           program_id: program?.id ?? null,
@@ -226,6 +229,7 @@ export async function processCourses(
           title: bc.title,
           description,
           thumbnail_url: thumbnailUrl,
+          hero_url: heroUrl,
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
           ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })

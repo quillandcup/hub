@@ -20,10 +20,11 @@ export const COURSE_IMAGES_BUCKET = "course-images";
 export const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
 const CONCURRENCY = 5;
 
-export type CourseImageKind = "course" | "module" | "lesson";
+export type CourseImageKind = "course" | "hero" | "module" | "lesson";
 
 const TABLES = {
   course: { table: "courses", urlColumn: "thumbnail_url", pathColumn: "thumbnail_path", sourceColumn: "thumbnail_source", folder: "" },
+  hero: { table: "courses", urlColumn: "hero_url", pathColumn: "hero_path", sourceColumn: "hero_source", folder: "" },
   module: { table: "course_modules", urlColumn: "poster_url", pathColumn: "poster_path", sourceColumn: "poster_source", folder: "modules" },
   lesson: { table: "course_lessons", urlColumn: "thumbnail_url", pathColumn: "thumbnail_path", sourceColumn: "thumbnail_source", folder: "lessons" },
 } as const;
@@ -73,10 +74,10 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
   const bucket = supabase.storage.from(COURSE_IMAGES_BUCKET);
 
   const items: Item[] = [];
-  for (const kind of ["course", "module", "lesson"] as const) {
+  for (const kind of ["course", "hero", "module", "lesson"] as const) {
     const t = TABLES[kind];
     const rows = await fetchAll(supabase, t.table, `id, ${t.urlColumn}, ${t.pathColumn}, ${t.sourceColumn}`, (q) =>
-      (kind === "course" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id")
+      (kind === "course" || kind === "hero" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id")
     );
     for (const r of rows) items.push({ kind, id: r.id, url: r[t.urlColumn] ?? null, path: r[t.pathColumn] ?? null, source: r[t.sourceColumn] ?? null });
   }
@@ -108,7 +109,7 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
       const body = Buffer.from(await response.arrayBuffer());
       if (body.byteLength > MAX_COURSE_IMAGE_BYTES) throw new Error(`larger than ${MAX_COURSE_IMAGE_BYTES / (1024 * 1024)} MB`);
 
-      const path = [courseId, t.folder, `${item.kind === "course" ? "cover" : item.id}.${extension}`].filter(Boolean).join("/");
+      const path = [courseId, t.folder, `${item.kind === "course" ? "cover" : item.kind === "hero" ? "hero" : item.id}.${extension}`].filter(Boolean).join("/");
       const { error: uploadError } = await bucket.upload(path, body, { contentType, upsert: true });
       if (uploadError) throw new Error(uploadError.message);
       await save({ [t.pathColumn]: path, [t.sourceColumn]: withoutQuery(url) });
@@ -122,9 +123,9 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
 
   // Objects whose lesson or module is gone (or whose path was replaced): sweep what no row points at.
   const referenced = new Set<string>();
-  for (const kind of ["course", "module", "lesson"] as const) {
+  for (const kind of ["course", "hero", "module", "lesson"] as const) {
     const t = TABLES[kind];
-    const rows = await fetchAll(supabase, t.table, `id, ${t.pathColumn}`, (q) => (kind === "course" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id"));
+    const rows = await fetchAll(supabase, t.table, `id, ${t.pathColumn}`, (q) => (kind === "course" || kind === "hero" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id"));
     for (const r of rows) if (r[t.pathColumn]) referenced.add(r[t.pathColumn]);
   }
   for (const folder of ["", "modules", "lessons"]) {

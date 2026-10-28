@@ -163,6 +163,23 @@ describe("/courses/[slug]", () => {
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
   });
 
+  it("puts the course's hero banner behind the title under a dark overlay, and keeps the plain band without one", async () => {
+    const completed = new Set<string>();
+    const view = (hero: string | null) => ({ course: { ...course, hero_url: hero }, access: { kind: "open", endsAt: null }, outline, completed, progress: courseProgress(outline, completed) });
+
+    loadCourseView.mockResolvedValue(view("/api/courses/image/hero/crs_AAAAAAAAAAA1"));
+    const { container } = await renderServerPage(CoursePage, params());
+    const banner = container.querySelector("header img");
+    expect(banner).toHaveAttribute("src", "/api/courses/image/hero/crs_AAAAAAAAAAA1");
+    expect(banner).toHaveAttribute("alt", "");
+    expect(container.querySelector("header [class*='bg-black']")).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: course.title })).toBeInTheDocument();
+
+    loadCourseView.mockResolvedValue(view("javascript:alert(1)"));
+    const plain = await renderServerPage(CoursePage, params());
+    expect(plain.container.querySelector("header img")).toBeNull();
+  });
+
   it("opens the coming-soon lessons in the outline for staff", async () => {
     caller.scope.isAdminActing = true;
     const completed = new Set<string>();

@@ -148,6 +148,20 @@ describe("/admin/courses/[id]", () => {
     expect(screen.getByText(/11 start later/)).toBeInTheDocument();
   });
 
+  it("links a published course to its watch stats and to who's where", async () => {
+    loadAdminCourse.mockResolvedValue(detail());
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.getByRole("link", { name: "Watch stats" })).toHaveAttribute("href", expect.stringMatching(/^\/admin\/courses\/.+\/stats$/));
+    expect(screen.getByRole("link", { name: "Who's where" })).toHaveAttribute("href", expect.stringMatching(/^\/admin\/courses\/.+\/roster$/));
+  });
+
+  it("links an unpublished course to neither", async () => {
+    loadAdminCourse.mockResolvedValue(detail(null));
+    await renderServerPage(AdminCoursePage, params);
+    expect(screen.queryByRole("link", { name: "Watch stats" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Who's where" })).not.toBeInTheDocument();
+  });
+
   it("gives the course's videos to the videos panel, with the slug only once it's published", async () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { videos: [{ mediaId: "m1" }, { mediaId: "m2" }] }));
     await renderServerPage(AdminCoursePage, params);

@@ -8,6 +8,8 @@
  * editor and records the two responses it loads. The script never sees or stores a password or a
  * token; the login lives in the browser profile directory.
  *
+ * It also records each course's hero banner (the image behind the course title, from the admin product JSON).
+ *
  * Run step A (/api/import/kajabi-courses) first: this only fills in lessons Bronze already has.
  *
  * Usage:
@@ -31,6 +33,7 @@ import {
   type LessonTarget,
   type SaveOutcome,
 } from "../lib/kajabi/lesson-content";
+import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
@@ -95,6 +98,37 @@ async function openCoursePage(context: BrowserContext, courseId: string): Promis
   // The app's own requests have settled once it is ready to route; don't fail if it never idles.
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
   return page;
+}
+
+/**
+ * The course's hero banner: the admin product page loads the product as JSON, and the banner's URL is in it
+ * (it is not in the public API). A miss is reported, never fatal: the lessons are still worth capturing.
+ */
+async function captureHero(context: BrowserContext, courseId: string): Promise<void> {
+  const page = await context.newPage();
+  try {
+    const response = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === `/api/admin/products/${courseId}`, {
+      timeout: RESPONSE_TIMEOUT_MS,
+    });
+    response.catch(() => undefined);
+    await page.goto(`${KAJABI_APP}/admin/products/${courseId}`, { waitUntil: "domcontentloaded" });
+    const r = await response;
+    if (r.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (!r.ok()) throw new Error(`Kajabi answered ${r.status()}`);
+    const product = await r.json();
+    const hero = findCourseHero(product);
+    if (!hero) {
+      console.log(`hero ${courseId}: none found. Image fields in the product JSON: ${imageFieldNames(product).join(", ") || "none"}`);
+      return;
+    }
+    const outcome = await saveCourseHero(supabase, courseId, hero.url, new Date(), { dryRun: !args.apply });
+    console.log(`hero ${courseId}: ${outcome} (from ${hero.key})`);
+  } catch (error) {
+    if (error instanceof SessionExpiredError) throw error;
+    console.log(`hero ${courseId}: failed (${error instanceof Error ? error.message : error})`);
+  } finally {
+    await page.close().catch(() => undefined);
+  }
 }
 
 /** Moves the open page to the lesson's editor through the app's router and records its JSON. */
@@ -181,6 +215,8 @@ async function main() {
       SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()
     );
     await ensureLoggedIn(context);
+
+    for (const courseId of new Set(lessons.map((l) => l.course_kajabi_id))) await captureHero(context, courseId);
 
     const queue = [...lessons];
     const run = async () => {

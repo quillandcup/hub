@@ -34,7 +34,7 @@ describe('Course image route', () => {
 
   beforeAll(async () => {
     await supabase.storage.createBucket(COURSE_IMAGES_BUCKET, { public: false })
-    const { data: course } = await supabase.from('courses').insert({ slug: SOURCE, title: SOURCE, source_key: SOURCE, thumbnail_path: `${SOURCE}/cover.png` }).select('id').single()
+    const { data: course } = await supabase.from('courses').insert({ slug: SOURCE, title: SOURCE, source_key: SOURCE, thumbnail_path: `${SOURCE}/cover.png`, hero_path: `${SOURCE}/hero.png` }).select('id').single()
     ids.course = course!.id
     const { data: lessons } = await supabase
       .from('course_lessons')
@@ -45,10 +45,10 @@ describe('Course image route', () => {
       ])
       .select('id, title')
     for (const l of lessons!) ids[l.title.toLowerCase()] = l.id
-    for (const p of ['cover', 'o', 'h']) await store(`${SOURCE}/${p}.png`)
+    for (const p of ['cover', 'hero', 'o', 'h']) await store(`${SOURCE}/${p}.png`)
   })
   afterAll(async () => {
-    await supabase.storage.from(COURSE_IMAGES_BUCKET).remove(['cover', 'o', 'h'].map((p) => `${SOURCE}/${p}.png`))
+    await supabase.storage.from(COURSE_IMAGES_BUCKET).remove(['cover', 'hero', 'o', 'h'].map((p) => `${SOURCE}/${p}.png`))
     await supabase.from('courses').delete().eq('source_key', SOURCE)
   })
 
@@ -60,6 +60,17 @@ describe('Course image route', () => {
     expect(cover.headers.get('cache-control')).toContain('private')
     expect(Buffer.from(await cover.arrayBuffer()).toString()).toBe('PNGDATA')
     expect((await get('lesson', 'open')).status).toBe(200)
+  })
+
+  it('streams a course hero banner to a courses user, by the course id', async () => {
+    as(false)
+    const hero = await get('hero', 'course')
+    expect(hero.status).toBe(200)
+    expect(Buffer.from(await hero.arrayBuffer()).toString()).toBe('PNGDATA')
+    as(null)
+    expect((await get('hero', 'course')).status).toBe(404)
+    as(false)
+    expect((await get('hero', 'les_AAAAAAAAAAA1')).status).toBe(404) // a lesson id is not a course id
   })
 
   it('answers 404 for no caller, a bad kind or id, a lesson without a copy and an unknown row', async () => {
