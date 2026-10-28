@@ -30,6 +30,8 @@ export interface EventRow {
   ends_at: string;
   focus: string | null;
   registration?: string | null;
+  /** The icon of the badge the event awards (a retreat's), shown on its card when there is no photo. */
+  badge_icon?: string | null;
   cover_photo_id: string | null;
 }
 
@@ -171,6 +173,7 @@ function EventCard({ event, artClass }: { event: EventRow; artClass: string }) {
     >
       <EventArt
         eventType={event.event_type}
+        icon={event.badge_icon}
         coverUrl={event.cover_photo_id ? `/api/events/${event.id}/photos/${event.cover_photo_id}` : null}
         className={artClass}
       />

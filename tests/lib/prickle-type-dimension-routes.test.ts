@@ -83,23 +83,12 @@ describe("prickle type routes: dimensions", () => {
     expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", announcedPublicly: false, guestsAllowed: false })).status).toBe(200);
   });
 
-  it("stores the kind of event a type's events start as, and refuses one that isn't a kind", async () => {
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Webinar", eventKind: "educational" })).status).toBe(200);
-    expect(written).toMatchObject({ event_kind: "educational" });
-
-    written = undefined;
-    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Webinar", eventKind: "party" });
-    expect(res.status).toBe(400);
-    expect(written).toBeUndefined();
-  });
-
   it("leaves dimensions alone when the request doesn't mention them", async () => {
     await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle" });
 
     expect(written).not.toHaveProperty("listed_in_events");
     expect(written).not.toHaveProperty("announced_publicly");
     expect(written).not.toHaveProperty("guests_allowed");
-    expect(written).not.toHaveProperty("event_kind");
   });
 
   it.each(["listedInEvents", "announcedPublicly", "guestsAllowed"])("rejects %s when it isn't a boolean", async (field) => {

@@ -35,9 +35,10 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   ]),
 }));
 vi.mock("@/app/(member)/events/EventsBrowser", () => ({
-  default: (props: { initialFilter: string; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null }[] }) => (
+  default: (props: { initialFilter: string; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; badge_icon?: string | null }[] }) => (
     <div data-testid="browser">
       {props.initialFilter}|{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
+      <span data-testid="icons">{props.events.map((e) => e.badge_icon ?? "none").join(",")}</span>
       <span data-testid="covers">{props.events.map((e) => e.cover_photo_id ?? "none").join(",")}</span>
     </div>
   ),
@@ -75,6 +76,17 @@ describe("member Events page", () => {
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
     expect(screen.getByTestId("covers")).toHaveTextContent("evph_AAAAAAAAAAA2");
+  });
+
+  it("gives an event the icon of the badge linked to it", async () => {
+    dataset = new InMemoryDataset({
+      events: [RETREAT],
+      badgeTypes: [{ id: "bdgt_AAAAAAAAAAA1", key: "spring_retreat", name: "Spring Retreat", description: null, icon: "💡", category: "retreat", has_levels: false, is_automatic: false, program_id: null, event_id: RETREAT.id }],
+    });
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+
+    expect(screen.getByTestId("icons")).toHaveTextContent("💡");
   });
 
   it("lists a prickle once: an event that follows its calendar event stands in for it", async () => {

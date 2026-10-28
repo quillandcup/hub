@@ -15,6 +15,14 @@ export const EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/** The prickle type whose events are educational (webinars and the like): its own pillar. Every other prickle's event is a session. */
+const EDUCATIONAL_PRICKLE_TYPE = "educational";
+
+/** The kind an event starts as when it is made from a prickle of this type (an admin can change it on the event). */
+export function prickleEventKind(typeNormalizedName: string | null | undefined): EventType {
+  return typeNormalizedName === EDUCATIONAL_PRICKLE_TYPE ? "educational" : "session";
+}
+
 /** What members see on a card or event page. */
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   in_person_retreat: "In-Person Retreat",

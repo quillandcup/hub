@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { prickleEventKind } from "@/lib/events-filter";
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -249,7 +250,7 @@ export async function elevateCalendarEvent(db: Db, calendarEventId: string, user
         ...fields,
         ...audience,
         slug,
-        event_type: prickle ? (prickle.type?.eventKind ?? "session") : "other",
+        event_type: prickle ? prickleEventKind(prickle.type?.normalizedName) : "other",
         calendar_event_id: calendarEventId,
         created_by: userId,
         automatic,

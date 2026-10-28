@@ -6,6 +6,7 @@ import {
   groupEvents,
   countUpcoming,
   localDateString,
+  prickleEventKind,
 } from '@/lib/events-filter'
 
 const TODAY = '2026-09-26'
@@ -105,5 +106,13 @@ describe('localDateString', () => {
     const lateEvening = new Date('2026-09-27T02:00:00Z') // 10pm Sep 26 in New York
     expect(localDateString(lateEvening, 'America/New_York')).toBe('2026-09-26')
     expect(localDateString(lateEvening, 'UTC')).toBe('2026-09-27')
+  })
+})
+
+describe('prickleEventKind', () => {
+  it('makes the educational type\'s events educational and every other prickle\'s a session', () => {
+    expect(prickleEventKind('educational')).toBe('educational')
+    expect(prickleEventKind('pitch')).toBe('session')
+    expect(prickleEventKind(null)).toBe('session')
   })
 })
