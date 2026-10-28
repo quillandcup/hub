@@ -1671,6 +1671,36 @@ export type Database = {
           },
         ]
       }
+      calendar_watch_channels: {
+        Row: {
+          calendar_id: string
+          channel_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          resource_id: string
+          stopped_at: string | null
+        }
+        Insert: {
+          calendar_id: string
+          channel_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          resource_id: string
+          stopped_at?: string | null
+        }
+        Update: {
+          calendar_id?: string
+          channel_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          resource_id?: string
+          stopped_at?: string | null
+        }
+        Relationships: []
+      }
       chat_channel_members: {
         Row: {
           channel_id: string
