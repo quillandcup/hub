@@ -8,6 +8,8 @@ import ApplyAliasesButton from "./ApplyAliasesButton";
 import ManualReprocessingSection from "./ManualReprocessingSection";
 import KajabiApiImportForm from "./KajabiApiImportForm";
 import StripeImportForm from "./StripeImportForm";
+import ProductProgressImportForm from "./ProductProgressImportForm";
+import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
 
@@ -22,6 +24,15 @@ export default async function ImportPage() {
   if (!user) {
     redirect("/login");
   }
+
+  // Admins can read the Bronze course tables; the import route checks the choice again.
+  const { data: courseRows } = await (await createClient())
+    .schema("bronze")
+    .from("kajabi_courses")
+    .select("kajabi_id, title")
+    .is("deleted_at", null)
+    .order("title");
+  const progressCourses = (courseRows ?? []).map((c) => ({ kajabiId: c.kajabi_id, title: c.title }));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -58,6 +69,19 @@ export default async function ImportPage() {
             </div>
 
             <KajabiApiImportForm />
+          </div>
+
+          {/* Kajabi Product Progress report */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-2">Kajabi Course Progress</h2>
+              <p className="text-slate-600 dark:text-slate-400 mb-3">
+                Upload the Product Progress report (Kajabi admin, the product, Export). It gives each student&apos;s percent of the
+                course completed, not which lessons. Importing again for the same course replaces its previous report.
+              </p>
+            </div>
+
+            <ProductProgressImportForm courses={progressCourses} />
           </div>
 
           {/* Stripe API Import */}

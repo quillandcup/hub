@@ -90,7 +90,7 @@ So the migration has two kinds of steps: **API steps** that can run on the serve
 
 ## Importing Kajabi per-lesson progress
 
-**Wanted** (decided 2026-10-28): a member who is halfway through a Kajabi course arrives in the Hub with those lessons complete in `lesson_progress`, and ideally the last-watched position. The Ready Writer starts fresh in the Hub, so the likelier users are the courses that move later (Self-Editing Academy, BFF Mindset Training, Hedgies on First). Status: **investigated, not built**; blocked on the open questions below.
+**Wanted** (decided 2026-10-28): a member who is halfway through a Kajabi course arrives in the Hub with those lessons complete in `lesson_progress`, and ideally the last-watched position. The Ready Writer starts fresh in the Hub, so the likelier users are the courses that move later (Self-Editing Academy, BFF Mindset Training, Hedgies on First). Status: **the Product Progress report import is built** (percent per student, Bronze only, see "Product Progress report import" below); the member-confirmed catch-up that turns it into marked lessons is not built yet.
 
 ### What Kajabi exposes
 
@@ -126,7 +126,24 @@ The one usable signal is coarse: `last_sign_in_at` / `last_request_at` per custo
 
 Recommended: run the checks above; if a usable source exists build option 1 (with option 3 as the member-facing repair), otherwise build option 3 alone. Nothing in The Ready Writer launch depends on this.
 
-### Design, if the data is available
+### Product Progress report import (built)
+
+**The source is known (decided 2026-10-28):** Kajabi's admin has a **Product Progress** report per product (with an **Export** button). The CSV has one row per student with `Name, Email, Product Progress, Logins, Start Date, Last Activity At`. `Product Progress` is a 0 to 100 percentage of the **whole product**, not per lesson; the start date reads "Not Started" for people who have not begun. The file does not say which product it is for, so the admin picks the course when uploading. It needs no browser session and no script.
+
+**Per-lesson detail may still exist, unverified.** Each student's page in the Kajabi admin (click a customer's name in that report) may list completed lessons. Check it in a logged-in browser later. If it exists, it would be a `--progress` mode in `scripts/kajabi-course-content.ts` (same browser login, recording the page's own responses), not a replacement for the CSV, which stays the no-browser path.
+
+**What the import does** (admin Import Data page, "Kajabi Course Progress"; `app/api/import/kajabi-product-progress/route.ts`, `lib/courses/product-progress.ts`):
+
+- Writes **`bronze.kajabi_product_progress`** only: natural key (Kajabi course id, lowercased email), `percent`, `logins`, `started_on`, `last_activity_on` (the report gives dates, not times), `import_batch`, `source_file`, `imported_at`, `deleted_at`. The student's **name is not stored** (matching is by email, and the admin who uploads already has the file). Admin read, service role write. It **does not write `lesson_progress`**.
+- **Re-runnable per course.** A new report replaces the course's snapshot: new and changed rows are upserted, rows the file no longer lists get `deleted_at`, identical rows are left untouched (re-importing the same file changes nothing), other courses are never touched. Any invalid row rejects the whole file (422, with line numbers and reasons, nothing written), so a malformed line can never soft-delete a student.
+- **Parser** (`lib/courses/product-progress-csv.ts`): columns by header name (case-insensitive, any order, extras ignored; Email and Product Progress required), tolerates a BOM, CRLF, quoted fields with commas, quotes and line breaks, a percent with or without `%` or decimals, and "Not Started", blank or missing dates.
+- **Matching** is by email only, never by name: the member's email, or an active email alias that resolves to it (`member_email_aliases`), through the members and aliases repositories. The response gives counts (rows read, imported, matched, unmatched, ambiguous = one email, several members) and lists the unmatched emails back to the admin (not logged). Unmatched and ambiguous rows are still kept in Bronze, so they apply later if the member appears or the duplicate is merged.
+- **Read for the catch-up:** `memberProductProgress(db, repos, memberId, courseKajabiId)` returns a member's imported percent, logins and dates for a course (or null). If the report lists several of the member's addresses, the highest percent wins.
+
+**Turning a percentage into marked lessons is a separate step, not built** (docs/TODO.md, "Catch-up from imported Kajabi progress"): when Self-Editing Academy migrates, the member sees what Kajabi said (for example 62%) on the course outline and confirms "mark everything up to here as done". The percentage never completes lessons on its own, because it cannot say which ones were done.
+
+### Design, if per-lesson data is found
+
 
 - **Bronze `bronze.kajabi_lesson_progress`**: one row per `(contact reference, kajabi_lesson_id)` with `completed_at` (nullable), `position_seconds` (nullable), `percent` (nullable, if only that is given), `raw_payload`, `fetched_at`, `deleted_at`. Upserted on the natural key; a row missing from a fully successful fetch is soft-deleted, and a failed or partial fetch deletes nothing (as in the other Bronze imports). Service role only, since it is member data.
 - **Identity**: Kajabi contact id (or email as a fallback) to `members` through the members repository (`kajabi_id`, then canonical email), **never by name**. Rows that match no member are counted and kept in Bronze, not guessed; they apply later if the member appears.
@@ -138,12 +155,12 @@ Recommended: run the checks above; if a usable source exists build option 1 (wit
 - **Privacy**: progress is member data. Nothing real in the repo, PR or docs; tests use fake members; reports are counts and shapes. The import takes its input from outside the repo (the browser session or a downloaded CSV kept out of git).
 - **Tests** (per `CLAUDE.md`): Bronze idempotency (first import, re-import without duplicates, changed data updates, soft delete only after a full fetch); Silver reprocessability (insert-if-absent, never overwrites newer Hub progress, orphan lessons and unmatched members skipped, no access means no rows); a parser test over a fake fixture; and a pgTAP check that the Bronze table is service role only.
 
-### Open questions for the user
+### Questions (decided 2026-10-28)
 
-1. Which courses move first after The Ready Writer, and do their students have progress worth carrying over?
-2. Do the checks find a per-student progress source (page, JSON or CSV), and what does it give: per-lesson completion, dates, positions, or only a percentage?
-3. Is the member-facing "catch me up" (option 3) acceptable on its own where there is no source?
-4. Should imported completion count toward badges and course-completion nudges, or only show in the outline?
+1. **Which course moves first after The Ready Writer?** Self-Editing Academy.
+2. **Is there a per-student source?** Yes, the Product Progress report CSV: percent, logins, start date and last activity. Not per lesson (per-lesson detail on a student's page is unverified; see above).
+3. **Is the member-facing "catch me up" acceptable on its own where there is no per-lesson source?** Yes. For percent-only data it is the way, with the member confirming.
+4. **Should imported completion count toward badges and course-completion nudges?** Yes. This applies when the catch-up writes `lesson_progress`.
 
 ## Data model
 

@@ -372,6 +372,45 @@ export type Database = {
         }
         Relationships: []
       }
+      kajabi_product_progress: {
+        Row: {
+          course_kajabi_id: string
+          deleted_at: string | null
+          email: string
+          import_batch: string
+          imported_at: string
+          last_activity_on: string | null
+          logins: number | null
+          percent: number
+          source_file: string | null
+          started_on: string | null
+        }
+        Insert: {
+          course_kajabi_id: string
+          deleted_at?: string | null
+          email: string
+          import_batch: string
+          imported_at?: string
+          last_activity_on?: string | null
+          logins?: number | null
+          percent: number
+          source_file?: string | null
+          started_on?: string | null
+        }
+        Update: {
+          course_kajabi_id?: string
+          deleted_at?: string | null
+          email?: string
+          import_batch?: string
+          imported_at?: string
+          last_activity_on?: string | null
+          logins?: number | null
+          percent?: number
+          source_file?: string | null
+          started_on?: string | null
+        }
+        Relationships: []
+      }
       kajabi_purchases: {
         Row: {
           amount_in_cents: number | null
