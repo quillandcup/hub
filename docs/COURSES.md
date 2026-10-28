@@ -286,9 +286,12 @@ None right now.
 
 ## Prerequisites (Cody)
 
-- [ ] Mux keys in `.env.preview` too (currently only `.env.local` and `.env.prod`). `pnpm env:sync` exits with an error for any target missing a value.
-- [ ] Merge the env var PR (#102), then run `pnpm env:sync` (all values filled in).
-- [ ] After the webhook route deploys: create the production Mux webhook pointing at `/api/webhooks/mux` and put its secret in `.env.prod`.
-- [ ] A separate Low-priority Mux token for the migration (`hub-migration`); revoke it after launch.
-- [ ] Billing alert in Mux (Organization Settings → Billing → Alerts; needs a paid plan).
-- [ ] GA: Reporting identity → Observed.
+All done as of 2026-10-28:
+
+- [x] Mux keys in `.env.preview` too, and the Mux variables synced to Vercel (Preview and Production).
+- [x] The env var PR (#102) merged and `pnpm env:sync` run.
+- [x] The production Mux webhook for `/api/webhooks/mux` (production logs show its POSTs answering 200).
+- [x] A separate migration token (`MUX_MIGRATION_TOKEN_ID`/`MUX_MIGRATION_TOKEN_SECRET` in `.env.prod`); revoke it after launch.
+- [x] Billing alerts in Mux (above $10, $25 and $75).
+- [x] GA: Reporting identity is **Blended** (user ID, device ID, then modeled data), not Observed. GA says modeling is unavailable for this property; it turns on by itself once GA allows it, so there is nothing to do.
+- [x] Course images copied into the Hub (85 copied) with the admin course page's "Copy images" button.
