@@ -99,3 +99,124 @@ export function defineEventContract(name: string, setup: () => EventContractCont
     });
   });
 }
+
+// --- calendar sync ---
+
+export type SyncSeedEvent = {
+  key: string;
+  /** Whether it follows a calendar event (default true). */
+  calendar?: boolean;
+  /** Only the calendar event, no events row. */
+  eventless?: boolean;
+  automatic?: boolean;
+  overridden?: string[];
+  hidden?: boolean;
+  photo?: boolean;
+};
+
+export type SyncSeedResult = {
+  events: Record<string, string>;
+  slugs: Record<string, string>;
+  calendars: Record<string, string>;
+};
+
+export type EventSyncContext = {
+  repo: () => EventRepository;
+  /** Replaces what this context seeded before with these events and the calendar events they follow. */
+  seed: (events: SyncSeedEvent[]) => Promise<SyncSeedResult>;
+  /** The event row now, or null (so a test can see what a write did). */
+  read: (id: string) => Promise<{ title: string; automatic: boolean } | null>;
+};
+
+/** Calendar sync behavior of an `EventRepository`; run against the in-memory twin (unit) and Supabase (db). */
+export function defineEventSyncContract(name: string, setup: () => EventSyncContext) {
+  describe(`${name} (EventRepository calendar sync contract)`, () => {
+    let ctx: EventSyncContext;
+    beforeEach(() => {
+      ctx = setup();
+    });
+
+    it("finds the event that follows a calendar event, hidden or not", async () => {
+      const s = await ctx.seed([{ key: "shown" }, { key: "hidden", hidden: true, automatic: true }, { key: "free", eventless: true }]);
+
+      expect(await ctx.repo().byCalendarEventId(s.calendars.shown)).toEqual({ id: s.events.shown, slug: s.slugs.shown, hidden: false, automatic: false });
+      expect(await ctx.repo().byCalendarEventId(s.calendars.hidden)).toMatchObject({ id: s.events.hidden, hidden: true, automatic: true });
+      expect(await ctx.repo().byCalendarEventId(s.calendars.free)).toBeNull();
+    });
+
+    it("says which calendar events already have an event, hidden ones included", async () => {
+      const s = await ctx.seed([{ key: "a" }, { key: "b", hidden: true }, { key: "c", eventless: true }]);
+
+      const have = await ctx.repo().calendarEventIdsWithEvent([s.calendars.a, s.calendars.b, s.calendars.c]);
+
+      expect([...have].sort()).toEqual([s.calendars.a, s.calendars.b].sort());
+      expect((await ctx.repo().calendarEventIdsWithEvent([])).size).toBe(0);
+    });
+
+    it("lists the followers of calendar events with their overridden fields", async () => {
+      const s = await ctx.seed([{ key: "a", overridden: ["title"] }, { key: "b" }, { key: "c", eventless: true }]);
+
+      const linked = await ctx.repo().linkedToCalendarEvents([s.calendars.a, s.calendars.b, s.calendars.c]);
+
+      expect(linked.sort((x, y) => (x.id < y.id ? -1 : 1))).toEqual(
+        [
+          { id: s.events.a, calendarEventId: s.calendars.a, overriddenFields: ["title"] },
+          { id: s.events.b, calendarEventId: s.calendars.b, overriddenFields: [] },
+        ].sort((x, y) => (x.id < y.id ? -1 : 1)),
+      );
+    });
+
+    it("creates an event for a calendar event, and reports a taken calendar event or slug as a conflict", async () => {
+      const s = await ctx.seed([{ key: "taken" }, { key: "free", eventless: true }]);
+      const row = (calendar: string, slug: string) => ({
+        title: "Made by the sync",
+        slug,
+        event_type: "other" as const,
+        starts_at: "2185-05-02",
+        ends_at: "2185-05-02",
+        calendar_event_id: calendar,
+        automatic: true,
+      });
+
+      expect(await ctx.repo().createFromCalendar(row(s.calendars.taken, `${s.slugs.taken}-x`))).toEqual({ status: "conflict", on: "calendar_event" });
+      expect(await ctx.repo().createFromCalendar(row(s.calendars.free, s.slugs.taken))).toEqual({ status: "conflict", on: "slug" });
+      const made = await ctx.repo().createFromCalendar(row(s.calendars.free, `${s.slugs.taken}-y`));
+
+      expect(made).toMatchObject({ status: "created", event: { slug: `${s.slugs.taken}-y` } });
+      expect(await ctx.repo().byCalendarEventId(s.calendars.free)).toMatchObject({ slug: `${s.slugs.taken}-y`, automatic: true });
+    });
+
+    it("writes columns to one event and leaves the others alone", async () => {
+      const s = await ctx.seed([{ key: "a", automatic: true }, { key: "b", automatic: true }]);
+
+      await ctx.repo().update(s.events.a, { title: "Retitled", automatic: false });
+
+      expect(await ctx.read(s.events.a)).toEqual({ title: "Retitled", automatic: false });
+      expect(await ctx.read(s.events.b)).toMatchObject({ automatic: true });
+    });
+
+    it("lists automatic events by calendar event, and those whose calendar event is gone", async () => {
+      const s = await ctx.seed([{ key: "auto", automatic: true }, { key: "hand" }, { key: "orphan", calendar: false, automatic: true }, { key: "plain", calendar: false }]);
+
+      const following = await ctx.repo().automaticFollowing([s.calendars.auto, s.calendars.hand]);
+      const orphans = await ctx.repo().automaticWithoutCalendarEvent();
+
+      expect(following).toEqual([{ id: s.events.auto, calendarEventId: s.calendars.auto }]);
+      expect(orphans).toContain(s.events.orphan);
+      expect(orphans).not.toContain(s.events.plain);
+      expect(await ctx.repo().automaticFollowing([])).toEqual([]);
+    });
+
+    it("finds the events that have a photo, and deletes events by id", async () => {
+      const s = await ctx.seed([{ key: "with", photo: true }, { key: "without" }, { key: "other" }]);
+
+      const worked = await ctx.repo().idsWithPhotosOrAttendees([s.events.with, s.events.without]);
+      await ctx.repo().deleteByIds([s.events.with, s.events.without]);
+
+      expect([...worked]).toEqual([s.events.with]);
+      expect(await ctx.read(s.events.with)).toBeNull();
+      expect(await ctx.read(s.events.without)).toBeNull();
+      expect(await ctx.read(s.events.other)).not.toBeNull();
+    });
+  });
+}

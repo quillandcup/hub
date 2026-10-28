@@ -46,15 +46,13 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/(admin)/admin/events/[id]/page.tsx",
     "app/(admin)/admin/events/[id]/import-photos/page.tsx",
     "app/(admin)/admin/badges/[id]/recipients/page.tsx",
-    "lib/calendar-events.ts",
     "lib/calendar-feed.ts",
     "lib/search/universal.ts",
   ],
-  event_attendees: ["app/api/admin/events/[id]/route.ts", "lib/calendar-events.ts", "lib/search/universal.ts"],
+  event_attendees: ["app/api/admin/events/[id]/route.ts", "lib/search/universal.ts"],
   event_photos: [
     "app/(member)/events/[slug]/page.tsx",
     "app/api/admin/events/[id]/route.ts",
-    "lib/calendar-events.ts",
   ],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
