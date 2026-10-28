@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { EventRepository } from "@/lib/data/events";
+import type { EventPhotoRow, EventRepository } from "@/lib/data/events";
 
 export type SeedEvent = { key: string; title: string; startsAt: string };
 
@@ -217,6 +217,154 @@ export function defineEventSyncContract(name: string, setup: () => EventSyncCont
       expect(await ctx.read(s.events.with)).toBeNull();
       expect(await ctx.read(s.events.without)).toBeNull();
       expect(await ctx.read(s.events.other)).not.toBeNull();
+    });
+  });
+}
+
+// --- member-facing reads ---
+
+/** An in-memory photo row naming only what a test cares about. */
+export function photoRow(p: Pick<EventPhotoRow, "id" | "event_id"> & Partial<EventPhotoRow>): EventPhotoRow {
+  return { created_at: "2097-01-01T00:00:00Z", google_media_item_id: `gm-${p.id}`, height: null, hidden_at: null, mime_type: null, storage_path: `${p.event_id}/${p.id}`, taken_at: null, width: null, ...p };
+}
+
+export type MemberEventSeed = {
+  title: string;
+  startsAt: string;
+  endsAt?: string;
+  hidden?: boolean;
+  speakers?: string;
+  hostName?: string;
+  location?: string;
+  focus?: string;
+  description?: string;
+  calendarEventId?: string;
+};
+
+export type MemberEventContext = {
+  repo: () => EventRepository;
+  /** Unique to this run, so a search can find only the events this context created. */
+  token: string;
+  event: (seed: MemberEventSeed) => Promise<string>;
+  photo: (eventId: string, seed: { hidden?: boolean; takenAt?: string | null; width?: number; height?: number }) => Promise<string>;
+  member: () => Promise<string>;
+  attend: (eventId: string, memberId: string) => Promise<void>;
+};
+
+/** Member-facing reads of `EventRepository`: lists, lookups, the calendar feed's events and search. */
+export function defineMemberEventContract(name: string, setup: () => MemberEventContext) {
+  describe(`${name} (EventRepository member reads contract)`, () => {
+    let ctx: MemberEventContext;
+    beforeEach(() => {
+      ctx = setup();
+    });
+
+    it("lists events newest first with the first visible photo as the cover, hidden events flagged", async () => {
+      const old = await ctx.event({ title: `Old ${ctx.token}`, startsAt: "2097-03-01" });
+      const recent = await ctx.event({ title: `Recent ${ctx.token}`, startsAt: "2097-09-01", location: "Lakeside" });
+      const hidden = await ctx.event({ title: `Hidden ${ctx.token}`, startsAt: "2097-06-01", hidden: true });
+      await ctx.photo(recent, { hidden: true, takenAt: "2097-08-01T10:00:00Z" });
+      await ctx.photo(recent, { takenAt: null });
+      const first = await ctx.photo(recent, { takenAt: "2097-08-31T10:00:00Z" });
+
+      const ours = (await ctx.repo().listWithCover()).filter((e) => [old, recent, hidden].includes(e.id));
+
+      expect(ours.map((e) => e.id)).toEqual([recent, hidden, old]);
+      expect(ours[0]).toMatchObject({ location: "Lakeside", coverPhotoId: first, deleted_at: null });
+      expect(ours[1].deleted_at).not.toBeNull();
+      expect(ours[2].coverPhotoId).toBeNull();
+    });
+
+    it("finds a visible event by slug, with all its columns", async () => {
+      const id = await ctx.event({ title: `Retreat ${ctx.token}`, startsAt: "2097-04-01", endsAt: "2097-04-03", speakers: "Ada Example" });
+      const hidden = await ctx.event({ title: `Secret ${ctx.token}`, startsAt: "2097-04-01", hidden: true });
+      const list = await ctx.repo().listWithCover();
+      const slugOf = (eventId: string) => list.find((e) => e.id === eventId)!.slug;
+
+      const found = await ctx.repo().visibleBySlug(slugOf(id));
+
+      expect(found).toMatchObject({ id, title: `Retreat ${ctx.token}`, speakers: "Ada Example", deleted_at: null });
+      expect(found!.ends_at.slice(0, 10)).toBe("2097-04-03");
+      expect(await ctx.repo().visibleBySlug(slugOf(hidden))).toBeNull();
+      expect(await ctx.repo().visibleBySlug(`no-such-${ctx.token}`)).toBeNull();
+    });
+
+    it("lists an event's visible photos in the order they were taken, undated last", async () => {
+      const id = await ctx.event({ title: `Photos ${ctx.token}`, startsAt: "2097-04-01" });
+      const other = await ctx.event({ title: `Other ${ctx.token}`, startsAt: "2097-04-02" });
+      const late = await ctx.photo(id, { takenAt: "2097-04-02T10:00:00Z", width: 400, height: 300 });
+      const early = await ctx.photo(id, { takenAt: "2097-04-01T10:00:00Z" });
+      const undated = await ctx.photo(id, { takenAt: null });
+      await ctx.photo(id, { hidden: true, takenAt: "2097-04-01T09:00:00Z" });
+      await ctx.photo(other, { takenAt: "2097-04-01T08:00:00Z" });
+
+      const photos = await ctx.repo().visiblePhotos(id);
+
+      expect(photos.map((p) => p.id)).toEqual([early, late, undated]);
+      expect(photos[1]).toEqual({ id: late, width: 400, height: 300 });
+      expect(await ctx.repo().visiblePhotos("evnt_AAAAAAAAAAA1")).toEqual([]);
+    });
+
+    it("says whether a visible event has an id", async () => {
+      const id = await ctx.event({ title: `Shown ${ctx.token}`, startsAt: "2097-04-01" });
+      const hidden = await ctx.event({ title: `Hidden ${ctx.token}`, startsAt: "2097-04-01", hidden: true });
+
+      expect(await ctx.repo().isVisible(id)).toBe(true);
+      expect(await ctx.repo().isVisible(hidden)).toBe(false);
+    });
+
+    it("returns the visible events among some ids that have not ended before a date", async () => {
+      const ongoing = await ctx.event({ title: `Ongoing ${ctx.token}`, startsAt: "2097-04-01", endsAt: "2097-04-10", hostName: "Ada Example", location: "Lakeside" });
+      const over = await ctx.event({ title: `Over ${ctx.token}`, startsAt: "2097-03-01", endsAt: "2097-03-02" });
+      const hidden = await ctx.event({ title: `Hidden ${ctx.token}`, startsAt: "2097-04-01", endsAt: "2097-04-10", hidden: true });
+      const unasked = await ctx.event({ title: `Unasked ${ctx.token}`, startsAt: "2097-04-01", endsAt: "2097-04-10" });
+
+      const found = await ctx.repo().visibleEndingFrom([ongoing, over, hidden], "2097-04-10");
+
+      expect(found.map((e) => e.id)).toEqual([ongoing]);
+      expect(found[0]).toMatchObject({ title: `Ongoing ${ctx.token}`, host_name: "Ada Example", location: "Lakeside", speakers: null });
+      expect(found[0].ends_at.slice(0, 10)).toBe("2097-04-10");
+      expect(unasked).toBeTruthy();
+      expect(await ctx.repo().visibleEndingFrom([], "2097-04-10")).toEqual([]);
+    });
+
+    it("searches by every word across title, speakers, host, location, focus and description", async () => {
+      const a = await ctx.event({ title: `Craft ${ctx.token}`, startsAt: "2097-05-01", speakers: "Ada Example", location: "Lakeside" });
+      const b = await ctx.event({ title: `Craft ${ctx.token}`, startsAt: "2097-05-02", description: "Revision tips", focus: "Editing" });
+      const c = await ctx.event({ title: `Craft ${ctx.token}`, startsAt: "2097-05-03", hostName: "Grace Example" });
+      const search = async (words: string[], extra = {}) =>
+        (await ctx.repo().search({ words: [ctx.token, ...words], limit: 10, offset: 0, ...extra })).map((e) => e.id);
+
+      expect(await search([])).toEqual([c, b, a]);
+      expect(await search(["LAKESIDE", "ada"])).toEqual([a]);
+      expect(await search(["revision"])).toEqual([b]);
+      expect(await search(["editing"])).toEqual([b]);
+      expect(await search(["grace"])).toEqual([c]);
+      expect(await search(["lakeside", "grace"])).toEqual([]);
+      expect(await search(["50%_off"])).toEqual([]);
+      expect(await search([], { limit: 1, offset: 1 })).toEqual([b]);
+      expect(await search([], { after: "2097-05-02", before: "2097-05-03" })).toEqual([b]);
+      const [hit] = await ctx.repo().search({ words: [ctx.token, "lakeside"], limit: 5, offset: 0 });
+      expect(hit).toMatchObject({ id: a, title: `Craft ${ctx.token}`, speakers: "Ada Example", location: "Lakeside", host_name: null, focus: null });
+    });
+
+    it("hides hidden events from search unless asked, and narrows to what members attended", async () => {
+      const shown = await ctx.event({ title: `Shown ${ctx.token}`, startsAt: "2097-05-01" });
+      const hidden = await ctx.event({ title: `Hidden ${ctx.token}`, startsAt: "2097-05-02", hidden: true });
+      const ada = await ctx.member();
+      const grace = await ctx.member();
+      const nobody = await ctx.member();
+      await ctx.attend(shown, ada);
+      await ctx.attend(hidden, ada);
+      await ctx.attend(shown, grace);
+      const search = async (extra = {}) => (await ctx.repo().search({ words: [ctx.token], limit: 10, offset: 0, ...extra })).map((e) => e.id);
+
+      expect(await search()).toEqual([shown]);
+      expect(await search({ includeHidden: true })).toEqual([hidden, shown]);
+      expect(await search({ attendedBy: [ada, grace] })).toEqual([shown]);
+      expect(await search({ attendedBy: [ada], includeHidden: true })).toEqual([hidden, shown]);
+      expect(await search({ attendedBy: [nobody] })).toEqual([]);
+      expect(await search({ attendedBy: [] })).toEqual([]);
     });
   });
 }

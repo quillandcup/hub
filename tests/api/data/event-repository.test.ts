@@ -1,7 +1,7 @@
 import { afterAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseEventRepository } from "@/lib/data/events";
-import { defineEventContract, defineEventSyncContract } from "@/tests/helpers/event-contract";
+import { defineEventContract, defineEventSyncContract, defineMemberEventContract } from "@/tests/helpers/event-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
 const db = getTestSupabaseAdminClient() as unknown as Db;
@@ -121,5 +121,74 @@ defineEventSyncContract("SupabaseEventRepository", () => ({
       }
     }
     return out;
+  },
+}));
+
+// --- member-facing reads ---
+const MEMBER_RUN = `m${Date.now()}`;
+const memberEventIds: string[] = [];
+const memberIds: string[] = [];
+let memberCounter = 0;
+
+afterAll(async () => {
+  if (memberEventIds.length) await db.from("events").delete().in("id", memberEventIds);
+  if (memberIds.length) await db.from("members").delete().in("id", memberIds);
+});
+
+defineMemberEventContract("SupabaseEventRepository", () => ({
+  repo: () => new SupabaseEventRepository(db),
+  token: `tok${MEMBER_RUN}x${++memberCounter}`,
+  event: async (e) => {
+    const { data, error } = await db
+      .from("events")
+      .insert({
+        title: e.title,
+        slug: `event-member-${MEMBER_RUN}-${++memberCounter}`,
+        event_type: "other",
+        starts_at: e.startsAt,
+        ends_at: e.endsAt ?? e.startsAt,
+        deleted_at: e.hidden ? "2097-01-01T00:00:00Z" : null,
+        speakers: e.speakers ?? null,
+        host_name: e.hostName ?? null,
+        location: e.location ?? null,
+        focus: e.focus ?? null,
+        description: e.description ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    memberEventIds.push(data.id);
+    return data.id;
+  },
+  photo: async (eventId, p) => {
+    const { data, error } = await db
+      .from("event_photos")
+      .insert({
+        event_id: eventId,
+        google_media_item_id: `gm-${MEMBER_RUN}-${++memberCounter}`,
+        storage_path: `contract/${MEMBER_RUN}/${memberCounter}`,
+        hidden_at: p.hidden ? "2097-01-01T00:00:00Z" : null,
+        taken_at: p.takenAt ?? null,
+        width: p.width ?? null,
+        height: p.height ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return data.id;
+  },
+  member: async () => {
+    const { data, error } = await db
+      .from("members")
+      .insert({ name: `Event Contract Member ${MEMBER_RUN} ${++memberCounter}`, email: `event-contract-${MEMBER_RUN}-${memberCounter}@example.test`, joined_at: "2026-01-01", status: "active" })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    memberIds.push(data.id);
+    return data.id;
+  },
+  attend: async (eventId, memberId) => {
+    const { error } = await db.from("event_attendees").insert({ event_id: eventId, member_id: memberId });
+    if (error) throw new Error(error.message);
   },
 }));

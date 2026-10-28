@@ -241,21 +241,15 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   const { limit, offset } = page(ctx);
   // `from:` on an event means who attended it.
   const attendees = await memberIdsNamed(ctx, q.from);
-  let attendedIds: string[] | null = null;
-  if (attendees) {
-    const { data } = attendees.length
-      ? await ctx.supabase.from("event_attendees").select("event_id").in("member_id", attendees).limit(1000)
-      : { data: [] };
-    attendedIds = [...new Set((data ?? []).map((r) => r.event_id as string))];
-    if (attendedIds.length === 0) return { kind: "events", hits: [], hasMore: false };
-  }
-  let query = ctx.supabase.from("events").select("id, slug, title, speakers, host_name, event_type, location, starts_at, focus");
-  query = matchEach(query, matchWords(q), ["title", "speakers", "host_name", "location", "focus", "description"]);
-  if (attendedIds) query = query.in("id", attendedIds);
-  if (!ctx.isActingAsAdmin) query = query.is("deleted_at", null); // hidden events are for admins only
-  if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
-  if (q.before) query = query.lt("starts_at", q.before.slice(0, 10));
-  const { data } = await query.order("starts_at", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).events.search({
+    words: matchWords(q),
+    attendedBy: attendees,
+    includeHidden: ctx.isActingAsAdmin, // hidden events are for admins only
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   const base = ctx.isActingAsAdmin ? "/admin/events" : "/events";
   return {

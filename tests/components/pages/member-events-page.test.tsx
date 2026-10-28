@@ -9,10 +9,20 @@ import {
   signInAs,
   useFakeSupabase,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import type { EventRow } from "@/lib/data/events";
+import { photoRow } from "@/tests/helpers/event-contract";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
 const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
@@ -25,20 +35,28 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   ]),
 }));
 vi.mock("@/app/(member)/events/EventsBrowser", () => ({
-  default: (props: { initialFilter: string; eventPrickles: { title: string }[]; events: { title: string }[] }) => (
+  default: (props: { initialFilter: string; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null }[] }) => (
     <div data-testid="browser">
       {props.initialFilter}|{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
+      <span data-testid="covers">{props.events.map((e) => e.cover_photo_id ?? "none").join(",")}</span>
     </div>
   ),
 }));
 
 import EventsPage from "@/app/(member)/events/page";
 
+const seed = (events: EventRow[], eventPhotos: InMemoryDataset["eventPhotos"] = []) => {
+  dataset = new InMemoryDataset({ events, eventPhotos });
+};
+
+const RETREAT: EventRow = { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", starts_at: "2097-04-01", ends_at: "2097-04-03" };
+
 beforeEach(() => {
   resetServerPageMocks();
   previews.mockResolvedValue(["events"]);
   signInAs(MEMBER_USER);
-  useFakeSupabase({ events: { data: [{ id: "evt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", location: null, starts_at: "2097-04-01", ends_at: "2097-04-03", focus: null, event_photos: [] }] } });
+  useFakeSupabase({});
+  seed([RETREAT]);
 });
 
 describe("member Events page", () => {
@@ -48,14 +66,19 @@ describe("member Events page", () => {
     expect(screen.getByTestId("browser")).toHaveTextContent("sessions|Query Letters 101,Pitch Night|Spring Retreat");
   });
 
+  it("uses an event's first visible photo as its cover", async () => {
+    seed([RETREAT], [
+      photoRow({ id: "evph_AAAAAAAAAAA1", event_id: RETREAT.id, hidden_at: "2097-01-01T00:00:00Z", taken_at: "2097-04-01T09:00:00Z" }),
+      photoRow({ id: "evph_AAAAAAAAAAA2", event_id: RETREAT.id, taken_at: "2097-04-01T10:00:00Z" }),
+    ]);
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+
+    expect(screen.getByTestId("covers")).toHaveTextContent("evph_AAAAAAAAAAA2");
+  });
+
   it("lists a prickle once: an event that follows its calendar event stands in for it", async () => {
-    useFakeSupabase({
-      events: {
-        data: [
-          { id: "evt_AAAAAAAAAAA2", slug: "pitch-night", title: "Pitch Night", event_type: "other", location: null, starts_at: "2097-03-04", ends_at: "2097-03-04", focus: null, calendar_event_id: "00000000-0000-4000-8000-00000000000a", event_photos: [] },
-        ],
-      },
-    });
+    seed([{ id: "evnt_AAAAAAAAAAA2", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", calendar_event_id: "00000000-0000-4000-8000-00000000000a" }]);
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
 
@@ -63,14 +86,10 @@ describe("member Events page", () => {
   });
 
   it("lists neither a hidden event nor the prickle it stands for", async () => {
-    useFakeSupabase({
-      events: {
-        data: [
-          { id: "evt_AAAAAAAAAAA3", slug: "pitch-night", title: "Pitch Night", event_type: "other", location: null, starts_at: "2097-03-04", ends_at: "2097-03-04", focus: null, calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z", event_photos: [] },
-          { id: "evt_AAAAAAAAAAA4", slug: "spring-retreat", title: "Spring Retreat", event_type: "other", location: null, starts_at: "2097-04-01", ends_at: "2097-04-03", focus: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
-        ],
-      },
-    });
+    seed([
+      { id: "evnt_AAAAAAAAAAA3", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z" },
+      { id: "evnt_AAAAAAAAAAA4", slug: "spring-retreat", title: "Spring Retreat", event_type: "other", starts_at: "2097-04-01", ends_at: "2097-04-03" },
+    ]);
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({ type: "sessions" }) });
 
@@ -78,20 +97,16 @@ describe("member Events page", () => {
   });
 
   it("names an event with its speakers, the way members know it, and leaves an event with none as it is", async () => {
-    useFakeSupabase({
-      events: {
-        data: [
-          { id: "evt_AAAAAAAAAAA5", slug: "money", title: "A Way to Make Money", event_type: "other", location: null, starts_at: "2097-04-01", ends_at: "2097-04-01", focus: null, speakers: "Brayden Example", calendar_event_id: null, deleted_at: null, event_photos: [] },
-          { id: "evt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", location: null, starts_at: "2097-05-01", ends_at: "2097-05-01", focus: null, speakers: null, host_name: null, calendar_event_id: null, deleted_at: null, event_photos: [] },
-          { id: "evt_AAAAAAAAAAA7", slug: "progress", title: "Progress Prickle", event_type: "other", location: null, starts_at: "2097-05-02", ends_at: "2097-05-02", focus: null, speakers: null, host_name: "Jenn Parker", calendar_event_id: null, deleted_at: null, event_photos: [] },
-        ],
-      },
-    });
+    seed([
+      { id: "evnt_AAAAAAAAAAA5", slug: "money", title: "A Way to Make Money", event_type: "other", starts_at: "2097-04-01", ends_at: "2097-04-01", speakers: "Brayden Example" },
+      { id: "evnt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", starts_at: "2097-05-01", ends_at: "2097-05-01" },
+      { id: "evnt_AAAAAAAAAAA7", slug: "progress", title: "Progress Prickle", event_type: "other", starts_at: "2097-05-02", ends_at: "2097-05-02", host_name: "Jenn Parker" },
+    ]);
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
     // A speaker names the event; otherwise its host does ("Progress Prickle" alone says nothing with thirty a week).
-    expect(screen.getByTestId("browser")).toHaveTextContent("A Way to Make Money with Brayden Example,Book Fair,Progress Prickle with Jenn P");
+    expect(screen.getByTestId("browser")).toHaveTextContent("Progress Prickle with Jenn P,Book Fair,A Way to Make Money with Brayden Example");
   });
 
   it("starts on All for an unknown filter", async () => {

@@ -529,14 +529,8 @@ async function loadAddedItems(
 
   const loadEvents = async (): Promise<FeedEventRow[]> => {
     if (eventIds.length === 0) return [];
-    const { data: eventRows, error: eventError } = await supabase
-      .from("events")
-      .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
-      .in("id", eventIds)
-      .is("deleted_at", null)
-      .gte("ends_at", since.toISOString().slice(0, 10));
-    if (eventError) throw new Error(eventError.message);
-    return (eventRows ?? []).map((e) => ({
+    const eventRows = await createRepos(supabase).events.visibleEndingFrom(eventIds, since.toISOString().slice(0, 10));
+    return eventRows.map((e) => ({
       id: e.id,
       slug: e.slug,
       title: eventDisplayName(e.title, e.speakers, e.host_name),

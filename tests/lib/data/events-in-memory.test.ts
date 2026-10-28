@@ -1,6 +1,6 @@
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryEventRepository } from "@/lib/data/events";
-import { defineEventContract, defineEventSyncContract } from "@/tests/helpers/event-contract";
+import { defineEventContract, defineEventSyncContract, defineMemberEventContract, photoRow } from "@/tests/helpers/event-contract";
 
 defineEventContract("InMemoryEventRepository", () => {
   const data = new InMemoryDataset();
@@ -51,6 +51,51 @@ defineEventSyncContract("InMemoryEventRepository", () => {
         if (s.photo) await new InMemoryEventRepository(data).addPhoto({ event_id: id, storage_path: `${id}.jpg`, google_media_item_id: `g-${id}` });
       }
       return out;
+    },
+  };
+});
+
+// --- member-facing reads ---
+defineMemberEventContract("InMemoryEventRepository", () => {
+  const data = new InMemoryDataset();
+  let n = 0;
+  return {
+    repo: () => new InMemoryEventRepository(data),
+    token: "tokmem",
+    event: async (e) => {
+      const id = `evnt_${++n}`;
+      data.events.push({
+        id,
+        title: e.title,
+        slug: `slug-${id}`,
+        starts_at: e.startsAt,
+        ends_at: e.endsAt ?? e.startsAt,
+        deleted_at: e.hidden ? "2097-01-01T00:00:00Z" : null,
+        speakers: e.speakers ?? null,
+        host_name: e.hostName ?? null,
+        location: e.location ?? null,
+        focus: e.focus ?? null,
+        description: e.description ?? null,
+        calendar_event_id: e.calendarEventId ?? null,
+      });
+      return id;
+    },
+    photo: async (eventId, p) => {
+      const id = `evph_${++n}`;
+      data.eventPhotos.push(photoRow({
+        id,
+        event_id: eventId,
+        hidden_at: p.hidden ? "2097-01-01T00:00:00Z" : null,
+        taken_at: p.takenAt ?? null,
+        width: p.width ?? null,
+        height: p.height ?? null,
+        created_at: `2097-01-01T00:00:${String(n).padStart(2, "0")}Z`,
+      }));
+      return id;
+    },
+    member: async () => `mbr_${++n}`,
+    attend: async (eventId, memberId) => {
+      data.eventAttendees.push({ event_id: eventId, member_id: memberId });
     },
   };
 });
