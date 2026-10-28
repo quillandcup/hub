@@ -273,31 +273,32 @@ async function createCommitmentImpl(
   // Append-only activity signal (docs/ACTIVITY_AND_AUDIT_LOG.md): best-effort, never fails the
   // commitment that was already saved. Under sudo it's an admin acting on the member's behalf.
   const sessions = slots.length;
-  const { error: activityError } = await supabase.from("member_activities").insert({
-    member_id: effectiveIdentity.memberId,
-    activity_type: "prickle_commitment_created",
-    activity_category: "event",
-    title: `Committed to ${sessions} ${sessions === 1 ? "prickle" : "prickles"} a week for ${input.weeks} ${
-      input.weeks === 1 ? "week" : "weeks"
-    }`,
-    related_id: commitmentId,
-    engagement_value: 3,
-    occurred_at: now.toISOString(),
-    source: "prickle_commitments",
-    actor_kind: effectiveIdentity.isSudo ? "staff" : "member",
-    actor_user_id: effectiveIdentity.isSudo ? user.id : null,
-    data: {
-      start_date: input.startDate,
-      weeks: input.weeks,
-      slots: slots.map((s) => ({
-        type_id: s.typeId,
-        day_of_week: s.dayOfWeek,
-        start_time_local: s.startTimeLocal,
-        timezone: s.timezone,
-      })),
-    },
-  });
-  if (activityError) console.error("createCommitment: failed to insert member_activities row", activityError);
+  await createRepos(supabase)
+    .activities.record({
+      memberId: effectiveIdentity.memberId,
+      type: "prickle_commitment_created",
+      category: "event",
+      title: `Committed to ${sessions} ${sessions === 1 ? "prickle" : "prickles"} a week for ${input.weeks} ${
+        input.weeks === 1 ? "week" : "weeks"
+      }`,
+      relatedId: commitmentId,
+      engagementValue: 3,
+      occurredAt: now.toISOString(),
+      source: "prickle_commitments",
+      actorKind: effectiveIdentity.isSudo ? "staff" : "member",
+      actorUserId: effectiveIdentity.isSudo ? user.id : null,
+      data: {
+        start_date: input.startDate,
+        weeks: input.weeks,
+        slots: slots.map((s) => ({
+          type_id: s.typeId,
+          day_of_week: s.dayOfWeek,
+          start_time_local: s.startTimeLocal,
+          timezone: s.timezone,
+        })),
+      },
+    })
+    .catch((activityError) => console.error("createCommitment: failed to insert member_activities row", activityError));
 
   revalidatePath("/my-prickles", "layout");
   return { success: true, id: commitmentId };

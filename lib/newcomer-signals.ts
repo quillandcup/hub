@@ -1,5 +1,6 @@
 import { SLACK_INTRO_CHANNEL } from "@/lib/config";
 import type { AttendanceRepository } from "@/lib/data/attendance";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * What a newcomer has (or hasn't) done yet, read from the member's own data so the Getting started
@@ -7,57 +8,13 @@ import type { AttendanceRepository } from "@/lib/data/attendance";
  * read the members asked about.
  */
 
-const BATCH_SIZE = 1000;
-// Keeps each `.in("member_id", ...)` URL well under PostgREST's length limit.
-const MEMBER_ID_CHUNK = 200;
-
-async function fetchAllMemberIds(
-  queryFn: (offset: number) => PromiseLike<{ data: { member_id: string }[] | null }>
-): Promise<Set<string>> {
-  const ids = new Set<string>();
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      for (const row of data) ids.add(row.member_id);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return ids;
-}
-
-function chunks<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += MEMBER_ID_CHUNK) out.push(items.slice(i, i + MEMBER_ID_CHUNK));
-  return out;
-}
-
 /**
  * Which of these members have posted a message (not a thread reply) in the intro channel. Read from
  * member_activities, which already has Slack users matched to members; its 'slack_message' type is
  * the top-level messages ('slack_thread_reply' is replies).
  */
 export async function loadIntroducedMemberIds(supabase: any, memberIds: string[]): Promise<Set<string>> {
-  const introduced = new Set<string>();
-  for (const chunk of chunks(memberIds)) {
-    const ids = await fetchAllMemberIds((offset) =>
-      supabase
-        .from("member_activities")
-        .select("member_id")
-        .in("member_id", chunk)
-        .eq("source", "slack")
-        .eq("activity_type", "slack_message")
-        .eq("data->>channel_name", SLACK_INTRO_CHANNEL)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    );
-    for (const id of ids) introduced.add(id);
-  }
-  return introduced;
+  return createRepos(supabase).activities.introducedIn(memberIds, SLACK_INTRO_CHANNEL);
 }
 
 /** Which of these members have attended at least one prickle. */

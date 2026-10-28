@@ -148,19 +148,6 @@ describe("intro reminders", () => {
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
-  it("only looks for posts in the intro channel, as top-level messages from Slack", async () => {
-    const now = sendTime("m1", "intro_nudge");
-    setup({ members: { data: [member("m1", joinedDaysBefore(now, 10))] } });
-
-    await sendMemberReminders(fake as never, now);
-
-    const query = fake.queries.find((q) => q.table === "member_activities")!;
-    const eqs = query.calls.filter((c) => c.method === "eq").map((c) => c.args);
-    expect(eqs).toContainEqual(["source", "slack"]);
-    expect(eqs).toContainEqual(["activity_type", "slack_message"]);
-    expect(eqs).toContainEqual(["data->>channel_name", SLACK_INTRO_CHANNEL]);
-  });
-
   it("marks earlier in-app reminders read once they've introduced themselves", async () => {
     const now = sendTime("m1", "intro_nudge", 1);
     setup({

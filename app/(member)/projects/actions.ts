@@ -725,17 +725,18 @@ async function logProgressImpl(
   // insert in app/api/webhooks/slack/interactions/route.ts's writing_quick_log flow, which
   // is a different entry point into the same writing_progress_entries table. Best-effort: a
   // failure here must never fail the entry that was already successfully saved.
-  const { error: activityError } = await supabase.from("member_activities").insert({
-    member_id: effectiveIdentity.memberId,
-    activity_type: "writing_progress_logged",
-    activity_category: "writing",
-    title: "Logged writing progress",
-    related_id: data.id,
-    engagement_value: 5,
-    occurred_at: new Date().toISOString(),
-    source: "writing_progress",
-  });
-  if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
+  await createRepos(supabase)
+    .activities.record({
+      memberId: effectiveIdentity.memberId,
+      type: "writing_progress_logged",
+      category: "writing",
+      title: "Logged writing progress",
+      relatedId: data.id,
+      engagementValue: 5,
+      occurredAt: new Date().toISOString(),
+      source: "writing_progress",
+    })
+    .catch((activityError) => console.error("logProgress: failed to insert member_activities row", activityError));
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
@@ -822,12 +823,9 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
   // Phase 1, item 11: don't let a deleted (e.g. bogus) entry permanently inflate engagement.
   // Best-effort: the entry itself is already gone, so a failure here must not turn this into
   // an error response.
-  const { error: activityDeleteError } = await supabase
-    .from("member_activities")
-    .delete()
-    .eq("related_id", entryId)
-    .eq("source", "writing_progress");
-  if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
+  await createRepos(supabase)
+    .activities.removeFor("writing_progress", entryId)
+    .catch((activityDeleteError) => console.error("deleteEntry: failed to delete member_activities row", activityDeleteError));
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);

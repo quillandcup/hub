@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { fetchAll } from "@/lib/courses/db";
+import type { NewActivity } from "@/lib/data/activities";
+import { createRepos } from "@/lib/data/repos";
 import { localDateString } from "@/lib/events-filter";
 
 /**
@@ -36,7 +38,6 @@ export const WATCHED_SECONDS_THRESHOLD = 5 * 60;
 
 /** Past this window a segment can't belong to "today" in any timezone. */
 const LOOKBACK_MS = 48 * 60 * 60 * 1000;
-const UNIQUE_VIOLATION = "23505";
 
 /** Whether a day's watched video time is enough to count as having watched the lesson. */
 export function watchedEnough(watchedSeconds: number, lessonSeconds: number | null): boolean {
@@ -53,14 +54,11 @@ interface LessonRef {
   lessonSeconds: number | null;
 }
 
-async function insertOnce(supabase: SupabaseClient, row: Record<string, unknown>, label: string) {
-  const { error } = await supabase.from("member_activities").insert({
-    activity_category: "learning",
-    actor_kind: "member",
-    source: COURSES_ACTIVITY_SOURCE,
-    ...row,
-  });
-  if (error && error.code !== UNIQUE_VIOLATION) console.error(`${label}: failed to insert member_activities row`, error);
+/** Logs the row once: the repository treats a repeat (same member, type and related id) as a no-op. */
+async function insertOnce(supabase: SupabaseClient, row: Omit<NewActivity, "category" | "actorKind" | "source">, label: string) {
+  await createRepos(supabase)
+    .activities.record({ category: "learning", actorKind: "member", source: COURSES_ACTIVITY_SOURCE, ...row })
+    .catch((error) => console.error(`${label}: failed to insert member_activities row`, error));
 }
 
 /**
@@ -87,13 +85,13 @@ export async function recordLessonWatched(
     await insertOnce(
       supabase,
       {
-        member_id: lesson.memberId,
-        activity_type: "lesson_watched",
+        memberId: lesson.memberId,
+        type: "lesson_watched",
         title: `Watched ${lesson.lessonTitle}`,
-        related_id: `${lesson.lessonId}:${today}`,
-        engagement_value: lessonWatchedPoints(lesson.lessonSeconds),
-        duration_minutes: Math.round(watchedSeconds / 60),
-        occurred_at: now.toISOString(),
+        relatedId: `${lesson.lessonId}:${today}`,
+        engagementValue: lessonWatchedPoints(lesson.lessonSeconds),
+        durationMinutes: Math.round(watchedSeconds / 60),
+        occurredAt: now.toISOString(),
         data: { lesson_id: lesson.lessonId, course_id: lesson.courseId, watched_seconds: Math.round(watchedSeconds) },
       },
       "recordLessonWatched"
@@ -109,12 +107,12 @@ export async function recordLessonCompleted(supabase: SupabaseClient, lesson: Le
     await insertOnce(
       supabase,
       {
-        member_id: lesson.memberId,
-        activity_type: "lesson_completed",
+        memberId: lesson.memberId,
+        type: "lesson_completed",
         title: `Completed ${lesson.lessonTitle}`,
-        related_id: lesson.lessonId,
-        engagement_value: lessonCompletedPoints(lesson.lessonSeconds),
-        occurred_at: now.toISOString(),
+        relatedId: lesson.lessonId,
+        engagementValue: lessonCompletedPoints(lesson.lessonSeconds),
+        occurredAt: now.toISOString(),
         data: { lesson_id: lesson.lessonId, course_id: lesson.courseId },
       },
       "recordLessonCompleted"

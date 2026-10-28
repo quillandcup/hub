@@ -8,7 +8,8 @@ vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn().mockResolvedValue("UTC") }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-let repos = createInMemoryRepos();
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
@@ -98,7 +99,8 @@ const goalRow = (over: Partial<WritingGoalRow> = {}): WritingGoalRow => ({
 });
 
 function useData(writingEntries: WritingEntryRow[], writingGoals: WritingGoalRow[] = []) {
-  repos = createInMemoryRepos(new InMemoryDataset({ writingProjects: [project], writingEntries, writingGoals }));
+  dataset = new InMemoryDataset({ writingProjects: [project], writingEntries, writingGoals });
+  repos = createInMemoryRepos(dataset);
 }
 
 beforeEach(() => {
@@ -112,7 +114,7 @@ describe("logProgress", () => {
   const input = { projectId: PROJECT, entryDate: "2026-02-01", measure: "words" as const, mode: "delta" as const, amount: 250, note: "  good day ", tags: ["Draft", "draft "], prickleId: "prkl_AAAAAAAAAAA1" };
 
   it("saves a trimmed, de-duplicated entry for the acting member and records the activity", async () => {
-    const inserts = fakeSupabase({ writing_projects: [{ id: PROJECT }] });
+    fakeSupabase({ writing_projects: [{ id: PROJECT }] });
 
     const result = await logProgress(input);
 
@@ -120,7 +122,7 @@ describe("logProgress", () => {
     expect(await repos.writing.prickleEntries(ME, "prkl_AAAAAAAAAAA1")).toEqual([
       expect.objectContaining({ amount: 250, note: "good day", tags: ["draft"], project_title: "Novel" }),
     ]);
-    expect(inserts.map((i) => i.table)).toEqual(["member_activities"]);
+    expect(dataset.activities).toEqual([expect.objectContaining({ member_id: ME, activity_type: "writing_progress_logged", source: "writing_progress" })]);
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prkl_AAAAAAAAAAA1");
   });
 

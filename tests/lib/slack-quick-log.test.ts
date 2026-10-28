@@ -16,10 +16,7 @@ vi.mock("@/lib/slack-signature", () => ({ verifySlackSignature: () => ({ valid: 
 const resolveMember = vi.fn();
 vi.mock("@/lib/slack-member-ids", () => ({ resolveMemberIdForSlackUser: (...args: unknown[]) => resolveMember(...args) }));
 vi.mock("@/lib/slack-bot-token", () => ({ getSlackBotToken: async () => null }));
-const activityInserts: unknown[] = [];
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceRoleClient: () => ({ from: () => ({ insert: async (row: unknown) => (activityInserts.push(row), { error: null }) }) }),
-}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 import { POST } from "@/app/api/webhooks/slack/interactions/route";
 
@@ -37,7 +34,6 @@ function answer(projectId: string, amount = "250") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  activityInserts.length = 0;
   dataset = new InMemoryDataset({ writingProjects: [project("wprj_1", ADA), project("wprj_2", FERN)] });
   repos = createInMemoryRepos(dataset);
   resolveMember.mockResolvedValue(ADA);
@@ -50,14 +46,14 @@ describe("writing quick log from a Slack DM", () => {
 
     expect(res.status).toBe(200);
     expect(dataset.writingEntries.map((e) => [e.member_id, e.project_id, e.measure, e.mode, e.amount, e.prickle_id])).toEqual([[ADA, "wprj_1", "words", "delta", 250, "prkl_AAAAAAAAAAA1"]]);
-    expect(activityInserts).toEqual([expect.objectContaining({ member_id: ADA, activity_type: "writing_progress_logged", related_id: dataset.writingEntries[0].id })]);
+    expect(dataset.activities).toEqual([expect.objectContaining({ member_id: ADA, activity_type: "writing_progress_logged", related_id: dataset.writingEntries[0].id })]);
   });
 
   it("writes nothing to a project that isn't the matched member's", async () => {
     await answer("wprj_2");
 
     expect(dataset.writingEntries).toEqual([]);
-    expect(activityInserts).toEqual([]);
+    expect(dataset.activities).toEqual([]);
   });
 
   it("writes nothing when the ownership check itself fails", async () => {
@@ -74,6 +70,6 @@ describe("writing quick log from a Slack DM", () => {
     const res = await answer("wprj_1");
 
     expect(res.status).toBe(200);
-    expect(activityInserts).toEqual([]);
+    expect(dataset.activities).toEqual([]);
   });
 });

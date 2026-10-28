@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // Transfer simple foreign keys in parallel
     await Promise.all([
       createRepos(supabase).attendance.reassign(secondaryId, primaryId),
-      run(supabase.from("member_activities").update({ member_id: primaryId }).eq("member_id", secondaryId)),
+      createRepos(supabase).activities.reassign(secondaryId, primaryId),
       run(supabase.from("member_hiatus_history").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       run(supabase.from("member_status_overrides").update({ member_id: primaryId }).eq("member_id", secondaryId)),
       // prickles.host (not host_id) -- a wrong column name here used to fail silently, and deleting

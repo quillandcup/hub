@@ -46,7 +46,7 @@ export default async function DataHygienePage() {
     lastProcessingAt,
     { data: lastSlackMessageSync },
     { data: lastSlackReactionSync },
-    { data: lastSlackProcessing },
+    lastSlackProcessing,
     { data: lastKajabiSync },
     lastKajabiProcessedAt,
     missingStripeCount,
@@ -98,13 +98,7 @@ export default async function DataHygienePage() {
       .single(),
     // Last Slack processing (silver — member_activities uses DELETE+INSERT per date range,
     // so created_at reflects the most recent process/slack run)
-    supabase
-      .from("member_activities")
-      .select("created_at")
-      .eq("source", "slack")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).activities.lastSlackWriteAt(),
     // Last Kajabi sync (bronze import via Kajabi API)
     supabase
       .schema('bronze').from("kajabi_contacts")
@@ -668,9 +662,7 @@ export default async function DataHygienePage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Last Slack processing:</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {lastSlackProcessing?.created_at
-                    ? new Date(lastSlackProcessing.created_at).toLocaleString()
-                    : "Never"}
+                  {lastSlackProcessing ? new Date(lastSlackProcessing).toLocaleString() : "Never"}
                 </span>
               </div>
               <div className="flex justify-between items-center">
