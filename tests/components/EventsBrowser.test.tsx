@@ -63,6 +63,14 @@ describe('EventsBrowser', () => {
     expect(within(screen.getByTestId('event-art')).getByText('💡')).toBeInTheDocument()
   })
 
+  it('hides the Events filter while nothing upcoming is a one-off event, unless it is the one in use', () => {
+    const { unmount } = renderBrowser('all', EVENTS.filter((e) => e.id !== 'party'))
+    expect(within(typeGroup()).queryByRole('button', { name: /^Events/ })).not.toBeInTheDocument()
+    unmount()
+    renderBrowser('events', EVENTS.filter((e) => e.id !== 'party'))
+    expect(within(typeGroup()).getByRole('button', { name: /^Events/ })).toBeInTheDocument()
+  })
+
   it('says which events need a sign-up', () => {
     renderBrowser('all', [event('class', 'educational', '2026-10-15', '2026-10-15', 'required')])
     const big = screen.getByRole('region', { name: 'Big events' })
