@@ -34,9 +34,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   writing_progress_entries: [],
   // Events (EventRepository): only the badge pickers are moved; the rest are still to move, by table.
   events: [
-    "app/(member)/events/[slug]/page.tsx",
-    "app/(member)/events/page.tsx",
-    "app/(member)/my-prickles/calendar-feed-actions.ts",
     "app/api/admin/events/[id]/route.ts",
     "app/api/admin/events/route.ts",
     "app/api/admin/events/[id]/revert-to-calendar/route.ts",
@@ -46,12 +43,9 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "app/(admin)/admin/events/[id]/page.tsx",
     "app/(admin)/admin/events/[id]/import-photos/page.tsx",
     "app/(admin)/admin/badges/[id]/recipients/page.tsx",
-    "lib/calendar-feed.ts",
-    "lib/search/universal.ts",
   ],
-  event_attendees: ["app/api/admin/events/[id]/route.ts", "lib/search/universal.ts"],
+  event_attendees: ["app/api/admin/events/[id]/route.ts"],
   event_photos: [
-    "app/(member)/events/[slug]/page.tsx",
     "app/api/admin/events/[id]/route.ts",
   ],
   // Aliases: every name and email alias query is on AliasRepository.

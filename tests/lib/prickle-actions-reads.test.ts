@@ -26,7 +26,7 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-import { addPrickleToMyCalendar } from "@/app/(member)/my-prickles/calendar-feed-actions";
+import { addEventToMyCalendar, addPrickleToMyCalendar } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { getCheckModalData } from "@/app/(member)/prickles/checkin-actions";
 
 const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
@@ -82,6 +82,28 @@ describe("addPrickleToMyCalendar", () => {
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA2", "once")).toEqual({ error: "That prickle can't be added to your calendar." });
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "daily" as never)).toEqual({ error: "Invalid option" });
     expect(inserted(fake.queries)).toBeUndefined();
+  });
+});
+
+describe("addEventToMyCalendar", () => {
+  it("adds a visible event, and refuses a hidden or unknown one", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        events: [
+          { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Retreat" },
+          { id: "evnt_AAAAAAAAAAA2", slug: "secret", title: "Secret", deleted_at: "2097-01-01T00:00:00Z" },
+        ],
+      }),
+    );
+    const fake = useFakeSupabase({});
+
+    expect(await addEventToMyCalendar("evnt_AAAAAAAAAAA1")).toEqual({ ok: true });
+    expect(inserted(fake.queries)).toMatchObject({ kind: "event", event_id: "evnt_AAAAAAAAAAA1", member_id: MEMBER_IDENTITY.memberId });
+
+    const refused = useFakeSupabase({});
+    expect(await addEventToMyCalendar("evnt_AAAAAAAAAAA2")).toEqual({ error: "That event couldn't be found." });
+    expect(await addEventToMyCalendar("evnt_ZZZZZZZZZZZZ")).toEqual({ error: "That event couldn't be found." });
+    expect(inserted(refused.queries)).toBeUndefined();
   });
 });
 

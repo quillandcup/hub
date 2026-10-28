@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
+import { createRepos } from "@/lib/data/repos";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -24,17 +25,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("events")) redirect("/dashboard");
 
-  const { data: event } = await supabase.from("events").select("*").eq("slug", slug).is("deleted_at", null).single();
+  const events = createRepos(supabase).events;
+  const event = await events.visibleBySlug(slug);
   if (!event) notFound();
 
-  const [{ data: visiblePhotos }, effectiveIdentity, calendarItems] = await Promise.all([
-    supabase
-      .from("event_photos")
-      .select("id, width, height")
-      .eq("event_id", event.id)
-      .is("hidden_at", null)
-      .order("taken_at", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: true }),
+  const [visiblePhotos, effectiveIdentity, calendarItems] = await Promise.all([
+    events.visiblePhotos(event.id),
     getEffectiveIdentity(user),
     getMyCalendarItems(),
   ]);
@@ -52,7 +48,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
       <Link data-track="event-all-events" href="/events" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
         ← All Events
       </Link>
-      <EventDetailClient event={event} photos={visiblePhotos || []} calendarControl={calendarControl} />
+      <EventDetailClient event={event} photos={visiblePhotos} calendarControl={calendarControl} />
     </div>
   );
 }

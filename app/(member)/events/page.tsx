@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { createRepos } from "@/lib/data/repos";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString, parseEventFilter } from "@/lib/events-filter";
@@ -13,8 +14,6 @@ import { eventDisplayName } from "@/lib/event-name";
 export const metadata: Metadata = {
   title: "Events",
 };
-
-type RawEvent = Omit<EventRow, "cover_photo_id"> & { calendar_event_id: string | null; deleted_at: string | null; speakers: string | null; host_name: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const supabase = await createClient();
@@ -33,16 +32,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
 
   const now = new Date();
 
-  const [{ data: events }, eventPrickles] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, slug, title, event_type, location, starts_at, ends_at, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
-      .order("starts_at", { ascending: false }),
+  const [events, eventPrickles] = await Promise.all([
+    createRepos(supabase).events.listWithCover(),
     fetchUpcomingEventPrickles(supabase, now),
   ]);
 
   // A hidden event isn't listed, and neither is the prickle it stands for.
-  const rows: EventRow[] = ((events ?? []) as RawEvent[]).filter((e) => !e.deleted_at).map((e) => ({
+  const rows: EventRow[] = events.filter((e) => !e.deleted_at).map((e) => ({
     id: e.id,
     slug: e.slug,
     title: eventDisplayName(e.title, e.speakers, e.host_name),
@@ -52,7 +48,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     ends_at: e.ends_at,
     focus: e.focus,
     registration: e.registration,
-    cover_photo_id: (e.event_photos || []).find((p) => !p.hidden_at)?.id ?? null,
+    cover_photo_id: e.coverPhotoId,
   }));
 
   return (
@@ -67,7 +63,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         events={rows}
         eventPrickles={withoutFollowedEvents(
           eventPrickles,
-          ((events ?? []) as RawEvent[]).flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : [])),
+          events.flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : [])),
         )}
         today={localDateString(now, timeZone)}
         timeZone={timeZone}

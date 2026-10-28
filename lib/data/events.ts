@@ -1,4 +1,4 @@
-import { fetchAllRows } from "@/lib/supabase/paginate";
+import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -59,6 +59,21 @@ export interface EventRepository {
   idsWithPhotosOrAttendees(eventIds: string[]): Promise<Set<string>>;
   /** Deletes these events. Chunked. */
   deleteByIds(ids: string[]): Promise<void>;
+
+  // --- member-facing reads ---
+
+  /** Every event (hidden ones too, flagged by `deleted_at`), newest first, each with the id of its first visible photo. Paginated. */
+  listWithCover(): Promise<EventListItem[]>;
+  /** The visible (not hidden by an admin) event with this slug, or null. */
+  visibleBySlug(slug: string): Promise<Row<"events"> | null>;
+  /** The event's photos an admin has not hidden, in the order they were taken. */
+  visiblePhotos(eventId: string): Promise<EventPhotoSummary[]>;
+  /** Whether a visible event has this id. */
+  isVisible(eventId: string): Promise<boolean>;
+  /** The visible events among these ids that have not ended before `endsOnOrAfter` (a YYYY-MM-DD date). Order unspecified. */
+  visibleEndingFrom(eventIds: string[], endsOnOrAfter: string): Promise<FeedEvent[]>;
+  /** Events matching every word, newest first, one page. */
+  search(query: EventSearchQuery): Promise<EventSearchHit[]>;
 }
 
 /** An event that follows a calendar event. */
@@ -92,6 +107,84 @@ const chunks = <T>(items: T[], size = CHUNK): T[][] => {
 export type NewEventPhoto = Pick<Row<"event_photos">, "event_id" | "storage_path" | "google_media_item_id"> &
   Partial<Pick<Row<"event_photos">, "width" | "height" | "mime_type" | "taken_at">>;
 export type EventPhotoFile = Pick<Row<"event_photos">, "storage_path" | "mime_type" | "hidden_at">;
+
+// --- member-facing reads ---
+
+export interface EventListItem {
+  id: string;
+  slug: string;
+  title: string;
+  event_type: string;
+  location: string | null;
+  starts_at: string;
+  ends_at: string;
+  focus: string | null;
+  registration: string;
+  speakers: string | null;
+  host_name: string | null;
+  calendar_event_id: string | null;
+  deleted_at: string | null;
+  coverPhotoId: string | null;
+}
+
+export interface EventPhotoSummary {
+  id: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface FeedEvent {
+  id: string;
+  slug: string;
+  title: string;
+  speakers: string | null;
+  host_name: string | null;
+  location: string | null;
+  starts_at: string;
+  ends_at: string;
+}
+
+export interface EventSearchQuery {
+  /** Each word must appear in the title, speakers, host, location, focus or description (case-insensitive). */
+  words: string[];
+  /** Only events one of these members attended; an empty list matches nothing. */
+  attendedBy?: string[] | null;
+  /** Include events an admin hid. */
+  includeHidden?: boolean;
+  /** Dates (YYYY-MM-DD): starts at or after / before. */
+  after?: string;
+  before?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface EventSearchHit {
+  id: string;
+  slug: string;
+  title: string;
+  speakers: string | null;
+  host_name: string | null;
+  event_type: string;
+  location: string | null;
+  starts_at: string;
+  focus: string | null;
+}
+
+const SEARCH_FIELDS = ["title", "speakers", "host_name", "location", "focus", "description"] as const;
+const ID_CHUNK_SIZE = 200;
+/** A search word with the characters that mean something to LIKE or to a PostgREST filter neutralized. */
+const searchWord = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
+const byStartsAtDesc = (a: EventRow, b: EventRow) => {
+  const x = a.starts_at ?? "";
+  const y = b.starts_at ?? "";
+  return x !== y ? (x < y ? 1 : -1) : a.id < b.id ? -1 : 1;
+};
+const photoOrder = (a: EventPhotoRow, b: EventPhotoRow) => {
+  const ta = a.taken_at ?? null;
+  const tb = b.taken_at ?? null;
+  if (ta !== tb) return ta === null ? 1 : tb === null ? -1 : ta < tb ? -1 : 1;
+  return a.created_at !== b.created_at ? (a.created_at < b.created_at ? -1 : 1) : a.id < b.id ? -1 : 1;
+};
 
 export class SupabaseEventRepository implements EventRepository {
   constructor(private readonly db: Db) {}
@@ -221,6 +314,94 @@ export class SupabaseEventRepository implements EventRepository {
       if (error) throw new Error(error.message);
     }
   }
+
+  // --- member-facing reads ---
+
+  async listWithCover(): Promise<EventListItem[]> {
+    type Raw = Omit<EventListItem, "coverPhotoId"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
+    type Page = { data: Raw[] | null; error: { message: string } | null };
+    const rows = await fetchAllRows<Raw>(
+      (from, to) =>
+        this.db
+          .from("events")
+          .select("id, slug, title, event_type, location, starts_at, ends_at, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
+          .order("starts_at", { ascending: false })
+          .order("id")
+          .order("taken_at", { referencedTable: "event_photos", ascending: true, nullsFirst: false })
+          .order("created_at", { referencedTable: "event_photos", ascending: true })
+          .order("id", { referencedTable: "event_photos" })
+          .range(from, to) as unknown as PromiseLike<Page>
+    );
+    return rows.map(({ event_photos, ...e }) => ({ ...e, coverPhotoId: (event_photos ?? []).find((p) => !p.hidden_at)?.id ?? null }));
+  }
+
+  async visibleBySlug(slug: string): Promise<Row<"events"> | null> {
+    const { data, error } = await this.db.from("events").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
+    const { data, error } = await this.db
+      .from("event_photos")
+      .select("id, width, height")
+      .eq("event_id", eventId)
+      .is("hidden_at", null)
+      .order("taken_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .order("id");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async isVisible(eventId: string): Promise<boolean> {
+    const { data, error } = await this.db.from("events").select("id").eq("id", eventId).is("deleted_at", null).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data !== null;
+  }
+
+  async visibleEndingFrom(eventIds: string[], endsOnOrAfter: string): Promise<FeedEvent[]> {
+    const out: FeedEvent[] = [];
+    for (const ids of chunk(eventIds, ID_CHUNK_SIZE)) {
+      const { data, error } = await this.db
+        .from("events")
+        .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
+        .in("id", ids)
+        .is("deleted_at", null)
+        .gte("ends_at", endsOnOrAfter);
+      if (error) throw new Error(error.message);
+      out.push(...(data ?? []));
+    }
+    return out;
+  }
+
+  async search(q: EventSearchQuery): Promise<EventSearchHit[]> {
+    let attendedIds: string[] | null = null;
+    if (q.attendedBy) {
+      const found = new Set<string>();
+      for (const ids of chunk(q.attendedBy, ID_CHUNK_SIZE)) {
+        const { data, error } = await this.db.from("event_attendees").select("event_id").in("member_id", ids).order("id").limit(1000);
+        if (error) throw new Error(error.message);
+        for (const r of data ?? []) found.add(r.event_id);
+      }
+      if (found.size === 0) return [];
+      attendedIds = [...found].slice(0, 1000);
+    }
+    let query = this.db.from("events").select("id, slug, title, speakers, host_name, event_type, location, starts_at, focus");
+    for (const word of q.words) {
+      query = query.or(SEARCH_FIELDS.map((f) => `${f}.ilike."%${searchWord(word)}%"`).join(","));
+    }
+    if (attendedIds) query = query.in("id", attendedIds);
+    if (!q.includeHidden) query = query.is("deleted_at", null);
+    if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
+    if (q.before) query = query.lt("starts_at", q.before.slice(0, 10));
+    const { data, error } = await query
+      .order("starts_at", { ascending: false })
+      .order("id")
+      .range(q.offset, q.offset + q.limit - 1);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`. */
@@ -321,5 +502,119 @@ export class InMemoryEventRepository implements EventRepository {
   async deleteByIds(ids: string[]) {
     const gone = new Set(ids);
     this.data.events = this.data.events.filter((e) => !gone.has(e.id));
+  }
+
+  // --- member-facing reads ---
+
+  async listWithCover(): Promise<EventListItem[]> {
+    return [...this.data.events].sort(byStartsAtDesc).map((e) => ({
+      id: e.id,
+      slug: e.slug,
+      title: e.title,
+      event_type: e.event_type ?? "other",
+      location: e.location ?? null,
+      starts_at: e.starts_at ?? "",
+      ends_at: e.ends_at ?? e.starts_at ?? "",
+      focus: e.focus ?? null,
+      registration: e.registration ?? "none",
+      speakers: e.speakers ?? null,
+      host_name: e.host_name ?? null,
+      calendar_event_id: e.calendar_event_id ?? null,
+      deleted_at: e.deleted_at ?? null,
+      coverPhotoId: this.photosOf(e.id).find((p) => !p.hidden_at)?.id ?? null,
+    }));
+  }
+
+  async visibleBySlug(slug: string): Promise<Row<"events"> | null> {
+    const e = this.data.events.find((row) => row.slug === slug && !row.deleted_at);
+    if (!e) return null;
+    const startsAt = e.starts_at ?? "";
+    return {
+      agenda: null,
+      announced_publicly: false,
+      automatic: false,
+      calendar_event_id: null,
+      capacity: null,
+      created_at: startsAt,
+      created_by: null,
+      deleted_at: null,
+      description: null,
+      end_time: null,
+      ends_at: startsAt,
+      event_type: "other",
+      focus: null,
+      google_photos_album_url: null,
+      guests_allowed: false,
+      host_name: null,
+      location: null,
+      overridden_fields: [],
+      registration: "none",
+      results: null,
+      selection: "first_come",
+      speakers: null,
+      start_time: null,
+      starts_at: startsAt,
+      updated_at: startsAt,
+      ...e,
+    };
+  }
+
+  async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
+    return this.photosOf(eventId)
+      .filter((p) => !p.hidden_at)
+      .map((p) => ({ id: p.id, width: p.width, height: p.height }));
+  }
+
+  async isVisible(eventId: string): Promise<boolean> {
+    return this.data.events.some((e) => e.id === eventId && !e.deleted_at);
+  }
+
+  async visibleEndingFrom(eventIds: string[], endsOnOrAfter: string): Promise<FeedEvent[]> {
+    const wanted = new Set(eventIds);
+    return this.data.events
+      .filter((e) => wanted.has(e.id) && !e.deleted_at && (e.ends_at ?? "") >= endsOnOrAfter)
+      .map((e) => ({
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        speakers: e.speakers ?? null,
+        host_name: e.host_name ?? null,
+        location: e.location ?? null,
+        starts_at: e.starts_at ?? "",
+        ends_at: e.ends_at ?? "",
+      }));
+  }
+
+  async search(q: EventSearchQuery): Promise<EventSearchHit[]> {
+    const attendedBy = q.attendedBy;
+    const attended = attendedBy ? new Set(this.data.eventAttendees.filter((a) => a.member_id !== undefined && attendedBy.includes(a.member_id)).map((a) => a.event_id)) : null;
+    if (attended && attended.size === 0) return [];
+    const words = q.words.map((w) => searchWord(w).toLowerCase());
+    const dayStart = (d: string) => Date.parse(d.slice(0, 10));
+    return this.data.events
+      .filter((e) => {
+        if (attended && !attended.has(e.id)) return false;
+        if (!q.includeHidden && e.deleted_at) return false;
+        if (q.after && Date.parse(e.starts_at ?? "") < dayStart(q.after)) return false;
+        if (q.before && Date.parse(e.starts_at ?? "") >= dayStart(q.before)) return false;
+        return words.every((w) => SEARCH_FIELDS.some((f) => (e[f] ?? "").toLowerCase().includes(w)));
+      })
+      .sort(byStartsAtDesc)
+      .slice(q.offset, q.offset + q.limit)
+      .map((e) => ({
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        speakers: e.speakers ?? null,
+        host_name: e.host_name ?? null,
+        event_type: e.event_type ?? "other",
+        location: e.location ?? null,
+        starts_at: e.starts_at ?? "",
+        focus: e.focus ?? null,
+      }));
+  }
+
+  private photosOf(eventId: string) {
+    return this.data.eventPhotos.filter((p) => p.event_id === eventId).sort(photoOrder);
   }
 }
