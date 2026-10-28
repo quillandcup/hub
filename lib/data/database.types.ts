@@ -217,6 +217,8 @@ export type Database = {
         Row: {
           deleted_at: string | null
           fetched_at: string
+          hero_captured_at: string | null
+          hero_image_url: string | null
           kajabi_id: string
           publishing_option: string | null
           raw_payload: Json
@@ -225,6 +227,8 @@ export type Database = {
         Insert: {
           deleted_at?: string | null
           fetched_at?: string
+          hero_captured_at?: string | null
+          hero_image_url?: string | null
           kajabi_id: string
           publishing_option?: string | null
           raw_payload?: Json
@@ -233,6 +237,8 @@ export type Database = {
         Update: {
           deleted_at?: string | null
           fetched_at?: string
+          hero_captured_at?: string | null
+          hero_image_url?: string | null
           kajabi_id?: string
           publishing_option?: string | null
           raw_payload?: Json
@@ -2240,6 +2246,9 @@ export type Database = {
           access_duration: string | null
           created_at: string
           description: string | null
+          hero_path: string | null
+          hero_source: string | null
+          hero_url: string | null
           id: string
           kind: string
           launch_at: string | null
@@ -2257,6 +2266,9 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          hero_path?: string | null
+          hero_source?: string | null
+          hero_url?: string | null
           id?: string
           kind?: string
           launch_at?: string | null
@@ -2274,6 +2286,9 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          hero_path?: string | null
+          hero_source?: string | null
+          hero_url?: string | null
           id?: string
           kind?: string
           launch_at?: string | null

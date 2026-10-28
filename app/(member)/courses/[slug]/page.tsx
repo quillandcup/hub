@@ -62,11 +62,20 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
 
   const thumbnail = courseImageUrl(course.thumbnail_url);
+  const hero = courseImageUrl(course.hero_url);
   const buttonLabel = progress.allDone ? "Review" : started ? "Continue" : "Start";
 
   return (
     <div>
-      <header className="bg-plum-700 px-6 py-12 text-center text-white">
+      <header className="relative isolate overflow-hidden bg-plum-700 px-6 py-12 text-center text-white">
+        {hero && (
+          <>
+            {/* The Kajabi banner, under a dark overlay so the white title stays readable. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={hero} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-black/60" />
+          </>
+        )}
         <div className="mx-auto max-w-3xl">
           <Link data-track="course-breadcrumb-courses" href="/courses" className="text-sm text-plum-100 hover:underline">
             ← Courses
