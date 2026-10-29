@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { isDeadTokenError } from "@/lib/slack-connect";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
@@ -18,11 +19,12 @@ const slackError = (error: unknown): string | undefined => (error as { data?: { 
 
 /** The Slack account each member is, where the Hub has matched one (the same map the chat's authors come from). */
 export async function slackUserIdsFor(service: SupabaseClient, memberIds: string[]): Promise<Map<string, string>> {
-  const found = new Map<string, string>();
-  if (memberIds.length === 0) return found;
-  const { data } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("member_id", memberIds);
-  for (const row of data ?? []) if (!found.has(row.member_id as string)) found.set(row.member_id as string, row.slack_user_id as string);
-  return found;
+  if (memberIds.length === 0) return new Map();
+  // A failed lookup reads as nobody matched (the callers then say so), as it always has.
+  return createRepos(service).chat.slackUserIdsByMember(memberIds).catch((error: Error) => {
+    console.error("looking up the Slack accounts of members failed:", error.message);
+    return new Map<string, string>();
+  });
 }
 
 const MISSING_BOT = "Slack isn't set up to do that.";

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
@@ -22,9 +23,7 @@ export async function removeChatFileBytes(
 ): Promise<FileBytesResult> {
   try {
     if (!opts.ignoreReferences) {
-      const { data: refs, error: refError } = await service.from("chat_message_contents").select("message_id").contains("files", [{ id: fileId }]).limit(1);
-      if (refError) throw refError;
-      if (refs && refs.length > 0) return "kept";
+      if (await createRepos(service).chat.fileIsListed(fileId)) return "kept";
     }
 
     const bronze = () => service.schema("bronze").from("slack_files");

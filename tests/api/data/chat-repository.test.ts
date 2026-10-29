@@ -17,14 +17,17 @@ const clear = async () => {
   if (error) throw new Error(error.message);
 };
 
-// Members made for the membership tests (channels, and so their memberships and messages, are cleared first).
+// Members made for the membership tests and for Slack authors (channels, and so their memberships and messages, are cleared first;
+// authors go with their member).
 const createdMembers: string[] = [];
+const createdGapFills: string[] = [];
 let memberIds: string[] = [];
 let channelIds: Record<string, string> = {};
 
 
 afterAll(async () => {
   await clear();
+  if (createdGapFills.length > 0) await db.from("chat_gap_fills").delete().in("id", createdGapFills);
   if (createdMembers.length > 0) await db.from("members").delete().in("id", createdMembers);
 });
 
@@ -45,6 +48,9 @@ defineChatContract("SupabaseChatRepository", () => ({
           ...(c.bridgeMode ? { bridge_mode: c.bridgeMode } : {}),
           ...(c.bridgeDisabled !== undefined ? { bridge_disabled: c.bridgeDisabled } : {}),
           ...(c.bridgeStatus ? { bridge_status: c.bridgeStatus } : {}),
+          ...(c.kind ? { kind: c.kind, restricted: c.kind !== "channel" } : {}),
+          ...(c.visibility ? { visibility: c.visibility } : {}),
+          ...(c.name ? { name: c.name } : {}),
         })
         .select("id")
         .single();
@@ -224,5 +230,69 @@ defineChatContract("SupabaseChatRepository", () => ({
     const { data, error } = await db.from("chat_reactions").select("synced_to_slack").eq("message_id", messageId).eq("emoji", emoji).eq("member_id", memberId).is("slack_user_id", null).single();
     if (error) throw new Error(error.message);
     return data.synced_to_slack;
+  },
+
+  // --- content, authors and gap fills ---
+  // Messages and their content go with their channel (ON DELETE CASCADE); members and gap-fills are tracked here.
+  seedContentMessages: async (messages) => {
+    const ids: Record<string, string> = {};
+    for (const m of messages) {
+      const { data, error } = await db
+        .from("chat_messages")
+        .insert({ channel_id: m.channelId, created_at: new Date().toISOString(), slack_ts: m.slackTs ?? null })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      ids[m.key] = data.id;
+      const { error: contentError } = await db
+        .from("chat_message_contents")
+        .upsert({ message_id: data.id, body: "contract", files: (m.files ?? null) as never }, { onConflict: "message_id" });
+      if (contentError) throw new Error(contentError.message);
+    }
+    return ids;
+  },
+  seedAuthors: async (slackUserIds) => {
+    const memberIds: string[] = [];
+    for (const [i, slack] of slackUserIds.entries()) {
+      const { data, error } = await db
+        .from("members")
+        .insert({ name: `Contract Author ${i}`, email: `chat-contract-${RUN}-${++counter}@example.com`, joined_at: "2026-01-01", status: "active" })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      createdMembers.push(data.id);
+      memberIds.push(data.id);
+      const { error: authorError } = await db.from("chat_slack_authors").insert({ slack_user_id: slack, member_id: data.id });
+      if (authorError) throw new Error(authorError.message);
+    }
+    return memberIds;
+  },
+  seedGapFills: async (fills) => {
+    const ids: Record<string, string> = {};
+    for (const f of fills) {
+      const { data, error } = await db
+        .from("chat_gap_fills")
+        .insert({ slack_channel_id: f.slackChannelId, started_at: f.startedAt, scope: "message", source: "webhook" })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      ids[f.key] = data.id;
+      createdGapFills.push(data.id);
+    }
+    return ids;
+  },
+  postedVia: async (messageId) => {
+    const { data, error } = await db.from("chat_messages").select("posted_via").eq("id", messageId).single();
+    if (error) throw new Error(error.message);
+    return data.posted_via;
+  },
+  gapFill: async (id) => {
+    const { data, error } = await db
+      .from("chat_gap_fills")
+      .select("finished_at, messages_recovered, reactions_recovered, messages_seen, error")
+      .eq("id", id)
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   },
 }));
