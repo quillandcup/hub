@@ -47,36 +47,20 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-type Call = { method: string; args: unknown[] };
-type Query = { table: string; calls: Call[] };
-const queries: Query[] = [];
-let answer: (q: Query) => unknown;
+// Nothing here queries a table directly: every read and write goes through the repositories.
 vi.mock("@/lib/supabase/service", () => ({
   createServiceRoleClient: () => ({
     rpc: (...args: unknown[]) => m.revoke(...args),
     from: (table: string) => {
-      const q: Query = { table, calls: [] };
-      queries.push(q);
-      const chain: Record<string, unknown> = new Proxy(
-        {},
-        {
-          get(_t, prop: string) {
-            if (prop === "then") return (resolve: (v: unknown) => void, reject: (e: unknown) => void) => Promise.resolve(answer(q)).then(resolve, reject);
-            if (prop === "maybeSingle") return () => Promise.resolve(answer(q));
-            return (...args: unknown[]) => {
-              q.calls.push({ method: prop, args });
-              return chain;
-            };
-          },
-        }
-      );
-      return chain;
+      throw new Error(`direct query on ${table}`);
     },
   }),
 }));
 
-// Who is an active member comes from the members repository, here in memory: `world.active` are
-// active, everyone else the world mentions is cancelled.
+// Everything the actions read comes from the repositories, here in memory, built once per test from
+// `world` (when it is first asked for): `world.active` are active members, everyone else it mentions is
+// cancelled; `world.present` are in the conversation. `world.failing` names repository methods that throw.
+let dataset: InstanceType<typeof import("@/lib/data/in-memory").InMemoryDataset> | null = null;
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
   const { InMemoryDataset } = await import("@/lib/data/in-memory");
@@ -84,24 +68,27 @@ vi.mock("@/lib/data/repos", async () => {
     ...actual,
     createRepos: () => {
       const ids = [...new Set([FERN, GALE, HAZEL, ...world.active, ...world.directory.map((d) => d.id)])];
-      return actual.createInMemoryRepos(
-        new InMemoryDataset({
-          // The caller's profile carries their role (staff are admins).
-          userProfiles: [{ id: "auth-fern", email: "fern@example.test", role: m.role.current }],
-          // The member directory is these members' public fields, so the world's directory names them.
-          members: ids.map((id) => {
-            const listed = world.directory.find((d) => d.id === id);
-            return {
-              id,
-              name: listed?.name ?? id,
-              displayName: listed?.display_name ?? null,
-              photoUrl: listed?.photo_url ?? null,
-              email: `${id}@example.test`,
-              status: world.active.includes(id) ? "active" : "cancelled",
-            };
-          }),
+      dataset ??= new InMemoryDataset({
+        // The caller's profile carries their role (staff are admins).
+        userProfiles: [{ id: "auth-fern", email: "fern@example.test", role: m.role.current }],
+        // The member directory is these members' public fields, so the world's directory names them.
+        members: ids.map((id) => {
+          const listed = world.directory.find((d) => d.id === id);
+          return {
+            id,
+            name: listed?.name ?? id,
+            displayName: listed?.display_name ?? null,
+            photoUrl: listed?.photo_url ?? null,
+            email: `${id}@example.test`,
+            status: world.active.includes(id) ? "active" : "cancelled",
+          };
         }),
-      );
+        chatChannels: world.channelRow ? [{ id: CHANNEL, ...world.channelRow }] : [],
+        chatChannelMembers: world.present.map((member_id) => ({ channel_id: CHANNEL, member_id, source: world.sources[member_id] ?? "slack" })),
+      });
+      const repos = actual.createInMemoryRepos(dataset);
+      for (const method of world.failing) (repos.chat as unknown as Record<string, unknown>)[method] = async () => { throw new Error(`${method} failed`); };
+      return repos;
     },
   };
 });
@@ -119,15 +106,18 @@ interface World {
   present: string[];
   active: string[];
   directory: { id: string; name: string; display_name: string | null; photo_url: string | null }[];
-  membershipRow: { source: string } | null;
+  /** How some of the members in `present` got in (default: from Slack). */
+  sources: Record<string, string>;
+  /** Repository methods (on the chat repository) that throw. */
+  failing: string[];
 }
 let world: World;
-const has = (q: Query, method: string, ...args: unknown[]) => q.calls.some((c) => c.method === method && args.every((a, i) => JSON.stringify(c.args[i]) === JSON.stringify(a)));
-const withMethod = (table: string, method: string) => queries.filter((q) => q.table === table && has(q, method));
-const writes = (method: "upsert" | "update") => withMethod("chat_channel_members", method).map((q) => q.calls.find((c) => c.method === method)!.args[0]);
+/** The conversation's membership rows as they are now. */
+const rows = () => dataset!.chatChannelMembers;
+const leftIds = () => rows().filter((r) => r.left_at).map((r) => r.member_id);
 
 beforeEach(() => {
-  queries.length = 0;
+  dataset = null;
   m.actionNames.length = 0;
   m.role.current = "member";
   world = {
@@ -140,18 +130,8 @@ beforeEach(() => {
       { id: GALE, name: "Gale Prickleton", display_name: null, photo_url: "https://photos.example.test/gale.jpg" },
       { id: HAZEL, name: "Hazel Burrows", display_name: "Hazel", photo_url: null },
     ],
-    membershipRow: { source: "slack" },
-  };
-  answer = (q) => {
-    if (q.table === "chat_messages") return { data: { id: "msg_NOTICE" }, error: null };
-    if (q.table === "chat_channels") return { data: world.channelRow };
-    if (q.table === "chat_channel_members") {
-      if (has(q, "upsert") || has(q, "update")) return { error: null };
-      if (q.calls.some((c) => c.method === "in" && c.args[0] === "member_id")) return { data: world.present.map((member_id) => ({ member_id })) };
-      return { data: world.membershipRow };
-    }
-    if (q.table === "member_directory") return { data: world.directory };
-    return { data: null };
+    sources: {},
+    failing: [],
   };
   m.postingCaller.mockReset();
   m.postingCaller.mockResolvedValue({ userId: "auth-fern", identity: { memberId: FERN, isSudo: false } });
@@ -183,11 +163,9 @@ describe("addChatMembers", () => {
     await expect(addChatMembers(CHANNEL, [GALE, HAZEL])).resolves.toEqual({ ok: true, message: undefined });
 
     expect(m.invite).toHaveBeenCalledWith({ channel: "C_SLACK", userIds: ["U_GALE", "U_HAZEL"] });
-    expect(writes("upsert")).toEqual([
-      [
-        expect.objectContaining({ channel_id: CHANNEL, member_id: GALE, left_at: null, source: "slack" }),
-        expect.objectContaining({ channel_id: CHANNEL, member_id: HAZEL, left_at: null, source: "slack" }),
-      ],
+    expect(rows()).toEqual([
+      expect.objectContaining({ channel_id: CHANNEL, member_id: GALE, left_at: null, source: "slack" }),
+      expect.objectContaining({ channel_id: CHANNEL, member_id: HAZEL, left_at: null, source: "slack" }),
     ]);
     expect(m.invite.mock.invocationCallOrder[0]).toBeLessThan(m.postingCaller.mock.invocationCallOrder[0] + 1000);
     expect(m.actionNames).toEqual(["chat_members_added"]);
@@ -196,7 +174,7 @@ describe("addChatMembers", () => {
   it("leaves everything as it was when Slack refuses", async () => {
     m.invite.mockResolvedValue({ ok: false, error: "Billie Bot isn't in this conversation, so it can't add people." });
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: expect.stringContaining("Billie Bot isn't in") });
-    expect(writes("upsert")).toHaveLength(0);
+    expect(rows()).toHaveLength(0);
   });
 
   it("skips people who are already in, and does nothing when everyone is", async () => {
@@ -222,7 +200,7 @@ describe("addChatMembers", () => {
 
     expect(result).toEqual({ ok: true, message: expect.stringContaining("One person isn't in Slack") });
     expect(m.invite).toHaveBeenCalledWith({ channel: "C_SLACK", userIds: ["U_GALE"] });
-    expect(writes("upsert")[0]).toEqual([expect.objectContaining({ member_id: GALE, source: "slack" }), expect.objectContaining({ member_id: HAZEL, source: "app" })]);
+    expect(rows()).toEqual([expect.objectContaining({ member_id: GALE, source: "slack" }), expect.objectContaining({ member_id: HAZEL, source: "app" })]);
   });
 
   it("refuses to add someone who isn't in Slack to a private channel, by name, before touching anything", async () => {
@@ -233,7 +211,7 @@ describe("addChatMembers", () => {
 
     expect(result).toEqual({ ok: false, error: "Hazel isn't in Slack, so can't be added to a private conversation." });
     expect(m.invite).not.toHaveBeenCalled();
-    expect(writes("upsert")).toHaveLength(0);
+    expect(rows()).toHaveLength(0);
   });
 
   it("needs you to be in the conversation to add others, but not to join a public channel yourself", async () => {
@@ -264,6 +242,17 @@ describe("addChatMembers", () => {
     expect(m.invite).not.toHaveBeenCalled();
   });
 
+  it("counts a conversation it can't read as unavailable, and a presence it can't read as nobody being in", async () => {
+    world.failing = ["manageSettings"];
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: "That conversation isn't available." });
+
+    world.failing = ["presentMembers"];
+    world.present = [GALE];
+    dataset = null;
+    await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: true });
+    expect(m.invite).toHaveBeenCalledWith({ channel: "C_SLACK", userIds: ["U_GALE"] });
+  });
+
   it("refuses a conversation the member can't see, bad ids, nobody, too many, and a caller without the preview", async () => {
     world.summary = null;
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: "That conversation isn't available." });
@@ -287,7 +276,7 @@ describe("adding as the member", () => {
     await expect(addChatMembers(CHANNEL, [GALE, HAZEL])).resolves.toEqual({ ok: true });
     expect(m.inviteAs).toHaveBeenCalledWith({ channel: "C_SLACK", userIds: ["U_GALE", "U_HAZEL"], token: "xoxp-test" });
     expect(m.invite).not.toHaveBeenCalled();
-    expect(writes("upsert")).toHaveLength(1);
+    expect(rows()).toHaveLength(2);
   });
 
   it("joins a public channel as the member with a join, not an invite", async () => {
@@ -303,6 +292,7 @@ describe("adding as the member", () => {
     expect(m.invite).toHaveBeenCalledTimes(1);
 
     m.invite.mockClear();
+    dataset = null;
     m.userToken.mockResolvedValue({ token: "xoxp-test", slackUserId: "U_FERN" });
     m.inviteAs.mockResolvedValue({ ok: false, error: "x", retryWithBot: true });
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: true });
@@ -315,7 +305,7 @@ describe("adding as the member", () => {
     m.inviteAs.mockResolvedValue({ ok: false, error: "Slack won't let the people be added to this conversation." });
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: expect.stringContaining("won't let the people") });
     expect(m.invite).not.toHaveBeenCalled();
-    expect(writes("upsert")).toHaveLength(0);
+    expect(rows()).toHaveLength(0);
   });
 
   it("disconnects a dead connection, still adds through the bot, and says to reconnect", async () => {
@@ -326,6 +316,7 @@ describe("adding as the member", () => {
     expect(m.revoke).toHaveBeenCalledWith("slack_connection_revoke", { p_member: FERN });
     expect(m.invite).toHaveBeenCalledTimes(1);
 
+    dataset = null;
     m.invite.mockResolvedValue({ ok: false, error: "Billie Bot isn't in this conversation, so it can't add people." });
     await expect(addChatMembers(CHANNEL, [GALE])).resolves.toEqual({ ok: false, error: expect.stringContaining("Reconnect Slack in Settings") });
   });
@@ -346,11 +337,16 @@ describe("joinChatChannel", () => {
 });
 
 describe("removeChatMember", () => {
+  beforeEach(() => {
+    world.present = [FERN, GALE];
+  });
+
   it("lets a member leave: removed in Slack, then here", async () => {
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
 
     expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_FERN" });
-    expect(writes("update")).toEqual([expect.objectContaining({ left_at: expect.any(String) })]);
+    expect(leftIds()).toEqual([FERN]);
+    expect(rows().find((r) => r.member_id === FERN)!.left_at).toEqual(expect.any(String));
     expect(m.actionNames).toEqual(["chat_member_removed"]);
   });
 
@@ -359,7 +355,7 @@ describe("removeChatMember", () => {
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
     expect(m.leave).toHaveBeenCalledWith({ channel: "C_SLACK", token: "xoxp-test" });
     expect(m.kick).not.toHaveBeenCalled();
-    expect(writes("update")).toHaveLength(1);
+    expect(leftIds()).toEqual([FERN]);
   });
 
   it("falls back to the bot when their own token is no good, and says so when leaving fails otherwise", async () => {
@@ -369,6 +365,7 @@ describe("removeChatMember", () => {
     expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_FERN" });
 
     m.kick.mockClear();
+    dataset = null;
     m.leave.mockResolvedValue({ ok: false, error: "Slack didn't let you leave." });
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: false, error: "Slack didn't let you leave." });
     expect(m.kick).not.toHaveBeenCalled();
@@ -389,6 +386,7 @@ describe("removeChatMember", () => {
     expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_GALE" });
 
     m.kick.mockClear();
+    dataset = null;
     m.userToken.mockResolvedValue({ token: "xoxp-staff", slackUserId: "U_FERN" });
     m.kickAs.mockResolvedValue({ ok: false, error: "x", retryWithBot: true });
     await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
@@ -410,6 +408,7 @@ describe("removeChatMember", () => {
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true, message: expect.stringContaining("Reconnect Slack in Settings") });
     expect(m.revoke).toHaveBeenCalledWith("slack_connection_revoke", { p_member: FERN });
 
+    dataset = null;
     m.kick.mockResolvedValue({ ok: false, error: "Slack won't let that person be removed." });
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: false, error: expect.stringContaining("Reconnect Slack in Settings") });
   });
@@ -417,29 +416,37 @@ describe("removeChatMember", () => {
   it("keeps them in when Slack won't remove them", async () => {
     m.kick.mockResolvedValue({ ok: false, error: "Slack doesn't allow removing people from the workspace's default channel." });
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: false, error: expect.stringContaining("default channel") });
-    expect(writes("update")).toHaveLength(0);
+    expect(leftIds()).toEqual([]);
   });
 
   it("is for staff when it is someone else", async () => {
     await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: false, error: "Only staff can remove other people from a conversation." });
     expect(m.kick).not.toHaveBeenCalled();
 
+    dataset = null;
     m.role.current = "admin";
     await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
     expect(m.kick).toHaveBeenCalledWith({ channel: "C_SLACK", userId: "U_GALE" });
   });
 
   it("doesn't call Slack for someone only the Hub knows is in it, and does nothing for someone already out", async () => {
-    world.membershipRow = { source: "app" };
+    world.sources = { [FERN]: "app" };
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
     expect(m.kick).not.toHaveBeenCalled();
-    expect(writes("update")).toHaveLength(1);
+    expect(leftIds()).toEqual([FERN]);
 
-    queries.length = 0;
-    world.membershipRow = null;
+    dataset = null;
+    world.present = [];
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
     expect(m.kick).not.toHaveBeenCalled();
-    expect(writes("update")).toHaveLength(0);
+    expect(leftIds()).toEqual([]);
+  });
+
+  it("treats a membership it can't read as already out", async () => {
+    world.failing = ["activeMembership"];
+    await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
+    expect(m.kick).not.toHaveBeenCalled();
+    expect(leftIds()).toEqual([]);
   });
 
   it("leaving a conversation you're not in is already done", async () => {
@@ -512,17 +519,12 @@ describe("searchMembersToAdd", () => {
   });
 });
 
-const notices = () =>
-  queries
-    .filter((q) => q.table === "chat_messages" && has(q, "insert"))
-    .map((q) => q.calls.find((c) => c.method === "insert")!.args[0] as Record<string, unknown>);
-const noticeBodies = () =>
-  queries
-    .filter((q) => q.table === "chat_message_contents" && has(q, "insert"))
-    .map((q) => (q.calls.find((c) => c.method === "insert")!.args[0] as { body: string }).body);
+const notices = () => dataset!.chatMessages.filter((x) => x.system_subtype);
+const noticeBodies = () => notices().map((x) => dataset!.chatMessageContents.find((c) => c.message_id === x.id)?.body);
 
 describe("lines in the conversation for what Slack doesn't announce", () => {
   it("says who removed someone, as the person's own line, since Slack posts nothing for a removal", async () => {
+    world.present = [FERN, GALE];
     m.role.current = "admin";
     await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
     expect(notices()).toEqual([expect.objectContaining({ channel_id: CHANNEL, author_member_id: GALE, origin: "app", system_subtype: "channel_leave" })]);
@@ -530,12 +532,14 @@ describe("lines in the conversation for what Slack doesn't announce", () => {
   });
 
   it("leaves a member's own leave to Slack's notice, when Slack was told", async () => {
+    world.present = [FERN];
     await expect(removeChatMember(CHANNEL, FERN)).resolves.toEqual({ ok: true });
     expect(notices()).toEqual([]);
   });
 
   it("writes the line itself for a leave only the Hub knows about", async () => {
-    world.membershipRow = { source: "app" };
+    world.present = [FERN];
+    world.sources = { [FERN]: "app" };
     await removeChatMember(CHANNEL, FERN);
     expect(notices()).toEqual([expect.objectContaining({ author_member_id: FERN, system_subtype: "channel_leave" })]);
     expect(noticeBodies()).toEqual(["has left the channel"]);
@@ -556,16 +560,18 @@ describe("lines in the conversation for what Slack doesn't announce", () => {
   });
 
   it("escapes names in the line, and a failure to write it doesn't undo the change", async () => {
+    world.present = [FERN, GALE];
     m.role.current = "admin";
     world.directory = [{ id: FERN, name: "Fern <b> & Co", display_name: null, photo_url: null }];
     await removeChatMember(CHANNEL, GALE);
     expect(noticeBodies()).toEqual(["was removed from the channel by Fern &lt;b&gt; &amp; Co"]);
 
-    const before = answer;
-    answer = (q) => (q.table === "chat_messages" ? { data: null, error: new Error("db down") } : before(q));
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    world.membershipRow = { source: "slack" };
+    dataset = null;
+    world.failing = ["recordMembershipNotice"];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(removeChatMember(CHANNEL, GALE)).resolves.toEqual({ ok: true });
-    expect(writes("update").length).toBeGreaterThan(0);
+    expect(leftIds()).toEqual([GALE]);
+    expect(notices()).toEqual([]);
+    expect(logged).toHaveBeenCalledWith("recording a membership notice failed:", expect.any(Error));
   });
 });

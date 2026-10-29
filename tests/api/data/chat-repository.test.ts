@@ -17,7 +17,15 @@ const clear = async () => {
   if (error) throw new Error(error.message);
 };
 
-afterAll(clear);
+// Members made for the membership tests (channels, and so their memberships and messages, are cleared first).
+const createdMembers: string[] = [];
+let memberIds: string[] = [];
+let channelIds: Record<string, string> = {};
+
+afterAll(async () => {
+  await clear();
+  if (createdMembers.length > 0) await db.from("members").delete().in("id", createdMembers);
+});
 
 defineChatContract("SupabaseChatRepository", () => ({
   repo: () => new SupabaseChatRepository(db),
@@ -86,5 +94,89 @@ defineChatContract("SupabaseChatRepository", () => ({
       }))
     );
     if (error) throw new Error(error.message);
+  },
+  // --- channels and membership slice ---
+  seedMembers: async (count) => {
+    const stamp = ++counter;
+    const { data, error } = await db
+      .from("members")
+      .insert(Array.from({ length: count }, (_, i) => ({ name: `Chat Contract ${RUN} ${stamp} ${i}`, email: `chat-contract-${RUN}-${stamp}-${i}@example.com`, joined_at: "2026-01-01", status: "active" })))
+      .select("id, email");
+    if (error) throw new Error(error.message);
+    memberIds = Array.from({ length: count }, (_, i) => data!.find((m) => m.email === `chat-contract-${RUN}-${stamp}-${i}@example.com`)!.id);
+    createdMembers.push(...memberIds);
+    return memberIds;
+  },
+  seedChannelRows: async (channels) => {
+    await clear();
+    const ids: Record<string, string> = {};
+    for (const c of channels) {
+      const { data, error } = await db
+        .from("chat_channels")
+        .insert({
+          kind: c.kind ?? "channel",
+          visibility: c.visibility ?? "public",
+          name: c.name === undefined ? `contract-${c.key}-${counter}` : c.name,
+          slack_channel_id: c.slackChannelId ?? null,
+          archived_at: c.archivedAt ?? null,
+          ...(c.restricted !== undefined ? { restricted: c.restricted } : {}),
+          ...(c.bridgeDisabled !== undefined ? { bridge_disabled: c.bridgeDisabled } : {}),
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      ids[c.key] = data.id;
+      createdChannels.push(data.id);
+    }
+    channelIds = ids;
+    return ids;
+  },
+  seedMemberships: async (rows) => {
+    const { error } = await db.from("chat_channel_members").insert(
+      rows.map((r) => ({
+        channel_id: channelIds[r.channel],
+        member_id: memberIds[r.member],
+        // Every row names every column: a bulk insert sends null for one a row leaves out.
+        joined_at: r.joinedAt ?? "2026-01-01T00:00:00Z",
+        left_at: r.leftAt ?? null,
+        last_read_at: r.lastReadAt ?? null,
+        source: r.source ?? "slack",
+      }))
+    );
+    if (error) throw new Error(error.message);
+  },
+  seedChannelMessages: async (rows) => {
+    const ids: Record<string, string> = {};
+    for (const r of rows) {
+      const { data, error } = await db
+        .from("chat_messages")
+        .insert({
+          channel_id: channelIds[r.channel],
+          created_at: r.createdAt,
+          author_member_id: r.author !== undefined ? memberIds[r.author] : null,
+          slack_ts: r.slackTs ?? null,
+          thread_root_id: r.replyTo ? ids[r.replyTo] : null,
+          deleted_at: r.deleted ? r.createdAt : null,
+          ...(r.origin ? { origin: r.origin } : {}),
+          ...(r.syncStatus ? { slack_sync_status: r.syncStatus } : {}),
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      ids[r.key] = data.id;
+    }
+    return ids;
+  },
+  noticesIn: async (channelId) => {
+    const { data, error } = await db
+      .from("chat_messages")
+      .select("author_member_id, system_subtype, origin, chat_message_contents(body)")
+      .eq("channel_id", channelId)
+      .not("system_subtype", "is", null);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((m) => {
+      const content = m.chat_message_contents as { body: string } | { body: string }[] | null;
+      return { author_member_id: m.author_member_id, system_subtype: m.system_subtype, origin: m.origin, body: (Array.isArray(content) ? content[0] : content)?.body ?? "" };
+    });
   },
 }));

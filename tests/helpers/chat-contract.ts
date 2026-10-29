@@ -15,6 +15,41 @@ export type ChatContractContext = {
   seedMessages: (channelId: string, messages: SeedMessage[]) => Promise<Record<string, string>>;
   /** Adds reactions by Slack-only people to messages of a channel. */
   seedReactions: (channelId: string, reactions: SeedReaction[]) => Promise<void>;
+  // --- channels and membership slice ---
+  /** Makes `count` members and returns their ids (they go with the context). */
+  seedMembers: (count: number) => Promise<string[]>;
+  /** Replaces the channels this context made with these, each with the columns that decide how it is listed; returns Hub ids by key. */
+  seedChannelRows: (channels: SeedChannelRow[]) => Promise<Record<string, string>>;
+  /** Puts members (by index into `seedMembers`' ids) in channels (by key). */
+  seedMemberships: (rows: SeedMembership[]) => Promise<void>;
+  /** Adds messages (channel by key); returns their ids by key. */
+  seedChannelMessages: (rows: SeedChannelMessage[]) => Promise<Record<string, string>>;
+  /** The Hub-written notice lines in a channel, with their text. */
+  noticesIn: (channelId: string) => Promise<{ author_member_id: string | null; system_subtype: string | null; origin: string; body: string }[]>;
+};
+
+export type SeedChannelRow = {
+  key: string;
+  name?: string | null;
+  kind?: "channel" | "dm" | "group_dm";
+  visibility?: "public" | "private";
+  restricted?: boolean;
+  archivedAt?: string | null;
+  slackChannelId?: string | null;
+  bridgeDisabled?: boolean;
+};
+export type SeedMembership = { channel: string; member: number; joinedAt?: string; leftAt?: string; lastReadAt?: string; source?: "slack" | "app" };
+export type SeedChannelMessage = {
+  key: string;
+  channel: string;
+  author?: number;
+  createdAt: string;
+  slackTs?: string;
+  /** Key of the message this is a reply to. */
+  replyTo?: string;
+  deleted?: boolean;
+  origin?: "app" | "slack";
+  syncStatus?: "pending" | "sent" | "failed";
 };
 
 export type SeedMessage = { key: string; createdAt: string; body?: string; threadRootKey?: string; deleted?: boolean; hasFiles?: boolean; slackTs?: string };
@@ -252,6 +287,194 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().reactionRows([m.c])).toEqual([{ message_id: m.c, emoji: "eyes", member_id: null, slack_user_id: "U3" }]);
         expect(await ctx.repo().reactionRows([])).toEqual([]);
         expect(await ctx.repo().reactionRows(ghosts(3))).toEqual([]);
+      });
+    });
+
+    // --- channels and membership ---
+    describe("channels and membership", () => {
+      const at = (iso: string) => Date.parse(iso);
+      const sorted = (ids: string[]) => [...ids].sort();
+
+      it("lists conversations by name (unnamed last), then id, with their columns", async () => {
+        const slack = ctx.unique("C");
+        const prefix = ctx.unique("n");
+        const ids = await ctx.seedChannelRows([
+          { key: "dm", name: null, kind: "group_dm", visibility: "private", restricted: true },
+          { key: "beta", name: `${prefix}-b`, slackChannelId: slack, restricted: true, archivedAt: "2026-02-01T00:00:00Z" },
+          { key: "alpha", name: `${prefix}-a` },
+        ]);
+        const mine = new Set(Object.values(ids));
+        const listed = (await ctx.repo().listChannels()).filter((c) => mine.has(c.id));
+
+        // Both names share a prefix that sorts the same way in any collation; the unnamed one comes last.
+        expect(listed.map((c) => c.id)).toEqual([ids.alpha, ids.beta, ids.dm]);
+        expect(listed[0]).toEqual({ id: ids.alpha, kind: "channel", visibility: "public", restricted: false, name: expect.any(String), archived_at: null, slack_channel_id: null });
+        expect(listed[1]).toMatchObject({ restricted: true, slack_channel_id: slack });
+        expect(at(listed[1].archived_at!)).toBe(at("2026-02-01T00:00:00Z"));
+        expect(listed[2]).toMatchObject({ kind: "group_dm", visibility: "private", name: null });
+      });
+
+      it("reads one conversation, its manage settings and its Slack id, and nothing for a missing one", async () => {
+        const slack = ctx.unique("C");
+        const ids = await ctx.seedChannelRows([
+          { key: "a", name: ctx.unique("n"), slackChannelId: slack, visibility: "private", bridgeDisabled: true },
+          { key: "b", name: ctx.unique("n") },
+        ]);
+
+        expect(await ctx.repo().channelRecord(ids.a)).toMatchObject({ id: ids.a, visibility: "private", slack_channel_id: slack });
+        expect(await ctx.repo().channelRecord(NONE)).toBeNull();
+        expect(await ctx.repo().manageSettings(ids.a)).toEqual({
+          kind: "channel",
+          visibility: "private",
+          slack_channel_id: slack,
+          bridge_mode: "bridged",
+          bridge_disabled: true,
+          bridge_status: "ok",
+          archived_at: null,
+        });
+        expect(await ctx.repo().manageSettings(NONE)).toBeNull();
+        expect(await ctx.repo().slackChannelOf(ids.a)).toBe(slack);
+        expect(await ctx.repo().slackChannelOf(ids.b)).toBeNull();
+        expect(await ctx.repo().slackChannelOf(NONE)).toBeNull();
+      });
+
+      it("knows who is in a conversation now, leaving out those who left", async () => {
+        const [m0, m1, m2] = await ctx.seedMembers(3);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }, { key: "b", name: ctx.unique("n") }]);
+        await ctx.seedMemberships([
+          { channel: "a", member: 0, source: "app" },
+          { channel: "a", member: 1 },
+          { channel: "a", member: 2, leftAt: "2026-03-01T00:00:00Z" },
+          { channel: "b", member: 0 },
+        ]);
+        const repo = ctx.repo();
+
+        expect(await repo.joinedChannelIds(m0)).toEqual(new Set([ids.a, ids.b]));
+        expect(await repo.joinedChannelIds(m2)).toEqual(new Set());
+        expect(await repo.isInChannel(ids.a, m1)).toBe(true);
+        expect(await repo.isInChannel(ids.a, m2)).toBe(false);
+        expect(await repo.isInChannel(ids.b, m1)).toBe(false);
+        expect(await repo.activeMembership(ids.a, m0)).toEqual({ source: "app" });
+        expect(await repo.activeMembership(ids.a, m1)).toEqual({ source: "slack" });
+        expect(await repo.activeMembership(ids.a, m2)).toBeNull();
+        expect(sorted(await repo.activeMemberIds(ids.a))).toEqual(sorted([m0, m1]));
+        expect(await repo.activeMemberIds(NONE)).toEqual([]);
+        const pairs = await repo.activeMembersOf([ids.a, ids.b, NONE]);
+        expect(pairs.map((p) => `${p.channel_id}/${p.member_id}`).sort()).toEqual([`${ids.a}/${m0}`, `${ids.a}/${m1}`, `${ids.b}/${m0}`].sort());
+        expect(await repo.presentMembers(ids.a, [m0, m1, m2])).toEqual(new Set([m0, m1]));
+      });
+
+      it("asks about many conversations and members at once (more than one request's worth)", async () => {
+        const [m0] = await ctx.seedMembers(1);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+        await ctx.seedMemberships([{ channel: "a", member: 0 }]);
+        const strangers = Array.from({ length: 150 }, (_, i) => `${NONE.slice(0, -3)}${String(i).padStart(3, "0")}`);
+
+        expect(await ctx.repo().presentMembers(ids.a, [...strangers, m0])).toEqual(new Set([m0]));
+        expect(await ctx.repo().activeMembersOf([...strangers, ids.a])).toEqual([{ channel_id: ids.a, member_id: m0 }]);
+      });
+
+      it("reads where a member has read up to: their marker, else when they joined", async () => {
+        const [m0, m1] = await ctx.seedMembers(2);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+        await ctx.seedMemberships([
+          { channel: "a", member: 0, joinedAt: "2026-01-01T00:00:00Z", lastReadAt: "2026-01-05T00:00:00Z" },
+          { channel: "a", member: 1, joinedAt: "2026-01-02T00:00:00Z" },
+        ]);
+
+        expect(at((await ctx.repo().readMarker(ids.a, m0))!)).toBe(at("2026-01-05T00:00:00Z"));
+        expect(at((await ctx.repo().readMarker(ids.a, m1))!)).toBe(at("2026-01-02T00:00:00Z"));
+        expect(await ctx.repo().readMarker(ids.a, NONE)).toBeNull();
+      });
+
+      it("adds people, and brings back one who left without adding twice or losing their read marker", async () => {
+        const [m0, m1] = await ctx.seedMembers(2);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+        await ctx.seedMemberships([{ channel: "a", member: 0, leftAt: "2026-03-01T00:00:00Z", lastReadAt: "2026-02-01T00:00:00Z", source: "slack" }]);
+        const repo = ctx.repo();
+
+        await repo.addMembers(ids.a, [], "2026-04-01T00:00:00Z");
+        expect(await repo.activeMemberIds(ids.a)).toEqual([]);
+        await repo.addMembers(ids.a, [{ memberId: m0, source: "app" }, { memberId: m1, source: "slack" }], "2026-04-01T00:00:00Z");
+
+        expect(sorted(await repo.activeMemberIds(ids.a))).toEqual(sorted([m0, m1]));
+        expect(await repo.activeMembership(ids.a, m0)).toEqual({ source: "app" });
+        expect(await repo.activeMembership(ids.a, m1)).toEqual({ source: "slack" });
+        expect(at((await repo.readMarker(ids.a, m0))!)).toBe(at("2026-02-01T00:00:00Z"));
+      });
+
+      it("marks a member as having left, once, and does nothing for someone who is not in it", async () => {
+        const [m0, m1] = await ctx.seedMembers(2);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+        await ctx.seedMemberships([{ channel: "a", member: 0 }, { channel: "a", member: 1 }]);
+        const repo = ctx.repo();
+
+        await repo.markLeft(ids.a, m0, "2026-05-01T00:00:00Z");
+        await repo.markLeft(ids.a, m0, "2026-06-01T00:00:00Z");
+        await repo.markLeft(ids.a, NONE, "2026-06-01T00:00:00Z");
+
+        expect(await repo.isInChannel(ids.a, m0)).toBe(false);
+        expect(await repo.isInChannel(ids.a, m1)).toBe(true);
+      });
+
+      it("lists the conversations a member is in with their Slack settings", async () => {
+        const [m0] = await ctx.seedMembers(1);
+        const slack = ctx.unique("C");
+        const ids = await ctx.seedChannelRows([
+          { key: "live", name: ctx.unique("n"), slackChannelId: slack },
+          { key: "old", name: ctx.unique("n"), archivedAt: "2026-02-01T00:00:00Z", bridgeDisabled: true },
+          { key: "left", name: ctx.unique("n"), slackChannelId: ctx.unique("C") },
+          { key: "not", name: ctx.unique("n") },
+        ]);
+        await ctx.seedMemberships([
+          { channel: "live", member: 0 },
+          { channel: "old", member: 0 },
+          { channel: "left", member: 0, leftAt: "2026-03-01T00:00:00Z" },
+        ]);
+
+        const targets = await ctx.repo().slackReadTargets(m0);
+        expect(targets).toHaveLength(2);
+        const live = targets.find((t) => t.channelId === ids.live)!;
+        const old = targets.find((t) => t.channelId === ids.old)!;
+        expect(live).toEqual({ channelId: ids.live, slackChannelId: slack, archivedAt: null, bridgeDisabled: false });
+        expect(old.slackChannelId).toBeNull();
+        expect(at(old.archivedAt!)).toBe(at("2026-02-01T00:00:00Z"));
+        expect(old.bridgeDisabled).toBe(true);
+        expect(await ctx.repo().slackReadTargets(NONE)).toEqual([]);
+      });
+
+      it("writes the notice line for a membership change as a Hub message by the person it is about", async () => {
+        const [m0, m1] = await ctx.seedMembers(2);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+
+        await ctx.repo().recordMembershipNotice({ channelId: ids.a, authorMemberId: m0, subtype: "channel_join", body: "has joined the channel", createdAt: "2026-05-01T00:00:00Z" });
+        await ctx.repo().recordMembershipNotice({ channelId: ids.a, authorMemberId: m1, subtype: "channel_leave", body: "was removed by A &amp; B", createdAt: "2026-05-02T00:00:00Z" });
+
+        const notices = await ctx.noticesIn(ids.a);
+        expect(notices).toHaveLength(2);
+        expect(notices).toContainEqual({ author_member_id: m0, system_subtype: "channel_join", origin: "app", body: "has joined the channel" });
+        expect(notices).toContainEqual({ author_member_id: m1, system_subtype: "channel_leave", origin: "app", body: "was removed by A &amp; B" });
+      });
+
+      it("reads a message's retry state, and the newest top-level Slack message at or before a time", async () => {
+        const [m0] = await ctx.seedMembers(1);
+        const ids = await ctx.seedChannelRows([{ key: "a", name: ctx.unique("n") }]);
+        const msg = await ctx.seedChannelMessages([
+          { key: "old", channel: "a", createdAt: "2026-01-01T00:00:00Z", slackTs: "1767225600.000100" },
+          { key: "new", channel: "a", createdAt: "2026-01-03T00:00:00Z", slackTs: "1767398400.000100" },
+          { key: "reply", channel: "a", createdAt: "2026-01-02T00:00:00Z", slackTs: "1767312000.000100", replyTo: "old" },
+          { key: "gone", channel: "a", createdAt: "2026-01-02T12:00:00Z", slackTs: "1767355200.000100", deleted: true },
+          { key: "hub", channel: "a", author: 0, createdAt: "2026-01-02T18:00:00Z", origin: "app", syncStatus: "failed" },
+        ]);
+        const repo = ctx.repo();
+
+        expect(await repo.newestSlackTs(ids.a, "2026-01-10T00:00:00Z")).toBe("1767398400.000100");
+        expect(await repo.newestSlackTs(ids.a, "2026-01-02T20:00:00Z")).toBe("1767225600.000100");
+        expect(await repo.newestSlackTs(ids.a, "2025-12-31T00:00:00Z")).toBeNull();
+        expect(await repo.newestSlackTs(NONE, "2026-01-10T00:00:00Z")).toBeNull();
+        expect(await repo.retryState(msg.hub)).toEqual({ author_member_id: m0, origin: "app", slack_sync_status: "failed" });
+        expect(await repo.retryState(msg.old)).toEqual({ author_member_id: null, origin: "slack", slack_sync_status: null });
+        expect(await repo.retryState(NONE)).toBeNull();
       });
     });
   });

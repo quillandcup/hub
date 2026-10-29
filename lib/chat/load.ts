@@ -8,6 +8,7 @@ import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
 import { createRepos } from "@/lib/data/repos";
+import type { ChannelRecord } from "@/lib/data/chat";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -34,17 +35,6 @@ export interface ChannelSummary {
   slackChannelId: string | null;
 }
 
-interface ChannelRow {
-  id: string;
-  kind: ChannelSummary["kind"];
-  visibility: ChannelSummary["visibility"];
-  restricted: boolean;
-  name: string | null;
-  archived_at: string | null;
-  slack_channel_id: string | null;
-}
-
-const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, slack_channel_id";
 
 export async function loadChatChannels(
   supabase: SupabaseClient,
@@ -53,15 +43,16 @@ export async function loadChatChannels(
   timer?: StageTimer
 ): Promise<ChannelSummary[]> {
   const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
-  const [{ data: memberships }, { data: channels }] = await Promise.all([
-    t("memberships", supabase.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null)),
-    t("channels", supabase.from("chat_channels").select(CHANNEL_COLUMNS).order("name")),
+  const chat = createRepos(supabase).chat;
+  // A failed read lists nothing, as it always has.
+  const [joined, channels] = await Promise.all([
+    t("memberships", chat.joinedChannelIds(memberId).catch(() => new Set<string>())),
+    t("channels", chat.listChannels().catch((): ChannelRecord[] => [])),
   ]);
   timer?.mark("stage1");
-  const joined = new Set((memberships ?? []).map((m) => m.channel_id as string));
 
   // Direct messages and group DMs are hidden in sudo (like a member's private notes).
-  const visible = ((channels ?? []) as ChannelRow[]).filter(
+  const visible = channels.filter(
     (c) => (c.visibility === "public" || joined.has(c.id)) && !(isSudo && c.kind !== "channel")
   );
 
@@ -91,13 +82,9 @@ export async function loadChatChannels(
 async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string, timer?: StageTimer) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
-  const { data: rows } = await supabase
-    .from("chat_channel_members")
-    .select("channel_id, member_id")
-    .in("channel_id", channelIds)
-    .is("left_at", null);
+  const rows = await createRepos(supabase).chat.activeMembersOf(channelIds).catch(() => []);
   timer?.mark("dmMembers");
-  const others = (rows ?? []).filter((r) => r.member_id !== memberId);
+  const others = rows.filter((r) => r.member_id !== memberId);
   timer?.note("dmPeople", others.length);
   const names = await memberProfiles(supabase, others.map((r) => r.member_id as string));
   for (const channelId of channelIds) {
@@ -178,22 +165,8 @@ export interface ChannelPerson {
 
 /** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
 export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
-  const memberIds: string[] = [];
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("chat_channel_members")
-      .select("member_id")
-      .eq("channel_id", channelId)
-      .is("left_at", null)
-      .order("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    memberIds.push(...(batch ?? []).map((r) => r.member_id as string));
-    offset += batch?.length ?? 0;
-    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
-  }
+  // A failed read lists nobody, as it always has.
+  const memberIds = await createRepos(supabase).chat.activeMemberIds(channelId).catch(() => []);
   const profiles = await memberProfiles(supabase, memberIds);
   return memberIds
     .flatMap((memberId) => {
@@ -215,18 +188,13 @@ export async function loadChannelForMember(
   isSudo: boolean
 ): Promise<ChannelSummary | null> {
   // The channel and the member's place in it don't depend on each other, so read them together.
-  const [{ data: row }, { data: membership }] = await Promise.all([
-    supabase.from("chat_channels").select(CHANNEL_COLUMNS).eq("id", channelId).maybeSingle(),
-    supabase
-      .from("chat_channel_members")
-      .select("channel_id")
-      .eq("channel_id", channelId)
-      .eq("member_id", memberId)
-      .is("left_at", null)
-      .maybeSingle(),
+  // (A failed read of either is "not there", as it always has been.)
+  const chat = createRepos(supabase).chat;
+  const [channel, membership] = await Promise.all([
+    chat.channelRecord(channelId).catch(() => null),
+    chat.isInChannel(channelId, memberId).catch(() => false),
   ]);
-  if (!row) return null;
-  const channel = row as ChannelRow;
+  if (!channel) return null;
   if (isSudo && channel.kind !== "channel") return null;
   if (channel.visibility === "private" && !membership) return null;
 

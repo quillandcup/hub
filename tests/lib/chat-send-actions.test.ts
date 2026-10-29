@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   afterCallbacks: [] as (() => Promise<void> | void)[],
   slackReactionRows: [] as { id: string }[],
   retryRow: null as Record<string, unknown> | null,
+  retryUnreadable: false,
   connected: vi.fn(),
   serviceClient: vi.fn(),
 }));
@@ -28,15 +29,24 @@ vi.mock("@/lib/features.server", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     rpc: m.rpc,
-    from: () => {
-      const chain: Record<string, unknown> = {};
-      for (const k of ["select", "eq", "not", "is"]) chain[k] = () => chain;
-      chain.limit = async () => ({ data: m.slackReactionRows });
-      chain.maybeSingle = async () => ({ data: m.retryRow });
-      return chain;
+    from: (table: string) => {
+      throw new Error(`direct query on ${table}`);
     },
   }),
 }));
+// The message the retry looks at comes from the chat repository, here in memory.
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => {
+      const repos = actual.createInMemoryRepos(new InMemoryDataset({ chatMessages: m.retryRow ? [{ id: MESSAGE, channel_id: CHANNEL, ...m.retryRow }] : [] }));
+      if (m.retryUnreadable) repos.chat.retryState = async () => { throw new Error("db down"); };
+      return repos;
+    },
+  };
+});
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: (...a: unknown[]) => m.connected(...a) }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => m.serviceClient() }));
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: m.sendToSlack }));
@@ -71,6 +81,7 @@ beforeEach(() => {
   m.slackDelete.mockResolvedValue({ ok: true });
   m.slackReactionRows = [];
   m.retryRow = { author_member_id: "member-fern", origin: "app", slack_sync_status: "failed" };
+  m.retryUnreadable = false;
   m.connected.mockReset();
   m.connected.mockResolvedValue({ connected: true });
 });
@@ -101,6 +112,12 @@ describe("retryChatMessage", () => {
     m.retryRow = null;
     await expect(retryChatMessage(MESSAGE)).resolves.toMatchObject({ ok: false });
     await expect(retryChatMessage("nope")).resolves.toMatchObject({ ok: false });
+    expect(m.sendToSlack).not.toHaveBeenCalled();
+  });
+
+  it("can't retry a message it can't read", async () => {
+    m.retryUnreadable = true;
+    await expect(retryChatMessage(MESSAGE)).resolves.toEqual({ ok: false, error: "That message can't be retried." });
     expect(m.sendToSlack).not.toHaveBeenCalled();
   });
 
