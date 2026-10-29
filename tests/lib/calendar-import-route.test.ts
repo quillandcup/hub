@@ -22,6 +22,9 @@ vi.mock("@/lib/google-calendar/client", () => ({ GoogleCalendarClient: class { l
 const triggerReprocessing = vi.fn(async () => ({ processed: ["calendar"] }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: (...args: unknown[]) => triggerReprocessing(...(args as [])) }));
 
+const saveSyncedThrough = vi.fn(async (..._args: unknown[]) => {});
+vi.mock("@/lib/google-calendar/sync-state", () => ({ saveSyncedThrough: (...args: unknown[]) => saveSyncedThrough(...args) }));
+
 import { POST } from "@/app/api/import/calendar/route";
 
 const FROM = "2097-04-01T00:00:00Z";
@@ -73,6 +76,22 @@ describe("POST /api/import/calendar", () => {
     expect(byGoogleId.get("g-c")).toMatchObject({ summary: "Brand new" });
     expect(byGoogleId.get("g-a")?.imported_at).toBeTruthy(); // stamped even though nothing changed
     expect(triggerReprocessing).toHaveBeenCalledWith("calendar_events", "bronze", expect.anything());
+  });
+
+  it("records the sync as the watermark for incremental syncs only when it covered the whole watched window", async () => {
+    await post({ fromDate: FROM, toDate: TO }); // an admin's arbitrary range
+    expect(saveSyncedThrough).not.toHaveBeenCalled();
+
+    await post({ daysBack: 90, daysForward: 90 }); // what the nightly reconcile asks for
+    expect(saveSyncedThrough).toHaveBeenCalledOnce();
+    expect(saveSyncedThrough).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(Date));
+  });
+
+  it("still succeeds when the watermark can't be saved", async () => {
+    saveSyncedThrough.mockRejectedValueOnce(new Error("state table down"));
+    const res = await post({ daysBack: 90, daysForward: 90 });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true });
   });
 
   it("says so when the calendar has nothing in the range", async () => {

@@ -1,6 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { GoogleCalendarClient } from "@/lib/google-calendar/client";
+import { SYNC_WINDOW_DAYS, syncCalendarChanges } from "@/lib/google-calendar/incremental-sync";
 import { NextRequest, NextResponse, after } from "next/server";
-import { triggerCalendarSync } from "@/lib/processing/trigger";
+import { triggerCalendarSync, triggerReprocessing } from "@/lib/processing/trigger";
 import { secretsMatch, webhookSecretRequired } from "@/lib/webhook-auth";
 
 // Webhook should respond quickly
@@ -69,28 +71,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // For event changes, we need to fetch the latest calendar data
-    // We can't rely on the webhook payload alone as it doesn't contain the full event
-    // Instead, we trigger a sync which will UPSERT the latest state from Google Calendar
-
-    // Determine date range for sync (default to last 30 days + next 90 days)
-    // This ensures we catch any changed events in our typical sync window
-    const now = new Date();
-    const fromDate = new Date(now);
-    fromDate.setDate(fromDate.getDate() - 30);
-    const toDate = new Date(now);
-    toDate.setDate(toDate.getDate() + 90);
-
-    // Trigger calendar sync asynchronously, wrapped in after() so Vercel keeps
-    // the function instance alive until the sync completes, instead of tearing
-    // it down once the response is sent (see docs/TODO.md Bug Fixes for the
-    // 2-month Slack webhook data-loss incident this pattern is meant to avoid).
+    // The notification says only that something changed, not what. Fetch what changed since the
+    // last sync (not the whole window) and reprocess just the dates it touches. Notifications that
+    // arrive while a sync runs coalesce into one rerun. Wrapped in after() so Vercel keeps the
+    // function alive until it finishes instead of tearing it down once the response is sent (see
+    // docs/TODO.md Bug Fixes for the 2-month Slack webhook data-loss incident this pattern avoids).
+    // The nightly reconcile (full sync) is the guaranteed path if any of this fails.
     after(async () => {
       try {
-        await triggerCalendarSync({ daysBack: 30, daysForward: 90 });
-        console.log("Calendar sync triggered successfully");
+        const result = await syncCalendarChanges({
+          supabase: createServiceRoleClient(),
+          client: new GoogleCalendarClient(),
+          calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+          fullSync: () => triggerCalendarSync({ daysBack: SYNC_WINDOW_DAYS.back, daysForward: SYNC_WINDOW_DAYS.forward }),
+          reprocess: (dateRange) => triggerReprocessing("calendar_events", "bronze", { dateRange }),
+        });
+        console.log("Calendar sync from webhook:", JSON.stringify(result));
       } catch (error) {
-        console.error("Error triggering calendar sync:", error);
+        console.error("Error syncing calendar from webhook:", error);
       }
     });
 
@@ -99,7 +97,7 @@ export async function POST(request: NextRequest) {
       received: true,
       resourceState,
       channelId,
-      triggered: "calendar_sync",
+      triggered: "calendar_sync_incremental",
     });
   } catch (error: any) {
     console.error("Error processing calendar webhook:", error);

@@ -6,6 +6,9 @@ import { createClient as createDirectClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import type { CalendarSourceEvent } from "@/lib/data/calendar-events";
 import { createRepos } from "@/lib/data/repos";
+import { toBronzeEvent } from "@/lib/google-calendar/events";
+import { coversSyncWindow } from "@/lib/google-calendar/incremental-sync";
+import { saveSyncedThrough } from "@/lib/google-calendar/sync-state";
 
 // Extend timeout for syncing large calendars
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -90,19 +93,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const eventData = {
-        google_event_id: event.id,
-        summary: event.summary || null,
-        description: event.description || null,
-        location: event.location || null,
-        start_time: event.start.dateTime,
-        end_time: event.end.dateTime,
-        creator_email: event.creator?.email || null,
-        creator_name: event.creator?.displayName || null,
-        organizer_email: event.organizer?.email || null,
-        organizer_name: event.organizer?.displayName || null,
-        raw_data: event,
-      };
+      const eventData = toBronzeEvent(event);
 
       const existingEvent = existingByGoogleId.get(event.id);
 
@@ -188,6 +179,16 @@ export async function POST(request: NextRequest) {
     const processingResult = await triggerReprocessing('calendar_events', 'bronze', {
       dateRange: { from: fromDate, to: toDate }
     });
+
+    // A sync over the whole watched window leaves Bronze current as of when it began, which is
+    // where the push notifications' incremental syncs pick up. An arbitrary admin range doesn't.
+    if (coversSyncWindow(fromDate, toDate, now)) {
+      try {
+        await saveSyncedThrough(supabase, calendarId, now);
+      } catch (watermarkError) {
+        console.error("Failed to save the calendar sync watermark:", watermarkError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

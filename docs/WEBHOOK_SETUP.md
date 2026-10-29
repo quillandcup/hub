@@ -298,13 +298,14 @@ External System → Webhook Handler → Bronze UPSERT → Silver Processing
 
 1. User updates calendar event in Google Calendar
 2. Google sends webhook to `/api/webhooks/calendar`
-3. Handler triggers calendar sync (fire-and-forget)
-4. Handler returns 200 OK immediately
-5. Sync fetches latest calendar data from Google API
-6. Sync UPSERTS to `bronze.calendar_events` (idempotent)
-7. Sync triggers `/api/process/calendar` for affected date range
-8. Processing DELETE+INSERT to `prickles` (Silver layer)
-9. Dashboard shows updated data
+3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`lib/google-calendar/incremental-sync.ts`) in `after()`
+4. The sync claims the calendar (`calendar_sync_state`); a notification that arrives while one is running just notes "run once more", so a burst of edits is one sync plus one rerun
+5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window
+6. Changed events are UPSERTed to `bronze.calendar_events` by Google id (Hub ids and links stay); cancelled ones, and ones that became all-day, are deleted
+7. Calendar and attendance are reprocessed for just the dates those events touch (old and new, a day of padding), not the whole window
+8. The watermark (`calendar_sync_state.synced_through`) moves to when the sync began; a failure leaves it, so the next notification retries the same span
+
+With no watermark yet, or one older than two days, the sync falls back to the full import (`triggerCalendarSync`, 90/90), which then sets it. The nightly reconcile does a full sync and sets the watermark too; it stays the guaranteed path and the only one that notices an event moved out of the watched window.
 
 ## Next Steps
 
