@@ -489,10 +489,9 @@ production:
 ### Google Calendar push channel: create and renew it _(Mostly done)_
 **Resolved:** `/api/reconcile/calendar` (nightly) opens and renews the watch channel in production (`lib/google-calendar/watch.ts`, table `calendar_watch_channels`, `docs/WEBHOOK_SETUP.md`), so a calendar edit reaches the prickle schedule in seconds; the nightly sync stays the guaranteed path, and a failure to open the channel fails the cron (no heartbeat). The webhook rejects every request unless `X-Goog-Channel-Token` matches `GOOGLE_CALENDAR_WEBHOOK_TOKEN`.
 
-**Resolved since:** a notification now fetches only what changed since a watermark (`events.list` `updatedMin`, `calendar_sync_state`) and reprocesses just those dates; concurrent notifications coalesce into one rerun (`lib/google-calendar/incremental-sync.ts`).
+**Resolved since:** a notification now fetches only what changed since a watermark (`events.list` `updatedMin`, `calendar_sync_state`) and reprocesses just those dates; concurrent notifications coalesce into one rerun (`lib/google-calendar/incremental-sync.ts`). `/admin/calendar` refreshes itself when a prickle in the week on screen changes (`prickles` is published to Supabase Realtime; `components/LiveRefresh.tsx`). The member calendar and other prickle lists don't have it yet; reuse `LiveRefresh`.
 
 **Still open:**
-- The admin calendar page doesn't update on its own; it needs a refresh (realtime updates are the next PR).
 - `updatedMin` with `singleEvents` is assumed to surface every instance of an edited recurring series; check against real edits and fall back to Google's `syncToken` if instances are missed. The nightly full sync covers any miss.
 - Record each webhook-triggered sync as a gap-fill per "On-Demand Incremental Fetch", and show channel age/expiry on `/admin/data-health`.
 - The channel renews only once a day; if Google ends it early (rare) edits wait for the next 02:00 UTC run. A second, more frequent renewal check would close that.
