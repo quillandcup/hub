@@ -1489,9 +1489,15 @@ On payment failure, notify the member (a `payment_failed` notification kind via 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
 
-### Soft-delete the rest of the member-written tables _(Needs Scheduling)_
+### Soft-delete the rest of the member-written tables _(Needs Decision)_
 
-Members' deletes of writing goals, progress entries, books and awards now soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). Still hard deletes in the app: private member notes (`member_notes`), calendar-link items added by hand (`calendar_feed_items`), "Ask me about" topics (`member_ask_me_about`), and the starting balances that `replaceStartingBalances` clears in `lib/data/writing.ts`. Deferred because each is small, some are private to the member (a note is deliberately not audited), and the privacy page promises a kept record only for the four above. For each: add `deleted_at`, filter reads, and say on `/privacy` what a delete keeps. Also decide whether a progress entry's `member_activities` row should come back if a restore path is ever added (the delete removes it today so a bogus entry doesn't inflate engagement).
+Members' deletes of writing goals, progress entries, books and awards soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). Three member deletes are still row `DELETE`s, and each is closer to editing a setting than deleting a record, so converting them was held for a decision rather than done:
+
+- **Private member notes** (`member_notes`, `app/(member)/members/[id]/noteActions.ts`): clearing a note deletes it. A note is private to its author (no admin access, not audited, hidden in sudo), saving overwrites the old text in place, and keeping a copy of a note someone cleared works against why it is private. If converted, a save must clear `deleted_at` again (the upsert is on author + subject) and the notes search in `app/(member)/members/page.tsx` must filter.
+- **Calendar-feed items added by hand** (`calendar_feed_items`, `removeMyCalendarItem` in `app/(member)/my-prickles/calendar-feed-actions.ts`): a selection of what appears in the member's calendar feed. The change is already in `audit_log`. Converting means the three partial unique indexes (`uq_calendar_feed_items_*`) become `WHERE deleted_at IS NULL` and every reader (`lib/calendar-feed.ts`, `lib/prickle-roster.ts`, `lib/upcoming-prickles.ts`, `lib/onboarding.server.ts`) filters.
+- **Starting balances** (`replaceStartingBalances` in `lib/data/writing.ts`): clearing a measure removes a baseline number that an edit also overwrites.
+
+Decide whether the rule is "every record a member can delete" or "independent records, with settings and in-place edits overwriting". "Ask me about" topics are not a delete: the form saves the topics array (empty when cleared). Also decide whether a progress entry's `member_activities` row should come back if a restore path is ever added (the delete removes it today so a bogus entry doesn't inflate engagement).
 
 ### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
 `prickle_checkins` (mood before/after, named feeling, intention, got what they came for) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
