@@ -1,5 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
+import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled, escapeForSlack, hubMessageMetadata } from "@/lib/chat/slack-post";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
@@ -14,18 +16,6 @@ import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
 export type SlackWriteResult = { ok: true } | { ok: false; error: string };
 
-interface Target {
-  origin: string;
-  system_subtype: string | null;
-  author_member_id: string | null;
-  posted_via: string | null;
-  slack_ts: string | null;
-  deleted_at: string | null;
-  chat_channels: { slack_channel_id: string | null } | { slack_channel_id: string | null }[] | null;
-}
-
-const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
-
 /**
  * Which token may change this message, or why none can: null `token` with no error means the
  * message never reached Slack and there is nothing to change there.
@@ -36,25 +26,20 @@ async function writerFor(
   memberId: string,
   what: "edited" | "deleted"
 ): Promise<{ ok: false; error: string } | { ok: true; slack: { token: string; channel: string; ts: string; native: boolean } | null }> {
-  const { data } = await supabase
-    .from("chat_messages")
-    .select("origin, system_subtype, author_member_id, posted_via, slack_ts, deleted_at, chat_channels(slack_channel_id)")
-    .eq("id", messageId)
-    .maybeSingle();
-  const row = data as Target | null;
-  if (!row || row.system_subtype || row.author_member_id !== memberId || (what === "edited" && row.deleted_at)) {
+  const row = await createRepos(supabase as unknown as Db).chat.slackTarget(messageId);
+  if (!row || row.systemSubtype || row.authorMemberId !== memberId || (what === "edited" && row.deletedAt)) {
     return { ok: false, error: `That message can't be ${what}.` };
   }
-  const channel = one(row.chat_channels)?.slack_channel_id;
-  if (!row.slack_ts || !channel) return { ok: true, slack: null };
+  const channel = row.slackChannelId;
+  if (!row.slackTs || !channel) return { ok: true, slack: null };
   if (!chatSlackWritesEnabled()) return { ok: false, error: `Messages in Slack can only be ${what} from the live Hub.` };
 
   // A message written in Slack, or in the Hub with the member's own token, was posted as them: only their
   // token can change it.
-  if (row.origin === "slack" || row.posted_via === "user_token") {
+  if (row.origin === "slack" || row.postedVia === "user_token") {
     const connection = await getSlackUserToken(supabase, memberId);
-    if (!connection) return { ok: false, error: `${row.posted_via === "user_token" ? "Reconnect" : "Connect"} Slack in Settings to have this message ${what}: it was posted as you.` };
-    return { ok: true, slack: { token: connection.token, channel, ts: row.slack_ts, native: row.origin === "slack" } };
+    if (!connection) return { ok: false, error: `${row.postedVia === "user_token" ? "Reconnect" : "Connect"} Slack in Settings to have this message ${what}: it was posted as you.` };
+    return { ok: true, slack: { token: connection.token, channel, ts: row.slackTs, native: row.origin === "slack" } };
   }
   // Posted by the bot, from before chat required a connected account: only the bot could change it, and the
   // bot no longer acts for a member.

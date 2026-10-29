@@ -213,6 +213,85 @@ export interface ChatRepository {
   retryState(messageId: string): Promise<{ author_member_id: string | null; origin: string; slack_sync_status: string | null } | null>;
   /** The Slack timestamp of the newest top-level, undeleted message that came from Slack, created at or before `through`. */
   newestSlackTs(channelId: string, through: string): Promise<string | null>;
+
+  // --- message writes ---
+  // The Hub -> Slack outbox, edits and deletes, reactions and the webhook's lookups. The Slack API itself stays with
+  // the callers; these are the reads and writes around it.
+
+  /** What a Slack write needs to know about one message, with its channel's Slack id; null when there is no such message. */
+  slackTarget(messageId: string): Promise<SlackMessageTarget | null>;
+  /** A message as the outbox posts it: the target plus its text and (staged) files; null when there is no such message. */
+  outboxMessage(messageId: string): Promise<OutboxMessage | null>;
+  /** Records that Slack took an app message at this ts. A message already sent, or not ours, is left alone; a copy the Slack echo already made is folded in. */
+  markSent(messageId: string, slackTs: string): Promise<void>;
+  /** Marks a still-pending app message failed. A message in any other state is left alone. */
+  markFailed(messageId: string): Promise<void>;
+  /** Records which identity posted an app message. */
+  setPostedVia(messageId: string, via: "user_token" | "bot"): Promise<void>;
+  /** Marks every app message still pending and created at or before this instant failed; returns how many. */
+  expireStalePending(createdAtOrBefore: string): Promise<number>;
+  /** Ids of live app messages still pending or failed, created strictly between the two instants, oldest first. */
+  unsentMessageIds(opts: { createdBefore: string; createdAfter: string; limit: number }): Promise<string[]>;
+  /** Marks a member's own Hub reaction as agreed with Slack. */
+  markReactionSynced(opts: { messageId: string; emoji: string; memberId: string }): Promise<void>;
+  /** The member who wrote an app (Hub) message, or null when it isn't one or has no author. */
+  appMessageAuthor(messageId: string): Promise<string | null>;
+}
+
+/** One message as a Slack write sees it. */
+export interface SlackMessageTarget {
+  id: string;
+  origin: string;
+  systemSubtype: string | null;
+  authorMemberId: string | null;
+  postedVia: string | null;
+  slackTs: string | null;
+  slackSyncStatus: string | null;
+  deletedAt: string | null;
+  threadRootId: string | null;
+  /** The Slack id of the message's channel, or null when the channel isn't bridged. */
+  slackChannelId: string | null;
+}
+
+export interface OutboxMessage extends SlackMessageTarget {
+  /** Empty when the message has no text. */
+  body: string;
+  /** The files column as stored (parse it with `parseChatFiles`), or null. */
+  files: unknown;
+}
+
+type Embedded<T> = T | T[] | null;
+const one = <T>(v: Embedded<T>): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+const TARGET_COLUMNS = "id, origin, system_subtype, author_member_id, posted_via, slack_ts, slack_sync_status, deleted_at, thread_root_id";
+
+type TargetRow = {
+  id: string;
+  origin: string;
+  system_subtype: string | null;
+  author_member_id: string | null;
+  posted_via: string | null;
+  slack_ts: string | null;
+  slack_sync_status: string | null;
+  deleted_at: string | null;
+  thread_root_id: string | null;
+  chat_channels: Embedded<{ slack_channel_id: string | null }>;
+  chat_message_contents?: Embedded<{ body: string; files: unknown }>;
+};
+
+function toTarget(row: TargetRow): SlackMessageTarget {
+  return {
+    id: row.id,
+    origin: row.origin,
+    systemSubtype: row.system_subtype,
+    authorMemberId: row.author_member_id,
+    postedVia: row.posted_via,
+    slackTs: row.slack_ts,
+    slackSyncStatus: row.slack_sync_status,
+    deletedAt: row.deleted_at,
+    threadRootId: row.thread_root_id,
+    slackChannelId: one(row.chat_channels)?.slack_channel_id ?? null,
+  };
 }
 
 export class SupabaseChatRepository implements ChatRepository {
@@ -538,6 +617,87 @@ export class SupabaseChatRepository implements ChatRepository {
     if (error) throw new Error(error.message);
     return data?.slack_ts ?? null;
   }
+
+  // --- message writes ---
+
+  async slackTarget(messageId: string) {
+    const { data, error } = await this.db.from("chat_messages").select(`${TARGET_COLUMNS}, chat_channels(slack_channel_id)`).eq("id", messageId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toTarget(data as unknown as TargetRow) : null;
+  }
+
+  async outboxMessage(messageId: string) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .select(`${TARGET_COLUMNS}, chat_message_contents(body, files), chat_channels(slack_channel_id)`)
+      .eq("id", messageId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const row = data as unknown as TargetRow;
+    const content = one(row.chat_message_contents ?? null);
+    return { ...toTarget(row), body: content?.body ?? "", files: content?.files ?? null };
+  }
+
+  async markSent(messageId: string, slackTs: string) {
+    const { error } = await this.db.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: slackTs });
+    if (error) throw new Error(error.message);
+  }
+
+  async markFailed(messageId: string) {
+    const { error } = await this.db.rpc("chat_mark_message_failed", { p_message_id: messageId });
+    if (error) throw new Error(error.message);
+  }
+
+  async setPostedVia(messageId: string, via: "user_token" | "bot") {
+    const { error } = await this.db.from("chat_messages").update({ posted_via: via }).eq("id", messageId);
+    if (error) throw new Error(error.message);
+  }
+
+  async expireStalePending(createdAtOrBefore: string) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .update({ slack_sync_status: "failed" })
+      .eq("origin", "app")
+      .eq("slack_sync_status", "pending")
+      .lte("created_at", createdAtOrBefore)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data.length;
+  }
+
+  async unsentMessageIds(opts: { createdBefore: string; createdAfter: string; limit: number }) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .select("id")
+      .eq("origin", "app")
+      .in("slack_sync_status", ["pending", "failed"])
+      .is("deleted_at", null)
+      .lt("created_at", opts.createdBefore)
+      .gt("created_at", opts.createdAfter)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(opts.limit);
+    if (error) throw new Error(error.message);
+    return data.map((r) => r.id);
+  }
+
+  async markReactionSynced(opts: { messageId: string; emoji: string; memberId: string }) {
+    const { error } = await this.db
+      .from("chat_reactions")
+      .update({ synced_to_slack: true })
+      .eq("message_id", opts.messageId)
+      .eq("emoji", opts.emoji)
+      .eq("member_id", opts.memberId)
+      .is("slack_user_id", null);
+    if (error) throw new Error(error.message);
+  }
+
+  async appMessageAuthor(messageId: string) {
+    const { data, error } = await this.db.from("chat_messages").select("author_member_id").eq("id", messageId).eq("origin", "app").maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.author_member_id ?? null;
+  }
 }
 
 const time = (m: { created_at?: string }) => Date.parse(m.created_at ?? new Date(0).toISOString());
@@ -801,5 +961,102 @@ export class InMemoryChatRepository implements ChatRepository {
       .filter((m) => m.channel_id === channelId && !m.thread_root_id && !m.deleted_at && m.slack_ts && m.created_at !== undefined && Date.parse(m.created_at) <= limit)
       .sort((a, b) => Date.parse(b.created_at as string) - Date.parse(a.created_at as string) || (a.id < b.id ? 1 : -1))[0];
     return newest?.slack_ts ?? null;
+  }
+
+  // --- message writes ---
+
+  private target(m: ChatMessageSeed): SlackMessageTarget {
+    return {
+      id: m.id,
+      origin: m.origin ?? "slack",
+      systemSubtype: m.system_subtype ?? null,
+      authorMemberId: m.author_member_id ?? null,
+      postedVia: m.posted_via ?? null,
+      slackTs: m.slack_ts ?? null,
+      slackSyncStatus: m.slack_sync_status ?? null,
+      deletedAt: m.deleted_at ?? null,
+      threadRootId: m.thread_root_id ?? null,
+      slackChannelId: this.data.chatChannels.find((c) => c.id === m.channel_id)?.slack_channel_id ?? null,
+    };
+  }
+
+  async slackTarget(messageId: string) {
+    const m = this.data.chatMessages.find((x) => x.id === messageId);
+    return m ? this.target(m) : null;
+  }
+
+  async outboxMessage(messageId: string) {
+    const m = this.data.chatMessages.find((x) => x.id === messageId);
+    if (!m) return null;
+    const content = this.data.chatMessageContents.find((c) => c.message_id === messageId);
+    return { ...this.target(m), body: content?.body ?? "", files: content?.files ?? null };
+  }
+
+  async markSent(messageId: string, slackTs: string) {
+    const msgs = this.data.chatMessages;
+    const msg = msgs.find((x) => x.id === messageId && (x.origin ?? "slack") === "app");
+    if (!msg || msg.slack_sync_status === "sent") return;
+
+    // Slack's own echo of the post may already have made a copy: fold it into this row.
+    const copy = msgs.find((x) => x.channel_id === msg.channel_id && x.slack_ts === slackTs && x.id !== messageId);
+    if (copy) {
+      for (const x of msgs) if (x.thread_root_id === copy.id) x.thread_root_id = messageId;
+      if (!msg.thread_root_id) msg.reply_count = copy.reply_count ?? 0;
+      this.data.chatMessages = msgs.filter((x) => x.id !== copy.id);
+    }
+    msg.slack_ts = slackTs;
+    msg.slack_sync_status = "sent";
+
+    const rootId = msg.thread_root_id;
+    if (rootId && copy) {
+      const root = this.data.chatMessages.find((x) => x.id === rootId);
+      if (root) {
+        const live = this.data.chatMessages.filter((x) => x.thread_root_id === rootId && !x.deleted_at);
+        root.reply_count = live.length;
+        root.last_reply_at = live.reduce<string | null>((max, x) => (x.created_at && (!max || x.created_at > max) ? x.created_at : max), null);
+      }
+    }
+  }
+
+  async markFailed(messageId: string) {
+    const m = this.data.chatMessages.find((x) => x.id === messageId && (x.origin ?? "slack") === "app" && x.slack_sync_status === "pending");
+    if (m) m.slack_sync_status = "failed";
+  }
+
+  async setPostedVia(messageId: string, via: "user_token" | "bot") {
+    const m = this.data.chatMessages.find((x) => x.id === messageId);
+    if (m) m.posted_via = via;
+  }
+
+  async expireStalePending(createdAtOrBefore: string) {
+    const stale = this.data.chatMessages.filter((m) => (m.origin ?? "slack") === "app" && m.slack_sync_status === "pending" && (m.created_at ?? "") <= createdAtOrBefore);
+    for (const m of stale) m.slack_sync_status = "failed";
+    return stale.length;
+  }
+
+  async unsentMessageIds(opts: { createdBefore: string; createdAfter: string; limit: number }) {
+    return this.data.chatMessages
+      .filter(
+        (m) =>
+          (m.origin ?? "slack") === "app" &&
+          (m.slack_sync_status === "pending" || m.slack_sync_status === "failed") &&
+          !m.deleted_at &&
+          (m.created_at ?? "") < opts.createdBefore &&
+          (m.created_at ?? "") > opts.createdAfter
+      )
+      .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? "") || a.id.localeCompare(b.id))
+      .slice(0, opts.limit)
+      .map((m) => m.id);
+  }
+
+  async markReactionSynced(opts: { messageId: string; emoji: string; memberId: string }) {
+    for (const r of this.data.chatReactions) {
+      if (r.message_id === opts.messageId && r.emoji === opts.emoji && r.member_id === opts.memberId && !r.slack_user_id) r.synced_to_slack = true;
+    }
+  }
+
+  async appMessageAuthor(messageId: string) {
+    const m = this.data.chatMessages.find((x) => x.id === messageId && (x.origin ?? "slack") === "app");
+    return m?.author_member_id ?? null;
   }
 }

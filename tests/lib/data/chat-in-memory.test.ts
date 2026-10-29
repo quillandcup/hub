@@ -8,6 +8,8 @@ defineChatContract("InMemoryChatRepository", () => {
   let n = 0;
   let memberIds: string[] = [];
   let channelIds: Record<string, string> = {};
+
+  let members = 0;
   return {
     repo: () => new InMemoryChatRepository(data),
     unique: (label) => `${label}${++n}`,
@@ -42,8 +44,16 @@ defineChatContract("InMemoryChatRepository", () => {
           has_files: m.hasFiles ?? false,
           deleted_at: m.deleted ? m.createdAt : null,
           thread_root_id: m.threadRootKey ? ids[m.threadRootKey] : null,
+          // The outbox columns, with the database's defaults when left out.
+          origin: m.origin ?? "slack",
+          slack_sync_status: m.status ?? null,
+          author_member_id: m.authorMemberId ?? null,
+          posted_via: m.postedVia ?? null,
+          reply_count: m.replyCount ?? 0,
         });
-        if (m.body !== undefined) data.chatMessageContents.push({ message_id: ids[m.key], body: m.body });
+        if (m.body !== undefined || m.files !== undefined) {
+          data.chatMessageContents.push({ message_id: ids[m.key], body: m.body ?? "", ...(m.files !== undefined ? { files: m.files as never } : {}) });
+        }
       }
       return ids;
     },
@@ -121,6 +131,37 @@ defineChatContract("InMemoryChatRepository", () => {
           origin: m.origin ?? "slack",
           body: data.chatMessageContents.find((c) => c.message_id === m.id)?.body ?? "",
         })),
+
+
+
+    // --- message writes slice ---
+    member: async () => `mbr_${String(++members).padStart(12, "A")}`,
+    seedReaction: async (r) => {
+      data.chatReactions.push({
+        message_id: r.messageId,
+        channel_id: r.channelId,
+        emoji: r.emoji,
+        member_id: r.memberId ?? null,
+        slack_user_id: r.slackUserId ?? null,
+        synced_to_slack: r.synced,
+        created_at: "2020-01-01T00:00:00.000Z",
+      });
+    },
+    inspectMessage: async (id) => {
+      const m = data.chatMessages.find((x) => x.id === id);
+      return m
+        ? {
+            slack_ts: m.slack_ts ?? null,
+            slack_sync_status: m.slack_sync_status ?? null,
+            posted_via: m.posted_via ?? null,
+            thread_root_id: m.thread_root_id ?? null,
+            reply_count: m.reply_count ?? 0,
+            last_reply_at: m.last_reply_at ?? null,
+          }
+        : null;
+    },
+    reactionSynced: async (messageId, emoji, memberId) =>
+      data.chatReactions.some((r) => r.message_id === messageId && r.emoji === emoji && r.member_id === memberId && !r.slack_user_id && r.synced_to_slack === true),
   };
 });
 

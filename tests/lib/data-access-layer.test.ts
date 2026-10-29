@@ -56,11 +56,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   ],
   chat_channel_members: [],
   chat_messages: [
-    "app/api/webhooks/slack/route.ts",
     "lib/chat/gap-fill.ts",
-    "lib/chat/slack-edit.ts",
-    "lib/chat/slack-post.ts",
-    "lib/chat/slack-react.ts",
     "lib/chat/slack-upload.ts",
   ],
   chat_message_contents: [
@@ -69,7 +65,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
     "lib/chat/file-cleanup.ts",
     "lib/chat/slack-upload.ts",
   ],
-  chat_reactions: ["lib/chat/slack-react.ts"],
+  chat_reactions: [],
   chat_slack_authors: ["lib/chat/names.ts", "lib/chat/slack-membership.ts"],
   chat_gap_fills: ["app/(admin)/admin/data-health/gap-fills/page.tsx", "lib/chat/gap-fill.ts"],
   // Aliases: every name and email alias query is on AliasRepository.

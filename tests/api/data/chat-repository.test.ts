@@ -22,6 +22,7 @@ const createdMembers: string[] = [];
 let memberIds: string[] = [];
 let channelIds: Record<string, string> = {};
 
+
 afterAll(async () => {
   await clear();
   if (createdMembers.length > 0) await db.from("members").delete().in("id", createdMembers);
@@ -69,13 +70,21 @@ defineChatContract("SupabaseChatRepository", () => ({
             has_files: m.hasFiles ?? false,
             deleted_at: m.deleted ? m.createdAt : null,
             thread_root_id: m.threadRootKey ? ids[m.threadRootKey] : null,
+            // The outbox columns, with the database's defaults when left out.
+            origin: m.origin ?? "slack",
+            slack_sync_status: m.status ?? null,
+            author_member_id: m.authorMemberId ?? null,
+            posted_via: m.postedVia ?? null,
+            reply_count: m.replyCount ?? 0,
           }))
         )
         .select("id");
       if (error) throw new Error(error.message);
       batch.forEach((m, i) => (ids[m.key] = data[i].id));
     }
-    const contents = messages.filter((m) => m.body !== undefined).map((m) => ({ message_id: ids[m.key], body: m.body as string }));
+    const contents = messages
+      .filter((m) => m.body !== undefined || m.files !== undefined)
+      .map((m) => ({ message_id: ids[m.key], body: m.body ?? "", ...(m.files !== undefined ? { files: m.files as never } : {}) }));
     if (contents.length > 0) {
       const { error } = await db.from("chat_message_contents").insert(contents);
       if (error) throw new Error(error.message);
@@ -178,5 +187,42 @@ defineChatContract("SupabaseChatRepository", () => ({
       const content = m.chat_message_contents as { body: string } | { body: string }[] | null;
       return { author_member_id: m.author_member_id, system_subtype: m.system_subtype, origin: m.origin, body: (Array.isArray(content) ? content[0] : content)?.body ?? "" };
     });
+  },
+
+
+
+  // --- message writes slice ---
+  member: async () => {
+    const n = ++counter;
+    const { data, error } = await db
+      .from("members")
+      .insert({ name: `Chat Writer ${n} ${RUN}`, email: `chat-writes-${RUN}-${n}@example.com`, joined_at: "2026-01-01", status: "active" })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    createdMembers.push(data.id);
+    return data.id;
+  },
+  seedReaction: async (r) => {
+    const { error } = await db.from("chat_reactions").insert({
+      message_id: r.messageId,
+      channel_id: r.channelId,
+      emoji: r.emoji,
+      member_id: r.memberId ?? null,
+      slack_user_id: r.slackUserId ?? null,
+      synced_to_slack: r.synced,
+      created_at: "2020-01-01T00:00:00.000Z",
+    });
+    if (error) throw new Error(error.message);
+  },
+  inspectMessage: async (id) => {
+    const { data, error } = await db.from("chat_messages").select("slack_ts, slack_sync_status, posted_via, thread_root_id, reply_count, last_reply_at").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  reactionSynced: async (messageId, emoji, memberId) => {
+    const { data, error } = await db.from("chat_reactions").select("synced_to_slack").eq("message_id", messageId).eq("emoji", emoji).eq("member_id", memberId).is("slack_user_id", null).single();
+    if (error) throw new Error(error.message);
+    return data.synced_to_slack;
   },
 }));

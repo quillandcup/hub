@@ -1,6 +1,8 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
+import type { Db } from "@/lib/data/db";
 import { isProduction } from "@/lib/config";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 import { parseChatFiles } from "@/lib/chat/files";
@@ -41,19 +43,6 @@ export function chatSlackWritesEnabled(): boolean {
 
 export type SendResult = "sent" | "skipped" | "failed";
 
-interface OutboxRow {
-  id: string;
-  origin: string;
-  slack_sync_status: string | null;
-  deleted_at: string | null;
-  author_member_id: string | null;
-  thread_root_id: string | null;
-  chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
-  chat_channels: { slack_channel_id: string | null } | { slack_channel_id: string | null }[] | null;
-}
-
-const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
-
 /**
  * Posts one pending (or failed) app message to Slack. Skips anything already sent, not ours, or
  * deleted, and does nothing off production (see chatSlackWritesEnabled).
@@ -64,15 +53,9 @@ const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? nul
  * its Retry, which works once they have reconnected.
  */
 export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId: string): Promise<SendResult> {
-  const { data } = await supabase
-    .from("chat_messages")
-    .select(
-      "id, origin, slack_sync_status, deleted_at, author_member_id, thread_root_id, chat_message_contents(body, files), chat_channels(slack_channel_id)"
-    )
-    .eq("id", messageId)
-    .maybeSingle();
-  const row = data as OutboxRow | null;
-  if (!row || row.origin !== "app" || row.slack_sync_status === "sent" || row.deleted_at) return "skipped";
+  const chat = createRepos(supabase as unknown as Db).chat;
+  const row = await chat.outboxMessage(messageId);
+  if (!row || row.origin !== "app" || row.slackSyncStatus === "sent" || row.deletedAt) return "skipped";
 
   if (!chatSlackWritesEnabled()) {
     console.warn("sendChatMessageToSlack: not production, leaving message %s pending", messageId);
@@ -81,29 +64,27 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
 
   const fail = async (reason: string, error?: unknown): Promise<SendResult> => {
     console.error("sendChatMessageToSlack: %s (message %s)", reason, messageId, error ?? "");
-    await supabase.rpc("chat_mark_message_failed", { p_message_id: messageId });
+    // Best effort: a failure to record the failure must not hide the original reason.
+    await chat.markFailed(messageId).catch((markError) => console.error("chat_mark_message_failed failed for %s:", messageId, markError));
     return "failed";
   };
 
-  const content = one(row.chat_message_contents);
-  const body = content?.body ?? "";
-  const files = parseChatFiles(content?.files, { staged: true });
-  const slackChannelId = one(row.chat_channels)?.slack_channel_id;
-  if ((!body && files.length === 0) || !slackChannelId || !row.author_member_id) return fail("message is missing its body, channel or author");
+  const body = row.body;
+  const files = parseChatFiles(row.files, { staged: true });
+  const slackChannelId = row.slackChannelId;
+  if ((!body && files.length === 0) || !slackChannelId || !row.authorMemberId) return fail("message is missing its body, channel or author");
 
   // Everything the post needs, read at once: the thread root's ts and the member's Slack connection.
-  const authorMemberId = row.author_member_id;
+  const authorMemberId = row.authorMemberId;
   const [root, connection] = await Promise.all([
-    row.thread_root_id
-      ? supabase.from("chat_messages").select("slack_ts").eq("id", row.thread_root_id).maybeSingle().then((r) => r.data)
-      : Promise.resolve(null),
+    row.threadRootId ? chat.slackTarget(row.threadRootId) : Promise.resolve(null),
     getSlackUserToken(supabase, authorMemberId),
   ]);
 
   let threadTs: string | undefined;
-  if (row.thread_root_id) {
-    if (!root?.slack_ts) return fail("thread root has no Slack ts");
-    threadTs = root.slack_ts;
+  if (row.threadRootId) {
+    if (!root?.slackTs) return fail("thread root has no Slack ts");
+    threadTs = root.slackTs;
   }
 
   if (files.length > 0) {
@@ -143,13 +124,11 @@ export async function sendChatMessageToSlack(supabase: SupabaseClient, messageId
   }
 
   if (!result.ok || !result.ts) return fail("Slack did not return a ts");
-  const [{ error }] = await Promise.all([
-    supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: result.ts }),
-    supabase.from("chat_messages").update({ posted_via: "user_token" }).eq("id", messageId),
-  ]);
-  if (error) {
+  // How it was posted is a nicety (its failure is ignored); recording the ts is what matters.
+  const [recorded] = await Promise.allSettled([chat.markSent(messageId, result.ts), chat.setPostedVia(messageId, "user_token")]);
+  if (recorded.status === "rejected") {
     // Posted but not recorded: leave it pending (not failed) so Slack's own event can still link it.
-    console.error("chat_mark_message_sent failed for %s:", messageId, error.message);
+    console.error("chat_mark_message_sent failed for %s:", messageId, recorded.reason instanceof Error ? recorded.reason.message : recorded.reason);
   }
   return "sent";
 }
@@ -171,30 +150,19 @@ export async function retryUnsentChatMessages(supabase: SupabaseClient): Promise
   // is a lie: mark it failed, so its author sees "Slack didn't get this" with a Retry button
   // (their call whether a day-old message is still worth sending). Its id is unchanged, so a
   // retry posts the same row; one whose Slack echo did arrive is already 'sent' and not touched.
-  const { data: expiredRows } = await supabase
-    .from("chat_messages")
-    .update({ slack_sync_status: "failed" })
-    .eq("origin", "app")
-    .eq("slack_sync_status", "pending")
-    .lte("created_at", new Date(now - RETRY_UNTIL_MS).toISOString())
-    .select("id");
-  const expired = expiredRows?.length ?? 0;
+  const chat = createRepos(supabase as unknown as Db).chat;
+  const expired = await chat.expireStalePending(new Date(now - RETRY_UNTIL_MS).toISOString());
 
-  const { data } = await supabase
-    .from("chat_messages")
-    .select("id")
-    .eq("origin", "app")
-    .in("slack_sync_status", ["pending", "failed"])
-    .is("deleted_at", null)
-    .lt("created_at", new Date(now - RETRY_AFTER_MS).toISOString())
-    .gt("created_at", new Date(now - RETRY_UNTIL_MS).toISOString())
-    .order("created_at", { ascending: true })
-    .limit(RETRY_BATCH);
+  const ids = await chat.unsentMessageIds({
+    createdBefore: new Date(now - RETRY_AFTER_MS).toISOString(),
+    createdAfter: new Date(now - RETRY_UNTIL_MS).toISOString(),
+    limit: RETRY_BATCH,
+  });
 
   let sent = 0;
   let failed = 0;
-  for (const { id } of data ?? []) {
-    const result = await sendChatMessageToSlack(supabase, id as string);
+  for (const id of ids) {
+    const result = await sendChatMessageToSlack(supabase, id);
     if (result === "sent") sent++;
     else if (result === "failed") failed++;
   }

@@ -26,6 +26,16 @@ export type ChatContractContext = {
   seedChannelMessages: (rows: SeedChannelMessage[]) => Promise<Record<string, string>>;
   /** The Hub-written notice lines in a channel, with their text. */
   noticesIn: (channelId: string) => Promise<{ author_member_id: string | null; system_subtype: string | null; origin: string; body: string }[]>;
+
+  // --- message writes slice: seeding and read-back ---
+  /** A member id that exists (messages and reactions refer to one); a new one on every call. */
+  member: () => Promise<string>;
+  /** Adds one reaction, by a member or a Slack user, with its Slack sync state. */
+  seedReaction: (reaction: { channelId: string; messageId: string; emoji: string; memberId?: string; slackUserId?: string; synced: boolean }) => Promise<void>;
+  /** A message as stored now, or null when it is gone. */
+  inspectMessage: (id: string) => Promise<MessageState | null>;
+  /** Whether a member's reaction is marked as agreeing with Slack. */
+  reactionSynced: (messageId: string, emoji: string, memberId: string) => Promise<boolean>;
 };
 
 export type SeedChannelRow = {
@@ -52,7 +62,32 @@ export type SeedChannelMessage = {
   syncStatus?: "pending" | "sent" | "failed";
 };
 
-export type SeedMessage = { key: string; createdAt: string; body?: string; threadRootKey?: string; deleted?: boolean; hasFiles?: boolean; slackTs?: string };
+export type MessageState = {
+  slack_ts: string | null;
+  slack_sync_status: string | null;
+  posted_via: string | null;
+  thread_root_id: string | null;
+  reply_count: number;
+  last_reply_at: string | null;
+};
+
+export type SeedMessage = {
+  key: string;
+  createdAt: string;
+  body?: string;
+  threadRootKey?: string;
+  deleted?: boolean;
+  hasFiles?: boolean;
+  slackTs?: string;
+  // Used by the message writes slice (the Hub -> Slack outbox); the database's defaults when left out.
+  origin?: "app" | "slack";
+  status?: "pending" | "sent" | "failed";
+  authorMemberId?: string;
+  /** The files column of the message's content. */
+  files?: unknown;
+  postedVia?: "user_token" | "bot";
+  replyCount?: number;
+};
 export type SeedReaction = { messageId: string; emoji: string; slackUserId: string; deleted?: boolean };
 
 /**
@@ -475,6 +510,216 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await repo.retryState(msg.hub)).toEqual({ author_member_id: m0, origin: "app", slack_sync_status: "failed" });
         expect(await repo.retryState(msg.old)).toEqual({ author_member_id: null, origin: "slack", slack_sync_status: null });
         expect(await repo.retryState(NONE)).toBeNull();
+      });
+    });
+
+    // --- message writes ---
+    describe("message writes", () => {
+      const T0 = "2020-01-01T00:00:00.000Z";
+      /** A channel with a Slack id, and the author every message here is written by. */
+      const setup = async () => {
+        const slack = ctx.unique("C");
+        const { chan } = await ctx.seedChannels([{ key: "chan", slackChannelId: slack }]);
+        return { slack, chan, author: await ctx.member() };
+      };
+
+      it("describes a message for a Slack write, with its channel's Slack id, and nothing for a missing one", async () => {
+        const { slack, chan, author } = await setup();
+        const ids = await ctx.seedMessages(chan, [
+          { key: "root", origin: "app", slackTs: ctx.unique("1.") , status: "sent", authorMemberId: author, postedVia: "user_token", createdAt: T0 },
+          { key: "reply", origin: "app", status: "pending", authorMemberId: author, threadRootKey: "root", createdAt: T0, deleted: true },
+        ]);
+
+        expect(await ctx.repo().slackTarget(ids.root)).toMatchObject({
+          id: ids.root,
+          origin: "app",
+          systemSubtype: null,
+          authorMemberId: author,
+          postedVia: "user_token",
+          slackSyncStatus: "sent",
+          deletedAt: null,
+          threadRootId: null,
+          slackChannelId: slack,
+        });
+        const reply = await ctx.repo().slackTarget(ids.reply);
+        expect(reply).toMatchObject({ slackTs: null, slackSyncStatus: "pending", threadRootId: ids.root, postedVia: null });
+        expect(reply?.deletedAt).not.toBeNull();
+        expect(await ctx.repo().slackTarget(NONE)).toBeNull();
+      });
+
+      it("reads a channel that isn't bridged as having no Slack id", async () => {
+        const { chan: other } = await ctx.seedChannels([{ key: "chan" }]);
+        const { m } = await ctx.seedMessages(other, [{ key: "m", origin: "app", createdAt: T0 }]);
+        expect((await ctx.repo().slackTarget(m))?.slackChannelId).toBeNull();
+      });
+
+      it("reads an outbox message with its text and files, and empty ones for a message without content", async () => {
+        const { chan, author } = await setup();
+        const files = [{ id: "pending-1", name: "cat.gif", mimetype: "image/gif", staged: "staging/x/y/cat.gif" }];
+        const ids = await ctx.seedMessages(chan, [
+          { key: "text", origin: "app", status: "pending", authorMemberId: author, body: "Hello <everyone> & friends", createdAt: T0 },
+          { key: "files", origin: "app", status: "pending", authorMemberId: author, body: "", files, createdAt: T0 },
+          { key: "bare", origin: "app", createdAt: T0 },
+        ]);
+
+        expect(await ctx.repo().outboxMessage(ids.text)).toMatchObject({ id: ids.text, body: "Hello <everyone> & friends", files: null, slackSyncStatus: "pending" });
+        expect(await ctx.repo().outboxMessage(ids.files)).toMatchObject({ body: "", files });
+        expect(await ctx.repo().outboxMessage(ids.bare)).toMatchObject({ body: "", files: null });
+        expect(await ctx.repo().outboxMessage(NONE)).toBeNull();
+      });
+
+      it("records the ts Slack returned and marks the message sent, once: a second ts, a message already sent and one that isn't ours are left alone", async () => {
+        const { chan } = await setup();
+        const ts = ctx.unique("1.");
+        const ids = await ctx.seedMessages(chan, [
+          { key: "mine", origin: "app", status: "pending", createdAt: T0 },
+          { key: "sent", origin: "app", status: "sent", slackTs: ctx.unique("2."), createdAt: T0 },
+          { key: "theirs", origin: "slack", slackTs: ctx.unique("3."), createdAt: T0 },
+        ]);
+        const sentBefore = await ctx.inspectMessage(ids.sent);
+        const theirsBefore = await ctx.inspectMessage(ids.theirs);
+
+        await ctx.repo().markSent(ids.mine, ts);
+        await ctx.repo().markSent(ids.mine, ctx.unique("9."));
+        await ctx.repo().markSent(ids.sent, ctx.unique("9."));
+        await ctx.repo().markSent(ids.theirs, ctx.unique("9."));
+        await ctx.repo().markSent(NONE, ctx.unique("9."));
+
+        expect(await ctx.inspectMessage(ids.mine)).toMatchObject({ slack_ts: ts, slack_sync_status: "sent" });
+        expect(await ctx.inspectMessage(ids.sent)).toEqual(sentBefore);
+        expect(await ctx.inspectMessage(ids.theirs)).toEqual(theirsBefore);
+      });
+
+      it("folds in the copy Slack's own event already made: the copy goes, its replies follow the app message and its count carries over", async () => {
+        const { chan } = await setup();
+        const ts = ctx.unique("1.");
+        const ids = await ctx.seedMessages(chan, [
+          { key: "mine", origin: "app", status: "pending", createdAt: T0 },
+          { key: "copy", origin: "slack", slackTs: ts, replyCount: 2, createdAt: T0 },
+          { key: "r1", origin: "slack", slackTs: ctx.unique("2."), threadRootKey: "copy", createdAt: T0 },
+          { key: "r2", origin: "slack", slackTs: ctx.unique("3."), threadRootKey: "copy", createdAt: T0 },
+        ]);
+
+        await ctx.repo().markSent(ids.mine, ts);
+
+        expect(await ctx.inspectMessage(ids.copy)).toBeNull();
+        expect(await ctx.inspectMessage(ids.mine)).toMatchObject({ slack_ts: ts, slack_sync_status: "sent", reply_count: 2 });
+        expect((await ctx.inspectMessage(ids.r1))?.thread_root_id).toBe(ids.mine);
+        expect((await ctx.inspectMessage(ids.r2))?.thread_root_id).toBe(ids.mine);
+      });
+
+      it("recounts the thread's live replies when the folded-in copy was itself a reply", async () => {
+        const { chan } = await setup();
+        const ts = ctx.unique("1.");
+        const ids = await ctx.seedMessages(chan, [
+          { key: "root", origin: "slack", slackTs: ctx.unique("0."), replyCount: 9, createdAt: T0 },
+          { key: "mine", origin: "app", status: "pending", threadRootKey: "root", createdAt: "2020-01-01T00:00:01.000Z" },
+          { key: "copy", origin: "slack", slackTs: ts, threadRootKey: "root", createdAt: "2020-01-01T00:00:02.000Z" },
+          { key: "other", origin: "slack", slackTs: ctx.unique("2."), threadRootKey: "root", createdAt: "2020-01-01T00:00:03.000Z" },
+          { key: "gone", origin: "slack", slackTs: ctx.unique("3."), threadRootKey: "root", createdAt: "2020-01-01T00:00:09.000Z", deleted: true },
+        ]);
+
+        await ctx.repo().markSent(ids.mine, ts);
+
+        const root = await ctx.inspectMessage(ids.root);
+        expect(root?.reply_count).toBe(2);
+        expect(Date.parse(root!.last_reply_at!)).toBe(Date.parse("2020-01-01T00:00:03.000Z"));
+        expect(await ctx.inspectMessage(ids.copy)).toBeNull();
+      });
+
+      it("marks a pending app message failed, and no other", async () => {
+        const { chan } = await setup();
+        const ids = await ctx.seedMessages(chan, [
+          { key: "pending", origin: "app", status: "pending", createdAt: T0 },
+          { key: "sent", origin: "app", status: "sent", slackTs: ctx.unique("1."), createdAt: T0 },
+          { key: "theirs", origin: "slack", slackTs: ctx.unique("2."), createdAt: T0 },
+        ]);
+
+        for (const id of [ids.pending, ids.sent, ids.theirs, NONE]) await ctx.repo().markFailed(id);
+
+        expect((await ctx.inspectMessage(ids.pending))?.slack_sync_status).toBe("failed");
+        expect((await ctx.inspectMessage(ids.sent))?.slack_sync_status).toBe("sent");
+        expect((await ctx.inspectMessage(ids.theirs))?.slack_sync_status).toBeNull();
+      });
+
+      it("records who posted a message", async () => {
+        const { chan } = await setup();
+        const { m } = await ctx.seedMessages(chan, [{ key: "m", origin: "app", createdAt: T0 }]);
+        await ctx.repo().setPostedVia(m, "user_token");
+        expect((await ctx.inspectMessage(m))?.posted_via).toBe("user_token");
+        await ctx.repo().setPostedVia(m, "bot");
+        expect((await ctx.inspectMessage(m))?.posted_via).toBe("bot");
+      });
+
+      it("fails the pending app messages at or before a cutoff and counts them", async () => {
+        const { chan } = await setup();
+        const ids = await ctx.seedMessages(chan, [
+          { key: "old", origin: "app", status: "pending", createdAt: "2020-02-01T00:00:00.000Z" },
+          { key: "edge", origin: "app", status: "pending", createdAt: "2020-02-02T00:00:00.000Z" },
+          { key: "new", origin: "app", status: "pending", createdAt: "2020-02-03T00:00:00.000Z" },
+          { key: "sent", origin: "app", status: "sent", slackTs: ctx.unique("1."), createdAt: "2020-02-01T00:00:00.000Z" },
+          { key: "theirs", origin: "slack", slackTs: ctx.unique("2."), createdAt: "2020-02-01T00:00:00.000Z" },
+        ]);
+
+        // Other tests' pending messages older than this would count too, so only the ones made here are checked beyond a lower bound.
+        const count = await ctx.repo().expireStalePending("2020-02-02T00:00:00.000Z");
+
+        expect(count).toBeGreaterThanOrEqual(2);
+        expect((await ctx.inspectMessage(ids.old))?.slack_sync_status).toBe("failed");
+        expect((await ctx.inspectMessage(ids.edge))?.slack_sync_status).toBe("failed");
+        expect((await ctx.inspectMessage(ids.new))?.slack_sync_status).toBe("pending");
+        expect((await ctx.inspectMessage(ids.sent))?.slack_sync_status).toBe("sent");
+        expect((await ctx.inspectMessage(ids.theirs))?.slack_sync_status).toBeNull();
+        expect(await ctx.repo().expireStalePending("2020-02-02T00:00:00.000Z")).toBe(0);
+      });
+
+      it("lists live unsent app messages strictly inside a window, oldest first, up to a limit", async () => {
+        const { chan } = await setup();
+        const ids = await ctx.seedMessages(chan, [
+          { key: "c", origin: "app", status: "failed", createdAt: "2020-03-01T00:03:00.000Z" },
+          { key: "a", origin: "app", status: "pending", createdAt: "2020-03-01T00:01:00.000Z" },
+          { key: "b", origin: "app", status: "pending", createdAt: "2020-03-01T00:02:00.000Z" },
+          { key: "before", origin: "app", status: "pending", createdAt: "2020-03-01T00:00:00.000Z" },
+          { key: "after", origin: "app", status: "pending", createdAt: "2020-03-01T00:09:00.000Z" },
+          { key: "deleted", origin: "app", status: "pending", createdAt: "2020-03-01T00:04:00.000Z", deleted: true },
+          { key: "sent", origin: "app", status: "sent", slackTs: ctx.unique("1."), createdAt: "2020-03-01T00:05:00.000Z" },
+          { key: "theirs", origin: "slack", slackTs: ctx.unique("2."), createdAt: "2020-03-01T00:06:00.000Z" },
+        ]);
+        const window = { createdAfter: "2020-03-01T00:00:00.000Z", createdBefore: "2020-03-01T00:09:00.000Z" };
+
+        expect(await ctx.repo().unsentMessageIds({ ...window, limit: 50 })).toEqual([ids.a, ids.b, ids.c]);
+        expect(await ctx.repo().unsentMessageIds({ ...window, limit: 2 })).toEqual([ids.a, ids.b]);
+      });
+
+      it("marks a member's own reaction as agreeing with Slack, and leaves other emoji, other members and Slack users' reactions alone", async () => {
+        const { chan, author } = await setup();
+        const other = await ctx.member();
+        const { m } = await ctx.seedMessages(chan, [{ key: "m", origin: "app", createdAt: T0 }]);
+        const base = { channelId: chan, messageId: m, synced: false };
+        await ctx.seedReaction({ ...base, emoji: "tada", memberId: author });
+        await ctx.seedReaction({ ...base, emoji: "heart", memberId: author });
+        await ctx.seedReaction({ ...base, emoji: "tada", memberId: other });
+        await ctx.seedReaction({ ...base, emoji: "tada", memberId: author, slackUserId: ctx.unique("U") });
+
+        await ctx.repo().markReactionSynced({ messageId: m, emoji: "tada", memberId: author });
+
+        expect(await ctx.reactionSynced(m, "tada", author)).toBe(true);
+        expect(await ctx.reactionSynced(m, "heart", author)).toBe(false);
+        expect(await ctx.reactionSynced(m, "tada", other)).toBe(false);
+      });
+
+      it("names the author of a Hub message, and nobody for a Slack one, one without an author or a missing one", async () => {
+        const { chan, author } = await setup();
+        const ids = await ctx.seedMessages(chan, [
+          { key: "app", origin: "app", authorMemberId: author, createdAt: T0 },
+          { key: "slack", origin: "slack", slackTs: ctx.unique("1."), authorMemberId: author, createdAt: T0 },
+          { key: "anon", origin: "app", createdAt: T0 },
+        ]);
+
+        expect(await ctx.repo().appMessageAuthor(ids.app)).toBe(author);
+        expect(await ctx.repo().appMessageAuthor(ids.slack)).toBeNull();
+        expect(await ctx.repo().appMessageAuthor(ids.anon)).toBeNull();
+        expect(await ctx.repo().appMessageAuthor(NONE)).toBeNull();
       });
     });
   });

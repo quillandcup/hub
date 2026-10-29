@@ -33,18 +33,27 @@ const ROW = {
   deleted_at: null,
   chat_channels: { slack_channel_id: "C_HOSTS" },
 };
-let row: Record<string, unknown> | null;
+/** The message the repository holds in these tests (null: none); `chat_channels` is its channel's Slack id. */
+let row: (Record<string, unknown> & { chat_channels: { slack_channel_id: string } }) | null;
 const rpc = vi.fn(async () => ({ error: null }));
-const service = {
-  rpc,
-  from: () => {
-    const chain: Record<string, unknown> = {};
-    chain.select = () => chain;
-    chain.eq = () => chain;
-    chain.maybeSingle = async () => ({ data: row });
-    return chain;
-  },
-} as never;
+/** Only the Slack connection helpers reach the client; the message is read through the repository. */
+const service = { rpc } as never;
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => {
+      const { chat_channels, ...message } = row ?? { chat_channels: { slack_channel_id: "" } };
+      return actual.createInMemoryRepos(
+        new InMemoryDataset({
+          chatChannels: [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: chat_channels.slack_channel_id }],
+          chatMessages: row ? [{ ...message, id: "m1", channel_id: "chn_AAAAAAAAAAA1" } as never] : [],
+        })
+      );
+    },
+  };
+});
 const EDIT = { messageId: "m1", memberId: "member-fern", body: "fixed <typo> & more" };
 const DELETE = { messageId: "m1", memberId: "member-fern" };
 
