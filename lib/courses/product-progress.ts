@@ -1,8 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import type { Db } from "@/lib/data/db";
 import type { Repos } from "@/lib/data/repos";
-import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { saveProductProgress } from "./product-progress-store";
 import type { ProgressRow } from "./product-progress-csv";
 
 /**
@@ -10,18 +9,6 @@ import type { ProgressRow } from "./product-progress-csv";
  * nothing here writes lesson_progress, because a percentage cannot say which lessons were done.
  * Needs a service-role client (admins can read the table, not write it).
  */
-
-const WRITE_CHUNK = 500;
-const ID_CHUNK = 100;
-
-type Stored = {
-  email: string;
-  percent: number;
-  logins: number | null;
-  started_on: string | null;
-  last_activity_on: string | null;
-  deleted_at: string | null;
-};
 
 export interface ProgressImportResult {
   /** Rows in the file, all valid (an invalid file is rejected before this runs). */
@@ -61,86 +48,25 @@ export async function matchEmailsToMembers(repos: Pick<Repos, "members" | "alias
   return { matched, ambiguous, unmatched };
 }
 
-function sameAs(stored: Stored, row: ProgressRow): boolean {
-  return (
-    stored.deleted_at === null &&
-    Number(stored.percent) === row.percent &&
-    stored.logins === row.logins &&
-    stored.started_on === row.startedOn &&
-    stored.last_activity_on === row.lastActivityOn
-  );
-}
-
-/**
- * Replaces the course's snapshot with these rows: new and changed rows are upserted on
- * (course, email), rows the file no longer lists are soft-deleted, identical rows are left alone,
- * so importing the same file twice changes nothing. Other courses are never touched. The caller
- * has already refused a file with invalid rows, so a half-read file cannot soft-delete anyone.
- */
+/** Saves the uploaded report as the course's snapshot (see `saveProductProgress`) and counts how its emails match members. */
 export async function importProductProgress(
   db: Db,
   repos: Pick<Repos, "members" | "aliases">,
   input: { courseKajabiId: string; rows: ProgressRow[]; sourceFile: string | null },
 ): Promise<ProgressImportResult> {
   const { courseKajabiId, rows, sourceFile } = input;
-  const table = () => db.schema("bronze").from("kajabi_product_progress");
-  const importBatch = randomUUID();
-  const now = new Date().toISOString();
-
-  const existing = await fetchAllRows<Stored>(
-    (from, to) =>
-      table()
-        .select("email, percent, logins, started_on, last_activity_on, deleted_at")
-        .eq("course_kajabi_id", courseKajabiId)
-        .order("email")
-        .range(from, to) as unknown as PromiseLike<{ data: Stored[] | null; error: { message: string } | null }>,
-  );
-  const storedByEmail = new Map(existing.map((s) => [s.email, s]));
-
-  const toWrite = rows.filter((r) => {
-    const stored = storedByEmail.get(r.email);
-    return !stored || !sameAs(stored, r);
-  });
-  for (const batch of chunk(toWrite, WRITE_CHUNK)) {
-    const { error } = await table().upsert(
-      batch.map((r) => ({
-        course_kajabi_id: courseKajabiId,
-        email: r.email,
-        percent: r.percent,
-        logins: r.logins,
-        started_on: r.startedOn,
-        last_activity_on: r.lastActivityOn,
-        import_batch: importBatch,
-        source_file: sourceFile,
-        imported_at: now,
-        deleted_at: null,
-      })),
-      { onConflict: "course_kajabi_id,email" },
-    );
-    if (error) throw new Error(`Could not save progress rows: ${error.message}`);
-  }
-
-  const listed = new Set(rows.map((r) => r.email));
-  const gone = existing.filter((s) => s.deleted_at === null && !listed.has(s.email)).map((s) => s.email);
-  for (const batch of chunk(gone, ID_CHUNK)) {
-    const { error } = await table()
-      .update({ deleted_at: now, import_batch: importBatch })
-      .eq("course_kajabi_id", courseKajabiId)
-      .in("email", batch);
-    if (error) throw new Error(`Could not remove progress rows: ${error.message}`);
-  }
-
+  const saved = await saveProductProgress(db, { courseKajabiId, rows, sourceFile });
   const match = await matchEmailsToMembers(repos, rows.map((r) => r.email));
   return {
     imported: rows.length,
-    written: toWrite.length,
-    unchanged: rows.length - toWrite.length,
-    removed: gone.length,
+    written: saved.written,
+    unchanged: saved.unchanged,
+    removed: saved.removed,
     matched: match.matched.length,
     ambiguous: match.ambiguous.length,
     unmatched: match.unmatched.length,
     unmatchedEmails: match.unmatched,
-    importBatch,
+    importBatch: saved.importBatch,
   };
 }
 
