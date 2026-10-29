@@ -29,28 +29,52 @@ vi.mock("@/lib/slack-connect", async (original) => ({
 
 import { pullReadFromSlack, pushReadToSlack, slackReadCovers } from "@/lib/chat/slack-read";
 
+/** The conversation the member read in the Hub (`chan-1`), and the newest Slack message in it at or before `through`. */
 let channel: Record<string, unknown> | null;
 let newest: Record<string, unknown> | null;
-let memberships: unknown[];
+/** The conversations the member is in. */
+let memberships: { channelId: string; slack: string | null; extra: Record<string, unknown> }[];
+/** Chat repository methods that throw. */
+let failing: string[];
 let claim: boolean;
 /** What chat_unread_channel_ids answers; null = the function isn't available (errors or empty). */
 let unread: { data: unknown; error?: { message: string } | null } | null;
 const rpc = vi.fn();
 
+// The conversations and memberships come from the chat repository, here in memory.
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => {
+      const channels = new Map<string, Record<string, unknown>>();
+      if (channel) channels.set("chan-1", { id: "chan-1", ...channel });
+      for (const mm of memberships) channels.set(mm.channelId, { id: mm.channelId, slack_channel_id: mm.slack, ...mm.extra });
+      const repos = actual.createInMemoryRepos(
+        new InMemoryDataset({
+          chatChannels: [...channels.values()] as never,
+          chatChannelMembers: memberships.map((mm) => ({ channel_id: mm.channelId, member_id: "member-fern" })),
+          chatMessages: newest ? [{ id: "msg_1", channel_id: "chan-1", created_at: "2026-10-10T09:00:00Z", ...newest }] : [],
+        })
+      );
+      for (const method of failing) (repos.chat as unknown as Record<string, unknown>)[method] = async () => { throw new Error(`${method} failed`); };
+      return repos;
+    },
+  };
+});
+
 const service = {
   rpc: (name: string, args: unknown) => rpc(name, args),
   from: (table: string) => {
-    const chain: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "is", "not", "lte", "order", "limit"]) chain[m] = () => chain;
-    chain.maybeSingle = async () => ({ data: table === "chat_channels" ? channel : newest });
-    (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data: memberships });
-    return chain;
+    throw new Error(`direct query on ${table}`);
   },
 } as never;
 
 const membership = (channelId: string, slackChannelId: string | null, extra: Record<string, unknown> = {}) => ({
-  channel_id: channelId,
-  chat_channels: { slack_channel_id: slackChannelId, archived_at: null, bridge_disabled: false, ...extra },
+  channelId,
+  slack: slackChannelId,
+  extra: { archived_at: null, bridge_disabled: false, ...extra },
 });
 
 beforeEach(() => {
@@ -58,6 +82,7 @@ beforeEach(() => {
   channel = { slack_channel_id: "C_HOSTS" };
   newest = { slack_ts: "1700000000.000200" };
   memberships = [];
+  failing = [];
   claim = true;
   getSlackUserToken.mockReset();
   getSlackUserToken.mockResolvedValue({ token: "xoxp-fern", slackUserId: "U_FERN" });
@@ -112,6 +137,14 @@ describe("pushReadToSlack", () => {
     expect(mark).not.toHaveBeenCalled();
   });
 
+  it("does nothing when it can't read the conversation or its newest message", async () => {
+    failing = ["slackChannelOf"];
+    await expect(pushReadToSlack(service, OPTS)).resolves.toBe(false);
+    failing = ["newestSlackTs"];
+    await expect(pushReadToSlack(service, OPTS)).resolves.toBe(false);
+    expect(mark).not.toHaveBeenCalled();
+  });
+
   it("revokes a dead connection and stays quiet about a missing scope", async () => {
     info.mockRejectedValue({ data: { error: "token_revoked" } });
     await expect(pushReadToSlack(service, OPTS)).resolves.toBe(false);
@@ -147,6 +180,13 @@ describe("pullReadFromSlack", () => {
     await pullReadFromSlack(service, "member-fern", { exceptChannelId: "open" });
     expect(info.mock.calls.map((c) => (c[0] as { channel: string }).channel)).toEqual(["C_UNREAD"]);
     expect(rpc).not.toHaveBeenCalledWith("chat_apply_slack_read", expect.anything());
+  });
+
+  it("asks Slack about nothing when it can't read which conversations the member is in", async () => {
+    memberships = [membership("chan-1", "C_ONE")];
+    failing = ["slackReadTargets"];
+    await expect(pullReadFromSlack(service, "member-fern")).resolves.toBe(true);
+    expect(info).not.toHaveBeenCalled();
   });
 
   it("asks Slack only about conversations with unread in the Hub, newest first", async () => {

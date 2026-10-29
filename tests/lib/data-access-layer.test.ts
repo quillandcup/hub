@@ -50,31 +50,18 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [
     "app/(admin)/admin/data-health/gap-fills/page.tsx",
-    "app/(member)/chat/membership-actions.ts",
     "lib/chat/gap-fill.ts",
-    "lib/chat/load.ts",
-    "lib/chat/slack-read.ts",
   ],
-  chat_channel_members: [
-    "app/(member)/chat/[id]/page.tsx",
-    "app/(member)/chat/actions.ts",
-    "app/(member)/chat/membership-actions.ts",
-    "lib/chat/load.ts",
-    "lib/chat/slack-read.ts",
-  ],
+  chat_channel_members: [],
   chat_messages: [
-    "app/(member)/chat/actions.ts",
-    "app/(member)/chat/membership-actions.ts",
     "app/api/webhooks/slack/route.ts",
     "lib/chat/gap-fill.ts",
     "lib/chat/slack-edit.ts",
     "lib/chat/slack-post.ts",
     "lib/chat/slack-react.ts",
-    "lib/chat/slack-read.ts",
     "lib/chat/slack-upload.ts",
   ],
   chat_message_contents: [
-    "app/(member)/chat/membership-actions.ts",
     "app/api/chat/files/[messageId]/[fileId]/route.ts",
     "app/api/chat/files/[messageId]/zip/route.ts",
     "lib/chat/file-cleanup.ts",

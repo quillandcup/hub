@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { catchUpChannel } from "@/lib/chat/gap-fill";
@@ -104,14 +105,8 @@ export default async function ChatChannelPage({
     // so the line below stays put for the whole visit). Not in sudo (their marker isn't the viewed
     // member's) and not on an older page.
     if (sudoHidden || identity.isSudo || before) return null;
-    const { data } = await supabase
-      .from("chat_channel_members")
-      .select("last_read_at, joined_at")
-      .eq("channel_id", channel.id)
-      .eq("member_id", identity.memberId)
-      .is("left_at", null)
-      .maybeSingle();
-    return data ? (data.last_read_at ?? data.joined_at) : null;
+    // A failed read shows no marker, as it always has.
+    return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
   };
   // Posting is its own preview on top of chat; never in sudo, in a conversation the member is not in
   // or an archived one (chat_post_message checks the same again, and that the conversation is bridged).

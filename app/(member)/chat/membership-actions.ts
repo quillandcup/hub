@@ -44,11 +44,8 @@ async function manageableChannel(caller: ChatCaller, channelId: string): Promise
   const summary = await loadChannelForMember(supabase, channelId, caller.identity.memberId, false);
   if (!summary) return { ok: false, error: "That conversation isn't available." };
 
-  const { data: row } = await createServiceRoleClient()
-    .from("chat_channels")
-    .select("kind, visibility, slack_channel_id, bridge_mode, bridge_disabled, bridge_status, archived_at")
-    .eq("id", channelId)
-    .maybeSingle();
+  // A failed read counts as "not available", as it always has.
+  const row = await createRepos(createServiceRoleClient()).chat.manageSettings(channelId).catch(() => null);
   if (!row) return { ok: false, error: "That conversation isn't available." };
   if (row.kind !== "channel") return { ok: false, error: "Slack doesn't allow changing who is in a group message." };
   if (row.archived_at) return { ok: false, error: "This conversation is archived." };
@@ -75,14 +72,7 @@ async function isStaff(caller: ChatCaller): Promise<boolean> {
 /** Put people in the conversation here (after Slack agreed). A member who left and returns is back, not added twice. */
 async function recordJoined(channelId: string, people: { memberId: string; source: "slack" | "app" }[]) {
   if (people.length === 0) return;
-  const now = new Date(clock.now()).toISOString();
-  const { error } = await createServiceRoleClient()
-    .from("chat_channel_members")
-    .upsert(
-      people.map((p) => ({ channel_id: channelId, member_id: p.memberId, joined_at: now, left_at: null, source: p.source })),
-      { onConflict: "channel_id,member_id" }
-    );
-  if (error) throw error;
+  await createRepos(createServiceRoleClient()).chat.addMembers(channelId, people, new Date(clock.now()).toISOString());
 }
 
 /**
@@ -101,15 +91,13 @@ async function recordMembershipNotice(channelId: string, subjectId: string, kind
         ? actor ? `was added to the channel by ${actor}` : "has joined the channel"
         : actor ? `was removed from the channel by ${actor}` : "has left the channel";
     const body = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const service = createServiceRoleClient();
-    const { data, error } = await service
-      .from("chat_messages")
-      .insert({ channel_id: channelId, author_member_id: subjectId, origin: "app", system_subtype: kind === "join" ? "channel_join" : "channel_leave", created_at: new Date(clock.now()).toISOString() })
-      .select("id")
-      .single();
-    if (error || !data) throw error ?? new Error("no row");
-    const { error: contentError } = await service.from("chat_message_contents").insert({ message_id: data.id, body });
-    if (contentError) throw contentError;
+    await createRepos(createServiceRoleClient()).chat.recordMembershipNotice({
+      channelId,
+      authorMemberId: subjectId,
+      subtype: kind === "join" ? "channel_join" : "channel_leave",
+      body,
+      createdAt: new Date(clock.now()).toISOString(),
+    });
   } catch (error) {
     console.error("recording a membership notice failed:", error);
   }
@@ -117,13 +105,8 @@ async function recordMembershipNotice(channelId: string, subjectId: string, kind
 
 /** Which of these members are already in the conversation. */
 async function alreadyIn(channelId: string, memberIds: string[]): Promise<Set<string>> {
-  const { data } = await createServiceRoleClient()
-    .from("chat_channel_members")
-    .select("member_id")
-    .eq("channel_id", channelId)
-    .in("member_id", memberIds)
-    .is("left_at", null);
-  return new Set((data ?? []).map((r) => r.member_id as string));
+  // A failed read means nobody is known to be in it, as it always has.
+  return createRepos(createServiceRoleClient()).chat.presentMembers(channelId, memberIds).catch(() => new Set<string>());
 }
 
 const RECONNECT_HINT = " Reconnect Slack in Settings to do this as yourself.";
@@ -233,13 +216,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
   if (isSelf && !channel.joined) return { ok: true };
 
   const service = createServiceRoleClient();
-  const { data: row } = await service
-    .from("chat_channel_members")
-    .select("source")
-    .eq("channel_id", channelId)
-    .eq("member_id", memberId)
-    .is("left_at", null)
-    .maybeSingle();
+  const row = await createRepos(service).chat.activeMembership(channelId, memberId).catch(() => null);
   if (!row) return { ok: true }; // already out
 
   let reconnect = false;
@@ -264,13 +241,7 @@ async function removeMemberImpl(channelId: string, memberId: string): Promise<Me
     }
   }
 
-  const { error } = await service
-    .from("chat_channel_members")
-    .update({ left_at: new Date(clock.now()).toISOString() })
-    .eq("channel_id", channelId)
-    .eq("member_id", memberId)
-    .is("left_at", null);
-  if (error) throw error;
+  await createRepos(service).chat.markLeft(channelId, memberId, new Date(clock.now()).toISOString());
   if (!slackAnnounces) await recordMembershipNotice(channelId, memberId, "leave", caller.identity.memberId);
   return reconnect ? { ok: true, message: RECONNECT_NOTICE } : { ok: true };
 }

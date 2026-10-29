@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
@@ -133,14 +134,8 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   const markerQuery = async (): Promise<string | null | undefined> => {
     if (!withReadMarker) return undefined;
     if (identity.isSudo) return null;
-    const { data } = await supabase
-      .from("chat_channel_members")
-      .select("last_read_at, joined_at")
-      .eq("channel_id", channel.id)
-      .eq("member_id", identity.memberId)
-      .is("left_at", null)
-      .maybeSingle();
-    return data ? (data.last_read_at ?? data.joined_at) : null;
+    // A failed read shows no marker, as it always has.
+    return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
   };
   const wanted = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg")))].slice(0, 50);
   const [page, extra, readMarker] = await Promise.all([
@@ -368,11 +363,7 @@ export async function retryChatMessage(messageId: string): Promise<SendChatResul
 
   // Under the caller's RLS, so only a message they can see; the author check is on top.
   const supabase = await createClient();
-  const { data: row } = await supabase
-    .from("chat_messages")
-    .select("author_member_id, origin, slack_sync_status")
-    .eq("id", messageId)
-    .maybeSingle();
+  const row = await createRepos(supabase).chat.retryState(messageId).catch(() => null);
   if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent") {
     return { ok: false, error: "That message can't be retried." };
   }

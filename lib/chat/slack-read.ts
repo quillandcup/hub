@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
@@ -14,8 +15,6 @@ export const SLACK_READ_PULL_INTERVAL_SECONDS = 30;
 
 /** Conversations asked about at once; conversations.info allows roughly 50 calls a minute. */
 const PULL_CONCURRENCY = 5;
-
-const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /** Slack timestamps are "seconds.microseconds"; compared as integers so no float rounding creeps in. */
 const tsValue = (ts: string): bigint | null => {
@@ -49,22 +48,12 @@ export async function pushReadToSlack(
 ): Promise<boolean> {
   if (!chatSlackWritesEnabled()) return false;
 
-  const [{ data: channel }, { data: newest }] = await Promise.all([
-    service.from("chat_channels").select("slack_channel_id").eq("id", opts.channelId).maybeSingle(),
-    service
-      .from("chat_messages")
-      .select("slack_ts")
-      .eq("channel_id", opts.channelId)
-      .is("thread_root_id", null)
-      .is("deleted_at", null)
-      .not("slack_ts", "is", null)
-      .lte("created_at", opts.through)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+  // A failed read of either counts as "nothing to move", as it always has.
+  const chat = createRepos(service).chat;
+  const [slackChannelId, ts] = await Promise.all([
+    chat.slackChannelOf(opts.channelId).catch(() => null),
+    chat.newestSlackTs(opts.channelId, opts.through).catch(() => null),
   ]);
-  const slackChannelId = channel?.slack_channel_id;
-  const ts = newest?.slack_ts;
   if (!slackChannelId || !ts) return false;
 
   const connection = await getSlackUserToken(service, opts.memberId);
@@ -84,14 +73,6 @@ export async function pushReadToSlack(
     }
     return false;
   }
-}
-
-interface MembershipRow {
-  channel_id: string;
-  chat_channels:
-    | { slack_channel_id: string | null; archived_at: string | null; bridge_disabled: boolean }
-    | { slack_channel_id: string | null; archived_at: string | null; bridge_disabled: boolean }[]
-    | null;
 }
 
 /**
@@ -116,17 +97,13 @@ export async function pullReadFromSlack(
   const connection = await getSlackUserToken(service, memberId);
   if (!connection) return false;
 
-  const { data: rows } = await service
-    .from("chat_channel_members")
-    .select("channel_id, chat_channels!inner(slack_channel_id, archived_at, bridge_disabled)")
-    .eq("member_id", memberId)
-    .is("left_at", null);
+  // A failed read means no conversations to ask about, as it always has.
+  const memberships = await createRepos(service).chat.slackReadTargets(memberId).catch(() => []);
   const targets: { channelId: string; slackChannelId: string }[] = [];
-  for (const row of (rows ?? []) as unknown as MembershipRow[]) {
-    const channel = one(row.chat_channels);
-    if (!channel?.slack_channel_id || channel.archived_at || channel.bridge_disabled) continue;
-    if (row.channel_id === opts.exceptChannelId) continue;
-    targets.push({ channelId: row.channel_id, slackChannelId: channel.slack_channel_id });
+  for (const m of memberships) {
+    if (!m.slackChannelId || m.archivedAt || m.bridgeDisabled) continue;
+    if (m.channelId === opts.exceptChannelId) continue;
+    targets.push({ channelId: m.channelId, slackChannelId: m.slackChannelId });
   }
 
   // Slack's marker can only matter where the Hub still shows unread (the Hub marker only moves

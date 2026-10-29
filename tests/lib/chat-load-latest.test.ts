@@ -25,6 +25,21 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }
 vi.mock("@/lib/chat/slack-post", () => ({ sendChatMessageToSlack: vi.fn() }));
 vi.mock("@/lib/chat/slack-react", () => ({ syncReactionToSlack: vi.fn() }));
 vi.mock("@/lib/slack-connect", () => ({ getSlackConnectionStatus: vi.fn() }));
+// The member's read marker comes from the chat repository, here in memory.
+let memberships: { channel_id: string; member_id: string; last_read_at?: string; joined_at?: string }[] = [];
+let markerFails = false;
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  const { InMemoryDataset } = await import("@/lib/data/in-memory");
+  return {
+    ...actual,
+    createRepos: () => {
+      const repos = actual.createInMemoryRepos(new InMemoryDataset({ chatChannelMembers: memberships }));
+      if (markerFails) repos.chat.readMarker = async () => { throw new Error("db down"); };
+      return repos;
+    },
+  };
+});
 vi.mock("@/lib/chat/load", () => ({
   loadChannelForMember: m.loadChannelForMember,
   loadMessage: m.loadMessage,
@@ -92,6 +107,22 @@ describe("loadLatestChat", () => {
     m.loadChannelForMember.mockResolvedValueOnce(null);
     await expect(loadLatestChat(CHANNEL)).resolves.toBeNull();
     expect(m.loadMessages).not.toHaveBeenCalled();
+  });
+
+  it("returns where the member has read up to when asked: their marker, else when they joined, none in sudo or when unreadable", async () => {
+    memberships = [{ channel_id: CHANNEL, member_id: "member-fern", last_read_at: "2026-10-02T00:00:00Z", joined_at: "2026-09-01T00:00:00Z" }];
+    await expect(loadLatestChat(CHANNEL, [], true)).resolves.toMatchObject({ readMarker: "2026-10-02T00:00:00Z" });
+
+    memberships = [{ channel_id: CHANNEL, member_id: "member-fern", joined_at: "2026-09-01T00:00:00Z" }];
+    await expect(loadLatestChat(CHANNEL, [], true)).resolves.toMatchObject({ readMarker: "2026-09-01T00:00:00Z" });
+    await expect(loadLatestChat(CHANNEL)).resolves.toMatchObject({ readMarker: undefined });
+
+    markerFails = true;
+    await expect(loadLatestChat(CHANNEL, [], true)).resolves.toMatchObject({ readMarker: null });
+    markerFails = false;
+
+    m.getEffectiveIdentity.mockResolvedValue({ memberId: "member-fern", isSudo: true });
+    await expect(loadLatestChat(CHANNEL, [], true)).resolves.toMatchObject({ readMarker: null });
   });
 
   it("hides a restricted conversation's messages while viewing as a member, without reading them", async () => {

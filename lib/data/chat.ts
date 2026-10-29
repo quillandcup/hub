@@ -97,6 +97,53 @@ const ID_CHUNK = 200;
 
 type PagedResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
+/** A conversation as the chat pages list it. */
+export interface ChannelRecord {
+  id: string;
+  kind: "channel" | "dm" | "group_dm";
+  visibility: "public" | "private";
+  restricted: boolean;
+  name: string | null;
+  archived_at: string | null;
+  slack_channel_id: string | null;
+}
+
+/** What decides whether a conversation's members can be changed from the Hub. */
+export interface ChannelManageSettings {
+  kind: string;
+  visibility: string;
+  slack_channel_id: string | null;
+  bridge_mode: string;
+  bridge_disabled: boolean;
+  bridge_status: string;
+  archived_at: string | null;
+}
+
+/** One conversation a member is in, with what is needed to ask Slack about their read marker. */
+export interface SlackReadTarget {
+  channelId: string;
+  slackChannelId: string | null;
+  archivedAt: string | null;
+  bridgeDisabled: boolean;
+}
+
+/** A line the Hub writes itself into a conversation when someone is added or removed. */
+export interface MembershipNoticeInput {
+  channelId: string;
+  /** The person it is about: it is their line. */
+  authorMemberId: string;
+  subtype: "channel_join" | "channel_leave";
+  /** Already escaped for Slack-style text. */
+  body: string;
+  createdAt: string;
+}
+
+const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, slack_channel_id";
+/** Ids per `.in(...)` request. */
+const IN_CHUNK = 100;
+
+type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
 /**
  * Chat: the Hub's mirror of bridged Slack conversations and what members do in it. The repository
  * takes whichever client the caller has, so the privilege is the client's: message text sits in its own
@@ -129,6 +176,43 @@ export interface ChatRepository {
   replyAuthorRows(rootIds: string[]): Promise<ChatReplyAuthorRow[]>;
   /** Every live reaction on these messages, in a stable order; all pages. */
   reactionRows(messageIds: string[]): Promise<ChatReactionRow[]>;
+
+  // --- channels and membership ---
+
+  /** Every conversation the client can see, by name then id (RLS decides which). */
+  listChannels(): Promise<ChannelRecord[]>;
+  /** One conversation, or null when there is none (or it isn't visible to the caller). */
+  channelRecord(channelId: string): Promise<ChannelRecord | null>;
+  /** The settings that decide whether membership can change, or null for a missing conversation. */
+  manageSettings(channelId: string): Promise<ChannelManageSettings | null>;
+  /** The Slack id of a conversation, or null when it has none (or there is no such conversation). */
+  slackChannelOf(channelId: string): Promise<string | null>;
+  /** Ids of the conversations the member is in now. */
+  joinedChannelIds(memberId: string): Promise<Set<string>>;
+  /** Whether the member is in the conversation now. */
+  isInChannel(channelId: string, memberId: string): Promise<boolean>;
+  /** The member's current place in a conversation (its source), or null when they are not in it. */
+  activeMembership(channelId: string, memberId: string): Promise<{ source: string } | null>;
+  /** Who is in a conversation now, by member id. */
+  activeMemberIds(channelId: string): Promise<string[]>;
+  /** Who is in each of these conversations now. */
+  activeMembersOf(channelIds: string[]): Promise<{ channel_id: string; member_id: string }[]>;
+  /** Which of these members are in the conversation now. */
+  presentMembers(channelId: string, memberIds: string[]): Promise<Set<string>>;
+  /** Where the member has read up to (their marker, else when they joined), or null when they are not in the conversation. */
+  readMarker(channelId: string, memberId: string): Promise<string | null>;
+  /** Put people in a conversation; one who left and returns is back, not added twice. */
+  addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string): Promise<void>;
+  /** Mark the member as having left the conversation (a no-op when they are not in it). */
+  markLeft(channelId: string, memberId: string, leftAt: string): Promise<void>;
+  /** The conversations the member is in now with their Slack settings, by conversation id. */
+  slackReadTargets(memberId: string): Promise<SlackReadTarget[]>;
+  /** Write the notice line for a membership change (the message and its text). */
+  recordMembershipNotice(notice: MembershipNoticeInput): Promise<void>;
+  /** What deciding whether a member may retry a message needs (null when there is no such message, or it isn't visible to the caller). */
+  retryState(messageId: string): Promise<{ author_member_id: string | null; origin: string; slack_sync_status: string | null } | null>;
+  /** The Slack timestamp of the newest top-level, undeleted message that came from Slack, created at or before `through`. */
+  newestSlackTs(channelId: string, through: string): Promise<string | null>;
 }
 
 export class SupabaseChatRepository implements ChatRepository {
@@ -284,6 +368,176 @@ export class SupabaseChatRepository implements ChatRepository {
       if (next.length < REACTION_PAGE) return all;
     }
   }
+
+  // --- channels and membership ---
+
+  async listChannels() {
+    return fetchAllRows<ChannelRecord>(
+      (from, to) => this.db.from("chat_channels").select(CHANNEL_COLUMNS).order("name").order("id").range(from, to) as unknown as Page<ChannelRecord>
+    );
+  }
+
+  async channelRecord(channelId: string) {
+    const { data, error } = await this.db.from("chat_channels").select(CHANNEL_COLUMNS).eq("id", channelId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data as ChannelRecord | null) ?? null;
+  }
+
+  async manageSettings(channelId: string) {
+    const { data, error } = await this.db
+      .from("chat_channels")
+      .select("kind, visibility, slack_channel_id, bridge_mode, bridge_disabled, bridge_status, archived_at")
+      .eq("id", channelId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async slackChannelOf(channelId: string) {
+    const { data, error } = await this.db.from("chat_channels").select("slack_channel_id").eq("id", channelId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.slack_channel_id ?? null;
+  }
+
+  async joinedChannelIds(memberId: string) {
+    const rows = await fetchAllRows<{ channel_id: string }>((from, to) =>
+      this.db.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null).order("channel_id").range(from, to)
+    );
+    return new Set(rows.map((r) => r.channel_id));
+  }
+
+  async isInChannel(channelId: string, memberId: string) {
+    return (await this.activeMembership(channelId, memberId)) !== null;
+  }
+
+  async activeMembership(channelId: string, memberId: string) {
+    const { data, error } = await this.db
+      .from("chat_channel_members")
+      .select("source")
+      .eq("channel_id", channelId)
+      .eq("member_id", memberId)
+      .is("left_at", null)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async activeMemberIds(channelId: string) {
+    const rows = await fetchAllRows<{ member_id: string }>((from, to) =>
+      this.db.from("chat_channel_members").select("member_id").eq("channel_id", channelId).is("left_at", null).order("member_id").range(from, to)
+    );
+    return rows.map((r) => r.member_id);
+  }
+
+  async activeMembersOf(channelIds: string[]) {
+    const out: { channel_id: string; member_id: string }[] = [];
+    for (const ids of chunk(channelIds, IN_CHUNK)) {
+      out.push(
+        ...(await fetchAllRows<{ channel_id: string; member_id: string }>((from, to) =>
+          this.db
+            .from("chat_channel_members")
+            .select("channel_id, member_id")
+            .in("channel_id", ids)
+            .is("left_at", null)
+            .order("channel_id")
+            .order("member_id")
+            .range(from, to)
+        ))
+      );
+    }
+    return out;
+  }
+
+  async presentMembers(channelId: string, memberIds: string[]) {
+    const present = new Set<string>();
+    for (const ids of chunk(memberIds, IN_CHUNK)) {
+      const { data, error } = await this.db.from("chat_channel_members").select("member_id").eq("channel_id", channelId).in("member_id", ids).is("left_at", null);
+      if (error) throw new Error(error.message);
+      for (const r of data ?? []) present.add(r.member_id);
+    }
+    return present;
+  }
+
+  async readMarker(channelId: string, memberId: string) {
+    const { data, error } = await this.db
+      .from("chat_channel_members")
+      .select("last_read_at, joined_at")
+      .eq("channel_id", channelId)
+      .eq("member_id", memberId)
+      .is("left_at", null)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? (data.last_read_at ?? data.joined_at) : null;
+  }
+
+  async addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string) {
+    if (people.length === 0) return;
+    const { error } = await this.db
+      .from("chat_channel_members")
+      .upsert(
+        people.map((p) => ({ channel_id: channelId, member_id: p.memberId, joined_at: joinedAt, left_at: null, source: p.source })),
+        { onConflict: "channel_id,member_id" }
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  async markLeft(channelId: string, memberId: string, leftAt: string) {
+    const { error } = await this.db.from("chat_channel_members").update({ left_at: leftAt }).eq("channel_id", channelId).eq("member_id", memberId).is("left_at", null);
+    if (error) throw new Error(error.message);
+  }
+
+  async slackReadTargets(memberId: string) {
+    type Joined = { slack_channel_id: string | null; archived_at: string | null; bridge_disabled: boolean };
+    type Row = { channel_id: string; chat_channels: Joined | Joined[] | null };
+    const rows = await fetchAllRows<Row>(
+      (from, to) =>
+        this.db
+          .from("chat_channel_members")
+          .select("channel_id, chat_channels!inner(slack_channel_id, archived_at, bridge_disabled)")
+          .eq("member_id", memberId)
+          .is("left_at", null)
+          .order("channel_id")
+          .range(from, to) as unknown as Page<Row>
+    );
+    return rows.flatMap((r) => {
+      const c = Array.isArray(r.chat_channels) ? r.chat_channels[0] : r.chat_channels;
+      return c ? [{ channelId: r.channel_id, slackChannelId: c.slack_channel_id, archivedAt: c.archived_at, bridgeDisabled: c.bridge_disabled }] : [];
+    });
+  }
+
+  async recordMembershipNotice(n: MembershipNoticeInput) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .insert({ channel_id: n.channelId, author_member_id: n.authorMemberId, origin: "app", system_subtype: n.subtype, created_at: n.createdAt })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const { error: contentError } = await this.db.from("chat_message_contents").insert({ message_id: data.id, body: n.body });
+    if (contentError) throw new Error(contentError.message);
+  }
+
+  async retryState(messageId: string) {
+    const { data, error } = await this.db.from("chat_messages").select("author_member_id, origin, slack_sync_status").eq("id", messageId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async newestSlackTs(channelId: string, through: string) {
+    const { data, error } = await this.db
+      .from("chat_messages")
+      .select("slack_ts")
+      .eq("channel_id", channelId)
+      .is("thread_root_id", null)
+      .is("deleted_at", null)
+      .not("slack_ts", "is", null)
+      .lte("created_at", through)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.slack_ts ?? null;
+  }
 }
 
 const time = (m: { created_at?: string }) => Date.parse(m.created_at ?? new Date(0).toISOString());
@@ -422,5 +676,130 @@ export class InMemoryChatRepository implements ChatRepository {
       .filter((r) => messageIds.includes(r.message_id) && !r.deleted_at)
       .sort((a, b) => (a.id ?? "").localeCompare(b.id ?? ""))
       .map((r) => ({ message_id: r.message_id, emoji: r.emoji ?? "", member_id: r.member_id ?? null, slack_user_id: r.slack_user_id ?? null }));
+  }
+
+  // --- channels and membership ---
+
+  private record(c: ChatChannelSeed): ChannelRecord {
+    // The column defaults, as the database fills them in.
+    return {
+      id: c.id,
+      kind: (c.kind ?? "channel") as ChannelRecord["kind"],
+      visibility: (c.visibility ?? "public") as ChannelRecord["visibility"],
+      restricted: c.restricted ?? false,
+      name: c.name ?? null,
+      archived_at: c.archived_at ?? null,
+      slack_channel_id: c.slack_channel_id ?? null,
+    };
+  }
+
+  private active(channelId?: string) {
+    return this.data.chatChannelMembers.filter((m) => !m.left_at && (channelId === undefined || m.channel_id === channelId));
+  }
+
+  async listChannels() {
+    // Postgres sorts nulls last.
+    const byName = (a: ChannelRecord, b: ChannelRecord) => (a.name === b.name ? 0 : a.name === null ? 1 : b.name === null ? -1 : a.name < b.name ? -1 : 1);
+    return this.data.chatChannels.map((c) => this.record(c)).sort((a, b) => byName(a, b) || (a.id < b.id ? -1 : 1));
+  }
+
+  async channelRecord(channelId: string) {
+    const c = this.data.chatChannels.find((x) => x.id === channelId);
+    return c ? this.record(c) : null;
+  }
+
+  async manageSettings(channelId: string) {
+    const c = this.data.chatChannels.find((x) => x.id === channelId);
+    if (!c) return null;
+    return {
+      kind: c.kind ?? "channel",
+      visibility: c.visibility ?? "public",
+      slack_channel_id: c.slack_channel_id ?? null,
+      bridge_mode: c.bridge_mode ?? "bridged",
+      bridge_disabled: c.bridge_disabled ?? false,
+      bridge_status: c.bridge_status ?? "ok",
+      archived_at: c.archived_at ?? null,
+    };
+  }
+
+  async slackChannelOf(channelId: string) {
+    return this.data.chatChannels.find((c) => c.id === channelId)?.slack_channel_id ?? null;
+  }
+
+  async joinedChannelIds(memberId: string) {
+    return new Set(this.active().filter((m) => m.member_id === memberId).map((m) => m.channel_id));
+  }
+
+  async isInChannel(channelId: string, memberId: string) {
+    return this.active(channelId).some((m) => m.member_id === memberId);
+  }
+
+  async activeMembership(channelId: string, memberId: string) {
+    const m = this.active(channelId).find((x) => x.member_id === memberId);
+    return m ? { source: m.source ?? "slack" } : null;
+  }
+
+  async activeMemberIds(channelId: string) {
+    return this.active(channelId).map((m) => m.member_id).sort();
+  }
+
+  async activeMembersOf(channelIds: string[]) {
+    const wanted = new Set(channelIds);
+    return this.active()
+      .filter((m) => wanted.has(m.channel_id))
+      .map((m) => ({ channel_id: m.channel_id, member_id: m.member_id }))
+      .sort((a, b) => (a.channel_id === b.channel_id ? (a.member_id < b.member_id ? -1 : 1) : a.channel_id < b.channel_id ? -1 : 1));
+  }
+
+  async presentMembers(channelId: string, memberIds: string[]) {
+    const wanted = new Set(memberIds);
+    return new Set(this.active(channelId).filter((m) => wanted.has(m.member_id)).map((m) => m.member_id));
+  }
+
+  async readMarker(channelId: string, memberId: string) {
+    const m = this.active(channelId).find((x) => x.member_id === memberId);
+    return m ? (m.last_read_at ?? m.joined_at ?? null) : null;
+  }
+
+  async addMembers(channelId: string, people: { memberId: string; source: "slack" | "app" }[], joinedAt: string) {
+    for (const p of people) {
+      const row = this.data.chatChannelMembers.find((m) => m.channel_id === channelId && m.member_id === p.memberId);
+      if (row) Object.assign(row, { joined_at: joinedAt, left_at: null, source: p.source });
+      else this.data.chatChannelMembers.push({ channel_id: channelId, member_id: p.memberId, joined_at: joinedAt, left_at: null, source: p.source });
+    }
+  }
+
+  async markLeft(channelId: string, memberId: string, leftAt: string) {
+    const row = this.active(channelId).find((m) => m.member_id === memberId);
+    if (row) row.left_at = leftAt;
+  }
+
+  async slackReadTargets(memberId: string) {
+    return this.active()
+      .filter((m) => m.member_id === memberId)
+      .sort((a, b) => (a.channel_id < b.channel_id ? -1 : 1))
+      .flatMap((m) => {
+        const c = this.data.chatChannels.find((x) => x.id === m.channel_id);
+        return c ? [{ channelId: c.id, slackChannelId: c.slack_channel_id ?? null, archivedAt: c.archived_at ?? null, bridgeDisabled: c.bridge_disabled ?? false }] : [];
+      });
+  }
+
+  async recordMembershipNotice(n: MembershipNoticeInput) {
+    const id = `msg_${String(this.data.chatMessages.length + 1).padStart(12, "A")}`;
+    this.data.chatMessages.push({ id, channel_id: n.channelId, author_member_id: n.authorMemberId, origin: "app", system_subtype: n.subtype, created_at: n.createdAt });
+    this.data.chatMessageContents.push({ message_id: id, body: n.body });
+  }
+
+  async retryState(messageId: string) {
+    const m = this.data.chatMessages.find((x) => x.id === messageId);
+    return m ? { author_member_id: m.author_member_id ?? null, origin: m.origin ?? "slack", slack_sync_status: m.slack_sync_status ?? null } : null;
+  }
+
+  async newestSlackTs(channelId: string, through: string) {
+    const limit = Date.parse(through);
+    const newest = this.data.chatMessages
+      .filter((m) => m.channel_id === channelId && !m.thread_root_id && !m.deleted_at && m.slack_ts && m.created_at !== undefined && Date.parse(m.created_at) <= limit)
+      .sort((a, b) => Date.parse(b.created_at as string) - Date.parse(a.created_at as string) || (a.id < b.id ? 1 : -1))[0];
+    return newest?.slack_ts ?? null;
   }
 }

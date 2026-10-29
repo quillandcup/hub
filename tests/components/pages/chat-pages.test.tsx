@@ -84,6 +84,8 @@ let earnedBadges: unknown[] = [];
 let sudoMemberHasFlag = true;
 /** The member's read marker for a conversation (null = never read: counts from joining). */
 let readMarker: string | null = null;
+/** The member's read marker can't be read. */
+let markerError = false;
 let unread: { channel_id: string; unread: number }[] = [];
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
@@ -162,6 +164,7 @@ const fakeTables = (): FakeTables => ({
   chat_channel_members: (q) => {
     const channelId = eqArg(q, "channel_id") as string | undefined;
     if (channelId && eqArg(q, "member_id")) {
+      if (q.calls.some((c) => c.method === "select" && String(c.args[0]).includes("last_read_at")) && markerError) return { data: null, error: { message: "db down" } };
       return { data: JOINED.includes(channelId) ? [{ channel_id: channelId, last_read_at: readMarker, joined_at: "2026-01-01T00:00:00Z" }] : [] };
     }
     if (eqArg(q, "member_id")) return { data: JOINED.map((c) => ({ channel_id: c })) };
@@ -209,6 +212,7 @@ beforeEach(() => {
   sudoMemberHasFlag = true;
   staffRole = "member";
   readMarker = null;
+  markerError = false;
   unread = [];
   earnedBadges = [];
   messages = [];
@@ -313,6 +317,14 @@ describe("the line between read and new", () => {
     // The messages fall on different days, so the previous one sits in the section above.
     const previous = document.getElementById(`m-${id(102)}`)!;
     expect(previous.compareDocumentPosition(line()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws no line when the read marker can't be read", async () => {
+    messages = three();
+    readMarker = "2026-10-01T12:00:00Z";
+    markerError = true;
+    await renderChannel(HOSTS);
+    expect(line()).not.toBeInTheDocument();
   });
 
   it("is not drawn for a public channel the member is not in (no read marker to compare with)", async () => {

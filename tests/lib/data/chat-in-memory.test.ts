@@ -6,6 +6,8 @@ import { defineChatContract } from "@/tests/helpers/chat-contract";
 defineChatContract("InMemoryChatRepository", () => {
   const data = new InMemoryDataset();
   let n = 0;
+  let memberIds: string[] = [];
+  let channelIds: Record<string, string> = {};
   return {
     repo: () => new InMemoryChatRepository(data),
     unique: (label) => `${label}${++n}`,
@@ -58,6 +60,67 @@ defineChatContract("InMemoryChatRepository", () => {
         });
       }
     },
+    // --- channels and membership slice ---
+    seedMembers: async (count) => {
+      memberIds = Array.from({ length: count }, (_, i) => `mbr_${String(++n).padStart(11, "A")}${i}`);
+      return memberIds;
+    },
+    seedChannelRows: async (channels) => {
+      const ids: Record<string, string> = {};
+      data.chatChannels = channels.map((c) => {
+        ids[c.key] = `chn_${String(++n).padStart(12, "A")}`;
+        return {
+          id: ids[c.key],
+          name: c.name ?? null,
+          kind: c.kind ?? "channel",
+          visibility: c.visibility ?? "public",
+          ...(c.restricted !== undefined ? { restricted: c.restricted } : {}),
+          archived_at: c.archivedAt ?? null,
+          slack_channel_id: c.slackChannelId ?? null,
+          ...(c.bridgeDisabled !== undefined ? { bridge_disabled: c.bridgeDisabled } : {}),
+        };
+      });
+      channelIds = ids;
+      return ids;
+    },
+    seedMemberships: async (rows) => {
+      data.chatChannelMembers = rows.map((r) => ({
+        channel_id: channelIds[r.channel],
+        member_id: memberIds[r.member],
+        ...(r.joinedAt ? { joined_at: r.joinedAt } : {}),
+        ...(r.leftAt ? { left_at: r.leftAt } : {}),
+        ...(r.lastReadAt ? { last_read_at: r.lastReadAt } : {}),
+        ...(r.source ? { source: r.source } : {}),
+      }));
+    },
+    seedChannelMessages: async (rows) => {
+      const ids: Record<string, string> = {};
+      data.chatMessages = [];
+      for (const r of rows) {
+        ids[r.key] = `msg_${String(data.chatMessages.length + 1).padStart(12, "A")}`;
+        data.chatMessages.push({
+          id: ids[r.key],
+          channel_id: channelIds[r.channel],
+          created_at: r.createdAt,
+          ...(r.author !== undefined ? { author_member_id: memberIds[r.author] } : {}),
+          ...(r.slackTs ? { slack_ts: r.slackTs } : {}),
+          ...(r.replyTo ? { thread_root_id: ids[r.replyTo] } : {}),
+          ...(r.deleted ? { deleted_at: r.createdAt } : {}),
+          ...(r.origin ? { origin: r.origin } : {}),
+          ...(r.syncStatus ? { slack_sync_status: r.syncStatus } : {}),
+        });
+      }
+      return ids;
+    },
+    noticesIn: async (channelId) =>
+      data.chatMessages
+        .filter((m) => m.channel_id === channelId && m.system_subtype)
+        .map((m) => ({
+          author_member_id: m.author_member_id ?? null,
+          system_subtype: m.system_subtype ?? null,
+          origin: m.origin ?? "slack",
+          body: data.chatMessageContents.find((c) => c.message_id === m.id)?.body ?? "",
+        })),
   };
 });
 
