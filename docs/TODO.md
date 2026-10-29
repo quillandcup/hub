@@ -580,6 +580,15 @@ The media library foundation is in (`docs/MEDIA_LIBRARY.md`): table, bucket, rep
 - **Videos and files in the catalog.** `media_assets.kind` allows `video` and `file` but only images are created. The course builder's migration relaxes the image-only NOT NULLs per kind and links `videos` (see "One catalog" in `docs/MEDIA_LIBRARY.md`).
 - **Paperback and hardcover covers** need a full wrap (back, spine, front) with a spine width from page count and paper type: a cover template, not a crop. Out of scope until asked.
 
+### Intermittent failures in the full unit suite _(Needs Scheduling)_
+
+Seen 2026-10-29 on clean `origin/main` (2 of 4 full `pnpm test:unit` runs on a laptop with the local Supabase stack running) and on feature branches; each file passes alone, so it shows only under full-suite load. Two causes so far:
+
+- **`tests/components/pages/admin-calendar-data.test.tsx`** raises an unhandled `TypeError: The "event" argument must be an instance of Event` from undici's WebSocket (`fireEvent` in `undici/lib/web/websocket/util.js`): something it renders opens a real Supabase Realtime WebSocket (the prickles realtime change, `20270224300000_prickles_realtime.sql`) under jsdom, where jsdom's `Event` and Node's differ. The run fails even though every test passes. Start by mocking the realtime client in that test (or in the component's data hook) so a unit test never opens a socket, which also makes it independent of whether a local stack is up.
+- **`tests/lib/commitments.test.ts`** and **`tests/lib/outcome-wiring.test.ts` (`saveCheckin reports checkin_saved`)** each failed once in a full run and passed alone and on re-run. Not diagnosed; check for real waits or shared state (`CLAUDE.md`: tests use the fake clock, no real waits).
+
+CI runs on a machine without the stack and hasn't shown this, so it is cheap to fix now and expensive to find once it starts failing there.
+
 ## Security & Access Control
 
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_
