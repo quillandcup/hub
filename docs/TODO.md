@@ -819,6 +819,13 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+
+### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
+
+There is no shared way to stop a double submit. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Correlation"): a very fast double click can send an action twice and, for analytics, overwrite the correlation cookie before the first request reads it. Counts when checked: 58 files render a `<form>`, 19 use `useTransition`, none use `useFormStatus`, and `components/` has no submit-button component, so each form handles pending state (or doesn't) on its own.
+
+Deferred because it touches many forms. Worth doing for its own sake (duplicate saves, duplicate notifications), not only for correlation. Start with a `SubmitButton` in `components/` built on `useFormStatus` (disabled and a pending label while the form action runs), convert the forms that create or send something first, and add a component test per the rules in `reuse-ui-components.md`. Enter-key submits and two different controls clicked quickly are not covered by disabling one button, so correlation stays best effort.
+
 ### Convert Page Layouts to Container Queries _(Needs Scheduling)_
 Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Moving the sidebar to `lg` fixed the worst case, but each page still hard-codes a guess about the shell. Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has, with or without the sidebar. Check at widths just either side of each breakpoint.
 
