@@ -38,6 +38,8 @@ export function coversSyncWindow(from: Date, to: Date, now: Date): boolean {
   return from.getTime() <= new Date(timeMin).getTime() + DST_SLACK_MS && to.getTime() >= new Date(timeMax).getTime() - DST_SLACK_MS;
 }
 
+type SyncClient = Pick<GoogleCalendarClient, "listChangedEvents" | "listCancelledEvents">;
+
 export type CalendarSyncResult =
   | { status: "queued" }
   | { status: "done"; runs: Array<{ mode: "incremental"; changed: number; deleted: number; range: { from: string; to: string } | null } | { mode: "full" }> };
@@ -54,7 +56,7 @@ export type CalendarSyncResult =
  */
 export async function syncCalendarChanges(deps: {
   supabase: SupabaseClient<Database>;
-  client: Pick<GoogleCalendarClient, "listChangedEvents">;
+  client: SyncClient;
   calendarId: string;
   fullSync: () => Promise<unknown>;
   reprocess: (range: { from: Date; to: Date }) => Promise<unknown>;
@@ -87,7 +89,7 @@ export async function syncCalendarChanges(deps: {
 
 async function applyChanges(params: {
   supabase: SupabaseClient<Database>;
-  client: Pick<GoogleCalendarClient, "listChangedEvents">;
+  client: SyncClient;
   calendarId: string;
   reprocess: (range: { from: Date; to: Date }) => Promise<unknown>;
   since: Date;
@@ -96,12 +98,18 @@ async function applyChanges(params: {
   const { supabase, client, calendarId, since, startedAt } = params;
   const repo = createRepos(supabase).calendarEvents;
 
-  const changed = await client.listChangedEvents(calendarId, {
-    updatedMin: new Date(since.getTime() - OVERLAP_MS).toISOString(),
-    ...syncWindow(startedAt),
-  });
+  const updatedMin = new Date(since.getTime() - OVERLAP_MS).toISOString();
+  // Updates are only kept inside the watched window, but a deletion can be of any event (a past
+  // prickle taken off the calendar), so cancelled events are asked for without a window.
+  const [changed, cancelled] = await Promise.all([
+    client.listChangedEvents(calendarId, { updatedMin, ...syncWindow(startedAt) }),
+    client.listCancelledEvents(calendarId, updatedMin),
+  ]);
   // Cancelled, or no longer a timed event (turned into an all-day one): not in the Hub.
-  const gone = changed.filter((e) => e.id && (e.status === "cancelled" || !isTimedEvent(e)));
+  const goneById = new Map(
+    [...changed.filter((e) => e.id && (e.status === "cancelled" || !isTimedEvent(e))), ...cancelled].map((e) => [e.id as string, e])
+  );
+  const gone = [...goneById.values()];
   const live = changed.filter((e) => e.status !== "cancelled" && isTimedEvent(e));
 
   // Where the touched events were before and are now, so a moved or deleted event's old dates
@@ -130,4 +138,29 @@ async function applyChanges(params: {
     deleted: removed.length,
     range: { from: range.from.toISOString(), to: range.to.toISOString() },
   };
+}
+
+/**
+ * Remove the events Google reports cancelled since `sinceDays` ago, wherever they were on the
+ * calendar, and reprocess the dates they had. The nightly reconcile runs it, because its import only
+ * sees the watched window: a deletion of an older event (or one the push notification missed) would
+ * otherwise leave a prickle behind for good.
+ */
+export async function sweepCancelledEvents(params: {
+  supabase: SupabaseClient<Database>;
+  client: Pick<GoogleCalendarClient, "listCancelledEvents">;
+  calendarId: string;
+  sinceDays: number;
+  reprocess: (range: { from: Date; to: Date }) => Promise<unknown>;
+}): Promise<{ cancelled: number; deleted: number; range: { from: string; to: string } | null }> {
+  const since = new Date(clock.now() - params.sinceDays * DAY_MS);
+  const cancelled = await params.client.listCancelledEvents(params.calendarId, since.toISOString());
+  const ids = cancelled.map((e) => e.id as string).filter(Boolean);
+  const removed = await createRepos(params.supabase).calendarEvents.deleteByGoogleIds(ids);
+  if (removed.length === 0) return { cancelled: ids.length, deleted: 0, range: null };
+
+  const times = removed.flatMap((e) => [e.start_time, e.end_time]).map((t) => new Date(t).getTime());
+  const range = { from: new Date(Math.min(...times) - RANGE_PAD_MS), to: new Date(Math.max(...times) + RANGE_PAD_MS) };
+  await params.reprocess(range);
+  return { cancelled: ids.length, deleted: removed.length, range: { from: range.from.toISOString(), to: range.to.toISOString() } };
 }

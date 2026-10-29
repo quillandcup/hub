@@ -300,12 +300,12 @@ External System → Webhook Handler → Bronze UPSERT → Silver Processing
 2. Google sends webhook to `/api/webhooks/calendar`
 3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`lib/google-calendar/incremental-sync.ts`) in `after()`
 4. The sync claims the calendar (`calendar_sync_state`); a notification that arrives while one is running just notes "run once more", so a burst of edits is one sync plus one rerun
-5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window
+5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window; and, separately, for events *cancelled* since then with no date window at all, because a deletion can be of any event (a past prickle taken off the calendar), and the windowed listing never returns those
 6. Changed events are UPSERTed to `bronze.calendar_events` by Google id (Hub ids and links stay); cancelled ones, and ones that became all-day, are deleted
 7. Calendar and attendance are reprocessed for just the dates those events touch (old and new, a day of padding), not the whole window
 8. The watermark (`calendar_sync_state.synced_through`) moves to when the sync began; a failure leaves it, so the next notification retries the same span
 
-With no watermark yet, or one older than two days, the sync falls back to the full import (`triggerCalendarSync`, 90/90), which then sets it. The nightly reconcile does a full sync and sets the watermark too; it stays the guaranteed path and the only one that notices an event moved out of the watched window.
+With no watermark yet, or one older than two days, the sync falls back to the full import (`triggerCalendarSync`, 90/90), which then sets it. The nightly reconcile does a full sync and sets the watermark too; it stays the guaranteed path and the only one that notices an event moved out of the watched window. It also sweeps deletions outside the window (`sweepCancelledEvents`, the last 8 days by default): to clean up older ones, open `/api/reconcile/calendar?cancelledSinceDays=30` as an admin.
 
 ## Next Steps
 
