@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AmbiguousNamesResolver from "./AmbiguousNamesResolver";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { matchAttendeeToMember } from "@/lib/member-matching";
 
 export const metadata: Metadata = {
   title: "Ambiguous Zoom Names",
@@ -14,37 +15,68 @@ export default async function AmbiguousNamesPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const [{ data: ambiguousRows }, allMembers] = await Promise.all([
-    supabase
-      .from("ambiguous_zoom_names")
-      .select("zoom_name, candidate_member_ids, occurrence_count, last_seen_at")
-      .eq("status", "unresolved"),
-    createRepos(supabase).members.identities(),
+  const repos = createRepos(supabase);
+  const [{ data: ambiguousRows }, allMembers, aliases, emailAliases] = await Promise.all([
+    supabase.from("ambiguous_zoom_names").select("zoom_name, zoom_email").eq("status", "unresolved"),
+    repos.members.identities(),
+    repos.aliases.nameAliases({ activeOnly: true }),
+    repos.aliases.emailAliases({ activeOnly: true }),
   ]);
 
   const membersById = new Map(allMembers.map((m) => [m.id, { id: m.id, name: m.name, displayName: m.displayName, email: m.email }]));
 
-  // Group by zoom_name only -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
-  // zoom_email is NULL (Postgres treats each NULL as distinct), so the same bare
-  // name can show up as several identical unresolved rows.
-  const groups = new Map<
-    string,
-    { occurrenceCount: number; lastSeenAt: string; candidateIds: Set<string> }
-  >();
+  // The stored rows are only the queue of names to decide on. Whether a name is still ambiguous,
+  // who the candidates are, how often it appears and when it was last seen are worked out here from
+  // the current members, aliases and Zoom attendees, so a stored count can't drift and a name that
+  // stopped being ambiguous (a member merged or aliased) drops off by itself.
+  const attendeeKey = (name: string, email: string | null) => `${name}|${email || ""}`;
+  const stillAmbiguous = new Map<string, { zoomName: string; zoomEmail: string | null; candidateIds: string[] }>();
   for (const row of ambiguousRows ?? []) {
-    const existing = groups.get(row.zoom_name);
-    if (existing) {
-      existing.occurrenceCount += row.occurrence_count ?? 0;
-      const seen = row.last_seen_at ?? "";
-      if (seen > existing.lastSeenAt) existing.lastSeenAt = seen;
-      for (const id of row.candidate_member_ids ?? []) existing.candidateIds.add(id);
-    } else {
-      groups.set(row.zoom_name, {
-        occurrenceCount: row.occurrence_count ?? 0,
-        lastSeenAt: row.last_seen_at ?? "",
-        candidateIds: new Set<string>(row.candidate_member_ids ?? []),
-      });
+    const match = matchAttendeeToMember(row.zoom_name, row.zoom_email, allMembers, aliases, emailAliases);
+    if (!match || !("reason" in match)) continue;
+    stillAmbiguous.set(attendeeKey(row.zoom_name, row.zoom_email), {
+      zoomName: row.zoom_name,
+      zoomEmail: row.zoom_email,
+      candidateIds: match.candidates.map((c) => c.id),
+    });
+  }
+
+  const usage = new Map<string, { count: number; lastSeenAt: string }>();
+  const names = [...new Set([...stillAmbiguous.values()].map((r) => r.zoomName))];
+  if (names.length > 0) {
+    const BATCH_SIZE = 1000;
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: batch, error } = await supabase
+        .schema("bronze")
+        .from("zoom_attendees")
+        .select("name, email, join_time")
+        .in("name", names)
+        .order("id")
+        .range(offset, offset + BATCH_SIZE - 1);
+      if (error) throw error;
+      for (const a of batch ?? []) {
+        const key = attendeeKey(a.name, a.email);
+        const seen = usage.get(key) ?? { count: 0, lastSeenAt: "" };
+        seen.count++;
+        if (a.join_time > seen.lastSeenAt) seen.lastSeenAt = a.join_time;
+        usage.set(key, seen);
+      }
+      offset += batch?.length ?? 0;
+      hasMore = (batch?.length ?? 0) === BATCH_SIZE;
     }
+  }
+
+  // Group by zoom_name only: the same bare name can be stored with and without an email.
+  const groups = new Map<string, { occurrenceCount: number; lastSeenAt: string; candidateIds: Set<string> }>();
+  for (const [key, row] of stillAmbiguous) {
+    const seen = usage.get(key);
+    const group = groups.get(row.zoomName) ?? { occurrenceCount: 0, lastSeenAt: "", candidateIds: new Set<string>() };
+    group.occurrenceCount += seen?.count ?? 0;
+    if ((seen?.lastSeenAt ?? "") > group.lastSeenAt) group.lastSeenAt = seen!.lastSeenAt;
+    for (const id of row.candidateIds) group.candidateIds.add(id);
+    groups.set(row.zoomName, group);
   }
 
   const entries = Array.from(groups.entries())

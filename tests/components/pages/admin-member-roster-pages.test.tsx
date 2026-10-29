@@ -58,12 +58,22 @@ describe("segments page", () => {
 });
 
 describe("ambiguous Zoom names page", () => {
-  it("groups the unresolved names and names each candidate member", async () => {
+  const SAM_ADA = { id: "mbr_AAAAAAAAAAB4", name: "Sam Ada", email: "samada@example.test" };
+  const SAM_FERN = { id: "mbr_AAAAAAAAAAB5", name: "Sam Fern", email: "samfern@example.test" };
+  const withMembers = (members: object[], nameAliases: object[] = []) => {
+    repos = createInMemoryRepos(new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never }));
+  };
+
+  it("derives candidates, count and last seen from the data, not from the stored row", async () => {
+    // Two members share the first name "Sam", so a bare "Sam" is ambiguous.
+    withMembers([ADA, SAM_ADA, SAM_FERN]);
     useFakeSupabase({
-      ambiguous_zoom_names: {
+      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null, occurrence_count: 4890, last_seen_at: "2026-08-30T00:00:00Z" }] },
+      "bronze.zoom_attendees": {
         data: [
-          { zoom_name: "Sam", candidate_member_ids: [ADA.id, FERN.id], occurrence_count: 2, last_seen_at: "2026-10-01T00:00:00Z" },
-          { zoom_name: "Sam", candidate_member_ids: [BEA.id, "mbr_ZZZZZZZZZZZZ"], occurrence_count: 3, last_seen_at: "2026-10-05T00:00:00Z" },
+          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
+          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z" },
+          { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z" },
         ],
       },
     });
@@ -72,10 +82,20 @@ describe("ambiguous Zoom names page", () => {
 
     const entries = JSON.parse(screen.getByTestId("entries").textContent!);
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ zoomName: "Sam", occurrenceCount: 5, lastSeenAt: "2026-10-05T00:00:00Z" });
-    // Candidates that no longer exist are left out; the rest are id, name and email only.
-    expect(entries[0].candidates.map((c: { id: string }) => c.id).sort()).toEqual([ADA.id, FERN.id, BEA.id].sort());
-    expect(entries[0].candidates.find((c: { id: string }) => c.id === FERN.id)).toEqual({ id: FERN.id, name: FERN.name, displayName: "Penny", email: FERN.email });
+    expect(entries[0]).toMatchObject({ zoomName: "Sam", occurrenceCount: 2, lastSeenAt: "2026-10-05T00:00:00Z" });
+    expect(entries[0].candidates.map((c: { id: string }) => c.id).sort()).toEqual([SAM_ADA.id, SAM_FERN.id].sort());
+  });
+
+  it("drops a stored name once an alias settles who it is", async () => {
+    withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }]);
+    useFakeSupabase({
+      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
+      "bronze.zoom_attendees": { data: [{ name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" }] },
+    });
+
+    await renderServerPage(AmbiguousNamesPage, {});
+
+    expect(JSON.parse(screen.getByTestId("entries").textContent!)).toEqual([]);
   });
 });
 
