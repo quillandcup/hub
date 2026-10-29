@@ -5,7 +5,10 @@ import {
   cleanEventTitle,
   formatTimeSpan,
   isAllDay,
+  monthOf,
+  monthsWithItems,
   parseAgendaMonth,
+  pastAgendaWeeks,
   weekStart,
   type AgendaItem,
 } from '@/lib/events-agenda'
@@ -117,5 +120,30 @@ describe('agendaWeeks', () => {
     const retreat = item('retreat', '2026-09-28', '2026-10-03')
     expect(days(agendaWeeks([retreat], october, '2026-09-26'))).toEqual([['2026-10-01:retreat']])
     expect(days(agendaWeeks([retreat], agendaMonths('2026-10-02')[0], '2026-10-02'))).toEqual([['2026-10-02:retreat']])
+  })
+})
+
+describe('monthOf', () => {
+  it('names the month a date is in, with its first and last day', () => {
+    expect(monthOf('2028-02-10')).toEqual({ id: '2028-02', label: 'February', first: '2028-02-01', last: '2028-02-29' })
+  })
+})
+
+describe('monthsWithItems', () => {
+  it('lists the months that have an item starting in them, newest first, with counts', () => {
+    const months = monthsWithItems([item('a', '2025-03-02'), item('b', '2025-03-20'), item('c', '2024-12-31'), item('d', '2026-01-05', '2026-02-02')])
+    expect(months.map((m) => [m.id, m.count])).toEqual([['2026-01', 1], ['2025-03', 2], ['2024-12', 1]])
+  })
+
+  it('is empty without items', () => {
+    expect(monthsWithItems([])).toEqual([])
+  })
+})
+
+describe('pastAgendaWeeks', () => {
+  it('lists the items that started in the month, even one that ran into the next, and not one that began earlier', () => {
+    const month = monthOf('2025-03-15')
+    const weeks = pastAgendaWeeks([item('early', '2025-02-27', '2025-03-02'), item('in', '2025-03-10'), item('across', '2025-03-30', '2025-04-02'), item('later', '2025-04-05')], month)
+    expect(weeks.flatMap((w) => w.days.flatMap((d) => d.items.map((i) => i.key)))).toEqual(['in', 'across'])
   })
 })
