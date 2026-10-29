@@ -5,6 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
+import LiveRefresh from "@/components/LiveRefresh";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -125,6 +126,11 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
+      {/* The calendar sync (a Google edit, within seconds) adds, moves or removes prickles: show them without a reload. */}
+      <LiveRefresh
+        table="prickles"
+        within={{ column: "start_time", from: week.startInstant.toISOString(), to: week.endInstant.toISOString() }}
+      />
       <CalendarKeyboardNav
         prevHref={`/admin/calendar?week=${prevWeekParam}`}
         nextHref={`/admin/calendar?week=${nextWeekParam}`}
