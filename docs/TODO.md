@@ -189,6 +189,10 @@ Educational prickles (`EDU-PRICKLE: Title w/Name`) map to the Educational type t
 - **Resolved:** someone other than the default host hosting. An admin changes a calendar prickle's host from its page; the choice survives reprocessing and the guest speaker from the title stays (`hostOverrideId` in `assignHostAndSpeaker`).
 - **Titles that don't start with a known type name or alias** (a webinar titled "Quill & Cup [Topic] Prickle: ...") still go to the unmatched queue to be resolved by hand; once resolved, a speaker after `w/` or `with` is read as usual.
 
+### Ambiguous Zoom Names: The Hygiene Count Still Reads the Stored Rows
+
+The Ambiguous Zoom Names page works out from the current members and aliases which stored names are still ambiguous, and derives their counts from Bronze. The Data Hygiene overview (`app/(admin)/admin/hygiene/page.tsx`, `ambiguousNamesCount`) still counts the stored unresolved rows, so it can show more names than the page lists until the stale rows are resolved or ignored. Deferred to keep the fix small. Start by moving the "still ambiguous" check into a shared function in `lib/` that both call; `ambiguous_zoom_names.occurrence_count` and `candidate_member_ids` are no longer read and can be dropped afterwards.
+
 ## Infrastructure & Deployment
 
 ### Test Slack Integrations at the HTTP Level with MSW
