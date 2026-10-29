@@ -41,11 +41,14 @@ export default function EventDetailClient({
   event,
   photos,
   calendarControl,
+  coverImage = null,
 }: {
   event: EventData;
   photos: Photo[];
   /** "Add to my calendar", rendered by the page for upcoming events. */
   calendarControl?: ReactNode;
+  /** The picture picked from the media library, shown above the title. */
+  coverImage?: { src: string; alt: string } | null;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const audience = audienceSummary(event);
@@ -54,6 +57,10 @@ export default function EventDetailClient({
 
   return (
     <div className="mt-4 space-y-6">
+      {coverImage && (
+        // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+        <img src={coverImage.src} alt={coverImage.alt} className="w-full aspect-video object-cover rounded-lg shadow" />
+      )}
       <div>
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}

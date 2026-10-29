@@ -59,6 +59,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     focus: e.focus,
     registration: e.registration,
     badge_icon: badgeIconOf.get(e.id) ?? null,
+    image_id: e.imageId,
     cover_photo_id: e.coverPhotoId,
   }));
 

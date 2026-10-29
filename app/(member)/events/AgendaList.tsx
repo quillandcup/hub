@@ -23,6 +23,8 @@ export interface EventRow {
   registration?: string | null;
   /** The icon of the badge the event awards (a retreat's), shown on its card when there is no photo. */
   badge_icon?: string | null;
+  /** The cover picked from the media library; it wins over the first imported photo. */
+  image_id?: string | null;
   cover_photo_id: string | null;
 }
 

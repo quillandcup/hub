@@ -9,5 +9,10 @@ defineMediaContract("InMemoryMediaRepository", () => {
     repo: () => new InMemoryMediaRepository(data),
     unique: (label) => `${label}-${++n}`,
     owners: async () => ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"],
+    eventShowing: async (assetId, title, startsAt) => {
+      const id = `evt_${String(++n).padStart(12, "A")}`;
+      data.events.push({ id, slug: id, title, starts_at: startsAt, image_id: assetId });
+      return id;
+    },
   };
 });

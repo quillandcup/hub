@@ -141,6 +141,15 @@ export const EVENTS = {
 
   /** A help article (help/<slug>.md) was opened. `slug` is the file name, chosen by us, never typed by a member. */
   help_article_viewed: { slug: text(60) },
+
+  // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,
+  // named by us; a title, tag, file name or search text never goes in.
+  media_picker_opened: { surface: oneOf("event_cover") },
+  /** An image was chosen: from the library (`searched` says a search was typed first) or by uploading it right there. */
+  media_picked: { surface: oneOf("event_cover"), from: oneOf("library", "upload"), searched: bool() },
+  media_cleared: { surface: oneOf("event_cover") },
+  /** An upload finished or failed. `converted` is a HEIC photo turned into JPEG, `duplicate` a file the library already had, `large` one sent through the signed URL. */
+  media_uploaded: { surface: oneOf("event_cover"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
 } satisfies Record<string, Record<string, Spec>>;
 
 export type EventName = keyof typeof EVENTS;

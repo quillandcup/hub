@@ -44,6 +44,7 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
       end_time: e.end_time,
       focus: e.focus,
       registration: e.registration,
+      image_id: e.imageId,
       cover_photo_id: e.coverPhotoId,
     }))
     .filter((e) => eventDays(e, timeZone).endDate < today);

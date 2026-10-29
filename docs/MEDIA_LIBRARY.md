@@ -83,7 +83,7 @@ No schema change. The course builder's picker gets a "from the video" tab that a
 
 ## Build order
 
-Step 1 is done (this PR).
+Steps 1 and 2 are done. Step 2 shipped the picker and event covers; `/admin/media` (browse, rename, tag, focal point, usage, delete) is the next PR.
 
 Each is its own PR, small enough to review.
 

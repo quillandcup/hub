@@ -114,3 +114,17 @@ describe("EventDetailClient location", () => {
   });
 });
 
+
+describe("EventDetailClient cover image", () => {
+  it("shows the picked image above the title, with its alt text", () => {
+    render(<EventDetailClient event={EVENT} photos={[]} coverImage={{ src: "/api/media/media_AAAAAAAAAAA1/event_hero", alt: "Cedar Lodge" }} />);
+    const image = screen.getByAltText("Cedar Lodge");
+    expect(image).toHaveAttribute("src", "/api/media/media_AAAAAAAAAAA1/event_hero");
+    expect(image.compareDocumentPosition(screen.getByRole("heading", { level: 1 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no image when there isn't one", () => {
+    const { container } = render(<EventDetailClient event={EVENT} photos={[]} />);
+    expect(container.querySelector("img")).toBeNull();
+  });
+});
