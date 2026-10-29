@@ -2869,6 +2869,86 @@ export type Database = {
           },
         ]
       }
+      media_assets: {
+        Row: {
+          alt_text: string | null
+          bytes: number
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          fits: Json
+          focal_x: number | null
+          focal_y: number | null
+          height: number
+          id: string
+          is_public: boolean
+          mime_type: string
+          owner_member_id: string | null
+          sha256: string
+          source: string
+          source_key: string | null
+          storage_path: string
+          tags: string[]
+          title: string
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          alt_text?: string | null
+          bytes: number
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          fits?: Json
+          focal_x?: number | null
+          focal_y?: number | null
+          height: number
+          id?: string
+          is_public?: boolean
+          mime_type: string
+          owner_member_id?: string | null
+          sha256: string
+          source?: string
+          source_key?: string | null
+          storage_path: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          alt_text?: string | null
+          bytes?: number
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          fits?: Json
+          focal_x?: number | null
+          focal_y?: number | null
+          height?: number
+          id?: string
+          is_public?: boolean
+          mime_type?: string
+          owner_member_id?: string | null
+          sha256?: string
+          source?: string
+          source_key?: string | null
+          storage_path?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_assets_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_activities: {
         Row: {
           acting_as_member_id: string | null

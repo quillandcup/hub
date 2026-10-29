@@ -56,7 +56,7 @@ traceable* (an orphan id in a log tells you which table it came from), not prett
 (Slack prefixes a few dozen user-visible kinds with one letter; Stripe has 100+ and the long
 tail is cryptic; nobody minds either).
 
-**Tier 1: hand-chosen, readable (17).** Needs owner sign-off. These are the ids a person can see or copy: in page URLs and admin pages, and in the image and download links (`photo_` in `/api/events/<event>/photos/<photo>`, `file_` in `/courses/<slug>/lessons/<lesson>/files/<file>`).
+**Tier 1: hand-chosen, readable (17, plus `media_assets`, born Tier 1 with the media library: `img_`, in `/api/media/<id>/<preset>`).** Needs owner sign-off. These are the ids a person can see or copy: in page URLs and admin pages, and in the image and download links (`photo_` in `/api/events/<event>/photos/<photo>`, `file_` in `/courses/<slug>/lessons/<lesson>/files/<file>`).
 
 | Table | Prefix | Table | Prefix |
 |---|---|---|---|
@@ -68,7 +68,7 @@ tail is cryptic; nobody minds either).
 | `member_books` | `book_` | `course_lessons` | `les_` |
 | `events` | `evt_` | `event_photos` | `photo_` |
 | `programs` | `prg_` | `course_lesson_files` | `file_` |
-| `chat_messages` | `msg_` |  | |
+| `chat_messages` | `msg_` | `media_assets` | `img_` |
 
 **Tier 2: short but readable (58).** Not worth debating one by one; the rule is what gets
 reviewed. Pronounceable and close to the table's own words, so the prefix is obvious

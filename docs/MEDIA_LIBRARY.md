@@ -1,6 +1,6 @@
 # Media library
 
-Status: **design, nothing built yet** (2026-10-29). One place for the images the Hub shows, so an image is uploaded once, picked again anywhere, and turned into whatever size a screen or a store needs without anyone cropping by hand.
+Status: **foundation built** (table, bucket, repository, upload and serving routes, presets; no UI yet). Decisions made with the owner: ids are `img_`; events and the Bookshelf will be public later, so an asset has `is_public`; Amazon ebook covers only for now; the courses workstream is paused, so the foundation lands first. One place for the images the Hub shows, so an image is uploaded once, picked again anywhere, and turned into whatever size a screen or a store needs without anyone cropping by hand.
 
 ## Why
 
@@ -17,14 +17,14 @@ Images are handled four different ways today, and none of them can be reused:
 
 **One table, one private bucket, derived renditions.**
 
-- `media_assets` (a table we own, so a text id from `new_id`; see below): `storage_path` of the **original, never modified**; `width`, `height`, `mime_type`, `bytes`, `sha256` (the same file uploaded twice is one asset); `title`, `alt_text`, `tags text[]`; `focal_x`, `focal_y` (null = let the cropper decide); `owner_member_id` (null = shared, staff-managed; set = that member's own, e.g. their book cover); `source` (`upload`, `kajabi`, `video_frame`) and `source_key` (the Kajabi URL without its query string, later `<video id>@<seconds>`), which together make imports idempotent; `deleted_at`; `created_by`.
+- `media_assets` (a table we own, so a text id from `new_id`; see below): `storage_path` of the **original, never modified** (`originals/<owner member id or shared>/<sha256>.<ext>`, so a retry lands on the same object); `width`, `height`, `mime_type`, `bytes`, `sha256` (the same file uploaded twice is one asset); `title`, `alt_text`, `tags text[]`; `focal_x`, `focal_y` (null = let the cropper decide); `owner_member_id` (null = shared, staff-managed; set = that member's own, e.g. their book cover); `is_public` (served to signed-out visitors too: off until the Bookshelf and events pages are public); `source` (`upload`, `kajabi`, `video_frame`) and `source_key` (the Kajabi URL without its query string, later `<video id>@<seconds>`), which together make imports idempotent; `deleted_at`; `created_by`.
 - **Uses are foreign keys, not a join table**: `events.image_id`, `member_books.cover_asset_id`, `courses.thumbnail_asset_id`, `course_modules.poster_asset_id`, `course_lessons.thumbnail_asset_id`, all `ON DELETE RESTRICT`. "Where is this used" is a view over them; deleting an asset that is in use is refused with the list of places. The pages ask for `asset + preset`, never a path.
 - **Renditions** are made with `sharp` (already a dependency) from the original the first time a preset is requested, stored under `renditions/<asset id>/<preset>-<hash of the crop settings>.webp`, and served with `Cache-Control: immutable`. Changing a focal point changes the hash, so nothing needs purging. Presets are a typed table in `lib/media/presets.ts` (`event_card`, `event_hero`, `book_cover_shelf`, `book_cover_kdp_ebook`, `thumb`, ...), each with width, height, fit and format.
 - **Serving** is `/api/media/<id>/<preset>`, behind the same caller checks as the feature that shows the image. Public-bucket URLs stay out: a copyable link is a link we can't change. Gated cases keep their own route (the course image route hides a draft lesson's image from members), which now resolves `asset id` and streams from the media bucket.
 
 ### Ids
 
-Asset ids appear in URLs (`/api/media/<id>/...`), so by `CLAUDE.md` ("Resource ID Tiers") the table is **Tier 1** and needs a readable prefix agreed with the owner first. Proposal: `img_`. Check it is free in `docs/SHORT_IDS_PLAN.md` before the migration.
+Asset ids appear in URLs (`/api/media/<id>/...`), so by `CLAUDE.md` ("Resource ID Tiers") the table is **Tier 1**. The owner chose `img_` (a video frame is still an image; videos stay their own aggregate). It is in `ID_PREFIXES` and `docs/SHORT_IDS_PLAN.md`.
 
 ## Automatic sizing, and book covers for Amazon
 
@@ -35,7 +35,7 @@ The goal is that nobody opens a cropping tool. Upload one cover; the Hub makes e
 3. **Too small**: say so ("Amazon wants at least N px on the shortest side; yours is M") rather than upscaling. A blurry cover accepted silently is worse than a message.
 4. **Output**: for the book page, a "Download for Amazon" button on the book that returns the `book_cover_kdp_ebook` rendition as a JPEG.
 
-KDP numbers (ebook cover: JPEG or TIFF, ideal 1.6 : 1 height to width at 2560 x 1600 px, a minimum on the shortest side, a file-size cap) **were written from memory and must be checked against Amazon's current cover guidelines before they go into `presets.ts`**, with the page linked in a comment. Keep them in that one file, so a change in Amazon's rules is a one-line change. **Paperback and hardcover are a different problem**: the printer needs a full wrap (back, spine, front) whose spine width comes from page count and paper type. Cropping a front cover can't produce that. Out of scope for v1; it would be a cover template that takes the front cover plus page count. Note it in `docs/TODO.md` when v1 ships.
+KDP numbers are checked against [Amazon's cover guidelines](https://kdp.amazon.com/en_US/help/topic/G6GTK3T3NUHKLEFX) (2026-10-29) and live only in `lib/media/presets.ts`: JPEG preferred, ideally 2560 px high by 1600 wide (1.6 : 1), at most 10000 px a side and 50 MB. KDP's own pages disagree on the smallest size (500 px on the longest side on one, 1000 x 625 on an older one), so the stricter is enforced: a smaller source gets a 422 with the reason instead of a blown-up cover. **Paperback and hardcover are a different problem**: the printer needs a full wrap (back, spine, front) whose spine width comes from page count and paper type. Cropping a front cover can't produce that. Out of scope for v1; it would be a cover template that takes the front cover plus page count. Note it in `docs/TODO.md` when v1 ships.
 
 The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from whatever was uploaded, and existing covers are backfilled as assets so the Bookshelf keeps working.
 
@@ -67,9 +67,11 @@ No schema change. The course builder's picker gets a "from the video" tab that a
 - Decide the type from the bytes (`sharp(...).metadata()`), not the browser's `Content-Type` or the file name. Accept JPEG, PNG, WebP, GIF, AVIF. **No SVG**: it can carry script. Reject a HEIC upload with a message to export as JPEG unless the sharp build in production reads it (check; iPhone photos are the likely source).
 - Apply EXIF orientation, then **strip metadata**: phone photos carry GPS. The original keeps its bytes as uploaded in storage, but the renditions are always stripped, and nothing serves the original to a page.
 - Cap input (bytes and pixels: `limitInputPixels`) before decoding, so a decompression bomb can't take down the function.
-- The upload route takes `multipart/form-data` through the API route (Vercel body limit applies: if a 10 MB original won't fit, switch to a signed upload URL and a "confirm" call that validates the stored object).
+- `POST /api/media` takes `multipart/form-data` for files that fit a request body (Vercel allows about 4.5 MB). Bigger ones go to a signed URL from `POST /api/media/uploads` and are then confirmed with `POST /api/media { uploadPath }`, which validates what was stored and moves it into the library.
 
 ## Build order
+
+Step 1 is done (this PR).
 
 Each is its own PR, small enough to review.
 
