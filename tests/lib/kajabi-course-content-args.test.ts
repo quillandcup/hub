@@ -10,6 +10,7 @@ describe("parseContentArgs", () => {
       apply: false,
       skipDrafts: false,
       hero: false,
+      probe: null,
       concurrency: 2,
       headless: false,
       profileDir: null,
@@ -30,7 +31,7 @@ describe("parseContentArgs", () => {
   });
 
   it.each([
-    [[], "Give --course or --lesson"],
+    [[], "Give --course, --lesson or --probe"],
     [["--course", "1", "--lesson", "2"], "not both"],
     [["--course"], "--course needs a value"],
     [["--course", "--apply"], "--course needs a value"],
@@ -42,6 +43,29 @@ describe("parseContentArgs", () => {
     [["--course", "1", "--concurrency", "0"], "from 1 to 5"],
     [["--course", "1", "--concurrency", "9"], "from 1 to 5"],
     [["--course", "1", "--concurrency", "two"], "from 1 to 5"],
+  ])("rejects %j", (argv, message) => {
+    const result = parseContentArgs(argv);
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.error).toContain(message);
+  });
+
+  it("takes a page to probe instead of a course or lesson, which then needs no scope", () => {
+    expect(parseContentArgs(["--probe", "https://app.kajabi.com/admin/x"])).toMatchObject({
+      ok: true,
+      scope: null,
+      probe: { url: "https://app.kajabi.com/admin/x", seconds: 90 },
+    });
+    expect(parseContentArgs(["--probe=https://app.kajabi.com/admin/x", "--seconds=30"])).toMatchObject({ probe: { seconds: 30 } });
+    expect(parseContentArgs(["--course", "1"])).toMatchObject({ probe: null, scope: { courseId: "1" } });
+  });
+
+  it.each([
+    [["--probe", "https://k.test/a", "--course", "1"], "not --course or --lesson"],
+    [["--probe", "http://k.test/a"], "https://"],
+    [["--probe", "not a url"], "https://"],
+    [["--probe", "https://k.test/a", "--seconds", "5"], "10 to 600"],
+    [["--probe", "https://k.test/a", "--seconds", "abc"], "10 to 600"],
+    [["--course", "1", "--seconds", "30"], "is for --probe"],
   ])("rejects %j", (argv, message) => {
     const result = parseContentArgs(argv);
     expect(result.ok).toBe(false);

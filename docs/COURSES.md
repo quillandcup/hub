@@ -130,7 +130,7 @@ Recommended: run the checks above; if a usable source exists build option 1 (wit
 
 **The source is known (decided 2026-10-28):** Kajabi's admin has a **Product Progress** report per product (with an **Export** button). The CSV has one row per student with `Name, Email, Product Progress, Logins, Start Date, Last Activity At`. `Product Progress` is a 0 to 100 percentage of the **whole product**, not per lesson; the start date reads "Not Started" for people who have not begun. The file does not say which product it is for, so the admin picks the course when uploading. It needs no browser session and no script.
 
-**Per-lesson detail may still exist, unverified.** Each student's page in the Kajabi admin (click a customer's name in that report) may list completed lessons. Check it in a logged-in browser later. If it exists, it would be a `--progress` mode in `scripts/kajabi-course-content.ts` (same browser login, recording the page's own responses), not a replacement for the CSV, which stays the no-browser path.
+**Per-lesson detail exists (confirmed 2026-10-29 from a screenshot).** Each student has a "Customer Progress" page in the Kajabi admin (click a name in the Product Progress report): their overall percent and last activity, a list of modules and weeks with a percent or check each, and, after clicking a module or week, the lessons in it, each with a check and a "Completed: date" or a percent for one in progress. So Kajabi does record per-lesson completion with a date. The page loads a week's lessons only when it is clicked, so the capture has to open each module for each student. **Decided: this is part of `npm run courses:content`** (a `--progress` mode sharing its browser login), not a manual download and upload: it reads the report page for the roster (percent, logins, start date, last activity) and each student's page for the lessons, and writes Bronze like the other steps (dry run unless `--apply`). The CSV upload above stays as the fallback. **First step, built:** `courses:content --probe <page address>` opens a page in the logged-in browser, records the JSON it loads while you click around (open a week, a module), and prints request paths and field names and types, never values. Run it on the Product Progress page and on one student's page, paste what it prints, and the capture is written from those facts.
 
 **What the import does** (admin Import Data page, "Kajabi Course Progress"; `app/api/import/kajabi-product-progress/route.ts`, `lib/courses/product-progress.ts`):
 
@@ -341,13 +341,13 @@ We still copy chat's good parts: soft delete, tombstones, and the escaping and n
 ### Data model
 
 New Local tables (never reprocessed), text ids per `CLAUDE.md` "New Tables and Ids", grants and RLS in the same migration (`supabase-table-grants.md`):
-- **`lesson_comments`**: `id` (`lcom_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
+- **`lesson_comments`**: `id` (`cmnt_`), `lesson_id` (text FK to `course_lessons`), `member_id` (author, text FK to `members`), `parent_id` (null for a top-level comment), `body` (plain text, 1 to 4,000 characters), `is_staff_reply` (set by the server from the author's role when posted, so the badge survives a later role change), `created_at`, `edited_at`, `hidden_at`, `deleted_at`, `deleted_by`.
 - **`lesson_comment_reports`**: `id`, `comment_id`, `reporter_id`, `reason`, `created_at`, `resolved_at`, `resolved_by`. One open report per reporter and comment.
 - **`lesson_comment_follows`**: `(member_id, lesson_id, following)`. Posting or replying follows implicitly; rows exist only for explicit choices and unfollowing is `following = false`.
 - **`lesson_comment_reads`** (phase 3): last-seen per member and lesson, for unread counts.
 
 Decisions:
-- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (`lcom_`: `cmt_` is already `prickle_commitments`); reports, follows and reads stay Tier 2.
+- **Prefix and tier.** Notifications link to a comment, so its id is shown to people. A Tier 2 id must not be exposed (`CLAUDE.md` "Resource ID Tiers"), so `lesson_comments` needs a Tier 1 prefix agreed with the owner (`cmnt_`: `cmt_` is already `prickle_commitments`); reports, follows and reads stay Tier 2.
 - **Threading depth: one level.** A reply points at a top-level comment; replying to a reply attaches to the same parent, quoting the author's name. Alternatives: flat; unlimited nesting (unreadable on a phone).
 - **Edit window: 15 minutes**, then locked (the author can still delete). Edits set `edited_at` and show "edited". Alternative: always editable, which leaves replies out of context.
 - **Soft delete** with `deleted_at`. A deleted comment with replies shows a tombstone ("Comment removed"); without replies it disappears. Text is cleared by a retention job (below), not at delete time, so staff can undo.
@@ -383,7 +383,7 @@ Every event is a registry kind sent through `createNotifier` (`lib/notifications
 - **`lesson_comment_instructor_reply`**: an instructor replied to me. A distinct kind so a member can mute others' replies but keep instructors'.
 - **`lesson_comment_activity`**: new comments on a lesson I follow. **Daily digest**, opt-in through a "Follow" button, so a busy lesson can't spam.
 - **Staff** get new top-level questions in the admin queue and an instructor digest, not a DM per comment.
-- Links go to the exact comment (`/courses/<slug>/lessons/<id>?comment=<lcom_...>`, which scrolls to and highlights it). Not time-sensitive; no link previews. Check the link with the test message (`/admin/notifications`).
+- Links go to the exact comment (`/courses/<slug>/lessons/<id>?comment=<cmnt_...>`, which scrolls to and highlights it). Not time-sensitive; no link previews. Check the link with the test message (`/admin/notifications`).
 - **Rollout**: a new automated sender starts in dry run. A `lesson_comment_notifications` flag with `liveFor` (as in `lib/member-reminders.ts`) logs member id, kind, channels and message and writes no dedup row; then widen: Cody, then staff, then everyone. A member with no reachable channel doesn't consume a dedup claim.
 - Opening the thread calls `resolveInAppNotifications` for its notifications.
 
@@ -440,7 +440,7 @@ Kajabi comments, if any exist, are **not imported**: we don't rely on an API for
 ### Decisions (2026-10-28)
 
 1. **Ended access:** the whole course is hidden, so the thread goes with it (see "Who can comment").
-2. **Id prefix:** `lesson_comments` is Tier 1 (notification links expose the id), but `cmt_` is already `prickle_commitments` (`lib/ids.ts`, `docs/SHORT_IDS_PLAN.md`). Use **`lcom_`** instead (not yet used; confirm before the migration). Reports, follows and reads stay Tier 2.
+2. **Id prefix:** `lesson_comments` is Tier 1 (notification links expose the id), but `cmt_` is already `prickle_commitments` (`lib/ids.ts`, `docs/SHORT_IDS_PLAN.md`). Use **`cmnt_`** instead (chosen by the owner, 2026-10-29; `cmnt_` is not used anywhere). Reports, follows and reads stay Tier 2.
 3. **Instructors:** admins only to start; a per-course list later if Ania wants non-admin helpers.
 4. **Mentions and video timestamps:** after the first release (phase 4; `docs/TODO.md`, "Lesson Comments on Courses").
 5. **Notification defaults:** direct and instructor replies on in Slack and in-app, email off. The daily digest is for members who press "Follow" on a lesson's thread: one summary a day of new comments on the lessons they follow, and nothing unless they follow.
@@ -467,7 +467,7 @@ Steps A and C also run with the standard Kajabi sync (the admin button and the n
 
 ## Open decisions
 
-None right now.
+- **What a member sees after access ends** (to discuss with Ania). Today an ended course still lists on `/courses` with its progress, a note that access ended, and its lessons closed (their links are switched off, so a member can see the outline and their progress but not open a lesson). Lesson comments are hidden with the course. The owner is fine showing the course and its progress indicators, and expects the right answer to vary by course: access for a limited time versus access forever. Needs a per-course setting if it does.
 
 ## Decided (2026-10-18)
 

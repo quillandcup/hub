@@ -35,6 +35,7 @@ import {
   type SaveOutcome,
 } from "../lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
+import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
@@ -52,18 +53,21 @@ if (!parsed.ok) {
 }
 const args = parsed;
 
-const loaded = config({ path: resolve(process.cwd(), args.envFile) });
-if (loaded.error) {
-  console.error(`Failed to load ${args.envFile}: ${loaded.error.message}`);
-  process.exit(1);
+// Probe mode reads no lessons and writes nothing, so it needs no database settings.
+if (!args.probe) {
+  const loaded = config({ path: resolve(process.cwd(), args.envFile) });
+  if (loaded.error) {
+    console.error(`Failed to load ${args.envFile}: ${loaded.error.message}`);
+    process.exit(1);
+  }
 }
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
+if (!args.probe && (!url || !key)) {
   console.error(`${args.envFile} needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.`);
   process.exit(1);
 }
-const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+const supabase = createClient(url ?? "https://probe.invalid", key ?? "probe", { auth: { autoRefreshToken: false, persistSession: false } });
 
 async function ensureLoggedIn(context: BrowserContext): Promise<void> {
   const page = await context.newPage();
@@ -227,7 +231,52 @@ async function processLesson(context: BrowserContext, worker: Worker, lesson: Le
   return { lesson, outcome: "failed", error: lastError instanceof Error ? lastError.message : String(lastError), warnings: [] };
 }
 
+/**
+ * Probe mode: opens a page you name (a student's progress page, say) in the logged-in browser, and for a while
+ * records every JSON response it makes while you click around in the window (open a week, a module...). Then it
+ * prints each request's path and the field names and types of its response: never values, since these pages show
+ * members' names and emails. The output says where a page's data comes from, so a capture can be written from
+ * facts. Writes nothing, and needs no database.
+ */
+async function probe(target: { url: string; seconds: number }): Promise<void> {
+  const context = await chromium.launchPersistentContext(args.profileDir ?? join(homedir(), ".hub-kajabi-profile"), {
+    channel: "chrome",
+    headless: args.headless,
+  });
+  const seen: ProbedRequest[] = [];
+  const pending: Promise<void>[] = [];
+  try {
+    await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
+    await ensureLoggedIn(context);
+    const page = await context.newPage();
+    page.on("response", (r) => {
+      if (!(r.headers()["content-type"] ?? "").includes("json")) return;
+      pending.push(
+        (async () => {
+          const json = await r.json().catch(() => undefined);
+          seen.push({
+            method: r.request().method(),
+            status: r.status(),
+            path: normalizeRequestPath(r.url()),
+            query: queryNames(r.url()),
+            fields: json === undefined ? [] : describeJson(json),
+          });
+        })()
+      );
+    });
+    await page.goto(target.url, { waitUntil: "domcontentloaded" });
+    console.log(`Recording for ${target.seconds} seconds. Click around in the browser window (open a week, a module, the next page) so its requests are seen.`);
+    await page.waitForTimeout(target.seconds * 1000);
+    await Promise.all(pending);
+  } finally {
+    await context.close();
+  }
+  console.log(`\n${formatProbe(seen)}\n\nPage: ${normalizeRequestPath(target.url)}. Names and types only, no values.`);
+}
+
 async function main() {
+  if (args.probe) return probe(args.probe);
+  if (!args.scope) throw new Error("Give --course or --lesson");
   const lessons = await selectLessons(supabase, args.scope, { includeDrafts: !args.skipDrafts });
   if (lessons.length === 0) {
     console.log(
