@@ -54,15 +54,11 @@ export async function POST(request: NextRequest) {
     // STEP 1: Load reference data upfront (members and aliases can exceed 1000 rows)
     const members = await createRepos(supabase).members.identities();
     const aliases = await createRepos(supabase).aliases.nameAliases({ activeOnly: true });
-    const { data: slackUsers, error: usersError } = await supabase
-      .schema("bronze")
-      .from("slack_users")
-      .select("user_id, email, real_name");
-    if (usersError) throw usersError;
+    const slackUsers = await createRepos(supabase).slackUsers.list();
 
     // STEP 2: Match Slack users to members (in memory)
     const userMemberMap = Object.fromEntries(
-      await matchSlackUsersToMembers(slackUsers ?? [], members, aliases, await loadVerifiedSlackLinks(supabase))
+      await matchSlackUsersToMembers(slackUsers, members, aliases, await loadVerifiedSlackLinks(supabase))
     );
 
     // STEP 3: Channels and membership

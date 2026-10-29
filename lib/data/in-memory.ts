@@ -7,6 +7,7 @@ import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { CalendarSourceEvent } from "./calendar-events";
+import type { SlackUserSeed } from "./slack-users";
 import type { UserProfileSeed } from "./profiles";
 import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
@@ -77,6 +78,8 @@ export class InMemoryDataset {
   userProfiles: UserProfileSeed[];
   /** The Bronze copy of the Google Calendar (`bronze.calendar_events`). */
   calendarEvents: CalendarSourceEvent[];
+  /** The Bronze copy of the workspace's Slack users (`bronze.slack_users`). */
+  slackUsers: SlackUserSeed[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -85,7 +88,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers">
 
     > = {},
   ) {
@@ -112,6 +115,7 @@ export class InMemoryDataset {
     this.activities = (init.activities ?? []).map((row) => ({ ...row }));
     this.userProfiles = (init.userProfiles ?? []).map((row) => ({ ...row }));
     this.calendarEvents = (init.calendarEvents ?? []).map((row) => ({ ...row }));
+    this.slackUsers = (init.slackUsers ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

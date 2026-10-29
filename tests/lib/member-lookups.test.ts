@@ -47,6 +47,10 @@ describe("Slack DM links", () => {
     repos = createInMemoryRepos(
       new InMemoryDataset({
         members: [ADA, FERN, GALE],
+        slackUsers: [
+          { user_id: "U_FERN", email: FERN.email },
+          { user_id: "U_ADA_EMAIL", email: ADA.email },
+        ],
         nameAliases: [
           { id: "nal_1", member_id: ADA.id, alias: "U_ADA_ALIAS", source: "slack", active: true },
           { id: "nal_2", member_id: FERN.id, alias: "U_FERN_OLD", source: "slack", active: false },
@@ -54,9 +58,7 @@ describe("Slack DM links", () => {
         ],
       })
     );
-    service = createFakeSupabase({
-      "bronze.slack_users": { data: [{ user_id: "U_FERN", email: FERN.email }, { user_id: "U_ADA_EMAIL", email: ADA.email }] },
-    });
+    service = createFakeSupabase({});
 
     const links = await getSlackDmLinksForMembers([ADA.id, FERN.id, GALE.id]);
 

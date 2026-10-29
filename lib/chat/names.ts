@@ -38,12 +38,11 @@ async function slackUserNamesUncached(userIds: string[]): Promise<Record<string,
   const service = createServiceRoleClient();
 
   for (const batch of chunks(ids)) {
-    const [a, u] = await Promise.all([
+    const [a, slackUsers] = await Promise.all([
       service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      service.schema("bronze").from("slack_users").select("user_id, display_name, real_name, name").in("user_id", batch),
+      createRepos(service).slackUsers.byIds(batch),
     ]);
     const authors = ok(a);
-    const slackUsers = ok(u);
 
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberNames = new Map<string, { name: string; displayName: string | null }>();
@@ -130,12 +129,11 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
   const service = createServiceRoleClient();
 
   for (const batch of chunks(ids)) {
-    const [a, u] = await Promise.all([
+    const [a, slackUsers] = await Promise.all([
       service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      service.schema("bronze").from("slack_users").select("user_id, image_url").in("user_id", batch),
+      createRepos(service).slackUsers.byIds(batch),
     ]);
     const authors = ok(a);
-    const slackUsers = ok(u);
     const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
     const memberPhotos = new Map<string, string>();
     if (memberIds.length > 0) {

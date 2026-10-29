@@ -52,16 +52,16 @@ export async function POST(request: NextRequest) {
     const [
       members,
       aliases,
-      { data: slackUsers },
+      slackUsers,
     ] = await Promise.all([
       createRepos(supabase).members.identities(),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name"),
+      createRepos(supabase).slackUsers.list(),
     ]);
 
     // STEP 2: Match Slack users to members (in memory)
     const userToMemberMap = await matchSlackUsersToMembers(
-      slackUsers || [],
+      slackUsers,
       members,
       aliases || [],
       await loadVerifiedSlackLinks(supabase)

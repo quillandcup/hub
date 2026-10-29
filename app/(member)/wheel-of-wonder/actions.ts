@@ -77,7 +77,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
         .then((links) => links.map((l) => ({ member_id: l.memberId, prickle_id: l.prickleId }))),
       createRepos(supabase).activities.slackCountsSince(activityWindowStart),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
+      createRepos(supabase).slackUsers.list(),
     ]);
 
   const members = membersResult
@@ -89,7 +89,7 @@ async function loadCandidatePool(viewerMemberId: string): Promise<CandidatePoolR
   // matched automatically by email (the common case) would look unreachable
   // here even though /admin/hygiene considers them linked.
   const slackUserToMemberId = await matchSlackUsersToMembers(
-    slackUsers.data ?? [],
+    slackUsers,
     allMembersForMatching,
     slackAliases,
     await loadVerifiedSlackLinks(supabase)

@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { projectChatMessage } from "@/lib/chat-projection";
 import { clock } from "@/lib/clock";
@@ -132,12 +133,8 @@ async function storeAndProject(
 
   // Who is who, as the import fills it in.
   const userIds = [...new Set([...uniqueMessages.map((m) => m.user_id), ...uniqueReactions.map((r) => r.user_id)])];
-  const { data: users } = await service
-    .schema("bronze")
-    .from("slack_users")
-    .select("user_id, email, real_name, name")
-    .in("user_id", userIds);
-  const byId = new Map((users ?? []).map((u) => [u.user_id as string, u]));
+  const users = await createRepos(service).slackUsers.byIds(userIds);
+  const byId = new Map(users.map((u) => [u.user_id, u]));
   for (const row of [...uniqueMessages, ...uniqueReactions]) {
     const user = byId.get(row.user_id);
     if (user) {

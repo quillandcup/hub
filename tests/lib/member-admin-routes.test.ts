@@ -53,8 +53,8 @@ describe("GET /api/admin/members/external-status", () => {
       "bronze.kajabi_customers": { data: [{ kajabi_customer_id: "kc-1", email: ADA.email }] },
       "bronze.kajabi_purchases": { data: [{ kajabi_customer_id: "kc-1" }] },
       "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "cus_ada" }] },
-      "bronze.slack_users": { data: [{ user_id: "U_FERN", email: "fern@example.test" }] },
     };
+    dataset.slackUsers = [{ user_id: "U_FERN", email: "fern@example.test", is_bot: false }];
 
     const { members } = await (await call(`${ADA.id},${FERN.id}`)).json();
 
@@ -151,14 +151,13 @@ describe("POST /api/aliases/slack", () => {
 
   it("404s for a member that doesn't exist, and for a Slack user that doesn't", async () => {
     expect((await post({ member_id: "mbr_ZZZZZZZZZZZZ", slack_user_id: "U1" })).status).toBe(404);
-    tables = { "bronze.slack_users": { data: [] } };
     const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Slack user not found" });
   });
 
   it("links the Slack user to the member, taking the link over if another member had it", async () => {
-    tables = { "bronze.slack_users": { data: [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }] } };
+    dataset.slackUsers = [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }];
     dataset.nameAliases.push({ id: "nal_1", member_id: FERN.id, alias: "U1", source: "slack", active: true });
 
     const res = await post({ member_id: ADA.id, slack_user_id: "U1" });
@@ -168,7 +167,7 @@ describe("POST /api/aliases/slack", () => {
   });
 
   it("reports it when the link can't be saved", async () => {
-    tables = { "bronze.slack_users": { data: [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }] } };
+    dataset.slackUsers = [{ user_id: "U1", display_name: "Ada", real_name: "Ada Example" }];
     vi.spyOn(repos.aliases, "upsertName").mockRejectedValue(new Error("db down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 

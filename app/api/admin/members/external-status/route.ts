@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   const [
     { data: kajabiCustomers },
     { data: stripeActiveSubs },
-    { data: slackUsers },
+    slackUsers,
   ] = await Promise.all([
     supabase.schema("bronze").from("kajabi_customers")
       .select("kajabi_customer_id, email")
@@ -57,10 +57,7 @@ export async function GET(request: NextRequest) {
           .in("stripe_customer_id", stripeIds)
           .in("status", ["active", "trialing", "past_due"])
       : Promise.resolve({ data: [] as { stripe_customer_id: string }[] }),
-    supabase.schema("bronze").from("slack_users")
-      .select("user_id, email")
-      .in("email", allEmails)
-      .eq("is_bot", false),
+    createRepos(supabase).slackUsers.byEmails(allEmails, { excludeBots: true }),
   ]);
 
   // Active Kajabi purchases for found customers
@@ -81,7 +78,7 @@ export async function GET(request: NextRequest) {
   const activeStripeCustomers = new Set((stripeActiveSubs ?? []).map(s => s.stripe_customer_id));
 
   const slackUserByEmail = new Map<string, string>();
-  for (const u of slackUsers ?? []) {
+  for (const u of slackUsers) {
     if (u.email) slackUserByEmail.set(u.email.toLowerCase(), u.user_id);
   }
 

@@ -1,4 +1,6 @@
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
+import type { NewSlackUser } from "@/lib/data/slack-users";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -37,12 +39,16 @@ export async function POST(request: NextRequest) {
     // UPSERT to Bronze tables (idempotent)
     const importTimestamp = new Date().toISOString();
 
-    const { error: usersError } = await supabase
-      .schema('bronze').from("slack_users")
-      .upsert(
-        users.map(u => ({ ...u, imported_at: importTimestamp })),
-        { onConflict: "user_id" }
+    // The CSV's columns go in as they come; the other tables below are tried either way, and the
+    // first failure is thrown once they all have been.
+    let usersError: unknown = null;
+    try {
+      await createRepos(supabase).slackUsers.upsert(
+        users.map(u => ({ ...u, imported_at: importTimestamp })) as unknown as NewSlackUser[]
       );
+    } catch (error) {
+      usersError = error;
+    }
 
     const { error: channelsError } = await supabase
       .schema('bronze').from("slack_channels")

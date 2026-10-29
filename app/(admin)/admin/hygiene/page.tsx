@@ -6,7 +6,7 @@ import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { detectDuplicates } from "@/lib/member-duplicates";
 import { findStalePrivateChannels } from "@/lib/private-channel-access";
 import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
@@ -39,7 +39,7 @@ export default async function DataHygienePage() {
     totalMembers,
     totalAliases,
     { data: ambiguousNameRows },
-    { data: slackUsersForMatching },
+    slackUsersForMatching,
     { data: ignoredSlackUsers },
     { data: oldUnmatchedEvents },
     lastSyncAt,
@@ -63,7 +63,7 @@ export default async function DataHygienePage() {
     createRepos(supabase).aliases.nameAliasCount(),
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
-    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
+    createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
     supabase.from("ignored_slack_users").select("user_id"),
     // Find old unmatched events (queued before prickle_types migration)
     supabase
@@ -345,8 +345,7 @@ export default async function DataHygienePage() {
       .select("kajabi_contact_id, email, name").range(from, to)),
     paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
       .select("stripe_customer_id, email, name").range(from, to)),
-    paginate((from, to) => supabase.schema("bronze").from("slack_users")
-      .select("user_id, email, real_name, display_name").eq("is_bot", false).neq("user_id", SLACKBOT_USER_ID).range(from, to)),
+    createRepos(supabase).slackUsers.list({ excludeSlackbot: true, excludeBots: true }),
   ]);
 
   const conflictsAliasMap = buildAliasMap(emailAliasesForConflicts ?? []);

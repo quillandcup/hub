@@ -15,14 +15,11 @@ export default async function MembersWithoutSlackPage() {
 
   const [
     members,
-    { data: slackUsers },
+    slackUsers,
     aliases,
   ] = await Promise.all([
     createRepos(supabase).members.list({ orderBy: "name" }),
-    supabase
-      .schema("bronze")
-      .from("slack_users")
-      .select("user_id, email, real_name, display_name, is_bot, is_deleted"),
+    createRepos(supabase).slackUsers.list(),
     createRepos(supabase).aliases.nameAliases(),
   ]);
 
