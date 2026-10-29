@@ -1671,6 +1671,27 @@ export type Database = {
           },
         ]
       }
+      calendar_sync_state: {
+        Row: {
+          calendar_id: string
+          rerun_requested: boolean
+          running_since: string | null
+          synced_through: string | null
+        }
+        Insert: {
+          calendar_id: string
+          rerun_requested?: boolean
+          running_since?: string | null
+          synced_through?: string | null
+        }
+        Update: {
+          calendar_id?: string
+          rerun_requested?: boolean
+          running_since?: string | null
+          synced_through?: string | null
+        }
+        Relationships: []
+      }
       calendar_watch_channels: {
         Row: {
           calendar_id: string
