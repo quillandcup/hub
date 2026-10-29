@@ -27,12 +27,8 @@ export async function getSlackDmLinksForMembers(memberIds: string[]): Promise<Ma
   const unmatched = members.filter((m) => !links.has(m.id) && m.email);
   if (unmatched.length > 0) {
     const memberIdByEmail = new Map(unmatched.map((m) => [m.email as string, m.id as string]));
-    const { data: slackUsers } = await service
-      .schema("bronze")
-      .from("slack_users")
-      .select("user_id, email")
-      .in("email", [...memberIdByEmail.keys()]);
-    for (const u of slackUsers ?? []) {
+    const slackUsers = await repos.slackUsers.byEmails([...memberIdByEmail.keys()]);
+    for (const u of slackUsers) {
       const memberId = u.email ? memberIdByEmail.get(u.email) : undefined;
       if (memberId) links.set(memberId, `https://quillandcup.slack.com/app_redirect?channel=${u.user_id}`);
     }

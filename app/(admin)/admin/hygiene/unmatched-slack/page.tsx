@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SlackAliasSearchForm from "./SlackAliasSearchForm";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -15,12 +15,12 @@ export default async function UnmatchedSlackUsersPage() {
 
   // Load reference data
   const [
-    { data: slackUsers },
+    slackUsers,
     allMembers,
     aliases,
     { data: ignoredUsers },
   ] = await Promise.all([
-    supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted").neq("user_id", SLACKBOT_USER_ID),
+    createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
     supabase.from("ignored_slack_users").select("user_id"),

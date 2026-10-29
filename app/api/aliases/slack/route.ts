@@ -29,11 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify Slack user exists
-    const { data: slackUser } = await supabase
-      .schema('bronze').from("slack_users")
-      .select("user_id")
-      .eq("user_id", slack_user_id)
-      .single();
+    const slackUser = await createRepos(supabase).slackUsers.byId(slack_user_id);
 
     if (!slackUser) {
       return NextResponse.json({ error: "Slack user not found" }, { status: 404 });

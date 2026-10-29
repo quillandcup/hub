@@ -15,14 +15,13 @@ async function buildSlackUserIdToMemberIdMap(
   supabase: any,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
-  const [allMembers, aliases, slackUsersResult] = await Promise.all([
+  const [allMembers, aliases, slackUsers] = await Promise.all([
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
-    supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
+    createRepos(supabase).slackUsers.list(),
   ]);
 
   const members: Member[] = allMembers;
-  const slackUsers = (slackUsersResult.data ?? []) as SlackUser[];
   const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);
   const safe = new Map<string, string>();
   const collisions: Extract<OperationsAlert, { type: "ambiguous_slack_member_match" }>["collisions"][number][] = [];
