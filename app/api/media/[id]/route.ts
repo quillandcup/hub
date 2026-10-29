@@ -10,11 +10,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { id } = await params;
-  if (!isId(id, "img")) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
   const body = await request.json().catch(() => undefined);
   if (body === undefined || typeof body !== "object" || body === null) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const { id } = await params;
+  if (!isId(id, "img")) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const media = createRepos(auth.supabase).media;
   const edit: MediaAssetEdit = {};
