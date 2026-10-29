@@ -19,9 +19,15 @@ vi.mock("@/lib/data/repos", async () => ({
 const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "America/New_York" }));
+vi.mock("@/lib/event-prickles", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/event-prickles")>()),
+  fetchPastEventPrickles: vi.fn(async (_s: unknown, month: { id: string }) => [{ id: `p-${month.id}`, title: "Pitch", typeName: "Pitch Prickle", hostName: null, calendarEventId: null, startTime: "2020-03-09T18:00:00Z", endTime: "2020-03-09T19:00:00Z" }]),
+}));
 vi.mock("@/app/(member)/events/past/PastEventsBrowser", () => ({
-  default: (props: { initialMonth: string | null; events: { title: string }[] }) => (
-    <div data-testid="browser">{props.initialMonth ?? "none"}|{props.events.map((e) => e.title).join(",")}</div>
+  default: (props: { initialMonth: string; months: { id: string }[]; events: { title: string }[]; followedCalendarEventIds: string[]; initialPrickles: { id: string }[] }) => (
+    <div data-testid="browser" data-first={props.months[0].id} data-last={props.months.at(-1)!.id}>
+      {props.initialMonth}|{props.events.map((e) => e.title).join(",")}|{props.followedCalendarEventIds.join(",")}|{props.initialPrickles.map((p) => p.id).join(",")}
+    </div>
   ),
 }));
 
@@ -41,23 +47,33 @@ beforeEach(() => {
       event("1", "Old Retreat", "2020-03-01", "2020-03-03"),
       event("2", "Far Future", "2097-04-01"),
       event("3", "Removed", "2020-05-01", "2020-05-01", { deleted_at: "2020-06-01T00:00:00Z" }),
-      event("4", "Book Fair", "2020-07-01", "2020-07-01", { speakers: "Ada Example" }),
+      event("4", "Book Fair", "2020-07-01", "2020-07-01", { speakers: "Ada Example", calendar_event_id: "cal-7" }),
     ],
   });
 });
 
 describe("member past events page", () => {
-  it("hands the browser the events that have ended, not the upcoming or removed ones, named the way members know them", async () => {
+  it("hands the browser the events that have ended, not the upcoming or removed ones, named the way members know them, with the calendar items events follow", async () => {
     await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({ month: "2020-03" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("2020-03|Book Fair with Ada Example,Old Retreat");
+    expect(screen.getByTestId("browser")).toHaveTextContent("2020-03|Book Fair with Ada Example,Old Retreat|cal-7|p-2020-03");
     expect(screen.getByRole("link", { name: "← Upcoming events" })).toHaveAttribute("href", "/events");
   });
 
-  it("passes no month when none is asked for", async () => {
+  it("offers every month from the first event's through this one, and opens on this one without ?month=", async () => {
     await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({}) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent(/^none\|/);
+    const browser = screen.getByTestId("browser");
+    expect(browser).toHaveAttribute("data-first", "2020-03");
+    expect(browser.getAttribute("data-last")).toMatch(/^\d{4}-\d{2}$/);
+    expect(browser.textContent!.startsWith(browser.getAttribute("data-last")!)).toBe(true);
+  });
+
+  it("opens on this month for a month that is not offered", async () => {
+    await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({ month: "1999-01" }) });
+
+    const browser = screen.getByTestId("browser");
+    expect(browser.textContent!.startsWith(browser.getAttribute("data-last")!)).toBe(true);
   });
 
   it("sends a member without the events feature to the dashboard", async () => {

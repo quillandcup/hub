@@ -159,16 +159,17 @@ export function monthOf(date: string): AgendaMonth {
   };
 }
 
-/** The months that have an item starting in them, newest first, with how many (for the past events page, which is not limited to a few months). */
-export function monthsWithItems(items: readonly AgendaItem[]): (AgendaMonth & { count: number })[] {
-  const byId = new Map<string, AgendaMonth & { count: number }>();
-  for (const item of items) {
-    const month = monthOf(item.startDate);
-    const known = byId.get(month.id);
-    if (known) known.count += 1;
-    else byId.set(month.id, { ...month, count: 1 });
-  }
-  return [...byId.values()].sort((a, b) => b.id.localeCompare(a.id));
+/** Every month from the one a date is in through the one `until` is in, oldest first (the months the past events page offers). */
+export function monthsBetween(from: string, until: string): AgendaMonth[] {
+  const months: AgendaMonth[] = [];
+  for (let m = monthOf(from); m.id <= monthOf(until).id; m = monthOf(ymd(new Date(Date.UTC(Number(m.id.slice(0, 4)), Number(m.id.slice(5)), 1))))) months.push(m);
+  return months;
+}
+
+/** The month a `?month=` value names among `months`, else the last (most recent). */
+export function parsePastMonth(raw: string | string[] | undefined | null, months: readonly AgendaMonth[]): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return months.find((m) => m.id === value)?.id ?? months[months.length - 1].id;
 }
 
 /**

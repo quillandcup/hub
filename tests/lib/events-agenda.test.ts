@@ -6,7 +6,8 @@ import {
   formatTimeSpan,
   isAllDay,
   monthOf,
-  monthsWithItems,
+  monthsBetween,
+  parsePastMonth,
   parseAgendaMonth,
   pastAgendaWeeks,
   weekStart,
@@ -129,14 +130,22 @@ describe('monthOf', () => {
   })
 })
 
-describe('monthsWithItems', () => {
-  it('lists the months that have an item starting in them, newest first, with counts', () => {
-    const months = monthsWithItems([item('a', '2025-03-02'), item('b', '2025-03-20'), item('c', '2024-12-31'), item('d', '2026-01-05', '2026-02-02')])
-    expect(months.map((m) => [m.id, m.count])).toEqual([['2026-01', 1], ['2025-03', 2], ['2024-12', 1]])
+describe('monthsBetween', () => {
+  it('lists every month from the first date through the last, oldest first, across a year end', () => {
+    expect(monthsBetween('2024-11-20', '2025-02-03').map((m) => m.id)).toEqual(['2024-11', '2024-12', '2025-01', '2025-02'])
   })
 
-  it('is empty without items', () => {
-    expect(monthsWithItems([])).toEqual([])
+  it('is one month when both dates are in it', () => {
+    expect(monthsBetween('2026-10-02', '2026-10-30').map((m) => m.id)).toEqual(['2026-10'])
+  })
+})
+
+describe('parsePastMonth', () => {
+  const months = monthsBetween('2026-08-01', '2026-10-15')
+  it('takes a month that is offered, else the latest', () => {
+    expect(parsePastMonth('2026-09', months)).toBe('2026-09')
+    expect(parsePastMonth(['2026-08', '2026-10'], months)).toBe('2026-08')
+    for (const bad of [undefined, null, '', 'bogus', '2020-01', '2027-01']) expect(parsePastMonth(bad, months)).toBe('2026-10')
   })
 })
 

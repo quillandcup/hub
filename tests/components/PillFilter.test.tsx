@@ -50,4 +50,16 @@ describe('PillFilter', () => {
     expect(screen.getByRole('button', { name: /Retreats/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /All/ })).toHaveAttribute('aria-pressed', 'false')
   })
+
+  it.each(['pill', 'segmented'] as const)('tells onIntent which option is hovered or focused, without choosing it (%s)', async (variant) => {
+    const onChange = vi.fn()
+    const onIntent = vi.fn()
+    render(<PillFilter ariaLabel="Type" options={OPTIONS} value="all" onChange={onChange} onIntent={onIntent} variant={variant} />)
+
+    await userEvent.hover(screen.getByRole('button', { name: /Retreats/ }))
+    expect(onIntent).toHaveBeenLastCalledWith('retreats')
+    await userEvent.tab()
+    expect(onIntent).toHaveBeenCalledWith('all')
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })
