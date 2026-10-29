@@ -97,6 +97,7 @@ export const SITE_PAGES: SitePage[] = [
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
   member({ title: "Book Shelf", href: "/bookshelf", section: "Explore", nav: { icon: "🐚" }, keywords: ["bookshelf", "library", "books"] }),
   member({ title: "Events", href: "/events", section: "Explore", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
+  member({ title: "Past events", href: "/events/past", section: "Explore", keywords: ["retreat", "history", "archive", "past"], feature: "events" }),
 
   // Member pages the sidebar doesn't link (Hedgie Help is the question mark in the top bar)
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),

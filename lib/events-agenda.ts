@@ -145,3 +145,40 @@ export function agendaWeeks(items: readonly AgendaItem[], month: AgendaMonth, to
   }
   return weeks;
 }
+
+/** The month a YYYY-MM-DD date is in. */
+export function monthOf(date: string): AgendaMonth {
+  const [y, m] = date.split("-").map(Number);
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  const last = new Date(Date.UTC(y, m, 0));
+  return {
+    id: `${y}-${pad(m)}`,
+    label: first.toLocaleDateString("en-US", { timeZone: "UTC", month: "long" }),
+    first: ymd(first),
+    last: ymd(last),
+  };
+}
+
+/** The months that have an item starting in them, newest first, with how many (for the past events page, which is not limited to a few months). */
+export function monthsWithItems(items: readonly AgendaItem[]): (AgendaMonth & { count: number })[] {
+  const byId = new Map<string, AgendaMonth & { count: number }>();
+  for (const item of items) {
+    const month = monthOf(item.startDate);
+    const known = byId.get(month.id);
+    if (known) known.count += 1;
+    else byId.set(month.id, { ...month, count: 1 });
+  }
+  return [...byId.values()].sort((a, b) => b.id.localeCompare(a.id));
+}
+
+/**
+ * A past month's items by day, in weeks: those that started in it (an event that ran across months is listed in the one
+ * it began in, once). Unlike `agendaWeeks` nothing is cut off at today.
+ */
+export function pastAgendaWeeks(items: readonly AgendaItem[], month: AgendaMonth): AgendaWeek[] {
+  return agendaWeeks(
+    items.filter((i) => i.startDate >= month.first && i.startDate <= month.last),
+    month,
+    month.first,
+  );
+}

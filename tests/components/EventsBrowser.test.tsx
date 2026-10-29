@@ -60,12 +60,26 @@ describe('EventsBrowser', () => {
   it('lists everything in the chosen month by day, sessions and featured prickles with the rest', async () => {
     renderBrowser({ initialMonth: MONTHS[1].id })
     const october = glance('October')
-    const links = within(october).getAllByRole('link').map((a) => a.textContent)
+    const links = within(october).getAllByRole('link').map((a) => a.textContent).filter((t) => t !== 'See past events')
     expect(links[0]).toMatch(/^Craft Class with Jane D/) // Oct 2, a featured prickle
     expect(links[1]).toMatch(/^Event pitch/) // Oct 5
     expect(within(october).getByRole('link', { name: /Event pitch/ })).toHaveAttribute('href', '/events/pitch')
     expect(within(october).getByRole('link', { name: /Craft Class/ })).toHaveAttribute('href', '/prickles/p1')
     expect(within(october).queryByText(/Event lake/)).not.toBeInTheDocument() // November
+  })
+
+  it('says the current month shows what is still ahead, and links to past events for it', () => {
+    renderBrowser()
+    const september = glance('September')
+    expect(within(september).getByText(/what's still ahead in September/)).toBeInTheDocument()
+    expect(within(september).getByRole('link', { name: 'See past events' })).toHaveAttribute('href', '/events/past?month=2026-09')
+  })
+
+  it('links to past events without the note for a later month', async () => {
+    renderBrowser({ initialMonth: MONTHS[1].id })
+    const october = glance('October')
+    expect(within(october).queryByText(/still ahead/)).not.toBeInTheDocument()
+    expect(within(october).getByRole('link', { name: 'See past events' })).toHaveAttribute('href', '/events/past?month=')
   })
 
   it('divides the weeks, and puts the day on the left of its items', () => {

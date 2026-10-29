@@ -1,41 +1,24 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import EventArt from "@/components/EventArt";
 import { EVENT_TYPE_LABELS, eventTier, type EventTier, type EventType } from "@/lib/events-filter";
-import { eventDisplayName } from "@/lib/event-name";
-import {
-  agendaWeeks,
-  cleanEventTitle,
-  dateIn,
-  formatTimeSpan,
-  isAllDay,
-  type AgendaItem,
-  type AgendaMonth,
-} from "@/lib/events-agenda";
+import { agendaWeeks, cleanEventTitle, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
+import {
+  AgendaWeeks,
+  agendaItemOfEvent,
+  agendaItemOfPrickle,
+  eventDays,
+  fmtDateRange,
+  type EventRow,
+} from "./AgendaList";
 
-export interface EventRow {
-  id: string;
-  slug: string;
-  title: string;
-  event_type: string;
-  location: string | null;
-  starts_at: string;
-  ends_at: string;
-  /** The exact instants when the event follows a calendar item; absent or null for one with dates only. */
-  start_time?: string | null;
-  end_time?: string | null;
-  focus: string | null;
-  registration?: string | null;
-  /** The icon of the badge the event awards (a retreat's), shown on its card when there is no photo. */
-  badge_icon?: string | null;
-  cover_photo_id: string | null;
-}
+export type { EventRow };
 
 // Type-only (erased at compile time), so none of lib/event-prickles.ts's server-side
 // query code reaches the client bundle. Re-exported for existing importers.
@@ -46,57 +29,6 @@ const HIGHLIGHT_SECTIONS: { tier: EventTier; heading: string }[] = [
   { tier: "special", heading: "Special events" },
   { tier: "educational", heading: "Educational" },
 ];
-
-/** "Nov 6" or "Fri, Nov 6" from a YYYY-MM-DD date (a calendar date has no zone, so read it as UTC). */
-function fmtDate(d: string, withWeekday = false) {
-  return new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", ...(withWeekday ? { weekday: "short" } : {}), month: "short", day: "numeric" });
-}
-
-function fmtDateRange(start: string, end: string) {
-  return start === end ? fmtDate(start, true) : `${fmtDate(start)} – ${fmtDate(end)}`;
-}
-
-/** The days an event covers as the viewer reads them: from its instants when it has them, else its dates. */
-function eventDays(e: EventRow, timeZone: string): { startDate: string; endDate: string; timed: boolean } {
-  if (!e.start_time || !e.end_time) return { startDate: e.starts_at, endDate: e.ends_at, timed: false };
-  const start = Date.parse(e.start_time);
-  // An event that ends exactly at midnight ends the day before.
-  const lastMinute = new Date(Math.max(start, Date.parse(e.end_time) - 60_000)).toISOString();
-  return { startDate: dateIn(e.start_time, timeZone), endDate: dateIn(lastMinute, timeZone), timed: !isAllDay(e.start_time, e.end_time) };
-}
-
-function agendaItemOfEvent(e: EventRow, timeZone: string): AgendaItem {
-  const { startDate, endDate, timed } = eventDays(e, timeZone);
-  const where = locationDisplay(e.location);
-  const time = timed ? formatTimeSpan(e.start_time, e.end_time, timeZone) : "";
-  return {
-    key: `event-${e.id}`,
-    href: `/events/${e.slug}`,
-    title: cleanEventTitle(e.title),
-    startDate,
-    endDate,
-    time,
-    // Online is the default, so only a place is worth a line.
-    place: where && !where.href ? where.text : null,
-    startsAt: timed ? e.start_time ?? null : null,
-    track: "events-open-agenda-event",
-  };
-}
-
-function agendaItemOfPrickle(p: EventPrickle, timeZone: string): AgendaItem {
-  const lastMinute = new Date(Math.max(Date.parse(p.startTime), Date.parse(p.endTime) - 60_000)).toISOString();
-  return {
-    key: `prickle-${p.id}`,
-    href: `/prickles/${p.id}`,
-    title: eventDisplayName(cleanEventTitle(p.title || p.typeName), null, p.hostName),
-    startDate: dateIn(p.startTime, timeZone),
-    endDate: dateIn(lastMinute, timeZone),
-    time: formatTimeSpan(p.startTime, p.endTime, timeZone),
-    place: null,
-    startsAt: p.startTime,
-    track: "events-open-agenda-prickle",
-  };
-}
 
 /** Keep `?month=` in sync without a server round trip (the page already has all the data). */
 function syncUrl(month: string, firstMonth: string) {
@@ -159,29 +91,17 @@ export default function EventsBrowser({
 
       <section aria-label={`${month.label} at a glance`} className="mb-8">
         <SectionHeading>{month.label} at a glance</SectionHeading>
-        <PillFilter ariaLabel="Month" options={options} value={monthId} onChange={setMonth} className="mb-4" />
+        <PillFilter ariaLabel="Month" options={options} value={monthId} onChange={setMonth} className="mb-2" />
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+          {month.first <= today && `Counts and the list are what's still ahead in ${month.label}. `}
+          <Link data-track="events-open-past" href={`/events/past?month=${month.first <= today ? month.id : ""}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+            See past events
+          </Link>
+        </p>
         {weeks.length === 0 ? (
           <p className="text-sm text-slate-600 dark:text-slate-400">Nothing scheduled in {month.label} yet.</p>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
-            {weeks.map((week, w) => (
-              <Fragment key={week.start}>
-                {w > 0 && <WeekDivider />}
-                <ul aria-label={`Week of ${fmtDate(week.start)}`} className="py-2">
-                  {week.days.map((day) => (
-                    <li key={day.date} className="flex gap-4 py-2">
-                      <DayLabel date={day.date} />
-                      <ul className="min-w-0 flex-1 space-y-2">
-                        {day.items.map((item) => (
-                          <AgendaRow key={item.key} item={item} timeZone={timeZone} />
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              </Fragment>
-            ))}
-          </div>
+          <AgendaWeeks weeks={weeks} timeZone={timeZone} />
         )}
       </section>
     </div>
@@ -193,47 +113,6 @@ function SectionHeading({ children }: { children: ReactNode }) {
     <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
       {children}
     </h2>
-  );
-}
-
-/** Between weeks: a quiet rule with a diamond, like the monthly flyer's. */
-function WeekDivider() {
-  return (
-    <div role="separator" className="flex items-center gap-2 text-plum-400 dark:text-plum-600">
-      <span className="h-px flex-1 bg-current opacity-50" />
-      <span aria-hidden="true" className="text-xs">◆</span>
-      <span className="h-px flex-1 bg-current opacity-50" />
-    </div>
-  );
-}
-
-function DayLabel({ date }: { date: string }) {
-  const d = new Date(`${date}T00:00:00Z`);
-  return (
-    <div className="w-12 flex-shrink-0 text-center" aria-label={fmtDate(date, true)}>
-      <p aria-hidden="true" className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400">
-        {d.toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short" })}
-      </p>
-      <p aria-hidden="true" className="text-xl font-semibold leading-tight">{d.getUTCDate()}</p>
-    </div>
-  );
-}
-
-function AgendaRow({ item, timeZone }: { item: AgendaItem; timeZone: string }) {
-  const withSecondary = useWithSecondaryTime();
-  const span = item.startDate === item.endDate ? null : `${fmtDate(item.startDate)} – ${fmtDate(item.endDate)}`;
-  const details = [span, item.time && item.startsAt ? withSecondary(item.time, item.startsAt, timeZone) : item.time, item.place].filter(Boolean).join(" · ");
-  return (
-    <li>
-      <Link
-        data-track={item.track}
-        href={item.href}
-        className="block -mx-2 px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50"
-      >
-        <p className="font-medium">{item.title}</p>
-        {details && <p className="text-sm text-slate-600 dark:text-slate-400">{details}</p>}
-      </Link>
-    </li>
   );
 }
 
