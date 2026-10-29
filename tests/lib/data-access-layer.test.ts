@@ -46,6 +46,46 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   calendar_events: [],
   // The Bronze Slack users (SlackUserRepository): every query is moved.
   slack_users: [],
+  // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
+  // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
+  chat_channels: [
+    "app/(admin)/admin/data-health/gap-fills/page.tsx",
+    "app/(member)/chat/membership-actions.ts",
+    "lib/chat/gap-fill.ts",
+    "lib/chat/load.ts",
+    "lib/chat/slack-read.ts",
+  ],
+  chat_channel_members: [
+    "app/(member)/chat/[id]/page.tsx",
+    "app/(member)/chat/actions.ts",
+    "app/(member)/chat/membership-actions.ts",
+    "lib/chat/load.ts",
+    "lib/chat/slack-read.ts",
+  ],
+  chat_messages: [
+    "app/(member)/chat/actions.ts",
+    "app/(member)/chat/membership-actions.ts",
+    "app/api/webhooks/slack/route.ts",
+    "components/chat/ChatLive.tsx",
+    "lib/chat/gap-fill.ts",
+    "lib/chat/load.ts",
+    "lib/chat/search.ts",
+    "lib/chat/slack-edit.ts",
+    "lib/chat/slack-post.ts",
+    "lib/chat/slack-react.ts",
+    "lib/chat/slack-read.ts",
+    "lib/chat/slack-upload.ts",
+  ],
+  chat_message_contents: [
+    "app/(member)/chat/membership-actions.ts",
+    "app/api/chat/files/[messageId]/[fileId]/route.ts",
+    "app/api/chat/files/[messageId]/zip/route.ts",
+    "lib/chat/file-cleanup.ts",
+    "lib/chat/slack-upload.ts",
+  ],
+  chat_reactions: ["lib/chat/load.ts", "lib/chat/slack-react.ts"],
+  chat_slack_authors: ["lib/chat/names.ts", "lib/chat/slack-membership.ts"],
+  chat_gap_fills: ["app/(admin)/admin/data-health/gap-fills/page.tsx", "lib/chat/gap-fill.ts"],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

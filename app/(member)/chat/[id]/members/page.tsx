@@ -35,7 +35,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
     loadChannelMembers(supabase, channel.id),
     getUserFeaturePreviews(user.id),
     createRepos(supabase).profiles.isAdmin(user.id),
-    supabase.from("chat_channels").select("bridge_mode, bridge_disabled, bridge_status").eq("id", channel.id).maybeSingle(),
+    createRepos(supabase).chat.bridgeState(channel.id),
   ]);
   const abilities = membershipAbilities({
     kind: channel.kind,
@@ -45,7 +45,7 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
     postingOn: await effectiveMemberHasFeature("chat_posting", identity, features),
     isSudo: identity.isSudo,
     isStaff: profile,
-    bridge: bridge.data ?? null,
+    bridge,
     slackChannelId: channel.slackChannelId,
   });
 

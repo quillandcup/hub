@@ -9,6 +9,7 @@ import { InMemoryReminderLogRepository, SupabaseReminderLogRepository, type Remi
 import { InMemoryNotificationRepository, SupabaseNotificationRepository, type NotificationRepository } from "./notifications";
 import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepository } from "./prickles";
 import { InMemoryMemberDirectoryRepository, SupabaseMemberDirectoryRepository, type MemberDirectoryRepository } from "./member-directory";
+import { InMemoryChatRepository, SupabaseChatRepository, type ChatRepository } from "./chat";
 import { InMemorySlackUserRepository, SupabaseSlackUserRepository, type SlackUserRepository } from "./slack-users";
 import { InMemoryCalendarEventRepository, SupabaseCalendarEventRepository, type CalendarEventRepository } from "./calendar-events";
 import { InMemoryProfileRepository, SupabaseProfileRepository, type ProfileRepository } from "./profiles";
@@ -39,6 +40,7 @@ export interface Repos {
   profiles: ProfileRepository;
   calendarEvents: CalendarEventRepository;
   slackUsers: SlackUserRepository;
+  chat: ChatRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -60,6 +62,7 @@ export function createRepos(db: Db): Repos {
     profiles: new SupabaseProfileRepository(db),
     calendarEvents: new SupabaseCalendarEventRepository(db),
     slackUsers: new SupabaseSlackUserRepository(db),
+    chat: new SupabaseChatRepository(db),
   };
 }
 
@@ -82,5 +85,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     profiles: new InMemoryProfileRepository(dataset),
     calendarEvents: new InMemoryCalendarEventRepository(dataset),
     slackUsers: new InMemorySlackUserRepository(dataset),
+    chat: new InMemoryChatRepository(dataset),
   };
 }
