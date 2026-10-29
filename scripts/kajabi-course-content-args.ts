@@ -3,7 +3,10 @@
 // falls back to capturing (and writing) every lesson.
 
 export interface ContentArgs {
-  scope: { courseId: string } | { lessonId: string };
+  /** What to capture; null in probe mode, which reads no lessons. */
+  scope: { courseId: string } | { lessonId: string } | null;
+  /** Probe mode: open this page and print the shape of the JSON it loads while you click around. Writes nothing. */
+  probe: { url: string; seconds: number } | null;
   envFile: string;
   /** Without it the run captures and reports, but writes nothing. */
   apply: boolean;
@@ -27,12 +30,13 @@ export const CONTENT_USAGE = [
   "  --env           env file with the Supabase URL and service role key (default .env.local)",
   "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
   "  --hero          also look for the course's hero banner (experimental; the admin product page doesn't carry it)",
+  "  --probe         instead of capturing, open this Kajabi admin page and print the paths and field names of the JSON it loads while you click around (no values; --seconds sets how long, default 90)",
   "  --concurrency   lessons captured at once (default 2, max 5)",
   "  --headless      no browser window (only once the saved login is still valid)",
   "  --profile       browser profile directory (default ~/.hub-kajabi-profile)",
 ].join("\n");
 
-const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile"] as const;
+const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile", "probe", "seconds"] as const;
 // include-drafts is the old opt-in, now the default; still accepted so existing commands keep working.
 const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero"] as const;
 
@@ -61,7 +65,23 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
 
   if (flags.has("skip-drafts") && flags.has("include-drafts")) return { ok: false, error: "Give --skip-drafts or --include-drafts, not both" };
   if (values.course && values.lesson) return { ok: false, error: "Give --course or --lesson, not both" };
-  if (!values.course && !values.lesson) return { ok: false, error: "Give --course or --lesson" };
+  if (values.probe && (values.course || values.lesson)) return { ok: false, error: "--probe takes a page, not --course or --lesson" };
+  if (!values.probe && !values.course && !values.lesson) return { ok: false, error: "Give --course, --lesson or --probe" };
+  if (values.seconds !== undefined && !values.probe) return { ok: false, error: "--seconds is for --probe" };
+
+  let probe: ContentArgs["probe"] = null;
+  if (values.probe) {
+    let url: URL;
+    try {
+      url = new URL(values.probe);
+    } catch {
+      return { ok: false, error: "--probe needs a full https:// address" };
+    }
+    if (url.protocol !== "https:") return { ok: false, error: "--probe needs a full https:// address" };
+    const seconds = values.seconds === undefined ? 90 : Number(values.seconds);
+    if (!Number.isInteger(seconds) || seconds < 10 || seconds > 600) return { ok: false, error: "--seconds must be a whole number from 10 to 600" };
+    probe = { url: url.toString(), seconds };
+  }
 
   let concurrency = 2;
   if (values.concurrency !== undefined) {
@@ -73,7 +93,8 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
 
   return {
     ok: true,
-    scope: values.course ? { courseId: values.course } : { lessonId: values.lesson! },
+    scope: values.course ? { courseId: values.course } : values.lesson ? { lessonId: values.lesson } : null,
+    probe,
     envFile: values.env ?? ".env.local",
     apply: flags.has("apply"),
     skipDrafts: flags.has("skip-drafts"),
