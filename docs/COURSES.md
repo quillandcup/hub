@@ -142,6 +142,26 @@ Recommended: run the checks above; if a usable source exists build option 1 (wit
 
 **Turning a percentage into marked lessons is a separate step, not built** (docs/TODO.md, "Catch-up from imported Kajabi progress"): when Self-Editing Academy migrates, the member sees what Kajabi said (for example 62%) on the course outline and confirms "mark everything up to here as done". The percentage never completes lessons on its own, because it cannot say which ones were done.
 
+### Per-lesson capture and Silver step (built, capture unverified)
+
+**What `--probe` showed (2026-10-29; field names and types only).** Both are session-authenticated `/api/client/...` calls on `app.kajabi.com`, the ones the Product Progress report pages make:
+
+- **Roster:** `GET /api/client/reports/product_progress/{productId}?productId=…&send_to_background=…&site_id=…` returns `{ count, filters, segments, status, members[] }`; each member has `contact_id`, `member_id`, `email`, `name`, `percent_complete`, `sign_in_count`, `start_date`, `last_request_at`. Whether it pages is unknown, so the capture compares `count` with what it got.
+- **One student:** the same path plus `/members/{memberId}` returns `{ member, product{ title, total_progress, categories[] } }`. Each `categories[]` entry (a module or week, nested by `parent_category`) has `posts[]` with `id`, `title`, `completed`, `completed_date` (a date or a timestamp), `progress_percent`. One response already holds every week, so nothing is clicked.
+
+**Capture: `npm run courses:content -- --course <kajabi-course-id> --progress [--apply]`** (`scripts/kajabi-course-content.ts`, `lib/kajabi/progress-run.ts`, `lib/kajabi/progress-capture.ts`). Same browser login as the lesson capture, dry run unless `--apply`. It opens `/admin/sites/{KAJABI_SITE_ID}/reports/product_progress_report?productId={courseId}`, records the roster response the page makes (this also gives the exact URL and query string), then fetches each student's URL (same origin, path + `/members/{id}`, same query) with `fetch` inside that page, two at a time with a short pause, one retry, and stops on a 401. It prints counts only (students, lessons, rows written, unchanged, removed, failures), never names or emails. **The in-page `fetch` is unverified**: no one could log in to Kajabi while it was written. If Kajabi refuses it, the message names the status and the path (with the student id masked) and nothing for that student is written; the first dry run is the test.
+
+**Bronze.** The roster goes to the existing `bronze.kajabi_product_progress` through the same save function as the CSV upload (`lib/courses/product-progress-store.ts`), so the two cannot disagree and the CSV card stays as a fallback. A roster whose `count` differs from what it sent removes no one. Lessons go to the new **`bronze.kajabi_lesson_progress`** (`course_kajabi_id, email, kajabi_lesson_id`, Kajabi contact and member ids as text, `completed`, `completed_at`, `percent`, `captured_at`, `deleted_at`; admin read, service role write). Each student is a snapshot: changed lessons are updated, lessons no longer listed are soft-deleted, an unchanged capture writes nothing, and a student whose report failed, lists no lessons or is for another student writes nothing. A bare completion date is read as noon in `ORG_TIMEZONE`. The Kajabi post id is expected to equal `kajabi_course_lessons.kajabi_id`; the summary counts captured lessons Bronze does not have, so a mismatch shows up as a large number there.
+
+**Silver: `POST /api/process/course-progress`** `{ "course": "<slug>", "dryRun": true }` (admin; `lib/courses/progress-import.ts`). Insert-only, because Hub progress is member-written:
+
+- For each completed, live Bronze row it finds the member by email or active alias (never by name; an email several members share is skipped), requires a `course_access` row that has not ended, and finds the lesson by Kajabi source key.
+- It inserts a `lesson_progress` row with Kajabi's `completed_at`, position 0 and `imported_from = 'kajabi'` (so imported rows can be told apart and removed), only when the member has no row for that lesson. Any existing row, completed or not, is left alone: an incomplete one may be one the member un-completed, which cannot be told from a started one. It never lowers, overwrites or removes anything, writes no `member_activities`, and running it twice inserts nothing the second time.
+- Counted, not written: students with no Hub member, ambiguous emails, no or ended access, completed lessons with no Silver lesson (they apply on a later run once synced).
+- Imported completions count wherever `lesson_progress.completed_at` is read (course progress, the roster and continue-watching views). No badge rule reads `lesson_progress` today.
+
+Order: run step A and `/api/process/courses` (so lessons and `course_access` exist), `--progress`, then this.
+
 ### Design, if per-lesson data is found
 
 

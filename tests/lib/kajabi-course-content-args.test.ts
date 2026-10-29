@@ -9,6 +9,7 @@ describe("parseContentArgs", () => {
       envFile: ".env.local",
       apply: false,
       skipDrafts: false,
+      progress: false,
       hero: false,
       probe: null,
       concurrency: 2,
@@ -28,6 +29,14 @@ describe("parseContentArgs", () => {
       concurrency: 4,
       headless: true,
     });
+  });
+
+  it("--progress needs a course and excludes the lesson-content options", () => {
+    expect(parseContentArgs(["--course", "123", "--progress", "--apply"])).toMatchObject({ ok: true, progress: true, apply: true, scope: { courseId: "123" } });
+    expect(parseContentArgs(["--progress"])).toMatchObject({ ok: false, error: expect.stringContaining("--progress needs --course") });
+    expect(parseContentArgs(["--lesson", "5", "--progress"])).toMatchObject({ ok: false });
+    expect(parseContentArgs(["--course", "1", "--progress", "--hero"])).toMatchObject({ ok: false, error: expect.stringContaining("--progress captures progress only") });
+    expect(parseContentArgs(["--course", "1", "--progress", "--skip-drafts"])).toMatchObject({ ok: false });
   });
 
   it.each([

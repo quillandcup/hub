@@ -339,6 +339,45 @@ export type Database = {
         }
         Relationships: []
       }
+      kajabi_lesson_progress: {
+        Row: {
+          captured_at: string
+          completed: boolean
+          completed_at: string | null
+          course_kajabi_id: string
+          deleted_at: string | null
+          email: string
+          kajabi_contact_id: string | null
+          kajabi_lesson_id: string
+          kajabi_member_id: string | null
+          percent: number | null
+        }
+        Insert: {
+          captured_at?: string
+          completed: boolean
+          completed_at?: string | null
+          course_kajabi_id: string
+          deleted_at?: string | null
+          email: string
+          kajabi_contact_id?: string | null
+          kajabi_lesson_id: string
+          kajabi_member_id?: string | null
+          percent?: number | null
+        }
+        Update: {
+          captured_at?: string
+          completed?: boolean
+          completed_at?: string | null
+          course_kajabi_id?: string
+          deleted_at?: string | null
+          email?: string
+          kajabi_contact_id?: string | null
+          kajabi_lesson_id?: string
+          kajabi_member_id?: string | null
+          percent?: number | null
+        }
+        Relationships: []
+      }
       kajabi_offers: {
         Row: {
           data: Json
@@ -2831,6 +2870,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string
+          imported_from: string | null
           last_position_seconds: number
           lesson_id: string
           member_id: string
@@ -2839,6 +2879,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           created_at?: string
+          imported_from?: string | null
           last_position_seconds?: number
           lesson_id: string
           member_id: string
@@ -2847,6 +2888,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           created_at?: string
+          imported_from?: string | null
           last_position_seconds?: number
           lesson_id?: string
           member_id?: string

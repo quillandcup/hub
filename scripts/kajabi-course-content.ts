@@ -11,11 +11,17 @@
  * With --hero it also looks for the course's hero banner (the image behind the course title). That is experimental and
  * finds nothing today: the admin product page doesn't carry it; the banner is on the member-facing course page.
  *
+ * With --progress it captures every student's per-lesson completion instead (docs/COURSES.md, "Importing Kajabi
+ * per-lesson progress"): the Product Progress report page gives the roster, then each student's report is fetched
+ * from inside the logged-in page. The roster feeds bronze.kajabi_product_progress, the lessons feed
+ * bronze.kajabi_lesson_progress; /api/process/course-progress turns completed lessons into lesson_progress.
+ *
  * Run step A (/api/import/kajabi-courses) first: this only fills in lessons Bronze already has.
  *
  * Usage:
  *   npm run courses:content -- --course <kajabi-course-id> [--apply] [--env .env.prod]
  *   npm run courses:content -- --course <kajabi-course-id> --skip-drafts
+ *   npm run courses:content -- --course <kajabi-course-id> --progress [--apply]
  * Without --apply it captures and reports what it would change, and writes nothing. Re-running is
  * safe: a lesson whose content hasn't changed is skipped. Writes use the service role.
  */
@@ -36,6 +42,8 @@ import {
 } from "../lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
 import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
+import { ORG_TIMEZONE } from "../lib/config";
+import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
@@ -274,8 +282,77 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
   console.log(`\n${formatProbe(seen)}\n\nPage: ${normalizeRequestPath(target.url)}. Names and types only, no values.`);
 }
 
+/**
+ * Progress mode. Opens the course's Product Progress report page, records the roster response the page itself
+ * requests (which also gives the exact URL and query string to reuse), then fetches each student's report with
+ * `fetch` inside that page, so the request carries the session the way the page's own requests do. UNVERIFIED
+ * against the live site: if Kajabi refuses these requests, the message names the status and path, never a student.
+ */
+async function captureProgress(courseId: string): Promise<void> {
+  const siteId = process.env.KAJABI_SITE_ID;
+  if (!siteId) throw new Error(`${args.envFile} needs KAJABI_SITE_ID.`);
+  console.log(`${args.apply ? "Capturing" : "Dry run: capturing"} progress for course ${courseId} from ${args.envFile}`);
+
+  const context = await chromium.launchPersistentContext(args.profileDir ?? join(homedir(), ".hub-kajabi-profile"), {
+    channel: "chrome",
+    headless: args.headless,
+  });
+  try {
+    await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
+    await ensureLoggedIn(context);
+    const page = await context.newPage();
+    const rosterPath = `/api/client/reports/product_progress/${courseId}`;
+    const rosterResponse = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === rosterPath, { timeout: RESPONSE_TIMEOUT_MS });
+    rosterResponse.catch(() => undefined);
+    await page.goto(`${KAJABI_APP}/admin/sites/${encodeURIComponent(siteId)}/reports/product_progress_report?productId=${encodeURIComponent(courseId)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    if (!new URL(page.url()).pathname.startsWith("/admin/")) throw new SessionExpiredError("The Kajabi login expired. Run again and log in.");
+    const roster = await rosterResponse.catch(() => {
+      throw new Error(`The Product Progress page did not request ${rosterPath} within ${RESPONSE_TIMEOUT_MS / 1000} seconds. Is the course id right?`);
+    });
+    if (roster.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (!roster.ok()) throw new Error(`Kajabi answered ${roster.status()} for ${rosterPath}`);
+
+    const summary = await runProgressCapture({
+      db: supabase as never,
+      courseKajabiId: courseId,
+      roster: { url: roster.url(), json: await roster.json() },
+      fetchReport: (target) =>
+        page.evaluate(async (u) => {
+          const response = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
+          const json = response.ok ? await response.json().catch(() => undefined) : undefined;
+          return { status: response.status, json };
+        }, target),
+      apply: args.apply,
+      timeZone: ORG_TIMEZONE,
+      concurrency: args.concurrency,
+      log: (line) => console.log(line),
+    }).catch((error) => {
+      if (error instanceof ProgressSessionExpiredError) throw new SessionExpiredError(error.message);
+      throw error;
+    });
+
+    const { roster: r, lessons: l } = summary;
+    console.log(
+      `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${summary.members} students in the roster ` +
+        `(${r.written} written, ${r.unchanged} unchanged, ${r.removed} removed; ${summary.rosterSkipped} unusable, ${summary.duplicateEmails} duplicate emails)\n` +
+        `lessons: ${summary.membersCaptured} students captured, ${summary.lessonsListed} lessons listed, ${summary.lessonsCompleted} completed; ` +
+        `${l.written} rows written, ${l.unchanged} unchanged, ${l.removed} removed; ` +
+        `${summary.membersWithoutLessons} students with no lessons, ${summary.membersFailed} failed, ${summary.lessonsNotInBronze} lessons not in Bronze`
+    );
+    if (summary.membersFailed > 0) process.exitCode = 1;
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   if (args.probe) return probe(args.probe);
+  if (args.progress) {
+    if (!args.scope || !("courseId" in args.scope)) throw new Error("--progress needs --course");
+    return captureProgress(args.scope.courseId);
+  }
   if (!args.scope) throw new Error("Give --course or --lesson");
   const lessons = await selectLessons(supabase, args.scope, { includeDrafts: !args.skipDrafts });
   if (lessons.length === 0) {
