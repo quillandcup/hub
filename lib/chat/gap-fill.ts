@@ -243,9 +243,9 @@ async function storedReplyCounts(service: SupabaseClient, slackChannelId: string
 
 /** Whether the chat has this message already. */
 async function chatHasMessage(service: SupabaseClient, slackChannelId: string, ts: string): Promise<boolean> {
-  const { data: channel } = await service.from("chat_channels").select("id").eq("slack_channel_id", slackChannelId).maybeSingle();
-  if (!channel) return false;
-  const { data } = await service.from("chat_messages").select("id").eq("channel_id", channel.id).eq("slack_ts", ts).maybeSingle();
+  const channelId = await createRepos(service).chat.idBySlackChannel(slackChannelId);
+  if (!channelId) return false;
+  const { data } = await service.from("chat_messages").select("id").eq("channel_id", channelId).eq("slack_ts", ts).maybeSingle();
   return Boolean(data);
 }
 
