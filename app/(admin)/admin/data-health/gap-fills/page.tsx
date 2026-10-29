@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -42,18 +43,19 @@ export default async function ChatGapFillsPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("chat_gap_fills")
-    .select("id, source, scope, slack_channel_id, slack_ts, started_at, finished_at, messages_recovered, reactions_recovered, messages_seen, error")
-    .order("started_at", { ascending: false })
-    .limit(200);
-  const fills = (data ?? []) as GapFillRow[];
+  const chat = createRepos(supabase).chat;
 
-  const channelIds = [...new Set(fills.map((f) => f.slack_channel_id))];
-  const { data: channels } = channelIds.length
-    ? await supabase.from("chat_channels").select("slack_channel_id, name, kind").in("slack_channel_id", channelIds)
-    : { data: [] };
-  const names = new Map((channels ?? []).map((c) => [c.slack_channel_id as string, c.kind === "channel" ? `#${c.name}` : "Group message"]));
+  // A failed read shows as "No gap-fills yet", as it always has; the cause is in the logs.
+  const fills: GapFillRow[] = await chat.recentGapFills(200).catch((error: Error) => {
+    console.error("listing the gap-fills failed:", error.message);
+    return [];
+  });
+
+  const channels = await chat.channelLabelsBySlackId(fills.map((f) => f.slack_channel_id)).catch((error: Error) => {
+    console.error("looking up the gap-fill channels failed:", error.message);
+    return new Map<string, { name: string | null; kind: string }>();
+  });
+  const names = new Map([...channels].map(([slackId, c]) => [slackId, c.kind === "channel" ? `#${c.name}` : "Group message"]));
 
   const dayAgo = clock.now() - 24 * 60 * 60 * 1000;
   const recent = fills.filter((f) => Date.parse(f.started_at) >= dayAgo);

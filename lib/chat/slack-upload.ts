@@ -1,6 +1,8 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
+import { asJson } from "@/lib/data/json";
 import { isDeadTokenError } from "@/lib/slack-connect";
 import { SLACK_FILES_BUCKET, slackFileStoragePath } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, type ChatFile } from "@/lib/chat/files";
@@ -65,6 +67,7 @@ export async function lookupFileMessageTs(botToken: string, fileId: string, slac
 
 export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent" | "failed"> {
   const { supabase, messageId, slackChannelId, files } = ctx;
+  const chat = createRepos(supabase).chat;
   const botToken = await getSlackBotToken();
   if (!botToken) return ctx.fail("SLACK_BOT_TOKEN not configured");
 
@@ -116,8 +119,11 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
     // Slack has them: keep their real ids on the message at once (a retry must never upload again,
     // and Slack's event is matched by these), then point the bytes at the permanent copies.
     const stored = files.map((f, i) => ({ id: ids[i], name: f.name, mimetype: f.mimetype, size: f.size, width: f.width, height: f.height }));
-    const { error: storeError } = await supabase.from("chat_message_contents").update({ files: stored }).eq("message_id", messageId);
-    if (storeError) console.error("storing Slack file ids failed for %s:", messageId, storeError.message);
+    try {
+      await chat.setMessageFiles(messageId, asJson(stored));
+    } catch (storeError) {
+      console.error("storing Slack file ids failed for %s:", messageId, (storeError as Error).message);
+    }
     ctx.files = stored;
   }
 
@@ -130,7 +136,8 @@ export async function sendChatFilesToSlack(ctx: FileSendContext): Promise<"sent"
 
   const [{ error }] = await Promise.all([
     supabase.rpc("chat_mark_message_sent", { p_message_id: messageId, p_slack_ts: ts }),
-    postedVia ? supabase.from("chat_messages").update({ posted_via: postedVia }).eq("id", messageId) : null,
+    // A failed update of posted_via was never looked at; it still isn't.
+    postedVia ? chat.setPostedVia(messageId, postedVia).catch(() => undefined) : null,
   ]);
   if (error) console.error("chat_mark_message_sent failed for %s:", messageId, error.message);
 

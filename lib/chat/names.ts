@@ -35,21 +35,17 @@ async function slackUserNamesUncached(userIds: string[]): Promise<Record<string,
   const ids = [...new Set(userIds)];
   const names: Record<string, string> = {};
   if (ids.length === 0) return names;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
 
   for (const batch of chunks(ids)) {
-    const [a, slackUsers] = await Promise.all([
-      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      createRepos(service).slackUsers.byIds(batch),
-    ]);
-    const authors = ok(a);
+    const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
 
-    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const memberIds = [...new Set(authors.values())];
     const memberNames = new Map<string, { name: string; displayName: string | null }>();
     if (memberIds.length > 0) {
-      for (const m of await createRepos(service).directory.byIds(memberIds)) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
+      for (const m of await repos.directory.byIds(memberIds)) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
     }
-    const memberBySlackUser = new Map((authors ?? []).map((a) => [a.slack_user_id as string, memberNames.get(a.member_id)]));
+    const memberBySlackUser = new Map([...authors].map(([slackUserId, memberId]) => [slackUserId, memberNames.get(memberId)]));
     for (const u of slackUsers ?? []) {
       const member = memberBySlackUser.get(u.user_id);
       names[u.user_id] = member?.displayName || u.display_name || member?.name || u.real_name || u.name || "";
@@ -71,16 +67,16 @@ async function slackUserHubNamesUncached(userIds: string[]): Promise<Record<stri
   const ids = [...new Set(userIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
   for (const batch of chunks(ids)) {
-    const authors = ok(await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch));
-    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id as string))];
+    const authors = await repos.chat.memberIdsBySlackUser(batch);
+    const memberIds = [...new Set(authors.values())];
     if (memberIds.length === 0) continue;
-    const members = await createRepos(service).directory.byIds(memberIds);
+    const members = await repos.directory.byIds(memberIds);
     const byMember = new Map(members.map((m) => [m.id, m.display_name || m.name]));
-    for (const a of authors ?? []) {
-      const name = byMember.get(a.member_id as string);
-      if (name) out[a.slack_user_id as string] = name;
+    for (const [slackUserId, memberId] of authors) {
+      const name = byMember.get(memberId);
+      if (name) out[slackUserId] = name;
     }
   }
   return out;
@@ -91,10 +87,9 @@ async function slackUserMemberIdsUncached(userIds: string[]): Promise<Record<str
   const ids = [...new Set(userIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
-  const service = createServiceRoleClient();
+  const chat = createRepos(createServiceRoleClient()).chat;
   for (const batch of chunks(ids)) {
-    const data = ok(await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch));
-    for (const a of data ?? []) out[a.slack_user_id] = a.member_id;
+    for (const [slackUserId, memberId] of await chat.memberIdsBySlackUser(batch)) out[slackUserId] = memberId;
   }
   return out;
 }
@@ -126,25 +121,21 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
   const ids = [...new Set(userIds)];
   const photos: Record<string, string> = {};
   if (ids.length === 0) return photos;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
 
   for (const batch of chunks(ids)) {
-    const [a, slackUsers] = await Promise.all([
-      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      createRepos(service).slackUsers.byIds(batch),
-    ]);
-    const authors = ok(a);
-    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
+    const memberIds = [...new Set(authors.values())];
     const memberPhotos = new Map<string, string>();
     if (memberIds.length > 0) {
-      for (const m of await createRepos(service).directory.byIds(memberIds)) {
+      for (const m of await repos.directory.byIds(memberIds)) {
         const url = safeUrl(m.photo_url);
         if (url) memberPhotos.set(m.id, url);
       }
     }
-    for (const a of authors ?? []) {
-      const url = memberPhotos.get(a.member_id);
-      if (url) photos[a.slack_user_id] = url;
+    for (const [slackUserId, memberId] of authors) {
+      const url = memberPhotos.get(memberId);
+      if (url) photos[slackUserId] = url;
     }
     for (const u of slackUsers ?? []) {
       const url = safeUrl(u.image_url);

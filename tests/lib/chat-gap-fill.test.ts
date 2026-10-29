@@ -11,6 +11,8 @@ vi.mock("@/lib/slack-reactions", () => ({ markRemovedSlackReactions: (...a: unkn
 
 import { catchUpChannel, fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
 import { setClock, systemClock } from "@/lib/clock";
+import { InMemoryChatRepository, type GapFillOutcome } from "@/lib/data/chat";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 
 type Call = { method: string; args: unknown[] };
 type Query = { table: string; schema: string; calls: Call[] };
@@ -62,12 +64,31 @@ interface World {
 }
 let world: World;
 
+// The chat tables are the in-memory ChatRepository, built from `world`; the Bronze reads and writes stay on the fake client.
+let finishedWith: GapFillOutcome | undefined;
+/** Repository methods that throw, to test the failure paths. */
+const failing = new Set<string>();
+const chatRepo = () => {
+  const repo = new InMemoryChatRepository(
+    new InMemoryDataset({
+      chatChannels: world.channel ? [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: "C1", ...world.channel }] : [],
+      chatMessages: [...world.chatHas].map((ts, i) => ({ id: `msg_${String(i).padStart(12, "A")}`, channel_id: "chn_AAAAAAAAAAA1", slack_ts: ts })),
+    }),
+  );
+  repo.finishGapFill = async (_id, outcome) => {
+    if (failing.has("finishGapFill")) throw new Error("finish boom");
+    finishedWith = outcome;
+  };
+  if (failing.has("mirroredChannel")) repo.mirroredChannel = async () => { throw new Error("channel boom"); };
+  if (failing.has("messageIdBySlackTs")) repo.messageIdBySlackTs = async () => { throw new Error("message boom"); };
+  return repo;
+};
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return { ...actual, createRepos: (db: never) => ({ ...actual.createRepos(db), chat: chatRepo() }) };
+});
+
 const answer = (q: Query): unknown => {
-  if (q.table === "chat_channels") return { data: world.channel ? { ...world.channel, id: "chat-channel-1" } : null };
-  if (q.table === "chat_messages") {
-    const ts = q.calls.find((c) => c.method === "eq" && c.args[0] === "slack_ts")?.args[1] as string;
-    return { data: world.chatHas.has(ts) ? { id: "chat-message" } : null };
-  }
   if (q.schema === "bronze" && q.table === "slack_users") return { data: [{ user_id: "U_GALE", email: "gale@example.test", real_name: "Gale", name: "gale" }] };
   if (q.schema === "bronze" && q.table === "slack_messages") {
     if (has(q, "upsert")) return { error: null };
@@ -99,8 +120,9 @@ function slackStub(opts: { get?: unknown; replies?: Record<string, unknown[]>; h
 }
 
 const claimCall = (service: ReturnType<typeof fakeService>) => service.rpc.mock.calls.find(([name]) => name === "claim_chat_gap_fill")?.[1] as Record<string, unknown>;
-const finishQuery = (service: ReturnType<typeof fakeService>) => service.queries.find((q) => q.table === "chat_gap_fills" && has(q, "update"));
-const finished = (service: ReturnType<typeof fakeService>) => finishQuery(service)?.calls.find((c) => c.method === "update")?.args[0] as Record<string, unknown>;
+/** What the fill recorded as its outcome, by column name. */
+const finished = (_service: ReturnType<typeof fakeService>) =>
+  finishedWith && { messages_recovered: finishedWith.messagesRecovered, reactions_recovered: finishedWith.reactionsRecovered, messages_seen: finishedWith.messagesSeen, error: finishedWith.error };
 const upserted = (service: ReturnType<typeof fakeService>, table: string) =>
   service.queries.find((q) => q.schema === "bronze" && q.table === table && has(q, "upsert"))?.calls.find((c) => c.method === "upsert")?.args[0] as Record<string, unknown>[] | undefined;
 
@@ -110,6 +132,8 @@ beforeEach(() => {
   writesEnabled.mockReturnValue(true);
   projectChatMessage.mockClear();
   markRemoved.mockClear();
+  finishedWith = undefined;
+  failing.clear();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -179,6 +203,24 @@ describe("fillMessageGap", () => {
 
     expect(console.error).toHaveBeenCalledWith("claim_chat_gap_fill failed:", "connection lost");
     expect(slack.reactions.get).not.toHaveBeenCalled();
+  });
+
+  it("treats an unreadable channel as not mirrored, and a failed outcome write or message lookup as nothing to act on", async () => {
+    const slack = slackStub({ get: slackMessage("100.1") });
+
+    failing.add("mirroredChannel");
+    await expect(fillMessageGap(fakeService(answer), { channelId: "C1", ts: "100.1", source: "webhook", slack })).resolves.toMatchObject({ claimed: false });
+    expect(console.error).toHaveBeenCalledWith(expect.any(String), "C1", "channel boom");
+    failing.clear();
+
+    // The root lookup fails: the root counts as missing, so the thread is fetched.
+    failing.add("messageIdBySlackTs");
+    failing.add("finishGapFill");
+    const reply = slackMessage("100.2", { thread_ts: "100.0" });
+    const threadSlack = slackStub({ get: reply, replies: { "100.0": [slackMessage("100.0"), reply] } });
+    await expect(fillMessageGap(fakeService(answer), { channelId: "C1", ts: "100.2", source: "webhook", slack: threadSlack })).resolves.toMatchObject({ claimed: true });
+    expect(threadSlack.conversations.replies).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith("recording a gap-fill failed:", "finish boom");
   });
 
   it("records a Slack failure instead of throwing", async () => {

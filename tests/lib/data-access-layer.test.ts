@@ -51,23 +51,13 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [
-    "app/(admin)/admin/data-health/gap-fills/page.tsx",
-    "lib/chat/gap-fill.ts",
   ],
   chat_channel_members: [],
-  chat_messages: [
-    "lib/chat/gap-fill.ts",
-    "lib/chat/slack-upload.ts",
-  ],
-  chat_message_contents: [
-    "app/api/chat/files/[messageId]/[fileId]/route.ts",
-    "app/api/chat/files/[messageId]/zip/route.ts",
-    "lib/chat/file-cleanup.ts",
-    "lib/chat/slack-upload.ts",
-  ],
+  chat_messages: [],
+  chat_message_contents: [],
   chat_reactions: [],
-  chat_slack_authors: ["lib/chat/names.ts", "lib/chat/slack-membership.ts"],
-  chat_gap_fills: ["app/(admin)/admin/data-health/gap-fills/page.tsx", "lib/chat/gap-fill.ts"],
+  chat_slack_authors: [],
+  chat_gap_fills: [],
   // Aliases: every name and email alias query is on AliasRepository.
   member_name_aliases: [],
   member_email_aliases: [],

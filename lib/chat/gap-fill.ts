@@ -65,11 +65,11 @@ interface MirroredChannel {
 
 /** The conversation, if the chat mirrors it. */
 async function mirroredChannel(service: SupabaseClient, slackChannelId: string): Promise<MirroredChannel | null> {
-  const { data } = await service
-    .from("chat_channels")
-    .select("name, kind, visibility, bridge_disabled")
-    .eq("slack_channel_id", slackChannelId)
-    .maybeSingle();
+  // A failed lookup reads as "not mirrored" (nothing is filled), as it always has.
+  const data = await createRepos(service).chat.mirroredChannel(slackChannelId).catch((error: Error) => {
+    console.error("looking up the mirrored channel %s failed:", slackChannelId, error.message);
+    return null;
+  });
   if (!data || data.bridge_disabled) return null;
   const isMpim = data.kind === "group_dm";
   return { name: data.name ?? "", type: slackChannelType({ is_private: data.visibility === "private", is_mpim: isMpim }) };
@@ -97,17 +97,17 @@ async function claim(
 }
 
 async function finish(service: SupabaseClient, id: string, result: { messages: number; reactions: number; seen: number; error?: string }) {
-  const { error } = await service
-    .from("chat_gap_fills")
-    .update({
-      finished_at: new Date(clock.now()).toISOString(),
-      messages_recovered: result.messages,
-      reactions_recovered: result.reactions,
-      messages_seen: result.seen,
+  try {
+    await createRepos(service).chat.finishGapFill(id, {
+      finishedAt: new Date(clock.now()).toISOString(),
+      messagesRecovered: result.messages,
+      reactionsRecovered: result.reactions,
+      messagesSeen: result.seen,
       error: result.error ?? null,
-    })
-    .eq("id", id);
-  if (error) console.error("recording a gap-fill failed:", error.message);
+    });
+  } catch (error) {
+    console.error("recording a gap-fill failed:", (error as Error).message);
+  }
 }
 
 type SlackMsg = Record<string, any>;
@@ -245,8 +245,7 @@ async function storedReplyCounts(service: SupabaseClient, slackChannelId: string
 async function chatHasMessage(service: SupabaseClient, slackChannelId: string, ts: string): Promise<boolean> {
   const channelId = await createRepos(service).chat.idBySlackChannel(slackChannelId);
   if (!channelId) return false;
-  const { data } = await service.from("chat_messages").select("id").eq("channel_id", channelId).eq("slack_ts", ts).maybeSingle();
-  return Boolean(data);
+  return Boolean(await createRepos(service).chat.messageIdBySlackTs(channelId, ts).catch(() => null));
 }
 
 /**

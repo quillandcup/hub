@@ -9,11 +9,19 @@ vi.mock("@slack/web-api", () => ({
   }),
 }));
 
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { lookupFileMessageTs, sendChatFilesToSlack, uploadedFileIds, type FileSendContext } from "@/lib/chat/slack-upload";
+
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 let storedBytes: Record<string, string>;
 let removed: string[][];
-let updates: { table: string; values: unknown }[];
+let dataset: InMemoryDataset;
 let bronzeRows: unknown[];
 const rpc = vi.fn(async (_n: string, _a: unknown) => ({ error: null }));
 const fail = vi.fn(async (_reason: string) => "failed" as const);
@@ -34,12 +42,6 @@ const supabase = {
     }),
   },
   schema: () => ({ from: () => ({ upsert: async (row: unknown) => (bronzeRows.push(row), { error: null }) }) }),
-  from: (table: string) => ({
-    update: (values: unknown) => {
-      updates.push({ table, values });
-      return { eq: async () => ({ error: null }) };
-    },
-  }),
 };
 
 const FILES = [
@@ -64,7 +66,8 @@ beforeEach(() => {
   vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test");
   storedBytes = { "staging/2026-10-22/m-1/cat.gif": "gif", "staging/2026-10-22/m-1/notes.pdf": "pdf" };
   removed = [];
-  updates = [];
+  dataset = new InMemoryDataset({ chatMessages: [{ id: "m1", channel_id: "chn_AAAAAAAAAAA1" }], chatMessageContents: [{ message_id: "m1", files: [] }] });
+  repos = createInMemoryRepos(dataset);
   bronzeRows = [];
   tokensUsed.length = 0;
   rpc.mockClear();
@@ -110,14 +113,12 @@ describe("sendChatFilesToSlack", () => {
     expect(token).toBe("xoxp-member");
     expect(args).toMatchObject({ channel_id: "C1", thread_ts: "1.1", initial_comment: "look &lt;here>" });
     expect(args.file_uploads.map((u: { filename: string }) => u.filename)).toEqual(["cat.gif", "notes.pdf"]);
-    expect(updates.find((u) => u.table === "chat_message_contents")?.values).toEqual({
-      files: [
-        { id: "F1", name: "cat.gif", mimetype: "image/gif", size: 3, width: null, height: null },
-        { id: "F2", name: "notes.pdf", mimetype: "application/pdf", size: 3, width: null, height: null },
-      ],
-    });
+    expect(dataset.chatMessageContents[0].files).toEqual([
+      { id: "F1", name: "cat.gif", mimetype: "image/gif", size: 3, width: null, height: null },
+      { id: "F2", name: "notes.pdf", mimetype: "application/pdf", size: 3, width: null, height: null },
+    ]);
     expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000200" });
-    expect(updates.find((u) => u.table === "chat_messages")?.values).toEqual({ posted_via: "user_token" });
+    expect(dataset.chatMessages[0].posted_via).toBe("user_token");
     expect(Object.keys(storedBytes).filter((k) => k.startsWith("uploaded:"))).toEqual(["uploaded:F1/cat.gif", "uploaded:F2/notes.pdf"]);
     expect(bronzeRows).toHaveLength(2);
     expect(removed).toEqual([["staging/2026-10-22/m-1/cat.gif", "staging/2026-10-22/m-1/notes.pdf"]]);
@@ -154,7 +155,18 @@ describe("sendChatFilesToSlack", () => {
   it("fails when Slack returns a different number of files", async () => {
     uploadV2.mockResolvedValue({ files: [{ files: [{ id: "F1" }] }] });
     expect(await sendChatFilesToSlack(ctx())).toBe("failed");
-    expect(updates).toEqual([]);
+    expect(dataset.chatMessageContents[0].files).toEqual([]);
+  });
+
+  it("carries on when storing the real file ids or the posted-via marker fails, logging the first", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.chat, "setMessageFiles").mockRejectedValue(new Error("store boom"));
+    vi.spyOn(repos.chat, "setPostedVia").mockRejectedValue(new Error("via boom"));
+
+    expect(await sendChatFilesToSlack(ctx())).toBe("sent");
+    expect(log).toHaveBeenCalledWith(expect.any(String), "m1", "store boom");
+    expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000200" });
+    log.mockRestore();
   });
 
   it("leaves the message pending, without uploading again, when Slack hasn't shared the files yet or on a retry", async () => {

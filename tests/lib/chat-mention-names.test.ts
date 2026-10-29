@@ -1,33 +1,45 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
-// A chainable fake service client: each (schema, table) resolves to the rows set for it.
-const tables: Record<string, unknown[]> = {};
-const from = vi.fn();
+// Slack users, the Slack-user-to-member map and the member directory come from the in-memory repositories;
+// bronze.slack_channels (not behind a repository yet) is a chainable fake service client.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+const channelQueries = vi.fn();
 vi.mock("@/lib/supabase/service", () => ({
-  createServiceRoleClient: () => {
-    const make = (schema: string) => ({
+  createServiceRoleClient: () => ({
+    schema: () => ({
       from: (table: string) => {
-        from(`${schema}.${table}`);
+        channelQueries(table);
         const q: Record<string, unknown> = {};
         q.select = () => q;
         q.in = () => q;
         q.eq = () => q;
-        q.then = (resolve: (v: unknown) => unknown) => resolve({ data: tables[`${schema}.${table}`] ?? [] });
+        q.then = (resolve: (v: unknown) => unknown) => resolve({ data: [{ channel_id: "C1", name: "hub-feedback" }] });
         return q;
       },
-    });
-    return { ...make("public"), schema: (s: string) => make(s) };
-  },
+    }),
+  }),
 }));
 
-import { slackUserHubNames, withMentionNames } from "@/lib/chat/names";
+import { slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos, withMentionNames } from "@/lib/chat/names";
+
+const MEMBER_1 = "mbr_AAAAAAAAAAA1";
+const MEMBER_2 = "mbr_AAAAAAAAAAA2";
+
+const dataset = (init: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
+  new InMemoryDataset({
+    slackUsers: [{ user_id: "U1", display_name: "Fern", real_name: "Fern Quillsby", name: "fern", image_url: "https://example.com/fern.png" }],
+    ...init,
+  });
 
 beforeEach(() => {
-  from.mockClear();
-  for (const k of Object.keys(tables)) delete tables[k];
-  tables["public.chat_slack_authors"] = [];
-  tables["bronze.slack_users"] = [{ user_id: "U1", display_name: "Fern", real_name: "Fern Quillsby", name: "fern" }];
-  tables["bronze.slack_channels"] = [{ channel_id: "C1", name: "hub-feedback" }];
+  channelQueries.mockClear();
+  repos = createInMemoryRepos(dataset());
 });
 
 describe("withMentionNames", () => {
@@ -52,28 +64,71 @@ describe("withMentionNames", () => {
   it("does not query anything when no row mentions anyone", async () => {
     const rows = [{ description: "plain" }, { description: undefined }];
     expect(await withMentionNames(rows)).toBe(rows);
-    expect(from).not.toHaveBeenCalled();
+    expect(channelQueries).not.toHaveBeenCalled();
   });
 });
 
 describe("slackUserHubNames", () => {
   it("names matched people by their Hub display name, else their Hub name, and leaves unmatched ones out", async () => {
-    tables["public.chat_slack_authors"] = [
-      { slack_user_id: "U1", member_id: "m1" },
-      { slack_user_id: "U2", member_id: "m2" },
-    ];
-    tables["public.member_directory"] = [
-      { id: "m1", name: "Cody Ray", display_name: null },
-      { id: "m2", name: "Gale Prickleton", display_name: "Gale" },
-    ];
-    expect(await slackUserHubNames(["U1", "U2", "U3", "U1"])).toEqual({ U1: "Cody Ray", U2: "Gale" });
+    repos = createInMemoryRepos(
+      dataset({
+        chatSlackAuthors: [
+          { slack_user_id: "U1", member_id: MEMBER_1 },
+          { slack_user_id: "U2", member_id: MEMBER_2 },
+        ],
+        members: [
+          { id: MEMBER_1, name: "Ada Example" },
+          { id: MEMBER_2, name: "Gale Prickleton", displayName: "Gale" },
+        ],
+      }),
+    );
+    expect(await slackUserHubNames(["U1", "U2", "U3", "U1"])).toEqual({ U1: "Ada Example", U2: "Gale" });
   });
 
   it("asks nothing for nobody or for nobody matched", async () => {
+    const byIds = vi.spyOn(repos.directory, "byIds");
     expect(await slackUserHubNames([])).toEqual({});
-    expect(from).not.toHaveBeenCalled();
-    tables["public.chat_slack_authors"] = [];
     expect(await slackUserHubNames(["U9"])).toEqual({});
-    expect(from).not.toHaveBeenCalledWith("public.member_directory");
+    expect(byIds).not.toHaveBeenCalled();
+  });
+});
+
+describe("slackUserNames, slackUserMemberIds and slackUserPhotos", () => {
+  beforeEach(() => {
+    repos = createInMemoryRepos(
+      dataset({
+        slackUsers: [
+          { user_id: "U1", display_name: "Fern", real_name: "Fern Quillsby", image_url: "https://example.com/slack-fern.png" },
+          { user_id: "U2", real_name: "Gale Slack", image_url: "https://example.com/slack-gale.png" },
+        ],
+        chatSlackAuthors: [
+          { slack_user_id: "U1", member_id: MEMBER_1 },
+          { slack_user_id: "U3", member_id: MEMBER_2 },
+        ],
+        members: [
+          { id: MEMBER_1, name: "Ada Example", displayName: "Ada", photoUrl: "https://example.com/ada.png" },
+          { id: MEMBER_2, name: "Gale Prickleton" },
+        ],
+      }),
+    );
+  });
+
+  it("names a mention by the member's chosen name, else Slack's, and falls back to the Hub name for a user Slack doesn't list", async () => {
+    expect(await slackUserNames(["U1", "U2", "U3", "U4"])).toEqual({ U1: "Ada", U2: "Gale Slack", U3: "Gale Prickleton" });
+  });
+
+  it("maps matched Slack users to member ids", async () => {
+    expect(await slackUserMemberIds(["U1", "U2", "U3"])).toEqual({ U1: MEMBER_1, U3: MEMBER_2 });
+  });
+
+  it("prefers a matched member's Hub photo over the Slack one", async () => {
+    expect(await slackUserPhotos(["U1", "U2", "U3"])).toEqual({ U1: "https://example.com/ada.png", U2: "https://example.com/slack-gale.png" });
+  });
+
+  it("answers empty (and logs) when the map can't be read, rather than caching a wrong answer", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.chat, "memberIdsBySlackUser").mockRejectedValue(new Error("boom"));
+    expect(await slackUserMemberIds(["U7"])).toEqual({});
+    expect(console.error).toHaveBeenCalled();
   });
 });

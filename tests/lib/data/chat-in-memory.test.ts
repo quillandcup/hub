@@ -27,6 +27,9 @@ defineChatContract("InMemoryChatRepository", () => {
           ...(c.bridgeMode ? { bridge_mode: c.bridgeMode } : {}),
           ...(c.bridgeDisabled !== undefined ? { bridge_disabled: c.bridgeDisabled } : {}),
           ...(c.bridgeStatus ? { bridge_status: c.bridgeStatus } : {}),
+          ...(c.name ? { name: c.name } : {}),
+          ...(c.kind ? { kind: c.kind } : {}),
+          ...(c.visibility ? { visibility: c.visibility } : {}),
         };
       });
       return ids;
@@ -162,6 +165,41 @@ defineChatContract("InMemoryChatRepository", () => {
     },
     reactionSynced: async (messageId, emoji, memberId) =>
       data.chatReactions.some((r) => r.message_id === messageId && r.emoji === emoji && r.member_id === memberId && !r.slack_user_id && r.synced_to_slack === true),
+
+    // --- content, authors and gap fills ---
+    seedContentMessages: async (messages) => {
+      const ids: Record<string, string> = {};
+      for (const m of messages) {
+        ids[m.key] = `msg_${String(++n).padStart(12, "A")}`;
+        data.chatMessages.push({ id: ids[m.key], channel_id: m.channelId, slack_ts: m.slackTs ?? null });
+        data.chatMessageContents.push({ message_id: ids[m.key], files: (m.files ?? null) as never });
+      }
+      return ids;
+    },
+    seedAuthors: async (slackUserIds) => {
+      const memberIds = slackUserIds.map((_, i) => `mbr_${String(i).padStart(12, "A")}`);
+      data.chatSlackAuthors = slackUserIds.map((slack, i) => ({ slack_user_id: slack, member_id: memberIds[i] }));
+      return memberIds;
+    },
+    seedGapFills: async (fills) => {
+      const ids: Record<string, string> = {};
+      data.chatGapFills = fills.map((f, i) => {
+        ids[f.key] = `gf_${String(i).padStart(12, "A")}`;
+        return { id: ids[f.key], slack_channel_id: f.slackChannelId, started_at: f.startedAt, scope: "message", source: "webhook" };
+      });
+      return ids;
+    },
+    postedVia: async (messageId) => data.chatMessages.find((m) => m.id === messageId)?.posted_via ?? null,
+    gapFill: async (id) => {
+      const f = data.chatGapFills.find((x) => x.id === id)!;
+      return {
+        finished_at: f.finished_at ?? null,
+        messages_recovered: f.messages_recovered ?? 0,
+        reactions_recovered: f.reactions_recovered ?? 0,
+        messages_seen: f.messages_seen ?? 0,
+        error: f.error ?? null,
+      };
+    },
   };
 });
 

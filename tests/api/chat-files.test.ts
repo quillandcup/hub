@@ -6,6 +6,8 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/slack-capture", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/slack-capture")>()), ensureSlackFileCopied: vi.fn() }));
 
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -18,7 +20,22 @@ const FILES = [
   { id: "F_HTML", name: "page.html", mimetype: "text/html", size: 10 },
 ];
 
-let content: unknown;
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+
+/** The one message the route reads: its file list and, unless hidden, where it lives in Slack (null: RLS hides the message from the caller). */
+const setContent = (files: unknown[] | null, slack: { ts: string | null; channel: string } | null = { ts: "1.1", channel: "C1" }) => {
+  repos = createInMemoryRepos(
+    new InMemoryDataset({
+      chatChannels: slack ? [{ id: "chn_AAAAAAAAAAA1", slack_channel_id: slack.channel }] : [],
+      chatMessages: slack ? [{ id: MESSAGE, channel_id: "chn_AAAAAAAAAAA1", slack_ts: slack.ts }] : [],
+      chatMessageContents: files ? [{ message_id: MESSAGE, files: files as never }] : [],
+    }),
+  );
+};
 let download: { data: Blob | null; error: { message: string } | null };
 
 const call = (messageId: string, fileId: string) =>
@@ -26,10 +43,9 @@ const call = (messageId: string, fileId: string) =>
 
 beforeEach(() => {
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
-  content = { files: FILES, chat_messages: { slack_ts: "1.1", chat_channels: { slack_channel_id: "C1" } } };
+  setContent(FILES);
   download = { data: new Blob(["bytes"]), error: null };
-  const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: content }) };
-  vi.mocked(createClient).mockResolvedValue({ from: () => query } as never);
+  vi.mocked(createClient).mockResolvedValue({} as never);
   vi.mocked(createServiceRoleClient).mockReturnValue({ storage: { from: () => ({ download: async () => download }) } } as never);
   vi.mocked(ensureSlackFileCopied).mockReset().mockResolvedValue({ ok: true, path: "F_IMG/hedgie.gif", mimetype: "image/gif" });
 });
@@ -60,22 +76,30 @@ describe("GET /api/chat/files/[messageId]/[fileId]", () => {
   });
 
   it("serves a file still being sent from where the composer staged it, without asking Slack", async () => {
-    content = { files: [{ id: "pending-1", name: "new.png", mimetype: "image/png", staged: "staging/2026-10-22/x/new.png" }], chat_messages: { slack_ts: null, chat_channels: { slack_channel_id: "C1" } } };
+    setContent([{ id: "pending-1", name: "new.png", mimetype: "image/png", staged: "staging/2026-10-22/x/new.png" }], { ts: null, channel: "C1" });
     const res = await call(MESSAGE, "pending-1");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(ensureSlackFileCopied).not.toHaveBeenCalled();
 
-    content = { files: [{ id: "pending-1", name: "new.png", mimetype: "image/png" }], chat_messages: null };
+    setContent([{ id: "pending-1", name: "new.png", mimetype: "image/png" }], null);
     expect((await call(MESSAGE, "pending-1")).status).toBe(404);
   });
 
   it("answers 404 when the caller can't read the message (RLS returns nothing) or the file isn't on it", async () => {
-    content = null;
+    setContent(null);
     expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
-    content = { files: FILES, chat_messages: null };
+    setContent(FILES, null);
     expect((await call(MESSAGE, "F_OTHER")).status).toBe(404);
     expect(ensureSlackFileCopied).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 and logs when the file list can't be read", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(repos.chat, "fileContext").mockRejectedValue(new Error("boom"));
+    expect((await call(MESSAGE, "F_IMG")).status).toBe(404);
+    expect(log).toHaveBeenCalledWith(expect.any(String), MESSAGE, "boom");
+    log.mockRestore();
   });
 
   it("answers 404 when the file can't be copied or is missing from the bucket", async () => {

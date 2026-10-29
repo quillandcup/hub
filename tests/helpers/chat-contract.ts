@@ -1,7 +1,21 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { ChatRepository } from "@/lib/data/chat";
 
-export type SeedChannel = { key: string; slackChannelId?: string; bridgeMode?: "bridged" | "app_only"; bridgeDisabled?: boolean; bridgeStatus?: "ok" | "disconnected" };
+export type SeedChannel = {
+  key: string;
+  slackChannelId?: string;
+  bridgeMode?: "bridged" | "app_only";
+  bridgeDisabled?: boolean;
+  bridgeStatus?: "ok" | "disconnected";
+  // content slice: set these when a test reads them back (otherwise the column default).
+  name?: string;
+  kind?: "channel" | "group_dm";
+  visibility?: "public" | "private";
+};
+
+// --- content, authors and gap fills: seeding ---
+export type SeedContentMessage = { key: string; channelId: string; slackTs?: string; files?: unknown[] };
+export type SeedGapFill = { key: string; slackChannelId: string; startedAt: string };
 
 export type ChatContractContext = {
   repo: () => ChatRepository;
@@ -15,6 +29,16 @@ export type ChatContractContext = {
   seedMessages: (channelId: string, messages: SeedMessage[]) => Promise<Record<string, string>>;
   /** Adds reactions by Slack-only people to messages of a channel. */
   seedReactions: (channelId: string, reactions: SeedReaction[]) => Promise<void>;
+  // --- content, authors and gap fills ---
+  /** Messages (with their content row) in channels made by `seedChannels`; returns each one's Hub id by key. */
+  seedContentMessages: (messages: SeedContentMessage[]) => Promise<Record<string, string>>;
+  /** Makes a member for each Slack user id and matches them; returns the member ids in the same order. */
+  seedAuthors: (slackUserIds: string[]) => Promise<string[]>;
+  /** Gap-fill rows (started, not finished); returns each one's id by key. */
+  seedGapFills: (fills: SeedGapFill[]) => Promise<Record<string, string>>;
+  /** What is stored for a message / a gap-fill, read straight from the store. */
+  postedVia: (messageId: string) => Promise<string | null>;
+  gapFill: (id: string) => Promise<{ finished_at: string | null; messages_recovered: number; reactions_recovered: number; messages_seen: number; error: string | null }>;
   // --- channels and membership slice ---
   /** Makes `count` members and returns their ids (they go with the context). */
   seedMembers: (count: number) => Promise<string[]>;
@@ -720,6 +744,119 @@ export function defineChatContract(name: string, setup: () => ChatContractContex
         expect(await ctx.repo().appMessageAuthor(ids.slack)).toBeNull();
         expect(await ctx.repo().appMessageAuthor(ids.anon)).toBeNull();
         expect(await ctx.repo().appMessageAuthor(NONE)).toBeNull();
+      });
+    });
+
+    // --- content, authors and gap fills ---
+    describe("content, authors and gap fills", () => {
+      it("reads a message's files with the Slack channel and ts it lives at, and nothing for a message without content", async () => {
+        const slack = ctx.unique("C");
+        const ts = `${Date.now()}.000100`;
+        const files = [{ id: ctx.unique("F"), name: "a.png" }];
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: slack }]);
+        const ids = await ctx.seedContentMessages([{ key: "m", channelId: c, slackTs: ts, files }, { key: "bare", channelId: c }]);
+
+        expect(await ctx.repo().fileContext(ids.m)).toEqual({ files, slackTs: ts, slackChannelId: slack });
+        expect(await ctx.repo().fileContext(ids.bare)).toEqual({ files: null, slackTs: null, slackChannelId: slack });
+        expect(await ctx.repo().fileContext(NONE)).toBeNull();
+      });
+
+      it("knows whether any message lists a file, and replaces a message's file list", async () => {
+        const fileId = ctx.unique("F");
+        const other = ctx.unique("F");
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: ctx.unique("C") }]);
+        const ids = await ctx.seedContentMessages([{ key: "m", channelId: c, files: [{ id: fileId, name: "a.png" }] }]);
+
+        expect(await ctx.repo().fileIsListed(fileId)).toBe(true);
+        expect(await ctx.repo().fileIsListed(other)).toBe(false);
+
+        await ctx.repo().setMessageFiles(ids.m, [{ id: other, name: "b.png" }]);
+        expect(await ctx.repo().fileIsListed(fileId)).toBe(false);
+        expect(await ctx.repo().fileIsListed(other)).toBe(true);
+        expect((await ctx.repo().fileContext(ids.m))?.files).toEqual([{ id: other, name: "b.png" }]);
+      });
+
+      it("records which token a message was sent with", async () => {
+        const { c } = await ctx.seedChannels([{ key: "c", slackChannelId: ctx.unique("C") }]);
+        const ids = await ctx.seedContentMessages([{ key: "m", channelId: c }]);
+        expect(await ctx.postedVia(ids.m)).toBeNull();
+
+        await ctx.repo().setPostedVia(ids.m, "user_token");
+        expect(await ctx.postedVia(ids.m)).toBe("user_token");
+      });
+
+      it("maps Slack users to members and members back to a Slack user, leaving out the unmatched", async () => {
+        const [u1, u2] = [ctx.unique("U"), ctx.unique("U")];
+        const [m1, m2] = await ctx.seedAuthors([u1, u2]);
+
+        expect(await ctx.repo().memberIdsBySlackUser([u1, u2, u1, ctx.unique("U")])).toEqual(new Map([[u1, m1], [u2, m2]]));
+        expect(await ctx.repo().memberIdsBySlackUser([])).toEqual(new Map());
+        expect(await ctx.repo().slackUserIdsByMember([m2, m1, m1, NONE])).toEqual(new Map([[m1, u1], [m2, u2]]));
+        expect(await ctx.repo().slackUserIdsByMember([])).toEqual(new Map());
+      });
+
+      it("chunks long id lists", async () => {
+        const [u1] = [ctx.unique("U")];
+        const [m1] = await ctx.seedAuthors([u1]);
+        const filler = Array.from({ length: 450 }, (_, i) => ctx.unique(`nobody${i}`));
+
+        expect(await ctx.repo().memberIdsBySlackUser([...filler, u1])).toEqual(new Map([[u1, m1]]));
+        expect(await ctx.repo().channelLabelsBySlackId(filler)).toEqual(new Map());
+      });
+
+      it("reads what a gap-fill needs of the channel that mirrors a Slack conversation", async () => {
+        const [a, b] = [ctx.unique("C"), ctx.unique("C")];
+        await ctx.seedChannels([
+          { key: "a", slackChannelId: a, name: "writers", kind: "channel", visibility: "private" },
+          { key: "b", slackChannelId: b, name: "pair", kind: "group_dm", visibility: "private", bridgeDisabled: true },
+        ]);
+
+        expect(await ctx.repo().mirroredChannel(a)).toEqual({ name: "writers", kind: "channel", visibility: "private", bridge_disabled: false });
+        expect(await ctx.repo().mirroredChannel(b)).toEqual({ name: "pair", kind: "group_dm", visibility: "private", bridge_disabled: true });
+        expect(await ctx.repo().mirroredChannel(ctx.unique("unknown"))).toBeNull();
+      });
+
+      it("labels channels by their Slack id", async () => {
+        const [a, b] = [ctx.unique("C"), ctx.unique("C")];
+        await ctx.seedChannels([
+          { key: "a", slackChannelId: a, name: "writers", kind: "channel" },
+          { key: "b", slackChannelId: b, name: "pair", kind: "group_dm" },
+        ]);
+
+        expect(await ctx.repo().channelLabelsBySlackId([b, a, a, ctx.unique("unknown")])).toEqual(
+          new Map([[a, { name: "writers", kind: "channel" }], [b, { name: "pair", kind: "group_dm" }]]),
+        );
+        expect(await ctx.repo().channelLabelsBySlackId([])).toEqual(new Map());
+      });
+
+      it("finds a message by its Slack ts within a channel", async () => {
+        const ts = `${Date.now()}.000200`;
+        const { c, d } = await ctx.seedChannels([{ key: "c", slackChannelId: ctx.unique("C") }, { key: "d", slackChannelId: ctx.unique("C") }]);
+        const ids = await ctx.seedContentMessages([{ key: "m", channelId: c, slackTs: ts }]);
+
+        expect(await ctx.repo().messageIdBySlackTs(c, ts)).toBe(ids.m);
+        expect(await ctx.repo().messageIdBySlackTs(d, ts)).toBeNull();
+        expect(await ctx.repo().messageIdBySlackTs(c, "1.1")).toBeNull();
+      });
+
+      it("records a gap-fill's outcome and lists the newest first", async () => {
+        const slack = ctx.unique("C");
+        const ids = await ctx.seedGapFills([
+          { key: "old", slackChannelId: slack, startedAt: "2099-01-01T00:00:00.000Z" },
+          { key: "mid", slackChannelId: slack, startedAt: "2099-01-02T00:00:00.000Z" },
+          { key: "new", slackChannelId: slack, startedAt: "2099-01-03T00:00:00.000Z" },
+        ]);
+
+        await ctx.repo().finishGapFill(ids.mid, { finishedAt: "2099-01-02T00:00:05.000Z", messagesRecovered: 3, reactionsRecovered: 2, messagesSeen: 7, error: null });
+        await ctx.repo().finishGapFill(ids.new, { finishedAt: "2099-01-03T00:00:05.000Z", messagesRecovered: 0, reactionsRecovered: 0, messagesSeen: 0, error: "not_in_channel" });
+
+        expect(await ctx.gapFill(ids.mid)).toEqual({ finished_at: expect.stringContaining("2099-01-02T00:00:05"), messages_recovered: 3, reactions_recovered: 2, messages_seen: 7, error: null });
+        expect((await ctx.gapFill(ids.new)).error).toBe("not_in_channel");
+
+        const recent = await ctx.repo().recentGapFills(3);
+        expect(recent.map((f) => f.id)).toEqual([ids.new, ids.mid, ids.old]);
+        expect(recent[0]).toMatchObject({ slack_channel_id: slack, scope: "message", source: "webhook", error: "not_in_channel" });
+        expect(await ctx.repo().recentGapFills(1)).toHaveLength(1);
       });
     });
   });

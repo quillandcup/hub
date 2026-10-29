@@ -2,6 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -27,24 +29,52 @@ const fill = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 const CHANNELS = [
-  { slack_channel_id: "C_GENERAL", name: "general", kind: "channel" },
-  { slack_channel_id: "G_GROUP", name: null, kind: "group_dm" },
+  { id: "chn_AAAAAAAAAAA1", slack_channel_id: "C_GENERAL", name: "general", kind: "channel" },
+  { id: "chn_AAAAAAAAAAA2", slack_channel_id: "G_GROUP", name: null, kind: "group_dm" },
 ];
+
+// The gap-fill and channel rows come from the in-memory chat repository.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+const seedChat = (fills: ReturnType<typeof fill>[], channels = CHANNELS) => {
+  repos = createInMemoryRepos(new InMemoryDataset({ chatGapFills: fills, chatChannels: channels }));
+};
 
 beforeEach(() => {
   resetServerPageMocks();
   requireAdminPage.mockClear();
+  repos = createInMemoryRepos();
+  useFakeSupabase({});
 });
 
 describe("admin chat gap-fills page", () => {
   it("is for admins: it starts by requiring one", async () => {
-    useFakeSupabase({ chat_gap_fills: { data: [] }, chat_channels: { data: [] } });
+    seedChat([], []);
     await renderServerPage(ChatGapFillsPage, {});
     expect(requireAdminPage).toHaveBeenCalledTimes(1);
   });
 
+  it("shows no fills (and logs) when they can't be read, and bare Slack ids when the channels can't", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    seedChat([]);
+    vi.spyOn(repos.chat, "recentGapFills").mockRejectedValue(new Error("fills boom"));
+    await renderServerPage(ChatGapFillsPage, {});
+    expect(screen.getByText("No gap-fills yet.")).toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith(expect.any(String), "fills boom");
+
+    seedChat([fill("a")]);
+    vi.spyOn(repos.chat, "channelLabelsBySlackId").mockRejectedValue(new Error("channels boom"));
+    await renderServerPage(ChatGapFillsPage, {});
+    expect(screen.getByText("C_GENERAL")).toBeInTheDocument();
+    expect(log).toHaveBeenCalledWith(expect.any(String), "channels boom");
+    log.mockRestore();
+  });
+
   it("says so when there are no fills yet, with zeros for the last day", async () => {
-    useFakeSupabase({ chat_gap_fills: { data: [] }, chat_channels: { data: [] } });
+    seedChat([], []);
     await renderServerPage(ChatGapFillsPage, {});
 
     expect(screen.getByText("No gap-fills yet.")).toBeInTheDocument();
@@ -53,17 +83,13 @@ describe("admin chat gap-fills page", () => {
   });
 
   it("lists each fill with its conversation, what it fetched, what triggered it, how much it recovered and how it ended", async () => {
-    useFakeSupabase({
-      chat_gap_fills: {
-        data: [
-          fill("a", { scope: "channel", source: "open", slack_ts: null, messages_recovered: 4, reactions_recovered: 2, messages_seen: 17 }),
-          fill("b", { slack_channel_id: "G_GROUP", scope: "thread", error: "not_in_channel", finished_at: hoursAgo(1) }),
-          fill("c", { scope: "message", finished_at: null }),
-          fill("d", { slack_channel_id: "C_UNKNOWN", source: "manual" }),
-        ],
-      },
-      chat_channels: { data: CHANNELS },
-    });
+    // Newest first, as the repository lists them.
+    seedChat([
+      fill("a", { started_at: hoursAgo(1), scope: "channel", source: "open", slack_ts: null, messages_recovered: 4, reactions_recovered: 2, messages_seen: 17 }),
+      fill("b", { started_at: hoursAgo(2), slack_channel_id: "G_GROUP", scope: "thread", error: "not_in_channel", finished_at: hoursAgo(1) }),
+      fill("c", { started_at: hoursAgo(3), scope: "message", finished_at: null }),
+      fill("d", { started_at: hoursAgo(4), slack_channel_id: "C_UNKNOWN", source: "manual" }),
+    ]);
     await renderServerPage(ChatGapFillsPage, {});
 
     const rows = screen.getAllByRole("row").slice(1);
@@ -88,16 +114,11 @@ describe("admin chat gap-fills page", () => {
   });
 
   it("totals only the last 24 hours: fills, what they recovered and how many failed", async () => {
-    useFakeSupabase({
-      chat_gap_fills: {
-        data: [
-          fill("recent-1", { messages_recovered: 3, reactions_recovered: 1 }),
-          fill("recent-2", { messages_recovered: 2, error: "not_in_channel" }),
-          fill("old", { started_at: hoursAgo(48), messages_recovered: 50, error: "boom" }),
-        ],
-      },
-      chat_channels: { data: CHANNELS },
-    });
+    seedChat([
+      fill("recent-1", { messages_recovered: 3, reactions_recovered: 1 }),
+      fill("recent-2", { messages_recovered: 2, error: "not_in_channel" }),
+      fill("old", { started_at: hoursAgo(48), messages_recovered: 50, error: "boom" }),
+    ]);
     await renderServerPage(ChatGapFillsPage, {});
 
     const tiles = screen.getByRole("region", { name: "Last 24 hours" });

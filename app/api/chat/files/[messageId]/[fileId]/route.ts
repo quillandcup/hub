@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { ensureSlackFileCopied, SLACK_FILES_BUCKET } from "@/lib/slack-capture";
 import { PENDING_FILE_PREFIX, isInlineImage, parseChatFiles } from "@/lib/chat/files";
+import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
@@ -26,16 +27,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const supabase = await createClient();
-  const { data: content } = await supabase
-    .from("chat_message_contents")
-    .select("files, chat_messages(slack_ts, chat_channels(slack_channel_id))")
-    .eq("message_id", messageId)
-    .maybeSingle();
+  // A failed read counts as nothing readable (404), as it always has.
+  const content = await createRepos(supabase).chat.fileContext(messageId).catch((error: Error) => {
+    console.error("[chat] reading the file list of %s failed:", messageId, error.message);
+    return null;
+  });
   const file = parseChatFiles(content?.files, { staged: true }).find((f) => f.id === fileId);
   if (!content || !file) return notFound();
-
-  const message: any = Array.isArray(content.chat_messages) ? content.chat_messages[0] : content.chat_messages;
-  const channel: any = Array.isArray(message?.chat_channels) ? message.chat_channels[0] : message?.chat_channels;
 
   const service = createServiceRoleClient();
   let path: string;
@@ -47,8 +45,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   } else {
     const copy = await ensureSlackFileCopied(service, (await getSlackBotToken()) ?? "", {
       fileId,
-      channelId: channel?.slack_channel_id ?? "",
-      messageTs: message?.slack_ts ?? "",
+      channelId: content.slackChannelId ?? "",
+      messageTs: content.slackTs ?? "",
     });
     if (!copy.ok) {
       console.error(`[chat] file ${fileId} unavailable: ${copy.reason}`);

@@ -1,10 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { filesGoneFromSlack, removeChatFileBytes, sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
+
+// Which messages list a file is the chat repository's business: the in-memory twin stands in for it.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+/** Another message lists file F1 (a tombstone, in the ignoreReferences case). */
+const listedByAnotherMessage = () => {
+  repos = createInMemoryRepos(new InMemoryDataset({ chatMessageContents: [{ message_id: "msg_AAAAAAAAAAA2", files: [{ id: "F1" }] }] }));
+};
 
 type Err = { message: string } | null;
 const s = {
-  refs: [] as { message_id: string }[],
-  refError: null as Err,
   row: null as { storage_path: string | null; deleted_at: string | null } | null,
   rowError: null as Err,
   updateError: null as Err,
@@ -30,13 +41,13 @@ const bronze = () => {
   return chain;
 };
 const service = {
-  from: () => ({ select: () => ({ contains: () => ({ limit: async () => ({ data: s.refs, error: s.refError }) }) }) }),
   schema: () => ({ from: bronze }),
   storage: { from: () => ({ remove: async (paths: string[]) => (s.removed.push(paths), { error: s.removeError }) }) },
 } as never;
 
 beforeEach(() => {
-  Object.assign(s, { refs: [], refError: null, row: { storage_path: "F1/a.png", deleted_at: null }, rowError: null, updateError: null, removeError: null, sweepRows: [], sweepError: null, updates: [], removed: [] });
+  Object.assign(s, { row: { storage_path: "F1/a.png", deleted_at: null }, rowError: null, updateError: null, removeError: null, sweepRows: [], sweepError: null, updates: [], removed: [] });
+  repos = createInMemoryRepos();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -50,7 +61,7 @@ describe("removeChatFileBytes", () => {
   });
 
   it("keeps everything while another message still lists the file", async () => {
-    s.refs = [{ message_id: "m2" }];
+    listedByAnotherMessage();
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("kept");
     expect(s.removed).toEqual([]);
     expect(s.updates).toEqual([]);
@@ -81,9 +92,9 @@ describe("removeChatFileBytes", () => {
   });
 
   it("never throws on lookup errors", async () => {
-    s.refError = { message: "boom" };
+    vi.spyOn(repos.chat, "fileIsListed").mockRejectedValue(new Error("boom"));
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
-    s.refError = null;
+    vi.mocked(repos.chat.fileIsListed).mockRestore();
     s.rowError = { message: "boom" };
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
   });
@@ -109,7 +120,7 @@ describe("sweepDeletedFileBytes", () => {
 
 describe("removeChatFileBytes for a file Slack deleted", () => {
   it("ignores message lists that still name it", async () => {
-    s.refs = [{ message_id: "m2" }];
+    listedByAnotherMessage();
     await expect(removeChatFileBytes(service, "F1", { ignoreReferences: true })).resolves.toBe("removed");
     expect(s.removed).toEqual([["F1/a.png"]]);
   });

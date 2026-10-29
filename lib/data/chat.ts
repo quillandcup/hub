@@ -1,5 +1,6 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Row } from "./db";
+import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
 
 /** A stored row, as the database has it, with only the named columns required: a test or seed names just what it cares about. */
@@ -236,7 +237,57 @@ export interface ChatRepository {
   markReactionSynced(opts: { messageId: string; emoji: string; memberId: string }): Promise<void>;
   /** The member who wrote an app (Hub) message, or null when it isn't one or has no author. */
   appMessageAuthor(messageId: string): Promise<string | null>;
+
+  // --- content, authors and gap fills ---
+
+  /**
+   * A message's file list with where it lives in Slack (for fetching the bytes). Content is RLS-gated per
+   * channel, so as the signed-in member this is null for a message they can't read.
+   */
+  fileContext(messageId: string): Promise<MessageFileContext | null>;
+  /** Whether any message's file list names this file. */
+  fileIsListed(fileId: string): Promise<boolean>;
+  /** Replaces a message's file list. */
+  setMessageFiles(messageId: string, files: Json): Promise<void>;
+  /** Slack user id -> Hub member id, for the Slack users the Hub has matched (others are absent). */
+  memberIdsBySlackUser(slackUserIds: string[]): Promise<Map<string, string>>;
+  /** Hub member id -> Slack user id (the first, by Slack id, when a member has several), where matched. */
+  slackUserIdsByMember(memberIds: string[]): Promise<Map<string, string>>;
+  /** The channel that mirrors this Slack conversation, with what a gap-fill needs of it, or null. */
+  mirroredChannel(slackChannelId: string): Promise<MirroredChannelInfo | null>;
+  /** Name and kind of the channels that mirror these Slack conversations, by Slack id. */
+  channelLabelsBySlackId(slackChannelIds: string[]): Promise<Map<string, ChannelLabel>>;
+  /** Fills in the outcome of a gap-fill that was claimed earlier. */
+  finishGapFill(id: string, result: GapFillOutcome): Promise<void>;
+  /** The most recent gap-fills, newest first. */
+  recentGapFills(limit: number): Promise<GapFillRecord[]>;
+  /** The Hub id of the message at this Slack ts in a channel, or null. */
+  messageIdBySlackTs(channelId: string, slackTs: string): Promise<string | null>;
 }
+
+export interface MessageFileContext {
+  files: Json | null;
+  slackTs: string | null;
+  slackChannelId: string | null;
+}
+export interface MirroredChannelInfo {
+  name: string | null;
+  kind: string;
+  visibility: string;
+  bridge_disabled: boolean;
+}
+export interface ChannelLabel {
+  name: string | null;
+  kind: string;
+}
+export interface GapFillOutcome {
+  finishedAt: string;
+  messagesRecovered: number;
+  reactionsRecovered: number;
+  messagesSeen: number;
+  error: string | null;
+}
+export type GapFillRecord = Row<"chat_gap_fills">;
 
 /** One message as a Slack write sees it. */
 export interface SlackMessageTarget {
@@ -698,6 +749,100 @@ export class SupabaseChatRepository implements ChatRepository {
     if (error) throw new Error(error.message);
     return data?.author_member_id ?? null;
   }
+
+  // --- content, authors and gap fills ---
+
+  async fileContext(messageId: string) {
+    const { data, error } = await this.db
+      .from("chat_message_contents")
+      .select("files, chat_messages(slack_ts, chat_channels(slack_channel_id))")
+      .eq("message_id", messageId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    // A to-one embed is an object; older typings give an array.
+    const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+    const message = one(data.chat_messages as any) as { slack_ts: string | null; chat_channels: unknown } | null;
+    const channel = one(message?.chat_channels as any) as { slack_channel_id: string | null } | null;
+    return { files: data.files, slackTs: message?.slack_ts ?? null, slackChannelId: channel?.slack_channel_id ?? null };
+  }
+
+  async fileIsListed(fileId: string) {
+    const { data, error } = await this.db.from("chat_message_contents").select("message_id").contains("files", JSON.stringify([{ id: fileId }])).limit(1);
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
+  async setMessageFiles(messageId: string, files: Json) {
+    const { error } = await this.db.from("chat_message_contents").update({ files }).eq("message_id", messageId);
+    if (error) throw new Error(error.message);
+  }
+
+  async memberIdsBySlackUser(slackUserIds: string[]) {
+    const out = new Map<string, string>();
+    for (const part of chunk([...new Set(slackUserIds)], ID_CHUNK)) {
+      const { data, error } = await this.db.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", part);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) out.set(row.slack_user_id, row.member_id);
+    }
+    return out;
+  }
+
+  async slackUserIdsByMember(memberIds: string[]) {
+    const out = new Map<string, string>();
+    for (const part of chunk([...new Set(memberIds)], ID_CHUNK)) {
+      const { data, error } = await this.db.from("chat_slack_authors").select("slack_user_id, member_id").in("member_id", part).order("slack_user_id");
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) if (!out.has(row.member_id)) out.set(row.member_id, row.slack_user_id);
+    }
+    return out;
+  }
+
+  async mirroredChannel(slackChannelId: string) {
+    const { data, error } = await this.db
+      .from("chat_channels")
+      .select("name, kind, visibility, bridge_disabled")
+      .eq("slack_channel_id", slackChannelId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async channelLabelsBySlackId(slackChannelIds: string[]) {
+    const out = new Map<string, ChannelLabel>();
+    for (const part of chunk([...new Set(slackChannelIds)], ID_CHUNK)) {
+      const { data, error } = await this.db.from("chat_channels").select("slack_channel_id, name, kind").in("slack_channel_id", part);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) if (row.slack_channel_id) out.set(row.slack_channel_id, { name: row.name, kind: row.kind });
+    }
+    return out;
+  }
+
+  async finishGapFill(id: string, result: GapFillOutcome) {
+    const { error } = await this.db
+      .from("chat_gap_fills")
+      .update({
+        finished_at: result.finishedAt,
+        messages_recovered: result.messagesRecovered,
+        reactions_recovered: result.reactionsRecovered,
+        messages_seen: result.messagesSeen,
+        error: result.error,
+      })
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async recentGapFills(limit: number) {
+    const { data, error } = await this.db.from("chat_gap_fills").select("*").order("started_at", { ascending: false }).order("id").limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async messageIdBySlackTs(channelId: string, slackTs: string) {
+    const { data, error } = await this.db.from("chat_messages").select("id").eq("channel_id", channelId).eq("slack_ts", slackTs).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.id ?? null;
+  }
 }
 
 const time = (m: { created_at?: string }) => Date.parse(m.created_at ?? new Date(0).toISOString());
@@ -1058,5 +1203,85 @@ export class InMemoryChatRepository implements ChatRepository {
   async appMessageAuthor(messageId: string) {
     const m = this.data.chatMessages.find((x) => x.id === messageId && (x.origin ?? "slack") === "app");
     return m?.author_member_id ?? null;
+  }
+
+  // --- content, authors and gap fills ---
+
+  async fileContext(messageId: string) {
+    const content = this.data.chatMessageContents.find((c) => c.message_id === messageId);
+    if (!content) return null;
+    const message = this.data.chatMessages.find((m) => m.id === messageId);
+    const channel = message ? this.data.chatChannels.find((c) => c.id === message.channel_id) : undefined;
+    return { files: content.files ?? null, slackTs: message?.slack_ts ?? null, slackChannelId: channel?.slack_channel_id ?? null };
+  }
+
+  async fileIsListed(fileId: string) {
+    return this.data.chatMessageContents.some((c) => Array.isArray(c.files) && c.files.some((f) => f && typeof f === "object" && !Array.isArray(f) && f.id === fileId));
+  }
+
+  async setMessageFiles(messageId: string, files: Json) {
+    const content = this.data.chatMessageContents.find((c) => c.message_id === messageId);
+    if (content) content.files = files;
+  }
+
+  async memberIdsBySlackUser(slackUserIds: string[]) {
+    const wanted = new Set(slackUserIds);
+    return new Map(this.data.chatSlackAuthors.filter((a) => wanted.has(a.slack_user_id)).map((a) => [a.slack_user_id, a.member_id]));
+  }
+
+  async slackUserIdsByMember(memberIds: string[]) {
+    const wanted = new Set(memberIds);
+    const out = new Map<string, string>();
+    const rows = this.data.chatSlackAuthors.filter((a) => wanted.has(a.member_id)).sort((a, b) => (a.slack_user_id < b.slack_user_id ? -1 : a.slack_user_id > b.slack_user_id ? 1 : 0));
+    for (const a of rows) if (!out.has(a.member_id)) out.set(a.member_id, a.slack_user_id);
+    return out;
+  }
+
+  async mirroredChannel(slackChannelId: string) {
+    const c = this.data.chatChannels.find((x) => x.slack_channel_id === slackChannelId);
+    // The column defaults, as the database fills them in.
+    return c ? { name: c.name ?? null, kind: c.kind ?? "channel", visibility: c.visibility ?? "public", bridge_disabled: c.bridge_disabled ?? false } : null;
+  }
+
+  async channelLabelsBySlackId(slackChannelIds: string[]) {
+    const wanted = new Set(slackChannelIds);
+    const out = new Map<string, ChannelLabel>();
+    for (const c of this.data.chatChannels) {
+      if (c.slack_channel_id && wanted.has(c.slack_channel_id)) out.set(c.slack_channel_id, { name: c.name ?? null, kind: c.kind ?? "channel" });
+    }
+    return out;
+  }
+
+  async finishGapFill(id: string, result: GapFillOutcome) {
+    const fill = this.data.chatGapFills.find((f) => f.id === id);
+    if (!fill) return;
+    fill.finished_at = result.finishedAt;
+    fill.messages_recovered = result.messagesRecovered;
+    fill.reactions_recovered = result.reactionsRecovered;
+    fill.messages_seen = result.messagesSeen;
+    fill.error = result.error;
+  }
+
+  async recentGapFills(limit: number) {
+    return this.data.chatGapFills
+      .map((f) => ({
+        id: f.id,
+        source: f.source ?? "webhook",
+        scope: f.scope ?? "message",
+        slack_channel_id: f.slack_channel_id ?? "",
+        slack_ts: f.slack_ts ?? null,
+        started_at: f.started_at ?? "1970-01-01T00:00:00.000Z",
+        finished_at: f.finished_at ?? null,
+        messages_recovered: f.messages_recovered ?? 0,
+        reactions_recovered: f.reactions_recovered ?? 0,
+        messages_seen: f.messages_seen ?? 0,
+        error: f.error ?? null,
+      }))
+      .sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .slice(0, limit);
+  }
+
+  async messageIdBySlackTs(channelId: string, slackTs: string) {
+    return this.data.chatMessages.find((m) => m.channel_id === channelId && m.slack_ts === slackTs)?.id ?? null;
   }
 }
