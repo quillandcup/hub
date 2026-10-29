@@ -1,5 +1,7 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
+import type { Db } from "@/lib/data/db";
 import { chatSlackWritesEnabled } from "@/lib/chat/slack-post";
 import { getSlackUserToken, isDeadTokenError } from "@/lib/slack-connect";
 
@@ -19,20 +21,15 @@ export async function syncReactionToSlack(
 ): Promise<boolean> {
   if (!chatSlackWritesEnabled()) return false;
 
-  const { data: message } = await service
-    .from("chat_messages")
-    .select("slack_ts, chat_channels(slack_channel_id)")
-    .eq("id", opts.messageId)
-    .maybeSingle();
-  const channels = message?.chat_channels as { slack_channel_id: string | null } | { slack_channel_id: string | null }[] | null | undefined;
-  const slackChannelId = (Array.isArray(channels) ? channels[0] : channels)?.slack_channel_id;
-  if (!message?.slack_ts || !slackChannelId) return false;
+  const chat = createRepos(service as unknown as Db).chat;
+  const message = await chat.slackTarget(opts.messageId);
+  if (!message?.slackTs || !message.slackChannelId) return false;
 
   const connection = await getSlackUserToken(service, opts.memberId);
   if (!connection) return false;
 
   const slack = new WebClient(connection.token);
-  const args = { channel: slackChannelId, timestamp: message.slack_ts, name: opts.emoji };
+  const args = { channel: message.slackChannelId, timestamp: message.slackTs, name: opts.emoji };
   try {
     if (opts.active) await slack.reactions.add(args);
     else await slack.reactions.remove(args);
@@ -46,12 +43,6 @@ export async function syncReactionToSlack(
     }
   }
 
-  await service
-    .from("chat_reactions")
-    .update({ synced_to_slack: true })
-    .eq("message_id", opts.messageId)
-    .eq("emoji", opts.emoji)
-    .eq("member_id", opts.memberId)
-    .is("slack_user_id", null);
+  await chat.markReactionSynced({ messageId: opts.messageId, emoji: opts.emoji, memberId: opts.memberId });
   return true;
 }

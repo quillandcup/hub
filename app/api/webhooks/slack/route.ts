@@ -19,6 +19,7 @@ import { isBeyondSlackHistory } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
 import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
 import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -363,13 +364,7 @@ async function publishHomeTab(event: any, origin: string) {
 async function hubMessageAuthor(supabase: any, event: any): Promise<string | null> {
   const messageId = event.metadata?.event_type === "hub_message" ? event.metadata.event_payload?.app_message_id : null;
   if (typeof messageId !== "string" || !isId(messageId, "msg")) return null;
-  const { data } = await supabase
-    .from("chat_messages")
-    .select("author_member_id")
-    .eq("id", messageId)
-    .eq("origin", "app")
-    .maybeSingle();
-  return data?.author_member_id ?? null;
+  return createRepos(supabase).chat.appMessageAuthor(messageId);
 }
 
 async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: string | null = null) {
