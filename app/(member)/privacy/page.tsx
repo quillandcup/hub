@@ -248,7 +248,7 @@ export default async function PrivacyPage() {
       <Section title="Services that help us run the Hub">
         <p>
           Your information passes through the services the Hub is built on: Supabase (the database and sign-in), Vercel
-          (hosting, and visit and speed counts), Sentry (error reports, held in the EU), Google Analytics (only where you
+          (hosting, and visit and speed counts), an error-reporting provider (error reports, held in the EU), Google Analytics (only where you
           allow it), Mux (course video), Slack, and our email provider. We use them to run the Hub and not for anything else.
         </p>
       </Section>

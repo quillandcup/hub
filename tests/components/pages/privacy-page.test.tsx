@@ -141,13 +141,14 @@ describe("/privacy usage, notifications and retention sections", () => {
     expect(section.getByText(/We will answer within a month/)).toBeInTheDocument();
   });
 
-  it("names the services involved, and the region Sentry is held in", async () => {
+  it("names the services involved, and the region error reports are held in", async () => {
     await renderServerPage(PrivacyPage, {});
     const section = within(screen.getByRole("heading", { name: "Services that help us run the Hub" }).closest("section")!);
-    for (const service of ["Supabase", "Vercel", "Sentry", "Google Analytics", "Mux", "Slack"]) {
+    for (const service of ["Supabase", "Vercel", "error-reporting provider","Google Analytics", "Mux", "Slack"]) {
       expect(section.getByText(new RegExp(service))).toBeInTheDocument();
     }
-    expect(section.getByText(/Sentry \(error reports, held in the EU\)/)).toBeInTheDocument();
+    expect(section.getByText(/an error-reporting provider \(error reports, held in the EU\)/)).toBeInTheDocument();
+    expect(section.queryByText(/Sentry/)).not.toBeInTheDocument();
   });
 });
 
