@@ -9,6 +9,8 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString } from "@/lib/events-filter";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { eventDisplayName } from "@/lib/event-name";
+import { monthsBetween, parsePastMonth } from "@/lib/events-agenda";
+import { fetchPastEventPrickles } from "@/lib/event-prickles";
 import { eventDays, type EventRow } from "../AgendaList";
 import PastEventsBrowser from "./PastEventsBrowser";
 
@@ -26,7 +28,8 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
 
   const { month } = await searchParams;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const today = localDateString(new Date(), timeZone);
+  const now = new Date();
+  const today = localDateString(now, timeZone);
 
   const events = await createRepos(supabase).events.listWithCover();
   // A removed event isn't listed. Past is what has already ended in the viewer's zone, so an event earlier today is here too.
@@ -48,6 +51,12 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
     }))
     .filter((e) => eventDays(e, timeZone).endDate < today);
 
+  // Every month from the first event's through this one (events earlier this month are past too), the latest open.
+  const first = rows.reduce((least, e) => (e.starts_at < least ? e.starts_at : least), today);
+  const months = monthsBetween(first, today);
+  const initialMonth = parsePastMonth(month, months);
+  const initialPrickles = await fetchPastEventPrickles(supabase, months.find((m) => m.id === initialMonth)!, timeZone, now);
+
   return (
     <div className="container mx-auto px-6 py-6 max-w-5xl">
       <p className="mb-2 text-sm">
@@ -55,7 +64,14 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
       </p>
       <h1 className="text-2xl font-bold mb-1">Past events</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">Where we&apos;ve been, a month at a time.</p>
-      <PastEventsBrowser initialMonth={month ?? null} events={rows} timeZone={timeZone} />
+      <PastEventsBrowser
+        initialMonth={initialMonth}
+        months={months}
+        events={rows}
+        followedCalendarEventIds={events.flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : []))}
+        initialPrickles={initialPrickles}
+        timeZone={timeZone}
+      />
     </div>
   );
 }

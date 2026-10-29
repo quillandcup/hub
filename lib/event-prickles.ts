@@ -1,6 +1,8 @@
 import type { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
 import { getMemberDisplayName } from "@/lib/member-display-name";
+import { dateIn, type AgendaMonth } from "@/lib/events-agenda";
 
 // Upcoming prickle events for the member Events page (app/(member)/events).
 // Prickle events (webinars, Hedgies on First, Monthly Goal Review, pitches...) are ordinary
@@ -44,7 +46,11 @@ export async function fetchUpcomingEventPrickles(
     limit: EVENT_PRICKLE_LIMIT,
   });
 
-  return prickles.map((p) => ({
+  return prickles.map(toEventPrickle);
+}
+
+function toEventPrickle(p: PrickleDetail): EventPrickle {
+  return {
     id: p.id,
     title: p.title ?? null,
     typeName: p.type?.name ?? "Prickle",
@@ -52,7 +58,35 @@ export async function fetchUpcomingEventPrickles(
     calendarEventId: p.calendarEventId ?? null,
     startTime: p.startTime,
     endTime: p.endTime,
-  }));
+  };
+}
+
+/**
+ * The prickles of listed types that started in a month (as the viewer reads the dates) and have already ended,
+ * soonest first: the past side of the Events page, consistent with the upcoming side. Looked up a month at a time.
+ */
+export async function fetchPastEventPrickles(
+  supabase: SupabaseClient,
+  month: AgendaMonth,
+  timeZone: string,
+  now: Date,
+): Promise<EventPrickle[]> {
+  // A day either side covers every zone's midnight; the dates are then read in the viewer's zone.
+  const DAY = 24 * 60 * 60 * 1000;
+  const from = new Date(Date.parse(`${month.first}T00:00:00Z`) - DAY);
+  const to = new Date(Date.parse(`${month.last}T00:00:00Z`) + 2 * DAY);
+  const prickles = await createRepos(supabase).prickles.listedInEventsActiveBetween({
+    from: from.toISOString(),
+    to: to.toISOString(),
+    limit: EVENT_PRICKLE_LIMIT,
+  });
+  return prickles
+    .filter((p) => Date.parse(p.endTime) < now.getTime())
+    .map(toEventPrickle)
+    .filter((p) => {
+      const day = dateIn(p.startTime, timeZone);
+      return day >= month.first && day <= month.last;
+    });
 }
 
 /**
