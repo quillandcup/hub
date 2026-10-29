@@ -576,7 +576,8 @@ The media library foundation is in (`docs/MEDIA_LIBRARY.md`): table, bucket, rep
 - **Uploads that are started but never confirmed** leave an object under `uploads/` in the `media` bucket (`POST /api/media/uploads`, then the browser never calls the confirm). Sweep objects older than a day, from the nightly cron.
 - **Deleting an asset keeps its files.** `DELETE /api/media/<id>` only sets `deleted_at`. Once the `*_asset_id` foreign keys exist ("in use" is refused), remove the original and `renditions/<id>/` for assets deleted long enough ago to be past any undo.
 - **Member uploads.** Routes are staff-only. Book covers (step 3) add a member upload that creates an asset owned by the member (RLS already allows it).
-- **HEIC** is refused with a message to export a JPEG. Check whether production's `sharp` can read it; iPhone photos are the likely source.
+- **SVG** is refused. Worth accepting for logos on the marketing site (sanitized, served with a sandboxing CSP); see `docs/MEDIA_LIBRARY.md`, "Upload safety".
+- **Videos and files in the catalog.** `media_assets.kind` allows `video` and `file` but only images are created. The course builder's migration relaxes the image-only NOT NULLs per kind and links `videos` (see "One catalog" in `docs/MEDIA_LIBRARY.md`).
 - **Paperback and hardcover covers** need a full wrap (back, spine, front) with a spine width from page count and paper type: a cover template, not a crop. Out of scope until asked.
 
 ## Security & Access Control

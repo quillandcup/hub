@@ -2882,6 +2882,7 @@ export type Database = {
           height: number
           id: string
           is_public: boolean
+          kind: string
           mime_type: string
           owner_member_id: string | null
           sha256: string
@@ -2905,6 +2906,7 @@ export type Database = {
           height: number
           id?: string
           is_public?: boolean
+          kind?: string
           mime_type: string
           owner_member_id?: string | null
           sha256: string
@@ -2928,6 +2930,7 @@ export type Database = {
           height?: number
           id?: string
           is_public?: boolean
+          kind?: string
           mime_type?: string
           owner_member_id?: string | null
           sha256?: string

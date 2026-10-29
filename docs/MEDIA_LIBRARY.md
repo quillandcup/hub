@@ -1,6 +1,6 @@
 # Media library
 
-Status: **foundation built** (table, bucket, repository, upload and serving routes, presets; no UI yet). Decisions made with the owner: ids are `img_`; events and the Bookshelf will be public later, so an asset has `is_public`; Amazon ebook covers only for now; the courses workstream is paused, so the foundation lands first. One place for the images the Hub shows, so an image is uploaded once, picked again anywhere, and turned into whatever size a screen or a store needs without anyone cropping by hand.
+Status: **foundation built** (table, bucket, repository, upload and serving routes, presets; no UI yet). Decisions made with the owner: ids are `media_`; events and the Bookshelf will be public later, so an asset has `is_public`; Amazon ebook covers only for now; the courses workstream is paused, so the foundation lands first. One place for the images the Hub shows, so an image is uploaded once, picked again anywhere, and turned into whatever size a screen or a store needs without anyone cropping by hand.
 
 ## Why
 
@@ -20,11 +20,21 @@ Images are handled four different ways today, and none of them can be reused:
 - `media_assets` (a table we own, so a text id from `new_id`; see below): `storage_path` of the **original, never modified** (`originals/<owner member id or shared>/<sha256>.<ext>`, so a retry lands on the same object); `width`, `height`, `mime_type`, `bytes`, `sha256` (the same file uploaded twice is one asset); `title`, `alt_text`, `tags text[]`; `focal_x`, `focal_y` (null = let the cropper decide); `owner_member_id` (null = shared, staff-managed; set = that member's own, e.g. their book cover); `is_public` (served to signed-out visitors too: off until the Bookshelf and events pages are public); `source` (`upload`, `kajabi`, `video_frame`) and `source_key` (the Kajabi URL without its query string, later `<video id>@<seconds>`), which together make imports idempotent; `deleted_at`; `created_by`.
 - **Uses are foreign keys, not a join table**: `events.image_id`, `member_books.cover_asset_id`, `courses.thumbnail_asset_id`, `course_modules.poster_asset_id`, `course_lessons.thumbnail_asset_id`, all `ON DELETE RESTRICT`. "Where is this used" is a view over them; deleting an asset that is in use is refused with the list of places. The pages ask for `asset + preset`, never a path.
 - **Renditions** are made with `sharp` (already a dependency) from the original the first time a preset is requested, stored under `renditions/<asset id>/<preset>-<hash of the crop settings>.webp`, and served with `Cache-Control: immutable`. Changing a focal point changes the hash, so nothing needs purging. Presets are a typed table in `lib/media/presets.ts` (`event_card`, `event_hero`, `book_cover_shelf`, `book_cover_kdp_ebook`, `thumb`, ...), each with width, height, fit and format.
-- **Serving** is `/api/media/<id>/<preset>`, behind the same caller checks as the feature that shows the image. Public-bucket URLs stay out: a copyable link is a link we can't change. Gated cases keep their own route (the course image route hides a draft lesson's image from members), which now resolves `asset id` and streams from the media bucket.
+- **Serving** is `/api/media/<id>/<preset>`; add `?download=1` to save the file. Besides the presets there are `custom` (any size: `?width=&height=` with `&format=jpeg|webp|png` and `&fit=crop|extend|white`, up to 8000 px a side and 40 megapixels, signed-in callers only, rendered each time and not cached) and `original` (the file as uploaded, staff only). Reads are checked per caller: row-level security for signed-in members, or an asset marked public for anyone. Public-bucket URLs stay out: a copyable link is a link we can't change. Gated cases keep their own route (the course image route hides a draft lesson's image from members), which now resolves `asset id` and streams from the media bucket.
 
 ### Ids
 
-Asset ids appear in URLs (`/api/media/<id>/...`), so by `CLAUDE.md` ("Resource ID Tiers") the table is **Tier 1**. The owner chose `img_` (a video frame is still an image; videos stay their own aggregate). It is in `ID_PREFIXES` and `docs/SHORT_IDS_PLAN.md`.
+Asset ids appear in URLs (`/api/media/<id>/...`), so by `CLAUDE.md` ("Resource ID Tiers") the table is **Tier 1**. The prefix is `media_`, not `img_`, because the table is the catalog for more than images (next section). It is in `ID_PREFIXES` and `docs/SHORT_IDS_PLAN.md`.
+
+### One catalog
+
+`media_assets` is the one place for everything a person picks, searches, tags and reuses. `kind` says what a row is (`image`, `video`, `file`); only `image` exists today, and the app creates nothing else yet. What is shared by every kind: the id, title, tags, owner, `is_public`, `source` / `source_key`, soft delete, the usage view and the picker. What is kind-specific stays out of the way:
+
+- **Image**: the bytes in the `media` bucket, `width`, `height`, `focal_*`, `fits`, and the renditions.
+- **Video** (course videos, Mux): the bytes and playback stay in Mux and `videos` (status, quality, captions, signed playback). The catalog row is 1:1 with a `videos` row (`videos.media_asset_id`, or the reverse) and adds what the library gives everything: a title, tags, an owner, usage tracking and the picker. The migration that brings videos in relaxes the image-only `NOT NULL`s (`storage_path`, `sha256`, `bytes`, `mime_type`, `width`, `height`) with a `CHECK` per `kind`, so an image still must have them. A video's poster is an image asset (`source = 'video_frame'`).
+- **File** (PDF downloads, lesson attachments): bytes in the bucket like an image, no renditions.
+
+So there is no second library to merge later: a new kind adds one migration and one repository branch, and the picker and `/admin/media` take a `kind` filter. The existing `videos` and `course_lesson_files` tables are not rewritten by the library; they gain a catalog row when their feature (the course builder) needs to pick them.
 
 ## Automatic sizing, and book covers for Amazon
 
@@ -64,7 +74,9 @@ No schema change. The course builder's picker gets a "from the video" tab that a
 
 ## Upload safety
 
-- Decide the type from the bytes (`sharp(...).metadata()`), not the browser's `Content-Type` or the file name. Accept JPEG, PNG, WebP, GIF, AVIF. **No SVG**: it can carry script. Reject a HEIC upload with a message to export as JPEG unless the sharp build in production reads it (check; iPhone photos are the likely source).
+- Decide the type from the bytes (`sharp(...).metadata()`), not the browser's `Content-Type` or the file name. Accept JPEG, PNG, WebP, GIF, AVIF.
+- **HEIC (iPhone photos) is converted to JPEG on upload** (`heic-convert`, libheif in JavaScript, which runs in Node without native code). The JPEG is then the stored original; the HEIC is not kept. A file that claims to be HEIC and can't be decoded is refused.
+- **No SVG, for now.** SVG is XML that can carry `<script>`, and a stored file served from our own origin would run it. We never serve originals to pages (renditions are re-encoded rasters), so accepting it to rasterize would be safe, but sharp's SVG decoder (librsvg) also follows references inside the file, which wants a hardening pass first; and nothing needs it yet (photos, covers, thumbnails). It becomes worth doing for logos on the marketing site, where the vector itself should be served: then it needs sanitizing (strip scripts and external references) and a `Content-Security-Policy: sandbox` response.
 - Apply EXIF orientation, then **strip metadata**: phone photos carry GPS. The original keeps its bytes as uploaded in storage, but the renditions are always stripped, and nothing serves the original to a page.
 - Cap input (bytes and pixels: `limitInputPixels`) before decoding, so a decompression bomb can't take down the function.
 - `POST /api/media` takes `multipart/form-data` for files that fit a request body (Vercel allows about 4.5 MB). Bigger ones go to a signed URL from `POST /api/media/uploads` and are then confirmed with `POST /api/media { uploadPath }`, which validates what was stored and moves it into the library.
@@ -83,7 +95,6 @@ Each is its own PR, small enough to review.
 
 ## Open questions
 
-- Is `img_` the right readable prefix (Tier 1, owner sign-off)?
-- Are the events list and detail pages members-only? If any part is public, event images need a public-safe route rather than the signed-in check.
-- Amazon: ebook only for now, or is paperback/hardcover wrap needed soon enough to design the cover template into step 3?
-- Who owns `courses:content`, and are they happy with step 1 landing before they add more image columns?
+- Events and the Bookshelf are members-only for now and become public with the marketing site: `is_public` and the public path in `/api/media` are ready for it; an asset is switched public when the public page that shows it ships.
+- Amazon: ebook covers only (decided); the paperback and hardcover wrap is in `docs/TODO.md`.
+- The courses workstream is paused; when it resumes it adopts step 4 below.

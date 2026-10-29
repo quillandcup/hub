@@ -3,6 +3,8 @@ import sharp from "sharp";
 import { apiFetch } from "../../helpers/api-fetch";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import { solidImage } from "../../helpers/media-fixtures";
+import { readFileSync } from "fs";
+import path from "path";
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/supabase/server", async () => {
@@ -122,7 +124,7 @@ describe("GET /api/media/[id]/[preset]", () => {
     expect((await apiFetch(`/api/media/${id}/event_card`)).status).toBe(200); // from the cache
     expect((await db.storage.from("media").list(`renditions/${id}`)).data).toHaveLength(1);
     expect((await apiFetch(`/api/media/${id}/nope`)).status).toBe(404);
-    expect((await apiFetch(`/api/media/img_AAAAAAAAAAAA/event_card`)).status).toBe(404);
+    expect((await apiFetch(`/api/media/media_AAAAAAAAAAAA/event_card`)).status).toBe(404);
     expect((await apiFetch(`/api/media/not-an-id/event_card`)).status).toBe(404);
   });
 
@@ -191,8 +193,68 @@ describe("GET, PATCH and DELETE on the library", () => {
     expect((await patch({ fits: { nope: "crop" } })).status).toBe(400);
     expect((await patch({ fits: { thumb: "stretch" } })).status).toBe(400);
     expect((await (await patch({ focal: null })).json()).asset.focal_x).toBeNull();
-    expect((await patch({ title: "x" }, "img_AAAAAAAAAAAA")).status).toBe(404);
+    expect((await patch({ title: "x" }, "media_AAAAAAAAAAAA")).status).toBe(404);
     expect((await patch({ title: "x" }, "bad")).status).toBe(404);
-    expect((await apiFetch(`/api/media/img_AAAAAAAAAAAA`, { method: "DELETE", headers: admin })).status).toBe(404);
+    expect((await apiFetch(`/api/media/media_AAAAAAAAAAAA`, { method: "DELETE", headers: admin })).status).toBe(404);
+  });
+});
+
+describe("HEIC uploads", () => {
+  it("are stored as a JPEG, and a HEIC that can't be decoded is refused", async () => {
+    const heic = readFileSync(path.resolve(import.meta.dirname, "../../fixtures/media/solid-red-64x48.heic"));
+    const { res, body } = await upload(heic, { title: `Phone photo ${RUN}` });
+    expect(res.status).toBe(201);
+    expect(body).toMatchObject({ convertedFrom: "heic", asset: { mime_type: "image/jpeg", width: 64, height: 48 } });
+    expect(body.asset.storage_path).toMatch(/\.jpg$/);
+    const stored = await db.storage.from("media").download(body.asset.storage_path);
+    expect((await sharp(Buffer.from(await stored.data!.arrayBuffer())).metadata()).format).toBe("jpeg");
+
+    const broken = Buffer.concat([heic.subarray(0, 40), Buffer.alloc(200, 7)]);
+    const refused = await upload(broken);
+    expect(refused.res.status).toBe(400);
+  });
+});
+
+describe("downloads at any size, and the original", () => {
+  const adminUserId = crypto.randomUUID();
+  const email = `media-admin-${RUN}@example.test`;
+
+  afterAll(async () => {
+    await db.auth.admin.deleteUser(adminUserId);
+  });
+
+  it("custom: any size for signed-in callers, validated, never for signed-out ones", async () => {
+    const id = (await upload(await picture(900, 600))).body.asset.id;
+    expect((await apiFetch(`/api/media/${id}/custom?width=300&height=200`)).status).toBe(404); // signed out
+
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
+    const res = await apiFetch(`/api/media/${id}/custom?width=1234&height=567&format=png&download=1`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("content-disposition")).toMatch(/^attachment; filename="[a-z0-9-]+-1234x567\.png"$/);
+    const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
+    expect([meta.width, meta.height]).toEqual([1234, 567]);
+    expect((await db.storage.from("media").list(`renditions/${id}`)).data).toHaveLength(0); // not cached
+
+    for (const query of ["", "width=10", "width=99999&height=10", "width=10&height=10&format=bmp"]) {
+      expect((await apiFetch(`/api/media/${id}/custom?${query}`)).status, query).toBe(400);
+    }
+  });
+
+  it("original: the file as uploaded, for staff only", async () => {
+    const bytes = await picture(500, 400);
+    const id = (await upload(bytes)).body.asset.id;
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "member@example.com" });
+    expect((await apiFetch(`/api/media/${id}/original`)).status).toBe(404);
+
+    const { error } = await db.auth.admin.createUser({ id: adminUserId, email, email_confirm: true });
+    expect(error).toBeNull();
+    await db.from("user_profiles").upsert({ id: adminUserId, email, role: "admin" });
+    vi.mocked(getCurrentUser).mockResolvedValue({ id: adminUserId, email });
+    const res = await apiFetch(`/api/media/${id}/original?download=1`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("content-disposition")).toMatch(/original\.png"$/);
+    expect(Buffer.from(await res.arrayBuffer()).equals(bytes)).toBe(true);
   });
 });

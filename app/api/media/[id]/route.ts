@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json().catch(() => undefined);
   if (body === undefined || typeof body !== "object" || body === null) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const { id } = await params;
-  if (!isId(id, "img")) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!isId(id, "media")) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const media = createRepos(auth.supabase).media;
   const edit: MediaAssetEdit = {};
@@ -62,7 +62,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
-  if (!isId(id, "img")) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!isId(id, "media")) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
     const removed = await createRepos(auth.supabase).media.remove(id);
     return removed ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -22,10 +22,10 @@ INSERT INTO public.members (id, name, email, status, joined_at, user_id) VALUES
   ('mbr_MediaTestBo2', 'Bob Example', 'media-bob@example.test', 'active', '2026-01-01', '00000000-0000-4000-a000-00000000d1a2');
 
 INSERT INTO public.media_assets (id, storage_path, mime_type, width, height, bytes, sha256, title, owner_member_id, deleted_at) VALUES
-  ('img_MediaTestSh1', 'originals/shared/mt-1.png', 'image/png', 10, 10, 1, 'mt-sha-1', 'Shared', NULL, NULL),
-  ('img_MediaTestSh2', 'originals/shared/mt-2.png', 'image/png', 10, 10, 1, 'mt-sha-2', 'Shared, deleted', NULL, now()),
-  ('img_MediaTestAl1', 'originals/mbr_MediaTestAl1/mt-3.png', 'image/png', 10, 10, 1, 'mt-sha-3', 'Alice own', 'mbr_MediaTestAl1', NULL),
-  ('img_MediaTestBo1', 'originals/mbr_MediaTestBo2/mt-4.png', 'image/png', 10, 10, 1, 'mt-sha-4', 'Bob own', 'mbr_MediaTestBo2', NULL);
+  ('media_MediaTestSh1', 'originals/shared/mt-1.png', 'image/png', 10, 10, 1, 'mt-sha-1', 'Shared', NULL, NULL),
+  ('media_MediaTestSh2', 'originals/shared/mt-2.png', 'image/png', 10, 10, 1, 'mt-sha-2', 'Shared, deleted', NULL, now()),
+  ('media_MediaTestAl1', 'originals/mbr_MediaTestAl1/mt-3.png', 'image/png', 10, 10, 1, 'mt-sha-3', 'Alice own', 'mbr_MediaTestAl1', NULL),
+  ('media_MediaTestBo1', 'originals/mbr_MediaTestBo2/mt-4.png', 'image/png', 10, 10, 1, 'mt-sha-4', 'Bob own', 'mbr_MediaTestBo2', NULL);
 
 SELECT is((SELECT public FROM storage.buckets WHERE id = 'media'), false, 'the media bucket is private');
 SELECT is(
@@ -42,7 +42,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a1", "email": "media-alice@example.test", "role": "authenticated"}', true);
 SELECT results_eq(
   $$ SELECT id FROM public.media_assets WHERE sha256 LIKE 'mt-sha-%' ORDER BY id $$,
-  ARRAY['img_MediaTestAl1', 'img_MediaTestSh1']::text[],
+  ARRAY['media_MediaTestAl1', 'media_MediaTestSh1']::text[],
   'a member reads the live shared assets and their own, not another member''s or a deleted one'
 );
 SELECT throws_ok(
@@ -57,12 +57,12 @@ SELECT lives_ok(
   $$ INSERT INTO public.media_assets (storage_path, mime_type, width, height, bytes, sha256, title, owner_member_id) VALUES ('originals/mbr_MediaTestAl1/mt-7.png', 'image/png', 1, 1, 1, 'mt-sha-7', 'Alice again', 'mbr_MediaTestAl1') $$,
   'a member adds to their own library'
 );
-UPDATE public.media_assets SET title = 'Changed' WHERE id = 'img_MediaTestSh1';
-UPDATE public.media_assets SET title = 'Alice renamed' WHERE id = 'img_MediaTestAl1';
-SELECT is((SELECT title FROM public.media_assets WHERE id = 'img_MediaTestSh1'), 'Shared', 'a member can''t change a shared asset');
-SELECT is((SELECT title FROM public.media_assets WHERE id = 'img_MediaTestAl1'), 'Alice renamed', 'but can change their own');
-DELETE FROM public.media_assets WHERE id = 'img_MediaTestSh1';
-SELECT is((SELECT count(*)::int FROM public.media_assets WHERE id = 'img_MediaTestSh1'), 1, 'and can''t delete a shared one');
+UPDATE public.media_assets SET title = 'Changed' WHERE id = 'media_MediaTestSh1';
+UPDATE public.media_assets SET title = 'Alice renamed' WHERE id = 'media_MediaTestAl1';
+SELECT is((SELECT title FROM public.media_assets WHERE id = 'media_MediaTestSh1'), 'Shared', 'a member can''t change a shared asset');
+SELECT is((SELECT title FROM public.media_assets WHERE id = 'media_MediaTestAl1'), 'Alice renamed', 'but can change their own');
+DELETE FROM public.media_assets WHERE id = 'media_MediaTestSh1';
+SELECT is((SELECT count(*)::int FROM public.media_assets WHERE id = 'media_MediaTestSh1'), 1, 'and can''t delete a shared one');
 
 -- Bob never sees Alice's
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000d1a2", "email": "media-bob@example.test", "role": "authenticated"}', true);
@@ -75,8 +75,8 @@ SELECT lives_ok(
   $$ INSERT INTO public.media_assets (storage_path, mime_type, width, height, bytes, sha256, title) VALUES ('originals/shared/mt-8.png', 'image/png', 1, 1, 1, 'mt-sha-8', 'Staff shared') $$,
   'staff add to the shared library'
 );
-UPDATE public.media_assets SET title = 'Staff renamed' WHERE id = 'img_MediaTestSh1';
-SELECT is((SELECT title FROM public.media_assets WHERE id = 'img_MediaTestSh1'), 'Staff renamed', 'and change a shared asset');
+UPDATE public.media_assets SET title = 'Staff renamed' WHERE id = 'media_MediaTestSh1';
+SELECT is((SELECT title FROM public.media_assets WHERE id = 'media_MediaTestSh1'), 'Staff renamed', 'and change a shared asset');
 
 RESET ROLE;
 SELECT throws_ok(

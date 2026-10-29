@@ -4,7 +4,7 @@ import type { InMemoryDataset } from "./in-memory";
 
 export type MediaAsset = Row<"media_assets">;
 export type NewMediaAsset = Pick<Insert<"media_assets">, "storage_path" | "mime_type" | "width" | "height" | "bytes" | "sha256" | "title"> &
-  Partial<Pick<Insert<"media_assets">, "alt_text" | "tags" | "owner_member_id" | "is_public" | "source" | "source_key" | "created_by">>;
+  Partial<Pick<Insert<"media_assets">, "kind" | "alt_text" | "tags" | "owner_member_id" | "is_public" | "source" | "source_key" | "created_by">>;
 export type MediaAssetEdit = Partial<Pick<MediaAsset, "title" | "alt_text" | "tags" | "focal_x" | "focal_y" | "fits" | "is_public">>;
 
 /** Whose assets: the shared library, or one member's own. */
@@ -119,7 +119,7 @@ export class SupabaseMediaRepository implements MediaRepository {
 }
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-const newImgId = () => `img_${Array.from({ length: 12 }, () => BASE58[randomInt(BASE58.length)]).join("")}`;
+const newMediaId = () => `media_${Array.from({ length: 12 }, () => BASE58[randomInt(BASE58.length)]).join("")}`;
 
 /** In-memory twin over an `InMemoryDataset`. Like the table, it refuses a second live copy of the same bytes for one owner and of the same import source. */
 export class InMemoryMediaRepository implements MediaRepository {
@@ -159,7 +159,8 @@ export class InMemoryMediaRepository implements MediaRepository {
     if (this.data.mediaAssets.some((a) => a.storage_path === asset.storage_path)) throw new Error("duplicate key value violates unique constraint \"media_assets_storage_path_key\"");
     const now = new Date().toISOString();
     const row: MediaAsset = {
-      id: newImgId(),
+      id: newMediaId(),
+      kind: "image",
       alt_text: null,
       owner_member_id: null,
       is_public: false,
