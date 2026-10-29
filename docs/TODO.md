@@ -568,6 +568,17 @@ CodeQL is on GitHub's default setup (`gh api repos/quillandcup/hub/code-scanning
 ### Adopt Cache Components (`cacheComponents`) _(Needs Scoping, not urgent)_
 Next 16 has a new caching model behind `cacheComponents` in `next.config.ts` (the `"use cache"` directive, `cacheTag`/`cacheLife`/`updateTag`, Partial Prerendering and Partial Prefetching); the docs say it becomes the default in the next major release. We are not on it. Chat's cross-request lookup cache (`lib/chat/lookup-cache.ts`) uses the older `unstable_cache`, which still works. Looked at while speeding up chat switching, and decided not to adopt it for that: (1) every one of the ~112 pages (and the layouts) reads the signed-in user from cookies, and under Cache Components request-time data outside a `<Suspense>` boundary fails the build, so most routes need restructuring, not a flag flip; (2) the 8 route segment config exports (`dynamic`, `revalidate`, `runtime`, find them with `grep -rnE "export const (dynamic|revalidate|runtime|fetchCache)" app`) must be migrated and `runtime` is unsupported; (3) the `unstable_cache` calls move to `"use cache"` (small); (4) the gain is a static shell plus partial prefetching, but our pages are per-user and database-bound (production chat renders spent 100-500ms per query, not rendering a shell), so it would not shrink the measured cost. Nobody has tried a build with it, so the size of (1) is an estimate. Start from the docs' "Migrating to Cache Components" guide (`node_modules/next/dist/docs/01-app/02-guides/migrating-to-cache-components.md`) and a throwaway branch with the flag on, counting build errors, before scheduling it; revisit when the next Next major lands.
 
+### Media library follow-ups
+
+The media library foundation is in (`docs/MEDIA_LIBRARY.md`): table, bucket, repository, upload and serving routes. Left for the PRs that add its first users:
+
+- **Analytics events** (`media_uploaded`, `media_picked`, `media_reused`, `kdp_cover_downloaded`) belong with the picker and `/admin/media`, the first UI; the foundation has none to measure.
+- **Uploads that are started but never confirmed** leave an object under `uploads/` in the `media` bucket (`POST /api/media/uploads`, then the browser never calls the confirm). Sweep objects older than a day, from the nightly cron.
+- **Deleting an asset keeps its files.** `DELETE /api/media/<id>` only sets `deleted_at`. Once the `*_asset_id` foreign keys exist ("in use" is refused), remove the original and `renditions/<id>/` for assets deleted long enough ago to be past any undo.
+- **Member uploads.** Routes are staff-only. Book covers (step 3) add a member upload that creates an asset owned by the member (RLS already allows it).
+- **HEIC** is refused with a message to export a JPEG. Check whether production's `sharp` can read it; iPhone photos are the likely source.
+- **Paperback and hardcover covers** need a full wrap (back, spine, front) with a spine width from page count and paper type: a cover template, not a crop. Out of scope until asked.
+
 ## Security & Access Control
 
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_

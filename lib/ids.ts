@@ -5,7 +5,7 @@
 /** The prefixes of the Tier 1 tables (ids a person can see). */
 export const ID_PREFIXES = [
   "mbr", "prkl", "prty", "cmt", "prj", "book", "evt", "prg", "msg",
-  "chn", "seg", "bdgt", "crs", "mod", "les", "photo", "file",
+  "chn", "seg", "bdgt", "crs", "mod", "les", "photo", "file", "img",
 ] as const;
 export type IdPrefix = (typeof ID_PREFIXES)[number];
 

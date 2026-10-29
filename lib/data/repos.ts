@@ -17,6 +17,7 @@ import { InMemoryActivityRepository, SupabaseActivityRepository, type ActivityRe
 import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository } from "./events";
 import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
+import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -40,6 +41,7 @@ export interface Repos {
   profiles: ProfileRepository;
   calendarEvents: CalendarEventRepository;
   slackUsers: SlackUserRepository;
+  media: MediaRepository;
   chat: ChatRepository;
 }
 
@@ -62,6 +64,7 @@ export function createRepos(db: Db): Repos {
     profiles: new SupabaseProfileRepository(db),
     calendarEvents: new SupabaseCalendarEventRepository(db),
     slackUsers: new SupabaseSlackUserRepository(db),
+    media: new SupabaseMediaRepository(db),
     chat: new SupabaseChatRepository(db),
   };
 }
@@ -85,6 +88,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     profiles: new InMemoryProfileRepository(dataset),
     calendarEvents: new InMemoryCalendarEventRepository(dataset),
     slackUsers: new InMemorySlackUserRepository(dataset),
+    media: new InMemoryMediaRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
   };
 }

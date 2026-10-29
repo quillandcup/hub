@@ -36,6 +36,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   events: [],
   event_attendees: [],
   event_photos: [],
+  // Media library (MediaRepository): every query is in the repository.
+  media_assets: [],
   // Member activity log (ActivityRepository): every query is moved.
   member_activities: [],
   // Member directory (MemberDirectoryRepository): every query is moved.
