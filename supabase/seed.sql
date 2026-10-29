@@ -24,7 +24,13 @@ TRUNCATE bronze.slack_messages CASCADE;
 TRUNCATE bronze.slack_reactions CASCADE;
 TRUNCATE bronze.slack_channels CASCADE;
 TRUNCATE bronze.slack_users CASCADE;
+-- events.image_id -> media_assets -> members (the owner): a cascading truncate of members would follow that
+-- chain into events and then badge_types (event_id), and empty the badge definitions the migrations create.
+-- So the key is dropped around the truncate and put back after it (nothing in the seed uses an event image).
+-- A new table that points at events through something that points at members needs the same.
+ALTER TABLE public.events DROP CONSTRAINT events_image_id_fkey;
 TRUNCATE members CASCADE;
+ALTER TABLE public.events ADD CONSTRAINT events_image_id_fkey FOREIGN KEY (image_id) REFERENCES public.media_assets(id) ON DELETE RESTRICT;
 
 -- Re-seed prickle_types (wiped by TRUNCATE members CASCADE)
 -- Note: migrations normally handle this, but seed.sql wipes it.
