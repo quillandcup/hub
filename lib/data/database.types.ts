@@ -318,27 +318,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kajabi_members: {
-        Row: {
-          data: Json
-          email: string
-          id: string
-          imported_at: string
-        }
-        Insert: {
-          data: Json
-          email: string
-          id?: string
-          imported_at?: string
-        }
-        Update: {
-          data?: Json
-          email?: string
-          id?: string
-          imported_at?: string
-        }
-        Relationships: []
-      }
       kajabi_lesson_progress: {
         Row: {
           captured_at: string
@@ -375,6 +354,27 @@ export type Database = {
           kajabi_lesson_id?: string
           kajabi_member_id?: string | null
           percent?: number | null
+        }
+        Relationships: []
+      }
+      kajabi_members: {
+        Row: {
+          data: Json
+          email: string
+          id: string
+          imported_at: string
+        }
+        Insert: {
+          data: Json
+          email: string
+          id?: string
+          imported_at?: string
+        }
+        Update: {
+          data?: Json
+          email?: string
+          id?: string
+          imported_at?: string
         }
         Relationships: []
       }
