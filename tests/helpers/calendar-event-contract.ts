@@ -129,5 +129,29 @@ export function defineCalendarEventContract(name: string, setup: () => CalendarE
       expect(await ctx.repo().byId(ids.get(outside.google_event_id)!)).not.toBeNull();
       expect(await ctx.repo().byId(ids.get(boundary.google_event_id)!)).not.toBeNull();
     });
+
+    it("finds items by Google id, ignoring ids it doesn't store", async () => {
+      const a = item("gid-a", 21);
+      const b = item("gid-b", 22);
+      await store(a, b);
+
+      const found = await ctx.repo().byGoogleIds([a.google_event_id, ctx.unique("gid-never-stored")]);
+      expect(found.map((e) => e.google_event_id)).toEqual([a.google_event_id]);
+      expect(await ctx.repo().byGoogleIds([])).toEqual([]);
+    });
+
+    it("removes items by Google id and returns what it removed, leaving the others", async () => {
+      const gone = item("del-gone", 23);
+      const keep = item("del-keep", 24);
+      const ids = await store(gone, keep);
+
+      const removed = await ctx.repo().deleteByGoogleIds([gone.google_event_id, ctx.unique("del-never-stored")]);
+
+      expect(removed.map((e) => e.google_event_id)).toEqual([gone.google_event_id]);
+      expect(ms(removed[0].start_time)).toBe(ms(gone.start_time));
+      expect(await ctx.repo().byId(ids.get(gone.google_event_id)!)).toBeNull();
+      expect(await ctx.repo().byId(ids.get(keep.google_event_id)!)).not.toBeNull();
+      expect(await ctx.repo().deleteByGoogleIds([])).toEqual([]);
+    });
   });
 }

@@ -30,6 +30,14 @@ export interface CalendarEventRepository {
   overlapping(from: string, to: string): Promise<CalendarSourceEvent[]>;
   /** Items starting within a range (both ends included), by start time. Paginated. */
   startingBetween(from: string, to: string): Promise<CalendarSourceEvent[]>;
+  /** These items by Google id (those that exist). Chunked. */
+  byGoogleIds(googleEventIds: string[]): Promise<CalendarSourceEvent[]>;
+  /**
+   * Removes these items by Google id (the ones the calendar reports cancelled) and returns what was
+   * removed, so the caller knows which dates to reprocess. Dependent rows go with them (ON DELETE
+   * CASCADE). Ids we don't store are ignored.
+   */
+  deleteByGoogleIds(googleEventIds: string[]): Promise<CalendarSourceEvent[]>;
   /** Adds items, or replaces the ones with the same Google id (their Hub ids stay, so links to them keep working). */
   upsert(events: NewCalendarSourceEvent[]): Promise<void>;
   /** Stamps these items (by Google id) as just synced. Chunked; every chunk is tried, then the first failure is thrown. */
@@ -88,6 +96,26 @@ export class SupabaseCalendarEventRepository implements CalendarEventRepository 
       rows.push(...(data ?? []));
     }
     return rows;
+  }
+
+  async byGoogleIds(googleEventIds: string[]) {
+    const rows: CalendarSourceEvent[] = [];
+    for (const part of chunk([...new Set(googleEventIds)], ID_CHUNK)) {
+      const { data, error } = await this.table.select("*").in("google_event_id", part);
+      if (error) throw new Error(error.message);
+      rows.push(...(data ?? []));
+    }
+    return rows;
+  }
+
+  async deleteByGoogleIds(googleEventIds: string[]) {
+    const removed: CalendarSourceEvent[] = [];
+    for (const part of chunk([...new Set(googleEventIds)], ID_CHUNK)) {
+      const { data, error } = await this.table.delete().in("google_event_id", part).select("*");
+      if (error) throw new Error(error.message);
+      removed.push(...(data ?? []));
+    }
+    return removed;
   }
 
   async overlapping(from: string, to: string) {
@@ -170,6 +198,18 @@ export class InMemoryCalendarEventRepository implements CalendarEventRepository 
   async byIds(ids: string[]) {
     const wanted = new Set(ids);
     return this.data.calendarEvents.filter((e) => wanted.has(e.id)).map((e) => ({ ...e }));
+  }
+
+  async byGoogleIds(googleEventIds: string[]) {
+    const wanted = new Set(googleEventIds);
+    return this.data.calendarEvents.filter((e) => wanted.has(e.google_event_id)).map((e) => ({ ...e }));
+  }
+
+  async deleteByGoogleIds(googleEventIds: string[]) {
+    const wanted = new Set(googleEventIds);
+    const removed = this.data.calendarEvents.filter((e) => wanted.has(e.google_event_id));
+    this.data.calendarEvents = this.data.calendarEvents.filter((e) => !wanted.has(e.google_event_id));
+    return removed.map((e) => ({ ...e }));
   }
 
   async overlapping(from: string, to: string) {

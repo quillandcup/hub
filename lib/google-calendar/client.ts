@@ -63,6 +63,32 @@ export class GoogleCalendarClient {
   }
 
   /**
+   * Events changed since `updatedMin` inside a window, cancelled ones included (they come back with
+   * status "cancelled" and often no start time). The incremental sync's fetch: a handful of items
+   * instead of the whole window. Paginated like listEvents.
+   */
+  async listChangedEvents(
+    calendarId: string,
+    params: { updatedMin: string; timeMin: string; timeMax: string }
+  ): Promise<any[]> {
+    let all: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await this.calendar.events.list({
+        calendarId,
+        ...params,
+        singleEvents: true,
+        showDeleted: true,
+        maxResults: 250,
+        pageToken,
+      });
+      all = all.concat(response.data.items || []);
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return all;
+  }
+
+  /**
    * Open a push channel: Google POSTs to `address` (with `token` in X-Goog-Channel-Token)
    * whenever an event on the calendar changes. Returns Google's resource id and the real expiry.
    */
