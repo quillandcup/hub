@@ -7,6 +7,8 @@ export type MediaContractContext = {
   unique: (label: string) => string;
   /** Two members that exist, to own assets. */
   owners: () => Promise<[string, string]>;
+  /** Makes an event that shows this asset as its cover, and returns its id. */
+  eventShowing: (assetId: string, title: string, startsAt: string) => Promise<string>;
 };
 
 /** Behavior every `MediaRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -75,6 +77,19 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
       expect(await ctx.repo().search({ scope: "shared", q: word, limit: 1 })).toHaveLength(1);
       expect(await ctx.repo().search({ scope: "shared", q: word, limit: 1, offset: 1 })).toHaveLength(1);
       expect(await ctx.repo().search({ scope: "shared", q: word, limit: 1, offset: 2 })).toHaveLength(0);
+    });
+
+    it("lists the events that show an asset, latest first", async () => {
+      const used = await ctx.repo().add(asset("u1"));
+      const unused = await ctx.repo().add(asset("u2"));
+      expect(await ctx.repo().usages(used.id)).toEqual([]);
+      const older = await ctx.eventShowing(used.id, "Older retreat", "2026-03-01");
+      const newer = await ctx.eventShowing(used.id, "Newer retreat", "2026-09-01");
+      expect(await ctx.repo().usages(used.id)).toEqual([
+        { kind: "event", id: newer, title: "Newer retreat" },
+        { kind: "event", id: older, title: "Older retreat" },
+      ]);
+      expect(await ctx.repo().usages(unused.id)).toEqual([]);
     });
 
     it("edits an asset, and a deleted one can't be edited or found by search", async () => {

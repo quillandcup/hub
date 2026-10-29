@@ -56,7 +56,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 }
 
-/** Staff remove an asset from the library (the files stay until nothing can need them; places that use it come with the PRs that add them). */
+/** Staff remove an asset from the library, unless something still shows it (409, with the list). The files stay until they are swept (docs/TODO.md). */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -64,7 +64,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id } = await params;
   if (!isId(id, "media")) return NextResponse.json({ error: "Not found" }, { status: 404 });
   try {
-    const removed = await createRepos(auth.supabase).media.remove(id);
+    const media = createRepos(auth.supabase).media;
+    const usages = await media.usages(id);
+    if (usages.length > 0) {
+      return NextResponse.json({ error: "This image is still in use. Pick another for those first.", usages }, { status: 409 });
+    }
+    const removed = await media.remove(id);
     return removed ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Not found" }, { status: 404 });
   } catch (error) {
     console.error("Error removing media:", error);

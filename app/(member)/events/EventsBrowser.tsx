@@ -6,6 +6,7 @@ import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import EventArt from "@/components/EventArt";
+import { eventCoverUrl } from "@/lib/event-cover";
 import { EVENT_TYPE_LABELS, eventTier, type EventTier, type EventType } from "@/lib/events-filter";
 import { agendaWeeks, cleanEventTitle, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
@@ -148,7 +149,7 @@ function EventCard({
         <EventArt
           eventType={event.event_type}
           icon={event.badge_icon}
-          coverUrl={event.cover_photo_id ? `/api/events/${event.id}/photos/${event.cover_photo_id}` : null}
+          coverUrl={eventCoverUrl(event)}
           className="h-full min-h-28"
         />
       </div>

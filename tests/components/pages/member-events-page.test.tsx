@@ -35,11 +35,12 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   ]),
 }));
 vi.mock("@/app/(member)/events/EventsBrowser", () => ({
-  default: (props: { initialMonth: string; months: { id: string }[]; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; badge_icon?: string | null }[] }) => (
+  default: (props: { initialMonth: string; months: { id: string }[]; eventPrickles: { title: string }[]; events: { title: string; cover_photo_id: string | null; image_id?: string | null; badge_icon?: string | null }[] }) => (
     <div data-testid="browser" data-month={props.initialMonth} data-months={props.months.map((m) => m.id).join(",")}>
       |{props.eventPrickles.map((p) => p.title).join(",")}|{props.events.map((e) => e.title).join(",")}
       <span data-testid="icons">{props.events.map((e) => e.badge_icon ?? "none").join(",")}</span>
       <span data-testid="covers">{props.events.map((e) => e.cover_photo_id ?? "none").join(",")}</span>
+      <span data-testid="images">{props.events.map((e) => e.image_id ?? "none").join(",")}</span>
     </div>
   ),
 }));
@@ -76,6 +77,14 @@ describe("member Events page", () => {
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
     expect(screen.getByTestId("covers")).toHaveTextContent("evph_AAAAAAAAAAA2");
+  });
+
+  it("passes along the cover image picked from the media library", async () => {
+    seed([{ ...RETREAT, image_id: "media_AAAAAAAAAAA1" }]);
+
+    await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
+
+    expect(screen.getByTestId("images")).toHaveTextContent("media_AAAAAAAAAAA1");
   });
 
   it("gives an event the icon of the badge linked to it", async () => {

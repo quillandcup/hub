@@ -6,6 +6,8 @@ import { formatDateOnly } from "@/lib/formatters";
 import EventAudienceFields from "@/components/EventAudienceFields";
 import { audienceSummary, type EventAudience } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
+import MediaPicker from "@/components/media/MediaPicker";
+import { mediaSrc } from "@/lib/media/url";
 
 export interface EventData extends EventAudience {
   id: string;
@@ -20,6 +22,8 @@ export interface EventData extends EventAudience {
   agenda: string | null;
   results: string | null;
   google_photos_album_url: string | null;
+  /** The cover picked from the media library. */
+  image_id: string | null;
   calendar_event_id: string | null;
   overridden_fields: string[];
   deleted_at: string | null;
@@ -218,6 +222,16 @@ export default function EventDetailsCard({
             {(editing || event.results) && (
               <Field label="Results" htmlFor="event-results" wide>
                 {form ? <textarea id="event-results" rows={2} value={form.results ?? ""} onChange={(e) => set({ results: e.target.value || null })} className={INPUT} /> : view(event.results)}
+              </Field>
+            )}
+            {(editing || event.image_id) && (
+              <Field label="Cover image" wide>
+                {form ? (
+                  <MediaPicker value={form.image_id} onChange={(image_id) => set({ image_id })} surface="event_cover" disabled={saving} />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+                  <img src={mediaSrc(event.image_id as string, "event_card")} alt="The event's cover" className="w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
+                )}
               </Field>
             )}
             {(editing || event.google_photos_album_url) && (

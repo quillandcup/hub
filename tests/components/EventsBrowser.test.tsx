@@ -169,3 +169,21 @@ describe('EventsBrowser locations', () => {
     expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
   })
 })
+
+describe('EventsBrowser cover pictures', () => {
+  it('uses the library image for a card, ahead of an imported photo, and the photo or art otherwise', () => {
+    window.history.replaceState(null, '', '/events')
+    const events: EventRow[] = [
+      { ...event('lake', 'in_person_retreat', '2026-11-01', '2026-11-04'), image_id: 'media_AAAAAAAAAAA1', cover_photo_id: 'photo_AAAAAAAAAA1' },
+      { ...event('zoomy', 'virtual_retreat', '2026-10-10', '2026-10-11'), cover_photo_id: 'photo_AAAAAAAAAA2' },
+      event('party', 'social', '2026-12-01'),
+    ]
+    const { container } = renderBrowser({ events })
+    const sources = [...container.querySelectorAll('img')].map((img) => img.getAttribute('src'))
+    expect(sources).toContain('/api/media/media_AAAAAAAAAAA1/event_card')
+    expect(sources).toContain('/api/events/zoomy/photos/photo_AAAAAAAAAA2')
+    expect(sources).not.toContain('/api/events/lake/photos/photo_AAAAAAAAAA1')
+    expect(screen.getAllByTestId('event-art')).toHaveLength(1)
+  })
+})
+

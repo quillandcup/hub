@@ -10,6 +10,13 @@ export type MediaAssetEdit = Partial<Pick<MediaAsset, "title" | "alt_text" | "ta
 /** Whose assets: the shared library, or one member's own. */
 export type MediaScope = "shared" | { memberId: string };
 
+/** A place an asset is used: a deleted asset can't be one that something still shows. */
+export interface MediaUsage {
+  kind: "event";
+  id: string;
+  title: string;
+}
+
 export interface MediaSearch {
   scope: MediaScope;
   /** Matches a title (any part) or a tag (the whole tag), ignoring case. */
@@ -56,6 +63,8 @@ export interface MediaRepository {
   edit(id: string, fields: MediaAssetEdit): Promise<MediaAsset | null>;
   /** Marks the asset deleted; false when there was no live asset. */
   remove(id: string): Promise<boolean>;
+  /** Everything that shows this asset (events for now; each feature that gets an `*_asset_id` column adds itself). */
+  usages(id: string): Promise<MediaUsage[]>;
 }
 
 export class SupabaseMediaRepository implements MediaRepository {
@@ -115,6 +124,12 @@ export class SupabaseMediaRepository implements MediaRepository {
     const { data, error } = await this.table.update({ deleted_at: new Date().toISOString() }).eq("id", id).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
+  }
+
+  async usages(id: string) {
+    const events = await this.db.from("events").select("id, title").eq("image_id", id).order("starts_at", { ascending: false }).order("id");
+    if (events.error) throw new Error(events.error.message);
+    return (events.data ?? []).map((e) => ({ kind: "event" as const, id: e.id, title: e.title }));
   }
 }
 
@@ -192,5 +207,12 @@ export class InMemoryMediaRepository implements MediaRepository {
     if (!row) return false;
     row.deleted_at = new Date().toISOString();
     return true;
+  }
+
+  async usages(id: string) {
+    return this.data.events
+      .filter((e) => e.image_id === id)
+      .sort((a, b) => ((a.starts_at ?? "") < (b.starts_at ?? "") ? 1 : (a.starts_at ?? "") > (b.starts_at ?? "") ? -1 : a.id < b.id ? -1 : 1))
+      .map((e) => ({ kind: "event" as const, id: e.id, title: e.title }));
   }
 }

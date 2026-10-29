@@ -8,6 +8,20 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+vi.mock("@/components/media/MediaPicker", () => ({
+  default: ({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) => (
+    <div>
+      <span data-testid="picker-value">{value ?? "none"}</span>
+      <button type="button" onClick={() => onChange("media_BBBBBBBBBBB2")}>
+        pick
+      </button>
+      <button type="button" onClick={() => onChange(null)}>
+        clear
+      </button>
+    </div>
+  ),
+}));
+
 import EventDetailsCard, { type EventData } from "@/app/(admin)/admin/events/[id]/EventDetailsCard";
 
 const EVENT: EventData = {
@@ -23,6 +37,7 @@ const EVENT: EventData = {
   agenda: null,
   results: null,
   google_photos_album_url: null,
+  image_id: null,
   announced_publicly: false,
   guests_allowed: false,
   registration: "none",
@@ -231,5 +246,32 @@ describe("EventDetailsCard for an event that follows the calendar", () => {
     expect(screen.getByLabelText("Description")).toBeDisabled();
     expect(screen.getByLabelText("Guest speakers")).toBeDisabled();
     expect(screen.getByLabelText("Location")).toBeEnabled();
+  });
+});
+
+describe("EventDetailsCard cover image", () => {
+  it("shows the chosen image in the view, and nothing when there is none", () => {
+    renderCard({ image_id: "media_AAAAAAAAAAA1" });
+    expect(screen.getByAltText("The event's cover")).toHaveAttribute("src", "/api/media/media_AAAAAAAAAAA1/event_card");
+    cleanup();
+    renderCard();
+    expect(screen.queryByText("Cover image")).not.toBeInTheDocument();
+  });
+
+  it("picks, changes and clears the image while editing, and saves it with the rest", async () => {
+    renderCard();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByText("Cover image")).toBeInTheDocument();
+    expect(screen.getByTestId("picker-value")).toHaveTextContent("none");
+
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+    expect(screen.getByTestId("picker-value")).toHaveTextContent("media_BBBBBBBBBBB2");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ image_id: "media_BBBBBBBBBBB2" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.click(screen.getByRole("button", { name: "clear" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ image_id: null }));
   });
 });

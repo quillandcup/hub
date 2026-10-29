@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
   MEMBER_IDENTITY,
@@ -35,9 +35,10 @@ vi.mock("@/app/(member)/my-prickles/AddToCalendar", () => ({
   AddEventToCalendar: ({ eventId, itemId }: { eventId: string; itemId: string | null }) => <div data-testid="calendar">{eventId}|{itemId}</div>,
 }));
 vi.mock("@/app/(member)/events/[slug]/EventDetailClient", () => ({
-  default: ({ event, photos, calendarControl }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode }) => (
+  default: ({ event, photos, calendarControl, coverImage }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode; coverImage: { src: string; alt: string } | null }) => (
     <div>
       <div data-testid="detail">{event.title}|{photos.map((p) => p.id).join(",")}</div>
+      <div data-testid="cover">{coverImage ? `${coverImage.src}|${coverImage.alt}` : "none"}</div>
       {calendarControl}
     </div>
   ),
@@ -71,6 +72,19 @@ describe("member event detail page", () => {
 
     expect(screen.getByTestId("detail")).toHaveTextContent("Spring Retreat|evph_AAAAAAAAAAA2,evph_AAAAAAAAAAA1");
     expect(screen.getByTestId("calendar")).toHaveTextContent("evnt_AAAAAAAAAAA1|cfi_AAAAAAAAAAA1");
+  });
+
+  it("shows the cover image picked from the media library at the hero size, with its alt text, unless it was deleted", async () => {
+    const asset = { id: "media_AAAAAAAAAAA1", alt_text: "Cedar Lodge in the fog", deleted_at: null };
+    dataset.events[0] = { ...dataset.events[0], image_id: asset.id };
+    dataset.mediaAssets = [asset as never];
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("cover")).toHaveTextContent("/api/media/media_AAAAAAAAAAA1/event_hero|Cedar Lodge in the fog");
+
+    cleanup();
+    dataset.mediaAssets = [{ ...asset, deleted_at: "2097-01-01T00:00:00Z" } as never];
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("cover")).toHaveTextContent("none");
   });
 
   it("is not found for a hidden event or an unknown slug", async () => {

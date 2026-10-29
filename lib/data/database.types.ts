@@ -2522,6 +2522,7 @@ export type Database = {
           guests_allowed: boolean
           host_name: string | null
           id: string
+          image_id: string | null
           location: string | null
           overridden_fields: string[]
           registration: string
@@ -2552,6 +2553,7 @@ export type Database = {
           guests_allowed?: boolean
           host_name?: string | null
           id?: string
+          image_id?: string | null
           location?: string | null
           overridden_fields?: string[]
           registration?: string
@@ -2582,6 +2584,7 @@ export type Database = {
           guests_allowed?: boolean
           host_name?: string | null
           id?: string
+          image_id?: string | null
           location?: string | null
           overridden_fields?: string[]
           registration?: string
@@ -2594,7 +2597,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feature_flag_segments: {
         Row: {

@@ -150,6 +150,8 @@ export interface EventListItem {
   host_name: string | null;
   calendar_event_id: string | null;
   deleted_at: string | null;
+  /** The cover picked from the media library, if any. */
+  imageId: string | null;
   coverPhotoId: string | null;
 }
 
@@ -357,13 +359,13 @@ export class SupabaseEventRepository implements EventRepository {
   // --- member-facing reads ---
 
   async listWithCover(): Promise<EventListItem[]> {
-    type Raw = Omit<EventListItem, "coverPhotoId"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
+    type Raw = Omit<EventListItem, "coverPhotoId" | "imageId"> & { image_id: string | null; event_photos: { id: string; hidden_at: string | null }[] | null };
     type Page = { data: Raw[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
         this.db
           .from("events")
-          .select("id, slug, title, event_type, location, starts_at, ends_at, start_time, end_time, focus, registration, speakers, host_name, calendar_event_id, deleted_at, event_photos(id, hidden_at)")
+          .select("id, slug, title, event_type, location, starts_at, ends_at, start_time, end_time, focus, registration, speakers, host_name, calendar_event_id, deleted_at, image_id, event_photos(id, hidden_at)")
           .order("starts_at", { ascending: false })
           .order("id")
           .order("taken_at", { referencedTable: "event_photos", ascending: true, nullsFirst: false })
@@ -371,7 +373,7 @@ export class SupabaseEventRepository implements EventRepository {
           .order("id", { referencedTable: "event_photos" })
           .range(from, to) as unknown as PromiseLike<Page>
     );
-    return rows.map(({ event_photos, ...e }) => ({ ...e, coverPhotoId: (event_photos ?? []).find((p) => !p.hidden_at)?.id ?? null }));
+    return rows.map(({ event_photos, image_id, ...e }) => ({ ...e, imageId: image_id, coverPhotoId: (event_photos ?? []).find((p) => !p.hidden_at)?.id ?? null }));
   }
 
   async visibleBySlug(slug: string): Promise<Row<"events"> | null> {
@@ -651,6 +653,7 @@ export class InMemoryEventRepository implements EventRepository {
       host_name: e.host_name ?? null,
       calendar_event_id: e.calendar_event_id ?? null,
       deleted_at: e.deleted_at ?? null,
+      imageId: e.image_id ?? null,
       coverPhotoId: this.photosOf(e.id).find((p) => !p.hidden_at)?.id ?? null,
     }));
   }
@@ -676,6 +679,7 @@ export class InMemoryEventRepository implements EventRepository {
       google_photos_album_url: null,
       guests_allowed: false,
       host_name: null,
+      image_id: null,
       location: null,
       overridden_fields: [],
       registration: "none",
