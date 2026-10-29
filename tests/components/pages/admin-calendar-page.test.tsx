@@ -13,6 +13,12 @@ vi.mock("@/components/CalendarWeekView", () => ({
   ),
 }));
 
+vi.mock("@/components/LiveRefresh", () => ({
+  default: ({ table, within }: { table: string; within: { column: string; from: string; to: string } }) => (
+    <div data-testid="live" data-table={table} data-column={within.column} data-from={within.from} data-to={within.to} />
+  ),
+}));
+
 import CalendarPage from "@/app/(admin)/admin/calendar/page";
 
 async function renderWeek(week?: string) {
@@ -63,5 +69,17 @@ describe("admin calendar page default week", () => {
     await renderWeek();
     expect(screen.getByTestId("week").textContent).toBe("2026-11-1");
     expect(screen.getByText(/Week of 11\/1\/2026/)).toBeTruthy();
+  });
+
+  it("keeps the page live for the prickles of the week on screen (Eastern midnight to Eastern midnight, across the fall-back change)", async () => {
+    vi.setSystemTime(new Date("2026-11-03T16:00:00Z"));
+    await renderWeek();
+    const live = screen.getByTestId("live");
+    expect(live.dataset).toMatchObject({
+      table: "prickles",
+      column: "start_time",
+      from: "2026-11-01T04:00:00.000Z", // Sun Nov 1 00:00 EDT
+      to: "2026-11-08T05:00:00.000Z", // Sun Nov 8 00:00 EST: the week is 169 hours long
+    });
   });
 });
