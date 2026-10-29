@@ -11,7 +11,11 @@ defineChatContract("InMemoryChatRepository", () => {
     unique: (label) => `${label}${++n}`,
     seedChannels: async (channels) => {
       const ids: Record<string, string> = {};
-      data.chatChannels = channels.map((c, i) => {
+      // Messages go with their channels, as the database cascades.
+      data.chatMessages = [];
+      data.chatMessageContents = [];
+      data.chatReactions = [];
+      data.chatChannels =channels.map((c, i) => {
         ids[c.key] = `chn_${String(i).padStart(12, "A")}`;
         return {
           id: ids[c.key],
@@ -22,6 +26,37 @@ defineChatContract("InMemoryChatRepository", () => {
         };
       });
       return ids;
+    },
+    // --- message reads ---
+    seedMessages: async (channelId, messages) => {
+      const ids: Record<string, string> = {};
+      for (const m of messages) {
+        ids[m.key] = `msg_${String(++n).padStart(12, "A")}`;
+        data.chatMessages.push({
+          id: ids[m.key],
+          channel_id: channelId,
+          created_at: m.createdAt,
+          slack_ts: m.slackTs ?? null,
+          has_files: m.hasFiles ?? false,
+          deleted_at: m.deleted ? m.createdAt : null,
+          thread_root_id: m.threadRootKey ? ids[m.threadRootKey] : null,
+        });
+        if (m.body !== undefined) data.chatMessageContents.push({ message_id: ids[m.key], body: m.body });
+      }
+      return ids;
+    },
+    seedReactions: async (channelId, reactions) => {
+      for (const r of reactions) {
+        data.chatReactions.push({
+          id: `rct_${String(++n).padStart(12, "A")}`,
+          channel_id: channelId,
+          message_id: r.messageId,
+          emoji: r.emoji,
+          slack_user_id: r.slackUserId,
+          member_id: null,
+          deleted_at: r.deleted ? "2026-10-01T11:00:00.000Z" : null,
+        });
+      }
     },
   };
 });

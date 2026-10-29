@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { SupabaseChatRepository } from "@/lib/data/chat";
 import { authenticateRealtime } from "@/lib/chat/live";
 import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
@@ -204,10 +205,8 @@ export default function ChatLive({
     // offline are picked up by the refresh either way.
     const catchUp = async () => {
       if (view !== "older") {
-        let query = supabase.from("chat_messages").select("id").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(1);
-        query = view === "thread" ? query.eq("thread_root_id", threadRootId ?? "") : query.is("thread_root_id", null);
-        const { data } = await query;
-        const newest = data?.[0]?.id;
+        // A failed read just means nothing new is announced; the refresh below catches up either way.
+        const newest = await new SupabaseChatRepository(supabase).newestMessageId(channelId, view === "thread" ? (threadRootId ?? "") : null).catch(() => null);
         if (cancelled) return;
         if (newest && newest !== latest.current) {
           if (nearBottom()) followNewest.current = true;

@@ -24,8 +24,11 @@ const query: Record<string, unknown> = {
   is: () => query,
   order: () => query,
   limit: () => query,
-  then: (resolve: (r: { data: { id: string }[] }) => void) => resolve({ data: [{ id: newestId }] }),
+  then: (resolve: (r: { data: { id: string }[] | null; error?: { message: string } }) => void) =>
+    resolve(newestError ? { data: null, error: { message: newestError } } : { data: [{ id: newestId }] }),
 };
+/** Set to make the "newest message" lookup fail. */
+let newestError: string | null = null;
 const calls: string[] = [];
 const setAuth = vi.fn(async () => {
   calls.push("setAuth");
@@ -315,6 +318,23 @@ describe("ChatLive", () => {
     await act(async () => onStatus("SUBSCRIBED"));
     await act(async () => onStatus("SUBSCRIBED"));
     expect(screen.getByRole("button", { name: /New messages/ })).toBeTruthy();
+  });
+
+  it("announces nothing, and still refreshes, when the newest-message lookup after a reconnect fails", async () => {
+    scrolledTo("top");
+    newestId = "m3";
+    newestError = "boom";
+    try {
+      await mount("thread", { threadRootId: "m1" });
+      await act(async () => onStatus("SUBSCRIBED"));
+      await act(async () => onStatus("SUBSCRIBED"));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(screen.queryByText(/New messages/)).toBeNull();
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      newestError = null;
+      loadThreadChat.mockClear();
+    }
   });
 
   describe("keeping the newest messages current without a page refresh", () => {

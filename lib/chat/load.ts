@@ -262,8 +262,8 @@ export interface MessageRow {
   chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
 }
 
-const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, system_subtype, slack_sync_status, chat_message_contents(body, files)";
+/** The message reads here have always shown an empty list rather than an error page when the database fails: keep that. */
+export const ignoringErrors = <T,>(rows: Promise<T[]>): Promise<T[]> => rows.catch(() => []);
 
 export interface MessagePage {
   /** Oldest first. */
@@ -278,21 +278,12 @@ export async function loadMessages(
   channelId: string,
   opts: { before?: string | null; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
+  const { chat } = createRepos(supabase);
   if (opts.threadRootId) {
-    const { data } = await supabase
-      .from("chat_messages")
-      .select(MESSAGE_COLUMNS)
-      .eq("channel_id", channelId)
-      .eq("thread_root_id", opts.threadRootId)
-      .order("created_at", { ascending: true })
-      .limit(THREAD_LIMIT);
-    return { messages: (data ?? []) as MessageRow[], olderBefore: null };
+    return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
   }
 
-  let query = supabase.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
-  if (opts.before) query = query.lt("created_at", opts.before);
-  const { data } = await query.order("created_at", { ascending: false }).limit(MESSAGE_PAGE_SIZE + 1);
-  const rows = (data ?? []) as MessageRow[];
+  const rows = await ignoringErrors(chat.channelMessages(channelId, { before: opts.before, limit: MESSAGE_PAGE_SIZE + 1 }));
   const hasOlder = rows.length > MESSAGE_PAGE_SIZE;
   const page = rows.slice(0, MESSAGE_PAGE_SIZE).reverse();
   return { messages: page, olderBefore: hasOlder && page.length > 0 ? page[0].created_at : null };
@@ -304,24 +295,12 @@ export async function loadMessages(
  */
 export async function loadMessagesByIds(supabase: SupabaseClient, channelId: string, ids: string[]): Promise<MessageRow[]> {
   if (ids.length === 0) return [];
-  const { data } = await supabase
-    .from("chat_messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("channel_id", channelId)
-    .is("thread_root_id", null)
-    .in("id", ids);
-  return (data ?? []) as MessageRow[];
+  return ignoringErrors(createRepos(supabase).chat.topLevelMessagesByIds(channelId, ids));
 }
 
 /** One message by id (a thread's root), under RLS. */
 export async function loadMessage(supabase: SupabaseClient, channelId: string, messageId: string): Promise<MessageRow | null> {
-  const { data } = await supabase
-    .from("chat_messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("channel_id", channelId)
-    .eq("id", messageId)
-    .maybeSingle();
-  return (data as MessageRow | null) ?? null;
+  return createRepos(supabase).chat.messageById(channelId, messageId).catch(() => null);
 }
 
 export interface ReactionSummary {
@@ -418,84 +397,24 @@ async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Pr
   const out = new Map<string, ReplyAuthor[]>();
   if (rootIds.length === 0) return out;
   const seen = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("chat_messages")
-      .select("thread_root_id, author_member_id, slack_ts")
-      .in("thread_root_id", rootIds)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(offset, offset + BATCH_SIZE - 1);
-    for (const r of batch ?? []) {
-      const list = out.get(r.thread_root_id) ?? [];
-      const ids = seen.get(r.thread_root_id) ?? new Set<string>();
-      // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
-      const key = r.author_member_id ?? `ts:${r.slack_ts}`;
-      if (list.length < REPLY_CANDIDATES && !ids.has(key)) {
-        ids.add(key);
-        list.push({ memberId: r.author_member_id, slackTs: r.slack_ts });
-        out.set(r.thread_root_id, list);
-        seen.set(r.thread_root_id, ids);
-      }
+  for (const r of await ignoringErrors(createRepos(supabase).chat.replyAuthorRows(rootIds))) {
+    const list = out.get(r.thread_root_id) ?? [];
+    const ids = seen.get(r.thread_root_id) ?? new Set<string>();
+    // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
+    const key = r.author_member_id ?? `ts:${r.slack_ts}`;
+    if (list.length < REPLY_CANDIDATES && !ids.has(key)) {
+      ids.add(key);
+      list.push({ memberId: r.author_member_id, slackTs: r.slack_ts });
+      out.set(r.thread_root_id, list);
+      seen.set(r.thread_root_id, ids);
     }
-    offset += batch?.length ?? 0;
-    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
   }
   return out;
 }
 
-interface ReactionRow {
-  message_id: string;
-  emoji: string;
-  member_id: string | null;
-  slack_user_id: string | null;
-}
-
-/** The API returns at most this many rows per request (1000 in production), however many match. */
-const REACTION_PAGE = 1000;
-
-/**
- * Every live reaction on these messages. A busy conversation can carry more than one page of them
- * (production has pages with over 2,500), and a single unordered request returns an arbitrary first
- * thousand: whole messages then lose their reactions, and which ones changes as rows are updated.
- * So: a stable order, the rest fetched in parallel once the first page says how many there are, and
- * a database error is an error, not an empty list (an empty list reads as "everyone took theirs back").
- */
-export async function loadReactionRows(supabase: SupabaseClient, messageIds: string[]): Promise<ReactionRow[]> {
-  if (messageIds.length === 0) return [];
-  const page = (from: number) =>
-    supabase
-      .from("chat_reactions")
-      .select("message_id, emoji, member_id, slack_user_id", from === 0 ? { count: "exact" } : undefined)
-      .in("message_id", messageIds)
-      .is("deleted_at", null)
-      .order("id")
-      .range(from, from + REACTION_PAGE - 1);
-  const first = await page(0);
-  if (first.error) throw new Error(`chat_reactions read failed: ${first.error.message}`);
-  const rows = (first.data ?? []) as ReactionRow[];
-  if (rows.length < REACTION_PAGE) return rows;
-  const fetchPage = async (from: number) => {
-    const next = await page(from);
-    if (next.error) throw new Error(`chat_reactions read failed: ${next.error.message}`);
-    return (next.data ?? []) as ReactionRow[];
-  };
-  // The first page reported the total: fetch the rest side by side. Without it, go on until a short page.
-  if (typeof first.count === "number") {
-    const starts: number[] = [];
-    for (let from = REACTION_PAGE; from < first.count; from += REACTION_PAGE) starts.push(from);
-    return rows.concat(...(await Promise.all(starts.map(fetchPage))));
-  }
-  let all = rows;
-  for (let from = REACTION_PAGE; ; from += REACTION_PAGE) {
-    const next = await fetchPage(from);
-    all = all.concat(next);
-    if (next.length < REACTION_PAGE) return all;
-  }
+/** Every live reaction on these messages, all pages; a database error is an error, not an empty list (that would read as "everyone took theirs back"). */
+export function loadReactionRows(supabase: SupabaseClient, messageIds: string[]) {
+  return createRepos(supabase).chat.reactionRows(messageIds);
 }
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
