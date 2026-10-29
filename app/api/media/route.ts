@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     });
     if (pendingPath) await storage.from(MEDIA_BUCKET).remove([pendingPath]);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
-    return NextResponse.json({ asset: result.asset, duplicate: result.duplicate }, { status: result.duplicate ? 200 : 201 });
+    return NextResponse.json({ asset: result.asset, duplicate: result.duplicate, convertedFrom: result.convertedFrom }, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     console.error("Error storing media:", error);
     return NextResponse.json({ error: "Upload failed, try again" }, { status: 500 });

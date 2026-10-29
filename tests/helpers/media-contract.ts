@@ -30,10 +30,10 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
 
     it("adds an asset with the defaults a new one gets, tags normalized", async () => {
       const added = await ctx.repo().add(asset("a", { tags: [" Hedgies ", "hedgies", "On-First", ""] }));
-      expect(added.id).toMatch(/^img_[1-9A-HJ-NP-Za-km-z]{12}$/);
-      expect(added).toMatchObject({ alt_text: null, owner_member_id: null, is_public: false, source: "upload", source_key: null, focal_x: null, focal_y: null, fits: {}, deleted_at: null, tags: ["hedgies", "on-first"] });
+      expect(added.id).toMatch(/^media_[1-9A-HJ-NP-Za-km-z]{12}$/);
+      expect(added).toMatchObject({ kind: "image", alt_text: null, owner_member_id: null, is_public: false, source: "upload", source_key: null, focal_x: null, focal_y: null, fits: {}, deleted_at: null, tags: ["hedgies", "on-first"] });
       expect(await ctx.repo().byId(added.id)).toEqual(added);
-      expect(await ctx.repo().byId("img_AAAAAAAAAAAA")).toBeNull();
+      expect(await ctx.repo().byId("media_AAAAAAAAAAAA")).toBeNull();
     });
 
     it("refuses a second live copy of the same bytes for the same owner, but not for another owner or after a delete", async () => {
@@ -82,7 +82,7 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
       const edited = await ctx.repo().edit(added.id, { title: "New", alt_text: "A hedgehog", tags: ["B", "a"], focal_x: 0.25, focal_y: 0.75, fits: { book_cover_shelf: "white" }, is_public: true });
       expect(edited).toMatchObject({ title: "New", alt_text: "A hedgehog", tags: ["b", "a"], is_public: true, fits: { book_cover_shelf: "white" } });
       expect(Number(edited!.focal_x)).toBe(0.25);
-      expect(await ctx.repo().edit("img_AAAAAAAAAAAA", { title: "x" })).toBeNull();
+      expect(await ctx.repo().edit("media_AAAAAAAAAAAA", { title: "x" })).toBeNull();
 
       expect(await ctx.repo().remove(added.id)).toBe(true);
       expect(await ctx.repo().remove(added.id)).toBe(false);

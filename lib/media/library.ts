@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MediaAsset, MediaRepository } from "@/lib/data/media";
+import { heicToJpeg } from "./heic";
 import { inspectImage } from "./inspect";
 import { renderPreset, renditionPath, settingsFor } from "./render";
 import { PRESETS, tooSmallFor, type PresetName } from "./presets";
@@ -9,7 +10,7 @@ export const MEDIA_BUCKET = "media";
 type Storage = Pick<SupabaseClient["storage"], "from">;
 
 export type StoreResult =
-  | { ok: true; asset: MediaAsset; duplicate: boolean }
+  | { ok: true; asset: MediaAsset; duplicate: boolean; convertedFrom: "heic" | null }
   | { ok: false; error: string };
 
 /** A title from a file name: no extension, separators as spaces. */
@@ -19,7 +20,7 @@ export function titleFromFileName(name: string | null | undefined): string {
 }
 
 /**
- * Keeps an uploaded image in a library: checks what it is, returns the asset already holding the same
+ * Keeps an uploaded image in a library: checks what it is (a HEIC photo is converted to JPEG first), returns the asset already holding the same
  * bytes if there is one (the same file twice is one asset), otherwise stores the original, untouched, at
  * `originals/<owner or "shared">/<sha256>.<ext>` and adds the row. The path is a function of the bytes, so
  * a retry after a failure between the two steps lands on the same object.
@@ -29,15 +30,24 @@ export async function storeImage(
   storage: Storage,
   input: { bytes: Buffer; title?: string | null; ownerMemberId?: string | null; createdBy?: string | null; tags?: string[]; isPublic?: boolean }
 ): Promise<StoreResult> {
-  const inspected = await inspectImage(input.bytes);
-  if (!inspected.ok) return inspected;
+  let bytes = input.bytes;
+  let convertedFrom: "heic" | null = null;
+  let inspected = await inspectImage(bytes);
+  if (!inspected.ok && inspected.heic) {
+    const jpeg = await heicToJpeg(bytes);
+    if (!jpeg) return { ok: false, error: "Couldn't read that HEIC photo. Export it as a JPEG and upload that" };
+    bytes = jpeg;
+    convertedFrom = "heic";
+    inspected = await inspectImage(bytes);
+  }
+  if (!inspected.ok) return { ok: false, error: inspected.error };
   const owner = input.ownerMemberId ?? null;
 
   const existing = await media.bySha(inspected.sha256, owner);
-  if (existing) return { ok: true, asset: existing, duplicate: true };
+  if (existing) return { ok: true, asset: existing, duplicate: true, convertedFrom };
 
   const path = `originals/${owner ?? "shared"}/${inspected.sha256}.${inspected.extension}`;
-  const { error: uploadError } = await storage.from(MEDIA_BUCKET).upload(path, input.bytes, { contentType: inspected.mime, upsert: true });
+  const { error: uploadError } = await storage.from(MEDIA_BUCKET).upload(path, bytes, { contentType: inspected.mime, upsert: true });
   if (uploadError) throw new Error(`media upload failed: ${uploadError.message}`);
 
   const asset = await media.add({
@@ -45,7 +55,7 @@ export async function storeImage(
     mime_type: inspected.mime,
     width: inspected.width,
     height: inspected.height,
-    bytes: input.bytes.byteLength,
+    bytes: bytes.byteLength,
     sha256: inspected.sha256,
     title: (input.title?.trim() || "Untitled").slice(0, 120),
     tags: input.tags,
@@ -53,7 +63,7 @@ export async function storeImage(
     created_by: input.createdBy ?? null,
     is_public: input.isPublic ?? false,
   });
-  return { ok: true, asset, duplicate: false };
+  return { ok: true, asset, duplicate: false, convertedFrom };
 }
 
 export type RenditionResult =

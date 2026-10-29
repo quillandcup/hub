@@ -53,14 +53,6 @@ export type PresetName = keyof typeof PRESETS;
 
 export const isPresetName = (value: string): value is PresetName => Object.prototype.hasOwnProperty.call(PRESETS, value);
 
-export function presetExtension(preset: Preset): string {
-  return preset.format === "jpeg" ? "jpg" : "webp";
-}
-
-export function presetContentType(preset: Preset): string {
-  return preset.format === "jpeg" ? "image/jpeg" : "image/webp";
-}
-
 /** The fit to use for a picture of this size: the same shape is cropped, otherwise the asset's choice or the preset's default. */
 export function chooseFit(source: { width: number; height: number }, preset: Preset, chosen?: unknown): FitMode {
   const sameShape = Math.abs(source.width / source.height / (preset.width / preset.height) - 1) <= SAME_SHAPE;

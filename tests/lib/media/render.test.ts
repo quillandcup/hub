@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { renderPreset, renditionPath, settingsFor } from "@/lib/media/render";
+import { renderImage, renderPreset, renditionPath, settingsFor } from "@/lib/media/render";
 import { pixel, solidImage, splitImage } from "@/tests/helpers/media-fixtures";
 
-const asset = (over: Partial<Parameters<typeof settingsFor>[0]> = {}) => ({ id: "img_AAAAAAAAAAAA", width: 400, height: 200, focal_x: null, focal_y: null, fits: {}, ...over });
+const asset = (over: Partial<Parameters<typeof settingsFor>[0]> = {}) => ({ id: "media_AAAAAAAAAAAA", width: 400, height: 200, focal_x: null, focal_y: null, fits: {}, ...over });
 const size = async (body: Buffer) => {
   const m = await sharp(body).metadata();
   return [m.width, m.height, m.format];
@@ -53,10 +53,21 @@ describe("renderPreset", () => {
   });
 });
 
+describe("renderImage", () => {
+  it("makes any size in any of the three formats", async () => {
+    const wide = await solidImage(400, 200);
+    for (const format of ["jpeg", "webp", "png"] as const) {
+      const { body, contentType } = await renderImage(wide, { width: 123, height: 77, format }, { fit: "crop", focal: null });
+      expect(await size(body)).toEqual([123, 77, format]);
+      expect(contentType).toBe(`image/${format}`);
+    }
+  });
+});
+
 describe("renditionPath", () => {
   it("changes with the focal point, the fit and the preset, and is stable otherwise", () => {
     const base = renditionPath(asset(), "event_card");
-    expect(base).toMatch(/^renditions\/img_AAAAAAAAAAAA\/event_card-[0-9a-f]{12}\.webp$/);
+    expect(base).toMatch(/^renditions\/media_AAAAAAAAAAAA\/event_card-[0-9a-f]{12}\.webp$/);
     expect(renditionPath(asset(), "event_card")).toBe(base);
     expect(renditionPath(asset({ focal_x: 0.2, focal_y: 0.2 }), "event_card")).not.toBe(base);
     expect(renditionPath(asset({ width: 400, height: 400, fits: { book_cover_shelf: "white" } }), "book_cover_shelf")).not.toBe(renditionPath(asset({ width: 400, height: 400 }), "book_cover_shelf"));

@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import sharp from "sharp";
 import { MAX_PIXELS } from "./inspect";
-import { chooseFit, presetContentType, presetExtension, PRESETS, type FitMode, type PresetName } from "./presets";
+import { chooseFit, PRESETS, type FitMode, type PresetName } from "./presets";
 
 /** Bump when the rendering below changes, so cached renditions made by the old code are not reused. */
 const RENDER_VERSION = 1;
@@ -41,13 +41,31 @@ export function renditionPath(asset: RenderSource, name: PresetName, settings: R
     .update(JSON.stringify({ v: RENDER_VERSION, name, preset: PRESETS[name], fit: settings.fit, focal: settings.focal }))
     .digest("hex")
     .slice(0, 12);
-  return `renditions/${asset.id}/${name}-${hash}.${presetExtension(PRESETS[name])}`;
+  return `renditions/${asset.id}/${name}-${hash}.${FORMAT_INFO[PRESETS[name].format].extension}`;
 }
 
-/** Makes the preset's size from the original: orientation applied, colours in sRGB, metadata (GPS included) dropped. */
-export async function renderPreset(original: Buffer, name: PresetName, settings: RenderSettings): Promise<{ body: Buffer; contentType: string }> {
-  const preset = PRESETS[name];
-  const { width: tw, height: th } = preset;
+/** Any size and format: what a preset names, or what a download asks for. */
+export interface RenderSpec {
+  width: number;
+  height: number;
+  format: "webp" | "jpeg" | "png";
+  quality?: number;
+}
+
+export const FORMAT_INFO = {
+  jpeg: { contentType: "image/jpeg", extension: "jpg" },
+  webp: { contentType: "image/webp", extension: "webp" },
+  png: { contentType: "image/png", extension: "png" },
+} as const;
+
+/** Makes the preset's size from the original (see `renderImage`). */
+export function renderPreset(original: Buffer, name: PresetName, settings: RenderSettings) {
+  return renderImage(original, PRESETS[name], settings);
+}
+
+/** Makes this size and format from the original: orientation applied, colours in sRGB, metadata (GPS included) dropped. */
+export async function renderImage(original: Buffer, spec: RenderSpec, settings: RenderSettings): Promise<{ body: Buffer; contentType: string }> {
+  const { width: tw, height: th } = spec;
   const open = (input: Buffer) => sharp(input, { limitInputPixels: MAX_PIXELS }).rotate().toColourspace("srgb");
 
   let fitted: Buffer;
@@ -76,8 +94,10 @@ export async function renderPreset(original: Buffer, name: PresetName, settings:
   }
 
   const out = sharp(fitted);
-  const body = preset.format === "jpeg"
-    ? await out.flatten({ background: "#ffffff" }).jpeg({ quality: preset.quality, mozjpeg: true }).toBuffer()
-    : await out.webp({ quality: preset.quality }).toBuffer();
-  return { body, contentType: presetContentType(preset) };
+  const quality = spec.quality ?? 90;
+  const body =
+    spec.format === "jpeg" ? await out.flatten({ background: "#ffffff" }).jpeg({ quality, mozjpeg: true }).toBuffer()
+    : spec.format === "png" ? await out.png().toBuffer()
+    : await out.webp({ quality }).toBuffer();
+  return { body, contentType: FORMAT_INFO[spec.format].contentType };
 }
