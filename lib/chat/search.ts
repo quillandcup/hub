@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
-import { buildMessageViews, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
+import { buildMessageViews, ignoringErrors, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
 
 export const SEARCH_PAGE_SIZE = 20;
 export const MAX_QUERY_LENGTH = 200;
@@ -60,36 +60,33 @@ export async function searchChat(supabase: SupabaseClient, viewerMemberId: strin
   }
 
   const page = Math.max(0, f.page ?? 0);
-  const { data: hits, error } = await supabase.rpc("search_chat_messages", {
-    p_query: f.tsquery,
-    p_channel_ids: f.channels.map((c) => c.id),
-    p_author_member_ids: authors,
-    p_from: f.from ?? null,
-    p_to: f.to ?? null,
-    p_has_files: f.hasFiles ? true : null,
-    p_in_thread: f.inThread ? true : null,
-    p_has_link: f.hasLink ? true : null,
-    p_has_reaction: f.hasReaction ? true : null,
-    p_limit: SEARCH_PAGE_SIZE + 1,
-    p_offset: page * SEARCH_PAGE_SIZE,
-  });
-  if (error) {
+  const { chat } = createRepos(supabase);
+  let ids: string[];
+  try {
+    ids = await chat.searchMessageIds({
+      tsquery: f.tsquery,
+      channelIds: f.channels.map((c) => c.id),
+      authorMemberIds: authors,
+      from: f.from ?? null,
+      to: f.to ?? null,
+      hasFiles: Boolean(f.hasFiles),
+      inThread: Boolean(f.inThread),
+      hasLink: Boolean(f.hasLink),
+      hasReaction: Boolean(f.hasReaction),
+      limit: SEARCH_PAGE_SIZE + 1,
+      offset: page * SEARCH_PAGE_SIZE,
+    });
+  } catch (error) {
     console.error("chat search failed", error);
     throw new Error("Chat search failed");
   }
-  const ids = ((hits ?? []) as { message_id: string }[]).map((h) => h.message_id);
   const hasMore = ids.length > SEARCH_PAGE_SIZE;
   const pageIds = ids.slice(0, SEARCH_PAGE_SIZE);
   if (pageIds.length === 0) return EMPTY;
 
-  const { data: rows } = await supabase
-    .from("chat_messages")
-    .select(
-      "id, channel_id, thread_root_id, author_member_id, slack_ts, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, chat_message_contents(body, files)"
-    )
-    .in("id", pageIds);
-  type Row = NonNullable<typeof rows>[number];
-  const byId = new Map<string, Row>((rows ?? []).map((r) => [r.id as string, r]));
+  const rows = await ignoringErrors(chat.searchMessagesByIds(pageIds));
+  type Row = (typeof rows)[number];
+  const byId = new Map<string, Row>(rows.map((r) => [r.id, r]));
   const channelById = new Map(f.channels.map((c) => [c.id, c]));
 
   // Views are built per channel (Slack author lookups are keyed by the Slack channel).
