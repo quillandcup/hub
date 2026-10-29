@@ -1169,6 +1169,13 @@ Refine `engagement_score` calculation based on activity types and recency
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
+
+### Soft-delete member business resources _(Needs Scheduling)_
+
+`CLAUDE.md` says Local tables soft delete (`deleted_at`), but member deletes of writing projects, goals, progress entries, starting balances, books (`member_books`) and awards (`member_awards`) are row `DELETE`s today (`app/(member)/projects/actions.ts`, `app/(member)/bookshelf/actions.ts`); the content survives only in `audit_log`. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Mechanism"). Soft delete is meant to be the standard for member business resources, so the deletes should become `UPDATE ... SET deleted_at`.
+
+Deferred because it touches every read of these tables. Where to start: a migration adding `deleted_at` to each table (grant `select (deleted_at)` where column grants are used); RLS and every query, export (`/api/projects/export`), stat and dashboard reading them must filter `deleted_at IS NULL` (put it in the repository or a view so it cannot be forgotten); unique constraints become partial (`WHERE deleted_at IS NULL`); the audit trigger and the `member_activities` rows (a progress entry's activity row is deleted today) need a decision for the undo case; and a restore path only if wanted. Other member-written tables with hard deletes (`member_notes`, `calendar_feed_items`, "Ask me about" topics) need the same call. Tests: pgTAP for RLS, plus a test per query that a deleted row never shows.
+
 ### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
 `prickle_checkins` (feelings before/after, need, rating) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
 - Whether the card should say something (e.g. "Hosts can't see your individual responses").
