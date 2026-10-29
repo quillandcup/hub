@@ -1,10 +1,11 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { triggerCalendarSync } from "@/lib/processing/trigger";
+import { triggerCalendarSync, triggerReprocessing } from "@/lib/processing/trigger";
 import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { NextRequest, NextResponse } from "next/server";
 import { APP_URL, isProduction } from "@/lib/config";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { ensureCalendarWatchChannel, type WatchResult } from "@/lib/google-calendar/watch";
+import { sweepCancelledEvents } from "@/lib/google-calendar/incremental-sync";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 // Extend timeout for reconciliation jobs
@@ -17,8 +18,15 @@ export const maxDuration = 300; // 5 minutes (max for Hobby tier)
  *
  * Scheduled to run daily at 2am via Vercel Cron. It also keeps the Google push channel alive
  * (opens or renews it), which is what makes /api/webhooks/calendar fire within seconds of an
- * edit; this sync stays the guaranteed path when a notification is missed.
+ * edit; this sync stays the guaranteed path when a notification is missed. It also removes events
+ * deleted from the calendar outside the watched window (`cancelledSinceDays`).
  */
+/** How far back to look for deletions: a week and a day by default (a missed night still gets caught), or `?cancelledSinceDays=N` (1 to 365). */
+function cancelledSinceDays(request: NextRequest): number {
+  const asked = Number(request.nextUrl.searchParams.get("cancelledSinceDays"));
+  return Number.isFinite(asked) && asked >= 1 ? Math.min(Math.floor(asked), 365) : 8;
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,6 +57,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await triggerCalendarSync({ daysBack: 90, daysForward: 90 });
+    // The import above only sees the watched window; a deletion of any other event is found here.
+    const cancelled = await sweepCancelledEvents({
+      supabase: createServiceRoleClient(),
+      client: new GoogleCalendarClient(),
+      calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+      sinceDays: cancelledSinceDays(request),
+      reprocess: (dateRange) => triggerReprocessing("calendar_events", "bronze", { dateRange }),
+    });
     if (watch.action === "failed") {
       return NextResponse.json(
         { error: `Calendar synced, but the push channel failed: ${watch.error}`, watch, ...result },
@@ -57,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
     await pingCronHeartbeat("reconcile-calendar");
 
-    return NextResponse.json({ success: true, reconciliation: "calendar", watch, ...result });
+    return NextResponse.json({ success: true, reconciliation: "calendar", watch, cancelled, ...result });
   } catch (error: any) {
     console.error("[Reconciliation] Error in calendar reconciliation:", error);
     return NextResponse.json(

@@ -89,6 +89,31 @@ export class GoogleCalendarClient {
   }
 
   /**
+   * Events cancelled (deleted) since `updatedMin`, wherever they were on the calendar: no date window,
+   * since a deletion can be of any past or future event, and there are only ever a handful. Asks for
+   * the unexpanded form (`singleEvents` off) so a recurring series isn't expanded without a time
+   * bound; a cancelled single event or cancelled instance of a series still comes back by its own id
+   * (the same id the expanded listing gives it).
+   */
+  async listCancelledEvents(calendarId: string, updatedMin: string): Promise<any[]> {
+    let all: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await this.calendar.events.list({
+        calendarId,
+        updatedMin,
+        showDeleted: true,
+        singleEvents: false,
+        maxResults: 250,
+        pageToken,
+      });
+      all = all.concat((response.data.items || []).filter((e) => e.status === "cancelled"));
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return all;
+  }
+
+  /**
    * Open a push channel: Google POSTs to `address` (with `token` in X-Goog-Channel-Token)
    * whenever an event on the calendar changes. Returns Google's resource id and the real expiry.
    */

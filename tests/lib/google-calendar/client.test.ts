@@ -33,6 +33,21 @@ describe("GoogleCalendarClient push channels", () => {
     expect(calendar.events.list).toHaveBeenNthCalledWith(2, expect.objectContaining({ pageToken: "p2" }));
   });
 
+  it("lists only the cancelled events since a time, with no date window and no series expansion, across pages", async () => {
+    calendar.events.list
+      .mockResolvedValueOnce({ data: { items: [{ id: "a", status: "cancelled" }, { id: "master", status: "confirmed" }], nextPageToken: "p2" } })
+      .mockResolvedValueOnce({ data: { items: [{ id: "b", status: "cancelled" }] } });
+
+    const events = await new GoogleCalendarClient().listCancelledEvents("cal@example.test", "2026-10-21T00:00:00.000Z");
+
+    expect(events.map((e) => e.id)).toEqual(["a", "b"]);
+    const first = calendar.events.list.mock.calls[0][0];
+    expect(first).toMatchObject({ calendarId: "cal@example.test", updatedMin: "2026-10-21T00:00:00.000Z", showDeleted: true, singleEvents: false });
+    expect(first).not.toHaveProperty("timeMin");
+    expect(first).not.toHaveProperty("timeMax");
+    expect(calendar.events.list).toHaveBeenNthCalledWith(2, expect.objectContaining({ pageToken: "p2" }));
+  });
+
   it("opens a web_hook channel with our id, address, token and requested expiry", async () => {
     calendar.events.watch.mockResolvedValue({ data: { resourceId: "res-1", expiration: "1793000000000" } });
     const result = await new GoogleCalendarClient().watchEvents({
