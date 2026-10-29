@@ -23,7 +23,9 @@ describe("calendar sync claim", () => {
     expect(await claimCalendarSync(db, CAL, NOW)).toEqual({ claimed: true, syncedThrough: null });
     expect(await claimCalendarSync(db, CAL, NOW)).toEqual({ claimed: false });
     expect(await claimCalendarSync(db, CAL, NOW)).toEqual({ claimed: false });
-    expect(await row()).toMatchObject({ running_since: NOW.toISOString().replace("Z", "+00:00"), rerun_requested: true });
+    const held = await row();
+    expect(new Date(held.running_since!).toISOString()).toBe(NOW.toISOString());
+    expect(held.rerun_requested).toBe(true);
   });
 
   it("lets only one of simultaneous callers win", async () => {
