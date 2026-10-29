@@ -131,7 +131,13 @@ Service account: `quill-cup-admin-portal@quillandcup.iam.gserviceaccount.com`
 Webhook URL: `https://hub.quillandcup.com/api/webhooks/calendar`
 Webhook token env var: `GOOGLE_CALENDAR_WEBHOOK_TOKEN`
 
-Note: Google Calendar webhooks are push notifications set up via API call (not a UI toggle). See `WEBHOOK_SETUP.md` for the `curl` command to register a watch channel.
+**Live sync (push notifications).** A Google Calendar edit reaches the Hub (`/admin/calendar`) in seconds, with no manual import. Nothing to set up by hand: the nightly `/api/reconcile/calendar` opens the push ("watch") channel with the service account and renews it before it expires (production only; the channel is recorded in `calendar_watch_channels`, since Google can't list channels). Each notification fetches only what changed since the last sync, deletions included, and refreshes the open calendar page. How it works and how to check it: `WEBHOOK_SETUP.md`, "Google Calendar Webhooks".
+
+- **Only the shared calendar above is synced.** An event created on someone's personal calendar (the default in Google Calendar) never reaches the Hub: check the calendar name in the event's details and move it to the shared one.
+- **Window.** Updates are kept for 90 days back to 90 days ahead; deletions are caught for any date.
+- **Clean up older deletions on demand:** open `/api/reconcile/calendar?cancelledSinceDays=30` as an admin (also runs the full sync).
+- **If the channel isn't opening:** the reconcile returns 500 with the reason, and skips its Checkly heartbeat. The domain of the webhook URL did not need verifying in the Cloud Console, but if Google ever rejects the address ("Unauthorized WebHook callback channel") that is the first thing to check.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` means opening a new channel: mark the live `calendar_watch_channels` row stopped and run the reconcile (`WEBHOOK_SETUP.md`).
 
 ---
 
