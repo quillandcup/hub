@@ -203,7 +203,7 @@ export async function processCourses(
     if (!silver) {
       const slug = slugifyTitle(bc.title);
       if (!slug) throw new CourseProcessingError(`Course "${bc.title}" has no usable slug`);
-      const { data: program } = await supabase.from("programs").select("id").eq("slug", slug).maybeSingle();
+      const programId = await createRepos(supabase).programs.idBySlug(slug);
       const { data, error } = await supabase
         .from("courses")
         .insert({
@@ -214,7 +214,7 @@ export async function processCourses(
           hero_url: heroUrl,
           source: "kajabi",
           source_key: kajabiId,
-          program_id: program?.id ?? null,
+          program_id: programId,
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
           ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })

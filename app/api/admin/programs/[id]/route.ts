@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
@@ -24,26 +25,17 @@ export async function GET(
   const { supabase } = auth;
   const { id } = await params;
 
-  const [{ data: program, error: programError }, { data: cohorts, error: cohortsError }] = await Promise.all([
-    supabase.from("programs").select("*").eq("id", id).single(),
-    supabase
-      .from("program_cohorts")
-      .select(`
-        *,
-        member_program_enrollments(
-          id, notes, created_at,
-          member:members(id, name, display_name, email, status)
-        )
-      `)
-      .eq("program_id", id)
-      .order("starts_at", { ascending: false }),
-  ]);
+  const programs = createRepos(supabase).programs;
+  const [programResult, cohortsResult] = await Promise.allSettled([programs.byId(id), programs.cohortsWithEnrollments(id)]);
 
-  if (programError) return NextResponse.json({ error: programError.message }, { status: 404 });
-  if (cohortsError) {
-    console.error("Error fetching cohorts:", cohortsError);
-    return NextResponse.json({ error: cohortsError.message }, { status: 500 });
+  if (programResult.status === "rejected") return NextResponse.json({ error: programResult.reason.message }, { status: 404 });
+  const program = programResult.value;
+  if (!program) return NextResponse.json({ error: "Program not found" }, { status: 404 });
+  if (cohortsResult.status === "rejected") {
+    console.error("Error fetching cohorts:", cohortsResult.reason);
+    return NextResponse.json({ error: cohortsResult.reason.message }, { status: 500 });
   }
+  const cohorts = cohortsResult.value;
 
   const today = new Date();
   const todayMs = new Date(today.toISOString().split("T")[0] + "T00:00:00Z").getTime();
@@ -116,17 +108,7 @@ export async function PATCH(
     if (kajabi_offer_names !== undefined) updates.kajabi_offer_names = kajabi_offer_names;
     if (typeof includes_membership === "boolean") updates.includes_membership = includes_membership;
 
-    const { data: program, error } = await supabase
-      .from("programs")
-      .update(updates)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating program:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const program = await createRepos(supabase).programs.update(id, updates);
 
     return NextResponse.json({ program });
   } catch (error: any) {
@@ -145,8 +127,9 @@ export async function DELETE(
   const { supabase } = auth;
   const { id } = await params;
 
-  const { error } = await supabase.from("programs").delete().eq("id", id);
-  if (error) {
+  try {
+    await createRepos(supabase).programs.delete(id);
+  } catch (error: any) {
     console.error("Error deleting program:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
