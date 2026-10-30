@@ -56,11 +56,13 @@ export default async function PrivacyPage() {
   const [identity, optedOut] = await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)]);
 
   return (
-    <div className="container mx-auto px-6 py-6 max-w-3xl">
+    <div className="container mx-auto px-6 py-6 max-w-5xl">
       <h1 className="text-2xl font-bold mb-1">Privacy</h1>
-      <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-        What the Hub collects about you, who can see it, how long we keep it and what you can do about it. Last reviewed{" "}
-        <time dateTime={PRIVACY_REVIEWED}>{PRIVACY_REVIEWED}</time>.
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+        What the Hub collects about you, who can see it, how long we keep it and what you can do about it.
+      </p>
+      <p className="text-sm text-slate-500 dark:text-slate-500 mb-6">
+        Last reviewed <time dateTime={PRIVACY_REVIEWED}>{PRIVACY_REVIEWED}</time>.
       </p>
 
       <aside className="mb-8 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50 dark:bg-plum-950/30 p-4 text-sm text-slate-800 dark:text-slate-200">
