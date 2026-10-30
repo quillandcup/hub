@@ -195,14 +195,16 @@ describe("/privacy page", () => {
     expect(choices.getByText(/We will answer within a month/)).toBeInTheDocument();
   });
 
-  it("names the services involved, and the region error reports are held in", async () => {
+  it("describes the kinds of services involved without naming vendors, and the region error reports are held in", async () => {
     await renderServerPage(PrivacyPage, {});
     const services = section("services");
-    for (const service of ["Supabase", "Vercel", "error-reporting provider", "Google Analytics", "Mux", "Slack"]) {
-      expect(services.getByText(new RegExp(service))).toBeInTheDocument();
+    for (const kind of ["database and sign-in provider", "hosting provider", "error-reporting provider", "video provider", "email provider", "analytics service", "Slack"]) {
+      expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
     expect(services.getByText(/an error-reporting provider \(error reports, held in the EU\)/)).toBeInTheDocument();
-    expect(services.queryByText(/Sentry/)).not.toBeInTheDocument();
+    // The page names no vendor except Slack, which is the community's own platform, not a processor we list.
+    const text = document.body.textContent ?? "";
+    for (const vendor of ["Supabase", "Vercel", "Mux", "Sentry", "Google Analytics", "Resend"]) expect(text).not.toContain(vendor);
   });
 });
 

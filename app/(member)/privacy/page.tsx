@@ -265,8 +265,8 @@ export default async function PrivacyPage() {
           type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
           such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses.{" "}
           <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
-          if you decline we don&apos;t record any of this. Elsewhere it is on. Our host, Vercel, also counts visits and page speed in
-          aggregate, and we use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the individual
+          if you decline we don&apos;t record any of this. Elsewhere it is on. Our hosting provider also counts visits and page speed in
+          aggregate, and we use a third-party analytics service only where you have allowed it. After {RETENTION.usageMonths} months the individual
           records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in March&rdquo;),
           which is how we see trends over several years.
         </p>
@@ -277,7 +277,7 @@ export default async function PrivacyPage() {
           The Hub uses a few cookies and similar storage. <strong>Signing in</strong> needs its own cookies to keep you
           signed in. <strong>Your choice on the banner</strong> is remembered on your device. When usage statistics are on, a
           short-lived random <strong>visit number</strong> is kept so the things you do in one visit can be grouped; it expires
-          after 30 minutes without activity and holds nothing about you. Google Analytics sets its own cookie, only if you have
+          after 30 minutes without activity and holds nothing about you. The analytics service sets its own cookie, only if you have
           allowed it.
         </p>
 
@@ -309,9 +309,10 @@ export default async function PrivacyPage() {
 
       <Section id="services" title="Services that help us run the Hub">
         <p>
-          Your information passes through the services the Hub is built on: Supabase (the database and sign-in), Vercel
-          (hosting, and visit and speed counts), an error-reporting provider (error reports, held in the EU), Google Analytics (only where you
-          allow it), Mux (course video), Slack, and our email provider. We use them to run the Hub and not for anything else.
+          Your information passes through the services the Hub is built on: our database and sign-in provider, our hosting
+          provider (which also counts visits and page speed), an error-reporting provider (error reports, held in the EU), a
+          video provider for course videos, our email provider, an analytics service (only where you allow it), and Slack. We use
+          them to run the Hub and not for anything else.
         </p>
       </Section>
     </div>
