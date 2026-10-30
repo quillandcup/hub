@@ -32,22 +32,15 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-// A minimal stand-in for the table the action touches: what is saved for the calendar event now, and what is written.
-let decision: Record<string, unknown> | null;
 let dataset: InMemoryDataset;
-let writes: { op: string; row: unknown }[];
-const supabase = {
-  from: () => ({
-    select: () => ({
-      eq: (_c: string, _id: string) => ({
-        maybeSingle: async () => ({ data: decision }), // loadEventDecision
-        then: (resolve: (v: unknown) => unknown) => resolve({ data: decision ? [{ id: "u1" }] : [], error: null }), // saveEventDecision
-      }),
-    }),
-    update: (row: unknown) => ({ eq: async () => (writes.push({ op: "update", row }), { error: null }) }),
-    insert: async (row: unknown) => (writes.push({ op: "insert", row }), { error: null }),
-  }),
-};
+// The client is only handed on (the repositories are in memory); what the action stores is read from the dataset.
+const supabase = {};
+/** An earlier decision for the first prickle's calendar event. */
+const decide = (fields: Record<string, unknown>) =>
+  dataset.unmatchedEvents.push({
+    id: "u1", calendar_event_id: CAL, raw_summary: "HEDGIE HOUSE BOOK FAIR INTRO!", status: "resolved", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
+    resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, ...fields,
+  });
 let admin = true;
 vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
@@ -68,8 +61,6 @@ const read = async () => (await repos.prickles.byId("p1"))!;
 
 beforeEach(() => {
   admin = true;
-  decision = null;
-  writes = [];
   reprocess.mockClear();
   syncEvent.mockClear();
   dataset = new InMemoryDataset({
@@ -93,7 +84,7 @@ describe("updatePrickle", () => {
     await expect(updatePrickle("p1", {})).resolves.toEqual({ success: true });
     await expect(updatePrickle("p1", { title: "Book Fair Intro", description: "  From the calendar ", typeId: TYPE_A })).resolves.toEqual({ success: true });
 
-    expect(writes).toEqual([]);
+    expect(dataset.unmatchedEvents).toEqual([]);
     expect(reprocess).not.toHaveBeenCalled();
     expect(syncEvent).not.toHaveBeenCalled();
   });
@@ -101,19 +92,14 @@ describe("updatePrickle", () => {
   it("keeps new text as the event's decision and shows it at once, without reprocessing", async () => {
     await expect(updatePrickle("p1", { title: "  Book Fair: Meet the Fair  ", description: "New words", guestSpeaker: "Ada Example" })).resolves.toEqual({ success: true });
 
-    expect(writes).toEqual([
-      {
-        op: "insert",
-        row: expect.objectContaining({
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({
           calendar_event_id: CAL,
           raw_summary: "HEDGIE HOUSE BOOK FAIR INTRO!",
           status: "resolved",
           resolved_title: "Book Fair: Meet the Fair",
           resolved_description: "New words",
           resolved_guest_speaker: "Ada Example",
-        }),
-      },
-    ]);
+        })]);
     expect(await read()).toMatchObject({ title: "Book Fair: Meet the Fair", description: "New words", guestSpeaker: "Ada Example" });
     expect(reprocess).not.toHaveBeenCalled();
     // The event that stands for this prickle takes the new text at once.
@@ -121,22 +107,21 @@ describe("updatePrickle", () => {
   });
 
   it("rewrites an earlier decision instead of adding another", async () => {
-    decision = { resolved_title: "Earlier title" };
+    decide({ resolved_title: "Earlier title" });
 
     await updatePrickle("p1", { title: "Later title" });
 
-    expect(writes).toEqual([{ op: "update", row: expect.objectContaining({ resolved_title: "Later title" }) }]);
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_title: "Later title" })]);
   });
 
   it("changes the host straight away, and the type with a reprocess of the days around it", async () => {
     await updatePrickle("p1", { hostId: HOST });
-    expect(writes).toEqual([{ op: "insert", row: expect.objectContaining({ resolved_host_id: HOST }) }]);
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_host_id: HOST })]);
     expect((await read()).hostId).toBe(HOST);
     expect(reprocess).not.toHaveBeenCalled();
 
-    writes = [];
     await updatePrickle("p1", { typeId: TYPE_B });
-    expect(writes).toEqual([{ op: "insert", row: expect.objectContaining({ resolved_type_id: TYPE_B }) }]);
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_type_id: TYPE_B })]);
     expect((await read()).typeId).toBe(TYPE_B);
     // The new type changes what the title and speaker are made from, so the day before to the day after is rebuilt.
     expect(reprocess).toHaveBeenCalledWith("prickle_types", "local", {
@@ -145,13 +130,12 @@ describe("updatePrickle", () => {
   });
 
   it("follows the calendar again for text emptied that had been set by hand, and says nothing for text that never was", async () => {
-    decision = { resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null };
+    decide({ resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null });
 
     await updatePrickle("p1", { title: "  ", description: "", guestSpeaker: "" });
 
-    expect(writes).toEqual([{ op: "update", row: expect.objectContaining({ resolved_title: null }) }]);
-    expect(writes[0].row).not.toHaveProperty("resolved_description");
-    expect(writes[0].row).not.toHaveProperty("resolved_guest_speaker");
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_title: null })]);
+    expect(dataset.unmatchedEvents[0]).toMatchObject({ resolved_description: null, resolved_guest_speaker: null });
     expect(reprocess).toHaveBeenCalledTimes(1); // the calendar's text comes back
     expect((await read()).title).toBe("Book Fair Intro"); // until that runs
   });
@@ -159,7 +143,7 @@ describe("updatePrickle", () => {
   it("does nothing for emptied text that was never set by hand", async () => {
     await updatePrickle("p1", { guestSpeaker: "", description: "" });
 
-    expect(writes).toEqual([]);
+    expect(dataset.unmatchedEvents).toEqual([]);
     expect(reprocess).not.toHaveBeenCalled();
   });
 
@@ -177,6 +161,6 @@ describe("updatePrickle", () => {
     expect(await updatePrickle("p2", { title: "x" })).toEqual({ error: "Only prickles made from a calendar event can be edited here" });
     admin = false;
     expect(await updatePrickle("p1", { title: "x" })).toEqual({ error: "Not authorized" });
-    expect(writes).toEqual([]);
+    expect(dataset.unmatchedEvents).toEqual([]);
   });
 });

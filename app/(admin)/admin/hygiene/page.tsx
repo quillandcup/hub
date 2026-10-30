@@ -33,7 +33,7 @@ export default async function DataHygienePage() {
   const [
     totalCalendarEvents,
     matchedCalendarEvents,
-    { count: unmatchedCalendarEvents },
+    unmatchedCalendarEvents,
     hostCoverage,
     { count: totalZoomAttendees },
     totalMembers,
@@ -41,7 +41,7 @@ export default async function DataHygienePage() {
     { data: ambiguousNameRows },
     slackUsersForMatching,
     { data: ignoredSlackUsers },
-    { data: oldUnmatchedEvents },
+    oldUnmatchedEvents,
     lastSyncAt,
     lastProcessingAt,
     { data: lastSlackMessageSync },
@@ -55,7 +55,7 @@ export default async function DataHygienePage() {
   ] = await Promise.all([
     createRepos(supabase).calendarEvents.count(),
     createRepos(supabase).prickles.countBySource("calendar"),
-    supabase.from("unmatched_calendar_events").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    createRepos(supabase).unmatchedEvents.countPending().catch(() => 0), // a failed count shows as none, as before
     // Prickles with and without hosts, split by whether their type takes a host
     createRepos(supabase).prickles.hostCoverage("calendar"),
     supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
@@ -66,12 +66,7 @@ export default async function DataHygienePage() {
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
     supabase.from("ignored_slack_users").select("user_id"),
     // Find old unmatched events (queued before prickle_types migration)
-    supabase
-      .from("unmatched_calendar_events")
-      .select("id, raw_summary, created_at")
-      .eq("status", "pending")
-      .lt("created_at", "2026-04-06 02:00:00") // Before prickle_types were added
-      .limit(10),
+    createRepos(supabase).unmatchedEvents.pendingQueuedBefore("2026-04-06 02:00:00", 10).catch(() => []), // Before prickle_types were added
     // Last calendar sync (use imported_at which updates on UPSERT)
     createRepos(supabase).calendarEvents.lastImportedAt(),
     // Last attendance processing (most recent PUP)
