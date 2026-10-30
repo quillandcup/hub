@@ -11,7 +11,15 @@ import { SUPPORT_EMAIL } from "@/lib/config";
  */
 export default function RouteError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   useEffect(() => {
-    if (!error.digest) Sentry.captureException(error);
+    if (error.digest) return;
+    Sentry.captureException(error);
+    // Nobody watches Sentry: tell #hub-alerts through the app (a server error is alerted from the server).
+    fetch("/api/client-errors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: window.location.pathname, message: `${error.name}: ${error.message}` }),
+      keepalive: true,
+    }).catch(() => {});
   }, [error]);
 
   return (
