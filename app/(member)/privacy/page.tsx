@@ -130,7 +130,7 @@ export default async function PrivacyPage() {
             />
             <CollectRow
               what="Notifications"
-              detail="A record of each notification we send you. For the bell and banners inside the Hub, whether you have read it, so they show the right things; turning usage statistics off does not stop that. If usage statistics are on, also which notification a visit came from, when you click it in the Hub or arrive through a link in it."
+              detail="A record of each notification we send you, and whether you have read it in the Hub. Turning usage statistics off does not change that. If usage statistics are on, also which notification a visit came from."
               why="To send you what you ask for, and so the bell and banners stay right."
             />
             <CollectRow

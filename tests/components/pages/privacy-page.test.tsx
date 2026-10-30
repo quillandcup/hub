@@ -203,10 +203,9 @@ describe("/privacy page", () => {
   it("says what is kept about notifications under What we collect, and that turning statistics off doesn't change read marks", async () => {
     await renderServerPage(PrivacyPage, {});
     const row = within(section("collect").getByText("Notifications", { selector: "td" }).closest("tr")!);
-    expect(row.getByText(/A record of each notification we send you/)).toBeInTheDocument();
+    expect(row.getByText(/A record of each notification we send you, and whether you have read it in the Hub/)).toBeInTheDocument();
     // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
-    expect(row.getByText(/whether you have read it, so they show the right things/)).toBeInTheDocument();
-    expect(row.getByText(/turning usage statistics off does not stop that/)).toBeInTheDocument();
+    expect(row.getByText(/Turning usage statistics off does not change that/)).toBeInTheDocument();
     expect(row.getByText(/If usage statistics are on, also which notification a visit came from/)).toBeInTheDocument();
     expect(row.queryByText(/takes the tag off the address/)).not.toBeInTheDocument();
   });
