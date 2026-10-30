@@ -85,4 +85,9 @@ describe("traced", () => {
     await expect(traced("slowdb", async () => { throw new DbQueryError("slowdb", { code: "57014", message: "t" }); })).rejects.toBeInstanceOf(DbQueryError);
     expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "slowdb", code: "57014" }));
   });
+
+  it("alerts for a thrown value that is not an object", async () => {
+    await expect(traced("odd", async () => { throw null; })).rejects.toBeNull();
+    expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "odd", code: undefined }));
+  });
 });

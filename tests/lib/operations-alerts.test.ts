@@ -78,4 +78,13 @@ describe("production operations alerts", () => {
     expect(text).toContain("timed out in the database");
     expect(text).toContain("member page: activity feed");
   });
+
+  it("words a section failure by its code, or without one", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "section_failed", section: "a", code: "42501", ms: 5 });
+    await sendOperationsAlert(service, { type: "section_failed", section: "b", ms: 5 });
+
+    expect(postMessage.mock.calls[0][0].text).toContain('"a" failed (42501) after 5 ms');
+    expect(postMessage.mock.calls[1][0].text).toContain('"b" failed after 5 ms');
+  });
 });
