@@ -43,12 +43,16 @@ import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/c
 import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
+import { describeRosterResponse, rosterHasMembers } from "../lib/kajabi/progress-capture";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
 const LOGIN_WAIT_MS = 10 * 60 * 1000;
 const RESPONSE_TIMEOUT_MS = 60_000;
+// The Product Progress report is built in the background: how long to wait for it, and how often to ask again.
+const ROSTER_WAIT_MS = 90_000;
+const ROSTER_REASK_MS = 4_000;
 // Nothing the capture needs: skipping them makes each editor load much lighter.
 const SKIPPED_RESOURCES = new Set(["image", "media", "font"]);
 
@@ -304,22 +308,56 @@ async function captureProgress(courseId: string): Promise<void> {
     await ensureLoggedIn(context);
     const page = await context.newPage();
     const rosterPath = `/api/client/reports/product_progress/${courseId}`;
-    const rosterResponse = page.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === rosterPath, { timeout: RESPONSE_TIMEOUT_MS });
-    rosterResponse.catch(() => undefined);
+    // Kajabi builds the report in the background, so the page's first answer can be empty and a later one has the
+    // students. Watch every roster response and use the first that has students.
+    let roster: { url: string; json: unknown } | null = null;
+    const seen: string[] = [];
+    page.on("response", (r) => {
+      if (r.request().method() !== "GET" || pathOf(r) !== rosterPath) return;
+      void (async () => {
+        if (r.status() === 401) return void seen.push("401");
+        if (!r.ok()) return void seen.push(`HTTP ${r.status()}`);
+        const json = await r.json().catch(() => undefined);
+        seen.push(describeRosterResponse(json));
+        if (!roster || rosterHasMembers(json)) roster = { url: r.url(), json };
+      })();
+    });
     await page.goto(`${KAJABI_APP}/admin/sites/${encodeURIComponent(siteId)}/reports/product_progress_report?productId=${encodeURIComponent(courseId)}`, {
       waitUntil: "domcontentloaded",
     });
     if (!new URL(page.url()).pathname.startsWith("/admin/")) throw new SessionExpiredError("The Kajabi login expired. Run again and log in.");
-    const roster = await rosterResponse.catch(() => {
-      throw new Error(`The Product Progress page did not request ${rosterPath} within ${RESPONSE_TIMEOUT_MS / 1000} seconds. Is the course id right?`);
-    });
-    if (roster.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
-    if (!roster.ok()) throw new Error(`Kajabi answered ${roster.status()} for ${rosterPath}`);
+
+    // Wait for a response with students; if the page stops asking, ask again at the same address.
+    const deadline = Date.now() + ROSTER_WAIT_MS;
+    let lastAsked = Date.now();
+    while (Date.now() < deadline && !(roster && rosterHasMembers((roster as { json: unknown }).json))) {
+      await page.waitForTimeout(1000);
+      const current = roster as { url: string; json: unknown } | null;
+      if (current && Date.now() - lastAsked > ROSTER_REASK_MS) {
+        lastAsked = Date.now();
+        const again = await page.evaluate(async (u) => {
+          const response = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
+          return { status: response.status, json: response.ok ? await response.json().catch(() => undefined) : undefined };
+        }, current.url);
+        if (again.status === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+        if (again.json !== undefined) {
+          seen.push(describeRosterResponse(again.json));
+          if (rosterHasMembers(again.json)) roster = { url: current.url, json: again.json };
+        }
+      }
+    }
+    const found = roster as { url: string; json: unknown } | null;
+    if (!found) {
+      throw new Error(`The Product Progress page did not request ${rosterPath} (or it was refused: ${seen.join("; ") || "no response"}). Is the course id right?`);
+    }
+    if (!rosterHasMembers(found.json)) {
+      console.log(`The report returned no students after ${ROSTER_WAIT_MS / 1000} seconds. Its responses: ${seen.join("; ")}.`);
+    }
 
     const summary = await runProgressCapture({
       db: supabase as never,
       courseKajabiId: courseId,
-      roster: { url: roster.url(), json: await roster.json() },
+      roster: found,
       fetchReport: (target) =>
         page.evaluate(async (u) => {
           const response = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });

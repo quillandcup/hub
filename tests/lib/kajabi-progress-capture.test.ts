@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { memberReportUrl, parseKajabiDay, parseKajabiInstant, parseMemberProgress, parseRoster } from "@/lib/kajabi/progress-capture";
+import { describeRosterResponse, memberReportUrl, parseKajabiDay, parseKajabiInstant, parseMemberProgress, parseRoster, rosterHasMembers } from "@/lib/kajabi/progress-capture";
 
 const NY = "America/New_York";
 
@@ -151,5 +151,25 @@ describe("memberReportUrl", () => {
     expect(memberReportUrl("https://app.example.test/api/client/reports/product_progress/9?productId=9&site_id=3", "111")).toBe(
       "https://app.example.test/api/client/reports/product_progress/9/members/111?productId=9&site_id=3",
     );
+  });
+});
+
+describe("waiting for the report to be built", () => {
+  it("is ready only when the roster response has students, not on an empty first answer", () => {
+    expect(rosterHasMembers({ status: "processing", count: 0, members: [] })).toBe(false);
+    expect(rosterHasMembers({ status: "complete", count: 1, members: [{ member_id: 1, email: "ada@example.com" }] })).toBe(true);
+    expect(rosterHasMembers({ status: "complete" })).toBe(false);
+    expect(rosterHasMembers(null)).toBe(false);
+    expect(rosterHasMembers("members")).toBe(false);
+  });
+
+  it("describes a response by its own status, count and member count, and never by a student", () => {
+    const text = describeRosterResponse({ status: "processing", count: 0, members: [] });
+    expect(text).toBe("status processing, count 0, members 0");
+    const withStudent = describeRosterResponse({ status: "complete", count: 1, members: [{ name: "Ada Example", email: "ada@example.com" }] });
+    expect(withStudent).toBe("status complete, count 1, members 1");
+    expect(withStudent).not.toContain("Ada");
+    expect(describeRosterResponse({ status: 5 })).toBe("status number, count undefined, members undefined");
+    expect(describeRosterResponse("x")).toBe("not an object");
   });
 });
