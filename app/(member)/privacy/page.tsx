@@ -286,13 +286,25 @@ export default async function PrivacyPage() {
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Cookies and similar storage</h3>
         <p>
-          Most of what the Hub keeps on your device is there to make it work: keeping you signed in, and remembering things like
-          your last chat channel, your video speed and captions, and your recent searches. We don&apos;t need your consent for
-          those, and you can clear them in your browser settings. Two things are optional and follow your choices above: your
-          banner choice is remembered on your device, and when usage statistics are on, a short-lived random{" "}
-          <strong>visit number</strong> groups the things you do in one visit (it expires after 30 minutes without activity and
-          holds nothing about you). Google Analytics sets its own cookie, only if you have allowed it.
+          Most of what the Hub keeps on your device is there to make it work, so we don&apos;t need your consent for it, and you
+          can clear it in your browser settings. In short:
         </p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            <strong>To make the Hub work:</strong> keeping you signed in, and remembering things like your last chat channel,
+            your video speed and captions, and your recent searches.
+          </li>
+          <li>
+            <strong>Your banner choice</strong> is remembered on your device.
+          </li>
+          <li>
+            <strong>Visit number</strong>, only while usage statistics are on: a short-lived random number that groups the things
+            you do in one visit. It expires after 30 minutes without activity and holds nothing about you.
+          </li>
+          <li>
+            <strong>Google Analytics</strong> sets its own cookie, only if you have allowed it.
+          </li>
+        </ul>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
         <ul className="list-disc pl-5 space-y-1">

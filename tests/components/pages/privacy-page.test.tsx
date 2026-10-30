@@ -166,15 +166,17 @@ describe("/privacy page", () => {
     expect(section("choices").getByText(/can't be changed while viewing as a member/)).toBeInTheDocument();
   });
 
-  it("describes the cookies by kind rather than listing every one, and says which are optional", async () => {
+  it("describes the cookies by kind in a short list rather than listing every one, and says which are optional", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
     expect(choices.getByRole("heading", { name: "Cookies and similar storage" })).toBeInTheDocument();
-    expect(choices.getByText(/Most of what the Hub keeps on your device is there to make it work/)).toBeInTheDocument();
-    expect(choices.getByText(/We don't need your consent for\s+those, and you can clear them in your browser settings/)).toBeInTheDocument();
-    expect(choices.getByText(/visit number/, { selector: "strong" })).toBeInTheDocument();
-    expect(choices.getByText(/expires after 30 minutes without activity/)).toBeInTheDocument();
-    expect(choices.getByText(/Google Analytics sets its own cookie, only if you have allowed it/)).toBeInTheDocument();
+    expect(choices.getByText(/so we don't need your consent for it, and you\s+can clear it in your browser settings/)).toBeInTheDocument();
+    const list = within(choices.getByText("To make the Hub work:").closest("ul")!);
+    expect(list.getAllByRole("listitem")).toHaveLength(4);
+    expect(list.getByText(/your last chat channel,\s+your video speed and captions, and your recent searches/)).toBeInTheDocument();
+    expect(list.getByText("Visit number", { selector: "strong" })).toBeInTheDocument();
+    expect(list.getByText(/expires after 30 minutes without activity and holds nothing about you/)).toBeInTheDocument();
+    expect(list.getByText(/sets its own cookie, only if you have allowed it/)).toBeInTheDocument();
   });
 
   it("puts the switch first, with how usage statistics work folded away below it", async () => {
