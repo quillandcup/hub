@@ -43,6 +43,7 @@ const project = (id: string, memberId: string, over: Partial<InMemoryDataset["wr
   member_id: memberId,
   title: `Title ${id}`,
   description: null,
+  cover_asset_id: null,
   cover_url: null,
   external_id: null,
   phase: "drafting",
@@ -173,6 +174,50 @@ describe("updateProjectCover", () => {
 
     await updateProjectCover(PROJECT, null);
     expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.cover_url).toBeNull();
+  });
+
+  const asset = async (owner: string, sha: string) =>
+    repos.media.add({ storage_path: `originals/${owner}/${sha}.png`, mime_type: "image/png", width: 1200, height: 1800, bytes: 1, sha256: sha, title: sha, owner_member_id: owner });
+
+  it("stores a library cover with its asset, and releases the one it replaces", async () => {
+    const first = await asset(ME, "first");
+    const second = await asset(ME, "second");
+
+    expect(await updateProjectCover(PROJECT, `/api/media/${first.id}/book_cover_shelf`)).toEqual({ success: true });
+    expect(dataset.writingProjects.find((p) => p.id === PROJECT)).toMatchObject({ cover_url: `/api/media/${first.id}/book_cover_shelf`, cover_asset_id: first.id });
+
+    await updateProjectCover(PROJECT, `/api/media/${second.id}/book_cover_shelf`);
+    expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.cover_asset_id).toBe(second.id);
+    expect((await repos.media.byId(first.id))?.deleted_at).not.toBeNull(); // nothing uses the first any more
+    expect((await repos.media.byId(second.id))?.deleted_at).toBeNull();
+
+    await updateProjectCover(PROJECT, null);
+    expect(dataset.writingProjects.find((p) => p.id === PROJECT)).toMatchObject({ cover_url: null, cover_asset_id: null });
+    expect((await repos.media.byId(second.id))?.deleted_at).not.toBeNull();
+  });
+
+  it("keeps a replaced cover that a published book still shows", async () => {
+    const shared = await asset(ME, "shared");
+    const next = await asset(ME, "next");
+    await updateProjectCover(PROJECT, `/api/media/${shared.id}/book_cover_shelf`);
+    dataset.memberBooks.push({ id: "book_AAAAAAAAAAA1", member_id: ME, title: "Published", published_date: "2026-01-01", cover_asset_id: shared.id });
+
+    await updateProjectCover(PROJECT, `/api/media/${next.id}/book_cover_shelf`);
+    expect((await repos.media.byId(shared.id))?.deleted_at).toBeNull();
+  });
+
+  it("refuses someone else's image, a deleted one and a made-up one, and leaves the cover as it was", async () => {
+    const mine = await asset(ME, "mine");
+    const theirs = await asset(OTHER, "theirs");
+    const gone = await asset(ME, "gone");
+    await repos.media.remove(gone.id);
+    await updateProjectCover(PROJECT, `/api/media/${mine.id}/book_cover_shelf`);
+
+    for (const bad of [theirs.id, gone.id, "media_AAAAAAAAAAAA"]) {
+      expect(await updateProjectCover(PROJECT, `/api/media/${bad}/book_cover_shelf`)).toEqual({ error: "That cover isn't one of yours: upload it again" });
+    }
+    expect(await updateProjectCover(PROJECT, "javascript:alert(1)")).toEqual({ error: "Cover image failed to upload correctly — try again" });
+    expect(dataset.writingProjects.find((p) => p.id === PROJECT)?.cover_asset_id).toBe(mine.id);
   });
 });
 

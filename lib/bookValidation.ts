@@ -1,4 +1,5 @@
 import { safeUrl } from "@/lib/url";
+import { bookCoverUrl } from "@/lib/bookCover";
 import type { BookInput } from "@/app/(member)/bookshelf/actions";
 
 /**
@@ -10,7 +11,7 @@ export function validateBookInput(input: BookInput): string | null {
   if (!input.title?.trim()) return "Title is required";
   if (!input.publishedDate) return "Publication date is required";
   if (!input.coverUrl?.trim()) return "Cover image is required";
-  if (!safeUrl(input.coverUrl)) return "Cover image failed to upload correctly — try again";
+  if (!bookCoverUrl(input.coverUrl)) return "Cover image failed to upload correctly — try again";
   if (!input.purchaseUrl?.trim()) return "Where to buy it is required";
   if (!safeUrl(input.purchaseUrl)) return "Enter a valid link (starting with https://) for where to buy it";
   return null;

@@ -27,7 +27,8 @@ const COVER_PRESETS = ["book_cover_shelf", "book_cover_kdp_ebook"] as const;
 const FORMAT_PARAM: Record<string, string> = { jpeg: "jpeg", png: "png", webp: "webp" };
 const FIT_PARAM: Record<FitMode, string> = { crop: "crop", extend: "extend", white: "white" };
 
-const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : "#");
+/** Where staff can open a place that uses the image; a book or a member's project has no staff page. */
+const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : null);
 
 /** One image: its details, where it's used, its focal point and cover fit, and downloads. Saves, deletes. */
 export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: string; onClose: () => void; onChanged: () => void }) {
@@ -238,9 +239,13 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
               <ul className="text-sm list-disc pl-5">
                 {usages.map((u) => (
                   <li key={`${u.kind}-${u.id}`}>
-                    <Link href={usageLink(u)} className={LINK}>
-                      {u.title}
-                    </Link>{" "}
+                    {usageLink(u) ? (
+                      <Link href={usageLink(u) as string} className={LINK}>
+                        {u.title}
+                      </Link>
+                    ) : (
+                      u.title
+                    )}{" "}
                     <span className="text-slate-600 dark:text-slate-400">({u.kind})</span>
                   </li>
                 ))}

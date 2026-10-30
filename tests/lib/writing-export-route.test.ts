@@ -21,7 +21,7 @@ import { GET } from "@/app/api/projects/export/route";
 
 const ADA = "mbr_AAAAAAAAAAA1";
 const project = (id: string, member: string, title: string) => ({
-  id, member_id: member, title, description: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
+  id, member_id: member, title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
 });
 const entry = (id: string, member: string, projectId: string, extra: object) => ({
   id, member_id: member, project_id: projectId, prickle_id: null, entry_date: "2026-02-01", measure: "words", mode: "delta", amount: 100, note: null, tags: [], external_id: null, created_at: "2026-02-01T00:00:00Z", ...extra,

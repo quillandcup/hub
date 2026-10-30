@@ -9,6 +9,16 @@ defineMediaContract("InMemoryMediaRepository", () => {
     repo: () => new InMemoryMediaRepository(data),
     unique: (label) => `${label}-${++n}`,
     owners: async () => ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"],
+    bookShowing: async (assetId, ownerMemberId, title, publishedOn) => {
+      const id = `book_${String(++n).padStart(12, "A")}`;
+      data.memberBooks.push({ id, member_id: ownerMemberId, title, published_date: publishedOn, cover_asset_id: assetId });
+      return id;
+    },
+    projectShowing: async (assetId, ownerMemberId) => {
+      const id = `wprj_${String(++n).padStart(12, "A")}`;
+      data.writingProjects.push({ id, member_id: ownerMemberId, cover_asset_id: assetId } as never);
+      return id;
+    },
     eventShowing: async (assetId, title, startsAt) => {
       const id = `evt_${String(++n).padStart(12, "A")}`;
       data.events.push({ id, slug: id, title, starts_at: startsAt, image_id: assetId });

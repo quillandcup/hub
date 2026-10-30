@@ -9,6 +9,10 @@ export type MediaContractContext = {
   owners: () => Promise<[string, string]>;
   /** Makes an event that shows this asset as its cover, and returns its id. */
   eventShowing: (assetId: string, title: string, startsAt: string) => Promise<string>;
+  /** Makes a published book (by this member) that has this asset as its cover, and returns its id. */
+  bookShowing: (assetId: string, ownerMemberId: string, title: string, publishedOn: string) => Promise<string>;
+  /** Makes a writing project (of this member) that has this asset as its cover, and returns its id. */
+  projectShowing: (assetId: string, ownerMemberId: string) => Promise<string>;
 };
 
 /** Behavior every `MediaRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -90,6 +94,20 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
         { kind: "event", id: older, title: "Older retreat" },
       ]);
       expect(await ctx.repo().usages(unused.id)).toEqual([]);
+    });
+
+    it("lists the books and writing projects that use an asset as a cover, without naming a project", async () => {
+      const [m1] = await ctx.owners();
+      const cover = await ctx.repo().add(asset("c1", { owner_member_id: m1 }));
+      const book1 = await ctx.bookShowing(cover.id, m1, "Older book", "2026-01-01");
+      const book2 = await ctx.bookShowing(cover.id, m1, "Newer book", "2026-06-01");
+      const project = await ctx.projectShowing(cover.id, m1);
+
+      expect(await ctx.repo().usages(cover.id)).toEqual([
+        { kind: "book", id: book2, title: "Newer book" },
+        { kind: "book", id: book1, title: "Older book" },
+        { kind: "project", id: project, title: "A writing project" },
+      ]);
     });
 
     it("edits an asset, and a deleted one can't be edited or found by search", async () => {

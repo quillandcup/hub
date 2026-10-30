@@ -12,8 +12,9 @@ export type MediaScope = "shared" | { memberId: string };
 
 /** A place an asset is used: a deleted asset can't be one that something still shows. */
 export interface MediaUsage {
-  kind: "event";
+  kind: "event" | "book" | "project";
   id: string;
+  /** What to call it. A writing project is private to its owner, so it is never named. */
   title: string;
 }
 
@@ -63,7 +64,7 @@ export interface MediaRepository {
   edit(id: string, fields: MediaAssetEdit): Promise<MediaAsset | null>;
   /** Marks the asset deleted; false when there was no live asset. */
   remove(id: string): Promise<boolean>;
-  /** Everything that shows this asset (events for now; each feature that gets an `*_asset_id` column adds itself). */
+  /** Everything that shows this asset: events, books (as a cover) and writing projects. Each feature that gets an `*_asset_id` column adds itself. What the caller can't read (another member's project) isn't listed. */
   usages(id: string): Promise<MediaUsage[]>;
 }
 
@@ -127,9 +128,17 @@ export class SupabaseMediaRepository implements MediaRepository {
   }
 
   async usages(id: string) {
-    const events = await this.db.from("events").select("id, title").eq("image_id", id).order("starts_at", { ascending: false }).order("id");
-    if (events.error) throw new Error(events.error.message);
-    return (events.data ?? []).map((e) => ({ kind: "event" as const, id: e.id, title: e.title }));
+    const [events, books, projects] = await Promise.all([
+      this.db.from("events").select("id, title").eq("image_id", id).order("starts_at", { ascending: false }).order("id"),
+      this.db.from("member_books").select("id, title").eq("cover_asset_id", id).order("published_date", { ascending: false }).order("id"),
+      this.db.from("writing_projects").select("id").eq("cover_asset_id", id).order("id"),
+    ]);
+    for (const result of [events, books, projects]) if (result.error) throw new Error(result.error.message);
+    return [
+      ...(events.data ?? []).map((e) => ({ kind: "event" as const, id: e.id, title: e.title })),
+      ...(books.data ?? []).map((b) => ({ kind: "book" as const, id: b.id, title: b.title })),
+      ...(projects.data ?? []).map((p) => ({ kind: "project" as const, id: p.id, title: "A writing project" })),
+    ];
   }
 }
 
@@ -210,9 +219,18 @@ export class InMemoryMediaRepository implements MediaRepository {
   }
 
   async usages(id: string) {
-    return this.data.events
+    const events = this.data.events
       .filter((e) => e.image_id === id)
       .sort((a, b) => ((a.starts_at ?? "") < (b.starts_at ?? "") ? 1 : (a.starts_at ?? "") > (b.starts_at ?? "") ? -1 : a.id < b.id ? -1 : 1))
       .map((e) => ({ kind: "event" as const, id: e.id, title: e.title }));
+    const books = this.data.memberBooks
+      .filter((b) => b.cover_asset_id === id)
+      .sort((a, b) => (a.published_date < b.published_date ? 1 : a.published_date > b.published_date ? -1 : a.id < b.id ? -1 : 1))
+      .map((b) => ({ kind: "book" as const, id: b.id, title: b.title }));
+    const projects = this.data.writingProjects
+      .filter((p) => p.cover_asset_id === id)
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map((p) => ({ kind: "project" as const, id: p.id, title: "A writing project" }));
+    return [...events, ...books, ...projects];
   }
 }

@@ -26,6 +26,13 @@ vi.mock("@/lib/book-pen-name", () => ({
   ),
 }));
 
+// The real helpers, except where a test needs a library cover: they are tested against the in-memory library in
+// tests/lib/book-cover-assets.test.ts.
+vi.mock("@/lib/book-cover-assets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/book-cover-assets")>();
+  return { ...actual, resolveBookCover: vi.fn(actual.resolveBookCover), releaseReplacedCover: vi.fn(actual.releaseReplacedCover) };
+});
+
 vi.mock("@/lib/slack", () => ({
   notifyStaffNewBook: vi.fn().mockResolvedValue(undefined),
 }));
@@ -36,6 +43,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getPenNameOptions } from "@/lib/book-pen-name";
+import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 
 const IDENTITY = {
   memberId: "member-1",
@@ -65,10 +73,13 @@ function makeSupabaseMock({
   writeError = undefined as string | undefined,
   updateSingleResult = { data: { id: "book-1" }, error: null } as any,
   deleteSingleResult = { data: { id: "book-1" }, error: null } as any,
+  previousCoverAssetId = null as string | null,
 } = {}) {
   const select = vi.fn(() => ({
     eq: vi.fn(() => ({
       order: vi.fn().mockResolvedValue(selectResult),
+      // updateBook reads the cover the book has now, to release it if it is replaced.
+      maybeSingle: vi.fn().mockResolvedValue({ data: { cover_asset_id: previousCoverAssetId }, error: null }),
     })),
   }));
 
@@ -167,8 +178,23 @@ describe("getMyBooks", () => {
         genre: "Fantasy",
         format: "ebook",
         projectId: "project-1",
+        coverAsset: null,
       },
     ]);
+  });
+
+  it("carries the library image behind a cover, with its size, for the Amazon download", async () => {
+    const mock = makeSupabaseMock({
+      selectResult: {
+        data: [{ id: "book-1", title: "T", description: null, cover_url: "/api/media/media_AAAAAAAAAAA1/book_cover_shelf", purchase_url: "https://example.com/b", published_date: "2026-03-15", price: null, genre: null, format: "print", project_id: null, pen_name: null, cover_asset: { id: "media_AAAAAAAAAAA1", width: 1600, height: 2560 } }],
+        error: null,
+      },
+    });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect((await getMyBooks())[0].coverAsset).toEqual({ id: "media_AAAAAAAAAAA1", width: 1600, height: 2560 });
+    expect(mock.__select).toHaveBeenCalledWith(expect.stringContaining("cover_asset:media_assets(id, width, height)"));
   });
 });
 
@@ -245,6 +271,7 @@ describe("addBook", () => {
       title: "My Book",
       description: "A tale.",
       cover_url: "https://example.com/cover.jpg",
+      cover_asset_id: null,
       purchase_url: "https://example.com/buy",
       published_date: "2026-03-15",
       price: null,
@@ -448,5 +475,60 @@ describe("pen names", () => {
 
     vi.mocked(getEffectiveIdentity).mockResolvedValue(null);
     expect(await getMyPenNameOptions()).toBeNull();
+  });
+});
+
+describe("library covers", () => {
+  const LIBRARY_COVER = "/api/media/media_AAAAAAAAAAA1/book_cover_shelf";
+
+  it("addBook stores the cover's URL and its asset, as checked by resolveBookCover", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    vi.mocked(resolveBookCover).mockResolvedValueOnce({ url: LIBRARY_COVER, assetId: "media_AAAAAAAAAAA1" });
+
+    expect(await addBook({ ...VALID_INPUT, coverUrl: LIBRARY_COVER })).toEqual({ success: true });
+    expect(resolveBookCover).toHaveBeenCalledWith(expect.anything(), "member-1", LIBRARY_COVER);
+    expect(mock.__insert).toHaveBeenCalledWith(expect.objectContaining({ cover_url: LIBRARY_COVER, cover_asset_id: "media_AAAAAAAAAAA1" }));
+  });
+
+  it("addBook refuses a cover that isn't the member's own, without inserting", async () => {
+    const mock = makeSupabaseMock();
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    vi.mocked(resolveBookCover).mockResolvedValueOnce({ error: "That cover isn't one of yours: upload it again" });
+
+    expect(await addBook({ ...VALID_INPUT, coverUrl: LIBRARY_COVER })).toEqual({ error: "That cover isn't one of yours: upload it again" });
+    expect(mock.__insert).not.toHaveBeenCalled();
+  });
+
+  it("updateBook stores the new cover and releases the one it replaced", async () => {
+    const mock = makeSupabaseMock({ previousCoverAssetId: "media_OLDOLDOLDOL1" });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+    vi.mocked(resolveBookCover).mockResolvedValueOnce({ url: LIBRARY_COVER, assetId: "media_AAAAAAAAAAA1" });
+
+    expect(await updateBook("book-1", { ...VALID_INPUT, coverUrl: LIBRARY_COVER })).toEqual({ success: true });
+    expect(mock.__update).toHaveBeenCalledWith(expect.objectContaining({ cover_url: LIBRARY_COVER, cover_asset_id: "media_AAAAAAAAAAA1" }));
+    expect(releaseReplacedCover).toHaveBeenCalledWith(expect.anything(), "member-1", "media_OLDOLDOLDOL1", "media_AAAAAAAAAAA1");
+  });
+
+  it("updateBook switching to an ordinary link clears the asset and releases the old cover", async () => {
+    const mock = makeSupabaseMock({ previousCoverAssetId: "media_OLDOLDOLDOL1" });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    await updateBook("book-1", VALID_INPUT);
+    expect(mock.__update).toHaveBeenCalledWith(expect.objectContaining({ cover_url: "https://example.com/cover.jpg", cover_asset_id: null }));
+    expect(releaseReplacedCover).toHaveBeenCalledWith(expect.anything(), "member-1", "media_OLDOLDOLDOL1", null);
+  });
+
+  it("updateBook releases nothing when the update didn't happen", async () => {
+    const mock = makeSupabaseMock({ updateSingleResult: { data: null, error: null }, previousCoverAssetId: "media_OLDOLDOLDOL1" });
+    vi.mocked(createClient).mockResolvedValue(mock as any);
+    vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
+
+    expect(await updateBook("someone-elses-book", VALID_INPUT)).toEqual({ error: "Book not found" });
+    expect(releaseReplacedCover).not.toHaveBeenCalled();
   });
 });

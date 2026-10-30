@@ -3233,6 +3233,7 @@ export type Database = {
       }
       member_books: {
         Row: {
+          cover_asset_id: string | null
           cover_url: string
           created_at: string
           description: string | null
@@ -3262,6 +3263,7 @@ export type Database = {
           } | null
         }
         Insert: {
+          cover_asset_id?: string | null
           cover_url: string
           created_at?: string
           description?: string | null
@@ -3277,6 +3279,7 @@ export type Database = {
           title: string
         }
         Update: {
+          cover_asset_id?: string | null
           cover_url?: string
           created_at?: string
           description?: string | null
@@ -3292,6 +3295,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "member_books_cover_asset_id_fkey"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "member_books_member_id_fkey"
             columns: ["member_id"]
@@ -5777,6 +5787,7 @@ export type Database = {
       writing_projects: {
         Row: {
           archived_at: string | null
+          cover_asset_id: string | null
           cover_url: string | null
           created_at: string
           description: string | null
@@ -5789,6 +5800,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -5801,6 +5813,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -5812,6 +5825,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "writing_projects_cover_asset_id_fkey"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "writing_projects_member_id_fkey"
             columns: ["member_id"]

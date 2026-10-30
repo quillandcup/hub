@@ -6,6 +6,8 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { createRepos } from "@/lib/data/repos";
+import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getPenNameOptions, resolvePenName, type PenNameOptions } from "@/lib/book-pen-name";
 
@@ -39,6 +41,8 @@ export interface MyBookRow {
   penName: string | null;
   /** The Projects entry this book was published from, or null for a standalone/legacy book. */
   projectId: string | null;
+  /** The media library image behind the cover, with its size (for the Amazon download); null for an older cover. */
+  coverAsset: { id: string; width: number; height: number } | null;
 }
 
 type IdentityContext =
@@ -68,7 +72,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
 
   const { data } = await supabase
     .from("member_books")
-    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name")
+    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
     .eq("member_id", effectiveIdentity.memberId)
     .order("published_date", { ascending: false });
 
@@ -84,6 +88,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     format: row.format as BookFormat, // a check constraint limits the column to print and ebook
     penName: row.pen_name,
     projectId: row.project_id,
+    coverAsset: row.cover_asset ?? null,
   }));
 }
 
@@ -98,11 +103,15 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
   if ("error" in pen) return pen;
 
+  const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, input.coverUrl);
+  if ("error" in cover) return cover;
+
   const { error } = await supabase.from("member_books").insert({
     member_id: effectiveIdentity.memberId,
     title: input.title.trim(),
     description: input.description?.trim() || null,
-    cover_url: safeUrl(input.coverUrl)!, // validateBookInput rejected anything safeUrl would null
+    cover_url: cover.url,
+    cover_asset_id: cover.assetId,
     purchase_url: safeUrl(input.purchaseUrl)!,
     published_date: input.publishedDate,
     price: input.price ?? null,
@@ -141,6 +150,11 @@ export async function updateBook(
   const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
   if ("error" in pen) return pen;
 
+  const media = createRepos(supabase).media;
+  const cover = await resolveBookCover(media, effectiveIdentity.memberId, input.coverUrl);
+  if ("error" in cover) return cover;
+  const { data: previous } = await supabase.from("member_books").select("cover_asset_id").eq("id", bookId).maybeSingle();
+
   // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
   // zero-row result means the id didn't belong to them, not a silent no-op.
   const { data, error } = await supabase
@@ -148,7 +162,8 @@ export async function updateBook(
     .update({
       title: input.title.trim(),
       description: input.description?.trim() || null,
-      cover_url: safeUrl(input.coverUrl)!, // validateBookInput rejected anything safeUrl would null
+      cover_url: cover.url,
+      cover_asset_id: cover.assetId,
       purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
       price: input.price ?? null,
@@ -161,6 +176,8 @@ export async function updateBook(
     .single();
 
   if (error || !data) return { error: error?.message ?? "Book not found" };
+
+  await releaseReplacedCover(media, effectiveIdentity.memberId, previous?.cover_asset_id ?? null, cover.assetId);
 
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");

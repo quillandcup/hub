@@ -24,7 +24,7 @@ export interface EntryPrickle {
 export type ProjectEntryDetail = ProjectEntry & { prickle_id: string | null; prickle: EntryPrickle | null };
 export type ProjectGoal = GoalColumns;
 export type StartingBalance = Pick<WritingBalanceRow, "project_id" | "measure" | "amount">;
-export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "show_on_profile" | "phase">>;
+export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "cover_asset_id" | "show_on_profile" | "phase">>;
 
 const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_url, description";
 const ENTRY_COLUMNS = "id, project_id, entry_date, measure, mode, amount, note, tags, created_at";
@@ -160,6 +160,8 @@ export interface WritingRepository {
   latestActiveProjectId(memberId: string): Promise<string | null>;
   /** Whether the project exists and is this member's. */
   ownsProject(memberId: string, projectId: string): Promise<boolean>;
+  /** The media library asset the member's project uses as its cover, or null (no cover, an older cover, or not theirs). */
+  coverAssetOf(memberId: string, projectId: string): Promise<string | null>;
   /** How many goals the member has set (archived ones included). */
   goalCount(memberId: string): Promise<number>;
   /** The measure of each goal that isn't archived, with its project (a goal can be project-less). */
@@ -612,6 +614,12 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data.id;
   }
 
+  async coverAssetOf(memberId: string, projectId: string): Promise<string | null> {
+    const { data, error } = await this.db.from("writing_projects").select("cover_asset_id").eq("id", projectId).eq("member_id", memberId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data?.cover_asset_id ?? null;
+  }
+
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
     const { error } = await this.db.from("writing_projects").update(patch).eq("id", projectId).eq("member_id", memberId);
     if (error) throw new Error(error.message);
@@ -993,6 +1001,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       title,
       phase,
       description: null,
+      cover_asset_id: null,
       cover_url: null,
       external_id: null,
       show_on_profile: false,
@@ -1000,6 +1009,10 @@ export class InMemoryWritingRepository implements WritingRepository {
       created_at: new Date().toISOString(),
     });
     return id;
+  }
+
+  async coverAssetOf(memberId: string, projectId: string): Promise<string | null> {
+    return this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId)?.cover_asset_id ?? null;
   }
 
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
@@ -1055,6 +1068,7 @@ export class InMemoryWritingRepository implements WritingRepository {
         title: r.title,
         phase: r.phase ?? "drafting",
         description: r.description ?? null,
+        cover_asset_id: r.cover_asset_id ?? null,
         cover_url: r.cover_url ?? null,
         external_id: r.external_id ?? null,
         show_on_profile: r.show_on_profile ?? false,
