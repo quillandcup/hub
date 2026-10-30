@@ -54,7 +54,7 @@ The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from w
 - `components/media/MediaPicker.tsx`: a dialog with a grid, search over title and tags, an Upload tab, and recently used first. It follows `reuse-ui-components`: it takes props (`value`, `onChange`, `scope`, `preset`, the aspect it will be shown at) and never reaches into app state; the preview uses the preset, so you see the crop you will get.
 - **Scope**: staff pick from the shared library and upload to it. A member picking a book cover sees only their own uploads, never the shared library.
 - **"Hedgies on First", pick it again**: tags and a title do this in v1 (search "hedgies"). A default per recurring series (so each week's event gets it without anyone choosing) is a follow-up; it wants an image on the series or the prickle type, with the event overriding it. Decide where when events are next touched.
-- `/admin/media`: browse, rename, tag, set a focal point, see where each is used, delete the unused. Admin pages follow `requireAdminPage()`.
+- `/admin/media`: browse, rename, tag, set a focal point, see where each is used, delete the unused. Admin pages follow `requireAdminPage()`. The same editor opens from any picker: "Adjust crop" under the chosen image (and right after an upload), so a focal point is set where the image is chosen, not only here. There is no free-form rectangle crop on purpose: every use is cropped from the original by its preset, around the focal point.
 
 ## The Kajabi course images (done)
 

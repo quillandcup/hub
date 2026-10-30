@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -161,5 +162,43 @@ describe("MediaPicker", () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "event_cover", ok: false, converted: false, duplicate: false, large: false });
     expect(screen.getByRole("button", { name: "Upload and use" })).toBeEnabled();
+  });
+
+  const detail: Record<string, unknown> = { ...A, tags: [], is_public: false, updated_at: "2026-10-29T10:00:00Z", width: 1000, height: 500, mime_type: "image/png", focal_x: null, focal_y: null, fits: {} };
+  const editorFetch = (saved = detail) => (url: string, init?: RequestInit) => {
+    if (url === `/api/media/${A.id}` && !init?.method) return json({ asset: detail, usages: [] });
+    if (url === `/api/media/${A.id}` && init?.method === "PATCH") return json({ asset: saved });
+    return undefined;
+  };
+
+  it("opens the focal-point editor from Adjust crop, and refreshes the preview after a save", async () => {
+    respond = editorFetch({ ...detail, focal_x: 0.2, focal_y: 0.3, updated_at: "2026-10-30T00:00:00Z" });
+    setup(A.id);
+    await userEvent.click(screen.getByRole("button", { name: "Adjust crop" }));
+    expect(await screen.findByLabelText("Title")).toHaveValue("Hedgies on First");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls.some((c) => c.init?.method === "PATCH")).toBe(true));
+    await waitFor(() => expect(screen.getByAltText("The chosen image").getAttribute("src")).toMatch(/event_card\?v=\d+/));
+    await userEvent.click(screen.getAllByRole("button", { name: "Close" }).at(-1)!);
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
+
+  it("has no Adjust crop without an image", () => {
+    setup();
+    expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument();
+  });
+
+  it("opens the editor right after an upload is used", async () => {
+    function Harness() {
+      const [id, setId] = useState<string | null>(null);
+      return <MediaPicker value={id} onChange={setId} surface="event_cover" />;
+    }
+    respond = (url, init) => (url === "/api/media" && init?.method === "POST" ? json({ asset: { id: A.id }, duplicate: false }, 201) : editorFetch()(url, init));
+    render(<Harness />);
+    await open();
+    await userEvent.click(screen.getByRole("tab", { name: "Upload" }));
+    await userEvent.upload(screen.getByLabelText("Image file"), new File([new Uint8Array(100)], "a.png", { type: "image/png" }));
+    await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
+    expect(await screen.findByText(/Click the picture to say where the interesting part is/)).toBeInTheDocument();
   });
 });

@@ -5,7 +5,7 @@ import Modal from "@/components/Modal";
 import MediaUploadForm from "@/components/media/MediaUploadForm";
 import { useMediaSearch } from "@/components/media/useMediaSearch";
 import { mediaSrc } from "@/lib/media/url";
-import MediaEditor from "./MediaEditor";
+import MediaEditor from "@/components/media/MediaEditor";
 
 /** The staff library: search, add, and open an image to edit it, set its focal point, see where it's used or download it. */
 export default function MediaLibraryClient() {
