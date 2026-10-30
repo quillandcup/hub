@@ -17,7 +17,7 @@ const SOON = "Not available yet: courses are imported from Kajabi for now";
  */
 export default function LessonBuilderForm({ detail }: { detail: AdminLessonDetail }) {
   const { lesson, trail, modules, files } = detail;
-  const choices = statusChoices(trail);
+  const choices = statusChoices(trail, lesson.publishingOption);
   const inModule = trail.at(-1)?.kajabiId ?? "";
   return (
     <form aria-label="Lesson builder" className="grid gap-6 @columns:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

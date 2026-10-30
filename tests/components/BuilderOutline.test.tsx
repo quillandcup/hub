@@ -136,4 +136,19 @@ describe("BuilderOutline", () => {
     expect(screen.getByText("0 Modules")).toBeInTheDocument();
     expect(screen.getByText("No modules yet.")).toBeInTheDocument();
   });
+
+  it("shows an already published lesson under a draft module as plain Published, without the blocked note", async () => {
+    const user = userEvent.setup();
+    const odd = explainCourse(
+      [{ kajabiId: "m1", parentKajabiId: null, position: 1, title: "Welcome to the Quill & Cup 180!", publishingOption: "draft" }],
+      [{ kajabiId: "l1", moduleKajabiId: "m1", position: 1, title: "Meet your instructor", publishingOption: "published" }]
+    );
+    render(<BuilderOutline course={course({ loose: [], modules: odd.modules, content: {}, hubLessonIds: {} })} />);
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+
+    const select = screen.getByRole("combobox", { name: "Status of Meet your instructor" });
+    expect(select).toHaveValue("published");
+    expect(within(select).getByRole("option", { name: "Published" })).toHaveTextContent(/^Published$/);
+    expect(within(select).getByRole("option", { name: "Published" })).not.toHaveAttribute("disabled");
+  });
 });

@@ -59,8 +59,8 @@ function StatusPill({ title, option, ancestors }: { title: string; option: strin
       title={SOON}
       className={`shrink-0 cursor-not-allowed appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
     >
-      {!statusChoices(ancestors).some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
-      {statusChoices(ancestors).map((c) => (
+      {!statusChoices(ancestors, option).some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
+      {statusChoices(ancestors, option).map((c) => (
         <option key={c.value} value={c.value} disabled={!!c.disabledReason} title={c.disabledReason}>
           {c.value === option ? c.label : c.action}
           {c.disabledReason ? ` (${c.disabledReason})` : ""}

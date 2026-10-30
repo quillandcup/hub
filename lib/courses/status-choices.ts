@@ -40,8 +40,12 @@ export interface AvailableChoice extends StatusChoice {
   disabledReason?: string;
 }
 
-/** The menu for an item whose modules above it are `ancestors` (outermost first). */
-export function statusChoices(ancestors: Ancestor[]): AvailableChoice[] {
+/**
+ * The menu for an item whose modules above it are `ancestors` (outermost first). The item's
+ * `current` status is never blocked: it is what the menu already says, and an item that is
+ * already published under a draft module (Kajabi allows it) isn't "blocked" from being what it is.
+ */
+export function statusChoices(ancestors: Ancestor[], current?: string | null): AvailableChoice[] {
   const blocker = [...ancestors].reverse().find((a) => !a.publishingOption || a.publishingOption === "draft");
-  return STATUS_CHOICES.map((c) => (c.value === "published" && blocker ? { ...c, disabledReason: `Publish “${blocker.title}” first` } : c));
+  return STATUS_CHOICES.map((c) => (c.value === "published" && c.value !== current && blocker ? { ...c, disabledReason: `Publish “${blocker.title}” first` } : c));
 }
