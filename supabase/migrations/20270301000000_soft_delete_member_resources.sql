@@ -30,6 +30,14 @@ DROP POLICY "Authenticated users can view member_awards" ON public.member_awards
 CREATE POLICY "Authenticated users can view member_awards" ON public.member_awards
   FOR SELECT USING (auth.role() = 'authenticated' AND deleted_at IS NULL);
 
+-- A deleted book's cover is no longer a book cover everyone can read (member_books' own policy already
+-- hides the row from other members; this says it outright).
+DROP POLICY "Read the assets that are book covers" ON public.media_assets;
+CREATE POLICY "Read the assets that are book covers"
+  ON public.media_assets FOR SELECT TO authenticated
+  USING (deleted_at IS NULL AND EXISTS (
+    SELECT 1 FROM public.member_books b WHERE b.cover_asset_id = media_assets.id AND b.deleted_at IS NULL));
+
 -- The profile's writing section: deleted goals and entries never show on a profile.
 CREATE OR REPLACE FUNCTION public.get_profile_writing(p_member_id text)
 RETURNS jsonb

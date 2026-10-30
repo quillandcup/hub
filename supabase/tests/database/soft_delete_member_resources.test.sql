@@ -1,4 +1,4 @@
--- pgTAP tests for 20270225200000_soft_delete_member_resources.sql:
+-- pgTAP tests for 20270301000000_soft_delete_member_resources.sql:
 --   * other members see only live books and awards; the owner (and admins) still see their own
 --     deleted rows, which is also what lets the app's soft-delete UPDATE return the row;
 --   * a member can soft delete their own book (the UPDATE ... RETURNING the app runs works) and
