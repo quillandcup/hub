@@ -111,6 +111,7 @@ describe("/privacy page", () => {
     await renderServerPage(PrivacyPage, {});
     const collect = section("collect");
     expect(collect.getByText(/what kind of search you ran and how many results \(never the words\)/)).toBeInTheDocument();
+    expect(collect.getByRole("link", { name: "see below" })).toHaveAttribute("href", "#choices");
     expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
     expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
     // The pointer to the chat section sits in the Chat row itself.

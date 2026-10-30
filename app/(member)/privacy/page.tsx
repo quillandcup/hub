@@ -116,7 +116,15 @@ export default async function PrivacyPage() {
             <CollectRow
               what="How you use the Hub"
               detail="Which pages you open, which buttons and links you use, what kind of search you ran and how many results (never the words), whether the things you try work, and your device, browser and screen."
-              why="To fix what is confusing and build what helps. Your choice: see below."
+              why={
+                <>
+                  To fix what is confusing and build what helps. Your choice:{" "}
+                  <a href="#choices" className="underline">
+                    see below
+                  </a>
+                  .
+                </>
+              }
             />
             <CollectRow
               what="Where you connect from"
@@ -369,7 +377,7 @@ function Detail({ title, children }: { title: string; children: React.ReactNode 
   );
 }
 
-function CollectRow({ what, detail, why }: { what: string; detail: React.ReactNode; why: string }) {
+function CollectRow({ what, detail, why }: { what: string; detail: React.ReactNode; why: React.ReactNode }) {
   return (
     <tr className="border-b border-slate-100 dark:border-slate-800">
       <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{what}</td>
