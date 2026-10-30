@@ -99,6 +99,19 @@ describe("admin calendar page unmatched events link", () => {
     expect(link.getAttribute("href")).toBe("/admin/hygiene/unmatched-events");
   });
 
+  it("says event, not events, for one", async () => {
+    useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: [], count: 1 } });
+    await renderWeek();
+    expect(screen.getByRole("link", { name: /1 unmatched calendar event waiting/ })).toBeTruthy();
+  });
+
+  it("shows no link, and still renders, when the count fails", async () => {
+    useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: null, error: { message: "boom" } } });
+    await renderWeek();
+    expect(screen.queryByText(/unmatched calendar/)).toBeNull();
+    expect(screen.getByTestId("week")).toBeTruthy();
+  });
+
   it("shows no link when the queue is empty", async () => {
     useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: [], count: 0 } });
     await renderWeek();
