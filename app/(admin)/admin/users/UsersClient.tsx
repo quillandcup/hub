@@ -11,7 +11,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { FEATURE_PREVIEWS } from "@/lib/features";
 import MemberSearch from "@/components/MemberSearch";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { describeDevice } from "@/lib/device-label";
+import { describeStoredDevice, type DeviceInfo } from "@/lib/device-label";
 import { formatDateInZone } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
 
@@ -48,6 +48,8 @@ interface AccessSession {
   session_active: boolean;
   auth_session_created_at: string | null;
   user_agent: string | null;
+  /** Parsed when the visit was recorded; outlives user_agent, which is removed after 90 days. */
+  device: DeviceInfo | null;
 }
 
 const ET_TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -742,13 +744,13 @@ export default function UsersClient({ currentUserId }: { currentUserId: string }
                       </span>
                     )}
                   </div>
-                  {(session.auth_session_created_at || session.user_agent) && (
+                  {(session.auth_session_created_at || session.user_agent || session.device) && (
                     <div className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
                       {session.auth_session_created_at &&
                         `Logged in ${formatSessionRange(session.auth_session_created_at, session.auth_session_created_at)}`}
-                      {session.auth_session_created_at && session.user_agent && " · "}
-                      {session.user_agent && (
-                        <span title={session.user_agent}>{describeDevice(session.user_agent)}</span>
+                      {session.auth_session_created_at && (session.user_agent || session.device) && " · "}
+                      {(session.user_agent || session.device) && (
+                        <span title={session.user_agent ?? undefined}>{describeStoredDevice(session.device, session.user_agent)}</span>
                       )}
                     </div>
                   )}

@@ -15,6 +15,7 @@ describe('Admin User Access History API', () => {
   const ts = Date.now()
   const testEmail = `access-history-test-${ts}@example.com`
   const CHROME_ON_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36'
+const CHROME_ON_MAC_DEVICE = { browser: 'Chrome', browser_version: '126.0', os: 'macOS', os_version: null, device_type: 'desktop' }
 
   let testUserId: string
 
@@ -37,7 +38,7 @@ describe('Admin User Access History API', () => {
     const { error: insertError } = await supabase.from('access_events').insert([
       { user_id: testUserId, path: '/dashboard', is_page: true, created_at: minutesAgo(120) },
       { user_id: testUserId, path: '/api/dashboard/stats', is_page: false, created_at: minutesAgo(119) },
-      { user_id: testUserId, path: '/members', is_page: true, created_at: minutesAgo(118), user_agent: CHROME_ON_MAC },
+      { user_id: testUserId, path: '/members', is_page: true, created_at: minutesAgo(118), user_agent: CHROME_ON_MAC, device: CHROME_ON_MAC_DEVICE },
       { user_id: testUserId, path: '/profile', is_page: true, created_at: minutesAgo(10) },
     ])
     if (insertError) throw new Error(`Failed to insert access events: ${insertError.message}`)
@@ -100,6 +101,14 @@ describe('Admin User Access History API', () => {
     const [newest, oldest] = body.sessions
     expect(oldest.user_agent).toBe(CHROME_ON_MAC)
     expect(newest.user_agent).toBeNull()
+    // The device rides along, and is what is left once the raw string has been removed.
+    expect(oldest.device).toEqual(CHROME_ON_MAC_DEVICE)
+    expect(newest.device).toBeNull()
+  })
+
+  it('rejects a device that is not a JSON object', async () => {
+    const { error } = await supabase.from('access_events').insert({ user_id: testUserId, path: '/dashboard', is_page: true, device: ['Chrome'] })
+    expect(error?.code).toBe('23514') // check_violation
   })
 
   it('rejects a user agent longer than 512 characters', async () => {

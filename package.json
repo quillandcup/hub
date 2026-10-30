@@ -76,6 +76,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "@videojs/mux-video": "^10.1.0",
     "@videojs/react": "^10.1.0",
+    "bowser": "^2.15.0",
     "dotenv": "^17.4.2",
     "emojibase-data": "^17.0.0",
     "fflate": "^0.8.3",

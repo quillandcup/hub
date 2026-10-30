@@ -72,6 +72,8 @@ describe("access_events row from the proxy", () => {
       session_id: "auth-session-1",
       acting_as_member_id: null,
       user_agent: CHROME_ON_MAC,
+      // Parsed once, here, so the browser and device outlive the raw string (removed after 90 days).
+      device: { browser: "Chrome", browser_version: "126.0", os: "macOS", os_version: null, device_type: "desktop" },
       ip_address: null,
       country: null,
       region: null,

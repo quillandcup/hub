@@ -1257,6 +1257,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
+          device: Json | null
           ga_client_id: string | null
           id: number
           ip_address: unknown
@@ -1272,6 +1273,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          device?: Json | null
           ga_client_id?: string | null
           id?: never
           ip_address?: unknown
@@ -1287,6 +1289,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
+          device?: Json | null
           ga_client_id?: string | null
           id?: never
           ip_address?: unknown
@@ -5475,6 +5478,7 @@ export type Database = {
         Row: {
           captions_language: string | null
           client_segment_id: string | null
+          device: Json | null
           end_seconds: number
           id: string
           kind: string
@@ -5490,6 +5494,7 @@ export type Database = {
         Insert: {
           captions_language?: string | null
           client_segment_id?: string | null
+          device?: Json | null
           end_seconds: number
           id?: string
           kind?: string
@@ -5505,6 +5510,7 @@ export type Database = {
         Update: {
           captions_language?: string | null
           client_segment_id?: string | null
+          device?: Json | null
           end_seconds?: number
           id?: string
           kind?: string
@@ -6278,6 +6284,7 @@ export type Database = {
         Returns: {
           auth_session_created_at: string
           auth_session_id: string
+          device: Json
           event_count: number
           pages: Json
           session_active: boolean

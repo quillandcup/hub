@@ -73,6 +73,7 @@ describe('POST /api/track/page-view', () => {
       session_id: AUTH_SESSION_ID,
       acting_as_member_id: null,
       user_agent: CHROME_ON_MAC,
+      device: { browser: 'Chrome', browser_version: '126.0', os: 'macOS', os_version: null, device_type: 'desktop' },
       ip_address: null,
       country: null,
       region: null,
@@ -118,7 +119,7 @@ describe('POST /api/track/page-view', () => {
   it('records no user agent when the browser sends none', async () => {
     const { insert } = setup()
     await POST(makeRequest({ path: '/dashboard' }, undefined, null))
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_agent: null }))
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_agent: null, device: null }))
   })
 
   it('caps an oversized user agent', async () => {

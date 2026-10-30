@@ -36,6 +36,7 @@ beforeEach(() => {
                 auth_session_id: null,
                 session_active: false,
                 auth_session_created_at: null,
+                device: null,
                 user_agent:
                   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17.4 Mobile Safari/604.1',
               },
@@ -66,5 +67,35 @@ describe('UsersClient activity modal', () => {
     await user.click(await screen.findByRole('button', { name: 'Activity' }))
 
     expect(await screen.findByText('Safari on iPhone')).toBeInTheDocument()
+  })
+
+  it("still shows the device once the raw user agent has been removed, from the one stored with the visit", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url.endsWith('/access-history')
+          ? jsonResponse({
+              sessions: [
+                {
+                  session_start: '2026-10-01T12:00:00Z',
+                  session_end: '2026-10-01T12:30:00Z',
+                  event_count: 1,
+                  pages: ['/dashboard'],
+                  auth_session_id: null,
+                  session_active: false,
+                  auth_session_created_at: null,
+                  user_agent: null,
+                  device: { browser: 'Firefox', browser_version: '127.0', os: 'Windows', os_version: null, device_type: 'desktop' },
+                },
+              ],
+            })
+          : jsonResponse({ users: [USER], allMembers: [] })
+      )
+    )
+    const user = userEvent.setup()
+    render(<UsersClient currentUserId="me" />)
+    await user.click(await screen.findByRole('button', { name: 'Activity' }))
+
+    expect(await screen.findByText('Firefox on Windows')).toBeInTheDocument()
   })
 })
