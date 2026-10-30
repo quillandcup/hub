@@ -83,3 +83,25 @@ describe("admin calendar page default week", () => {
     });
   });
 });
+
+describe("admin calendar page unmatched events link", () => {
+  beforeEach(() => {
+    resetServerPageMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T16:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("links to the unmatched events queue when events are waiting", async () => {
+    useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: [], count: 3 } });
+    await renderWeek();
+    const link = screen.getByRole("link", { name: /3 unmatched calendar events/ });
+    expect(link.getAttribute("href")).toBe("/admin/hygiene/unmatched-events");
+  });
+
+  it("shows no link when the queue is empty", async () => {
+    useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: [], count: 0 } });
+    await renderWeek();
+    expect(screen.queryByText(/unmatched calendar/)).toBeNull();
+  });
+});
