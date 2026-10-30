@@ -62,6 +62,6 @@ describe('the Kajabi probe output', () => {
     expect(out).toContain('    b: number')
     expect(out).toContain('POST 204 /api/other')
     expect(out.match(/GET 200/g)).toHaveLength(1)
-    expect(formatProbe([])).toBe('No JSON requests were seen.')
+    expect(formatProbe([])).toBe('No requests of interest were seen.')
   })
 })

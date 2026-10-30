@@ -40,7 +40,7 @@ import {
   type SaveOutcome,
 } from "../lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
-import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
+import { describeDomShape, describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
@@ -259,21 +259,26 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
   });
   const seen: ProbedRequest[] = [];
   const pending: Promise<void>[] = [];
+  let dom: string[] = [];
   try {
     await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
     await ensureLoggedIn(context);
     const page = await context.newPage();
     page.on("response", (r) => {
-      if (!(r.headers()["content-type"] ?? "").includes("json")) return;
+      const contentType = (r.headers()["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+      const isJson = contentType.includes("json");
+      // A page can also load its data as an HTML fragment or a script (Kajabi's member pages do): list those too, by type and path only.
+      if (!isJson && !["xhr", "fetch", "document"].includes(r.request().resourceType())) return;
       pending.push(
         (async () => {
-          const json = await r.json().catch(() => undefined);
+          const json = isJson ? await r.json().catch(() => undefined) : undefined;
           seen.push({
             method: r.request().method(),
             status: r.status(),
             path: normalizeRequestPath(r.url()),
             query: queryNames(r.url()),
             fields: json === undefined ? [] : describeJson(json),
+            ...(isJson ? {} : { contentType: contentType || "no content type" }),
           });
         })()
       );
@@ -282,10 +287,14 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
     console.log(`Recording for ${target.seconds} seconds. Click around in the browser window (open a week, a module, the next page) so its requests are seen.`);
     await page.waitForTimeout(target.seconds * 1000);
     await Promise.all(pending);
+    // What the page itself looks like where it mentions comments (names only), for data that arrives as HTML.
+    dom = await page.evaluate(describeDomShape, "comment").catch(() => []);
   } finally {
     await context.close();
   }
-  console.log(`\n${formatProbe(seen)}\n\nPage: ${normalizeRequestPath(target.url)}. Names and types only, no values.`);
+  console.log(
+    `\n${formatProbe(seen)}\n\nPage structure where it mentions "comment" (the page you ended on; element names and attribute names only, never text):\n${dom.length ? dom.map((l) => `    ${l}`).join("\n") : "    nothing"}\n\nPage: ${normalizeRequestPath(target.url)}. Names and types only, no values.`
+  );
 }
 
 /**
