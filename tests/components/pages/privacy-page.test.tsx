@@ -199,7 +199,7 @@ describe("/privacy page", () => {
     const choices = section("choices");
     expect(choices.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
     expect(choices.getByText(/show you what we hold about you, correct it, remove it, or stop using it for usage/)).toBeInTheDocument();
-    expect(choices.getByText(/We will answer within a month/)).toBeInTheDocument();
+    expect(choices.getByText(/We will answer as soon as we can, and within a month/)).toBeInTheDocument();
     // Which of the two we do is ours to choose, so the page doesn't offer the member a choice.
     expect(choices.getByText(/For removal we either delete it or take your name off it/)).toBeInTheDocument();
     expect(choices.queryByText(/whichever you/)).not.toBeInTheDocument();
