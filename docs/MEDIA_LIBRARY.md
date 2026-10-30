@@ -83,7 +83,7 @@ No schema change. The course builder's picker gets a "from the video" tab that a
 
 ## Build order
 
-Steps 1 and 2 are done. Step 2 shipped the picker and event covers; `/admin/media` (browse, rename, tag, focal point, usage, delete) is the next PR.
+Steps 1 and 2 are done: the picker, event covers, and `/admin/media` (search, upload, edit title, alt text, tags and public flag, click to set the focal point, choose how a picture that isn't cover-shaped fits, see where it's used, download the original, the Amazon cover or any size, delete with a refusal while something shows it).
 
 Each is its own PR, small enough to review.
 

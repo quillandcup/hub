@@ -1,28 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Modal from "@/components/Modal";
 import { track } from "@/lib/analytics/client";
-import { createClient } from "@/lib/supabase/client";
 import type { PresetName } from "@/lib/media/presets";
 import { mediaSrc } from "@/lib/media/url";
+import type { MediaSurface } from "@/lib/media/surfaces";
+import MediaUploadForm from "./MediaUploadForm";
+import { useMediaSearch } from "./useMediaSearch";
 
-/** Where the picker is used; each is declared in the tracking plan. */
-type Surface = "event_cover";
+type Surface = MediaSurface;
 
-interface LibraryAsset {
-  id: string;
-  title: string;
-  alt_text: string | null;
-}
-
-const PAGE = 24;
-/** A file bigger than this goes straight to storage through a signed URL: a request body can't carry it. */
-const DIRECT_UPLOAD_ABOVE = 4 * 1024 * 1024;
-const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,.heic";
 
 const BUTTON = "px-3 py-1.5 rounded text-sm";
-const PRIMARY = `${BUTTON} bg-plum-600 text-white hover:bg-plum-700 disabled:opacity-50`;
 const SECONDARY = `${BUTTON} bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 disabled:opacity-50`;
 const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded text-sm";
 
@@ -97,39 +87,7 @@ export default function MediaPicker({
 
 function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string, from: "library" | "upload", searched: boolean) => void }) {
   const [tab, setTab] = useState<"library" | "upload">("library");
-  const [q, setQ] = useState("");
-  const [searched, setSearched] = useState(false);
-  const [assets, setAssets] = useState<LibraryAsset[]>([]);
-  const [more, setMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (term: string, offset: number, signal?: AbortSignal) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/media?q=${encodeURIComponent(term)}&limit=${PAGE}&offset=${offset}`, { signal });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Couldn't load the library");
-      const page: LibraryAsset[] = body.assets;
-      setAssets((current) => (offset === 0 ? page : [...current, ...page]));
-      setMore(page.length === PAGE);
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") setError((e as Error).message);
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, []);
-
-  // Searches as you type, after a short pause.
-  useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => void load(q, 0, controller.signal), q ? 250 : 0);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [q, load]);
+  const { q, searched, setQ, assets, more, loading, error, setError, loadMore } = useMediaSearch();
 
   return (
     <div>
@@ -157,10 +115,7 @@ function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string
             aria-label="Search the library by title or tag"
             placeholder="Search by title or tag"
             value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setSearched(true);
-            }}
+            onChange={(e) => setQ(e.target.value)}
             className={`${INPUT} mb-3`}
           />
           {assets.length === 0 && !loading && !error ? (
@@ -187,100 +142,14 @@ function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string
           )}
           {loading && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Loading...</p>}
           {more && !loading && (
-            <button type="button" onClick={() => void load(q, assets.length)} className={`${SECONDARY} mt-3`}>
+            <button type="button" onClick={() => void loadMore()} className={`${SECONDARY} mt-3`}>
               Show more
             </button>
           )}
         </div>
       ) : (
-        <UploadForm surface={surface} onUploaded={(id) => onPick(id, "upload", false)} onError={setError} />
+        <MediaUploadForm surface={surface} onUploaded={(id) => onPick(id, "upload", false)} onError={setError} />
       )}
     </div>
-  );
-}
-
-function UploadForm({ surface, onUploaded, onError }: { surface: Surface; onUploaded: (id: string) => void; onError: (message: string | null) => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [tags, setTags] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) return;
-    setBusy(true);
-    onError(null);
-    const large = file.size > DIRECT_UPLOAD_ABOVE;
-    try {
-      const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
-      let response: Response;
-      if (large) {
-        // Too big for a request body: straight to storage through a signed URL, then ask the library to take it.
-        const start = await fetch("/api/media/uploads", { method: "POST" });
-        const slot = await start.json();
-        if (!start.ok) throw new Error(slot.error || "Couldn't start the upload");
-        const { error } = await createClient().storage.from("media").uploadToSignedUrl(slot.uploadPath, slot.token, file, { contentType: file.type || "application/octet-stream" });
-        if (error) throw new Error("The upload didn't go through. Try again");
-        response = await fetch("/api/media", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uploadPath: slot.uploadPath, title: title || undefined, tags: tagList }),
-        });
-      } else {
-        const form = new FormData();
-        form.set("file", file);
-        if (title) form.set("title", title);
-        if (tagList.length) form.set("tags", tagList.join(","));
-        response = await fetch("/api/media", { method: "POST", body: form });
-      }
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Upload failed");
-      track("media_uploaded", { surface, ok: true, converted: body.convertedFrom === "heic", duplicate: !!body.duplicate, large });
-      onUploaded(body.asset.id);
-    } catch (err) {
-      track("media_uploaded", { surface, ok: false, converted: false, duplicate: false, large });
-      onError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={send} className="space-y-3">
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const dropped = e.dataTransfer.files[0];
-          if (dropped) setFile(dropped);
-        }}
-        className={`rounded border-2 border-dashed p-6 text-center text-sm ${dragging ? "border-plum-500 bg-plum-50 dark:bg-plum-900/20" : "border-gray-300 dark:border-slate-700"}`}
-      >
-        <p className="mb-2">{file ? file.name : "Drop an image here, or"}</p>
-        <button type="button" onClick={() => input.current?.click()} className={SECONDARY}>
-          {file ? "Choose a different file" : "Choose a file"}
-        </button>
-        <input ref={input} type="file" accept={ACCEPT} aria-label="Image file" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">JPEG, PNG, WebP, GIF, AVIF or an iPhone HEIC photo, up to 25 MB.</p>
-      </div>
-      <label className="block text-sm">
-        Title
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="From the file name if left empty" className={`${INPUT} mt-1`} />
-      </label>
-      <label className="block text-sm">
-        Tags
-        <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
-      </label>
-      <button type="submit" disabled={!file || busy} className={PRIMARY}>
-        {busy ? "Uploading..." : "Upload and use"}
-      </button>
-    </form>
   );
 }

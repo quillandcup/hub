@@ -258,3 +258,21 @@ describe("downloads at any size, and the original", () => {
     expect(Buffer.from(await res.arrayBuffer()).equals(bytes)).toBe(true);
   });
 });
+
+describe("GET /api/media/[id]", () => {
+  it("gives staff one asset, with where it's used, a deleted one too, and refuses everyone else", async () => {
+    const id = (await upload(await picture(), { title: `Detail ${RUN}` })).body.asset.id;
+    expect((await apiFetch(`/api/media/${id}`)).status).toBe(401);
+
+    const res = await apiFetch(`/api/media/${id}`, { headers: admin });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ asset: { id, title: `Detail ${RUN}`, kind: "image" }, usages: [] });
+
+    await apiFetch(`/api/media/${id}`, { method: "DELETE", headers: admin });
+    const deleted = await (await apiFetch(`/api/media/${id}`, { headers: admin })).json();
+    expect(deleted.asset.deleted_at).not.toBeNull();
+
+    expect((await apiFetch("/api/media/media_AAAAAAAAAAAA", { headers: admin })).status).toBe(404);
+    expect((await apiFetch("/api/media/not-an-id", { headers: admin })).status).toBe(404);
+  });
+});
