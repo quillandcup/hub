@@ -303,8 +303,8 @@ export default async function PrivacyPage() {
           <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
             {SUPPORT_EMAIL}
           </a>
-          . We will answer within a month, and for removal we will either delete it or take your name off it, whichever you
-          prefer.
+          . We will answer within a month. For removal we either delete it or take your name off it, so that
+          it can no longer be tied to you.
         </p>
       </Section>
 
