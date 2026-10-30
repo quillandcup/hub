@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import * as Sentry from "@sentry/nextjs";
+import appConfig from "../app.config";
 import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
@@ -17,6 +18,12 @@ type RateLimitClient = {
     PromiseLike<{ data: boolean | null; error: unknown }>;
 };
 
+/** Sentry issue search for events tagged with this section, last 24 hours, newest first. */
+export function sentrySectionSearchUrl(section: string): string {
+  const query = new URLSearchParams({ query: `section:"${section}"`, statsPeriod: "24h", sort: "date" });
+  return `https://${appConfig.sentry.org}.sentry.io/issues/?${query}`;
+}
+
 function alertDetails(alert: OperationsAlert): { bucket: string; title: string; text: string } {
   if (alert.type === "slack_dm_failed") {
     return {
@@ -31,7 +38,7 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
     return {
       bucket: `operations_alert:section_failed:${alert.section}`,
       title: `Page section ${alert.section} ${what}`,
-      text: `Page section "${alert.section}" ${what} after ${alert.ms} ms. Find the Sentry event tagged section=${alert.section} (it has the member id and the request) and the "[section failed]" line in the Vercel logs.`,
+      text: `Page section "${alert.section}" ${what} after ${alert.ms} ms. Find the event in <${sentrySectionSearchUrl(alert.section)}|Sentry> (tagged section; it has the member id and the request) and the "[section failed]" line in the Vercel logs.`,
     };
   }
 
