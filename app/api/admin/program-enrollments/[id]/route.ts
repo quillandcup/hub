@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,8 +12,9 @@ export async function DELETE(
   const { supabase } = auth;
   const { id } = await params;
 
-  const { error } = await supabase.from("member_program_enrollments").delete().eq("id", id);
-  if (error) {
+  try {
+    await createRepos(supabase).programs.unenroll(id);
+  } catch (error: any) {
     console.error("Error deleting program enrollment:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -20,23 +21,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: cohort, error } = await supabase
-      .from("program_cohorts")
-      .insert({
-        program_id,
-        name,
-        starts_at,
-        expires_at,
-        notes: notes || null,
-        created_by: user.id !== "service-role" ? user.id : null,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error creating program cohort:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const cohort = await createRepos(supabase).programs.createCohort({
+      program_id,
+      name,
+      starts_at,
+      expires_at,
+      notes: notes || null,
+      created_by: user.id !== "service-role" ? user.id : null,
+    });
 
     return NextResponse.json({ cohort }, { status: 201 });
   } catch (error: any) {

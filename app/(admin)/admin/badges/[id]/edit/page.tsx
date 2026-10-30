@@ -24,13 +24,13 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   const supabase = await createClient();
 
   const badges = createRepos(supabase).badges;
-  const [badgeType, levels, awardCounts, allEvents, linkedEventIds, { data: programs }] = await Promise.all([
+  const [badgeType, levels, awardCounts, allEvents, linkedEventIds, programs] = await Promise.all([
     badges.typeById(id),
     badges.levelsOf(id),
     badges.awardCounts(),
     createRepos(supabase).events.choices(),
     badges.linkedEventIds({ exceptTypeId: id }),
-    supabase.from("programs").select("id, name").order("name"),
+    createRepos(supabase).programs.names(),
   ]);
   const awardCount = awardCounts.get(id) ?? 0;
 

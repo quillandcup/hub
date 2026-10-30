@@ -146,4 +146,38 @@ describe('Program Cohorts API', () => {
     expect(response.ok).toBe(true)
     programId = ''
   })
+
+  const missing = '00000000-0000-4000-8000-000000000000'
+
+  it('GET /api/admin/programs/[id] answers 404 for a program that does not exist', async () => {
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${missing}`, { headers: getTestAuthHeaders() })
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toBe('Program not found')
+  })
+
+  it('GET /api/admin/program-cohorts/[id]/kajabi-matches answers 404 for a cohort that does not exist', async () => {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${missing}/kajabi-matches`, { headers: getTestAuthHeaders() })
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toBe('Cohort not found')
+  })
+
+  it('lists the cohort of a program for Kajabi matching, without the members already in it', async () => {
+    const program = await (await apiFetch(`${baseUrl}/api/admin/programs`, {
+      method: 'POST',
+      headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `Matching Program ${ts}`, slug: `matching-program-${ts}`, kajabi_offer_names: [] }),
+    })).json()
+    try {
+      const cohort = await (await apiFetch(`${baseUrl}/api/admin/program-cohorts`, {
+        method: 'POST',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program_id: program.program.id, name: 'Matching Cohort', starts_at: '2030-01-01', expires_at: '2030-03-01' }),
+      })).json()
+      const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${cohort.cohort.id}/kajabi-matches`, { headers: getTestAuthHeaders() })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ candidates: [], offerNamesConfigured: false })
+    } finally {
+      await supabase.from('programs').delete().eq('id', program.program.id)
+    }
+  })
 })

@@ -34,17 +34,14 @@ export async function recomputeMemberStatus(
     // reprocess_members_atomic's staff_role handling).
     status = "active";
   } else {
-    const [emailAliasRows, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] =
+    const [emailAliasRows, { data: hiatusRows }, enrollments, { data: overrideRows }] =
       await Promise.all([
         createRepos(supabase).aliases.emailsOf(memberId),
         supabase
           .from("member_hiatus_history")
           .select("id, start_date, end_date, reason, notes")
           .eq("member_id", memberId),
-        supabase
-          .from("member_program_enrollments")
-          .select("id, cohort:program_cohorts(starts_at, expires_at, program:programs(name))")
-          .eq("member_id", memberId),
+        createRepos(supabase).programs.enrollmentsOf(memberId),
         supabase
           .from("member_status_overrides")
           .select("id, override_type, reason, starts_at, expires_at")
@@ -60,11 +57,11 @@ export async function recomputeMemberStatus(
     const customerIds = (kajabiCustomers ?? []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
     const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
 
-    const programOverrides = (enrollmentRows ?? []).map((row: any) => ({
-      id: row.id,
-      starts_at: row.cohort.starts_at,
-      expires_at: row.cohort.expires_at,
-      reason: row.cohort.program.name,
+    const programOverrides = enrollments.map((e) => ({
+      id: e.id,
+      starts_at: e.startsAt,
+      expires_at: e.expiresAt,
+      reason: e.programName,
     }));
 
     const segments = buildMembershipTimeline(membershipHistory, hiatusRows ?? [], programOverrides, overrideRows ?? []);

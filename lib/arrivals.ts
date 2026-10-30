@@ -134,44 +134,19 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
   return found;
 }
 
-interface EnrollmentMember {
-  id: string;
-  name: string;
-  display_name: string | null;
-  email: string;
-  staff_role: string | null;
-}
-
-interface EnrollmentRow {
-  member_id: string;
-  program_cohorts: { starts_at: string; programs: { name: string; includes_membership: boolean } | { name: string; includes_membership: boolean }[] };
-  members: EnrollmentMember | EnrollmentMember[] | null;
-}
-
 /** Cohorts of programs that include membership that started in [sinceDate, today], by enrolled member. */
 async function programCandidates(supabase: SupabaseClient, sinceDate: string, today: string): Promise<Candidate[]> {
-  const { data } = await supabase
-    .from("member_program_enrollments")
-    .select(
-      "member_id, program_cohorts!inner(starts_at, programs!inner(name, includes_membership)), members(id, name, display_name, email, staff_role)"
-    )
-    .gte("program_cohorts.starts_at", sinceDate)
-    .lte("program_cohorts.starts_at", today)
-    .eq("program_cohorts.programs.includes_membership", true);
-
   const found: Candidate[] = [];
-  for (const row of (data ?? []) as unknown as EnrollmentRow[]) {
-    const member = Array.isArray(row.members) ? row.members[0] : row.members;
-    const program = Array.isArray(row.program_cohorts.programs) ? row.program_cohorts.programs[0] : row.program_cohorts.programs;
+  for (const { member, startsOn, programName } of await createRepos(supabase).programs.membershipArrivals(sinceDate, today)) {
     if (!member || member.staff_role) continue;
     found.push({
       memberId: member.id,
       memberName: getMemberDisplayName(member),
       memberRealName: getMemberDisplayName(member) !== member.name ? member.name : undefined,
       email: member.email,
-      arrivedOn: row.program_cohorts.starts_at.slice(0, 10),
+      arrivedOn: startsOn.slice(0, 10),
       from: "program",
-      programName: program?.name ?? null,
+      programName,
     });
   }
   return found;
@@ -185,13 +160,10 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
  */
 async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise<boolean> {
   const cutoff = dayMs(c.arrivedOn) - MS_PER_DAY;
-  const [aliasRows, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] = await Promise.all([
+  const [aliasRows, { data: hiatusRows }, enrollments, { data: overrideRows }] = await Promise.all([
     createRepos(supabase).aliases.emailsOf(c.memberId),
     supabase.from("member_hiatus_history").select("id, start_date, end_date, reason, notes").eq("member_id", c.memberId),
-    supabase
-      .from("member_program_enrollments")
-      .select("cohort:program_cohorts(starts_at, expires_at, program:programs(name, includes_membership))")
-      .eq("member_id", c.memberId),
+    createRepos(supabase).programs.enrollmentsOf(c.memberId),
     supabase
       .from("member_status_overrides")
       .select("override_type, reason, starts_at, expires_at")
@@ -209,13 +181,9 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
     (s) => Date.parse(s.created_at_kajabi) < cutoff
   );
 
-  type Cohort = { starts_at: string; expires_at: string; program: { name: string; includes_membership: boolean } | { name: string; includes_membership: boolean }[] | null };
-  const programs = ((enrollmentRows ?? []) as unknown as { cohort: Cohort | Cohort[] | null }[]).flatMap((e) => {
-    const cohort = Array.isArray(e.cohort) ? e.cohort[0] : e.cohort;
-    const program = cohort && (Array.isArray(cohort.program) ? cohort.program[0] : cohort.program);
-    if (!cohort || !program?.includes_membership || dayMs(cohort.starts_at) >= cutoff) return [];
-    return [{ starts_at: cohort.starts_at, expires_at: cohort.expires_at, reason: program.name }];
-  });
+  const programs = enrollments
+    .filter((e) => e.includesMembership && dayMs(e.startsAt) < cutoff)
+    .map((e) => ({ starts_at: e.startsAt, expires_at: e.expiresAt, reason: e.programName }));
   const overrides = ((overrideRows ?? []) as { override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[]).filter(
     (o) => dayMs(o.starts_at) < cutoff
   );

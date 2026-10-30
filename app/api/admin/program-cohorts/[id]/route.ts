@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -23,17 +24,7 @@ export async function PATCH(
     if (expires_at !== undefined) updates.expires_at = expires_at;
     if (notes !== undefined) updates.notes = notes;
 
-    const { data: cohort, error } = await supabase
-      .from("program_cohorts")
-      .update(updates)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating program cohort:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const cohort = await createRepos(supabase).programs.updateCohort(id, updates);
 
     return NextResponse.json({ cohort });
   } catch (error: any) {
@@ -52,8 +43,9 @@ export async function DELETE(
   const { supabase } = auth;
   const { id } = await params;
 
-  const { error } = await supabase.from("program_cohorts").delete().eq("id", id);
-  if (error) {
+  try {
+    await createRepos(supabase).programs.deleteCohort(id);
+  } catch (error: any) {
     console.error("Error deleting program cohort:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

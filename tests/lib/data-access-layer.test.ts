@@ -67,6 +67,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_email_aliases: [],
   // Hosting schedules (PrickleScheduleRepository): every query is moved.
   prickle_schedules: [],
+  // Programs, their cohorts and enrollments (ProgramRepository): every query is moved.
+  programs: [],
+  program_cohorts: [],
+  member_program_enrollments: [],
 };
 
 const root = path.resolve(__dirname, "../..");

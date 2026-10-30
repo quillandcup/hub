@@ -607,10 +607,6 @@ export async function getMentorshipCounts(supabase: SupabaseClient): Promise<Map
   return counts;
 }
 
-interface EnrollmentCohortRow {
-  program_cohorts: { program_id: string; expires_at: string } | null;
-}
-
 /** Programs `memberId` has completed -- one entry per program_id with at least one enrolled
  * cohort whose expires_at has passed. A member can complete a program more than once (e.g. a
  * repeat 180 alumna enrolling in a later cohort), tracked as multiple occurrences. Enrollment
@@ -619,17 +615,11 @@ export async function getProgramCompletions(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<Map<string, ProgramCompletion>> {
-  const { data } = await supabase
-    .from("member_program_enrollments")
-    .select("program_cohorts(program_id, expires_at)")
-    .eq("member_id", memberId);
-
   const today = new Date().toISOString().slice(0, 10);
   const completions = new Map<string, ProgramCompletion>();
-  for (const row of (data ?? []) as unknown as EnrollmentCohortRow[]) {
-    const cohort = row.program_cohorts;
-    if (!cohort || cohort.expires_at > today) continue;
-    mergeCompletion(completions, cohort.program_id, cohort.expires_at);
+  for (const e of await createRepos(supabase).programs.enrollmentsOf(memberId)) {
+    if (e.expiresAt > today) continue;
+    mergeCompletion(completions, e.programId, e.expiresAt);
   }
   return completions;
 }
@@ -641,27 +631,11 @@ async function getProgramCompletionsByProgram(
 ): Promise<Map<string, Map<string, ProgramCompletion>>> {
   const today = new Date().toISOString().slice(0, 10);
   const byProgram = new Map<string, Map<string, ProgramCompletion>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_program_enrollments")
-      .select("member_id, program_cohorts(program_id, expires_at)")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as unknown as (EnrollmentCohortRow & { member_id: string })[]) {
-        const cohort = row.program_cohorts;
-        if (!cohort || cohort.expires_at > today) continue;
-        const byMember = byProgram.get(cohort.program_id) ?? new Map<string, ProgramCompletion>();
-        mergeCompletion(byMember, row.member_id, cohort.expires_at);
-        byProgram.set(cohort.program_id, byMember);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
+  for (const e of await createRepos(supabase).programs.allEnrollmentCohorts()) {
+    if (e.expiresAt > today) continue;
+    const byMember = byProgram.get(e.programId) ?? new Map<string, ProgramCompletion>();
+    mergeCompletion(byMember, e.memberId, e.expiresAt);
+    byProgram.set(e.programId, byMember);
   }
   return byProgram;
 }
