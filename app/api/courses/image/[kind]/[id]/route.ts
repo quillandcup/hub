@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
-import { COURSE_IMAGES_BUCKET, imageTable, type CourseImageKind } from "@/lib/courses/images";
+import { imageTable, type CourseImageKind } from "@/lib/courses/images";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { MEDIA_BUCKET } from "@/lib/media/library";
@@ -22,25 +22,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const t = imageTable(kind as CourseImageKind);
   const supabase = createServiceRoleClient();
-  const columns = kind === "course" || kind === "hero" ? `${t.pathColumn}, ${t.assetColumn}` : `${t.pathColumn}, ${t.assetColumn}, state`;
+  const columns = kind === "course" || kind === "hero" ? t.assetColumn : `${t.assetColumn}, state`;
   const { data: row } = await supabase.from(t.table).select(columns).eq("id", id).maybeSingle();
-  const path = (row as any)?.[t.pathColumn] as string | null | undefined;
   const assetId = (row as any)?.[t.assetColumn] as string | null | undefined;
-  if (!path && !assetId) return new NextResponse("Not found", { status: 404 });
+  if (!assetId) return new NextResponse("Not found", { status: 404 });
   if (kind !== "course" && kind !== "hero" && (row as any).state === "hidden" && !caller.scope.isAdminActing) return new NextResponse("Not found", { status: 404 });
 
-  // The media library image when the row has one; an earlier copy in the old private bucket until the copy step has moved it.
-  const asset = assetId ? await createRepos(supabase).media.byId(assetId).catch(() => null) : null;
-  const fromLibrary = asset && !asset.deleted_at ? asset : null;
-  if (!fromLibrary && !path) return new NextResponse("Not found", { status: 404 });
-  const { data: blob, error } = fromLibrary
-    ? await supabase.storage.from(MEDIA_BUCKET).download(fromLibrary.storage_path)
-    : await supabase.storage.from(COURSE_IMAGES_BUCKET).download(path as string);
+  const asset = await createRepos(supabase).media.byId(assetId).catch(() => null);
+  if (!asset || asset.deleted_at) return new NextResponse("Not found", { status: 404 });
+  const { data: blob, error } = await supabase.storage.from(MEDIA_BUCKET).download(asset.storage_path);
   if (error || !blob) {
     console.error("Couldn't read a course image:", error?.message);
     return new NextResponse("Couldn't load the image", { status: 502 });
   }
   return new NextResponse(await blob.arrayBuffer(), {
-    headers: { "Content-Type": fromLibrary?.mime_type ?? (blob.type || "application/octet-stream"), "Cache-Control": "private, max-age=3600" },
+    headers: { "Content-Type": asset.mime_type, "Cache-Control": "private, max-age=3600" },
   });
 }

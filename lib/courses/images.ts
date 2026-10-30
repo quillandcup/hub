@@ -15,24 +15,20 @@ import type { CourseImageKind } from "./image-urls";
  * string, it was copied from (`*_source`).
  *
  * Idempotent: an image whose source link hasn't changed is skipped. An image Kajabi no longer has is cleared, and its
- * library image removed once nothing shows it. Images that an earlier version of this step copied into the private
- * `course-images` bucket (`*_path`) are moved into the library from there, without asking Kajabi again; the bucket
- * and those columns go once every course has been through this. Pages use the library image when there is one and the
- * Kajabi URL until the copy has run. Needs a service-role client.
+ * library image removed once nothing shows it. Pages use the library image when there is one and the Kajabi URL until
+ * the copy has run. Needs a service-role client.
  */
 
-/** The old private bucket (see above); its objects are moved into the library, then removed. */
-export const COURSE_IMAGES_BUCKET = "course-images";
 /** A bigger image than this is reported, not copied. */
 export const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
 const CONCURRENCY = 5;
 const SEARCH_PAGE = 200;
 
 const TABLES = {
-  course: { table: "courses", urlColumn: "thumbnail_url", pathColumn: "thumbnail_path", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source", folder: "" },
-  hero: { table: "courses", urlColumn: "hero_url", pathColumn: "hero_path", assetColumn: "hero_asset_id", sourceColumn: "hero_source", folder: "" },
-  module: { table: "course_modules", urlColumn: "poster_url", pathColumn: "poster_path", assetColumn: "poster_asset_id", sourceColumn: "poster_source", folder: "modules" },
-  lesson: { table: "course_lessons", urlColumn: "thumbnail_url", pathColumn: "thumbnail_path", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source", folder: "lessons" },
+  course: { table: "courses", urlColumn: "thumbnail_url", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source" },
+  hero: { table: "courses", urlColumn: "hero_url", assetColumn: "hero_asset_id", sourceColumn: "hero_source" },
+  module: { table: "course_modules", urlColumn: "poster_url", assetColumn: "poster_asset_id", sourceColumn: "poster_source" },
+  lesson: { table: "course_lessons", urlColumn: "thumbnail_url", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source" },
 } as const;
 
 export type { CourseImageKind };
@@ -50,8 +46,6 @@ function withoutQuery(url: string): string {
 export interface CopyImagesResult {
   /** Fetched from Kajabi into the library. */
   copied: number;
-  /** Moved into the library from the old private bucket, without asking Kajabi. */
-  moved: number;
   alreadyCopied: number;
   removed: number;
   failed: { kind: CourseImageKind; id: string; error: string }[];
@@ -62,7 +56,6 @@ interface Item {
   id: string;
   title: string;
   url: string | null;
-  path: string | null;
   asset: string | null;
   source: string | null;
 }
@@ -74,23 +67,22 @@ async function releaseUnused(media: MediaRepository, assetId: string | null): Pr
 }
 
 export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId: string, download: typeof fetch = fetch): Promise<CopyImagesResult> {
-  const result: CopyImagesResult = { copied: 0, moved: 0, alreadyCopied: 0, removed: 0, failed: [] };
+  const result: CopyImagesResult = { copied: 0, alreadyCopied: 0, removed: 0, failed: [] };
   const { data: course, error } = await supabase.from("courses").select("id, slug").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!course) return result; // not published yet: nothing to attach images to
   const courseId: string = course.id;
   const tags = ["kajabi", course.slug as string];
   const media = createRepos(supabase).media;
-  const legacy = supabase.storage.from(COURSE_IMAGES_BUCKET);
 
   const items: Item[] = [];
   for (const kind of ["course", "hero", "module", "lesson"] as const) {
     const t = TABLES[kind];
-    const rows = await fetchAll(supabase, t.table, `id, title, ${t.urlColumn}, ${t.pathColumn}, ${t.assetColumn}, ${t.sourceColumn}`, (q) =>
+    const rows = await fetchAll(supabase, t.table, `id, title, ${t.urlColumn}, ${t.assetColumn}, ${t.sourceColumn}`, (q) =>
       (kind === "course" || kind === "hero" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id")
     );
     for (const r of rows) {
-      items.push({ kind, id: r.id, title: r.title ?? "Course image", url: r[t.urlColumn] ?? null, path: r[t.pathColumn] ?? null, asset: r[t.assetColumn] ?? null, source: r[t.sourceColumn] ?? null });
+      items.push({ kind, id: r.id, title: r.title ?? "Course image", url: r[t.urlColumn] ?? null, asset: r[t.assetColumn] ?? null, source: r[t.sourceColumn] ?? null });
     }
   }
 
@@ -101,16 +93,10 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
       const { error: updateError } = await supabase.from(t.table).update(patch).eq("id", item.id);
       if (updateError) throw new Error(updateError.message);
     };
-    const store = async (bytes: Buffer, source: string) => {
-      const stored = await storeImage(media, supabase.storage, { bytes, title: item.title, tags, source: "kajabi", sourceKey: source });
-      if (!stored.ok) throw new Error(stored.error);
-      return stored.asset;
-    };
     try {
       if (!url) {
-        if (!item.path && !item.asset) return;
-        await save({ [t.pathColumn]: null, [t.assetColumn]: null, [t.sourceColumn]: null });
-        if (item.path) await legacy.remove([item.path]);
+        if (!item.asset) return;
+        await save({ [t.assetColumn]: null, [t.sourceColumn]: null });
         await releaseUnused(media, item.asset);
         result.removed++;
         return;
@@ -123,15 +109,6 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
 
       // The library may already hold this link's image (a lesson and its module can share one): no fetch.
       let asset = await media.bySource("kajabi", source);
-      let moved = false;
-      if (!asset && item.path && item.source === source) {
-        // Our own earlier copy of exactly this image: move it over, no round trip to Kajabi.
-        const old = await legacy.download(item.path);
-        if (!old.error && old.data) {
-          asset = await store(Buffer.from(await old.data.arrayBuffer()), source);
-          moved = true;
-        }
-      }
       if (!asset) {
         const response = await download(url);
         if (!response.ok) throw new Error(`source answered ${response.status}`);
@@ -139,45 +116,19 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
         if (!SOURCE_TYPES.has(contentType)) throw new Error(`not an image we can store (${contentType || "no content type"})`);
         const body = Buffer.from(await response.arrayBuffer());
         if (body.byteLength > MAX_COURSE_IMAGE_BYTES) throw new Error(`larger than ${MAX_COURSE_IMAGE_BYTES / (1024 * 1024)} MB`);
-        asset = await store(body, source);
+        const stored = await storeImage(media, supabase.storage, { bytes: body, title: item.title, tags, source: "kajabi", sourceKey: source });
+        if (!stored.ok) throw new Error(stored.error);
+        asset = stored.asset;
       }
 
-      await save({ [t.assetColumn]: asset.id, [t.sourceColumn]: source, [t.pathColumn]: null });
-      if (item.path) await legacy.remove([item.path]); // the old copy: it is in the library now
+      await save({ [t.assetColumn]: asset.id, [t.sourceColumn]: source });
       if (item.asset && item.asset !== asset.id) await releaseUnused(media, item.asset); // the source image changed
-      if (moved) result.moved++;
-      else result.copied++;
+      result.copied++;
     } catch (e: any) {
       result.failed.push({ kind: item.kind, id: item.id, error: e?.message ?? "copy failed" });
     }
   };
   for (let i = 0; i < items.length; i += CONCURRENCY) await Promise.all(items.slice(i, i + CONCURRENCY).map(handle));
-
-  // Leftovers in the old bucket: objects whose lesson or module is gone (or whose path was replaced).
-  const referenced = new Set<string>();
-  for (const kind of ["course", "hero", "module", "lesson"] as const) {
-    const t = TABLES[kind];
-    const rows = await fetchAll(supabase, t.table, `id, ${t.pathColumn}`, (q) => (kind === "course" || kind === "hero" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id"));
-    for (const r of rows) if (r[t.pathColumn]) referenced.add(r[t.pathColumn]);
-  }
-  for (const folder of ["", "modules", "lessons"]) {
-    const prefix = folder ? `${courseId}/${folder}` : courseId;
-    const orphans: string[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data, error: listError } = await legacy.list(prefix, { limit: 1000, offset });
-      if (listError) throw new Error(`course-images list failed: ${listError.message}`);
-      for (const object of data ?? []) {
-        if (object.id === null) continue; // a folder
-        const path = `${prefix}/${object.name}`;
-        if (!referenced.has(path)) orphans.push(path);
-      }
-      if (!data || data.length < 1000) break;
-    }
-    if (orphans.length > 0) {
-      await legacy.remove(orphans);
-      result.removed += orphans.length;
-    }
-  }
 
   // Leftovers in the library: this course's Kajabi images that no course, module or lesson shows any more.
   // (Collected first, then removed: removing while paging would shift the pages.)

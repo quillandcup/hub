@@ -41,8 +41,7 @@ export default function CourseFilesPanel({ slug, plan }: { slug: string | null; 
       if (data.needsNewLink.length > 0) parts.push(`${data.needsNewLink.length} need a new link`);
       if (data.failed.length > 0) parts.push(`${data.failed.length} failed: ${data.failed[0].error}`);
       const images = data.images;
-      // copied: fetched from Kajabi; moved: an earlier copy in the old bucket, moved into the media library.
-      const imageParts = images ? [["copied", images.copied], ["moved", images.moved], ["removed", images.removed]].filter(([, n]) => n > 0).map(([what, n]) => `${what} ${n}`) : [];
+      const imageParts = images ? [["copied", images.copied], ["removed", images.removed]].filter(([, n]) => n > 0).map(([what, n]) => `${what} ${n}`) : [];
       if (imageParts.length > 0) parts.push(`images: ${imageParts.join(", ")}`);
       if (images?.failed.length > 0) parts.push(`${images.failed.length} images failed: ${images.failed[0].error}`);
       setMessage({ ok: data.failed.length === 0 && !(images?.failed.length > 0), text: parts.join(", ") + "." });

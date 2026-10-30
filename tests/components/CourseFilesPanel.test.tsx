@@ -102,21 +102,10 @@ describe("CourseFilesPanel", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("says how many images were moved into the media library from the old bucket, and leaves out what is zero", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, moved: 12, removed: 0, alreadyCopied: 3, failed: [] } }),
-    });
-    render(<CourseFilesPanel slug="c" plan={plan([])} />);
-    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
-
-    expect(await screen.findByRole("status")).toHaveTextContent("Copied 0, images: moved 12.");
-  });
-
   it("says nothing about images when there was nothing to do", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, moved: 0, removed: 0, alreadyCopied: 40, failed: [] } }),
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, removed: 0, alreadyCopied: 40, failed: [] } }),
     });
     render(<CourseFilesPanel slug="c" plan={plan([])} />);
     await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
