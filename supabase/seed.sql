@@ -3,8 +3,6 @@
 -- =====================================================
 
 -- Clear existing data (in reverse dependency order)
--- Note: TRUNCATE members CASCADE will also wipe prickle_types (because of default_host_id FK)
--- We'll re-seed prickle_types after the truncates
 TRUNCATE prickle_popularity CASCADE;
 TRUNCATE member_engagement CASCADE;
 TRUNCATE member_metrics CASCADE;
@@ -24,16 +22,19 @@ TRUNCATE bronze.slack_messages CASCADE;
 TRUNCATE bronze.slack_reactions CASCADE;
 TRUNCATE bronze.slack_channels CASCADE;
 TRUNCATE bronze.slack_users CASCADE;
--- events.image_id -> media_assets -> members (the owner): a cascading truncate of members would follow that
--- chain into events and then badge_types (event_id), and empty the badge definitions the migrations create.
--- So the key is dropped around the truncate and put back after it (nothing in the seed uses an event image).
--- A new table that points at events through something that points at members needs the same.
-ALTER TABLE public.events DROP CONSTRAINT events_image_id_fkey;
-TRUNCATE members CASCADE;
-ALTER TABLE public.events ADD CONSTRAINT events_image_id_fkey FOREIGN KEY (image_id) REFERENCES public.media_assets(id) ON DELETE RESTRICT;
+-- DELETE, not TRUNCATE ... CASCADE (as for the calendar above). A cascading truncate follows every foreign key
+-- whatever its ON DELETE rule, so it reaches tables the app never deletes along with a member: members ->
+-- media_assets (owner) -> events (image) -> badge_types (event) emptied the badge definitions the migrations
+-- create. A delete follows the rules: what a member owns goes with them (attendees, badges, their media), what
+-- only mentions them (a prickle type's default host) just forgets them. These two tables have a key to
+-- members that blocks a delete, so they go first (both are empty on a fresh database).
+DELETE FROM feedback;
+DELETE FROM ambiguous_zoom_names;
+DELETE FROM members;
 
--- Re-seed prickle_types (wiped by TRUNCATE members CASCADE)
--- Note: migrations normally handle this, but seed.sql wipes it.
+-- prickle_types keep their rows from the migrations now (default_host_id is ON DELETE SET NULL), so this
+-- only adds what is missing.
+-- Note: migrations normally handle this; the seed makes sure.
 -- purpose/solo_task_friendly must be kept in sync with the best-guess mapping
 -- in 20260827000001_add_purpose_to_prickle_types.sql -- this INSERT bypasses
 -- that migration's column defaults, so it needs its own explicit values.
