@@ -86,6 +86,36 @@ describe("ambiguous Zoom names page", () => {
     expect(entries[0].candidates.map((c: { id: string }) => c.id).sort()).toEqual([SAM_ADA.id, SAM_FERN.id].sort());
   });
 
+  it("lists the sessions and the members most often there, leaving out the candidates", async () => {
+    withMembers([ADA, FERN, SAM_ADA, SAM_FERN]);
+    useFakeSupabase({
+      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
+      "bronze.zoom_attendees": {
+        data: [
+          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
+          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+          { name: ADA.name, email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
+          { name: ADA.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+          { name: FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+          { name: SAM_FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+        ],
+      },
+    });
+
+    await renderServerPage(AmbiguousNamesPage, {});
+
+    const [entry] = JSON.parse(screen.getByTestId("entries").textContent!);
+    expect(entry.sessions).toEqual([
+      { topic: "Evening Writing", joinTime: "2026-10-05T00:00:00Z" },
+      { topic: "Morning Writing", joinTime: "2026-10-01T00:00:00Z" },
+    ]);
+    // Ada was at both sessions, Fern at one; the Sam candidates are not listed as company.
+    expect(entry.companions).toEqual([
+      { id: ADA.id, name: ADA.name, displayName: null, sessions: 2 },
+      { id: FERN.id, name: FERN.name, displayName: "Penny", sessions: 1 },
+    ]);
+  });
+
   it("drops a stored name once an alias settles who it is", async () => {
     withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }]);
     useFakeSupabase({
