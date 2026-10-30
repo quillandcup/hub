@@ -6,7 +6,6 @@ import { useFakeClock } from "@/tests/helpers/fake-clock";
 
 const NOW = Date.parse("2026-11-15T12:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
-const fake = useFakeClock(() => NOW);
 
 /** A bucket held in a Map, listing like Supabase Storage: a prefix's files and sub-folders, paged. */
 class FakeBucket {
@@ -72,6 +71,9 @@ beforeEach(() => {
   bucket = new FakeBucket();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
+
+describe("sweepMedia", () => {
+  const fake = useFakeClock(() => NOW);
 
 describe("sweepMedia: unconfirmed uploads", () => {
   it("removes uploads older than a day and leaves newer ones, other folders and sub-folders alone", async () => {
@@ -172,4 +174,5 @@ describe("sweepMedia: deleted images", () => {
     bucket.onRemove = null;
     expect(await sweepMedia(media, storage())).toMatchObject({ assetsCleared: 1 });
   });
+});
 });

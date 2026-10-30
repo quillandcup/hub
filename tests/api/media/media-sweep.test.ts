@@ -19,7 +19,6 @@ const db = getTestSupabaseAdminClient();
 const RUN = Date.now();
 const admin = { authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "content-type": "application/json" };
 const DAY = 24 * 60 * 60 * 1000;
-const clock = useFakeClock();
 const assetIds: string[] = [];
 const eventIds: string[] = [];
 let n = 0;
@@ -50,6 +49,8 @@ afterAll(async () => {
 });
 
 describe("GET /api/reconcile/media", () => {
+  const clock = useFakeClock();
+
   it("needs the cron secret or an admin", async () => {
     expect((await apiFetch("/api/reconcile/media")).status).toBe(401);
   });
