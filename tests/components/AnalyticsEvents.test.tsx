@@ -43,6 +43,14 @@ describe("AnalyticsEvents", () => {
     expect(events.map((e) => e.properties.route)).toEqual(["/dashboard", "/my-prickles"]);
   });
 
+  it("records nothing for a member who left usage statistics, even where consent isn't required or was given", async () => {
+    render(<AnalyticsEvents needsConsent={false} optedOut />);
+    expect(await sent()).toEqual([]);
+    localStorage.setItem(CONSENT_STORAGE_KEY, "granted");
+    render(<AnalyticsEvents needsConsent={true} optedOut />);
+    expect(await sent()).toEqual([]);
+  });
+
   it("records nothing where consent is required and hasn't been given", async () => {
     render(<AnalyticsEvents needsConsent={true} />);
     document.body.innerHTML = `<button>Go</button>`;

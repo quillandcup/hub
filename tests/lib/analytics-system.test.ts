@@ -5,9 +5,13 @@ import { parseBatch } from "@/lib/analytics/receive";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 
-function client(error: { message: string } | null = null) {
+/** `optedOut`: the user ids whose profile says they left usage statistics. */
+function client(error: { message: string } | null = null, optedOut: string[] = []) {
   const insert = vi.fn().mockResolvedValue({ error });
-  return { insert, supabase: { from: vi.fn().mockReturnValue({ insert }) } };
+  const profiles = {
+    select: () => ({ in: (_column: string, ids: string[]) => ({ not: async () => ({ data: optedOut.filter((id) => ids.includes(id)).map((id) => ({ id })), error: null }) }) }),
+  };
+  return { insert, supabase: { from: vi.fn((table: string) => (table === "user_profiles" ? profiles : { insert })) } };
 }
 
 beforeEach(() => vi.spyOn(console, "error").mockImplementation(() => {}));
@@ -33,6 +37,20 @@ describe("recordSystemEvents", () => {
       sudo: false,
     });
     expect(rows[0].message_id).not.toBe(rows[1].message_id);
+  });
+
+  it("skips members who left usage statistics and records the rest", async () => {
+    const OTHER = "22222222-2222-4222-8222-222222222222";
+    const { insert, supabase } = client(null, [USER]);
+    await recordSystemEvents(supabase, [
+      { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
+      { userId: OTHER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
+    ]);
+    expect(insert.mock.calls[0][0].map((row: { user_id: string }) => row.user_id)).toEqual([OTHER]);
+
+    const everyone = client(null, [USER]);
+    await recordSystemEvents(everyone.supabase, [{ userId: USER, event: "notification_sent", properties: { kind: "k", channel: "email" } }]);
+    expect(everyone.insert).not.toHaveBeenCalled();
   });
 
   it("writes nothing for an empty list", async () => {

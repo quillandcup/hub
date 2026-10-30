@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { parseBatch } from "@/lib/analytics/receive";
+import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { userAgentForStorage } from "@/lib/device-label";
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Auth check timed out" }, { status: 503 });
   }
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // "Leave me out of statistics" (lib/analytics/opt-out.ts): a stale tab may still be sending, so nothing is stored.
+  if (await isAnalyticsOptedOut(user.id)) return NextResponse.json({ stored: 0, rejected: [], optedOut: true });
 
   const body = await request.json().catch(() => undefined);
   if (body === undefined) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });

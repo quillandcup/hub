@@ -5359,6 +5359,7 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          analytics_opt_out_at: string | null
           created_at: string | null
           email: string
           id: string
@@ -5368,6 +5369,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          analytics_opt_out_at?: string | null
           created_at?: string | null
           email: string
           id: string
@@ -5377,6 +5379,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          analytics_opt_out_at?: string | null
           created_at?: string | null
           email?: string
           id?: string

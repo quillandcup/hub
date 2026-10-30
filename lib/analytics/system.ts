@@ -1,4 +1,5 @@
 import { SERVER_ONLY_EVENTS, validateProperties, type EventName, type EventProps } from "@/lib/analytics/events";
+import { optedOutUserIds } from "@/lib/analytics/opt-out";
 
 /** What the app records on its own, outside any visit. */
 export type SystemEventName = Extract<EventName, "notification_sent">;
@@ -18,7 +19,10 @@ export interface SystemEvent<N extends SystemEventName = SystemEventName> {
 export async function recordSystemEvents(supabase: any, events: SystemEvent[]): Promise<void> {
   try {
     const now = new Date().toISOString();
+    // Members who chose "leave me out of statistics" (lib/analytics/opt-out.ts) get no row.
+    const optedOut = await optedOutUserIds(supabase, [...new Set(events.map((e) => e.userId))]);
     const rows = events.flatMap((e) => {
+      if (optedOut.has(e.userId)) return [];
       if (!SERVER_ONLY_EVENTS.has(e.event)) return [];
       const valid = validateProperties(e.event, e.properties);
       if (!valid.ok) return [];
