@@ -72,6 +72,14 @@ describe("POST /api/prickle-types/resolve", () => {
     expect(statuses()).toEqual([["u1", "resolved", SPRINT.id], ["u2", "pending", null]]);
   });
 
+  it("links the prickle to its calendar event and takes the title and description from it, so it can be edited", async () => {
+    dataset.calendarEvents = [{ ...calendarItem("c1", body.startTime, body.endTime, "<p>About it</p>"), summary: "Sprint: Deep Work" }];
+
+    await post(resolveOne, { ...body, mode: "existing", typeId: SPRINT.id });
+
+    expect(dataset.prickles[0]).toMatchObject({ calendarEventId: "c1", title: "Sprint: Deep Work", description: "About it" });
+  });
+
   it("still answers 200 when marking the event resolved fails, since the prickle was made", async () => {
     markingFails = true;
 
@@ -122,6 +130,7 @@ describe("POST /api/prickle-types/resolve-batch", () => {
       [SPRINT.id, ADA.id, "2097-03-10T15:00:00Z"],
     ]);
     expect(statuses()).toEqual([["u1", "resolved", SPRINT.id], ["u2", "resolved", SPRINT.id]]);
+    expect(dataset.prickles.map((p) => p.calendarEventId)).toEqual(["c1", "c2"]);
   });
 
   it("still answers 200 when marking the events resolved fails", async () => {

@@ -104,6 +104,9 @@ export type PrickleSearch = {
 export type NewCalendarPrickle = {
   typeId: string;
   hostId: string | null;
+  /** The calendar event it comes from; without it the prickle can't be edited and the next reprocess drops it. */
+  calendarEventId?: string | null;
+  title?: string | null;
   description?: string | null;
   startTime: string;
   endTime: string;
@@ -616,6 +619,8 @@ export class SupabasePrickleRepository implements PrickleRepository {
           batch.map((r) => ({
             type_id: r.typeId,
             host: r.hostId,
+            calendar_event_id: r.calendarEventId ?? null,
+            title: r.title ?? null,
             description: r.description ?? null,
             start_time: r.startTime,
             end_time: r.endTime,
@@ -945,11 +950,12 @@ export class InMemoryPrickleRepository implements PrickleRepository {
         id,
         typeId: r.typeId,
         hostId: r.hostId,
-        title: null,
+        title: r.title ?? null,
+        description: r.description ?? null,
         startTime: r.startTime,
         endTime: r.endTime,
         source: "calendar",
-        calendarEventId: null,
+        calendarEventId: r.calendarEventId ?? null,
       });
       return id;
     });
