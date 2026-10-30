@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -48,15 +49,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert into ignored list
-    const { error } = await supabase
-      .from("ignored_zoom_names")
-      .insert({
-        zoom_name: zoomName,
-        reason: reason || null,
-        ignored_by: user.id,
-      });
-
-    if (error) {
+    try {
+      await createRepos(supabase).zoom.ignoreName({ zoomName, reason: reason || null, ignoredBy: user.id });
+    } catch (error: any) {
       console.error("Error ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -115,12 +110,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const { error } = await supabase
-      .from("ignored_zoom_names")
-      .delete()
-      .eq("zoom_name", zoomName);
-
-    if (error) {
+    try {
+      await createRepos(supabase).zoom.unignoreName(zoomName);
+    } catch (error: any) {
       console.error("Error un-ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

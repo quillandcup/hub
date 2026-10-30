@@ -52,6 +52,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   slack_users: [],
   // The calendar review queue and admins' decisions (UnmatchedEventRepository): every query is moved.
   unmatched_calendar_events: [],
+  // Bronze Zoom attendance and the ignored Zoom names (ZoomRepository): every query is moved.
+  zoom_attendees: [],
+  zoom_meetings: [],
+  ignored_zoom_names: [],
   // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [

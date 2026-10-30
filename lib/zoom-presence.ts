@@ -151,16 +151,7 @@ const IMPORTED_HOSTS_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
  * "Secondary Zoom rooms").
  */
 export async function loadImportedHostIds(supabase: any, now: Date): Promise<Set<string>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .schema("bronze")
-      .from("zoom_meetings")
-      .select("id, host_id:data->>host_id")
-      .gte("start_time", new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString())
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return new Set(rows.map((r) => r.host_id).filter((h): h is string => !!h));
+  return createRepos(supabase).zoom.importedHostIds(new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString());
 }
 
 /**

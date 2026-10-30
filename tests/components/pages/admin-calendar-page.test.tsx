@@ -112,6 +112,12 @@ describe("admin calendar page unmatched events link", () => {
     expect(screen.getByTestId("week")).toBeTruthy();
   });
 
+  it("still renders when reading the latest Zoom meeting fails", async () => {
+    useFakeSupabase({ prickles: { data: [] }, "bronze.zoom_meetings": { data: null, error: { message: "boom" } } });
+    await renderWeek();
+    expect(screen.getByTestId("week")).toBeTruthy();
+  });
+
   it("shows no link when the queue is empty", async () => {
     useFakeSupabase({ prickles: { data: [] }, unmatched_calendar_events: { data: [], count: 0 } });
     await renderWeek();

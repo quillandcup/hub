@@ -122,10 +122,9 @@ describe('Attendance Processing Pagination', () => {
       const routePath = path.join(process.cwd(), 'app/api/process/attendance/route.ts')
       const content = await fs.readFile(routePath, 'utf-8')
 
-      // Pagination loop must exist for zoom_attendees
-      expect(content).toContain('while (hasMore)')
-      expect(content).toContain('.range(offset, offset + BATCH - 1)')
-      expect(content).toContain('from("zoom_attendees")')
+      // zoom_attendees are read through the repository, which pages past 1000 rows (tests/api/data/zoom-repository.test.ts)
+      expect(content).toContain('zoom.attendeesOverlapping(')
+      expect(content).not.toContain('from("zoom_attendees")')
 
       // Must NOT use an unpaginated single-shot query for zoom_attendees
       // (the old pattern was: const { data: zoomAttendees } = await supabase...select("*")...order("join_time"))

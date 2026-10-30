@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -60,8 +61,10 @@ describe("segments page", () => {
 describe("ambiguous Zoom names page", () => {
   const SAM_ADA = { id: "mbr_AAAAAAAAAAB4", name: "Sam Ada", email: "samada@example.test" };
   const SAM_FERN = { id: "mbr_AAAAAAAAAAB5", name: "Sam Fern", email: "samfern@example.test" };
-  const withMembers = (members: object[], nameAliases: object[] = [], prickles: object[] = []) => {
-    repos = createInMemoryRepos(new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never, prickles: prickles as never }));
+  const withMembers = (members: object[], nameAliases: object[] = [], prickles: object[] = [], attendees: object[] = []) => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never, prickles: prickles as never, zoomAttendees: attendees.map((a) => zoomAttendee(a as never)) })
+    );
   };
   const prickle = (id: string, title: string, source: string, start: string, end: string, zoomMeetingUuid: string | null = null) => ({
     id, typeId: null, hostId: null, title, startTime: start, endTime: end, source, calendarEventId: null, zoomMeetingUuid,
@@ -69,16 +72,13 @@ describe("ambiguous Zoom names page", () => {
 
   it("derives candidates, count and last seen from the data, not from the stored row", async () => {
     // Two members share the first name "Sam", so a bare "Sam" is ambiguous.
-    withMembers([ADA, SAM_ADA, SAM_FERN]);
+    withMembers([ADA, SAM_ADA, SAM_FERN], [], [], [
+      { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", meeting_uuid: "m1", meeting_id: "1" },
+      { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", meeting_uuid: "m2", meeting_id: "2" },
+      { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z", meeting_uuid: "m3", meeting_id: "3" },
+    ]);
     useFakeSupabase({
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null, occurrence_count: 4890, last_seen_at: "2026-08-30T00:00:00Z" }] },
-      "bronze.zoom_attendees": {
-        data: [
-          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", meeting_uuid: "m1", meeting_id: "1" },
-          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", meeting_uuid: "m2", meeting_id: "2" },
-          { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z", meeting_uuid: "m3", meeting_id: "3" },
-        ],
-      },
     });
 
     await renderServerPage(AmbiguousNamesPage, {});
@@ -90,22 +90,24 @@ describe("ambiguous Zoom names page", () => {
   });
 
   it("lists the sessions and the members most often there, leaving out the candidates", async () => {
-    withMembers([ADA, FERN, SAM_ADA, SAM_FERN], [], [
-      prickle("prkl_AAAAAAAAAAB1", "Monday Prickle", "calendar", "2026-10-04T23:00:00Z", "2026-10-05T01:00:00Z"), // the evening session
-      prickle("prkl_AAAAAAAAAAB2", "Thursday Prickle", "zoom", "2026-10-01T00:00:00Z", "2026-10-01T01:00:00Z", "m1"), // the morning one is a pop-up
-    ]);
+    withMembers(
+      [ADA, FERN, SAM_ADA, SAM_FERN],
+      [],
+      [
+        prickle("prkl_AAAAAAAAAAB1", "Monday Prickle", "calendar", "2026-10-04T23:00:00Z", "2026-10-05T01:00:00Z"), // the evening session
+        prickle("prkl_AAAAAAAAAAB2", "Thursday Prickle", "zoom", "2026-10-01T00:00:00Z", "2026-10-01T01:00:00Z", "m1"), // the morning one is a pop-up
+      ],
+      [
+        { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
+        { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+        { name: ADA.name, email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
+        { name: ADA.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+        { name: FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+        { name: SAM_FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
+      ]
+    );
     useFakeSupabase({
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-      "bronze.zoom_attendees": {
-        data: [
-          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
-          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
-          { name: ADA.name, email: null, join_time: "2026-10-01T00:00:00Z", topic: "Morning Writing", meeting_uuid: "m1", meeting_id: "1" },
-          { name: ADA.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
-          { name: FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
-          { name: SAM_FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
-        ],
-      },
     });
 
     await renderServerPage(AmbiguousNamesPage, {});
@@ -123,16 +125,13 @@ describe("ambiguous Zoom names page", () => {
   });
 
   it("counts and lists a session once when the person left and rejoined", async () => {
-    withMembers([ADA, SAM_ADA, SAM_FERN]);
+    withMembers([ADA, SAM_ADA, SAM_FERN], [], [], [
+      { name: "Sam", email: null, join_time: "2026-10-01T00:40:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
+      { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
+      { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Link", meeting_uuid: "m2", meeting_id: "2" },
+    ]);
     useFakeSupabase({
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-      "bronze.zoom_attendees": {
-        data: [
-          { name: "Sam", email: null, join_time: "2026-10-01T00:40:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
-          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
-          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Link", meeting_uuid: "m2", meeting_id: "2" },
-        ],
-      },
     });
 
     await renderServerPage(AmbiguousNamesPage, {});
@@ -143,10 +142,11 @@ describe("ambiguous Zoom names page", () => {
   });
 
   it("drops a stored name once an alias settles who it is", async () => {
-    withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }]);
+    withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }], [], [
+      { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
+    ]);
     useFakeSupabase({
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-      "bronze.zoom_attendees": { data: [{ name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" }] },
     });
 
     await renderServerPage(AmbiguousNamesPage, {});

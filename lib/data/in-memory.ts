@@ -9,6 +9,7 @@ import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { SlackUserSeed } from "./slack-users";
+import type { IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow } from "./zoom";
 import type { UnmatchedEvent } from "./unmatched-events";
 import type { ChatChannelMemberSeed, ChatChannelSeed, ChatGapFillSeed, ChatMessageContentSeed, ChatMessageSeed, ChatReactionSeed, ChatSlackAuthorSeed } from "./chat";
 import type { UserProfileSeed } from "./profiles";
@@ -84,6 +85,10 @@ export class InMemoryDataset {
   calendarEvents: CalendarSourceEvent[];
   /** The Bronze copy of the workspace's Slack users (`bronze.slack_users`). */
   slackUsers: SlackUserSeed[];
+  /** The Bronze copy of Zoom attendance (`bronze.zoom_attendees`, `bronze.zoom_meetings`) and the names ignored everywhere. */
+  zoomAttendees: ZoomAttendeeRow[];
+  zoomMeetings: ZoomMeetingRow[];
+  ignoredZoomNames: IgnoredZoomNameRow[];
   /** The calendar items queued for review and the decisions made on them (`unmatched_calendar_events`). */
   unmatchedEvents: UnmatchedEvent[];
   /** Programs, their cohorts and the members enrolled in them. */
@@ -112,7 +117,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
 
     > = {},
   ) {
@@ -140,6 +145,9 @@ export class InMemoryDataset {
     this.userProfiles = (init.userProfiles ?? []).map((row) => ({ ...row }));
     this.calendarEvents = (init.calendarEvents ?? []).map((row) => ({ ...row }));
     this.slackUsers = (init.slackUsers ?? []).map((row) => ({ ...row }));
+    this.zoomAttendees = (init.zoomAttendees ?? []).map((row) => ({ ...row }));
+    this.zoomMeetings = (init.zoomMeetings ?? []).map((row) => ({ ...row }));
+    this.ignoredZoomNames = (init.ignoredZoomNames ?? []).map((row) => ({ ...row }));
     this.unmatchedEvents = (init.unmatchedEvents ?? []).map((row) => ({ ...row }));
     this.programs = (init.programs ?? []).map((row) => ({ ...row }));
     this.programCohorts = (init.programCohorts ?? []).map((row) => ({ ...row }));

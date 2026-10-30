@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
+import type { ZoomAttendeeRef } from "@/lib/data/zoom";
 import Link from "next/link";
 import ProcessOrphanedButton from "./ProcessOrphanedButton";
 import ProcessOrphanedMeetingsButton from "./ProcessOrphanedMeetingsButton";
@@ -35,7 +36,7 @@ export default async function DataHygienePage() {
     matchedCalendarEvents,
     unmatchedCalendarEvents,
     hostCoverage,
-    { count: totalZoomAttendees },
+    totalZoomAttendees,
     totalMembers,
     totalAliases,
     { data: ambiguousNameRows },
@@ -58,7 +59,7 @@ export default async function DataHygienePage() {
     createRepos(supabase).unmatchedEvents.countPending().catch(() => 0), // a failed count shows as none, as before
     // Prickles with and without hosts, split by whether their type takes a host
     createRepos(supabase).prickles.hostCoverage("calendar"),
-    supabase.schema('bronze').from("zoom_attendees").select("*", { count: "exact", head: true }),
+    createRepos(supabase).zoom.attendeeCount().catch(() => 0), // a failed count shows as none, as before
     createRepos(supabase).members.count(),
     createRepos(supabase).aliases.nameAliasCount(),
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
@@ -184,26 +185,10 @@ export default async function DataHygienePage() {
     m => m.status === "active" && !slackMatchedMemberIds.has(m.id)
   ).length;
 
-  // Get all zoom_attendees with name/email for matching (paginated — table exceeds 1000 rows)
-  const allAttendeesForMatching: { meeting_uuid: string; name: string; email: string | null; join_time: string; leave_time: string }[] = [];
-  {
-    const BATCH = 1000;
-    let offset = 0, hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .schema('bronze').from("zoom_attendees")
-        .select("meeting_uuid, name, email, join_time, leave_time")
-        .not("meeting_uuid", "is", null)
-        .range(offset, offset + BATCH - 1);
-      if (batch && batch.length > 0) {
-        allAttendeesForMatching.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === BATCH;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  // Get all zoom_attendees with name/email for matching (the repository pages through them — the table exceeds 1000 rows)
+  const allAttendeesForMatching = (await createRepos(supabase).zoom.attendeesForMatching({ withMeetingOnly: true })) as Array<
+    ZoomAttendeeRef & { meeting_uuid: string } // withMeetingOnly leaves out the rows without one
+  >;
 
   // Group by meeting_uuid, but ONLY use MATCHED attendees to calculate time windows
   // This matches what the processing does (see route.ts line 358)
@@ -298,15 +283,15 @@ export default async function DataHygienePage() {
   // Unmatched Zoom Names count — reuses allAttendeesForMatching (already paginated
   // above), just also needs ignored names and staff to mirror
   // /admin/hygiene/unmatched-zoom exactly.
-  const [{ data: ignoredZoomNamesForCount }, { data: staffForZoomCount }] = await Promise.all([
-    supabase.from("ignored_zoom_names").select("zoom_name"),
+  const [ignoredZoomNamesForCount, { data: staffForZoomCount }] = await Promise.all([
+    createRepos(supabase).zoom.ignoredNames(),
     supabase.from("staff").select("name, email"),
   ]);
   const unmatchedZoomNamesCount = computeUnmatchedZoomNames(
     allAttendeesForMatching,
     membersForMatching,
     aliasesForMatching || [],
-    (ignoredZoomNamesForCount || []).map(r => r.zoom_name),
+    ignoredZoomNamesForCount,
     staffForZoomCount || [],
     await loadIgnoredAppearances(supabase)
   ).length;
