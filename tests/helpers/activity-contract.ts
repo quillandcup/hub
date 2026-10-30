@@ -103,6 +103,9 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
       expect((await ctx.repo().slackFeed(a, 10)).map((r) => r.title)).toEqual(["second", "first"]);
       expect((await ctx.repo().slackFeed(a, 1)).map((r) => r.title)).toEqual(["second"]);
 
+      await ctx.repo().record(slack(0, "2097-03-06T10:00:00Z", { type: "slack_reaction", data: { channel_name: "random" } }));
+      expect(await ctx.repo().slackSummary(a, "2097-03-02T00:00:00Z")).toEqual({ total: 3, messages: 2, reactions: 1, channels: 2, last30Days: 2 });
+
       expect(await ctx.repo().lastSlackWriteAt()).toEqual(expect.any(String));
       expect(await ctx.repo().introducedIn([a, b], "start-here")).toEqual(new Set([a]));
       expect(await ctx.repo().introducedIn([], "start-here")).toEqual(new Set());

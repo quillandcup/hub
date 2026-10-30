@@ -1,3 +1,4 @@
+import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import { attendedPrickleRow } from "@/lib/attendance-view";
 import { cache } from "react";
@@ -174,7 +175,12 @@ export default async function MemberDetailPage({
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
   // Fetch Slack activities
-  const slackActivities = await traced("member page: slack feed", () => createRepos(supabase).activities.slackFeed(id, 50), { memberId: id });
+  // The feed is only the latest page; the tab count and the summary cover all of it.
+  const thirtyDaysAgo = new Date(clock.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const [slackActivities, slackSummary] = await Promise.all([
+    traced("member page: slack feed", () => createRepos(supabase).activities.slackFeed(id, 50), { memberId: id }),
+    traced("member page: slack summary", () => createRepos(supabase).activities.slackSummary(id, thirtyDaysAgo), { memberId: id }),
+  ]);
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
   // activity, what staff did for or as them, changes to their record), Everything by default.
@@ -338,6 +344,7 @@ export default async function MemberDetailPage({
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
           activityFilters={activityFilters}
+          slackSummary={slackSummary}
           slackActivities={await withReactionEmoji(await withMentionNames(slackActivities || []))}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}

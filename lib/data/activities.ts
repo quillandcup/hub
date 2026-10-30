@@ -65,10 +65,32 @@ export interface ActivityRepository {
   engagementSince(memberId: string, sinceIso: string): Promise<EngagementRow[]>;
   /** A member's latest Slack activities, newest first. */
   slackFeed(memberId: string, limit: number): Promise<ActivityRow[]>;
+  /** Totals over ALL of a member's Slack activities (not just the feed's latest page); `last30Days` counts those since the given time (ISO). */
+  slackSummary(memberId: string, sinceIso: string): Promise<SlackSummary>;
   /** Which of these members have posted a top-level message in this Slack channel (by name). Chunked, paginated. */
   introducedIn(memberIds: string[], channelName: string): Promise<Set<string>>;
   /** Which of these related ids a source has already written. Chunked. */
   relatedIdsWritten(source: string, relatedIds: string[]): Promise<Set<string>>;
+}
+
+export interface SlackSummary {
+  total: number;
+  messages: number;
+  reactions: number;
+  channels: number;
+  last30Days: number;
+}
+
+type SlackSummaryRow = { activity_type: string; occurred_at: string; channel_name: string | null };
+
+function summarizeSlack(rows: SlackSummaryRow[], sinceIso: string): SlackSummary {
+  return {
+    total: rows.length,
+    messages: rows.filter((r) => r.activity_type === "slack_message" || r.activity_type === "slack_thread_reply").length,
+    reactions: rows.filter((r) => r.activity_type === "slack_reaction").length,
+    channels: new Set(rows.map((r) => r.channel_name).filter(Boolean)).size,
+    last30Days: rows.filter((r) => r.occurred_at >= sinceIso).length,
+  };
 }
 
 function toInsert(a: NewActivity): Insert<"member_activities"> {
@@ -169,6 +191,20 @@ export class SupabaseActivityRepository implements ActivityRepository {
       .limit(limit);
     if (error) throw new Error(error.message);
     return data ?? [];
+  }
+
+  async slackSummary(memberId: string, sinceIso: string) {
+    const rows = await fetchAllRows<SlackSummaryRow>(
+      (from, to) =>
+        this.db
+          .from("member_activities")
+          .select("activity_type, occurred_at, channel_name:data->>channel_name")
+          .eq("member_id", memberId)
+          .eq("source", "slack")
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<{ data: SlackSummaryRow[] | null; error: { message: string } | null }>
+    );
+    return summarizeSlack(rows, sinceIso);
   }
 
   async introducedIn(memberIds: string[], channelName: string) {
@@ -296,6 +332,15 @@ export class InMemoryActivityRepository implements ActivityRepository {
       .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : a.occurred_at > b.occurred_at ? -1 : a.id < b.id ? 1 : -1))
       .slice(0, limit)
       .map((a) => ({ ...a }));
+  }
+
+  async slackSummary(memberId: string, sinceIso: string) {
+    return summarizeSlack(
+      this.data.activities
+        .filter((a) => a.member_id === memberId && a.source === "slack")
+        .map((a) => ({ activity_type: a.activity_type, occurred_at: a.occurred_at, channel_name: (a.data as { channel_name?: string } | null)?.channel_name ?? null })),
+      sinceIso
+    );
   }
 
   async introducedIn(memberIds: string[], channelName: string) {

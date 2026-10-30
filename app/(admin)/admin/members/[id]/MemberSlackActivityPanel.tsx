@@ -323,18 +323,3 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
     </div>
   );
 }
-
-export function computeSlackSummary(slackActivities: any[]) {
-  return {
-    totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
-    totalReactions: slackActivities.filter(a => a.activity_type === 'slack_reaction').length,
-    channels: [...new Set(slackActivities.map(a => a.data?.channel_name).filter(Boolean))].length,
-    last30Days: slackActivities.filter(a => {
-      const occurred = new Date(a.occurred_at);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return occurred >= thirtyDaysAgo;
-    }).length,
-    lastActivity: slackActivities.length > 0 ? new Date(slackActivities[0].occurred_at) : null,
-  };
-}
