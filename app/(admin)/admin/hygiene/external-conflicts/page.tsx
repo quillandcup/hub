@@ -18,19 +18,7 @@ export default async function ExternalConflictsPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const paginate = async <T,>(
-    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
-  ): Promise<T[]> => {
-    const rows: T[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await queryFn(offset, offset + 999);
-      if (data?.length) { rows.push(...data); offset += data.length; hasMore = data.length === 1000; }
-      else hasMore = false;
-    }
-    return rows;
-  };
+  const billing = createRepos(supabase).billing;
 
   const [
     emailAliases,
@@ -39,23 +27,17 @@ export default async function ExternalConflictsPage() {
     slackUsers,
     members,
     stripeActiveSubs,
-    kajabiActivePurchases,
+    activePurchaseCustomers,
     kajabiCustomers,
   ] = await Promise.all([
     createRepos(supabase).aliases.emailAliases(),
-    paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
-      .select("kajabi_contact_id, email, name").range(from, to)),
-    paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
-      .select("stripe_customer_id, email, name").range(from, to)),
+    billing.kajabiContacts(),
+    billing.stripeCustomers(),
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true, excludeBots: true }),
     createRepos(supabase).members.identities(),
-    supabase.schema("bronze").from("stripe_subscriptions")
-      .select("stripe_customer_id, status")
-      .in("status", ["active", "trialing", "past_due"]).then(r => r.data ?? []),
-    supabase.schema("bronze").from("kajabi_purchases")
-      .select("kajabi_customer_id").eq("status", "active").then(r => r.data ?? []),
-    paginate((from, to) => supabase.schema("bronze").from("kajabi_customers")
-      .select("kajabi_customer_id, email").range(from, to)),
+    billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"]),
+    billing.activeKajabiPurchaseCustomerIds(),
+    billing.kajabiCustomers(),
   ]);
 
   const aliasMap = buildAliasMap(emailAliases ?? []);
@@ -68,7 +50,6 @@ export default async function ExternalConflictsPage() {
     memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: shown === m.name ? shown : `${shown} (${m.name})` });
   }
 
-  const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
   const activeSubsByStripeCustomer = new Map<string, number>();
   for (const s of stripeActiveSubs ?? []) {
     activeSubsByStripeCustomer.set(s.stripe_customer_id, (activeSubsByStripeCustomer.get(s.stripe_customer_id) ?? 0) + 1);

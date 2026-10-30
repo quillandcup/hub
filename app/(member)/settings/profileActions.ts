@@ -119,12 +119,12 @@ async function loadKajabiProfileSnapshot(
   const aliases = await createRepos(service).aliases.activeEmailsFor(memberEmail);
   const emails = [memberEmail, ...aliases].map((e) => e.toLowerCase());
 
-  const [contactResult, customersResult] = await Promise.all([
-    service.schema("bronze").from("kajabi_contacts").select("data").eq("kajabi_contact_id", kajabiId).maybeSingle(),
-    service.schema("bronze").from("kajabi_customers").select("data, updated_at_kajabi").in("email", emails),
+  const billing = createRepos(service).billing;
+  const [contactData, customers] = await Promise.all([
+    billing.kajabiContactData(kajabiId),
+    billing.kajabiCustomerProfilesByEmail(emails),
   ]);
-  if (contactResult.error) throw contactResult.error;
-  if (customersResult.error) throw customersResult.error;
+  const contact = contactData as { attributes?: Record<string, string | null | undefined> } | null;
 
   type CustomerRow = {
     data: {
@@ -135,19 +135,19 @@ async function loadKajabiProfileSnapshot(
     } | null;
     updated_at_kajabi: string;
   };
-  const latestCustomer = ((customersResult.data ?? []) as CustomerRow[]).reduce<CustomerRow | null>(
+  const latestCustomer = (customers as CustomerRow[]).reduce<CustomerRow | null>(
     (latest, row) => (!latest || row.updated_at_kajabi > latest.updated_at_kajabi ? row : latest),
     null
   );
   const attrs = latestCustomer?.data?.attributes;
 
   return {
-    instagramHandle: nonBlank(contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]),
+    instagramHandle: nonBlank(contact?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]),
     socialsInstagram: nonBlank(attrs?.socials?.instagram),
     kajabiDetails: {
       bio: attrs?.public_bio || null,
       instagram_url: resolveInstagramUrl(
-        contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
+        contact?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
         attrs?.socials?.instagram
       ),
       facebook_url: toSocialUrl(FACEBOOK_BASE_URL, attrs?.socials?.facebook),

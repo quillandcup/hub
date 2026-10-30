@@ -187,9 +187,9 @@ describe("merge and fix page", () => {
           { id: "mbr_AAAAAAAAAAB2", name: "Wren H", email: "wren@example.test" },
           BEA,
         ],
+        stripeSubscriptions: [{ stripe_subscription_id: "sub_1", stripe_customer_id: "cus_1", status: "active" }],
       }),
     );
-    useFakeSupabase({ "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "cus_1" }] } });
 
     await renderServerPage(MergeFixPage, {});
 

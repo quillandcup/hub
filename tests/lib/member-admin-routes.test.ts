@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
-// Admin routes that look members up through their repository (in memory here); the bronze
-// tables they join to are faked.
+// Admin routes that look members up through their repository (in memory here); the Bronze
+// billing data they join to is in the same dataset.
 
 let dataset = new InMemoryDataset();
 let repos = createInMemoryRepos(dataset);
@@ -48,12 +49,10 @@ describe("GET /api/admin/members/external-status", () => {
   });
 
   it("reports each member's Kajabi, Stripe and Slack standing", async () => {
-    tables = {
-      member_email_aliases: { data: [] },
-      "bronze.kajabi_customers": { data: [{ kajabi_customer_id: "kc-1", email: ADA.email }] },
-      "bronze.kajabi_purchases": { data: [{ kajabi_customer_id: "kc-1" }] },
-      "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "cus_ada" }] },
-    };
+    tables = { member_email_aliases: { data: [] } };
+    dataset.kajabiCustomers = [{ kajabi_customer_id: "kc-1", email: ADA.email }];
+    dataset.kajabiPurchases = [{ kajabi_purchase_id: "p-1", kajabi_customer_id: "kc-1", status: "active" }];
+    dataset.stripeSubscriptions = [{ stripe_subscription_id: "sub_ada", stripe_customer_id: "cus_ada", status: "active" }];
     dataset.slackUsers = [{ user_id: "U_FERN", email: "fern@example.test", is_bot: false }];
 
     const { members } = await (await call(`${ADA.id},${FERN.id}`)).json();
@@ -73,23 +72,19 @@ describe("GET /api/analyze/kajabi-grants", () => {
   const call = () => kajabiGrants(new NextRequest("http://localhost/api/analyze/kajabi-grants"));
 
   it("lists membership purchases with no money behind them, with the member they belong to", async () => {
-    tables = {
-      "bronze.kajabi_offers": { data: [{ kajabi_offer_id: "off-1", name: "Quill & Cup Membership" }] },
-      "bronze.kajabi_purchases": {
-        data: [
-          { kajabi_purchase_id: "p-granted", kajabi_customer_id: "kc-ada", kajabi_offer_id: "off-1", amount_in_cents: 0, created_at_kajabi: "2026-09-01T00:00:00Z", data: { relationships: { transactions: { data: [] } } } },
-          { kajabi_purchase_id: "p-paid", kajabi_customer_id: "kc-fern", kajabi_offer_id: "off-1", amount_in_cents: 2500, created_at_kajabi: "2026-09-02T00:00:00Z", data: { relationships: { transactions: { data: [{ id: "t" }] } } } },
-          { kajabi_purchase_id: "p-unknown", kajabi_customer_id: "kc-nobody", kajabi_offer_id: "off-1", amount_in_cents: 0, created_at_kajabi: "2026-09-03T00:00:00Z", data: null },
-        ],
-      },
-      "bronze.kajabi_customers": { data: [{ kajabi_customer_id: "kc-ada", email: ADA.email }, { kajabi_customer_id: "kc-nobody", email: "nobody@example.test" }] },
-    };
+    dataset.kajabiOffers = [{ kajabi_offer_id: "off-1", name: MEMBERSHIP_PRODUCT_NAMES[0] }];
+    dataset.kajabiPurchases = [
+        { kajabi_purchase_id: "p-granted", kajabi_customer_id: "kc-ada", kajabi_offer_id: "off-1", amount_in_cents: 0, created_at_kajabi: "2026-09-01T00:00:00Z", data: { relationships: { transactions: { data: [] } } } },
+        { kajabi_purchase_id: "p-paid", kajabi_customer_id: "kc-fern", kajabi_offer_id: "off-1", amount_in_cents: 2500, created_at_kajabi: "2026-09-02T00:00:00Z", data: { relationships: { transactions: { data: [{ id: "t" }] } } } },
+        { kajabi_purchase_id: "p-unknown", kajabi_customer_id: "kc-nobody", kajabi_offer_id: "off-1", amount_in_cents: 0, created_at_kajabi: "2026-09-03T00:00:00Z", data: null },
+    ];
+    dataset.kajabiCustomers = [{ kajabi_customer_id: "kc-ada", email: ADA.email }, { kajabi_customer_id: "kc-nobody", email: "nobody@example.test" }];
 
     const { grants } = await (await call()).json();
 
     expect(grants.map((g: { kajabi_purchase_id: string }) => g.kajabi_purchase_id).sort()).toEqual(["p-granted", "p-unknown"]);
     expect(grants.find((g: { kajabi_purchase_id: string }) => g.kajabi_purchase_id === "p-granted")).toMatchObject({
-      offer_name: "Quill & Cup Membership",
+      offer_name: MEMBERSHIP_PRODUCT_NAMES[0],
       member_id: ADA.id,
       member_name: ADA.name,
       member_display_name: "Ada E",
@@ -103,7 +98,6 @@ describe("GET /api/analyze/kajabi-grants", () => {
     signedIn = false;
     expect((await call()).status).toBe(401);
     signedIn = true;
-    tables = { "bronze.kajabi_offers": { data: [] } };
     expect(await (await call()).json()).toEqual({ grants: [] });
   });
 });

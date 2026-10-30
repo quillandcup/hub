@@ -166,13 +166,9 @@ export default async function MemberDetailPage({
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
-  const { data: kajabiCustomers } = await supabase
-    .schema("bronze")
-    .from("kajabi_customers")
-    .select("kajabi_customer_id")
-    .in("email", allEmails);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(allEmails);
 
-  const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
+  const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
   // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=); the other tabs

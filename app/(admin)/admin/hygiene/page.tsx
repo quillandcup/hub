@@ -48,7 +48,7 @@ export default async function DataHygienePage() {
     { data: lastSlackMessageSync },
     { data: lastSlackReactionSync },
     lastSlackProcessing,
-    { data: lastKajabiSync },
+    lastKajabiSyncAt,
     lastKajabiProcessedAt,
     missingStripeCount,
     membersForDuplicates,
@@ -91,12 +91,7 @@ export default async function DataHygienePage() {
     // so created_at reflects the most recent process/slack run)
     createRepos(supabase).activities.lastSlackWriteAt(),
     // Last Kajabi sync (bronze import via Kajabi API)
-    supabase
-      .schema('bronze').from("kajabi_contacts")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).billing.lastKajabiContactImportAt().catch(() => null),
     // Last Kajabi processing (silver — reprocess_members_atomic unconditionally touches
     // updated_at for every kajabi-sourced member on each run)
     createRepos(supabase).members.lastKajabiProcessedAt(),
@@ -300,20 +295,6 @@ export default async function DataHygienePage() {
   // /admin/hygiene/external-conflicts, computed here just for the tile count
   // (only the grouping inputs are needed, not the enrichment queries that
   // page uses to annotate each entry).
-  const paginate = async <T,>(
-    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
-  ): Promise<T[]> => {
-    const rows: T[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await queryFn(offset, offset + 999);
-      if (data?.length) { rows.push(...data); offset += data.length; hasMore = data.length === 1000; }
-      else hasMore = false;
-    }
-    return rows;
-  };
-
   const [
     emailAliasesForConflicts,
     kajabiContactsForConflicts,
@@ -321,10 +302,8 @@ export default async function DataHygienePage() {
     slackUsersForConflicts,
   ] = await Promise.all([
     createRepos(supabase).aliases.emailAliases(),
-    paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
-      .select("kajabi_contact_id, email, name").range(from, to)),
-    paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
-      .select("stripe_customer_id, email, name").range(from, to)),
+    createRepos(supabase).billing.kajabiContacts(),
+    createRepos(supabase).billing.stripeCustomers(),
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true, excludeBots: true }),
   ]);
 
@@ -629,8 +608,8 @@ export default async function DataHygienePage() {
               <div className="flex justify-between items-center">
                 <span className="text-slate-600 dark:text-slate-400">Last Kajabi sync:</span>
                 <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {lastKajabiSync?.imported_at
-                    ? new Date(lastKajabiSync.imported_at).toLocaleString()
+                  {lastKajabiSyncAt
+                    ? new Date(lastKajabiSyncAt).toLocaleString()
                     : "Never"}
                 </span>
               </div>

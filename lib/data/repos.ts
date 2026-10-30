@@ -22,6 +22,7 @@ import { InMemoryProgramRepository, SupabaseProgramRepository, type ProgramRepos
 import { InMemoryZoomRepository, SupabaseZoomRepository, type ZoomRepository } from "./zoom";
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
+import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -51,6 +52,7 @@ export interface Repos {
   programs: ProgramRepository;
   chat: ChatRepository;
   kajabiCourses: KajabiCourseRepository;
+  billing: BillingRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -78,6 +80,7 @@ export function createRepos(db: Db): Repos {
     programs: new SupabaseProgramRepository(db),
     chat: new SupabaseChatRepository(db),
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
+    billing: new SupabaseBillingRepository(db),
   };
 }
 
@@ -106,5 +109,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     programs: new InMemoryProgramRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),
+    billing: new InMemoryBillingRepository(dataset),
   };
 }

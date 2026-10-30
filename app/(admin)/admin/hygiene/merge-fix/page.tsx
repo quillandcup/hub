@@ -48,14 +48,11 @@ export default async function MergeFixPage() {
       .filter((id): id is string => !!id)
   ));
 
-  const { data: activeSubs } = stripeIdsInGroups.length > 0
-    ? await supabase.schema("bronze").from("stripe_subscriptions")
-        .select("stripe_customer_id")
-        .in("stripe_customer_id", stripeIdsInGroups)
-        .in("status", ["active", "trialing", "past_due"])
-    : { data: [] as { stripe_customer_id: string }[] };
+  const activeSubs = stripeIdsInGroups.length > 0
+    ? await createRepos(supabase).billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"], stripeIdsInGroups)
+    : [];
 
-  const activeStripeCustomers = new Set((activeSubs ?? []).map(s => s.stripe_customer_id));
+  const activeStripeCustomers = new Set(activeSubs.map(s => s.stripe_customer_id));
 
   const enrichedGroups: EnrichedGroup[] = duplicateGroups.map(group => ({
     reason: group.reason,

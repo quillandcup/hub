@@ -83,6 +83,21 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_course_offers: [],
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
+  // --- Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data. Reads are
+  // moved; the imports' writes follow (each slice removes its files from the lists below). ---
+  kajabi_contacts: [
+    "app/api/admin/members/[id]/route.ts",
+    "app/api/import/kajabi/route.ts",
+    "lib/kajabi/contact-refresh.ts",
+  ],
+  kajabi_customers: ["app/api/import/kajabi/route.ts"],
+  kajabi_purchases: ["app/api/import/kajabi/route.ts"],
+  kajabi_offers: ["app/api/import/kajabi/route.ts"],
+  kajabi_members: ["app/api/import/members/route.ts"],
+  stripe_customers: ["app/api/import/stripe/route.ts"],
+  stripe_products: ["app/api/import/stripe/route.ts"],
+  stripe_subscriptions: ["app/api/import/stripe/route.ts"],
+  subscription_history: ["app/api/import/subscriptions/route.ts"],
 };
 
 const root = path.resolve(__dirname, "../..");
