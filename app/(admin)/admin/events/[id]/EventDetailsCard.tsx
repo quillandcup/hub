@@ -7,7 +7,7 @@ import EventAudienceFields from "@/components/EventAudienceFields";
 import { audienceSummary, type EventAudience } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import PrickleDescription from "@/components/PrickleDescription";
-import MediaPicker from "@/components/media/MediaPicker";
+import MediaPicker, { type EventPhotos } from "@/components/media/MediaPicker";
 import { mediaSrc } from "@/lib/media/url";
 
 export interface EventData extends EventAudience {
@@ -60,6 +60,7 @@ export default function EventDetailsCard({
   removing,
   onRevert,
   reverting,
+  photos,
 }: {
   event: EventData;
   prickleId: string | null;
@@ -68,6 +69,8 @@ export default function EventDetailsCard({
   removing: boolean;
   onRevert: () => void;
   reverting: boolean;
+  /** The event's visible gallery photos, offered as cover choices. */
+  photos?: EventPhotos["photos"];
 }) {
   const [form, setForm] = useState<EventData | null>(null);
   const [saving, setSaving] = useState(false);
@@ -228,7 +231,7 @@ export default function EventDetailsCard({
             {(editing || event.image_id) && (
               <Field label="Cover image" wide>
                 {form ? (
-                  <MediaPicker value={form.image_id} onChange={(image_id) => set({ image_id })} surface="event_cover" disabled={saving} />
+                  <MediaPicker value={form.image_id} onChange={(image_id) => set({ image_id })} surface="event_cover" disabled={saving} eventPhotos={{ eventId: event.id, photos: photos ?? [] }} />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
                   <img src={mediaSrc(event.image_id as string, "event_card")} alt="The event's cover" className="w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />

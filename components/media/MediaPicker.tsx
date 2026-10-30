@@ -13,6 +13,14 @@ import { useMediaSearch } from "./useMediaSearch";
 type Surface = MediaSurface;
 
 
+/** The photos of the event being edited, offered as a third place to pick from. */
+export interface EventPhotos {
+  eventId: string;
+  photos: { id: string }[];
+}
+
+type PickSource = "library" | "upload" | "event_photo";
+
 const BUTTON = "px-3 py-1.5 rounded text-sm";
 const SECONDARY = `${BUTTON} bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 disabled:opacity-50`;
 const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded text-sm";
@@ -28,18 +36,20 @@ export default function MediaPicker({
   surface,
   preview = "event_card",
   disabled = false,
+  eventPhotos,
 }: {
   value: string | null;
   onChange: (assetId: string | null) => void;
   surface: Surface;
   preview?: PresetName;
   disabled?: boolean;
+  eventPhotos?: EventPhotos;
 }) {
   const [open, setOpen] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
 
-  function choose(id: string, from: "library" | "upload", searched: boolean) {
+  function choose(id: string, from: PickSource, searched: boolean) {
     track("media_picked", { surface, from, searched });
     onChange(id);
     setOpen(false);
@@ -89,21 +99,43 @@ export default function MediaPicker({
         )}
       </div>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Choose an image" maxWidth="2xl">
-        <PickerBody surface={surface} onPick={choose} />
+        <PickerBody surface={surface} onPick={choose} eventPhotos={eventPhotos} />
       </Modal>
       {adjusting && value && <MediaEditor assetId={value} onClose={() => setAdjusting(false)} onChanged={() => setVersion(String(Date.now()))} />}
     </div>
   );
 }
 
-function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string, from: "library" | "upload", searched: boolean) => void }) {
-  const [tab, setTab] = useState<"library" | "upload">("library");
+const TAB_LABELS = { library: "Library", upload: "Upload", photos: "Event photos" } as const;
+
+function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick: (id: string, from: PickSource, searched: boolean) => void; eventPhotos?: EventPhotos }) {
+  const [tab, setTab] = useState<keyof typeof TAB_LABELS>("library");
+  const [copying, setCopying] = useState(false);
+  const hasPhotos = !!eventPhotos && eventPhotos.photos.length > 0;
+  const tabs = (hasPhotos ? ["library", "upload", "photos"] : ["library", "upload"]) as (keyof typeof TAB_LABELS)[];
+
+  async function copyPhoto(photoId: string) {
+    if (!eventPhotos) return;
+    setCopying(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/media/from-event-photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: eventPhotos.eventId, photoId }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Couldn't use that photo");
+      onPick(body.asset.id, "event_photo", false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCopying(false);
+    }
+  }
+
   const { q, searched, setQ, assets, more, loading, error, setError, loadMore } = useMediaSearch();
 
   return (
     <div>
       <div role="tablist" className="flex gap-4 border-b border-slate-200 dark:border-slate-800 mb-4">
-        {(["library", "upload"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -112,7 +144,7 @@ function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string
             onClick={() => setTab(t)}
             className={`pb-2 text-sm -mb-px border-b-2 ${tab === t ? "border-plum-600 text-plum-700 dark:text-plum-300 font-medium" : "border-transparent text-slate-600 dark:text-slate-400"}`}
           >
-            {t === "library" ? "Library" : "Upload"}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -157,6 +189,21 @@ function PickerBody({ surface, onPick }: { surface: Surface; onPick: (id: string
               Show more
             </button>
           )}
+        </div>
+      ) : tab === "photos" && eventPhotos ? (
+        <div className="@container">
+          <p className="text-sm mb-3">Photos from this event. The one you pick is copied into the library; the gallery stays as it is.</p>
+          <ul className="grid grid-cols-2 @pair:grid-cols-3 gap-3">
+            {eventPhotos.photos.map((p) => (
+              <li key={p.id}>
+                <button type="button" data-track="media-picker-event-photo" disabled={copying} onClick={() => void copyPhoto(p.id)} className="block w-full group disabled:opacity-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- the event's private photo proxy */}
+                  <img src={`/api/events/${eventPhotos.eventId}/photos/${p.id}`} alt="An event photo" loading="lazy" className="w-full aspect-video object-cover rounded border border-gray-200 dark:border-slate-700 group-hover:ring-2 group-hover:ring-plum-500" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {copying && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Copying...</p>}
         </div>
       ) : (
         <MediaUploadForm surface={surface} onUploaded={(id) => onPick(id, "upload", false)} onError={setError} />

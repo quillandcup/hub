@@ -201,4 +201,48 @@ describe("MediaPicker", () => {
     await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
     expect(await screen.findByText(/Click the picture to say where the interesting part is/)).toBeInTheDocument();
   });
+
+  describe("with the event's photos", () => {
+    const photos = { eventId: "evt_AAAAAAAAAAA1", photos: [{ id: "photo-1" }, { id: "photo-2" }] };
+    const setupWithPhotos = (eventPhotos = photos) => {
+      const onChange = vi.fn();
+      render(<MediaPicker value={null} onChange={onChange} surface="event_cover" eventPhotos={eventPhotos} />);
+      return onChange;
+    };
+
+    it("offers an Event photos tab only when the event has photos", async () => {
+      setupWithPhotos({ eventId: photos.eventId, photos: [] });
+      await open();
+      expect(screen.queryByRole("tab", { name: "Event photos" })).not.toBeInTheDocument();
+      cleanup();
+      setupWithPhotos();
+      await open();
+      expect(screen.getByRole("tab", { name: "Event photos" })).toBeInTheDocument();
+    });
+
+    it("copies the chosen photo into the library and uses it", async () => {
+      respond = (url, init) => (url === "/api/media/from-event-photo" && init?.method === "POST" ? json({ asset: { id: "media_EEEEEEEEEEE5" } }, 201) : undefined);
+      const onChange = setupWithPhotos();
+      await open();
+      await userEvent.click(screen.getByRole("tab", { name: "Event photos" }));
+      const shown = screen.getAllByAltText("An event photo");
+      expect(shown[0]).toHaveAttribute("src", "/api/events/evt_AAAAAAAAAAA1/photos/photo-1");
+      await userEvent.click(shown[1]);
+
+      await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_EEEEEEEEEEE5"));
+      const post = calls.find((c) => c.url === "/api/media/from-event-photo")!;
+      expect(JSON.parse(post.init!.body as string)).toEqual({ eventId: "evt_AAAAAAAAAAA1", photoId: "photo-2" });
+      expect(track).toHaveBeenCalledWith("media_picked", { surface: "event_cover", from: "event_photo", searched: false });
+    });
+
+    it("shows why a photo couldn't be used and stays open", async () => {
+      respond = (url, init) => (url === "/api/media/from-event-photo" && init?.method === "POST" ? json({ error: "Couldn't read that photo" }, 502) : undefined);
+      const onChange = setupWithPhotos();
+      await open();
+      await userEvent.click(screen.getByRole("tab", { name: "Event photos" }));
+      await userEvent.click(screen.getAllByAltText("An event photo")[0]);
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't read that photo");
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
 });

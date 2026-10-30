@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(9);
+SELECT plan(11);
 
 -- How many policies on storage.objects name this bucket.
 CREATE FUNCTION pg_temp.policies_naming(bucket text) RETURNS int LANGUAGE sql AS $$
@@ -25,6 +25,13 @@ SELECT is((SELECT file_size_limit FROM storage.buckets WHERE id = 'slack-files')
 SELECT is((SELECT file_size_limit FROM storage.buckets WHERE id = 'feedback-screenshots'), 5242880::bigint, 'a feedback screenshot is limited to 5 MB');
 SELECT is((SELECT allowed_mime_types FROM storage.buckets WHERE id = 'feedback-screenshots'), ARRAY['image/png']::text[], 'and to a PNG');
 SELECT is(pg_temp.policies_naming('feedback-screenshots'), 2, 'feedback-screenshots keeps its two policies: a member uploads to their own folder; they and staff read');
+
+SELECT is((SELECT file_size_limit FROM storage.buckets WHERE id = 'event-photos'), 26214400::bigint, 'event-photos is limited to 25 MB a photo');
+SELECT lives_ok(
+  $$INSERT INTO public.media_assets (storage_path, mime_type, width, height, bytes, sha256, title, source, source_key)
+    VALUES ('originals/shared/x.png', 'image/png', 1, 1, 1, 'storage-buckets-test', 'x', 'event_photo', 'evt/photo')$$,
+  'a media asset can come from an event photo'
+);
 
 SELECT * FROM finish(true);
 ROLLBACK;

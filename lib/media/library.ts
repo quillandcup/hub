@@ -36,7 +36,7 @@ export async function storeImage(
     tags?: string[];
     isPublic?: boolean;
     /** Where it came from (an import's name and the key that identifies it there), for an image that isn't an upload. */
-    source?: "upload" | "kajabi" | "video_frame";
+    source?: "upload" | "kajabi" | "video_frame" | "event_photo";
     sourceKey?: string | null;
   }
 ): Promise<StoreResult> {
