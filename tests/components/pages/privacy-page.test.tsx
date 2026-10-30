@@ -184,7 +184,7 @@ describe("/privacy page", () => {
     expect(choices.getByText(/We keep a record of each notification we send you/)).toBeInTheDocument();
     // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
     expect(choices.getByText(/we also keep whether you\s+have read it, so they show the right things/)).toBeInTheDocument();
-    expect(choices.getByText(/does not depend on usage statistics, so it works whether they\s+are on or off/)).toBeInTheDocument();
+    expect(choices.getByText(/Turning usage statistics off does not stop the bell and banners\s+from keeping track of what you have read/)).toBeInTheDocument();
     expect(choices.getByText(/If usage statistics are on, we also note which notification a visit came from/)).toBeInTheDocument();
     expect(choices.getByText(/takes the tag off the address/)).toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
