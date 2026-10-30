@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
+import * as reposModule from "@/lib/data/repos"
+import { InMemoryDataset } from "@/lib/data/in-memory"
+import { createInMemoryRepos } from "@/lib/data/repos"
 import {
   PRIORITY,
   computeCalendarAdded,
+  fetchFarCalendarPrickles,
   rankUpcomingPrickles,
   type CalendarItemRow,
   type UpcomingPrickle,
@@ -81,5 +85,43 @@ describe("rankUpcomingPrickles with calendar-added prickles", () => {
     expect(ranked.map((r) => r.prickle.id)).toEqual(["committed", "added", "streak", "plain"])
     expect(ranked[1].priority).toBe(PRIORITY.calendar)
     expect(ranked[1].reasons[0]).toEqual({ kind: "calendar", tooltip: ["You added this one every week"] })
+  })
+})
+
+describe("fetchFarCalendarPrickles", () => {
+  const WINDOW_END = "2026-10-10T12:00:00Z"
+  const prickle = (id: string, startTime: string) => ({
+    id,
+    typeId: null,
+    hostId: null,
+    title: null,
+    startTime,
+    endTime: startTime,
+    source: "calendar",
+    calendarEventId: null,
+  })
+
+  it("returns hand-added prickles past the window only", async () => {
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        prickles: [
+          prickle("prkl_AAAAAAAAAAA1", "2026-12-04T23:00:00Z"),
+          prickle("prkl_AAAAAAAAAAA2", "2026-10-05T23:00:00Z"),
+          prickle("prkl_AAAAAAAAAAA3", "2026-12-05T23:00:00Z"),
+        ],
+      })
+    )
+    vi.spyOn(reposModule, "createRepos").mockReturnValue(repos)
+    const far = await fetchFarCalendarPrickles(
+      {} as never,
+      [onceItem("prkl_AAAAAAAAAAA1"), onceItem("prkl_AAAAAAAAAAA2"), weeklyItem],
+      WINDOW_END,
+      TZ
+    )
+    expect(far.map((p) => p.id)).toEqual(["prkl_AAAAAAAAAAA1"])
+  })
+
+  it("makes no query without hand-added prickles", async () => {
+    expect(await fetchFarCalendarPrickles({} as never, [weeklyItem], WINDOW_END, TZ)).toEqual([])
   })
 })
