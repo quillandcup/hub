@@ -205,13 +205,13 @@ describe("/privacy page", () => {
     expect(choices.queryByText(/whichever you/)).not.toBeInTheDocument();
   });
 
-  it("names Vercel and Google Analytics, describes the other services by kind, and says where error reports are held", async () => {
+  it("names Google Analytics, describes the other services by kind, and says where error reports are held", async () => {
     await renderServerPage(PrivacyPage, {});
     const services = section("services");
-    for (const kind of ["database and sign-in provider", "hosting\\s+provider, Vercel", "error-reporting provider", "video provider", "email provider", "Google Analytics", "Slack"]) {
+    for (const kind of ["database provider", "sign-in and auth\\s+provider", "hosting provider \\(which also counts visits and page speed\\)", "error-reporting provider", "video hosting provider", "email provider", "Google Analytics", "Slack"]) {
       expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
-    expect(services.getByText(/an error-reporting provider \(error reports, held in the EU\)/)).toBeInTheDocument();
+    expect(services.getByText(/our error-reporting provider \(held in the\s+EU\)/)).toBeInTheDocument();
     // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
     expect(section("choices").getByText(/that count is not part of the switch below/)).toBeInTheDocument();
     // Everything else stays generic.

@@ -310,9 +310,9 @@ export default async function PrivacyPage() {
 
       <Section id="services" title="Services that help us run the Hub">
         <p>
-          Your information passes through the services the Hub is built on: our database and sign-in provider, our hosting
-          provider, Vercel (which also counts visits and page speed), an error-reporting provider (error reports, held in the EU), a
-          video provider for course videos, our email provider, Google Analytics (only where you allow it), and Slack. We use
+          Your information passes through the services the Hub is built on: our database provider, our sign-in and auth
+          provider, our hosting provider (which also counts visits and page speed), our error-reporting provider (held in the
+          EU), our video hosting provider, our email provider, Google Analytics (only where you allow it), and Slack. We use
           them to run the Hub and not for anything else.
         </p>
       </Section>
