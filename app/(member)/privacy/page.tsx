@@ -215,8 +215,8 @@ export default async function PrivacyPage() {
         </Detail>
 
         <Detail title="Viewing the Hub as you">
-          To help with support, an admin can view the Hub as a member. In chat that is read-only and shows what you can
-          see with restricted channels and group DMs left out.
+          To help with support, an admin can view the Hub as a member. The chat is read-only and shows what you can see,
+          except restricted channels and group DMs.
         </Detail>
 
         <Detail title="Deleted messages and reactions">
