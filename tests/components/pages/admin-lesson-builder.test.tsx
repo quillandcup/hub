@@ -85,7 +85,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(within(form).getByText("Tracker_Sheet.pdf")).toBeInTheDocument();
     expect(within(form).getByText("2 KB")).toBeInTheDocument();
     expect(within(form).getByRole("radio", { name: "Published" })).toBeChecked();
-    expect(within(form).getByText(/Published in Kajabi. Members see it as coming soon. Inside “Module 2” \(Locked\)/)).toBeInTheDocument();
+    expect(within(form).getByText(/Members see it as coming soon. Inside “Module 2” \(Locked\)\./)).toBeInTheDocument();
   });
 
   it("plays the lesson's video in the builder with the members' player, poster from the lesson thumbnail and no watch tracking", async () => {
@@ -201,6 +201,9 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByRole("radio", { name: /Published/ })).toBeDisabled();
     expect(screen.getByText("(Publish “Module 1” first)")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Draft" })).toBeChecked();
+    // The radio already says Draft: the line under it only adds what members get.
+    expect(screen.getByText("Members don't see it.")).toBeInTheDocument();
+    expect(screen.queryByText(/Draft in Kajabi/)).not.toBeInTheDocument();
   });
 
   it("doesn't mark Published as blocked on a lesson that is already published under a draft module", async () => {
