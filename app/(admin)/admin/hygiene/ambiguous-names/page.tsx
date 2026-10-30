@@ -126,18 +126,15 @@ export default async function AmbiguousNamesPage() {
           .map((id) => membersById.get(id))
           .filter((m): m is { id: string; name: string; displayName: string | null; email: string } => !!m),
         sessions: g.occurrences
-          .sort((a, b) => (a.joinTime < b.joinTime ? 1 : -1))
-          .slice(0, SESSIONS_SHOWN)
           .map((o) => ({ topic: o.topic, joinTime: o.joinTime, meetingKey: o.meetingKey })),
         companions,
       };
-    })
-    .sort((a, b) => b.occurrenceCount - a.occurrenceCount);
+    });
 
   // Link each listed session to its prickle: a pop-up prickle carries the Zoom meeting's uuid, a
   // calendar prickle is the one running when the person joined. Ambiguous attendees have no
   // attendance, so the join time is all that ties the session to a prickle.
-  const shown = entriesWithMeetings.flatMap((e) => e.sessions);
+  const shown = entriesWithMeetings.flatMap((e) => e.sessions); // every session: the count below needs each one's prickle
   const popUps = await repos.prickles.byZoomMeetings([...new Set(shown.map((x) => x.meetingKey))]);
   const joinTimes = shown.map((x) => x.joinTime).sort();
   const calendar =
@@ -149,10 +146,19 @@ export default async function AmbiguousNamesPage() {
     const popUp = popUps.filter((p) => p.zoomMeetingUuid === session.meetingKey);
     return (popUp.find(during) ?? calendar.find(during) ?? popUp[0])?.id ?? null;
   };
-  const resolved = entriesWithMeetings.map((e) => ({
-    ...e,
-    sessions: e.sessions.map(({ meetingKey, ...session }) => ({ ...session, prickleId: prickleIdFor({ ...session, meetingKey }) })),
-  }));
+  // A prickle can span several Zoom sessions (the meeting restarted), so a session counts once per
+  // prickle when it has one, else once per Zoom session; the earliest join time stands for it.
+  const resolved = entriesWithMeetings.map((e) => {
+    const byPrickle = new Map<string, { topic: string | null; joinTime: string; prickleId: string | null }>();
+    for (const { meetingKey, ...session } of e.sessions) {
+      const prickleId = prickleIdFor({ ...session, meetingKey });
+      const key = prickleId ?? `zoom:${meetingKey}`;
+      const earlier = byPrickle.get(key);
+      if (!earlier || session.joinTime < earlier.joinTime) byPrickle.set(key, { ...session, prickleId });
+    }
+    const sessions = [...byPrickle.values()].sort((a, b) => (a.joinTime < b.joinTime ? 1 : -1));
+    return { ...e, occurrenceCount: sessions.length, sessions: sessions.slice(0, SESSIONS_SHOWN) };
+  });
   // The Zoom topic is often just the name of a shared meeting link ("OCTOBER Prickles & PUPs Link"),
   // so a linked session is named after its prickle instead.
   const prickleIds = [...new Set(resolved.flatMap((e) => e.sessions.map((x) => x.prickleId)).filter((id): id is string => !!id))];
@@ -160,7 +166,8 @@ export default async function AmbiguousNamesPage() {
   const entries = resolved.map((e) => ({
     ...e,
     sessions: e.sessions.map((x) => ({ ...x, prickleTitle: x.prickleId ? titles.get(x.prickleId) ?? null : null })),
-  }));
+  }))
+    .sort((a, b) => b.occurrenceCount - a.occurrenceCount);
 
   return (
     <div className="container mx-auto px-6 py-8">

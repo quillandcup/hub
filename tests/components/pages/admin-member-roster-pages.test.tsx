@@ -141,6 +141,29 @@ describe("ambiguous Zoom names page", () => {
     expect(entry.sessions.map((s: { joinTime: string }) => s.joinTime)).toEqual(["2026-10-05T00:00:00Z", "2026-10-01T00:00:00Z"]);
   });
 
+  it("counts a prickle once when its Zoom meeting restarted under a new uuid", async () => {
+    withMembers(
+      [ADA, SAM_ADA, SAM_FERN],
+      [],
+      [prickle("prkl_AAAAAAAAAAB1", "Goal Review", "calendar", "2026-10-28T23:00:00Z", "2026-10-29T01:00:00Z")],
+      [
+        { name: "Sam", email: null, join_time: "2026-10-28T23:05:00Z", topic: "Goal Review", meeting_uuid: "m1", meeting_id: "1" },
+        { name: "Sam", email: null, join_time: "2026-10-28T23:50:00Z", topic: "Goal Review", meeting_uuid: "m2", meeting_id: "1" },
+        { name: "Sam", email: null, join_time: "2026-10-30T23:05:00Z", topic: "Other", meeting_uuid: "m3", meeting_id: "3" },
+      ]
+    );
+    useFakeSupabase({ ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] } });
+
+    await renderServerPage(AmbiguousNamesPage, {});
+
+    const [entry] = JSON.parse(screen.getByTestId("entries").textContent!);
+    expect(entry.occurrenceCount).toBe(2);
+    expect(entry.sessions).toEqual([
+      expect.objectContaining({ topic: "Other", prickleId: null }),
+      expect.objectContaining({ joinTime: "2026-10-28T23:05:00Z", prickleId: "prkl_AAAAAAAAAAB1", prickleTitle: "Goal Review" }),
+    ]);
+  });
+
   it("drops a stored name once an alias settles who it is", async () => {
     withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }], [], [
       { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
