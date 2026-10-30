@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { uploadCover } from "../helpers/cover-upload";
 import "@testing-library/jest-dom/vitest";
 
 const track = vi.hoisted(() => vi.fn());
@@ -63,7 +64,7 @@ describe("BookCoverField", () => {
     render(<BookCoverField url="" asset={null} onUploaded={onUploaded} />);
     expect(screen.queryByAltText("Cover preview")).not.toBeInTheDocument();
 
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+    await uploadCover(file());
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith({ url: URL_, asset: ASSET }));
     expect(fetch).toHaveBeenCalledWith("/api/bookshelf/cover", expect.objectContaining({ method: "POST" }));
     expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "book_cover", ok: true, converted: false, duplicate: false, large: false });
@@ -72,7 +73,7 @@ describe("BookCoverField", () => {
   it("records a converted HEIC photo and a file the library already had", async () => {
     respond = () => new Response(JSON.stringify({ url: URL_, assetId: ASSET.id, width: 10, height: 10, convertedFrom: "heic", duplicate: true }), { status: 200 });
     render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+    await uploadCover(file());
     await waitFor(() => expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "book_cover", ok: true, converted: true, duplicate: true, large: false }));
   });
 
@@ -100,36 +101,37 @@ describe("BookCoverField", () => {
 
   it("refuses a file over the size a request can carry, without uploading", async () => {
     render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file(BOOK_COVER_MAX_BYTES + 1));
+    await uploadCover(file(BOOK_COVER_MAX_BYTES + 1));
     expect(await screen.findByRole("alert")).toHaveTextContent("under 4 MB");
-    expect(calls).toHaveLength(0);
+    expect(calls.filter((c) => c.init?.method === "POST")).toHaveLength(0);
   });
 
   it("shows why an upload failed", async () => {
     respond = () => new Response(JSON.stringify({ error: "Use a JPEG, PNG, WebP, GIF or AVIF image" }), { status: 400 });
     const onUploaded = vi.fn();
     render(<BookCoverField url="" asset={null} onUploaded={onUploaded} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+    await uploadCover(file());
     expect(await screen.findByRole("alert")).toHaveTextContent("Use a JPEG");
     expect(onUploaded).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "book_cover", ok: false, converted: false, duplicate: false, large: false });
   });
 
-  it("shows a generic message when the request itself fails, and the parent's reason when it can't take the cover", async () => {
-    respond = () => Promise.reject(new Error("offline"));
-    const { rerender } = render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+  it("shows a generic message when the request itself fails", async () => {
+    respond = () => Promise.reject(new TypeError("Failed to fetch"));
+    render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
+    await uploadCover(file());
     expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed, try again");
+  });
 
-    respond = () => new Response(JSON.stringify({ url: URL_, assetId: ASSET.id, width: 1, height: 1 }), { status: 200 });
-    rerender(<BookCoverField url="" asset={null} onUploaded={() => "Couldn't save the cover"} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+  it("shows the parent's reason when it can't take the cover", async () => {
+    render(<BookCoverField url="" asset={null} onUploaded={() => "Couldn't save the cover"} />);
+    await uploadCover(file());
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the cover");
   });
 
   it("opens the crop editor for the member's own cover once an upload is taken, with only the framing controls", async () => {
     render(<Harness />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+    await uploadCover(file());
     expect(await screen.findByText(/Click the picture to say where the interesting part is/)).toBeInTheDocument();
     expect(calls.some((c) => c.url === `/api/bookshelf/cover/${ASSET.id}`)).toBe(true);
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
@@ -140,7 +142,7 @@ describe("BookCoverField", () => {
 
   it("does not open the editor when the parent can't take the cover", async () => {
     render(<Harness onUploaded={() => "Couldn't save the cover"} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), file());
+    await uploadCover(file());
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the cover");
     expect(screen.queryByText(/Click the picture/)).not.toBeInTheDocument();
   });
@@ -164,7 +166,7 @@ describe("BookCoverField", () => {
     own = [{ id: "media_BBBBBBBBBBB2", title: "Earlier cover", updated_at: "2026-10-01T00:00:00Z", width: 1200, height: 1800 }];
     const onUploaded = vi.fn();
     render(<BookCoverField url="" asset={null} onUploaded={onUploaded} />);
-    await userEvent.click(screen.getByRole("button", { name: "My images" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose cover" }));
     await userEvent.click(await screen.findByAltText("Earlier cover"));
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith({ url: "/api/media/media_BBBBBBBBBBB2/book_cover_shelf", asset: { id: "media_BBBBBBBBBBB2", width: 1200, height: 1800 } }));
     expect(track).toHaveBeenCalledWith("media_picked", { surface: "book_cover", from: "library", searched: false });
@@ -172,7 +174,7 @@ describe("BookCoverField", () => {
 
   it("says when there are no earlier images, and searches by title", async () => {
     render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: "My images" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose cover" }));
     expect(await screen.findByText(/No images yet/)).toBeInTheDocument();
     await userEvent.type(screen.getByRole("searchbox"), "zzz");
     await waitFor(() => expect(calls.some((c) => c.url.includes("q=zzz"))).toBe(true));
@@ -183,7 +185,7 @@ describe("BookCoverField", () => {
     const original = globalThis.fetch;
     vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => (url.startsWith("/api/bookshelf/cover?") ? json({ error: "Not authenticated" }, 401) : original(url, init)));
     render(<BookCoverField url="" asset={null} onUploaded={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: "My images" }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose cover" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Not authenticated");
   });
 });

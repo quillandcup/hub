@@ -23,7 +23,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   onSave.mockReset().mockResolvedValue(null);
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ asset: { id: "media_AAAAAAAAAAA1" }, duplicate: false }) };
+    if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ asset: { id: "media_AAAAAAAAAAA1", width: 10, height: 10 }, duplicate: false }) };
     return { ok: true, json: async () => ({ assets: [] }) };
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -61,7 +61,7 @@ describe("choosing a cover image while editing an event", () => {
     await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "ronda.jpg", { type: "image/jpeg" }));
     await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
 
-    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1"));
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1", expect.objectContaining({ id: "media_AAAAAAAAAAA1" })));
     expect(outer).not.toHaveBeenCalled();
   });
 
@@ -82,7 +82,7 @@ describe("choosing a cover image while editing an event", () => {
     await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "ronda.jpg", { type: "image/jpeg" }));
     await userEvent.type(screen.getByLabelText("Tags"), "ronda-spain{Enter}");
 
-    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1"));
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1", expect.objectContaining({ id: "media_AAAAAAAAAAA1" })));
     expect(outer).not.toHaveBeenCalled();
     const posts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST");
     expect(posts).toHaveLength(1);

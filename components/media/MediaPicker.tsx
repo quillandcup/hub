@@ -21,6 +21,11 @@ export interface EventPhotos {
 
 type PickSource = "library" | "upload" | "event_photo";
 
+/** The picked image's size, when the chooser knows it (a member's own images and uploads always do). */
+export type PickedAsset = { id: string; width: number; height: number };
+
+const OWN_IMAGES = "/api/bookshelf/cover";
+
 const BUTTON = "px-3 py-1.5 rounded text-sm";
 const SECONDARY = `${BUTTON} bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 disabled:opacity-50`;
 const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded text-sm";
@@ -99,7 +104,7 @@ export default function MediaPicker({
         )}
       </div>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Choose an image" maxWidth="2xl">
-        <PickerBody surface={surface} onPick={choose} eventPhotos={eventPhotos} />
+        <MediaChooser surface={surface} onPick={choose} eventPhotos={eventPhotos} />
       </Modal>
       {adjusting && value && <MediaEditor assetId={value} onClose={() => setAdjusting(false)} onChanged={() => setVersion(String(Date.now()))} />}
     </div>
@@ -108,10 +113,25 @@ export default function MediaPicker({
 
 const TAB_LABELS = { library: "Library", upload: "Upload", photos: "Event photos" } as const;
 
-function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick: (id: string, from: PickSource, searched: boolean) => void; eventPhotos?: EventPhotos }) {
+/**
+ * The chooser itself: the library (search, pick) and an upload tab, plus the event's own photos when it has some. With
+ * `own` it is a member's chooser over just their own images, uploaded as book covers; the staff library and the
+ * event photos are not in it.
+ */
+export function MediaChooser({
+  surface,
+  onPick,
+  eventPhotos,
+  own = false,
+}: {
+  surface: Surface;
+  onPick: (id: string, from: PickSource, searched: boolean, asset?: PickedAsset) => void;
+  eventPhotos?: EventPhotos;
+  own?: boolean;
+}) {
   const [tab, setTab] = useState<keyof typeof TAB_LABELS>("library");
   const [copying, setCopying] = useState(false);
-  const hasPhotos = !!eventPhotos && eventPhotos.photos.length > 0;
+  const hasPhotos = !own && !!eventPhotos && eventPhotos.photos.length > 0;
   const tabs = (hasPhotos ? ["library", "upload", "photos"] : ["library", "upload"]) as (keyof typeof TAB_LABELS)[];
 
   async function copyPhoto(photoId: string) {
@@ -130,7 +150,7 @@ function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick
     }
   }
 
-  const { q, searched, setQ, assets, more, loading, error, setError, loadMore } = useMediaSearch();
+  const { q, searched, setQ, assets, more, loading, error, setError, loadMore } = useMediaSearch(own ? OWN_IMAGES : undefined);
 
   return (
     <div>
@@ -155,15 +175,15 @@ function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick
         <div>
           <input
             type="search"
-            aria-label="Search the library by title or tag"
-            placeholder="Search by title or tag"
+            aria-label={own ? "Search your images by title" : "Search the library by title or tag"}
+            placeholder={own ? "Search by title" : "Search by title or tag"}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className={`${INPUT} mb-3`}
           />
           {assets.length === 0 && !loading && !error ? (
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              {q ? "Nothing matches." : "No images yet."}{" "}
+              {q ? "Nothing matches." : own ? "No images yet. Upload a cover and it will be here next time." : "No images yet."}{" "}
               <button type="button" onClick={() => setTab("upload")} className="text-plum-600 dark:text-plum-400 hover:underline">
                 Upload one
               </button>
@@ -173,9 +193,9 @@ function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick
               <ul className="grid grid-cols-2 @pair:grid-cols-3 gap-3">
                 {assets.map((a) => (
                   <li key={a.id}>
-                    <button type="button" data-track="media-picker-choose" onClick={() => onPick(a.id, "library", searched)} className="block w-full text-left group">
+                    <button type="button" data-track="media-picker-choose" onClick={() => onPick(a.id, "library", searched, a.width !== undefined && a.height !== undefined ? { id: a.id, width: a.width, height: a.height } : undefined)} className="block w-full text-left group">
                       {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset */}
-                      <img src={mediaSrc(a.id, "thumb")} alt={a.alt_text ?? ""} loading="lazy" className="w-full aspect-square object-cover rounded border border-gray-200 dark:border-slate-700 group-hover:ring-2 group-hover:ring-plum-500" />
+                      <img src={mediaSrc(a.id, own ? "book_cover_shelf" : "thumb", own ? a.updated_at : undefined)} alt={a.alt_text ?? (own ? a.title : "")} loading="lazy" className={`w-full ${own ? "aspect-[290/430]" : "aspect-square"} object-cover rounded border border-gray-200 dark:border-slate-700 group-hover:ring-2 group-hover:ring-plum-500`} />
                       <span className="block mt-1 text-xs truncate">{a.title}</span>
                     </button>
                   </li>
@@ -206,7 +226,7 @@ function PickerBody({ surface, onPick, eventPhotos }: { surface: Surface; onPick
           {copying && <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Copying...</p>}
         </div>
       ) : (
-        <MediaUploadForm surface={surface} onUploaded={(id) => onPick(id, "upload", false)} onError={setError} />
+        <MediaUploadForm surface={surface} own={own} onUploaded={(id, asset) => onPick(id, "upload", false, asset)} onError={setError} />
       )}
     </div>
   );
