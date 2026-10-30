@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
@@ -8,8 +8,8 @@ import Wordmark from "@/components/Wordmark";
 import { useOpenMobileNav } from "@/components/MobileMenuButton";
 import { navGroups, type SitePage } from "@/lib/site-pages";
 import { navTrackName } from "@/lib/analytics/names";
-import { nextNavMode, resolveNavMode, type NavMode } from "@/lib/nav-mode";
-import { updateNavMode } from "@/app/(member)/settings/actions";
+import type { NavMode } from "@/lib/nav-mode";
+import { NavModeButton, useSidebarMode } from "@/components/useSidebarMode";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
@@ -34,7 +34,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
     pathname === page.href || [page.href, ...(page.nav?.activeFor ?? [])].some((prefix) => pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`));
 
   const linkClass = (active: boolean) =>
-    `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+    `flex items-center gap-2 pl-0 pr-3 py-2 rounded-lg transition-colors ${
       active
         ? "bg-plum-50 dark:bg-plum-900/20 text-plum-600 dark:text-plum-400 font-medium"
         : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -63,7 +63,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
                   className={linkClass(isActive(page))}
                   title={collapsed ? page.title : undefined}
                 >
-                  <span className="text-lg">{page.nav?.icon}</span>
+                  <span className="w-8 flex-shrink-0 text-center text-lg">{page.nav?.icon}</span>
                   {showLabels && <span className={`whitespace-nowrap ${labelFade}`}>{page.title}</span>}
                 </Link>
               ))}
@@ -91,57 +91,16 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
   );
 }
 
-// Chat has its own channel list beside the sidebar, so there the sidebar rests as an icon rail and opens over
-// the page while hovered or focused (the page keeps its width, nothing reflows). Open, it sits above the app
-// header (z-30), whose search box would otherwise cover the wordmark.
-const AUTO_HIDE_OPEN_DELAY_MS = 150;
-
-const NAV_MODE_LABELS: Record<NavMode, string> = { open: "Sidebar pinned open", auto: "Sidebar auto-hides", closed: "Sidebar pinned closed" };
-const NAV_MODE_GLYPHS: Record<NavMode, string> = { open: "«", auto: "»", closed: "→" };
-
 export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = null }: MemberNavigationProps) {
-  const [chosenMode, setChosenMode] = useState<NavMode | null>(navMode);
-  const [, startSave] = useTransition();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-
-  const [peeking, setPeeking] = useState(false);
-  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mode = resolveNavMode(chosenMode, pathname);
-  const autoHide = mode === "auto";
-  const collapsed = mode === "closed";
-  const railOpen = autoHide && peeking;
+  const { mode, autoHide, collapsed, railOpen, peekHandlers, cycleMode } = useSidebarMode(navMode);
 
   useOpenMobileNav(() => setMobileOpen(true));
-
-  const clearPeekTimer = () => {
-    if (peekTimer.current) clearTimeout(peekTimer.current);
-    peekTimer.current = null;
-  };
-  const startPeek = () => {
-    clearPeekTimer();
-    peekTimer.current = setTimeout(() => setPeeking(true), AUTO_HIDE_OPEN_DELAY_MS);
-  };
-  const stopPeek = () => {
-    clearPeekTimer();
-    setPeeking(false);
-  };
-  useEffect(() => clearPeekTimer, []);
-
-  const cycleMode = () => {
-    const next = nextNavMode(mode);
-    setChosenMode(next);
-    setPeeking(false);
-    startSave(async () => {
-      const result = await updateNavMode(next);
-      if (result.error) setChosenMode(navMode);
-    });
-  };
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
     setMobileOpen(false);
-    setPeeking(false);
   }, [pathname]);
 
   return (
@@ -193,10 +152,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = n
         } ${
           autoHide || collapsed ? "w-16" : "w-64"
         }`}
-        onMouseEnter={autoHide ? startPeek : undefined}
-        onMouseLeave={autoHide ? stopPeek : undefined}
-        onFocus={autoHide ? () => { clearPeekTimer(); setPeeking(true); } : undefined}
-        onBlur={autoHide ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) stopPeek(); } : undefined}
+        {...peekHandlers}
       >
       <aside
         aria-label="Sidebar navigation"
@@ -212,17 +168,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = n
               className={`text-lg whitespace-nowrap ${autoHide ? `transition-opacity duration-200 ${railOpen ? "opacity-100" : "opacity-0"}` : ""}`}
             />
           )}
-          {(!autoHide || railOpen) && (
-            <button
-              onClick={cycleMode}
-              data-track="nav-mode-toggle"
-              className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20 ${autoHide ? "text-plum-600" : ""}`}
-              aria-label={`${NAV_MODE_LABELS[mode]}. Switch to ${NAV_MODE_LABELS[nextNavMode(mode)].toLowerCase()}`}
-              title={NAV_MODE_LABELS[mode]}
-            >
-              {NAV_MODE_GLYPHS[mode]}
-            </button>
-          )}
+          <NavModeButton mode={mode} railOpen={railOpen} onCycle={cycleMode} />
         </div>
 
         <NavLinks
