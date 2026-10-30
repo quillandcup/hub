@@ -19,9 +19,9 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 const isAnalyticsOptedOut = vi.fn<(userId: string) => Promise<boolean>>();
 vi.mock("@/lib/analytics/opt-out", () => ({ isAnalyticsOptedOut: (id: string) => isAnalyticsOptedOut(id) }));
 
-vi.mock("@/app/(member)/privacy/actions", () => ({ setAnalyticsOptOut: vi.fn() }));
+vi.mock("@/app/privacy/actions", () => ({ setAnalyticsOptOut: vi.fn() }));
 
-import PrivacyPage, { PRIVACY_REVIEWED } from "@/app/(member)/privacy/page";
+import PrivacyPage, { PRIVACY_EFFECTIVE } from "@/app/privacy/page";
 
 /** The section with this id, as a Testing Library scope. */
 function section(id: string) {
@@ -37,9 +37,21 @@ describe("/privacy access", () => {
     isAnalyticsOptedOut.mockResolvedValue(false);
   });
 
-  it("redirects anonymous visitors to /login", async () => {
+  it("is public: an anonymous visitor reads the policy, with a sign-in link instead of the switch", async () => {
     signInAs(null);
-    await expectRedirect(PrivacyPage, {}, "/login");
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in to the Hub" })).toHaveAttribute("href", "/login");
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(section("choices").getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+    expect(isAnalyticsOptedOut).not.toHaveBeenCalled();
+  });
+
+  it("gives a signed-in member the switch and a way back to the Hub", async () => {
+    signInAs(MEMBER_USER, MEMBER_IDENTITY);
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("link", { name: "Back to the Hub" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("switch")).toBeInTheDocument();
   });
 
   it("is open to every signed-in member, with no feature flag", async () => {
@@ -57,12 +69,12 @@ describe("/privacy page", () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
   });
 
-  it("opens with a short summary, a review date and links to each part", async () => {
+  it("opens with a short summary, an effective date and links to each part", async () => {
     await renderServerPage(PrivacyPage, {});
     expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "The short version" })).toBeInTheDocument();
-    expect(document.querySelector("time")).toHaveAttribute("datetime", PRIVACY_REVIEWED);
-    expect(PRIVACY_REVIEWED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(document.querySelector("time")).toHaveAttribute("datetime", PRIVACY_EFFECTIVE);
+    expect(PRIVACY_EFFECTIVE).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const nav = within(screen.getByRole("navigation", { name: "On this page" }));
     for (const [label, id] of [
       ["What we collect", "collect"],
@@ -72,6 +84,9 @@ describe("/privacy page", () => {
       ["Cookies", "cookies"],
       ["Your choices", "choices"],
       ["Services we use", "services"],
+      ["Security and other sites", "security"],
+      ["Children", "children"],
+      ["Changes to this policy", "changes"],
     ] as const) {
       expect(nav.getByRole("link", { name: label })).toHaveAttribute("href", `#${id}`);
       expect(document.getElementById(id)).not.toBeNull();
@@ -81,7 +96,7 @@ describe("/privacy page", () => {
   it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
     await renderServerPage(PrivacyPage, {});
     const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
-    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "choices"]);
+    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "security", "children", "changes", "choices"]);
     const nav = [...screen.getByRole("navigation", { name: "On this page" }).querySelectorAll("a")].map((a) => a.getAttribute("href"));
     expect(nav).toEqual(ids.map((id) => `#${id}`));
   });
@@ -94,7 +109,7 @@ describe("/privacy page", () => {
     const keep = section("keep");
     expect(keep.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
     expect(keep.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
-    expect(keep.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
+    expect(keep.getByText(/Canceling your membership or subscription does not remove it: it stays until you ask us to close your account and remove it\. If you cancel and come back years later/)).toBeInTheDocument();
     // Course viewing is kept like the rest of what you do in the Hub, so it has no row of its own.
     expect(keep.getByText(/What you do in the Hub: .*course viewing, chat messages and activity/)).toBeInTheDocument();
     expect(keep.queryByText(/As described under Chat and messages/)).not.toBeInTheDocument();
@@ -247,6 +262,28 @@ describe("/privacy page", () => {
     // Everything else stays generic.
     const text = document.body.textContent ?? "";
     for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
+  });
+});
+
+describe("/privacy policy sections", () => {
+  beforeEach(async () => {
+    resetServerPageMocks();
+    isAnalyticsOptedOut.mockReset();
+    isAnalyticsOptedOut.mockResolvedValue(false);
+    signInAs(null);
+    await renderServerPage(PrivacyPage, {});
+  });
+
+  it("carries over security, other sites, children and changes from the former policy", () => {
+    expect(section("security").getByText(/can't guarantee it/)).toBeInTheDocument();
+    expect(section("security").getByText(/not responsible\s+for their privacy practices/)).toBeInTheDocument();
+    expect(section("children").getByText(/not meant for children under 13/)).toBeInTheDocument();
+    expect(section("children").getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
+    expect(section("changes").getByText(/update the effective date at the top, and the new version applies immediately/)).toBeInTheDocument();
+  });
+
+  it("lists membership, billing and session data", () => {
+    expect(section("collect").getByText("Membership, billing and sessions")).toBeInTheDocument();
   });
 });
 
