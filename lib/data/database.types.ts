@@ -5391,6 +5391,7 @@ export type Database = {
           created_at: string | null
           email: string
           id: string
+          nav_mode: string | null
           role: string
           secondary_timezone: string | null
           timezone_preference: string | null
@@ -5401,6 +5402,7 @@ export type Database = {
           created_at?: string | null
           email: string
           id: string
+          nav_mode?: string | null
           role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null
@@ -5411,6 +5413,7 @@ export type Database = {
           created_at?: string | null
           email?: string
           id?: string
+          nav_mode?: string | null
           role?: string
           secondary_timezone?: string | null
           timezone_preference?: string | null

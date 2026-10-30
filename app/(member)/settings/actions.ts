@@ -5,6 +5,7 @@ import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isValidTimeZone } from "@/lib/time-zone";
+import { isNavMode } from "@/lib/nav-mode";
 
 import { withAction } from "@/lib/analytics/server";
 export interface SessionRow {
@@ -159,9 +160,28 @@ async function updateSecondaryTimezoneImpl(timezone: string | null) {
   return { success: true };
 }
 
+/** Saves how the member's sidebar behaves: pinned open, pinned closed, or auto-hide. */
+async function updateNavModeImpl(mode: string) {
+  if (!isNavMode(mode)) return { error: "Choose a valid sidebar mode" };
+
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    await createRepos(await createClient()).profiles.setNavMode(user.id, mode);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your sidebar setting" };
+  }
+  return { success: true };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function updateTimezonePreference(...args: Parameters<typeof updateTimezonePreferenceImpl>): ReturnType<typeof updateTimezonePreferenceImpl> {
   return withAction("timezone_changed", () => updateTimezonePreferenceImpl(...args));
+}
+
+export async function updateNavMode(...args: Parameters<typeof updateNavModeImpl>): ReturnType<typeof updateNavModeImpl> {
+  return withAction("nav_mode_changed", () => updateNavModeImpl(...args));
 }
 
 export async function updateSecondaryTimezone(...args: Parameters<typeof updateSecondaryTimezoneImpl>): ReturnType<typeof updateSecondaryTimezoneImpl> {

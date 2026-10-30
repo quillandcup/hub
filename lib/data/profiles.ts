@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { NavMode } from "@/lib/nav-mode";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -39,6 +40,8 @@ export interface ProfileRepository {
   setRole(userId: string, role: string): Promise<void>;
   /** Saves the user's time zone preference ("browser" until one is detected). */
   setTimezonePreference(userId: string, timezone: string): Promise<void>;
+  /** Saves how the user's sidebar behaves (pinned open, pinned closed, auto-hide). */
+  setNavMode(userId: string, mode: NavMode): Promise<void>;
   /** Saves (or, with null, turns off) the user's secondary time zone. */
   setSecondaryTimezone(userId: string, timezone: string | null): Promise<void>;
   /** Whether the user chose "leave me out of statistics" on /privacy (lib/analytics/opt-out.ts). */
@@ -109,6 +112,11 @@ export class SupabaseProfileRepository implements ProfileRepository {
     if (error) throw new Error(error.message);
   }
 
+  async setNavMode(userId: string, mode: NavMode) {
+    const { error } = await this.db.from("user_profiles").update({ nav_mode: mode }).eq("id", userId);
+    if (error) throw new Error(error.message);
+  }
+
   async setSecondaryTimezone(userId: string, timezone: string | null) {
     const { error } = await this.db.from("user_profiles").update({ secondary_timezone: timezone }).eq("id", userId);
     if (error) throw new Error(error.message);
@@ -141,7 +149,7 @@ export class InMemoryProfileRepository implements ProfileRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
   private full(p: UserProfileSeed): UserProfile {
-    return { role: "member", created_at: null, updated_at: null, timezone_preference: null, secondary_timezone: null, analytics_opt_out_at: null, ...p };
+    return { role: "member", created_at: null, updated_at: null, timezone_preference: null, nav_mode: null, secondary_timezone: null, analytics_opt_out_at: null, ...p };
   }
 
   async byId(userId: string) {
@@ -180,6 +188,10 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
   async setTimezonePreference(userId: string, timezone: string) {
     for (const p of this.data.userProfiles) if (p.id === userId) p.timezone_preference = timezone;
+  }
+
+  async setNavMode(userId: string, mode: NavMode) {
+    for (const p of this.data.userProfiles) if (p.id === userId) p.nav_mode = mode;
   }
 
   async setSecondaryTimezone(userId: string, timezone: string | null) {
