@@ -23,6 +23,7 @@ let eventId: string;
 let assetId: string;
 let otherAssetId: string;
 const assets: string[] = [];
+const created: string[] = [];
 
 async function newAsset(n: number) {
   const form = new FormData();
@@ -43,7 +44,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.from("events").delete().eq("id", eventId);
+  await db.from("events").delete().in("id", [eventId, ...created]);
   const { data } = await db.from("media_assets").select("storage_path").in("id", assets);
   if (data?.length) await db.storage.from("media").remove(data.map((a) => a.storage_path));
   await db.from("media_assets").delete().in("id", assets);
@@ -67,6 +68,27 @@ describe("an event's cover image", () => {
     await patchEvent({ image_id: assetId });
     await patchEvent({ focus: "Writing" });
     expect((await db.from("events").select("image_id").eq("id", eventId).single()).data?.image_id).toBe(assetId);
+  });
+
+  it("can be chosen when the event is created, and a bad one is refused before anything is made", async () => {
+    const create = (extra: Record<string, unknown>) =>
+      apiFetch("/api/admin/events", { method: "POST", headers: admin, body: JSON.stringify({ slug: `made-${RUN}-${created.length}`, title: `Made ${RUN}`, event_type: "other", starts_at: "2097-07-01", ends_at: "2097-07-01", ...extra }) });
+    const made = await create({ image_id: otherAssetId });
+    expect(made.status).toBe(201);
+    const event = (await made.json()).event;
+    created.push(event.id);
+    expect(event.image_id).toBe(otherAssetId);
+
+    const plain = await create({});
+    created.push((await plain.json()).event.id);
+    expect((await db.from("events").select("image_id").eq("id", created[created.length - 1]).single()).data?.image_id).toBeNull();
+
+    const before = (await db.from("events").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count;
+    for (const bad of ["not-an-id", "media_AAAAAAAAAAAA"]) {
+      const refused = await create({ image_id: bad });
+      expect(refused.status).toBe(400);
+    }
+    expect((await db.from("events").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count).toBe(before);
   });
 
   it("is carried by the events list, ahead of any imported photo", async () => {

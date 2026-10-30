@@ -1,5 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { eventImageError } from "@/lib/media/event-image";
 import { NextRequest, NextResponse } from "next/server";
 import { parseEventAudience } from "@/lib/event-audience";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { slug, title, event_type, location, starts_at, ends_at, focus, description, agenda, results, google_photos_album_url } = body;
+    const { slug, title, event_type, location, starts_at, ends_at, focus, description, agenda, results, google_photos_album_url, image_id } = body;
 
     if (!slug || !title || !event_type || !starts_at || !ends_at) {
       return NextResponse.json(
@@ -42,8 +43,11 @@ export async function POST(request: NextRequest) {
     }
     const audience = parseEventAudience(body);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
+    const repos = createRepos(supabase);
+    const imageError = await eventImageError(repos.media, image_id);
+    if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
 
-    const event = await createRepos(supabase).events.create({
+    const event = await repos.events.create({
         ...audience.fields,
         slug,
         title,
@@ -56,6 +60,7 @@ export async function POST(request: NextRequest) {
         agenda: agenda || null,
         results: results || null,
         google_photos_album_url: google_photos_album_url || null,
+        image_id: image_id ?? null,
         created_by: user.id === "service-role" || user.id === "cron" ? null : user.id,
     });
 

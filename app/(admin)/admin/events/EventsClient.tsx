@@ -10,6 +10,7 @@ import { formatDateOnly } from "@/lib/formatters";
 import EventAudienceFields from "@/components/EventAudienceFields";
 import { DEFAULT_AUDIENCE } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
+import MediaPicker from "@/components/media/MediaPicker";
 
 interface EventRow {
   id: string;
@@ -46,6 +47,7 @@ const emptyForm = {
   agenda: "",
   results: "",
   google_photos_album_url: "",
+  image_id: null as string | null,
   ...DEFAULT_AUDIENCE,
 };
 
@@ -114,6 +116,7 @@ export default function EventsClient() {
           agenda: formData.agenda || null,
           results: formData.results || null,
           google_photos_album_url: formData.google_photos_album_url || null,
+          image_id: formData.image_id,
         }),
       });
       const data = await response.json();
@@ -214,6 +217,10 @@ export default function EventsClient() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
                 placeholder="https://photos.app.goo.gl/..."
               />
+            </div>
+            <div className="@pair:col-span-2">
+              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Cover image (optional)</label>
+              <MediaPicker value={formData.image_id} onChange={(image_id) => setFormData({ ...formData, image_id })} surface="event_cover" disabled={saving} />
             </div>
           </div>
           </div>
