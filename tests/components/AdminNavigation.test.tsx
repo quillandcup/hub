@@ -85,11 +85,14 @@ describe("AdminNavigation sidebar mode", () => {
     const atRest = rows();
     expect(folds().length).toBeGreaterThan(0);
     expect(folds().every((d) => !d.open)).toBe(true);
-    expect(folds()[0].querySelector("summary")).toHaveClass("opacity-0", "pointer-events-none");
+    // The name is hidden but the arrow isn't: it hints that the section is there.
+    expect(folds()[0].querySelector("summary")).toHaveClass("pointer-events-none");
+    expect(within(folds()[0].querySelector("summary") as HTMLElement).getByText("▸")).toBeVisible();
+    expect(folds()[0].querySelector("summary > span:last-child")).toHaveClass("opacity-0");
 
     fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
     expect(rows()).toBe(atRest);
     expect(folds().every((d) => !d.open)).toBe(true);
-    expect(folds()[0].querySelector("summary")).toHaveClass("opacity-100");
+    expect(folds()[0].querySelector("summary > span:last-child")).toHaveClass("opacity-100");
   });
 });
