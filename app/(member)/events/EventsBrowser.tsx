@@ -8,13 +8,12 @@ import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import EventArt from "@/components/EventArt";
 import { eventCoverUrl } from "@/lib/event-cover";
 import { EVENT_TYPE_LABELS, eventTier, type EventTier, type EventType } from "@/lib/events-filter";
-import { agendaWeeks, cleanEventTitle, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
+import { agendaWeeks, cleanEventTitle, eventDays, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
 import {
   AgendaWeeks,
   agendaItemOfEvent,
   agendaItemOfPrickle,
-  eventDays,
   fmtDateRange,
   type EventRow,
 } from "./AgendaList";

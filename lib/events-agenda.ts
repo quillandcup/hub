@@ -156,6 +156,21 @@ export function withoutFollowedEvents<T extends { calendarEventId: string | null
   return prickles.filter((p) => !p.calendarEventId || !followed.has(p.calendarEventId));
 }
 
+/**
+ * The days an event covers as the viewer reads them: from its instants when it has them, else its dates. Here, not in
+ * a client component's file, because the past events page (a server component) calls it.
+ */
+export function eventDays(
+  e: { starts_at: string; ends_at: string; start_time?: string | null; end_time?: string | null },
+  timeZone: string,
+): { startDate: string; endDate: string; timed: boolean } {
+  if (!e.start_time || !e.end_time) return { startDate: e.starts_at, endDate: e.ends_at, timed: false };
+  const start = Date.parse(e.start_time);
+  // An event that ends exactly at midnight ends the day before.
+  const lastMinute = new Date(Math.max(start, Date.parse(e.end_time) - 60_000)).toISOString();
+  return { startDate: dateIn(e.start_time, timeZone), endDate: dateIn(lastMinute, timeZone), timed: !isAllDay(e.start_time, e.end_time) };
+}
+
 /** The month a YYYY-MM-DD date is in. */
 export function monthOf(date: string): AgendaMonth {
   const [y, m] = date.split("-").map(Number);

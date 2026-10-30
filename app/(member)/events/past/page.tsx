@@ -9,9 +9,9 @@ import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString } from "@/lib/events-filter";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { eventDisplayName } from "@/lib/event-name";
-import { monthsBetween, parsePastMonth } from "@/lib/events-agenda";
+import { eventDays, monthsBetween, parsePastMonth } from "@/lib/events-agenda";
 import { fetchPastEventPrickles } from "@/lib/event-prickles";
-import { eventDays, type EventRow } from "../AgendaList";
+import type { EventRow } from "../AgendaList";
 import PastEventsBrowser from "./PastEventsBrowser";
 
 export const metadata: Metadata = {

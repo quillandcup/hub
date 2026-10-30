@@ -5,7 +5,7 @@ import Link from "next/link";
 import { locationDisplay } from "@/lib/location-display";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { eventDisplayName } from "@/lib/event-name";
-import { cleanEventTitle, dateIn, formatTimeSpan, isAllDay, type AgendaItem, type AgendaWeek } from "@/lib/events-agenda";
+import { cleanEventTitle, dateIn, eventDays, formatTimeSpan, type AgendaItem, type AgendaWeek } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
 
 export interface EventRow {
@@ -36,15 +36,6 @@ export function fmtDate(d: string, withWeekday = false) {
 
 export function fmtDateRange(start: string, end: string) {
   return start === end ? fmtDate(start, true) : `${fmtDate(start)} – ${fmtDate(end)}`;
-}
-
-/** The days an event covers as the viewer reads them: from its instants when it has them, else its dates. */
-export function eventDays(e: EventRow, timeZone: string): { startDate: string; endDate: string; timed: boolean } {
-  if (!e.start_time || !e.end_time) return { startDate: e.starts_at, endDate: e.ends_at, timed: false };
-  const start = Date.parse(e.start_time);
-  // An event that ends exactly at midnight ends the day before.
-  const lastMinute = new Date(Math.max(start, Date.parse(e.end_time) - 60_000)).toISOString();
-  return { startDate: dateIn(e.start_time, timeZone), endDate: dateIn(lastMinute, timeZone), timed: !isAllDay(e.start_time, e.end_time) };
 }
 
 export function agendaItemOfEvent(e: EventRow, timeZone: string): AgendaItem {

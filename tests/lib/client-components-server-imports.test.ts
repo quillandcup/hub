@@ -37,4 +37,33 @@ describe("client components", () => {
     const found = [...text.matchAll(/^import\s+(?!type\b)[^;]*?\sfrom\s+["']([^"']+)["']/gm)].map((m) => m[1]);
     expect(found).toEqual(["@/lib/event-prickles"]);
   });
+
+  /**
+   * The other direction: a server file (page, layout, route, lib) that imports a *function* from a "use client" file
+   * gets a client reference instead, and calling it on the server fails with React error #441, shown to the person
+   * as "a client-side exception". Components (PascalCase) and types are what a client file is for; a helper
+   * belongs in a plain module next to it. This is how the past events page broke a second time.
+   */
+  it("are not called from server files: only components and types are imported from them", () => {
+    const isClientFile = (file: string) => /^\s*["']use client["']/.test(fs.readFileSync(path.join(ROOT, file), "utf8"));
+    const resolve = (from: string, spec: string): string | null => {
+      const base = spec.startsWith("@/") ? spec.slice(2) : spec.startsWith(".") ? path.join(path.dirname(from), spec) : null;
+      if (!base) return null;
+      return [".tsx", ".ts", "/index.tsx", "/index.ts"].map((ext) => base + ext).find((f) => fs.existsSync(path.join(ROOT, f))) ?? null;
+    };
+    const offenders: string[] = [];
+    for (const file of [...sources("app"), ...sources("lib"), ...sources("components")]) {
+      const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+      if (isClientFile(file)) continue;
+      for (const [, names, spec] of text.matchAll(/^import\s+(?!type\b)[^{;]*\{([^}]*)\}\s*from\s+["']([^"']+)["']/gm)) {
+        const target = resolve(file, spec);
+        if (!target || !isClientFile(target)) continue;
+        for (const name of names.split(",").map((n) => n.trim()).filter((n) => n && !n.startsWith("type "))) {
+          const local = name.split(/\s+as\s+/)[0];
+          if (/^[a-z]/.test(local)) offenders.push(`${file} imports the function ${local} from the client file ${target}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });

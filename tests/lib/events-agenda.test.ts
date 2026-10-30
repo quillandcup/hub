@@ -3,6 +3,7 @@ import {
   agendaMonths,
   agendaWeeks,
   cleanEventTitle,
+  eventDays,
   formatTimeSpan,
   isAllDay,
   monthOf,
@@ -154,5 +155,24 @@ describe('pastAgendaWeeks', () => {
     const month = monthOf('2025-03-15')
     const weeks = pastAgendaWeeks([item('early', '2025-02-27', '2025-03-02'), item('in', '2025-03-10'), item('across', '2025-03-30', '2025-04-02'), item('later', '2025-04-05')], month)
     expect(weeks.flatMap((w) => w.days.flatMap((d) => d.items.map((i) => i.key)))).toEqual(['in', 'across'])
+  })
+})
+
+describe('eventDays', () => {
+  const dated = { starts_at: '2026-10-09', ends_at: '2026-10-10' }
+
+  it('reads an event with no times as the dates it has, untimed', () => {
+    expect(eventDays(dated, 'America/New_York')).toEqual({ startDate: '2026-10-09', endDate: '2026-10-10', timed: false })
+  })
+
+  it('reads the days from the instants in the viewer\'s zone, timed when it is not all day', () => {
+    const e = { ...dated, start_time: '2026-10-10T02:00:00Z', end_time: '2026-10-10T03:00:00Z' } // 10pm-11pm on the 9th in New York
+    expect(eventDays(e, 'America/New_York')).toEqual({ startDate: '2026-10-09', endDate: '2026-10-09', timed: true })
+    expect(eventDays(e, 'UTC')).toEqual({ startDate: '2026-10-10', endDate: '2026-10-10', timed: true })
+  })
+
+  it('ends an event that stops exactly at midnight on the day before, and calls midnight to midnight all day', () => {
+    const e = { ...dated, start_time: '2026-10-09T04:00:00Z', end_time: '2026-10-10T04:00:00Z' } // midnight to midnight in New York
+    expect(eventDays(e, 'America/New_York')).toEqual({ startDate: '2026-10-09', endDate: '2026-10-09', timed: false })
   })
 })
