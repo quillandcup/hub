@@ -1,11 +1,11 @@
--- pgTAP tests for member_slack_summary (20270307100000): totals over all of one member's Slack
+-- pgTAP tests for member_slack_summary (20270307100000) and member_slack_channels (20270307200000): totals over all of one member's Slack
 -- activities, scoped by RLS (an admin counts any member's, a member only their own).
 -- Runs in one transaction that is rolled back. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(4);
+SELECT plan(6);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000f5a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'slack-sum-admin@example.test'),
@@ -49,6 +49,19 @@ SELECT results_eq(
   $$SELECT total FROM public.member_slack_summary('mbr_SlkSumAAAA1', now() - interval '30 days')$$,
   $$VALUES (0::bigint)$$,
   'a member does not count another member''s (RLS)'
+);
+
+SELECT is_empty(
+  $$SELECT * FROM public.member_slack_channels('mbr_SlkSumAAAA1')$$,
+  'member_slack_channels: a member does not see another member''s channels (RLS)'
+);
+
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000f5a1", "role": "authenticated"}', true);
+
+SELECT results_eq(
+  $$SELECT channel_name, n FROM public.member_slack_channels('mbr_SlkSumAAAA1')$$,
+  $$VALUES ('writing'::text, 2::bigint), ('random'::text, 1::bigint)$$,
+  'member_slack_channels: an admin gets the channels busiest first, Slack source only'
 );
 
 SELECT * FROM finish(true);

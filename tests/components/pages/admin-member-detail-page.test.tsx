@@ -27,17 +27,17 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => create
 
 vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   default: ({
-    slackActivities,
+    slackPage,
     activityFeed,
     emailAliases,
   }: {
     emailAliases: { alias_email: string }[];
-    slackActivities: { id: string; description: string | null }[];
+    slackPage: { rows: { id: string; description: string | null }[] };
     activityFeed: { total: number; page: number } | null;
   }) => (
     <>
       <ul aria-label="slack activity">
-        {slackActivities.map((a) => (
+        {slackPage.rows.map((a) => (
           <li key={a.id}>{a.description}</li>
         ))}
       </ul>

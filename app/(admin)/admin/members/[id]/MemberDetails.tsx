@@ -12,7 +12,7 @@ import { parseDateOnly } from "@/lib/member-tenure";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
 import type { SlackSummary } from "@/lib/data/activities";
-import MemberSlackActivityPanel from "./MemberSlackActivityPanel";
+import MemberSlackActivityPanel, { type SlackPageData } from "./MemberSlackActivityPanel";
 import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
@@ -35,7 +35,8 @@ interface MemberDetailsProps {
   member: MemberView;
   attendanceRecords: any[];
   hiatusHistory: any[];
-  slackActivities: any[];
+  /** One page of the member's Slack activity (empty off the Slack tab). */
+  slackPage: SlackPageData;
   /** Totals over all of the member's Slack activity; slackActivities is only the latest page. */
   slackSummary: SlackSummary;
   /** One page of this member's activity log (lib/activity-feed.ts). */
@@ -71,7 +72,7 @@ export default function MemberDetails({
   member,
   attendanceRecords,
   hiatusHistory,
-  slackActivities,
+  slackPage,
   slackSummary,
   activityFeed,
   activityFilters,
@@ -287,7 +288,7 @@ export default function MemberDetails({
             )}
           </div>
         )}
-      {activeTab === "slack" && <MemberSlackActivityPanel slackActivities={slackActivities} />}
+      {activeTab === "slack" && <MemberSlackActivityPanel slackPage={slackPage} slackSummary={slackSummary} />}
     </div>
   );
 }

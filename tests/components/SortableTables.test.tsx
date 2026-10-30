@@ -20,7 +20,6 @@ vi.mock('next/navigation', () => ({
 import WorkQueueSections from '@/app/(admin)/admin/work-queue/WorkQueueSections'
 import AllPricklesTable from '@/app/(member)/my-prickles/AllPricklesTable'
 import AttendanceListTable from '@/components/AttendanceListTable'
-import MemberSlackActivityPanel from '@/app/(admin)/admin/members/[id]/MemberSlackActivityPanel'
 import UnmatchedEventsTable from '@/app/(admin)/admin/data/prickle-types/UnmatchedEventsTable'
 import MissingStripeTable from '@/app/(admin)/admin/hygiene/missing-member-data/MissingStripeTable'
 import PrickleTypesTable from '@/app/(admin)/admin/data/prickle-types/PrickleTypesTable'
@@ -121,31 +120,6 @@ describe('AttendanceListTable', () => {
     expect(types()).toEqual(['Writing', 'Editing'])
     await userEvent.click(screen.getByText('Duration'))
     expect(types()).toEqual(['Editing', 'Writing'])
-  })
-})
-
-describe('MemberSlackActivityPanel', () => {
-  const activity = (id: string, channel: string, occurred: string) => ({
-    id,
-    activity_type: 'slack_message',
-    occurred_at: occurred,
-    description: `message ${id}`,
-    data: { channel_name: channel },
-  })
-  const activities = [
-    activity('1', 'writing', '2026-09-01T10:00:00Z'),
-    activity('2', 'announcements', '2026-09-20T10:00:00Z'),
-    activity('3', 'general', '2026-09-10T10:00:00Z'),
-  ]
-
-  it('defaults to newest first and sorts by Channel on click', async () => {
-    render(<MemberSlackActivityPanel slackActivities={activities} />)
-    const table = screen.getByRole('table')
-    expect(column(1, table)).toEqual(['#announcements', '#general', '#writing'])
-    await userEvent.click(within(table).getByText('Date'))
-    expect(column(1, table)).toEqual(['#writing', '#general', '#announcements'])
-    await userEvent.click(within(table).getByText('Channel'))
-    expect(column(1, table)).toEqual(['#announcements', '#general', '#writing'])
   })
 })
 
