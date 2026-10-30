@@ -9,6 +9,11 @@ vi.mock("@sentry/nextjs", () => ({
   logger: { warn: (...a: unknown[]) => logWarn(...a) },
 }));
 
+const sendOperationsAlert = vi.fn(async () => {});
+const service = {};
+vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: (...a: unknown[]) => sendOperationsAlert(...(a as [])) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => service }));
+
 import { DbQueryError, SLOW_SECTION_MS, throwIfDbError, traced } from "@/lib/query-trace";
 
 
@@ -17,6 +22,7 @@ beforeEach(() => {
   setTag.mockReset();
   setContext.mockReset();
   logWarn.mockReset();
+  sendOperationsAlert.mockClear();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -70,7 +76,18 @@ describe("traced", () => {
         { memberId: "mbr_AAAAAAAAAAA1" }
       )
     ).rejects.toBe(error);
+    expect(sendOperationsAlert).toHaveBeenCalledWith(service, { type: "section_failed", section: "broken", code: undefined, ms: 50 });
     expect(setTag).toHaveBeenCalledWith("section", "broken");
     expect(setContext).toHaveBeenCalledWith("section", { name: "broken", ms: 50, memberId: "mbr_AAAAAAAAAAA1" });
+  });
+
+  it("alerts with the Postgres code, so a statement timeout reads as one", async () => {
+    await expect(traced("slowdb", async () => { throw new DbQueryError("slowdb", { code: "57014", message: "t" }); })).rejects.toBeInstanceOf(DbQueryError);
+    expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "slowdb", code: "57014" }));
+  });
+
+  it("alerts for a thrown value that is not an object", async () => {
+    await expect(traced("odd", async () => { throw null; })).rejects.toBeNull();
+    expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "odd", code: undefined }));
   });
 });

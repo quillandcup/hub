@@ -7,6 +7,7 @@ import { getSlackBotToken } from "@/lib/slack-bot-token";
 /** Alerts about the member-notification path, delivered outside that path. */
 export type OperationsAlert =
   | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
+  | { type: "section_failed"; section: string; code?: string; ms: number }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
@@ -22,6 +23,15 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:slack_dm_failed:${alert.notificationKind}`,
       title: "Slack notification DM failed",
       text: `Slack notification DM failed (kind: ${alert.notificationKind}, member ID: ${alert.memberId}). Check server logs and the Sentry event tagged notification_channel=slack. The failed DM was not retried by the notifier.`,
+    };
+  }
+
+  if (alert.type === "section_failed") {
+    const what = alert.code === "57014" ? "timed out in the database" : `failed${alert.code ? ` (${alert.code})` : ""}`;
+    return {
+      bucket: `operations_alert:section_failed:${alert.section}`,
+      title: `Page section ${alert.section} ${what}`,
+      text: `Page section "${alert.section}" ${what} after ${alert.ms} ms. Find the Sentry event tagged section=${alert.section} (it has the member id and the request) and the "[section failed]" line in the Vercel logs.`,
     };
   }
 
