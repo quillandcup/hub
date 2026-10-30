@@ -143,6 +143,18 @@ describe("MemberNavigation auto-hide on chat", () => {
     }
   });
 
+  it("keeps headings and labels mounted, on one line, so the list doesn't shift as the rail opens", () => {
+    pathname = "/chat";
+    render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    const heading = within(sidebar()).getAllByRole("heading", { hidden: true })[0];
+    expect(heading).toHaveClass("whitespace-nowrap", "opacity-0");
+    expect(sidebar()).toHaveClass("overflow-hidden");
+    expect(within(sidebar()).getByText("Quill", { exact: false })).toHaveClass("whitespace-nowrap", "opacity-0");
+
+    act(() => { within(sidebar()).getAllByRole("link")[0].focus(); });
+    expect(heading).toHaveClass("opacity-100");
+  });
+
   it("opens when focus moves into the rail", () => {
     pathname = "/chat";
     render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);

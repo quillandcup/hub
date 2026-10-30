@@ -19,10 +19,12 @@ interface NavLinksProps {
   enabledFeatures: FeatureKey[];
   pathname: string;
   collapsed: boolean;
+  /** Keep headings and labels mounted (hidden while collapsed) so items never move as the rail opens. */
+  keepLayout?: boolean;
   onNavigate?: () => void;
 }
 
-function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }: NavLinksProps) {
+function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, onNavigate }: NavLinksProps) {
   // The links come from lib/site-pages.ts, which universal search reads too.
   const isActive = (page: SitePage) =>
     pathname === page.href || [page.href, ...(page.nav?.activeFor ?? [])].some((prefix) => pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`));
@@ -34,13 +36,16 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
         : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
     }`;
 
+  const showLabels = keepLayout || !collapsed;
+  const labelFade = keepLayout ? `whitespace-nowrap transition-opacity duration-200 ${collapsed ? "opacity-0" : "opacity-100"}` : "";
+
   return (
     <>
-      <nav className="p-4 overflow-y-auto flex-1">
+      <nav className="p-4 overflow-y-auto overflow-x-hidden flex-1">
         {navGroups("member", enabledFeatures).map((group) => (
           <div key={group.name} className="mb-6">
-            {!collapsed && (
-              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3">
+            {showLabels && (
+              <h2 className={`text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 ${labelFade}`} aria-hidden={collapsed || undefined}>
                 {group.name}
               </h2>
             )}
@@ -55,7 +60,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
                   title={collapsed ? page.title : undefined}
                 >
                   <span className="text-lg">{page.nav?.icon}</span>
-                  {!collapsed && <span>{page.title}</span>}
+                  {showLabels && <span className={`whitespace-nowrap ${labelFade}`}>{page.title}</span>}
                 </Link>
               ))}
             </div>
@@ -74,7 +79,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
             title="Admin Portal"
           >
             <span className="text-base flex-shrink-0">⚙️</span>
-            {!collapsed && <span className="text-sm whitespace-nowrap">Admin Portal →</span>}
+            {showLabels && <span className={`text-sm whitespace-nowrap ${labelFade}`}>Admin Portal →</span>}
           </Link>
         </div>
       )}
@@ -186,13 +191,15 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
         aria-label="Sidebar navigation"
         data-auto-hide={autoHide || undefined}
         className={`flex h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex-col ${
-          autoHide ? `absolute inset-y-0 left-0 ${railOpen ? "w-64 shadow-xl" : "w-16"}` : collapsed ? "w-16" : "w-64"
+          autoHide ? `absolute inset-y-0 left-0 overflow-hidden ${railOpen ? "w-64 shadow-xl" : "w-16"}` : collapsed ? "w-16" : "w-64"
         }`}
       >
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
-          {(autoHide ? railOpen : !collapsed) && (
-            <Wordmark className="text-lg" />
+          {(autoHide || !collapsed) && (
+            <Wordmark
+              className={`text-lg whitespace-nowrap ${autoHide ? `transition-opacity duration-200 ${railOpen ? "opacity-100" : "opacity-0"}` : ""}`}
+            />
           )}
           {!autoHide && (
             <button
@@ -211,6 +218,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
           enabledFeatures={enabledFeatures}
           pathname={pathname}
           collapsed={autoHide ? !railOpen : collapsed}
+          keepLayout={autoHide}
         />
       </aside>
       </div>
