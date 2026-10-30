@@ -436,7 +436,15 @@ Under `/admin/courses/<id>/comments`, every page starting with `requireAdminPage
 
 ### Kajabi migration
 
-Kajabi comments, if any exist, are **not imported**: we don't rely on an API for them, mapping authors would have no consent trail, and The Ready Writer starts fresh in the Hub like progress does. Say so in the launch announcement. The tables are Local, so the reprocess pipeline never touches them.
+**Kajabi lesson comments are imported (decided 2026-10-30)**, so a course that moves keeps its discussion. Not built: it needs phase 1 (the `lesson_comments` table) first, and a source nobody has looked at yet.
+
+- **Source.** Kajabi's public API has no comments (`lib/kajabi/openapi.yaml`). Like progress, they are in the admin app, so the capture is a mode of `courses:content` (same browser login, dry run unless `--apply`). **First step: `courses:content --probe` on the admin page where comments are listed or moderated**, to see which requests carry them and what fields they have (author, email, body, lesson, parent, date, approved or hidden, instructor). Until then the shape below is a plan, not a fact.
+- **Bronze** (raw, replaceable): one row per Kajabi comment (Kajabi id, course, lesson, parent, author email and display name as Kajabi has them, body, posted at, status) with `deleted_at`, re-captured idempotently like lesson progress (changed rows updated, comments Kajabi no longer lists soft-deleted, an unchanged capture writes nothing).
+- **Silver** (into `lesson_comments`, never overwriting what members wrote in the Hub): rows with `source = 'kajabi'` and Kajabi's comment id as `source_key` (unique), so a re-run inserts nothing twice. `posted_at` keeps Kajabi's date. Threading follows Kajabi's parent, flattened to the Hub's one level. Author found by email or active alias through the members repository, never by name; an author who is staff gets the instructor badge. Imported comments are not held for review and do not notify anyone, and write no activity.
+- **Authors with no Hub member** (left Kajabi, never joined the Hub): shown as "Former member", not by name, with the comment kept so the thread reads, per the 90-day rule under "Privacy and retention". Decide whether that should be "by name" for staff only.
+- **Lessons.** A comment on a lesson the Hub does not have is counted and skipped, not guessed.
+- **Counts.** Until the import has run for a course, an admin view of its comments shows "not imported" and not 0, so an unknown is never shown as none.
+- **Consent.** The earlier objection was that there is no consent trail for moving a member's words. These were posted by members on the course they bought, to the course's own audience, and move with the course; say so in the launch announcement, and give a member the same delete as for a Hub comment.
 
 ### Privacy and retention
 
