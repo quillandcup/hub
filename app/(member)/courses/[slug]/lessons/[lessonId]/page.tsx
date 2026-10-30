@@ -5,6 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
 import { isId } from "@/lib/ids";
@@ -87,10 +88,11 @@ export default async function LessonPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; lessonId: string }>;
-  searchParams?: Promise<{ track?: string }>;
+  searchParams?: Promise<{ track?: string; t?: string }>;
 }) {
   const { slug, lessonId } = await params;
-  const trackPreview = (await searchParams)?.track === "1";
+  const query = await searchParams;
+  const trackPreview = query?.track === "1";
   if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
   const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
@@ -117,7 +119,7 @@ export default async function LessonPage({
           tokens={tokens}
           posterUrl={lesson.thumbnail_url}
           lessonId={lesson.id}
-          resumeSeconds={resumeSeconds}
+          resumeSeconds={startSeconds(query?.t, resumeSeconds)}
           trackProgress={watchRecorded}
         />
       ) : (

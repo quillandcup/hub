@@ -650,4 +650,21 @@ describe("LessonPlayer resume", () => {
     render(resumed(0));
     expect(media.currentTime).toBe(0);
   });
+
+  describe("reporting the playhead", () => {
+    it("tells the page the whole second the playhead is at, as it changes", () => {
+      const onTime = vi.fn();
+      player.time = { currentTime: 12.9, duration: 100 };
+      const { rerender } = render(<LessonPlayer title="T" playbackId="pb-1" tokens={tokens} onTime={onTime} />);
+      expect(onTime).toHaveBeenLastCalledWith(12);
+
+      player.time = { currentTime: 40.2, duration: 100 };
+      rerender(<LessonPlayer title="T " playbackId="pb-1" tokens={tokens} onTime={onTime} />);
+      expect(onTime).toHaveBeenLastCalledWith(40);
+    });
+
+    it("reports nothing when nobody asked", () => {
+      expect(() => render(ui())).not.toThrow();
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_SEGMENTS_PER_BATCH, parseWatchBatch, resumeSeconds } from '@/lib/courses/watch'
+import { MAX_SEGMENTS_PER_BATCH, parseWatchBatch, resumeSeconds, startSeconds } from '@/lib/courses/watch'
 
 const LESSON = 'les_AAAAAAAAAAC2'
 const SESSION = '00000000-0000-4000-a000-00000000c999'
@@ -70,5 +70,16 @@ describe('resumeSeconds', () => {
     expect(resumeSeconds(0)).toBe(0)
     expect(resumeSeconds(null)).toBe(0)
     expect(resumeSeconds(undefined)).toBe(0)
+  })
+})
+
+describe('startSeconds', () => {
+  it("opens where a shared link asks, over the member's own saved position", () => {
+    expect(startSeconds('95', 12)).toBe(95)
+    expect(startSeconds('1', 0)).toBe(1)
+  })
+
+  it('keeps the saved position when the link has no usable time', () => {
+    for (const bad of [undefined, '', '0', '-5', '1.5', 'abc', '95s', '1e3', '99999', '100000']) expect(startSeconds(bad, 12)).toBe(12)
   })
 })

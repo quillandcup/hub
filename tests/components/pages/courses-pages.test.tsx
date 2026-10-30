@@ -693,6 +693,17 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
     });
 
+    it("starts at the second a shared link asks for (?t=), over the saved position, and ignores a bad one", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, { ...params(), searchParams: Promise.resolve({ t: "95" }) });
+      expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "95");
+      cleanup();
+
+      await renderServerPage(LessonPage, { ...params(), searchParams: Promise.resolve({ t: "soon" }) });
+      expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "125");
+    });
+
     it("keys the player by lesson, so moving between lessons gets a fresh player and tracker", async () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       const keyOfPlayer = async (lessonId: string) => {

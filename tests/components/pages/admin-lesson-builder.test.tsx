@@ -2,6 +2,7 @@
 /** One lesson's builder page: the lesson as last imported, every change control disabled. Loader mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import type { AdminLessonDetail } from "@/lib/courses/admin";
@@ -97,6 +98,32 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
   });
 
+  it("offers Video actions beside the video, with the lesson's stats and its address for members", async () => {
+    const user = userEvent.setup();
+    loadAdminLesson.mockResolvedValue(detail());
+    await renderServerPage(AdminLessonPage, params);
+
+    await user.click(screen.getByRole("button", { name: /Video actions/ }));
+    expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", "/admin/courses/k1/stats/les_AAAAAAAAAAA1");
+    expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
+  });
+
+  it("keeps Video actions when the video can't play, and has none for a lesson without a video", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ video: { status: "preparing", playbackId: null } }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: /Video actions/ })).toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ video: null, hub: null }));
+    const second = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: /Video actions/ })).toBeInTheDocument();
+    second.unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ video: null }, { hasVideo: false, videoDurationSeconds: null }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByRole("button", { name: /Video actions/ })).not.toBeInTheDocument();
+  });
+
   it("says why there is no player: still preparing, failed, can't be signed, in Kajabi only, or no video", async () => {
     const cases: [Partial<AdminLessonDetail>, RegExp][] = [
       [{ video: { status: "preparing", playbackId: null } }, /still being prepared/],
@@ -137,7 +164,11 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
 
     expect(screen.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
     const form = screen.getByRole("form", { name: "Lesson builder" });
-    for (const control of form.querySelectorAll("input, select, textarea, button")) expect(control, control.outerHTML).toBeDisabled();
+    for (const control of form.querySelectorAll("input, select, textarea, button")) {
+      // The Video actions button only opens a menu (its editing items are disabled, see VideoActions.test.tsx).
+      if (control.getAttribute("aria-haspopup") === "menu") continue;
+      expect(control, control.outerHTML).toBeDisabled();
+    }
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Delete lesson" })).toBeDisabled();
   });
