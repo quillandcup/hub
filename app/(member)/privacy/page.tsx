@@ -269,43 +269,51 @@ export default async function PrivacyPage() {
 
       <Section id="choices" title="Your choices">
         <h3 className="font-semibold text-slate-900 dark:text-slate-100">Usage statistics</h3>
+        <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
         <p>
+          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
+          if you decline we don&apos;t record any of this. Elsewhere it is on until you turn it off here.
+        </p>
+        <Detail title="How usage statistics work">
           We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
           type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
-          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses.{" "}
-          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
-          if you decline we don&apos;t record any of this. Elsewhere it is on. Our host, Vercel, also counts visits and page speed in
-          aggregate, as totals with no individual profile, and that count is not part of the switch below. We use Google Analytics
-          only where you have allowed it. After {RETENTION.usageMonths} months the individual
-          records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in March&rdquo;),
-          which is how we see trends over several years.
-        </p>
-        <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. Our host, Vercel,
+          also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
+          this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
+          individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
+          March&rdquo;), which is how we see trends over several years.
+        </Detail>
 
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Cookies</h3>
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Cookies and similar storage</h3>
         <p>
-          The Hub uses a few cookies and similar storage. <strong>Signing in</strong> needs its own cookies to keep you
-          signed in. <strong>Your choice on the banner</strong> is remembered on your device. When usage statistics are on, a
-          short-lived random <strong>visit number</strong> is kept so the things you do in one visit can be grouped; it expires
-          after 30 minutes without activity and holds nothing about you. Google Analytics sets its own cookie, only if you have
-          allowed it.
+          Most of what the Hub keeps on your device is there to make it work: keeping you signed in, and remembering things like
+          your last chat channel, your video speed and captions, and your recent searches. We don&apos;t need your consent for
+          those, and you can clear them in your browser settings. Two things are optional and follow your choices above: your
+          banner choice is remembered on your device, and when usage statistics are on, a short-lived random{" "}
+          <strong>visit number</strong> groups the things you do in one visit (it expires after 30 minutes without activity and
+          holds nothing about you). Google Analytics sets its own cookie, only if you have allowed it.
         </p>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
-        <p>
-          The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose
-          which, for each kind of notification, in{" "}
-          <Link href="/settings/notifications" className="underline">
-            Settings
-          </Link>
-          , and every email has an unsubscribe link for that kind.
-        </p>
-        <p>
-          We keep a record of each notification we send you. For the bell and banners inside the Hub, we also keep whether you
-          have read it, so they show the right things. Turning usage statistics off does not stop the bell and banners
-          from keeping track of what you have read. If usage statistics are on, we also note which notification a visit came from, when you click it in the Hub or
-          arrive through a link in it.
-        </p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose
+            which, for each kind of notification, in{" "}
+            <Link href="/settings/notifications" className="underline">
+              Settings
+            </Link>
+            , and every email has an unsubscribe link for that kind.
+          </li>
+          <li>
+            We keep a record of each notification we send you. For the bell and banners inside the Hub, we also keep whether you
+            have read it, so they show the right things. Turning usage statistics off does not stop the bell and banners from
+            keeping track of what you have read.
+          </li>
+          <li>
+            If usage statistics are on, we also note which notification a visit came from, when you click it in the Hub or arrive
+            through a link in it.
+          </li>
+        </ul>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Asking us</h3>
         <p>

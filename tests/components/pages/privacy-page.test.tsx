@@ -140,7 +140,7 @@ describe("/privacy page", () => {
   it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
     const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
-    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Viewing the Hub as you", "Deleted messages and reactions"]);
+    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 
@@ -166,12 +166,27 @@ describe("/privacy page", () => {
     expect(section("choices").getByText(/can't be changed while viewing as a member/)).toBeInTheDocument();
   });
 
-  it("lists the cookies, including the visit number and when it expires", async () => {
+  it("describes the cookies by kind rather than listing every one, and says which are optional", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
-    expect(choices.getByRole("heading", { name: "Cookies" })).toBeInTheDocument();
+    expect(choices.getByRole("heading", { name: "Cookies and similar storage" })).toBeInTheDocument();
+    expect(choices.getByText(/Most of what the Hub keeps on your device is there to make it work/)).toBeInTheDocument();
+    expect(choices.getByText(/We don't need your consent for\s+those, and you can clear them in your browser settings/)).toBeInTheDocument();
     expect(choices.getByText(/visit number/, { selector: "strong" })).toBeInTheDocument();
-    expect(choices.getByText(/it expires\s+after 30 minutes without activity/)).toBeInTheDocument();
+    expect(choices.getByText(/expires after 30 minutes without activity/)).toBeInTheDocument();
+    expect(choices.getByText(/Google Analytics sets its own cookie, only if you have allowed it/)).toBeInTheDocument();
+  });
+
+  it("puts the switch first, with how usage statistics work folded away below it", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const choices = section("choices");
+    const toggle = choices.getByRole("switch", { name: "Leave me out of usage statistics" });
+    const folded = choices.getByText("How usage statistics work").closest("details")!;
+    expect(folded).not.toHaveAttribute("open");
+    // The switch comes before the folded explanation in the page.
+    expect(toggle.compareDocumentPosition(folded) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(folded).getByText(/our host, Vercel,\s+also counts visits and page speed in aggregate/i)).toBeInTheDocument();
+    expect(within(folded).getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
   });
 
   it("says notifications can go to several places without listing them all, and what is recorded about them", async () => {
@@ -218,7 +233,7 @@ describe("/privacy page", () => {
     }
     expect(services.getByText(/our error-reporting provider \(held in the\s+EU\)/)).toBeInTheDocument();
     // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
-    expect(section("choices").getByText(/that count is not part of the switch below/)).toBeInTheDocument();
+    expect(section("choices").getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
     // Everything else stays generic.
     const text = document.body.textContent ?? "";
     for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
