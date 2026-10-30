@@ -101,6 +101,15 @@ export default async function CalendarPage({
             <h1 className="text-2xl font-bold">Prickle Calendar</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Week of {formatDateOnly(week.start)} - Color intensity shows attendance levels
+              {unmatchedCount > 0 && (
+                <Link
+                  href="/admin/hygiene/unmatched-events"
+                  data-track="admin-calendar-unmatched-events"
+                  className="ml-4 text-amber-700 dark:text-amber-400 hover:underline"
+                >
+                  {unmatchedCount} unmatched calendar {unmatchedCount === 1 ? "event" : "events"} waiting to be released →
+                </Link>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -129,15 +138,6 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
-      {unmatchedCount > 0 && (
-        <Link
-          href="/admin/hygiene/unmatched-events"
-          data-track="admin-calendar-unmatched-events"
-          className="mb-4 inline-block text-sm text-amber-700 dark:text-amber-400 hover:underline"
-        >
-          {unmatchedCount} unmatched calendar {unmatchedCount === 1 ? "event" : "events"} waiting to be released →
-        </Link>
-      )}
       {/* The calendar sync (a Google edit, within seconds) adds, moves or removes prickles: show them without a reload. */}
       <LiveRefresh
         table="prickles"
