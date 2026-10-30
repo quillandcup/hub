@@ -19,25 +19,11 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 let admin = true;
-let decisions: Record<string, unknown>[];
+let dataset: InMemoryDataset;
 let failInsertFor: string | null;
-const supabase = {
-  from: () => ({
-    select: () => ({ eq: async (_c: string, id: string) => ({ data: decisions.filter((d) => d.calendar_event_id === id).map((d) => ({ id: d.calendar_event_id })), error: null }) }),
-    update: (row: Record<string, unknown>) => ({
-      eq: async (_c: string, id: string) => {
-        const existing = decisions.find((d) => d.calendar_event_id === id);
-        if (existing) Object.assign(existing, row);
-        return { error: null };
-      },
-    }),
-    insert: async (row: Record<string, unknown>) => {
-      if (row.calendar_event_id === failInsertFor) return { error: { message: "nope" } };
-      decisions.push(row);
-      return { error: null };
-    },
-  }),
-};
+const supabase = {};
+/** The decisions stored so far (the review queue table). */
+const decisions = () => dataset.unmatchedEvents;
 vi.mock("@/lib/admin-auth", () => ({
   requireAdminAction: async () => (admin ? { ok: true, supabase, user: { id: "u1" } } : { ok: false, error: "Not authorized" }),
 }));
@@ -50,10 +36,8 @@ import { assignHostToUnhostedPrickles } from "@/app/(admin)/admin/data-health/mi
 beforeEach(() => {
   admin = true;
   failInsertFor = null;
-  decisions = [];
   vi.clearAllMocks();
-  repos = createInMemoryRepos(
-    new InMemoryDataset({
+  dataset = new InMemoryDataset({
       // The Bronze calendar items the prickles follow, whose summaries a decision records.
       calendarEvents: ["cal-1", "cal-2", "cal-3"].map((id) => ({
         id, google_event_id: `g-${id}`, summary: `Event ${id}`, description: null, location: null, raw_data: {},
@@ -63,8 +47,13 @@ beforeEach(() => {
       members: [FORMER, { id: "mbr_AAAAAAAAAAA2", name: "Bea Example" }],
       prickleTypes: [TYPE],
       prickles: [prickle(1), prickle(2), prickle(3, "mbr_AAAAAAAAAAA2")],
-    }),
-  );
+  });
+  repos = createInMemoryRepos(dataset);
+  const insert = repos.unmatchedEvents.insert.bind(repos.unmatchedEvents);
+  repos.unmatchedEvents.insert = async (row) => {
+    if (row.calendar_event_id === failInsertFor) throw new Error("nope");
+    return insert(row);
+  };
 });
 
 describe("assignHostToUnhostedPrickles", () => {
@@ -76,7 +65,7 @@ describe("assignHostToUnhostedPrickles", () => {
     expect((await repos.prickles.byId("prkl_AAAAAAAAAAA2"))?.hostId).toBe(FORMER.id);
     // A prickle that already had a host is left alone.
     expect((await repos.prickles.byId("prkl_AAAAAAAAAAA3"))?.hostId).toBe("mbr_AAAAAAAAAAA2");
-    expect(decisions.map((d) => [d.calendar_event_id, d.resolved_host_id, d.status]).sort()).toEqual([
+    expect(decisions().map((d) => [d.calendar_event_id, d.resolved_host_id, d.status]).sort()).toEqual([
       ["cal-1", FORMER.id, "resolved"],
       ["cal-2", FORMER.id, "resolved"],
     ]);
@@ -84,11 +73,14 @@ describe("assignHostToUnhostedPrickles", () => {
   });
 
   it("updates an event's existing decision instead of adding a second", async () => {
-    decisions.push({ calendar_event_id: "cal-1", status: "pending" });
+    dataset.unmatchedEvents.push({
+      id: "u1", calendar_event_id: "cal-1", raw_summary: "Event cal-1", status: "pending", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
+      resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null,
+    });
 
     await assignHostToUnhostedPrickles(TYPE.id, FORMER.id);
 
-    expect(decisions.filter((d) => d.calendar_event_id === "cal-1")).toEqual([expect.objectContaining({ status: "resolved", resolved_host_id: FORMER.id })]);
+    expect(decisions().filter((d) => d.calendar_event_id === "cal-1")).toEqual([expect.objectContaining({ status: "resolved", resolved_host_id: FORMER.id })]);
   });
 
   it("assigns nothing when no prickle is unhosted", async () => {
@@ -104,7 +96,7 @@ describe("assignHostToUnhostedPrickles", () => {
     expect(await assignHostToUnhostedPrickles(TYPE.id, "not-a-member")).toEqual({ error: "Pick a member" });
     expect(await assignHostToUnhostedPrickles(TYPE.id, "mbr_ZZZZZZZZZZZZ")).toEqual({ error: "Member not found" });
 
-    expect(decisions).toEqual([]);
+    expect(decisions()).toEqual([]);
     expect((await repos.prickles.byId("prkl_AAAAAAAAAAA1"))?.hostId ?? null).toBeNull();
   });
 

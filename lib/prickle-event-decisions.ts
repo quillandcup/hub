@@ -25,17 +25,23 @@ export async function saveEventDecision(
   choice: EventDecisionChoice
 ): Promise<{ error: string } | null> {
   const decision = { status: "resolved", resolved_at: new Date().toISOString(), ...choice };
-  const { data: existing, error: findError } = await supabase.from("unmatched_calendar_events").select("id").eq("calendar_event_id", calendarEventId);
-  if (findError) return { error: "Couldn't save the change" };
-
-  if (existing && existing.length > 0) {
-    const { error } = await supabase.from("unmatched_calendar_events").update(decision).eq("calendar_event_id", calendarEventId);
-    return error ? { error: "Couldn't save the change" } : null;
+  const repos = createRepos(supabase);
+  try {
+    if (await repos.unmatchedEvents.existsForCalendarEvent(calendarEventId)) {
+      await repos.unmatchedEvents.updateForCalendarEvent(calendarEventId, decision);
+      return null;
+    }
+  } catch {
+    return { error: "Couldn't save the change" };
   }
-  const event = await createRepos(supabase).calendarEvents.byId(calendarEventId).catch(() => null);
+  const event = await repos.calendarEvents.byId(calendarEventId).catch(() => null);
   if (!event?.summary) return { error: "The calendar event is gone, so the change wouldn't last" };
-  const { error } = await supabase.from("unmatched_calendar_events").insert({ calendar_event_id: calendarEventId, raw_summary: event.summary, ...decision });
-  return error ? { error: "Couldn't save the change" } : null;
+  try {
+    await repos.unmatchedEvents.insert({ calendar_event_id: calendarEventId, raw_summary: event.summary, ...decision });
+    return null;
+  } catch {
+    return { error: "Couldn't save the change" };
+  }
 }
 
 /** What an admin has set by hand for a calendar event, or nothing: null where the prickle follows the calendar. */
@@ -48,11 +54,8 @@ export interface EventDecisionValues {
 }
 
 export async function loadEventDecision(supabase: Db, calendarEventId: string): Promise<EventDecisionValues> {
-  const { data } = await supabase
-    .from("unmatched_calendar_events")
-    .select("resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker")
-    .eq("calendar_event_id", calendarEventId)
-    .maybeSingle();
+  // A failed read shows nothing set by hand, as before.
+  const data = await createRepos(supabase).unmatchedEvents.valuesFor(calendarEventId).catch(() => null);
   return {
     resolved_type_id: data?.resolved_type_id ?? null,
     resolved_host_id: data?.resolved_host_id ?? null,

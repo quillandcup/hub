@@ -67,13 +67,13 @@ const prickle = (extra: object = {}) => ({
   id: "prkl_AAAAAAAAAAA1", typeId: SPRINT.id, hostId: HOST.id, title: null, source: "calendar", calendarEventId: null,
   startTime: "2097-03-03T15:00:00Z", endTime: "2097-03-03T16:00:00Z", ...extra,
 });
-const dataset = (prickles: object[], attendance: object[] = [], events: object[] = []) =>
+const dataset = (prickles: object[], attendance: object[] = [], events: object[] = [], unmatchedEvents: object[] = []) =>
   createInMemoryRepos(new InMemoryDataset({
     userProfiles: [
       { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
       { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
     ],
-    members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never }));
+    members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never, unmatchedEvents: unmatchedEvents as never }));
 const memberProps = { params: Promise.resolve({ id: "prkl_AAAAAAAAAAA1" }) };
 
 beforeEach(() => {
@@ -136,8 +136,9 @@ describe("admin prickle page", () => {
 
   describe("editing", () => {
     it("makes a calendar prickle editable, with the types, the members and what is already set by hand", async () => {
-      repos = dataset([prickle({ calendarEventId: "00000000-0000-4000-8000-00000000000a" })]);
-      useFakeSupabase({ unmatched_calendar_events: { data: { resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null } } });
+      const calendarEventId = "00000000-0000-4000-8000-00000000000a";
+      const decided = { id: "u1", calendar_event_id: calendarEventId, raw_summary: "Sprint", status: "resolved", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null, resolved_type_id: null, resolved_host_id: null, resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null };
+      repos = dataset([prickle({ calendarEventId })], [], [], [decided]);
 
       await renderServerPage(AdminPrickleDetailPage, memberProps);
 

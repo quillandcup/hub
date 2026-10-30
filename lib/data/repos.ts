@@ -12,6 +12,7 @@ import { InMemoryMemberDirectoryRepository, SupabaseMemberDirectoryRepository, t
 import { InMemoryChatRepository, SupabaseChatRepository, type ChatRepository } from "./chat";
 import { InMemorySlackUserRepository, SupabaseSlackUserRepository, type SlackUserRepository } from "./slack-users";
 import { InMemoryCalendarEventRepository, SupabaseCalendarEventRepository, type CalendarEventRepository } from "./calendar-events";
+import { InMemoryUnmatchedEventRepository, SupabaseUnmatchedEventRepository, type UnmatchedEventRepository } from "./unmatched-events";
 import { InMemoryProfileRepository, SupabaseProfileRepository, type ProfileRepository } from "./profiles";
 import { InMemoryActivityRepository, SupabaseActivityRepository, type ActivityRepository } from "./activities";
 import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository } from "./events";
@@ -41,6 +42,7 @@ export interface Repos {
   profiles: ProfileRepository;
   calendarEvents: CalendarEventRepository;
   slackUsers: SlackUserRepository;
+  unmatchedEvents: UnmatchedEventRepository;
   media: MediaRepository;
   chat: ChatRepository;
 }
@@ -64,6 +66,7 @@ export function createRepos(db: Db): Repos {
     profiles: new SupabaseProfileRepository(db),
     calendarEvents: new SupabaseCalendarEventRepository(db),
     slackUsers: new SupabaseSlackUserRepository(db),
+    unmatchedEvents: new SupabaseUnmatchedEventRepository(db),
     media: new SupabaseMediaRepository(db),
     chat: new SupabaseChatRepository(db),
   };
@@ -88,6 +91,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     profiles: new InMemoryProfileRepository(dataset),
     calendarEvents: new InMemoryCalendarEventRepository(dataset),
     slackUsers: new InMemorySlackUserRepository(dataset),
+    unmatchedEvents: new InMemoryUnmatchedEventRepository(dataset),
     media: new InMemoryMediaRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
   };

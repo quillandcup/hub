@@ -111,20 +111,15 @@ describe('Calendar Processing Pagination', () => {
     })
 
     it('should batch database writes', async () => {
-      // Prevent regression where batching was removed
+      // Prevent regression where batching was removed: the route queues unmatched events through
+      // the repository, which writes and deletes them in chunks
       const fs = await import('fs/promises')
       const path = await import('path')
 
-      const routePath = path.join(
-        process.cwd(),
-        'app/api/process/calendar/route.ts'
-      )
+      const repoContent = await fs.readFile(path.join(process.cwd(), 'lib/data/unmatched-events.ts'), 'utf-8')
 
-      const routeContent = await fs.readFile(routePath, 'utf-8')
-
-      // Should have chunking function and batch inserts
-      expect(routeContent).toContain('chunk(')
-      expect(routeContent).toContain('CHUNK_SIZE')
+      expect(repoContent).toContain('chunk(')
+      expect(repoContent).toContain('ID_CHUNK')
     })
   })
 })

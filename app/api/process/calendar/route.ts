@@ -18,15 +18,6 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-// Helper to chunk array for batch processing
-function chunk<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
-
 /**
  * Process Bronze layer (calendar_events) into Silver layer (prickles)
  *
@@ -77,16 +68,17 @@ export async function POST(request: NextRequest) {
       members,
       aliases,
       loadedTypes,
-      { data: resolvedUnmatchedEvents },
+      resolvedUnmatchedEvents,
     ] = await Promise.all([
       createRepos(supabase).members.identities({ status: "active" }),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
       createRepos(supabase).prickles.types(),
       // Load previously resolved/ignored unmatched events to apply learned decisions
-      supabase
-        .from("unmatched_calendar_events")
-        .select("calendar_event_id, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, status")
-        .in("status", ["resolved", "ignored"]),
+      createRepos(supabase).unmatchedEvents.decisions().catch((decisionsError) => {
+        // As before, a failed load doesn't stop the run (the decisions just aren't applied this time).
+        console.error("Error loading unmatched event decisions:", decisionsError);
+        return [];
+      }),
     ]);
 
     // The shape the matching helpers (matchTypeId) and the loop below read.
@@ -282,19 +274,11 @@ export async function POST(request: NextRequest) {
     // Batch the deletes to avoid .in() limits with >1000 calendar_event_ids
     const calendarEventIds = allEvents.map(e => e.id);
     if (calendarEventIds.length > 0) {
-      const DELETE_BATCH = 100; // Reduced from 500 to avoid "URI too long" errors
-      for (let i = 0; i < calendarEventIds.length; i += DELETE_BATCH) {
-        const batch = calendarEventIds.slice(i, i + DELETE_BATCH);
-        const { error: deleteError } = await supabase
-          .from("unmatched_calendar_events")
-          .delete()
-          .in("calendar_event_id", batch)
-          .eq("status", "pending");
-
-        if (deleteError) {
-          console.error("Error deleting unmatched events batch:", deleteError);
-          // Don't throw - this is cleanup, not critical
-        }
+      try {
+        await createRepos(supabase).unmatchedEvents.deletePendingForCalendarEvents(calendarEventIds);
+      } catch (deleteError) {
+        console.error("Error deleting unmatched events:", deleteError);
+        // Don't throw - this is cleanup, not critical
       }
     }
 
@@ -303,20 +287,13 @@ export async function POST(request: NextRequest) {
 
     // Queue unmatched events in batches
     if (unmatchedEvents.length > 0) {
-      const CHUNK_SIZE = 100;
-      const unmatchedChunks = chunk(unmatchedEvents, CHUNK_SIZE);
-      const unmatchedResults = await Promise.all(
-        unmatchedChunks.map((batch) =>
-          supabase.from("unmatched_calendar_events").upsert(batch, {
-            onConflict: "calendar_event_id",
-          })
-        )
-      );
-      queuedForReview = unmatchedResults.filter((r) => !r.error).length * CHUNK_SIZE;
-      // Adjust for last chunk
-      const lastChunkResult = unmatchedResults[unmatchedResults.length - 1];
-      if (!lastChunkResult.error) {
-        queuedForReview = queuedForReview - CHUNK_SIZE + (unmatchedEvents.length % CHUNK_SIZE || CHUNK_SIZE);
+      try {
+        // Chunks of 100 run in parallel inside the repository.
+        await createRepos(supabase).unmatchedEvents.queue(unmatchedEvents);
+        queuedForReview = unmatchedEvents.length;
+      } catch (queueError) {
+        // A failed chunk doesn't stop the run (as before); it is only not counted.
+        console.error("Error queuing unmatched events:", queueError);
       }
     }
 
