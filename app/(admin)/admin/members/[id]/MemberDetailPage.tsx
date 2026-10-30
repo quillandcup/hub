@@ -26,7 +26,8 @@ import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS } from "@/lib/activity-feed";
+import * as Sentry from "@sentry/nextjs";
+import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
 import { traced } from "@/lib/query-trace";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
@@ -179,17 +180,24 @@ export default async function MemberDetailPage({
   // activity, what staff did for or as them, changes to their record), Everything by default.
   // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
   const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
-  const feedPage = await traced(
-    "member page: activity feed",
-    () =>
-      fetchActivityFeed(supabase, {
-        ...activityFilters,
-        page: parsePageParam(searchParams.page),
-        pageSize: parsePageSizeParam(searchParams.pageSize),
-      }),
-    { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
-  );
-  const activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
+  // A failing feed (traced has already alerted and tagged the section) shows as a message on the
+  // Activity Log tab instead of taking the whole member page down.
+  let activityFeed: (FeedPage & { rows: ActivityFeedRow[] }) | null = null;
+  try {
+    const feedPage = await traced(
+      "member page: activity feed",
+      () =>
+        fetchActivityFeed(supabase, {
+          ...activityFilters,
+          page: parsePageParam(searchParams.page),
+          pageSize: parsePageSizeParam(searchParams.pageSize),
+        }),
+      { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
+    );
+    activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
+  } catch (error) {
+    Sentry.captureException(error);
+  }
 
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();

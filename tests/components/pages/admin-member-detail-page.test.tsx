@@ -33,7 +33,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   }: {
     emailAliases: { alias_email: string }[];
     slackActivities: { id: string; description: string | null }[];
-    activityFeed: { total: number; page: number };
+    activityFeed: { total: number; page: number } | null;
   }) => (
     <>
       <ul aria-label="slack activity">
@@ -41,9 +41,7 @@ vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
           <li key={a.id}>{a.description}</li>
         ))}
       </ul>
-      <p>
-        activity {activityFeed.total} on page {activityFeed.page}
-      </p>
+      <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
       <ol aria-label="email aliases">
         {emailAliases.map((a) => (
           <li key={a.alias_email}>{a.alias_email}</li>
@@ -129,6 +127,14 @@ describe("MemberDetailPage", () => {
       .flatMap((q) => q.calls)
       .find((c) => c.method === "args");
     expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
+  });
+
+  it("still renders the page when the activity feed query times out", async () => {
+    useFakeSupabase(memberTables({ "rpc:count_activity_feed": { data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } } }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("activity unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "slack activity" })).toBeInTheDocument();
   });
 
   it("titles the page with the member's display name, then the tab", async () => {

@@ -36,7 +36,8 @@ interface MemberDetailsProps {
   hiatusHistory: any[];
   slackActivities: any[];
   /** One page of this member's activity log (lib/activity-feed.ts). */
-  activityFeed: FeedPage;
+  /** Null when the feed query failed. */
+  activityFeed: FeedPage | null;
   /** The filters that feed was fetched with (parsed from the tab's URL). */
   activityFilters: FeedFilters;
   userTimezonePreference?: string; // User's timezone preference from profile
@@ -272,7 +273,11 @@ export default function MemberDetails({
               </Link>
             </p>
             <ActivityFilters variant="member" filters={activityFilters} basePath={`/admin/members/${member.id}/activity`} />
-            {activityFeed.total === 0 ? (
+            {!activityFeed ? (
+              <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+                The activity log didn&apos;t load. Reload the page to try again; if it keeps failing, the team has been alerted.
+              </p>
+            ) : activityFeed.total === 0 ? (
               <p className="text-sm text-slate-600 dark:text-slate-400">Nothing in this window. Try a longer range or other filters.</p>
             ) : (
               <ActivityFeedTable {...activityFeed} filters={activityFilters} hideAbout />
