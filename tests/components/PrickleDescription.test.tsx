@@ -28,4 +28,9 @@ describe("PrickleDescription", () => {
     render(<PrickleDescription markdown={"Join Zoom Meeting\nhttps://example.com/j/1?pwd=x"} />);
     expect(screen.getByRole("link").getAttribute("href")).toBe("https://example.com/j/1?pwd=x");
   });
+
+  it("renders a divider as a rule", () => {
+    const { container } = render(<PrickleDescription markdown={"Above\n\n---\n\nBelow"} />);
+    expect(container.querySelector("hr")).not.toBeNull();
+  });
 });
