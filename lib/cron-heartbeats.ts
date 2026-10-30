@@ -65,6 +65,13 @@ export const CRON_HEARTBEATS = {
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_LOGINS",
     ...daily,
   },
+  "reconcile-media": {
+    name: "Cron: media library sweep (daily 03:30 UTC)",
+    path: "/api/reconcile/media",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_MEDIA",
+    ...daily,
+  },
   // The key and envVar keep the job's old "pre-prickle nudges" name on purpose: the key is the
   // Checkly monitor's logical id, so renaming it would replace the monitor and its ping URL.
   "pre-prickle-nudges": {

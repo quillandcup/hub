@@ -2929,6 +2929,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           deleted_at: string | null
+          files_removed_at: string | null
           fits: Json
           focal_x: number | null
           focal_y: number | null
@@ -2953,6 +2954,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          files_removed_at?: string | null
           fits?: Json
           focal_x?: number | null
           focal_y?: number | null
@@ -2977,6 +2979,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          files_removed_at?: string | null
           fits?: Json
           focal_x?: number | null
           focal_y?: number | null

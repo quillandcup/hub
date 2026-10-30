@@ -64,6 +64,10 @@ export interface MediaRepository {
   edit(id: string, fields: MediaAssetEdit): Promise<MediaAsset | null>;
   /** Marks the asset deleted; false when there was no live asset. */
   remove(id: string): Promise<boolean>;
+  /** Assets deleted before this instant whose files haven't been removed yet, oldest first (for the nightly sweep). */
+  expiredDeleted(before: Date, limit: number): Promise<MediaAsset[]>;
+  /** Records that this asset's files are gone, so the sweep leaves the row alone from now on. */
+  markFilesRemoved(id: string): Promise<void>;
   /** Everything that shows this asset: events, books (as a cover) and writing projects. Each feature that gets an `*_asset_id` column adds itself. What the caller can't read (another member's project) isn't listed. */
   usages(id: string): Promise<MediaUsage[]>;
 }
@@ -125,6 +129,24 @@ export class SupabaseMediaRepository implements MediaRepository {
     const { data, error } = await this.table.update({ deleted_at: new Date().toISOString() }).eq("id", id).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
+  }
+
+  async expiredDeleted(before: Date, limit: number) {
+    const { data, error } = await this.table
+      .select("*")
+      .not("deleted_at", "is", null)
+      .lt("deleted_at", before.toISOString())
+      .is("files_removed_at", null)
+      .order("deleted_at", { ascending: true })
+      .order("id")
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async markFilesRemoved(id: string) {
+    const { error } = await this.table.update({ files_removed_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   async usages(id: string) {
@@ -194,6 +216,7 @@ export class InMemoryMediaRepository implements MediaRepository {
       focal_x: null,
       focal_y: null,
       fits: {},
+      files_removed_at: null,
       created_at: now,
       updated_at: now,
       deleted_at: null,
@@ -216,6 +239,19 @@ export class InMemoryMediaRepository implements MediaRepository {
     if (!row) return false;
     row.deleted_at = new Date().toISOString();
     return true;
+  }
+
+  async expiredDeleted(before: Date, limit: number) {
+    return this.data.mediaAssets
+      .filter((a) => a.deleted_at !== null && a.deleted_at < before.toISOString() && a.files_removed_at === null)
+      .sort((a, b) => ((a.deleted_at as string) === (b.deleted_at as string) ? (a.id < b.id ? -1 : 1) : (a.deleted_at as string) < (b.deleted_at as string) ? -1 : 1))
+      .slice(0, limit)
+      .map((a) => ({ ...a }));
+  }
+
+  async markFilesRemoved(id: string) {
+    const row = this.data.mediaAssets.find((a) => a.id === id);
+    if (row) row.files_removed_at = new Date().toISOString();
   }
 
   async usages(id: string) {

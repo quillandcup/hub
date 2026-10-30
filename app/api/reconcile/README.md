@@ -26,6 +26,18 @@ Reconciles calendar events from Google Calendar.
 **Schedule:** Daily at 2:00am UTC
 **Timeout:** 300 seconds (5 minutes)
 
+### `/api/reconcile/media` (3:30am daily)
+
+Housekeeping for the media library's bucket (`docs/MEDIA_LIBRARY.md`), not an import.
+
+**What it does:**
+- Removes objects left in `uploads/` for over a day (a signed upload that was never confirmed)
+- Removes the original and renditions of images deleted over 30 days ago, and sets `files_removed_at` on the row (the row stays)
+- Skips a deleted image something still shows (event, book cover, project cover)
+
+**Schedule:** Daily at 3:30am UTC
+**Timeout:** 300 seconds (5 minutes); a run clears at most 200 images and stops starting new work after 240 s
+
 ### `/api/reconcile/zoom` (2:30am daily)
 
 Reconciles Zoom meeting attendance data.
