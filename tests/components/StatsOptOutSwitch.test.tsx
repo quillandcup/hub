@@ -4,9 +4,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const setAnalyticsOptOut = vi.fn();
-vi.mock("@/app/(member)/privacy/actions", () => ({ setAnalyticsOptOut: (on: boolean) => setAnalyticsOptOut(on) }));
+vi.mock("@/app/privacy/actions", () => ({ setAnalyticsOptOut: (on: boolean) => setAnalyticsOptOut(on) }));
 
-import { StatsOptOutSwitch } from "@/app/(member)/privacy/StatsOptOutSwitch";
+import { StatsOptOutSwitch } from "@/app/privacy/StatsOptOutSwitch";
 
 beforeEach(() => setAnalyticsOptOut.mockReset());
 

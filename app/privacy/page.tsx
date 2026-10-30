@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
@@ -13,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 /** When the wording below was last checked against the code. Bump it whenever the page changes. */
-export const PRIVACY_REVIEWED = "2026-10-30";
+export const PRIVACY_EFFECTIVE = "2026-10-30";
 
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
@@ -48,19 +47,26 @@ export const PRIVACY_REVIEWED = "2026-10-30";
  * **The job must be deployed before 2027-01-16.** Nothing below promises more than that.
  */
 export default async function PrivacyPage() {
+  // Public: anyone can read it, signed in or not. Only the usage-statistics switch needs an account.
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
-  const [identity, optedOut] = await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)]);
+  const [identity, optedOut] = user
+    ? await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)])
+    : [null, false];
 
   return (
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
     <div className="container mx-auto px-6 py-6 max-w-5xl">
+      <p className="mb-4 text-sm">
+        <Link href={user ? "/dashboard" : "/login"} className="text-plum-700 dark:text-plum-300 underline">
+          {user ? "Back to the Hub" : "Sign in to the Hub"}
+        </Link>
+      </p>
       <h1 className="text-2xl font-bold mb-1">Privacy</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
         What the Hub collects about you, who can see it, how long we keep it and what you can do about it.
       </p>
       <p className="text-sm text-slate-500 dark:text-slate-500 mb-6">
-        Last reviewed <time dateTime={PRIVACY_REVIEWED}>{PRIVACY_REVIEWED}</time>.
+        Effective <time dateTime={PRIVACY_EFFECTIVE}>{PRIVACY_EFFECTIVE}</time>.
       </p>
 
       <aside className="mb-8 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50 dark:bg-plum-950/30 p-4 text-sm text-slate-800 dark:text-slate-200">
@@ -76,7 +82,7 @@ export default async function PrivacyPage() {
           </li>
           <li>
             Your exact IP address and browser details are removed after {RETENTION.rawNetworkDays} days, and usage
-            statistics after {RETENTION.usageMonths} months. What you do in the Hub is kept until you ask us to remove it.
+            statistics after {RETENTION.usageMonths} months. What you do in the Hub is kept while you are a member, and after you cancel your membership until you ask us to close your account and remove it.
           </li>
           <li>
             You can leave usage statistics off with a switch below, and ask us to show you, correct or remove what we hold.
@@ -92,6 +98,9 @@ export default async function PrivacyPage() {
           <li><a href="#keep" className="underline">How long we keep things</a></li>
           <li><a href="#cookies" className="underline">Cookies</a></li>
           <li><a href="#services" className="underline">Services we use</a></li>
+          <li><a href="#security" className="underline">Security and other sites</a></li>
+          <li><a href="#children" className="underline">Children</a></li>
+          <li><a href="#changes" className="underline">Changes to this policy</a></li>
           <li><a href="#choices" className="underline">Your choices</a></li>
         </ul>
       </nav>
@@ -110,6 +119,11 @@ export default async function PrivacyPage() {
               what="Your account and what you do in it"
               detail="Your profile, projects, goals, check-ins, commitments, sign-ins, and the notifications we sent you."
               why="To run the Hub, and so your seat is kept warm through different seasons of life."
+            />
+            <CollectRow
+              what="Membership, billing and sessions"
+              detail="Your plan and membership dates from our payment and course providers, and which live sessions (such as Zoom prickles) you joined and for how long. We do not store your card or bank details; our payment provider handles those."
+              why="To know who is a member, and to count and recognize your time writing together."
             />
             <CollectRow
               what="How you use the Hub"
@@ -259,7 +273,7 @@ export default async function PrivacyPage() {
           <tbody className="align-top">
             <KeepRow
               what="What you do in the Hub: your projects, check-ins, commitments, course viewing, chat messages and activity, sign-ins, the notifications we sent you, and your history as a member"
-              keep="Until you ask us to remove it. If you leave and come back years later, your seat is still warm: your history is here."
+              keep="While you are a member. Canceling your membership or subscription does not remove it: it stays until you ask us to close your account and remove it. If you cancel and come back years later, your seat is still warm: your history is here."
             />
             <KeepRow
               what="Usage statistics: pages, buttons, search, and your device and screen"
@@ -273,7 +287,7 @@ export default async function PrivacyPage() {
         </table>
         <p>
           <strong>When you delete something</strong> you added to the Hub, it disappears for you and for everyone else. We may keep a
-          copy, and our change history keeps a record of the change, until you ask us to remove it. When you ask, we either
+          copy, and our change history keeps a record of the change, until you ask us to close your account and remove it. When you ask, we either
           delete it or take your name off it. Removed data can stay in our database provider&apos;s backups for a limited time
           before they expire.
         </p>
@@ -311,9 +325,46 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
+      <Section id="security" title="Security and other sites">
+        <p>
+          We protect your information with commercially reasonable means, such as encrypted connections and access limited by
+          role, but no method of storing or sending data is perfectly secure, so we can&apos;t guarantee it. We don&apos;t share
+          your information with anyone except as described on this page. The Hub links to other sites, and we are not responsible
+          for their privacy practices; read theirs when you leave.
+        </p>
+      </Section>
+
+      <Section id="children" title="Children">
+        <p>
+          The Hub is not meant for children under 13, and we don&apos;t knowingly collect their information. If we learn that a child
+          under 13 has given us personal information, we delete it. A parent or guardian who thinks that has happened can email{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+            {SUPPORT_EMAIL}
+          </a>
+          .
+        </p>
+      </Section>
+
+      <Section id="changes" title="Changes to this policy">
+        <p>
+          When this page changes we update the effective date at the top, and the new version applies immediately.
+          For a significant change we will also tell members in the Hub.
+        </p>
+      </Section>
+
       <Section id="choices" title="Your choices">
         <h3 className={SUBHEADING}>Usage statistics</h3>
-        <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+        {user ? (
+          <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+        ) : (
+          <p className="text-sm">
+            Members can turn this off here once signed in.{" "}
+            <Link href="/login" className="underline">
+              Sign in
+            </Link>
+            .
+          </p>
+        )}
         <p>
           <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
           if you decline we don&apos;t record any of this. Elsewhere it is on until you turn it off here.
@@ -349,6 +400,7 @@ export default async function PrivacyPage() {
           it can no longer be tied to you.
         </p>
       </Section>
+    </div>
     </div>
   );
 }

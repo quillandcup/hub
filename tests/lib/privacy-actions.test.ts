@@ -26,7 +26,7 @@ const del = vi.fn(() => ({ eq }));
 const from = vi.fn(() => ({ delete: del }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ from }) }));
 
-import { setAnalyticsOptOut } from "@/app/(member)/privacy/actions";
+import { setAnalyticsOptOut } from "@/app/privacy/actions";
 
 beforeEach(() => {
   dataset = new InMemoryDataset({ userProfiles: [{ id: USER.id, email: USER.email }] });
