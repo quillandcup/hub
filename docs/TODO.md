@@ -191,6 +191,10 @@ Educational prickles (`EDU-PRICKLE: Title w/Name`) map to the Educational type t
 
 The Ambiguous Zoom Names page works out from the current members and aliases which stored names are still ambiguous, and derives their counts from Bronze. The Data Hygiene overview (`app/(admin)/admin/hygiene/page.tsx`, `ambiguousNamesCount`) still counts the stored unresolved rows, so it can show more names than the page lists until the stale rows are resolved or ignored. Deferred to keep the fix small. Start by moving the "still ambiguous" check into a shared function in `lib/` that both call; `ambiguous_zoom_names.occurrence_count` and `candidate_member_ids` are no longer read and can be dropped afterwards.
 
+### Import pre-2026 events _(Idea, very low priority)_
+
+The past events page (`app/(member)/events/past/page.tsx`, `PAST_EVENTS_FROM`) hides events that start before 2026, because the older ones haven't been imported properly yet. Deferred until there is time to import them. Start by importing the older events, then remove the `PAST_EVENTS_FROM` filter.
+
 ## Infrastructure & Deployment
 
 ### Test Slack Integrations at the HTTP Level with MSW

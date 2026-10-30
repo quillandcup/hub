@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "Past events · Events",
 };
 
+/** Events before this are hidden until they are imported (docs/TODO.md: "Import pre-2026 events"). */
+const PAST_EVENTS_FROM = "2026-01-01";
+
 export default async function PastEventsPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const supabase = await createClient();
   const user = await getCurrentUser();
@@ -50,7 +53,7 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
       image_id: e.imageId,
       cover_photo_id: e.coverPhotoId,
     }))
-    .filter((e) => eventDays(e, timeZone).endDate < today);
+    .filter((e) => eventDays(e, timeZone).endDate < today && e.starts_at >= PAST_EVENTS_FROM);
 
   // Every month from the first event's through this one (events earlier this month are past too), the latest open.
   const first = rows.reduce((least, e) => (e.starts_at < least ? e.starts_at : least), today);

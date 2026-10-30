@@ -71,15 +71,15 @@ describe('EventsBrowser', () => {
   it('says the current month shows what is still ahead, and links to past events for it', () => {
     renderBrowser()
     const september = glance('September')
-    expect(within(september).getByText(/what's still ahead in September/)).toBeInTheDocument()
+    expect(within(september).getByText(/what's still to come in September/)).toBeInTheDocument()
     expect(within(september).getByRole('link', { name: 'See past events' })).toHaveAttribute('href', '/events/past?month=2026-09')
   })
 
   it('links to past events without the note for a later month', async () => {
     renderBrowser({ initialMonth: MONTHS[1].id })
     const october = glance('October')
-    expect(within(october).queryByText(/still ahead/)).not.toBeInTheDocument()
-    expect(within(october).getByRole('link', { name: 'See past events' })).toHaveAttribute('href', '/events/past?month=')
+    expect(within(october).queryByText(/still to come/)).not.toBeInTheDocument()
+    expect(within(october).getByRole('link', { name: 'See past events' })).toHaveAttribute('href', '/events/past')
   })
 
   it('divides the weeks, and puts the day on the left of its items', () => {
