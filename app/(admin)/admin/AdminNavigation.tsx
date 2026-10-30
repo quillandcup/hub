@@ -81,12 +81,16 @@ function NavLinks({ enabledFeatures, pathname, collapsed, keepLayout, onNavigate
           if (section.collapsible && (keepLayout || !collapsed)) {
             return (
               <details key={section.name} className="mb-6 group" open={containsActiveItem}>
+                {/* The arrow stays visible in the icon column even while the rail is closed (a hint that the section
+                    is there); only the name fades. */}
                 <summary
-                  className={`text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 ${labelFade} ${keepLayout && collapsed ? "pointer-events-none" : ""}`}
+                  className={`text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 pl-0 pr-3 cursor-pointer select-none list-none flex items-center gap-2 hover:text-slate-700 dark:hover:text-slate-200 ${keepLayout && collapsed ? "pointer-events-none" : ""}`}
                   aria-hidden={(keepLayout && collapsed) || undefined}
                 >
-                  <span className="inline-block transition-transform group-open:rotate-90">▸</span>
-                  {section.name}
+                  <span className="w-8 flex-shrink-0 text-center">
+                    <span className="inline-block transition-transform group-open:rotate-90">▸</span>
+                  </span>
+                  <span className={`whitespace-nowrap ${labelFade}`}>{section.name}</span>
                 </summary>
                 {list}
               </details>
