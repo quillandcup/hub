@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeRosterResponse, memberReportUrl, parseKajabiDay, parseKajabiInstant, parseMemberProgress, parseRoster, rosterHasMembers } from "@/lib/kajabi/progress-capture";
+import { describeRosterResponse, forwardableHeaders, memberReportUrl, parseKajabiDay, parseKajabiInstant, parseMemberProgress, parseRoster, rosterHasMembers } from "@/lib/kajabi/progress-capture";
 
 const NY = "America/New_York";
 
@@ -171,5 +171,34 @@ describe("waiting for the report to be built", () => {
     expect(withStudent).not.toContain("Ada");
     expect(describeRosterResponse({ status: 5 })).toBe("status number, count undefined, members undefined");
     expect(describeRosterResponse("x")).toBe("not an object");
+  });
+});
+
+describe("headers to carry onto our own requests", () => {
+  it("keeps the app's custom headers and drops what the browser sets itself, lowercased", () => {
+    const out = forwardableHeaders({
+      Accept: "application/json",
+      "X-CSRF-Token": "t0ken",
+      Authorization: "Bearer abc",
+      "X-Kajabi-Site": "1",
+      Cookie: "session=1",
+      Host: "app.example.test",
+      "User-Agent": "x",
+      Referer: "https://app.example.test/",
+      Origin: "https://app.example.test",
+      "Content-Length": "0",
+      "Accept-Encoding": "gzip",
+      "If-None-Match": "etag",
+      "Sec-Fetch-Mode": "cors",
+      "sec-ch-ua": "x",
+      ":authority": "app.example.test",
+      "X-Empty": "",
+    });
+    expect(out).toEqual({ accept: "application/json", "x-csrf-token": "t0ken", authorization: "Bearer abc", "x-kajabi-site": "1" });
+  });
+
+  it("is empty when the page sent nothing worth carrying", () => {
+    expect(forwardableHeaders({})).toEqual({});
+    expect(forwardableHeaders({ Cookie: "a=b", Host: "h" })).toEqual({});
   });
 });
