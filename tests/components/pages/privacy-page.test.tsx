@@ -195,16 +195,18 @@ describe("/privacy page", () => {
     expect(choices.getByText(/We will answer within a month/)).toBeInTheDocument();
   });
 
-  it("describes the kinds of services involved without naming vendors, and the region error reports are held in", async () => {
+  it("names Vercel and Google Analytics, describes the other services by kind, and says where error reports are held", async () => {
     await renderServerPage(PrivacyPage, {});
     const services = section("services");
-    for (const kind of ["database and sign-in provider", "hosting provider", "error-reporting provider", "video provider", "email provider", "analytics service", "Slack"]) {
+    for (const kind of ["database and sign-in provider", "hosting\\s+provider, Vercel", "error-reporting provider", "video provider", "email provider", "Google Analytics", "Slack"]) {
       expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
     expect(services.getByText(/an error-reporting provider \(error reports, held in the EU\)/)).toBeInTheDocument();
-    // The page names no vendor except Slack, which is the community's own platform, not a processor we list.
+    // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
+    expect(section("choices").getByText(/that count is not part of the switch below/)).toBeInTheDocument();
+    // Everything else stays generic.
     const text = document.body.textContent ?? "";
-    for (const vendor of ["Supabase", "Vercel", "Mux", "Sentry", "Google Analytics", "Resend"]) expect(text).not.toContain(vendor);
+    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
   });
 });
 
