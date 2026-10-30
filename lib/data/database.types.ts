@@ -2238,6 +2238,7 @@ export type Database = {
           source: string
           source_key: string | null
           state: string
+          thumbnail_asset_id: string | null
           thumbnail_path: string | null
           thumbnail_source: string | null
           thumbnail_url: string | null
@@ -2257,6 +2258,7 @@ export type Database = {
           source?: string
           source_key?: string | null
           state?: string
+          thumbnail_asset_id?: string | null
           thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
@@ -2276,6 +2278,7 @@ export type Database = {
           source?: string
           source_key?: string | null
           state?: string
+          thumbnail_asset_id?: string | null
           thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
@@ -2299,6 +2302,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "course_lessons_thumbnail_asset_id_fkey"
+            columns: ["thumbnail_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "course_lessons_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
@@ -2314,6 +2324,7 @@ export type Database = {
           id: string
           parent_id: string | null
           position: number
+          poster_asset_id: string | null
           poster_path: string | null
           poster_source: string | null
           poster_url: string | null
@@ -2329,6 +2340,7 @@ export type Database = {
           id?: string
           parent_id?: string | null
           position?: number
+          poster_asset_id?: string | null
           poster_path?: string | null
           poster_source?: string | null
           poster_url?: string | null
@@ -2344,6 +2356,7 @@ export type Database = {
           id?: string
           parent_id?: string | null
           position?: number
+          poster_asset_id?: string | null
           poster_path?: string | null
           poster_source?: string | null
           poster_url?: string | null
@@ -2368,6 +2381,13 @@ export type Database = {
             referencedRelation: "course_modules"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "course_modules_poster_asset_id_fkey"
+            columns: ["poster_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
         ]
       }
       courses: {
@@ -2375,6 +2395,7 @@ export type Database = {
           access_duration: string | null
           created_at: string
           description: string | null
+          hero_asset_id: string | null
           hero_path: string | null
           hero_source: string | null
           hero_url: string | null
@@ -2385,6 +2406,7 @@ export type Database = {
           slug: string
           source: string
           source_key: string | null
+          thumbnail_asset_id: string | null
           thumbnail_path: string | null
           thumbnail_source: string | null
           thumbnail_url: string | null
@@ -2395,6 +2417,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          hero_asset_id?: string | null
           hero_path?: string | null
           hero_source?: string | null
           hero_url?: string | null
@@ -2405,6 +2428,7 @@ export type Database = {
           slug: string
           source?: string
           source_key?: string | null
+          thumbnail_asset_id?: string | null
           thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
@@ -2415,6 +2439,7 @@ export type Database = {
           access_duration?: string | null
           created_at?: string
           description?: string | null
+          hero_asset_id?: string | null
           hero_path?: string | null
           hero_source?: string | null
           hero_url?: string | null
@@ -2425,6 +2450,7 @@ export type Database = {
           slug?: string
           source?: string
           source_key?: string | null
+          thumbnail_asset_id?: string | null
           thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
@@ -2433,10 +2459,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "courses_hero_asset_id_fkey"
+            columns: ["hero_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "courses_program_id_fkey"
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_thumbnail_asset_id_fkey"
+            columns: ["thumbnail_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
             referencedColumns: ["id"]
           },
         ]

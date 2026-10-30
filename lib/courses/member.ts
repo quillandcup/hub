@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
-import { courseImageSrc } from "@/lib/courses/images";
+import { courseImageSrc } from "@/lib/courses/image-urls";
 import { resumeSeconds } from "@/lib/courses/watch";
 import {
   buildOutline,
@@ -59,11 +59,11 @@ export interface CourseRow {
 }
 
 /** A courses row with `thumbnail_url` resolved to our copy of the image when there is one. */
-function withCourseImage({ thumbnail_path, hero_path, hero_url, ...course }: any): CourseRow {
+function withCourseImage({ thumbnail_path, thumbnail_asset_id, hero_path, hero_asset_id, hero_url, ...course }: any): CourseRow {
   return {
     ...course,
-    thumbnail_url: courseImageSrc("course", course.id, thumbnail_path, course.thumbnail_url),
-    hero_url: courseImageSrc("hero", course.id, hero_path, hero_url),
+    thumbnail_url: courseImageSrc("course", course.id, thumbnail_asset_id ?? thumbnail_path, course.thumbnail_url),
+    hero_url: courseImageSrc("hero", course.id, hero_asset_id ?? hero_path, hero_url),
   };
 }
 
@@ -92,12 +92,12 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
 async function loadStructure(supabase: SupabaseClient, courseIds: string[], includeHidden = false) {
   const [modules, lessons] = await Promise.all([
     fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, thumbnail_path, excerpt", (q) =>
+    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, thumbnail_path, thumbnail_asset_id, excerpt", (q) =>
       (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)
     ),
   ]);
   // Our copy of a thumbnail when there is one, the Kajabi URL until the images step has run.
-  return { modules, lessons: lessons.map(({ thumbnail_path, ...l }) => ({ ...l, thumbnail_url: courseImageSrc("lesson", l.id, thumbnail_path, l.thumbnail_url) })) };
+  return { modules, lessons: lessons.map(({ thumbnail_path, thumbnail_asset_id, ...l }) => ({ ...l, thumbnail_url: courseImageSrc("lesson", l.id, thumbnail_asset_id ?? thumbnail_path, l.thumbnail_url) })) };
 }
 
 async function loadCompleted(supabase: SupabaseClient, memberId: string, lessonIds: string[]): Promise<Set<string>> {
@@ -144,7 +144,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = (await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url, thumbnail_path", (q) => q.in("id", courseIds))).map(withCourseImage);
+  const courses: CourseRow[] = (await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url, thumbnail_path, thumbnail_asset_id", (q) => q.in("id", courseIds))).map(withCourseImage);
   const { modules, lessons } = await loadStructure(supabase, courseIds, scope.isAdminActing);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
@@ -241,7 +241,7 @@ export interface CourseView {
 
 /** One course by slug, or null when there is none. */
 export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_path, hero_url, hero_path").eq("slug", slug).maybeSingle();
+  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_path, thumbnail_asset_id, hero_url, hero_path, hero_asset_id").eq("slug", slug).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!courseRow) return null;
   const course = withCourseImage(courseRow);

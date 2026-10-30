@@ -5,7 +5,7 @@ import { selectPlayback, selectPlaybackRate, selectSource, selectTime, useCaptio
 import { VideoPlayer, VideoSkin } from "@videojs/react/video";
 import { MuxVideo } from "@videojs/react/media/mux-video";
 import "@videojs/react/video/skin.css";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { MAX_SEGMENTS_PER_BATCH, RESUME_MAX_FRACTION, type WatchSegmentInput } from "@/lib/courses/watch";
 import { AUTO_COMPLETE_FRACTION, useLessonCompletion } from "./LessonCompletion";
 

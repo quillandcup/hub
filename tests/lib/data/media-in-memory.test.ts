@@ -14,6 +14,11 @@ defineMediaContract("InMemoryMediaRepository", () => {
       data.memberBooks.push({ id, member_id: ownerMemberId, title, published_date: publishedOn, cover_asset_id: assetId });
       return id;
     },
+    courseImageShowing: async (assetId, kind, title) => {
+      const id = `${kind === "course" ? "crs" : kind === "module" ? "mod" : "les"}_${String(++n).padStart(12, "A")}`;
+      data.courseImages.push({ id, kind, title, asset_ids: [assetId] });
+      return id;
+    },
     projectShowing: async (assetId, ownerMemberId) => {
       const id = `wprj_${String(++n).padStart(12, "A")}`;
       data.writingProjects.push({ id, member_id: ownerMemberId, cover_asset_id: assetId } as never);

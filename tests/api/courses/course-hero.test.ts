@@ -3,6 +3,8 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { saveCourseHero } from '@/lib/kajabi/course-hero'
 import { processCourses } from '@/lib/courses/process'
 import { COURSE_IMAGES_BUCKET, copyCourseImages } from '@/lib/courses/images'
+import { MEDIA_BUCKET } from '@/lib/media/library'
+import { solidImage } from '../../helpers/media-fixtures'
 
 /**
  * A course's hero banner, end to end against the real local database and Storage with a fake source:
@@ -20,7 +22,8 @@ const calls: string[] = []
 const download = (async (input: unknown) => {
   const name = new URL(String(input)).pathname.slice(1)
   calls.push(name)
-  return new Response(`bytes of ${name}`, { status: 200, headers: { 'content-type': 'image/jpeg' } })
+  const seed = [...name].reduce((n, c) => n + c.charCodeAt(0), 0)
+  return new Response(new Uint8Array(await solidImage(40, 30, 'jpeg', { r: seed % 256, g: (seed * 7) % 256, b: Date.now() % 256 })), { status: 200, headers: { 'content-type': 'image/jpeg' } })
 }) as typeof fetch
 
 describe('Course hero image', () => {
@@ -39,6 +42,11 @@ describe('Course hero image', () => {
     }
     await supabase.from('courses').delete().eq('source_key', COURSE)
     await bronze().delete().eq('kajabi_id', COURSE)
+    const { data: assets } = await supabase.from('media_assets').select('id, storage_path').contains('tags', [SLUG])
+    if (assets?.length) {
+      await supabase.storage.from(MEDIA_BUCKET).remove(assets.map((a) => a.storage_path))
+      await supabase.from('media_assets').delete().in('id', assets.map((a) => a.id))
+    }
   }
 
   beforeAll(async () => {
@@ -76,10 +84,12 @@ describe('Course hero image', () => {
     const first = await copyCourseImages(supabase, COURSE, download)
     expect(first).toMatchObject({ copied: 2, failed: [] }) // the cover and the hero
     const course = await silver()
-    expect(course.hero_path).toBe(`${course.id}/hero.jpg`)
+    expect(course.hero_asset_id).toMatch(/^media_/)
     expect(course.hero_source).toBe('https://kajabi.test/h1.jpg')
-    expect(course.thumbnail_path).toBe(`${course.id}/cover.jpg`)
-    expect((await bucket().download(course.hero_path)).error).toBeNull()
+    expect(course.thumbnail_asset_id).toMatch(/^media_/)
+    const hero = (await supabase.from('media_assets').select('storage_path, source_key').eq('id', course.hero_asset_id).single()).data!
+    expect(hero.source_key).toBe('https://kajabi.test/h1.jpg')
+    expect((await supabase.storage.from(MEDIA_BUCKET).download(hero.storage_path)).error).toBeNull()
 
     calls.length = 0
     const again = await copyCourseImages(supabase, COURSE, download)
@@ -106,8 +116,8 @@ describe('Course hero image', () => {
     const result = await copyCourseImages(supabase, COURSE, download)
     expect(result.removed).toBe(1)
     const cleared = await silver()
-    expect(cleared.hero_path).toBeNull()
+    expect(cleared.hero_asset_id).toBeNull()
     expect(cleared.hero_source).toBeNull()
-    expect((await bucket().download(changed.hero_path!)).error).not.toBeNull()
+    expect((await supabase.from('media_assets').select('deleted_at').eq('id', changed.hero_asset_id!).single()).data!.deleted_at).not.toBeNull()
   })
 })

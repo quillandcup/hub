@@ -27,8 +27,8 @@ const COVER_PRESETS = ["book_cover_shelf", "book_cover_kdp_ebook"] as const;
 const FORMAT_PARAM: Record<string, string> = { jpeg: "jpeg", png: "png", webp: "webp" };
 const FIT_PARAM: Record<FitMode, string> = { crop: "crop", extend: "extend", white: "white" };
 
-/** Where staff can open a place that uses the image; a book or a member's project has no staff page. */
-const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : null);
+/** Where staff can open a place that uses the image; a book, a member's project, a module or a lesson has no staff page of its own. */
+const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : u.kind === "course" ? `/admin/courses/${u.id}` : null);
 
 /** One image: its details, where it's used, its focal point and cover fit, and downloads. Saves, deletes. */
 export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: string; onClose: () => void; onChanged: () => void }) {

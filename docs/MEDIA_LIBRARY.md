@@ -10,7 +10,7 @@ Images are handled four different ways today, and none of them can be reused:
 |---|---|---|
 | Book covers | Public `book-covers` bucket, `member_books.cover_url`, `lib/bookCover.ts` | The upload is rejected unless it is *exactly* 145x215 px. A member whose cover is Amazon-sized (or any other size) can't use it. |
 | Event photos | Private `event-photos` bucket, `event_photos` rows, imported from Google Photos | A gallery per event, not a library: there is no event image to show on the events list and detail page, and nothing to pick twice. |
-| Course images | Private `course-images` bucket, `*_path` / `*_source` columns on `courses`, `course_modules`, `course_lessons`, copied from Kajabi by `lib/courses/images.ts` | One bucket and three sets of columns for one job. Every new place that shows an image would add another. |
+| Course images | Private `course-images` bucket, `*_path` / `*_source` columns on `courses`, `course_modules`, `course_lessons`, copied from Kajabi by `lib/courses/images.ts` (now in the library; see below) | One bucket and three sets of columns for one job. Every new place that shows an image would add another. |
 | Help screenshots | `help-images` bucket | Build artifacts, not content. **Stays out of the library.** |
 
 ## Shape
@@ -56,21 +56,17 @@ The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from w
 - **"Hedgies on First", pick it again**: tags and a title do this in v1 (search "hedgies"). A default per recurring series (so each week's event gets it without anyone choosing) is a follow-up; it wants an image on the series or the prickle type, with the event overriding it. Decide where when events are next touched.
 - `/admin/media`: browse, rename, tag, set a focal point, see where each is used, delete the unused. Admin pages follow `requireAdminPage()`.
 
-## One plan with the Kajabi course-content work
+## The Kajabi course images (done)
 
-`lib/courses/images.ts` (`copyCourseImages`) already does the hard part: download, validate type and size, skip when the source is unchanged, remove when Kajabi dropped it, sweep orphans. The plan is to **keep that logic and change where it writes**:
+`lib/courses/images.ts` (`copyCourseImages`) keeps its logic (download, validate type and size, skip when the source link is unchanged, clear what Kajabi dropped, sweep leftovers) and now writes to the library:
 
-- It creates or finds a `media_assets` row by `(source = 'kajabi', source_key = <url without query>)` instead of writing `*_path` / `*_source`, and sets `*_asset_id` on the course, module or lesson. The skip-if-unchanged check becomes "an asset with this source key exists and is the one referenced".
-- The orphan sweep becomes "assets with `source = 'kajabi'` that nothing references", via the usage view, instead of listing a folder.
-- **Stop adding columns.** `thumbnail_path` / `poster_path` and their `*_source` twins are the shape to avoid copying (they are in `20270214000300_course_images_bucket.sql`). If the course workstream needs another image slot before the library exists, it adds an `*_asset_id` column pointing at `media_assets`, not another path pair.
-- **Data move**: existing objects in `course-images` are re-registered as assets (the files are copied once into the media bucket; Storage can't rename a bucket), the new columns are filled, then the old columns and bucket are dropped in a later migration after the proxy has read from the new place for a release.
-- Course image access (draft hidden from members) stays in `/api/courses/image/...`; it only changes where it reads the bytes from.
+- Each image is a shared library image (`source = 'kajabi'`, `source_key` = the Kajabi link without its query string, tags `kajabi` and the course slug), recorded on the course, module or lesson as `thumbnail_asset_id`, `hero_asset_id` or `poster_asset_id`; `*_source` stays as the cheap "has it changed" check. The same link on a lesson and its module is one library image, fetched once.
+- A changed source stores the new image and removes the old one from the library once nothing shows it. An image Kajabi dropped is cleared the same way. Leftovers (this course's Kajabi images that no course, module or lesson shows) are removed at the end of a run. The library's usage list includes courses, modules and lessons, so a course image can't be deleted in `/admin/media` while it is shown, and the nightly sweep never clears the files of one that is.
+- **The move**: a row that still has an old copy in the `course-images` bucket (`*_path`) gets that copy moved into the library on the next run, with no request to Kajabi, and the old object removed. So nothing depends on Kajabi staying up for this.
+- Access is unchanged: members only ever see `/api/courses/image/<kind>/<id>`, which needs a courses user and keeps a draft's image for staff acting as themselves; it now reads from the library when the row has an asset, falls back to the old bucket copy, and `courseImageSrc` falls back to the Kajabi link before the step has run.
+- Because course images are shared library images, they show up in `/admin/media` and the picker (search `kajabi`, or a course's slug). That is the point: a lesson thumbnail or poster can be replaced with any library image once the course builder exists.
 
-**Needs agreeing with whoever owns `courses:content`**: that the foundation PR below lands first, and that its next image work targets `media_assets`.
-
-## Housekeeping
-
-`/api/reconcile/media` runs nightly (`lib/media/sweep.ts`): it removes uploads started through the signed URL and never confirmed (over a day old), and the files of images deleted over 30 days ago (original and renditions; the row stays, with `files_removed_at` set, so a title and tags aren't lost). An image something still shows is skipped. Deleting in `/admin/media` is therefore undoable by staff (clear `deleted_at`) for 30 days.
+Still to do, once every course has been through the step: drop the `*_path` columns and the `course-images` bucket, and the code that reads them (`docs/TODO.md`).
 
 ## Later: poster and thumbnail from a video frame
 
@@ -94,7 +90,7 @@ Each is its own PR, small enough to review.
 1. **Foundation**: migration (`media_assets`, bucket, grants, RLS, usage view), `MediaRepository` (interface, Supabase class, in-memory twin, contract suite, guard-test entry), `lib/media/` (validate, presets, render), upload route, `/api/media/<id>/<preset>`, tests with fixture images (including an EXIF-rotated one and an oversize one), pgTAP for the table and bucket.
 2. **Picker, `/admin/media`, events**: `MediaPicker`; `events.image_id`; the image on the events list and event detail page; analytics events (`media_uploaded`, `media_picked`, `media_reused`) declared in `lib/analytics/events.ts`.
 3. **Book covers** (done): the cover upload on the Bookshelf and Projects forms takes any size and keeps it as the member's own library image. `cover_url` still holds the URL every page shows (`/api/media/<id>/book_cover_shelf` for a new cover; older covers keep their own link), and `member_books.cover_asset_id` / `writing_projects.cover_asset_id` say which asset it is. A published book's cover is readable by every signed-in member (the Bookshelf shows it to all); a project's pre-publish cover stays private to its owner. The book form shows the cover's size and a **Download for Amazon** link (the 1600 x 2560 JPEG), or what is missing when it is too small. Replacing a cover removes the old one from the member's library once nothing uses it. The Trackbear import stores each project's cover the same way, at its original size. Older covers were not moved by the upload change: they stay as links until adopted (below), and one that is 145 x 215 cannot be turned into an Amazon cover.
-4. **Kajabi unification**: `copyCourseImages` writes assets (above), with the idempotency tests in `tests/api/courses/images.test.ts` carried over.
+4. **Kajabi unification** (done): `copyCourseImages` writes library images (above), with the idempotency tests in `tests/api/courses/images.test.ts` carried over and extended.
 5. **Course lesson thumbnails** through the picker, then the video-frame tab when the course builder exists.
 
 ## Open questions

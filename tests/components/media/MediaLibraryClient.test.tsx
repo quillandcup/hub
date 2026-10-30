@@ -123,6 +123,24 @@ describe("MediaEditor", () => {
     expect(screen.getByRole("link", { name: /Amazon ebook cover/ })).toHaveAttribute("href", `/api/media/${ID}/book_cover_kdp_ebook?download=1`);
   });
 
+  it("links an event and a course to their admin pages, and names a module, a lesson, a book or a project without a link", async () => {
+    usages = [
+      { kind: "event", id: "evt_AAAAAAAAAAA1", title: "Spring Retreat" },
+      { kind: "course", id: "crs_AAAAAAAAAAA1", title: "Craft Course" },
+      { kind: "module", id: "mod_AAAAAAAAAAA1", title: "Week One" },
+      { kind: "lesson", id: "les_AAAAAAAAAAA1", title: "Pacing" },
+      { kind: "book", id: "book_AAAAAAAAAAA1", title: "A Book" },
+      { kind: "project", id: "wprj_AAAAAAAAAAA1", title: "A writing project" },
+    ];
+    await open();
+    expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/evt_AAAAAAAAAAA1");
+    expect(screen.getByRole("link", { name: "Craft Course" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1");
+    for (const plain of ["Week One", "Pacing", "A Book", "A writing project"]) {
+      expect(screen.getByText(plain, { exact: false })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: plain })).not.toBeInTheDocument();
+    }
+  });
+
   it("builds a custom-size download from the fields and records the clicks", async () => {
     await open();
     await userEvent.clear(screen.getByLabelText("Width"));
