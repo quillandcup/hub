@@ -9,7 +9,7 @@ vi.mock("@/lib/config", () => ({
   },
 }));
 
-import { isPublicBookCover } from "@/lib/media/public-covers";
+import { assetForVisitor, isPublicBookCover } from "@/lib/media/public-covers";
 
 let data: InMemoryDataset;
 let media: InMemoryMediaRepository;
@@ -49,5 +49,37 @@ describe("isPublicBookCover", () => {
     expect(await isPublicBookCover(media, bookCover.id, "book_cover_kdp_ebook")).toBe(false);
     expect(await isPublicBookCover(media, bookCover.id, "thumb")).toBe(false);
     for (const other of [projectCover, eventImage, unused]) expect(await isPublicBookCover(media, other.id, "book_cover_shelf")).toBe(false);
+  });
+});
+
+describe("assetForVisitor", () => {
+  it("gives a live image marked public, whatever the Bookshelf is doing", async () => {
+    const shared = await asset("pub");
+    await media.edit(shared.id, { is_public: true });
+    expect((await assetForVisitor(media, shared.id, "thumb"))?.id).toBe(shared.id);
+  });
+
+  it("gives a book's cover at the shelf size only while the Bookshelf is public", async () => {
+    const cover = await asset("cover");
+    data.memberBooks.push({ id: "book_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA1", title: "T", published_date: "2026-01-01", cover_asset_id: cover.id });
+    expect(await assetForVisitor(media, cover.id, "book_cover_shelf")).toBeNull();
+    config.public = true;
+    expect((await assetForVisitor(media, cover.id, "book_cover_shelf"))?.id).toBe(cover.id);
+    expect(await assetForVisitor(media, cover.id, "book_cover_kdp_ebook")).toBeNull();
+  });
+
+  it("gives nothing for an image that is private, deleted or doesn't exist", async () => {
+    const privateOne = await asset("private");
+    const gone = await asset("gone");
+    await media.edit(gone.id, { is_public: true });
+    await media.remove(gone.id);
+    expect(await assetForVisitor(media, privateOne.id, "thumb")).toBeNull();
+    expect(await assetForVisitor(media, gone.id, "thumb")).toBeNull();
+    expect(await assetForVisitor(media, "media_AAAAAAAAAAAA", "thumb")).toBeNull();
+  });
+
+  it("answers nothing, not an error, when the library can't be read", async () => {
+    vi.spyOn(media, "byId").mockRejectedValue(new Error("down"));
+    expect(await assetForVisitor(media, "media_AAAAAAAAAAA1", "thumb")).toBeNull();
   });
 });

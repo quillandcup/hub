@@ -4,7 +4,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { MediaAsset } from "@/lib/data/media";
 import { isId } from "@/lib/ids";
 import { parseCustomSize } from "@/lib/media/custom";
-import { isPublicBookCover } from "@/lib/media/public-covers";
+import { assetForVisitor } from "@/lib/media/public-covers";
 import { MEDIA_BUCKET, renditionOf } from "@/lib/media/library";
 import { isPresetName, PRESETS } from "@/lib/media/presets";
 import { FORMAT_INFO, renderImage, settingsFor } from "@/lib/media/render";
@@ -42,11 +42,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   let servedToAnyone = false;
   if (user) asset = await createRepos(await createClient()).media.byId(id).catch(() => null);
   if (!asset || asset.deleted_at) {
-    const media = createRepos(service).media;
-    const candidate = await media.byId(id).catch(() => null);
-    const isPublic = !!candidate && !candidate.deleted_at && (candidate.is_public || (await isPublicBookCover(media, candidate.id, preset).catch(() => false)));
-    asset = isPublic ? candidate : null;
-    servedToAnyone = isPublic;
+    asset = await assetForVisitor(createRepos(service).media, id, preset);
+    servedToAnyone = asset !== null;
   }
   if (!asset) return new NextResponse("Not found", { status: 404 });
 
