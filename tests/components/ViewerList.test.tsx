@@ -35,6 +35,19 @@ describe("ViewerList", () => {
     expect(screen.getByRole("img", { name: /Covered 50% of the video: 0:00 to 2:30/ })).toBeInTheDocument();
   });
 
+  it("names the device from the stored one when the user agent is gone, else from the string, else says unknown", () => {
+    const { rerender } = render(
+      <ViewerList sessions={[session({ device: { browser: "Safari", browser_version: "17.5", os: "iOS", os_version: "17.5", device_type: "phone" } })]} durationSeconds={300} shown={1} more={null} />,
+    );
+    expect(screen.getByText("Safari on iPhone")).toBeInTheDocument();
+
+    rerender(<ViewerList sessions={[session({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36" })]} durationSeconds={300} shown={1} more={null} />);
+    expect(screen.getByText("Chrome on Mac")).toBeInTheDocument();
+
+    rerender(<ViewerList sessions={[session()]} durationSeconds={300} shown={1} more={null} />);
+    expect(screen.getByText("Unknown device")).toBeInTheDocument();
+  });
+
   it("offers Load more only when there is more", () => {
     const { rerender } = render(<ViewerList sessions={[session()]} durationSeconds={300} shown={1} more="/more" />);
 

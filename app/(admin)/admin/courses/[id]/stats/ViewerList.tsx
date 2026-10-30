@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatCourseDateTime } from "@/lib/courses/format";
-import { describeDevice } from "@/lib/device-label";
+import { describeStoredDevice } from "@/lib/device-label";
 import { formatClock } from "@/lib/courses/watch-stats";
 import type { ViewSession } from "@/lib/courses/watch-stats-data";
 
@@ -64,7 +64,7 @@ export default function ViewerList({
               </summary>
               <dl className="grid grid-cols-[6rem_1fr] gap-y-1 border-t border-slate-100 p-3 text-sm dark:border-slate-800">
                 <dt className="text-slate-600 dark:text-slate-400">Device</dt>
-                <dd>{describeDevice(s.userAgent)}</dd>
+                <dd>{describeStoredDevice(s.device, s.userAgent)}</dd>
                 <dt className="text-slate-600 dark:text-slate-400">Location</dt>
                 <dd>{s.location?.place ?? "Not recorded"}</dd>
                 <dt className="text-slate-600 dark:text-slate-400">IP</dt>

@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import type { DeviceInfo } from "@/lib/device-label";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll, inBatches } from "@/lib/courses/db";
@@ -83,7 +84,7 @@ export async function loadCourseWatchStats(
   for (const batch of inBatches(videoIds)) {
     const [videos, segments] = await Promise.all([
       fetchAll(supabase, "videos", "id, duration_seconds, mux_playback_id, status", (q) => q.in("id", batch)),
-      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, kind, start_seconds, end_seconds, playback_rate, captions_language, visible, user_agent, started_at", (q) => q.in("video_id", batch)),
+      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, kind, start_seconds, end_seconds, playback_rate, captions_language, visible, user_agent, device, started_at", (q) => q.in("video_id", batch)),
     ]);
     for (const v of videos) {
       durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
@@ -93,7 +94,7 @@ export async function loadCourseWatchStats(
       if (staff.has(s.member_id)) continue;
       if (s.kind === "viewed") {
         const views = viewsByVideo.get(s.video_id) ?? [];
-        views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent });
+        views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent, device: (s.device as DeviceInfo | null) ?? null });
         viewsByVideo.set(s.video_id, views);
         continue;
       }

@@ -4,6 +4,7 @@ import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
 import { recordLessonWatched } from "@/lib/courses/activity";
 import { parseWatchBatch } from "@/lib/courses/watch";
 import { userAgentForStorage } from "@/lib/device-label";
+import { deviceForStorage } from "@/lib/device";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
         start_seconds: 0,
         end_seconds: 0,
         user_agent: userAgentForStorage(request.headers.get("user-agent")),
+        device: deviceForStorage(request.headers.get("user-agent")),
       },
       { onConflict: "member_id,client_segment_id", ignoreDuplicates: true }
     );

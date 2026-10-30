@@ -5,6 +5,7 @@
  * Times are media seconds (positions in the video), not wall-clock: a stretch of 60s at 2x took 30
  * real seconds but covers 60s of video.
  */
+import type { DeviceInfo } from "@/lib/device-label";
 
 export interface WatchSegment {
   memberId: string;
@@ -27,8 +28,10 @@ export interface ViewMarker {
   sessionId: string;
   /** ISO time. */
   startedAt: string;
-  /** The browser's user agent, for the device. */
+  /** The browser's user agent, for the device (removed after 90 days). */
   userAgent: string | null;
+  /** The device parsed from it when the view was recorded; outlives the user agent. */
+  device?: DeviceInfo | null;
 }
 
 /**
@@ -237,6 +240,8 @@ export interface PlaySession {
   /** When the session began (ISO), or null when nothing recorded it. */
   startedAt: string | null;
   userAgent: string | null;
+  /** The device parsed when the session was recorded; outlives the user agent. */
+  device?: DeviceInfo | null;
   /** Whether anything was played (otherwise the player only appeared). */
   played: boolean;
   /** Video time played in this session, rewatching included. */
@@ -254,17 +259,18 @@ export interface PlaySession {
  */
 export function computePlaySessions(segments: WatchSegment[], durationSeconds: number | null, views: ViewMarker[] = []): PlaySession[] {
   const duration = durationSeconds && durationSeconds > 0 ? durationSeconds : segments.reduce((max, s) => Math.max(max, s.end), 0);
-  const sessions = new Map<string, { memberId: string; startedAt: string | null; userAgent: string | null; intervals: Interval[]; watched: number }>();
+  const sessions = new Map<string, { memberId: string; startedAt: string | null; userAgent: string | null; device: DeviceInfo | null; intervals: Interval[]; watched: number }>();
   const earlier = (a: string | null, b: string | undefined | null) => (a && b ? (a < b ? a : b) : (a ?? b ?? null));
 
   for (const v of views) {
-    const entry = sessions.get(v.sessionId) ?? { memberId: v.memberId, startedAt: null, userAgent: null, intervals: [], watched: 0 };
+    const entry = sessions.get(v.sessionId) ?? { memberId: v.memberId, startedAt: null, userAgent: null, device: null, intervals: [], watched: 0 };
     entry.startedAt = earlier(entry.startedAt, v.startedAt);
     entry.userAgent = entry.userAgent ?? v.userAgent;
+    entry.device = entry.device ?? v.device ?? null;
     sessions.set(v.sessionId, entry);
   }
   for (const s of segments) {
-    const entry = sessions.get(s.sessionId) ?? { memberId: s.memberId, startedAt: null, userAgent: null, intervals: [], watched: 0 };
+    const entry = sessions.get(s.sessionId) ?? { memberId: s.memberId, startedAt: null, userAgent: null, device: null, intervals: [], watched: 0 };
     entry.startedAt = earlier(entry.startedAt, s.startedAt);
     const start = Math.min(s.start, duration);
     const end = Math.min(s.end, duration);
@@ -284,6 +290,7 @@ export function computePlaySessions(segments: WatchSegment[], durationSeconds: n
         memberId: e.memberId,
         startedAt: e.startedAt,
         userAgent: e.userAgent,
+        device: e.device,
         played: e.watched > 0,
         watchedSeconds: e.watched,
         coveredFraction: duration > 0 ? covered / duration : 0,

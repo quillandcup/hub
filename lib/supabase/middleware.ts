@@ -8,6 +8,7 @@ import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
+import { deviceForStorage } from '@/lib/device'
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from '@/lib/analytics-identity'
 import type { Database } from '@/lib/data/database.types'
 
@@ -124,6 +125,7 @@ export async function updateSession(request: NextRequest) {
           session_id: eventSessionId,
           acting_as_member_id: actingAsMemberId,
           user_agent: userAgentForStorage(userAgent),
+          device: deviceForStorage(userAgent),
           ...location,
           ga_client_id: gaClientId,
         })

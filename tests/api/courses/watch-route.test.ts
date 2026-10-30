@@ -137,6 +137,8 @@ describe('/api/courses/watch', () => {
     const viewed = rows.filter((r) => r.kind === 'viewed')
     expect(viewed).toHaveLength(1)
     expect(viewed[0]).toMatchObject({ video_id: ids.video, session_id: sessionId, client_segment_id: sessionId, user_agent: agent['user-agent'] })
+    // The device is parsed at write time, so it outlives the user agent (removed after 90 days).
+    expect(viewed[0].device).toEqual({ browser: 'Chrome', browser_version: '130.0', os: 'Windows', os_version: null, device_type: 'desktop' })
     expect(Number(viewed[0].start_seconds)).toBe(0)
     expect(Number(viewed[0].end_seconds)).toBe(0)
     // The marker is not a stretch, and it moves no position.

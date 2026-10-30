@@ -225,6 +225,9 @@ importers:
       '@videojs/react':
         specifier: ^10.1.0
         version: 10.1.0(@videojs/hlsjs-video@10.1.0)(@videojs/mux-video@10.1.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      bowser:
+        specifier: ^2.15.0
+        version: 2.15.0
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -3254,6 +3257,9 @@ packages:
 
   boundary@2.0.0:
     resolution: {integrity: sha512-rJKn5ooC9u8q13IMCrW0RSp31pxBCHE3y9V/tp3TdWSLf8Em3p6Di4NBpfzbJge9YjjFEsD0RtFEjtvHL5VyEA==}
+
+  bowser@2.15.0:
+    resolution: {integrity: sha512-xic6KSZglg/I4ymp45fdM4GWfYpBK79Fxd/TOvJktlaPgQqqDxvmGwOPZl2V0dyeS3Lj5c180bLhXF43iyAjZQ==}
 
   brace-expansion@1.1.21:
     resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
@@ -9898,6 +9904,8 @@ snapshots:
   bn.js@4.12.5: {}
 
   boundary@2.0.0: {}
+
+  bowser@2.15.0: {}
 
   brace-expansion@1.1.21:
     dependencies:

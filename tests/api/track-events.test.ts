@@ -86,7 +86,8 @@ describe('POST /api/track/events', () => {
       session_id: SESSION,
       event: 'onair_join_clicked',
       properties: { live: true, room_size: 2 },
-      context: { route: '/dashboard', viewport: 'lg', user_agent: 'TestAgent/1.0' },
+      // The raw user agent is not stored in the event; a string with nothing to read leaves no device either.
+      context: { route: '/dashboard', viewport: 'lg' },
       sudo: false,
     })
   })
