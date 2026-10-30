@@ -7,7 +7,7 @@ The channel ID is in `app.config.ts`; the alert cases are in `lib/operations-ale
 - A Slack member notification DM failed and was skipped by the notifier.
 - A Slack user matched ambiguously to Hub members and was rejected.
 - A scheduled job finished with problems, so its Checkly heartbeat was skipped (`cron_partial_failure`; today the nightly Slack reconciliation: a Silver step failed, threads were left behind, capture errors, or it failed outright). The message names the job and lists each problem.
-- A traced page section failed (`section_failed`, from `traced()` in `lib/query-trace.ts`: today the admin member page's queries). A Postgres statement timeout (code 57014) is called out as such. Limited to one per section every ten minutes; the message names the section, and the Sentry event tagged `section` has the member id.
+- A traced page section failed (`section_failed`, from `traced()` in `lib/query-trace.ts`: today the admin member page's queries). A Postgres statement timeout (code 57014) is called out as such. Limited to one per section every ten minutes; the message names the section, and the message links to a Sentry issue search for the `section` tag (last 24 hours; the event is only captured after the alert, so it has no id to link yet), and that event has the member id.
 
 The original failures still appear in server logs and Sentry. The channel messages contain
 only notification kinds, reasons and IDs, not member names, email addresses or message bodies.

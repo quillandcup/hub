@@ -9,7 +9,8 @@ vi.mock("@/lib/config", () => ({ isProduction: true, SLACK_ALERTS_CHANNEL_ID: "C
 vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-import { sendOperationsAlert } from "@/lib/operations-alerts";
+import appConfig from "../../app.config";
+import { sendOperationsAlert, sentrySectionSearchUrl } from "@/lib/operations-alerts";
 
 const failedDm = { type: "slack_dm_failed" as const, notificationKind: "prickle_checkin", memberId: "m1" };
 
@@ -77,6 +78,10 @@ describe("production operations alerts", () => {
     const text = postMessage.mock.calls[0][0].text;
     expect(text).toContain("timed out in the database");
     expect(text).toContain("member page: activity feed");
+    expect(text).toContain(`<${sentrySectionSearchUrl("member page: activity feed")}|Sentry>`);
+    expect(sentrySectionSearchUrl("member page: activity feed")).toBe(
+      `https://${appConfig.sentry.org}.sentry.io/issues/?query=section%3A%22member+page%3A+activity+feed%22&statsPeriod=24h&sort=date`,
+    );
   });
 
   it("words a section failure by its code, or without one", async () => {
