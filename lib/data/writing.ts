@@ -161,6 +161,8 @@ export interface WritingRepository {
   latestActiveProjectId(memberId: string): Promise<string | null>;
   /** Whether the project exists and is this member's. */
   ownsProject(memberId: string, projectId: string): Promise<boolean>;
+  /** Every member's projects whose cover is a link rather than a library image (for moving them in), by id. Paginated. */
+  projectsWithLegacyCovers(): Promise<{ id: string; member_id: string; title: string; cover_url: string }[]>;
   /** The media library asset the member's project uses as its cover, or null (no cover, an older cover, or not theirs). */
   coverAssetOf(memberId: string, projectId: string): Promise<string | null>;
   /** How many goals the member has set (archived ones included). */
@@ -639,6 +641,17 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data.id;
   }
 
+  async projectsWithLegacyCovers() {
+    type Row = { id: string; member_id: string; title: string; cover_url: string };
+    return fetchAllRows<Row>(
+      (from, to) =>
+        this.db.from("writing_projects").select("id, member_id, title, cover_url").not("cover_url", "is", null).is("cover_asset_id", null).order("id").range(from, to) as unknown as PromiseLike<{
+          data: Row[] | null;
+          error: { message: string } | null;
+        }>
+    );
+  }
+
   async coverAssetOf(memberId: string, projectId: string): Promise<string | null> {
     const { data, error } = await this.db.from("writing_projects").select("cover_asset_id").eq("id", projectId).eq("member_id", memberId).maybeSingle();
     if (error) throw new Error(error.message);
@@ -1049,6 +1062,13 @@ export class InMemoryWritingRepository implements WritingRepository {
       created_at: new Date().toISOString(),
     });
     return id;
+  }
+
+  async projectsWithLegacyCovers() {
+    return this.data.writingProjects
+      .filter((p) => p.cover_url !== null && p.cover_asset_id === null)
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map((p) => ({ id: p.id, member_id: p.member_id, title: p.title, cover_url: p.cover_url as string }));
   }
 
   async coverAssetOf(memberId: string, projectId: string): Promise<string | null> {

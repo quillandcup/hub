@@ -604,5 +604,33 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(await repo.backfillGoalDetails(a, tag("nope"), { title: "X", description: null, show_on_profile: true })).toBe(0);
       expect((await repo.importedGoals(a)).find((g) => g.external_id === tag("g1"))?.title).toBe("Named");
     });
+
+    it("lists the projects whose cover is a link rather than a library image, and has no library cover for them", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "linked", member: 0, title: "Linked", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "bare", member: 0, title: "Bare", createdAt: "2026-01-02T10:00:00Z" },
+          { key: "other", member: 1, title: "Other", createdAt: "2026-01-03T10:00:00Z" },
+        ],
+      });
+      await ctx.repo().updateProject(a, ids.linked, { cover_url: "https://example.test/cover.jpg" });
+      await ctx.repo().updateProject(b, ids.other, { cover_url: "https://example.test/other.jpg" });
+      const ours = new Set([ids.linked, ids.bare, ids.other]);
+
+      const byId = (x: { id: string }, y: { id: string }) => (x.id < y.id ? -1 : 1); // the order of ids is the database's own; compare as a set
+      const legacy = (await ctx.repo().projectsWithLegacyCovers()).filter((p) => ours.has(p.id));
+      expect(legacy.map((p) => ({ id: p.id, member_id: p.member_id, title: p.title, cover_url: p.cover_url })).sort(byId)).toEqual(
+        [
+          { id: ids.linked, member_id: a, title: "Linked", cover_url: "https://example.test/cover.jpg" },
+          { id: ids.other, member_id: b, title: "Other", cover_url: "https://example.test/other.jpg" },
+        ].sort(byId)
+      );
+      expect(await ctx.repo().coverAssetOf(a, ids.linked)).toBeNull();
+      expect(await ctx.repo().coverAssetOf(b, ids.linked)).toBeNull(); // not theirs
+
+      await ctx.repo().updateProject(a, ids.linked, { cover_url: null });
+      expect((await ctx.repo().projectsWithLegacyCovers()).some((p) => p.id === ids.linked)).toBe(false);
+    });
   });
 }

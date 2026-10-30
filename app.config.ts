@@ -55,6 +55,14 @@ export const appConfig = {
    */
   attendanceDataStartsOn: "2026-01-01",
 
+  /**
+   * Whether the Bookshelf is open to people who aren't signed in. While false, a book's cover is readable by
+   * signed-in members only. When true, the shelf-size version of any image a book uses as its cover is served
+   * to everyone (app/api/media/[id]/[preset]/route.ts); it does not make the Bookshelf page public, which is a
+   * change to that page and to who may reach it.
+   */
+  bookshelfPublic: false,
+
   /** Sentry org/project slugs for the production build's source map upload. */
   sentry: { org: "quillandcup", project: "hub" },
 } as const;
