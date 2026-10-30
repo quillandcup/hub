@@ -1030,6 +1030,9 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Sidebar auto-hide: pin and wider rollout _(Needs Scheduling)_
+Chat now rests the member sidebar as an icon rail that opens over the page on hover or focus (`components/MemberNavigation.tsx`). Deferred until members have used it: a pin button with a per-member preference to keep it open, and whether other pages with a second pane should do the same. The admin sidebar (`AdminNavigation.tsx`) is unchanged; change all three navigation files together if the behavior spreads.
+
 ### Managing events in the Hub: the rest of the plan _(Needs Scheduling)_
 **Done:** prickle types have separate dimensions, edited on the prickle type: `listed_in_events` (webinars, Hedgies on First, Monthly Goal Review and pitches show on the member Events page), plus `announced_publicly` and `guests_allowed`, stored but not read by any page yet. **Still open**, from a conversation with the community lead, in the order to build it:
 1. **Events model: what's left.** **Resolved:** more kinds of event (workshop, book launch, social besides the retreats and "other"), and the audience fields on `events` (`announced_publicly`, `guests_allowed`, `registration` none/signup/application, `capacity`, `selection` first come or hosts choose, free-text `speakers`), edited on the admin create/edit forms and shown on the member event page. The id default and admin-only write policies were already in place. **Still open:** time of day (events are date-only; a webinar or book launch with a time is a prickle listed in Events for now), guest speakers as members rather than text, an image picked from a per-kind default set or uploaded (events have a photo gallery and no cover image), `kinds` as a table with default images and flags if the list keeps growing, and `announced_publicly` is stored but nothing public reads it.
