@@ -11,7 +11,6 @@ vi.mock('@/components/MemberAttendanceView', () => ({ default: () => null }))
 vi.mock('@/app/(admin)/admin/members/[id]/MemberTimelinePanel', () => ({ default: () => null }))
 vi.mock('@/app/(admin)/admin/members/[id]/MemberSlackActivityPanel', () => ({
   default: () => null,
-  computeSlackSummary: () => ({}),
 }))
 vi.mock('@/app/(admin)/admin/activity/ActivityFeedTable', () => ({ default: () => null }))
 vi.mock('@/app/(admin)/admin/activity/ActivityFilters', () => ({ default: () => null }))
@@ -40,6 +39,7 @@ function renderDetails(status: string, stats: Partial<MemberView> = { metrics: {
       attendanceRecords={[]}
       hiatusHistory={[]}
       slackActivities={[]}
+      slackSummary={{ total: 0, messages: 0, reactions: 0, channels: 0, last30Days: 0 }}
       activityFeed={{ rows: [] } as never}
       activityFilters={{} as never}
       membershipHistory={[]}

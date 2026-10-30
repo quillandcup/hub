@@ -11,7 +11,8 @@ import { MEMBER_TAB_IDS, MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
 import { parseDateOnly } from "@/lib/member-tenure";
 import { countDistinctPrickles } from "@/lib/attendance-grouping";
 import MemberTimelinePanel from "./MemberTimelinePanel";
-import MemberSlackActivityPanel, { computeSlackSummary } from "./MemberSlackActivityPanel";
+import type { SlackSummary } from "@/lib/data/activities";
+import MemberSlackActivityPanel from "./MemberSlackActivityPanel";
 import ActivityFeedTable from "@/app/(admin)/admin/activity/ActivityFeedTable";
 import ActivityFilters from "@/app/(admin)/admin/activity/ActivityFilters";
 import { feedSearch, type FeedFilters, type FeedPage } from "@/lib/activity-feed";
@@ -35,6 +36,8 @@ interface MemberDetailsProps {
   attendanceRecords: any[];
   hiatusHistory: any[];
   slackActivities: any[];
+  /** Totals over all of the member's Slack activity; slackActivities is only the latest page. */
+  slackSummary: SlackSummary;
   /** One page of this member's activity log (lib/activity-feed.ts). */
   /** Null when the feed query failed. */
   activityFeed: FeedPage | null;
@@ -69,6 +72,7 @@ export default function MemberDetails({
   attendanceRecords,
   hiatusHistory,
   slackActivities,
+  slackSummary,
   activityFeed,
   activityFilters,
   userTimezonePreference = "browser",
@@ -96,7 +100,6 @@ export default function MemberDetails({
   const status = member.status as MemberStatus; // members.status is checked to these four values
   const memberMetrics = member.metrics;
   const memberEngagement = member.engagement;
-  const slackSummary = computeSlackSummary(slackActivities);
 
   const isRejoin = !!(member.mostRecentJoinedAt && member.mostRecentJoinedAt !== member.firstJoinedAt);
   const mostRecentJoinedDate = member.mostRecentJoinedAt ? parseDateOnly(member.mostRecentJoinedAt) : null;
@@ -110,7 +113,7 @@ export default function MemberDetails({
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: MEMBER_TAB_LABELS.overview },
     { id: "attendance", label: `${MEMBER_TAB_LABELS.attendance} (${distinctPrickleCount})` },
-    { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackActivities.length})` },
+    { id: "slack", label: `${MEMBER_TAB_LABELS.slack} (${slackSummary.total})` },
     { id: "activity", label: MEMBER_TAB_LABELS.activity },
     { id: "identity", label: MEMBER_TAB_LABELS.identity },
   ];
@@ -208,10 +211,10 @@ export default function MemberDetails({
               onViewAll={() => setActiveTab("slack")}
               viewAllLabel="View Slack activity"
             >
-              {slackActivities.length > 0 ? (
+              {slackSummary.total > 0 ? (
                 <>
-                  <SummaryStat label="Messages" value={slackSummary.totalMessages} />
-                  <SummaryStat label="Reactions" value={slackSummary.totalReactions} />
+                  <SummaryStat label="Messages" value={slackSummary.messages} />
+                  <SummaryStat label="Reactions" value={slackSummary.reactions} />
                   <SummaryStat label="Last 30 Days" value={slackSummary.last30Days} />
                   <SummaryStat label="Channels" value={slackSummary.channels} />
                 </>
