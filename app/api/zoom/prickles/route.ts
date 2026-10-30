@@ -24,26 +24,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find all zoom_attendees records with this name
-    const { data: attendees, error: attendeesError } = await supabase
-      .schema('bronze').from("zoom_attendees")
-      .select("meeting_uuid")
-      .eq("name", zoomName);
-
-    if (attendeesError) {
+    // The distinct meetings (nulls left out) this name appeared in
+    let meetingUuids: string[];
+    try {
+      meetingUuids = await createRepos(supabase).zoom.meetingUuidsForName(zoomName);
+    } catch (attendeesError: any) {
       console.error("Error fetching attendees:", attendeesError);
       return NextResponse.json({ error: attendeesError.message }, { status: 500 });
     }
 
-    if (!attendees || attendees.length === 0) {
-      return NextResponse.json({ prickles: [] });
-    }
-
-    // Get unique meeting UUIDs (filter out nulls)
-    const meetingUuids = [...new Set(attendees.map(a => a.meeting_uuid).filter(uuid => uuid !== null))];
-
-    console.log(`Found ${attendees.length} attendee records for "${zoomName}"`);
-    console.log(`Unique meeting UUIDs: ${meetingUuids.length}`, meetingUuids.slice(0, 3));
+    console.log(`Unique meeting UUIDs for "${zoomName}": ${meetingUuids.length}`, meetingUuids.slice(0, 3));
 
     if (meetingUuids.length === 0) {
       console.log(`No valid meeting UUIDs for "${zoomName}"`);

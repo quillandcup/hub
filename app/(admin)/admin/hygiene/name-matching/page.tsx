@@ -37,14 +37,11 @@ export default async function NameMatchingReportPage() {
     .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }));
 
   // Get unmatched Zoom attendees - those that don't match any member
-  const { data: allZoomNames } = await supabase
-    .schema('bronze').from("zoom_attendees")
-    .select("name, email")
-    .order("name");
+  const allZoomNames = await repos.zoom.attendeesForMatching();
 
   // Count how many times each Zoom name appears
   const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
-  allZoomNames?.forEach(z => {
+  allZoomNames.forEach(z => {
     const existing = zoomNameCounts.get(z.name);
     if (existing) {
       existing.count++;

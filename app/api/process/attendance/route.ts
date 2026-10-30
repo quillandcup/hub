@@ -200,28 +200,7 @@ export async function POST(request: NextRequest) {
     // Get all zoom attendees that overlap the date range (paginated — table has large historical data)
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
     // whose sessions span across date boundaries
-    const zoomAttendees: any[] = [];
-    {
-      const BATCH = 1000;
-      let offset = 0, hasMore = true;
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .schema('bronze').from("zoom_attendees")
-          .select("*")
-          .lt("join_time", toDateTime)
-          .gt("leave_time", fromDateTime)
-          .order("join_time")
-          .range(offset, offset + BATCH - 1);
-        if (error) throw error;
-        if (batch && batch.length > 0) {
-          zoomAttendees.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === BATCH;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const zoomAttendees = await createRepos(supabase).zoom.attendeesOverlapping(fromDateTime, toDateTime);
 
     console.log(`Found ${zoomAttendees.length} zoom attendees in range`);
 

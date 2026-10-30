@@ -128,13 +128,10 @@ export default async function PrickleDetailPage({
 
   if (isActingAsAdmin && prickle) {
     const [zoomResult, membersResult, aliasesResult, ignoredResult, ignoredHereResult, staffResult] = await Promise.all([
-      supabase.schema("bronze").from("zoom_attendees")
-        .select("name, email")
-        .lt("join_time", prickle.endTime)
-        .gt("leave_time", prickle.startTime),
+      createRepos(supabase).zoom.attendeeNamesOverlapping(prickle.startTime, prickle.endTime),
       createRepos(supabase).members.identities(),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.from("ignored_zoom_names").select("zoom_name"),
+      createRepos(supabase).zoom.ignoredNames(),
       supabase.from("ignored_zoom_appearances").select("zoom_name, reason").eq("prickle_id", prickle.id),
       supabase.from("staff").select("name, email"),
     ]);
@@ -142,12 +139,12 @@ export default async function PrickleDetailPage({
     const members = membersResult;
     const aliases = aliasesResult;
     ignoredHere = (ignoredHereResult.data || []).map((i) => ({ zoomName: i.zoom_name, reason: i.reason }));
-    const ignoredNames = [...(ignoredResult.data || []), ...(ignoredHereResult.data || [])].map((i) => i.zoom_name);
+    const ignoredNames = [...ignoredResult, ...(ignoredHereResult.data || []).map((i) => i.zoom_name)];
     const staff = staffResult.data || [];
     allMembersForMatching = members;
 
     unmatchedZoomAttendees = findUnmatchedZoomAttendees(
-      zoomResult.data || [],
+      zoomResult,
       members,
       aliases,
       ignoredNames,
@@ -156,21 +153,9 @@ export default async function PrickleDetailPage({
 
     if (unmatchedZoomAttendees.length > 0) {
       const unmatchedNames = unmatchedZoomAttendees.map(a => a.zoomName);
-      const { data: historicalAttendees } = await supabase
-        .schema("bronze").from("zoom_attendees")
-        .select("name, meeting_uuid")
-        .in("name", unmatchedNames)
-        .not("meeting_uuid", "is", null);
-
-      if (historicalAttendees) {
-        const historicalMeetings = new Map<string, Set<string>>();
-        for (const a of historicalAttendees) {
-          if (!historicalMeetings.has(a.name)) historicalMeetings.set(a.name, new Set());
-          historicalMeetings.get(a.name)!.add(a.meeting_uuid);
-        }
-        for (const a of unmatchedZoomAttendees) {
-          a.appearances = historicalMeetings.get(a.zoomName)?.size ?? a.appearances;
-        }
+      const historicalMeetings = await createRepos(supabase).zoom.meetingCountsByName(unmatchedNames);
+      for (const a of unmatchedZoomAttendees) {
+        a.appearances = historicalMeetings.get(a.zoomName) ?? a.appearances;
       }
     }
   }

@@ -41,27 +41,8 @@ export async function GET(request: NextRequest) {
     const zoomAliases = (nameAliases ?? []).filter((a) => a.source === "zoom");
     const memberList = members.map((m) => ({ id: m.id, name: m.name, email: m.email }));
 
-    // Paginate zoom_attendees for the last 90 days
-    const attendees: Array<{ name: string; email: string | null; meeting_uuid: string | null }> = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("zoom_attendees")
-          .select("name, email, meeting_uuid")
-          .gte("join_time", cutoff)
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          attendees.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // zoom_attendees for the last 90 days (the repository pages through them)
+    const attendees = await createRepos(supabase).zoom.attendeesSince(cutoff);
 
     // Group by name for matching efficiency, preserving meeting_uuids
     const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; member_display_name: string | null; meetings: Set<string> }>();

@@ -43,13 +43,7 @@ export default async function CalendarPage({
 
   // Zoom attendance is imported after the fact. If a meeting at or after a prickle's start is
   // already in, that prickle's data is in too, so 0 attendees means nobody came.
-  const { data: latestMeeting } = await supabase
-    .schema("bronze")
-    .from("zoom_meetings")
-    .select("start_time")
-    .order("start_time", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const latestMeetingStart = await repos.zoom.latestMeetingStart().catch(() => null); // a failed read shows as no data, as before
 
   // Calendar events waiting to be matched to a prickle type never show up above, so point at the queue
   const unmatchedCount = await repos.unmatchedEvents.countPending().catch(() => 0);
@@ -162,7 +156,7 @@ export default async function CalendarPage({
           }}
           userTimezonePreference={userTimezone}
           prickleBasePath="/admin/prickles"
-          attendanceDataThrough={latestMeeting?.start_time ?? null}
+          attendanceDataThrough={latestMeetingStart}
         />
         </div>
       </div>

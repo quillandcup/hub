@@ -46,27 +46,12 @@ export default async function AmbiguousNamesPage() {
   const usage = new Map<string, { lastSeenAt: string; occurrences: Occurrence[] }>();
   const names = [...new Set([...stillAmbiguous.values()].map((r) => r.zoomName))];
   if (names.length > 0) {
-    const BATCH_SIZE = 1000;
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch, error } = await supabase
-        .schema("bronze")
-        .from("zoom_attendees")
-        .select("name, email, join_time, topic, meeting_uuid, meeting_id")
-        .in("name", names)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1);
-      if (error) throw error;
-      for (const a of batch ?? []) {
-        const key = attendeeKey(a.name, a.email);
-        const seen = usage.get(key) ?? { lastSeenAt: "", occurrences: [] };
-        seen.occurrences.push({ topic: a.topic, joinTime: a.join_time, meetingKey: a.meeting_uuid || a.meeting_id });
-        if (a.join_time > seen.lastSeenAt) seen.lastSeenAt = a.join_time;
-        usage.set(key, seen);
-      }
-      offset += batch?.length ?? 0;
-      hasMore = (batch?.length ?? 0) === BATCH_SIZE;
+    for (const a of await repos.zoom.appearancesOf(names)) {
+      const key = attendeeKey(a.name, a.email);
+      const seen = usage.get(key) ?? { lastSeenAt: "", occurrences: [] };
+      seen.occurrences.push({ topic: a.topic, joinTime: a.join_time, meetingKey: a.meeting_uuid || a.meeting_id });
+      if (a.join_time > seen.lastSeenAt) seen.lastSeenAt = a.join_time;
+      usage.set(key, seen);
     }
   }
 
@@ -75,40 +60,8 @@ export default async function AmbiguousNamesPage() {
   // person it is. The candidates themselves are left out: they are the ones in question.
   const meetingKeys = new Set<string>();
   for (const seen of usage.values()) for (const o of seen.occurrences) meetingKeys.add(o.meetingKey);
-  const attendeesByMeeting = new Map<string, Array<{ name: string; email: string | null }>>();
-  {
-    const keys = [...meetingKeys];
-    const KEY_CHUNK = 50;
-    const BATCH_SIZE = 1000;
-    for (let i = 0; i < keys.length; i += KEY_CHUNK) {
-      const chunk = keys.slice(i, i + KEY_CHUNK);
-      // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
-      for (const column of ["meeting_uuid", "meeting_id"] as const) {
-        let offset = 0;
-        let hasMore = true;
-        while (hasMore) {
-          const { data: batch, error } = await supabase
-            .schema("bronze")
-            .from("zoom_attendees")
-            .select("name, email, meeting_uuid, meeting_id")
-            .in(column, chunk)
-            .order("id")
-            .range(offset, offset + BATCH_SIZE - 1);
-          if (error) throw error;
-          for (const a of batch ?? []) {
-            const key = a.meeting_uuid || a.meeting_id;
-            if (!chunk.includes(key)) continue;
-            const list = attendeesByMeeting.get(key) ?? [];
-            list.push({ name: a.name, email: a.email });
-            attendeesByMeeting.set(key, list);
-          }
-          offset += batch?.length ?? 0;
-          hasMore = (batch?.length ?? 0) === BATCH_SIZE;
-        }
-      }
-    }
-  }
-  // The same row can come back from both lookups; count each person once per session.
+  const attendeesByMeeting = await repos.zoom.attendeesInSessions([...meetingKeys]);
+  // Count each person once per session.
   const memberIdByAttendee = new Map<string, string | null>();
   const memberOf = (a: { name: string; email: string | null }) => {
     const key = attendeeKey(a.name, a.email);

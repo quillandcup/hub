@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
+import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -78,6 +79,30 @@ describe("data health page", () => {
 
     expect(screen.getByText(/1\/3 matched/)).toBeInTheDocument();
     expect(JSON.parse(screen.getByTestId("orphaned-range").textContent!)).toEqual({ fromDate: "2026-09-01T15:00:00Z", toDate: "2026-12-01T16:00:00Z" });
+  });
+
+  it("counts Zoom attendees that match a member, and still renders when the attendee count fails", async () => {
+    const dataset = new InMemoryDataset({
+      members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }],
+      zoomAttendees: [
+        zoomAttendee({ name: "Ada Example", meeting_uuid: "meeting-1" }),
+        zoomAttendee({ name: "Ada Example", meeting_uuid: "meeting-2" }),
+        zoomAttendee({ name: "Stranger Danger", meeting_uuid: "meeting-1" }),
+        zoomAttendee({ name: "Ada Example", meeting_uuid: null }),
+      ],
+      ignoredZoomNames: [{ id: "ign-1", zoom_name: "Stranger Danger", reason: null, ignored_by: null, ignored_at: null, created_at: null }],
+    });
+    repos = createInMemoryRepos(dataset);
+
+    await renderServerPage(DataHygienePage, {});
+
+    expect(screen.getByText(/\/4 in processed meetings/)).toBeInTheDocument(); // all four rows counted; none of the meetings has prickle attendance yet
+
+    repos.zoom.attendeeCount = async () => {
+      throw new Error("boom");
+    };
+    await renderServerPage(DataHygienePage, {});
+    expect(screen.getByText(/\/0 in processed meetings/)).toBeInTheDocument(); // a failed count shows as none
   });
 
   it("shows no Pop-Up Prickle warning when every one has attendance", async () => {

@@ -3,9 +3,9 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
-// The prickles of the meetings a Zoom name appeared in come from their repository, in memory here;
-// the bronze attendees go through a fake client.
+// The prickles of the meetings a Zoom name appeared in and the attendees both come from the repositories, in memory here.
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
@@ -30,9 +30,16 @@ const get = (query = "?zoomName=Ada%20E") => GET(new NextRequest(`http://localho
 beforeEach(() => {
   signedIn = true;
   admin = true;
-  tables = { "bronze.zoom_attendees": { data: [{ meeting_uuid: "m1" }, { meeting_uuid: "m2" }, { meeting_uuid: "m1" }, { meeting_uuid: null }] } };
+  tables = {};
   repos = createInMemoryRepos(
     new InMemoryDataset({
+      zoomAttendees: [
+        zoomAttendee({ name: "Ada E", meeting_uuid: "m1" }),
+        zoomAttendee({ name: "Ada E", meeting_uuid: "m2" }),
+        zoomAttendee({ name: "Ada E", meeting_uuid: "m1" }),
+        zoomAttendee({ name: "Ada E", meeting_uuid: null }),
+        zoomAttendee({ name: "Someone Else", meeting_uuid: "m3" }),
+      ],
       prickleTypes: [SPRINT],
       prickles: [pup("prkl_AAAAAAAAAAA1", "m1", "2026-10-01T15:00:00Z"), pup("prkl_AAAAAAAAAAA2", "m2", "2026-10-08T15:00:00Z", null), pup("prkl_AAAAAAAAAAA3", "m3", "2026-10-15T15:00:00Z")],
     }),
@@ -51,10 +58,21 @@ describe("GET /api/zoom/prickles", () => {
   });
 
   it("is empty for a name that never appeared, or whose attendees have no meeting", async () => {
-    tables["bronze.zoom_attendees"] = { data: [] };
+    expect((await (await get("?zoomName=Never%20Seen")).json()).prickles).toEqual([]);
+    repos = createInMemoryRepos(new InMemoryDataset({ zoomAttendees: [zoomAttendee({ name: "Ada E", meeting_uuid: null })] }));
     expect((await (await get()).json()).prickles).toEqual([]);
-    tables["bronze.zoom_attendees"] = { data: [{ meeting_uuid: null }] };
-    expect((await (await get()).json()).prickles).toEqual([]);
+  });
+
+  it("answers 500 with the database's message when the attendees can't be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    repos.zoom.meetingUuidsForName = async () => {
+      throw new Error("attendees unavailable");
+    };
+
+    const res = await get();
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "attendees unavailable" });
   });
 
   it("answers 400 without a name, 401 signed out and 403 for a non-admin", async () => {

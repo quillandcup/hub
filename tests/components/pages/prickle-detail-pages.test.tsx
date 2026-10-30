@@ -12,6 +12,7 @@ import {
   useFakeSupabase,
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -67,13 +68,13 @@ const prickle = (extra: object = {}) => ({
   id: "prkl_AAAAAAAAAAA1", typeId: SPRINT.id, hostId: HOST.id, title: null, source: "calendar", calendarEventId: null,
   startTime: "2097-03-03T15:00:00Z", endTime: "2097-03-03T16:00:00Z", ...extra,
 });
-const dataset = (prickles: object[], attendance: object[] = [], events: object[] = [], unmatchedEvents: object[] = []) =>
+const dataset = (prickles: object[], attendance: object[] = [], events: object[] = [], unmatchedEvents: object[] = [], extra: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
   createInMemoryRepos(new InMemoryDataset({
     userProfiles: [
       { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
       { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
     ],
-    members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never, unmatchedEvents: unmatchedEvents as never }));
+    members: [HOST], prickleTypes: [SPRINT], prickles: prickles as never, attendance: attendance as never, events: events as never, unmatchedEvents: unmatchedEvents as never, ...extra }));
 const memberProps = { params: Promise.resolve({ id: "prkl_AAAAAAAAAAA1" }) };
 
 beforeEach(() => {
@@ -214,21 +215,25 @@ describe("admin prickle page", () => {
 });
 
 describe("unmatched Zoom names", () => {
-  const zoomAttendees = [
-    { name: "iPhone", email: null },
-    { name: "Zed Unknown", email: null },
-    { name: "Everywhere Ignored", email: null },
-  ];
+  // In the room during the prickle (15:00-16:00)
+  const inRoom = (name: string, extra: object = {}) =>
+    zoomAttendee({ name, join_time: "2097-03-03T15:05:00Z", leave_time: "2097-03-03T15:50:00Z", ...extra });
+  const zoomAttendees = [inRoom("iPhone"), inRoom("Zed Unknown", { meeting_uuid: "m1" }), inRoom("Everywhere Ignored")];
+  const withZoom = () => {
+    repos = dataset([prickle()], [], [], [], {
+      zoomAttendees,
+      ignoredZoomNames: [{ id: "ign-1", zoom_name: "Everywhere Ignored", reason: null, ignored_by: null, ignored_at: null, created_at: null }],
+    });
+  };
   const fakeTables = (role: string) => ({
     user_profiles: { data: { role } },
-    "bronze.zoom_attendees": { data: zoomAttendees },
-    ignored_zoom_names: { data: [{ zoom_name: "Everywhere Ignored" }] },
     ignored_zoom_appearances: { data: [{ zoom_name: "iPhone", reason: "a guest" }] },
     staff: { data: [] },
   });
 
   it("member page: an admin sees names not ignored here or everywhere, scoped to this prickle", async () => {
     signInAs(ADMIN_USER, MEMBER_IDENTITY);
+    withZoom();
     useFakeSupabase(fakeTables("admin"));
 
     await renderServerPage(MemberPrickleDetailPage, memberProps);
@@ -248,6 +253,7 @@ describe("unmatched Zoom names", () => {
 
   it("admin page: the same two ignores apply", async () => {
     signInAs(ADMIN_USER);
+    withZoom();
     useFakeSupabase(fakeTables("admin"));
 
     await renderServerPage(AdminPrickleDetailPage, memberProps);

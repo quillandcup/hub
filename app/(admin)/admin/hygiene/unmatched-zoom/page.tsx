@@ -18,40 +18,23 @@ export default async function AliasSearchPage() {
   const [
     allMembers,
     aliases,
-    { data: ignoredNames },
+    ignoredNames,
     { data: staffMembers },
   ] = await Promise.all([
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
-    supabase.from("ignored_zoom_names").select("zoom_name"),
+    createRepos(supabase).zoom.ignoredNames(),
     supabase.from("staff").select("name, email"),
   ]);
 
-  // Paginate zoom_attendees — table exceeds 1000 rows
-  const allZoomNames: { name: string; email: string | null; meeting_uuid: string | null; join_time: string; leave_time: string }[] = [];
-  {
-    const BATCH = 1000;
-    let offset = 0, hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .schema('bronze').from("zoom_attendees")
-        .select("name, email, meeting_uuid, join_time, leave_time")
-        .range(offset, offset + BATCH - 1);
-      if (batch && batch.length > 0) {
-        allZoomNames.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === BATCH;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  // The repository pages through zoom_attendees (the table exceeds 1000 rows)
+  const allZoomNames = await createRepos(supabase).zoom.attendeesForMatching();
 
   const unmatchedZoomAttendees = computeUnmatchedZoomNames(
     allZoomNames || [],
     allMembers || [],
     aliases || [],
-    (ignoredNames || []).map((i) => i.zoom_name),
+    ignoredNames,
     staffMembers || [],
     await loadIgnoredAppearances(supabase)
   ).sort((a, b) => b.appearances - a.appearances);

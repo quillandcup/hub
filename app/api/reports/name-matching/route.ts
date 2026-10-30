@@ -18,26 +18,8 @@ export async function GET(request: NextRequest) {
   try {
     const activeMembers = await createRepos(supabase).members.identities({ status: "active" });
 
-    // Paginate all Zoom attendee records
-    const allZoomNames: { name: string; email: string | null }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema('bronze').from("zoom_attendees")
-          .select("name, email")
-          .order("name")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          allZoomNames.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // All Zoom attendee records (the repository pages through them)
+    const allZoomNames = await createRepos(supabase).zoom.attendeesForMatching();
 
     // Paginate prickle attendance to find all matched member IDs
     const matchedMemberIds = new Set((await createRepos(supabase).attendance.attendedPrickleIdsByMember()).keys());

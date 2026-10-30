@@ -3,12 +3,14 @@ import { createZoomClient } from "@/lib/zoom/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 import { asJson } from "@/lib/data/json";
+import { createRepos } from "@/lib/data/repos";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
+  const zoomRepo = createRepos(supabase).zoom;
 
   try {
     const parsed = await request.json().catch(() => undefined);
@@ -48,14 +50,9 @@ export async function POST(request: NextRequest) {
         data: asJson(meeting),
       };
 
-      const { error: meetingError } = await supabase
-        .schema('bronze').from("zoom_meetings")
-        .upsert(meetingToInsert, {
-          onConflict: "meeting_uuid",
-          ignoreDuplicates: false, // Update if exists
-        });
-
-      if (meetingError) {
+      try {
+        await zoomRepo.upsertMeeting(meetingToInsert); // updates the meeting if it exists
+      } catch (meetingError) {
         console.error(`Error upserting meeting ${meeting.uuid}:`, meetingError);
         throw meetingError;
       }
@@ -84,14 +81,9 @@ export async function POST(request: NextRequest) {
       }));
 
       if (attendeesToInsert.length > 0) {
-        const { error } = await supabase
-          .schema('bronze').from("zoom_attendees")
-          .upsert(attendeesToInsert, {
-            onConflict: "meeting_uuid,name,join_time",
-            ignoreDuplicates: false, // Update if exists
-          });
-
-        if (error) {
+        try {
+          await zoomRepo.upsertAttendees(attendeesToInsert); // updates a row that already exists, in chunks
+        } catch (error) {
           console.error(`Error upserting attendees for meeting ${meeting.uuid}:`, error);
           throw error;
         }
