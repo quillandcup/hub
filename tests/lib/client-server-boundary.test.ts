@@ -52,6 +52,18 @@ describe("the client/server import boundary, on examples", () => {
     expect(boundary(viaAction).clientBundleOffenders()).toEqual([]);
   });
 
+  it("flags a client file that reaches a server SDK, as #615 did through the Slack alert path", () => {
+    const files = fixture({
+      "components/History.tsx": '"use client";\nimport { feed } from "@/lib/feed";',
+      "lib/feed.ts": 'import { throwIfDbError } from "@/lib/trace";',
+      "lib/trace.ts": 'import { sendAlert } from "@/lib/alerts";',
+      "lib/alerts.ts": 'import { WebClient } from "@slack/web-api";',
+    });
+    expect(boundary(files).clientBundleOffenders()).toEqual([
+      "components/History.tsx -> lib/feed.ts -> lib/trace.ts -> lib/alerts.ts (server-only)",
+    ]);
+  });
+
   it("ignores a type import, and what the browser can load", () => {
     const files = fixture({
       "app/a/Client.tsx": '"use client";\nimport type { Db } from "@/lib/server";\nimport { randomInt } from "crypto";',

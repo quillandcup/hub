@@ -18,7 +18,7 @@ export type Files = Map<string, string>;
 
 /** What a browser can't load: a file that imports one of these is server-only, and so is any client file that pulls it in. */
 // (Not `crypto`, `path`, `os`, `stream`, `zlib` or `http(s)`: Next polyfills those for the browser, so they load there.)
-const SERVER_ONLY_PACKAGES = /^(server-only|next\/headers|node:fs|node:child_process|node:net|node:tls|node:dns|fs|child_process|net|tls|dns|web-push|googleapis|resend|@react-email\/render)$/;
+const SERVER_ONLY_PACKAGES = /^(server-only|next\/headers|node:fs|node:child_process|node:net|node:tls|node:dns|fs|child_process|net|tls|dns|web-push|googleapis|resend|@react-email\/render|@slack\/web-api|stripe|sharp|heic-convert|sanitize-html|turndown)$/;
 
 export interface ImportOf {
   spec: string;
