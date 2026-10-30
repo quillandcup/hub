@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isId } from "@/lib/ids";
-import { isFitMode, isPresetName } from "@/lib/media/presets";
+import { parseLookEdit } from "@/lib/media/edit";
 import type { MediaAssetEdit } from "@/lib/data/media";
 
 /** Staff read one asset (a deleted one too) and where it is used. */
@@ -48,21 +48,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof body.is_public !== "boolean") return NextResponse.json({ error: "is_public must be true or false" }, { status: 400 });
     edit.is_public = body.is_public;
   }
-  if (body.focal !== undefined) {
-    const f = body.focal;
-    if (f === null) Object.assign(edit, { focal_x: null, focal_y: null });
-    else if (typeof f?.x === "number" && typeof f?.y === "number" && f.x >= 0 && f.x <= 1 && f.y >= 0 && f.y <= 1) Object.assign(edit, { focal_x: f.x, focal_y: f.y });
-    else return NextResponse.json({ error: "focal must be null or { x, y } between 0 and 1" }, { status: 400 });
-  }
-  if (body.fits !== undefined) {
-    const fits = body.fits;
-    if (typeof fits !== "object" || fits === null || Object.entries(fits).some(([name, fit]) => !isPresetName(name) || !isFitMode(fit))) {
-      return NextResponse.json({ error: "fits must map preset names to crop, extend or white" }, { status: 400 });
-    }
-    // Merge over the current choices: setting one preset leaves the others.
-    const current = await media.byId(id);
-    edit.fits = { ...((current?.fits as Record<string, string> | null) ?? {}), ...fits };
-  }
+  const look = parseLookEdit(body, body.fits !== undefined ? await media.byId(id) : null);
+  if ("error" in look) return NextResponse.json({ error: look.error }, { status: 400 });
+  Object.assign(edit, look.edit);
 
   try {
     const asset = await media.edit(id, edit);

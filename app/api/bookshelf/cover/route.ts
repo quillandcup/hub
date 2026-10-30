@@ -7,6 +7,23 @@ import { createRepos } from "@/lib/data/repos";
 import { BOOK_COVER_MAX_BYTES, bookCoverUrlFor } from "@/lib/bookCover";
 import { storeImage, titleFromFileName } from "@/lib/media/library";
 
+/** A member's own images, newest first, for choosing a cover again: `?q=` (title or tag), `?limit=`, `?offset=`. */
+export async function GET(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const identity = await getEffectiveIdentity(user);
+  if (!identity) return NextResponse.json({ error: "No member record" }, { status: 403 });
+  const params = request.nextUrl.searchParams;
+  const number = (name: string) => (params.has(name) && Number.isFinite(Number(params.get(name))) ? Number(params.get(name)) : undefined);
+  try {
+    const assets = await createRepos(await createClient()).media.search({ scope: { memberId: identity.memberId }, q: params.get("q") ?? undefined, limit: number("limit"), offset: number("offset") });
+    return NextResponse.json({ assets });
+  } catch (error) {
+    console.error("Error listing a member's images:", error);
+    return NextResponse.json({ error: "Failed to list images" }, { status: 500 });
+  }
+}
+
 /**
  * A member's book cover (or a project's) goes into the media library as one of their own images, at any size.
  * The Bookshelf size and the Amazon ebook cover are made from it when asked for. Answers the URL the cover
