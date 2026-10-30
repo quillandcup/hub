@@ -61,9 +61,9 @@ function StatusPill({ title, option, ancestors }: { title: string; option: strin
     >
       {!statusChoices(ancestors, option).some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
       {statusChoices(ancestors, option).map((c) => (
+        // The reason a choice is blocked is the tooltip, not option text: a select is as wide as its longest option.
         <option key={c.value} value={c.value} disabled={!!c.disabledReason} title={c.disabledReason}>
           {c.value === option ? c.label : c.action}
-          {c.disabledReason ? ` (${c.disabledReason})` : ""}
         </option>
       ))}
     </select>

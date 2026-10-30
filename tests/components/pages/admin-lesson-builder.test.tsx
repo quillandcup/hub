@@ -199,7 +199,8 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     );
     await renderServerPage(AdminLessonPage, params);
     expect(screen.getByRole("radio", { name: /Published/ })).toBeDisabled();
-    expect(screen.getByText("(Publish “Module 1” first)")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Published/ }).closest("label")).toHaveAttribute("title", "Publish “Module 1” first");
+    expect(screen.queryByText(/Publish “Module 1” first/)).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Draft" })).toBeChecked();
     // The radio already says Draft: the line under it only adds what members get.
     expect(screen.getByText("Members don't see it.")).toBeInTheDocument();
