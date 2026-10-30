@@ -79,9 +79,7 @@ export async function rebuildCourseAccess(
 ): Promise<{ members: number; removed: Map<string, number>; rows: AccessRow[] }> {
   if (courses.length === 0) return { members: 0, removed: new Map(), rows: [] };
 
-  const offerRows = await fetchAllBronzeRows(supabase, "kajabi_course_offers", "course_kajabi_id, offer_kajabi_id", (q) =>
-    q.in("course_kajabi_id", courses.map((c) => c.kajabi_id)).is("deleted_at", null)
-  );
+  const offerRows = await createRepos(supabase).kajabiCourses.liveOffers(courses.map((c) => c.kajabi_id));
   const offerIdsByCourse = new Map<string, Set<string>>();
   for (const o of offerRows) {
     if (!offerIdsByCourse.has(o.course_kajabi_id)) offerIdsByCourse.set(o.course_kajabi_id, new Set());
@@ -161,9 +159,7 @@ export async function processCourses(
   options: ProcessCoursesOptions = {}
 ): Promise<ProcessCoursesResult> {
   // Which Bronze courses to publish.
-  const bronzeCourses = await fetchAllBronzeRows(supabase, "kajabi_courses", "kajabi_id, title, raw_payload, hero_image_url", (q) =>
-    q.is("deleted_at", null)
-  );
+  const bronzeCourses = await createRepos(supabase).kajabiCourses.liveCourses();
   const existingSilver = await fetchAll(
     supabase,
     "courses",
@@ -241,12 +237,8 @@ export async function processCourses(
     }
     const courseId: string = silver!.id;
 
-    const modules = await fetchAllBronzeRows(supabase, "kajabi_course_modules", "*", (q) =>
-      q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)
-    );
-    const lessons = await fetchAllBronzeRows(supabase, "kajabi_course_lessons", "*", (q) =>
-      q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)
-    );
+    const modules = await createRepos(supabase).kajabiCourses.liveModules(kajabiId);
+    const lessons = await createRepos(supabase).kajabiCourses.liveLessons(kajabiId);
 
     // Every module and lesson is stored with its effective state. A Kajabi draft (or anything under
     // one) is `hidden`: kept so staff can preview it, never shown to members (docs/COURSES.md).
@@ -281,7 +273,7 @@ export async function processCourses(
       await upsertAll(
         supabase,
         "course_modules",
-        nested.map((m) => moduleRow(m, moduleIds.get(m.parent_kajabi_id)!)),
+        nested.map((m) => moduleRow(m, moduleIds.get(m.parent_kajabi_id!)!)),
         "source,source_key"
       );
     }
@@ -317,7 +309,7 @@ export async function processCourses(
     await upsertAll(
       supabase,
       "course_lessons",
-      withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id) })),
+      withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id!) })),
       "source,source_key"
     );
     await upsertAll(supabase, "course_lessons", withoutVideo.map(lessonRow), "source,source_key");

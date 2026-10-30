@@ -1,21 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "../data/db";
-import { chunk, fetchAllRows } from "../supabase/paginate";
+import { SupabaseKajabiCourseRepository, type StoredProductProgress as Stored } from "../data/kajabi-courses";
 import type { ProgressRow } from "./product-progress-csv";
 
 // Relative imports only: scripts/kajabi-course-content.ts (--progress) uses this too, outside Next.
-
-const WRITE_CHUNK = 500;
-const ID_CHUNK = 100;
-
-type Stored = {
-  email: string;
-  percent: number;
-  logins: number | null;
-  started_on: string | null;
-  last_activity_on: string | null;
-  deleted_at: string | null;
-};
 
 function sameAs(stored: Stored, row: ProgressRow): boolean {
   return (
@@ -46,27 +34,20 @@ export async function saveProductProgress(
   input: { courseKajabiId: string; rows: ProgressRow[]; sourceFile: string | null; dryRun?: boolean; removeMissing?: boolean },
 ): Promise<SaveProgressResult> {
   const { courseKajabiId, rows, sourceFile, dryRun = false, removeMissing = true } = input;
-  const table = () => db.schema("bronze").from("kajabi_product_progress");
+  const repo = new SupabaseKajabiCourseRepository(db);
   const importBatch = randomUUID();
   const now = new Date().toISOString();
 
-  const existing = await fetchAllRows<Stored>(
-    (from, to) =>
-      table()
-        .select("email, percent, logins, started_on, last_activity_on, deleted_at")
-        .eq("course_kajabi_id", courseKajabiId)
-        .order("email")
-        .range(from, to) as unknown as PromiseLike<{ data: Stored[] | null; error: { message: string } | null }>,
-  );
+  const existing = await repo.productProgress(courseKajabiId);
   const storedByEmail = new Map(existing.map((s) => [s.email, s]));
 
   const toWrite = rows.filter((r) => {
     const stored = storedByEmail.get(r.email);
     return !stored || !sameAs(stored, r);
   });
-  for (const batch of dryRun ? [] : chunk(toWrite, WRITE_CHUNK)) {
-    const { error } = await table().upsert(
-      batch.map((r) => ({
+  if (!dryRun) {
+    await repo.upsertProductProgress(
+      toWrite.map((r) => ({
         course_kajabi_id: courseKajabiId,
         email: r.email,
         percent: r.percent,
@@ -78,20 +59,12 @@ export async function saveProductProgress(
         imported_at: now,
         deleted_at: null,
       })),
-      { onConflict: "course_kajabi_id,email" },
     );
-    if (error) throw new Error(`Could not save progress rows: ${error.message}`);
   }
 
   const listed = new Set(rows.map((r) => r.email));
   const gone = removeMissing ? existing.filter((s) => s.deleted_at === null && !listed.has(s.email)).map((s) => s.email) : [];
-  for (const batch of dryRun ? [] : chunk(gone, ID_CHUNK)) {
-    const { error } = await table()
-      .update({ deleted_at: now, import_batch: importBatch })
-      .eq("course_kajabi_id", courseKajabiId)
-      .in("email", batch);
-    if (error) throw new Error(`Could not remove progress rows: ${error.message}`);
-  }
+  if (!dryRun) await repo.softDeleteProductProgress(courseKajabiId, gone, now, importBatch);
 
   return { written: toWrite.length, unchanged: rows.length - toWrite.length, removed: gone.length, importBatch };
 }

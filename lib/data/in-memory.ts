@@ -16,6 +16,8 @@ import type { UserProfileSeed } from "./profiles";
 import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
 import type { Program, ProgramCohort, ProgramEnrollment } from "./programs";
+import type { KajabiCourse, KajabiCourseOffer, KajabiLesson, KajabiLessonFile, KajabiModule } from "./kajabi-courses";
+import type { Database } from "./database.types";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
@@ -109,6 +111,14 @@ export class InMemoryDataset {
   courseImages: { id: string; kind: "course" | "module" | "lesson"; title: string; asset_ids: string[] }[];
   /** Published books: the id and title, when published, and which library asset is the cover (what the media library's usage list needs). */
   memberBooks: { id: string; member_id: string; title: string; published_date: string; cover_asset_id: string | null }[];
+  // --- Kajabi course Bronze (KajabiCourseRepository) ---
+  kajabiCourses: KajabiCourse[];
+  kajabiModules: KajabiModule[];
+  kajabiLessons: KajabiLesson[];
+  kajabiLessonFiles: KajabiLessonFile[];
+  kajabiCourseOffers: KajabiCourseOffer[];
+  kajabiProductProgress: Database["bronze"]["Tables"]["kajabi_product_progress"]["Row"][];
+  kajabiLessonProgress: Database["bronze"]["Tables"]["kajabi_lesson_progress"]["Row"][];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -117,7 +127,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress">
 
     > = {},
   ) {
@@ -162,6 +172,13 @@ export class InMemoryDataset {
     this.mediaAssets = (init.mediaAssets ?? []).map((row) => ({ ...row }));
     this.memberBooks = (init.memberBooks ?? []).map((row) => ({ ...row }));
     this.courseImages = (init.courseImages ?? []).map((row) => ({ ...row, asset_ids: [...row.asset_ids] }));
+    this.kajabiCourses = (init.kajabiCourses ?? []).map((row) => ({ ...row }));
+    this.kajabiModules = (init.kajabiModules ?? []).map((row) => ({ ...row }));
+    this.kajabiLessons = (init.kajabiLessons ?? []).map((row) => ({ ...row }));
+    this.kajabiLessonFiles = (init.kajabiLessonFiles ?? []).map((row) => ({ ...row }));
+    this.kajabiCourseOffers = (init.kajabiCourseOffers ?? []).map((row) => ({ ...row }));
+    this.kajabiProductProgress = (init.kajabiProductProgress ?? []).map((row) => ({ ...row }));
+    this.kajabiLessonProgress = (init.kajabiLessonProgress ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

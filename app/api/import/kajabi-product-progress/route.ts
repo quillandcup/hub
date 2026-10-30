@@ -60,17 +60,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const db = createServiceRoleClient();
-    const { data: course, error: courseError } = await db
-      .schema("bronze")
-      .from("kajabi_courses")
-      .select("kajabi_id")
-      .eq("kajabi_id", courseId)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (courseError) throw new Error(courseError.message);
+    const repos = createRepos(db);
+    const course = await repos.kajabiCourses.liveCourse(courseId);
     if (!course) return NextResponse.json({ error: "That course is not in the imported Kajabi courses" }, { status: 400 });
 
-    const result = await importProductProgress(db, createRepos(db), {
+    const result = await importProductProgress(db, repos, {
       courseKajabiId: course.kajabi_id,
       rows: parsed.rows,
       sourceFile: file.name.slice(0, 200),

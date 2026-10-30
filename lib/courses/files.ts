@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
+import { createRepos } from "@/lib/data/repos";
 import { fetchAll, inBatches } from "@/lib/courses/db";
 import { visibleLessonIds } from "@/lib/courses/visible";
 
@@ -100,25 +100,12 @@ export function formatBytes(bytes: number | null | undefined): string | null {
 }
 
 export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<FilePlan> {
-  const [modules, lessons] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-  ]);
+  const repo = createRepos(supabase).kajabiCourses;
+  const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
   const visible = visibleLessonIds(modules, lessons);
   const titleById = new Map(lessons.map((l) => [l.kajabi_id, l.title as string]));
 
-  const bronzeFiles: any[] = [];
-  for (const batch of inBatches(lessons.map((l) => l.kajabi_id as string))) {
-    bronzeFiles.push(
-      ...(await fetchAllBronzeRows(supabase, "kajabi_lesson_files", "kajabi_id, lesson_kajabi_id, filename, source_url, raw_payload", (q) =>
-        q.in("lesson_kajabi_id", batch).is("deleted_at", null)
-      ))
-    );
-  }
+  const bronzeFiles = await repo.liveFiles(lessons.map((l) => l.kajabi_id));
 
   const { data: course, error } = await supabase.from("courses").select("id").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
@@ -152,7 +139,7 @@ export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: 
         filename: f.filename as string,
         lessonTitle: titleById.get(f.lesson_kajabi_id) ?? "",
         draft: !visible.has(f.lesson_kajabi_id),
-        position: typeof f.raw_payload?.position === "number" ? f.raw_payload.position : index,
+        position: typeof (f.raw_payload as { position?: unknown } | null)?.position === "number" ? (f.raw_payload as { position: number }).position : index,
         state,
         sourceUrl: (f.source_url as string | null) ?? null,
         hubLessonId,

@@ -235,15 +235,15 @@ describe('Kajabi product progress import idempotency', () => {
     await upload(COURSE, csv(`Ada Example,${email('ada')},75,15,2026-01-05,2026-02-20`, `Bo,${email('alias')},90,1,,`))
     const ada = memberIds[0]
     // The alias row (90) and Ada's own row (75) are both hers: the higher percentage wins.
-    expect(await memberProductProgress(supabase as any, repos, ada, COURSE)).toMatchObject({
+    expect(await memberProductProgress(repos, ada, COURSE)).toMatchObject({
       percent: 90,
       logins: 1,
       startedOn: null,
     })
-    expect(await memberProductProgress(supabase as any, repos, ada, OTHER)).toBeNull()
-    expect(await memberProductProgress(supabase as any, repos, 'mbr_AAAAAAAAAAA1', COURSE)).toBeNull()
+    expect(await memberProductProgress(repos, ada, OTHER)).toBeNull()
+    expect(await memberProductProgress(repos, 'mbr_AAAAAAAAAAA1', COURSE)).toBeNull()
 
     await bronze.from('kajabi_product_progress').update({ deleted_at: new Date().toISOString() }).eq('course_kajabi_id', COURSE)
-    expect(await memberProductProgress(supabase as any, repos, ada, COURSE)).toBeNull()
+    expect(await memberProductProgress(repos, ada, COURSE)).toBeNull()
   })
 })

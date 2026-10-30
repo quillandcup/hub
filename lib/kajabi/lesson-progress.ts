@@ -6,21 +6,8 @@
  */
 
 import type { Db } from "../data/db";
-import { chunk, fetchAllRows } from "../supabase/paginate";
+import { SupabaseKajabiCourseRepository, type StoredLessonProgress as Stored } from "../data/kajabi-courses";
 import type { LessonEntry } from "./progress-capture";
-
-const WRITE_CHUNK = 500;
-const DELETE_CHUNK = 100;
-
-type Stored = {
-  kajabi_lesson_id: string;
-  kajabi_contact_id: string | null;
-  kajabi_member_id: string | null;
-  completed: boolean;
-  completed_at: string | null;
-  percent: number | string | null;
-  deleted_at: string | null;
-};
 
 export interface LessonProgressSave {
   written: number;
@@ -60,18 +47,10 @@ export async function saveMemberLessonProgress(
   options: { dryRun?: boolean } = {},
 ): Promise<LessonProgressSave> {
   const { courseKajabiId, email, contactId, memberId, lessons, capturedAt } = input;
-  const table = () => db.schema("bronze").from("kajabi_lesson_progress");
+  const repo = new SupabaseKajabiCourseRepository(db);
   const ids = { contactId, memberId };
 
-  const existing = await fetchAllRows<Stored>(
-    (from, to) =>
-      table()
-        .select("kajabi_lesson_id, kajabi_contact_id, kajabi_member_id, completed, completed_at, percent, deleted_at")
-        .eq("course_kajabi_id", courseKajabiId)
-        .eq("email", email)
-        .order("kajabi_lesson_id")
-        .range(from, to) as unknown as PromiseLike<{ data: Stored[] | null; error: { message: string } | null }>,
-  );
+  const existing = await repo.lessonProgress(courseKajabiId, email);
   const storedById = new Map(existing.map((s) => [s.kajabi_lesson_id, s]));
   const toWrite = lessons.filter((l) => {
     const stored = storedById.get(l.kajabiLessonId);
@@ -81,32 +60,21 @@ export async function saveMemberLessonProgress(
   const gone = existing.filter((s) => s.deleted_at === null && !listed.has(s.kajabi_lesson_id)).map((s) => s.kajabi_lesson_id);
 
   if (!options.dryRun) {
-    for (const batch of chunk(toWrite, WRITE_CHUNK)) {
-      const { error } = await table().upsert(
-        batch.map((l) => ({
-          course_kajabi_id: courseKajabiId,
-          email,
-          kajabi_lesson_id: l.kajabiLessonId,
-          kajabi_contact_id: contactId,
-          kajabi_member_id: memberId,
-          completed: l.completed,
-          completed_at: l.completedAt,
-          percent: l.percent,
-          captured_at: capturedAt.toISOString(),
-          deleted_at: null,
-        })),
-        { onConflict: "course_kajabi_id,email,kajabi_lesson_id" },
-      );
-      if (error) throw new Error(`Could not save lesson progress: ${error.message}`);
-    }
-    for (const batch of chunk(gone, DELETE_CHUNK)) {
-      const { error } = await table()
-        .update({ deleted_at: capturedAt.toISOString() })
-        .eq("course_kajabi_id", courseKajabiId)
-        .eq("email", email)
-        .in("kajabi_lesson_id", batch);
-      if (error) throw new Error(`Could not remove lesson progress: ${error.message}`);
-    }
+    await repo.upsertLessonProgress(
+      toWrite.map((l) => ({
+        course_kajabi_id: courseKajabiId,
+        email,
+        kajabi_lesson_id: l.kajabiLessonId,
+        kajabi_contact_id: contactId,
+        kajabi_member_id: memberId,
+        completed: l.completed,
+        completed_at: l.completedAt,
+        percent: l.percent,
+        captured_at: capturedAt.toISOString(),
+        deleted_at: null,
+      })),
+    );
+    await repo.softDeleteLessonProgress(courseKajabiId, email, gone, capturedAt.toISOString());
   }
   return { written: toWrite.length, unchanged: lessons.length - toWrite.length, removed: gone.length };
 }

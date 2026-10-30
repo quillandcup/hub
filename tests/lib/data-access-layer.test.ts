@@ -75,6 +75,14 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   programs: [],
   program_cohorts: [],
   member_program_enrollments: [],
+  // Kajabi course Bronze (KajabiCourseRepository): every query is moved.
+  kajabi_courses: [],
+  kajabi_course_modules: [],
+  kajabi_course_lessons: [],
+  kajabi_lesson_files: [],
+  kajabi_course_offers: [],
+  kajabi_product_progress: [],
+  kajabi_lesson_progress: [],
 };
 
 const root = path.resolve(__dirname, "../..");
