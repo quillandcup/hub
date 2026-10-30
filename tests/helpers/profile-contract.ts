@@ -87,5 +87,26 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       await ctx.repo().setSecondaryTimezone(ids.a, null);
       expect((await ctx.repo().byId(ids.a))?.secondary_timezone).toBeNull();
     });
+
+    it("records who left usage statistics, and who is back in", async () => {
+      const ids = await ctx.seed([
+        { key: "a", email: email("ada") },
+        { key: "b", email: email("bea") },
+        { key: "c", email: email("cat") },
+      ]);
+      const repo = ctx.repo();
+      expect(await repo.analyticsOptedOut(ids.a)).toBe(false);
+      expect(await repo.analyticsOptedOut(NONE)).toBe(false);
+
+      await repo.setAnalyticsOptOut(ids.a, "2026-10-30T10:00:00.000Z");
+      await repo.setAnalyticsOptOut(ids.b, "2026-10-30T11:00:00.000Z");
+      expect(await repo.analyticsOptedOut(ids.a)).toBe(true);
+      expect(await repo.analyticsOptedOutIds([ids.a, ids.b, ids.c, NONE])).toEqual(new Set([ids.a, ids.b]));
+      expect(await repo.analyticsOptedOutIds([])).toEqual(new Set());
+
+      await repo.setAnalyticsOptOut(ids.a, null);
+      expect(await repo.analyticsOptedOut(ids.a)).toBe(false);
+      expect(await repo.analyticsOptedOutIds([ids.a, ids.b])).toEqual(new Set([ids.b]));
+    });
   });
 }

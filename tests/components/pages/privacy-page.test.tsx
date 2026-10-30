@@ -15,16 +15,31 @@ import { SUPPORT_EMAIL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
+vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 
 const getUserFeaturePreviews = vi.fn<(userId: string) => Promise<FeatureKey[]>>();
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => getUserFeaturePreviews(id) }));
 
-import PrivacyPage from "@/app/(member)/privacy/page";
+const isAnalyticsOptedOut = vi.fn<(userId: string) => Promise<boolean>>();
+vi.mock("@/lib/analytics/opt-out", () => ({ isAnalyticsOptedOut: (id: string) => isAnalyticsOptedOut(id) }));
+
+vi.mock("@/app/(member)/privacy/actions", () => ({ setAnalyticsOptOut: vi.fn() }));
+
+import PrivacyPage, { PRIVACY_REVIEWED } from "@/app/(member)/privacy/page";
+
+/** The section with this id, as a Testing Library scope. */
+function section(id: string) {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`no section #${id}`);
+  return within(el);
+}
 
 describe("/privacy (message_privacy flag)", () => {
   beforeEach(() => {
     resetServerPageMocks();
     getUserFeaturePreviews.mockReset();
+    isAnalyticsOptedOut.mockReset();
+    isAnalyticsOptedOut.mockResolvedValue(false);
   });
 
   it("redirects anonymous visitors to /login", async () => {
@@ -37,120 +52,208 @@ describe("/privacy (message_privacy flag)", () => {
     getUserFeaturePreviews.mockResolvedValue([]);
     await expectRedirect(PrivacyPage, {}, "/dashboard");
   });
+});
 
-  it("renders the content/activity breakdown with the flag on", async () => {
+describe("/privacy page", () => {
+  beforeEach(async () => {
+    resetServerPageMocks();
+    getUserFeaturePreviews.mockReset();
+    isAnalyticsOptedOut.mockReset();
+    isAnalyticsOptedOut.mockResolvedValue(false);
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
     getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+  });
+
+  it("opens with a short summary, a review date and links to each part", async () => {
     await renderServerPage(PrivacyPage, {});
     expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Break-glass access" })).toBeInTheDocument();
-    expect(screen.getByText(/^Group DMs that include Billie Bot/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "The short version" })).toBeInTheDocument();
+    expect(document.querySelector("time")).toHaveAttribute("datetime", PRIVACY_REVIEWED);
+    expect(PRIVACY_REVIEWED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const nav = within(screen.getByRole("navigation", { name: "On this page" }));
+    for (const [label, id] of [
+      ["What we collect", "collect"],
+      ["Who can see it", "who-sees"],
+      ["Chat and messages", "chat"],
+      ["How long we keep things", "keep"],
+      ["Cookies", "cookies"],
+      ["Your choices", "choices"],
+      ["Services we use", "services"],
+    ] as const) {
+      expect(nav.getByRole("link", { name: label })).toHaveAttribute("href", `#${id}`);
+      expect(document.getElementById(id)).not.toBeNull();
+    }
+  });
+
+  it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
+    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "choices"]);
+    const nav = [...screen.getByRole("navigation", { name: "On this page" }).querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(nav).toEqual(ids.map((id) => `#${id}`));
+  });
+
+  it("puts the retention numbers in the summary and the table from the one place the job reads them", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const summary = within(screen.getByRole("heading", { name: "The short version" }).closest("aside")!);
+    expect(summary.getByText(new RegExp(`${RETENTION.rawNetworkDays} days`))).toBeInTheDocument();
+    expect(summary.getByText(new RegExp(`${RETENTION.usageMonths} months`))).toBeInTheDocument();
+    const keep = section("keep");
+    expect(keep.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
+    expect(keep.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
+    expect(keep.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
+    // Course viewing is kept like the rest of what you do in the Hub, so it has no row of its own.
+    expect(keep.getByText(/What you do in the Hub: .*course viewing, chat messages and activity/)).toBeInTheDocument();
+    expect(keep.queryByText(/As described under Chat and messages/)).not.toBeInTheDocument();
+  });
+
+  it("says what is collected, including that search never records the words typed", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const collect = section("collect");
+    expect(collect.getByText(/what kind of search you ran and how many results \(never the words\)/)).toBeInTheDocument();
+    expect(collect.getByRole("link", { name: "see below" })).toHaveAttribute("href", "#choices");
+    expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
+    expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
+    // The pointer to the chat section sits in the Chat row itself.
+    const chatRow = collect.getByText("Chat", { selector: "td" }).closest("tr")!;
+    expect(within(chatRow).getByText(/Chat is covered in/)).toBeInTheDocument();
+    expect(within(chatRow).getByRole("link", { name: "its own section" })).toHaveAttribute("href", "#chat");
+    expect(section("choices").getByText(/It does not record what you\s+type into search, forms or messages/)).toBeInTheDocument();
+  });
+
+  it("says who can see what, without claiming members see their own usage log", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const who = section("who-sees");
+    expect(who.getByText(/Not your usage statistics, your IP address or your private notes/)).toBeInTheDocument();
+    expect(who.getByText(/individual records are tied to your account while they are kept/)).toBeInTheDocument();
+    expect(who.queryByText(/Everything above that is about you/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the chat explanations: what staff see, break-glass, Slack connection, view-as, deleted messages", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const chat = section("chat");
+    expect(chat.getByRole("heading", { name: "What staff can see" })).toBeInTheDocument();
+    expect(chat.getByText(/^Group DMs that include Billie Bot/)).toBeInTheDocument();
     // What the page says about the chat has to be true of the app: no per-channel "staff can read this" note, and deleted messages don't count.
-    expect(screen.queryByText(/Each channel in the Hub shows/)).not.toBeInTheDocument();
-    expect(screen.getByText(/no longer count toward your activity/)).toBeInTheDocument();
+    expect(chat.queryByText(/Each channel in the Hub shows/)).not.toBeInTheDocument();
+    expect(chat.getByText(/no longer count toward your activity/)).toBeInTheDocument();
     // Deleted content is readable by nobody through the app (RLS needs deleted_at IS NULL), so the page must not say staff can read it.
-    expect(screen.getByText(/can't read a deleted message's text or files in the Hub/)).toBeInTheDocument();
-    expect(screen.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
-    expect(screen.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
+    expect(chat.getByText(/can't read a deleted message's text or files in the Hub/)).toBeInTheDocument();
+    expect(chat.queryByText(/only where they could see the original/)).not.toBeInTheDocument();
+    expect(chat.getByText(/we will record who looked, why and when/)).toBeInTheDocument();
+    expect(chat.getByText("Break-glass access")).toBeInTheDocument();
+    expect(chat.getByText(/It doesn't give the Hub access to your one-on-one Slack direct messages/)).toBeInTheDocument();
+    expect(chat.getByText("Viewing the Hub as you")).toBeInTheDocument();
+    expect(chat.getByText(/when you last read it/)).toBeInTheDocument();
   });
 
-  it("says how course videos are watched and what is recorded about where a visit came from", async () => {
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+  it("folds the long chat explanations into collapsed details", async () => {
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "Course videos" })).toBeInTheDocument();
-    expect(screen.getByText(/we record where you stopped/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Where you connect from" })).toBeInTheDocument();
-    expect(screen.getByText(/we record the IP address your connection comes from/)).toBeInTheDocument();
+    const titles = [...document.querySelectorAll("details > summary")].map((s) => s.textContent);
+    expect(titles).toEqual(["Break-glass access", "Connecting your Slack account", "Viewing the Hub as you", "Deleted messages and reactions", "How usage statistics work"]);
+    expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
-});
 
-describe("/privacy chat sections", () => {
-  it("says what connecting Slack allows, that staff can view the Hub as a member, and what staff see in every conversation", async () => {
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+  it("states the consent rule and that the switch leaves a member out", async () => {
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "Connecting your Slack account" })).toBeInTheDocument();
-    expect(screen.getByText(/It doesn't give the Hub access to your one-on-one Slack direct messages/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Viewing the Hub as you" })).toBeInTheDocument();
-    expect(screen.getByText(/when you last read it/)).toBeInTheDocument();
-  });
-});
-
-describe("/privacy usage, notifications and retention sections", () => {
-  beforeEach(() => {
-    resetServerPageMocks();
-    signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
+    const choices = section("choices");
+    expect(choices.getByText(/we ask before we start, with the banner/)).toBeInTheDocument();
+    expect(choices.getByText(/if you decline we don't record any of this/)).toBeInTheDocument();
+    expect(choices.getByRole("switch", { name: "Leave me out of usage statistics" })).toHaveAttribute("aria-checked", "false");
   });
 
-  it("says what the usage log records, and never the words typed", async () => {
+  it("shows the switch on when the member has left usage statistics, and read-only in sudo", async () => {
+    isAnalyticsOptedOut.mockResolvedValue(true);
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "How we measure what is useful" })).toBeInTheDocument();
-    expect(screen.getByText(/never the words you typed/)).toBeInTheDocument();
-    expect(screen.getByText(/It does not record what you type into search, forms or/)).toBeInTheDocument();
+    expect(section("choices").getByRole("switch")).toHaveAttribute("aria-checked", "true");
+    expect(isAnalyticsOptedOut).toHaveBeenCalledWith(MEMBER_USER.id);
   });
 
-  it("states the consent rule and that anyone can ask to be left out", async () => {
+  it("can't be changed while an admin views as a member", async () => {
+    signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByText(/we ask before we start, with the banner/)).toBeInTheDocument();
-    expect(screen.getByText(/if you decline we don't record any of this/)).toBeInTheDocument();
-    expect(screen.getByText(/you can ask us to/)).toBeInTheDocument();
+    expect(section("choices").getByRole("switch")).toBeDisabled();
+    expect(section("choices").getByText(/can't be changed while viewing as a member/)).toBeInTheDocument();
   });
 
-  it("lists the cookies, including the visit number and when it expires", async () => {
+  it("describes the cookies by kind in a short list rather than listing every one, and says which are optional", async () => {
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "Cookies" })).toBeInTheDocument();
-    expect(screen.getByText(/visit number/, { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText(/it expires after 30 minutes without activity/)).toBeInTheDocument();
+    const cookies = section("cookies");
+    expect(cookies.getByRole("heading", { name: "Cookies and similar storage" })).toBeInTheDocument();
+    expect(cookies.getByText(/so we don't need your consent for it, and you\s+can clear it in your browser settings/)).toBeInTheDocument();
+    const list = within(cookies.getByText("To make the Hub work:").closest("ul")!);
+    expect(list.getAllByRole("listitem")).toHaveLength(4);
+    expect(list.getByText(/your last chat channel,\s+your video speed and captions, and your recent searches/)).toBeInTheDocument();
+    expect(list.getByText("Visit number", { selector: "strong" })).toBeInTheDocument();
+    expect(list.getByText(/expires after 30 minutes without activity and holds nothing about you/)).toBeInTheDocument();
+    expect(list.getByText(/sets its own cookie, only if you have allowed it/)).toBeInTheDocument();
   });
 
-  it("names the four notification channels and says what is recorded about them", async () => {
+  it("puts the switch first, with how usage statistics work folded away below it", async () => {
     await renderServerPage(PrivacyPage, {});
-    const section = within(screen.getByRole("heading", { name: "Notifications" }).closest("section")!);
-    expect(section.getByText(/direct message from Billie Bot in Slack, email/)).toBeInTheDocument();
-    expect(section.getByText(/and browser notifications on a device you turn them on for/)).toBeInTheDocument();
-    expect(section.getByText(/We keep a record that we sent you each notification/)).toBeInTheDocument();
-    expect(section.getByText(/takes the tag off the address/)).toBeInTheDocument();
+    const choices = section("choices");
+    const toggle = choices.getByRole("switch", { name: "Leave me out of usage statistics" });
+    const folded = choices.getByText("How usage statistics work").closest("details")!;
+    expect(folded).not.toHaveAttribute("open");
+    // The switch comes before the folded explanation in the page.
+    expect(toggle.compareDocumentPosition(folded) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(folded).getByText(/our host, Vercel,\s+also counts visits and page speed in aggregate/i)).toBeInTheDocument();
+    expect(within(folded).getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
   });
 
-  it("prints the retention numbers from the one place the job reads them", async () => {
+  it("says what is kept about notifications under What we collect, and that turning statistics off doesn't change read marks", async () => {
     await renderServerPage(PrivacyPage, {});
-    const table = within(screen.getByRole("heading", { name: "How long we keep things" }).closest("section")!);
-    expect(table.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
-    expect(table.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
-    // The IP section repeats the promise, with the same number.
-    const where = within(screen.getByRole("heading", { name: "Where you connect from" }).closest("section")!);
-    expect(where.getByText(new RegExp(`after ${RETENTION.rawNetworkDays} days`))).toBeInTheDocument();
-    // Records of what a member did in the Hub have no automatic limit, and the page says so in the member's terms.
-    expect(table.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
+    const row = within(section("collect").getByText("Notifications", { selector: "td" }).closest("tr")!);
+    expect(row.getByText(/A record of each notification we send you, and whether you have read it in the Hub/)).toBeInTheDocument();
+    // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
+    expect(row.getByText(/Turning usage statistics off does not change that/)).toBeInTheDocument();
+    expect(row.getByText(/If usage statistics are on, also which notification a visit came from/)).toBeInTheDocument();
+    expect(row.queryByText(/takes the tag off the address/)).not.toBeInTheDocument();
   });
 
-  it("says a deleted goal, entry, book or award disappears from the Hub but is kept until the member asks", async () => {
+  it("leaves only the choice under Your choices: several places, set per kind in Settings, without listing them all", async () => {
     await renderServerPage(PrivacyPage, {});
-    // The page sets the policy; it does not list resources, so it needn't change as they do.
-    expect(screen.getByRole("heading", { name: "When you delete something" })).toBeInTheDocument();
-    expect(screen.getByText(/it disappears for you and for everyone else/)).toBeInTheDocument();
-    expect(screen.getByText(/We may keep a copy/)).toBeInTheDocument();
-    expect(screen.getByText(/we either delete it or\s+take your name off it/)).toBeInTheDocument();
+    const choices = section("choices");
+    expect(choices.getByRole("heading", { name: "Notifications" })).toBeInTheDocument();
+    // "such as", so the page doesn't need an edit when a channel is added.
+    expect(choices.getByText(/in more than one place, such as Slack, email, inside the Hub, or your browser/)).toBeInTheDocument();
+    expect(choices.queryByText(/four places/)).not.toBeInTheDocument();
+    expect(choices.queryByText(/We keep a record/)).not.toBeInTheDocument();
+    expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
+  });
+
+  it("states the delete policy once, without listing resources", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const keep = section("keep");
+    expect(keep.getByText("When you delete something")).toBeInTheDocument();
+    expect(keep.getByText(/it disappears for you and for everyone else/)).toBeInTheDocument();
+    expect(keep.getByText(/We may keep a\s+copy/)).toBeInTheDocument();
+    expect(keep.getByText(/we either\s+delete it or take your name off it/)).toBeInTheDocument();
   });
 
   it("tells members how to ask, with the configured support address, and for what", async () => {
     await renderServerPage(PrivacyPage, {});
-    const section = within(screen.getByRole("heading", { name: "Asking us" }).closest("section")!);
-    expect(section.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
-    expect(section.getByText(/show you what we hold about you, correct it, remove it, or stop using it for usage/)).toBeInTheDocument();
-    expect(section.getByText(/We will answer within a month/)).toBeInTheDocument();
+    const choices = section("choices");
+    expect(choices.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
+    expect(choices.getByText(/show you what we hold about you, correct it, remove it, or stop using it for usage/)).toBeInTheDocument();
+    expect(choices.getByText(/We will answer as soon as we can, and within a month/)).toBeInTheDocument();
+    // Which of the two we do is ours to choose, so the page doesn't offer the member a choice.
+    expect(choices.getByText(/For removal we either delete it or take your name off it/)).toBeInTheDocument();
+    expect(choices.queryByText(/whichever you/)).not.toBeInTheDocument();
   });
 
-  it("names the services involved, and the region error reports are held in", async () => {
+  it("names Google Analytics, describes the other services by kind, and says where error reports are held", async () => {
     await renderServerPage(PrivacyPage, {});
-    const section = within(screen.getByRole("heading", { name: "Services that help us run the Hub" }).closest("section")!);
-    for (const service of ["Supabase", "Vercel", "error-reporting provider","Google Analytics", "Mux", "Slack"]) {
-      expect(section.getByText(new RegExp(service))).toBeInTheDocument();
+    const services = section("services");
+    for (const kind of ["database provider", "sign-in and auth\\s+provider", "hosting provider \\(which also counts visits and page speed\\)", "error-reporting provider", "video hosting provider", "email provider", "Google Analytics", "Slack"]) {
+      expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
-    expect(section.getByText(/an error-reporting provider \(error reports, held in the EU\)/)).toBeInTheDocument();
-    expect(section.queryByText(/Sentry/)).not.toBeInTheDocument();
+    expect(services.getByText(/our error-reporting provider \(held in the\s+EU\)/)).toBeInTheDocument();
+    // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
+    expect(section("choices").getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
+    // Everything else stays generic.
+    const text = document.body.textContent ?? "";
+    for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
   });
 });
 

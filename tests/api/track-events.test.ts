@@ -26,9 +26,15 @@ function event(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function setup(upsertError: { message: string } | null = null) {
+function setup(upsertError: { message: string } | null = null, optedOut = false) {
   const upsert = vi.fn().mockResolvedValue({ error: upsertError })
-  const supabase = { from: vi.fn().mockReturnValue({ upsert }) }
+  // The member's profile says whether they chose "leave me out of statistics" (lib/analytics/opt-out.ts).
+  const profile = {
+    select: () => ({
+      eq: () => ({ maybeSingle: async () => ({ data: { analytics_opt_out_at: optedOut ? '2026-10-30T10:00:00Z' : null }, error: null }) }),
+    }),
+  }
+  const supabase = { from: vi.fn((table: string) => (table === 'user_profiles' ? profile : { upsert })) }
   vi.mocked(createClient).mockResolvedValue(supabase as any)
   return { upsert, supabase }
 }
@@ -50,6 +56,14 @@ beforeEach(() => {
 })
 
 describe('POST /api/track/events', () => {
+  it('stores nothing for a member who left usage statistics, even from a tab still sending', async () => {
+    const { upsert } = setup(null, true)
+    const res = await POST(makeRequest(batch([event()])))
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ stored: 0, rejected: [], optedOut: true })
+    expect(upsert).not.toHaveBeenCalled()
+  })
+
   it('returns 401 and stores nothing without a session', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null)
     const { upsert } = setup()

@@ -5,6 +5,7 @@ import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import type { OutcomeAction } from "@/lib/analytics/actions";
 import { validateProperties } from "@/lib/analytics/events";
 import { SESSION_COOKIE } from "@/lib/analytics/session-cookie";
+import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 
 /**
  * Server side of usage tracking: what a server action did, not just that someone clicked.
@@ -58,6 +59,8 @@ export async function recordAction(action: OutcomeAction, outcome: ActionOutcome
 
     const user = await getCurrentUser();
     if (!user) return;
+    // A visit cookie can outlive the switch on /privacy by up to 30 minutes.
+    if (await isAnalyticsOptedOut(user.id)) return;
 
     const properties = validateProperties("action_completed", { action, ok: outcome.ok, detail: outcome.detail });
     if (!properties.ok) return;

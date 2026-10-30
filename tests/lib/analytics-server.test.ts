@@ -8,7 +8,14 @@ const getCurrentUser = vi.fn();
 vi.mock("@/lib/auth", () => ({ getCurrentUser: () => getCurrentUser() }));
 
 const insert = vi.fn();
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: (table: string) => ({ insert: (row: unknown) => insert(table, row) }) }) }));
+// Whether the member chose "leave me out of statistics" (their profile's analytics_opt_out_at).
+let optedOut = false;
+const profile = {
+  select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { analytics_opt_out_at: optedOut ? "2026-10-30T10:00:00Z" : null }, error: null }) }) }),
+};
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ from: (table: string) => (table === "user_profiles" ? profile : { insert: (row: unknown) => insert(table, row) }) }),
+}));
 
 import { SESSION_COOKIE } from "@/lib/analytics/session-cookie";
 import { SUDO_COOKIE_NAME, signSudoCookie } from "@/lib/sudo-cookie";
@@ -21,6 +28,7 @@ beforeEach(() => {
   cookieJar.clear();
   cookiesMock.mockClear();
   getCurrentUser.mockReset().mockResolvedValue(USER);
+  optedOut = false;
   insert.mockReset().mockResolvedValue({ error: null });
   vi.spyOn(console, "error").mockImplementation(() => {});
   process.env.SUDO_SECRET = "test-sudo-secret";
@@ -82,6 +90,13 @@ describe("recordAction", () => {
 
   it.each(["", "not-a-uuid", "../../etc", SESSION + "x"])("ignores a cookie that is not a session id: %j", async (value) => {
     cookieJar.set(SESSION_COOKIE, value);
+    await recordAction("project_created", { ok: true });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("records nothing for a member who left usage statistics, even with a visit cookie still alive", async () => {
+    cookieJar.set(SESSION_COOKIE, SESSION);
+    optedOut = true;
     await recordAction("project_created", { ok: true });
     expect(insert).not.toHaveBeenCalled();
   });

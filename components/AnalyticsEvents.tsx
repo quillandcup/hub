@@ -14,7 +14,7 @@ import { templateRoute } from "@/lib/analytics/route";
  * it: reports page views, clicks and which named controls were seen, and sends what is queued when the tab is hidden. Renders
  * nothing. Mounted once in app/layout.tsx.
  */
-export function AnalyticsEvents({ needsConsent }: { needsConsent: boolean }) {
+export function AnalyticsEvents({ needsConsent, optedOut = false }: { needsConsent: boolean; optedOut?: boolean }) {
   const pathname = usePathname();
   const [allowed, setAllowed] = useState(false);
 
@@ -27,12 +27,13 @@ export function AnalyticsEvents({ needsConsent }: { needsConsent: boolean }) {
       } catch {
         // Blocked storage counts as no answer.
       }
-      setAllowed(eventsAllowed(needsConsent, stored));
+      // "Leave me out of statistics" (lib/analytics/opt-out.ts) wins over any consent the banner stored.
+      setAllowed(!optedOut && eventsAllowed(needsConsent, stored));
     };
     read();
     window.addEventListener(CONSENT_CHANGE_EVENT, read);
     return () => window.removeEventListener(CONSENT_CHANGE_EVENT, read);
-  }, [needsConsent]);
+  }, [needsConsent, optedOut]);
 
   useEffect(() => {
     setTrackingEnabled(allowed);
