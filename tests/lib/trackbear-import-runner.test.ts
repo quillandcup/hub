@@ -12,7 +12,7 @@ const PROJECT_UUID = "11111111-1111-4111-8111-111111111111";
 
 let dataset: InMemoryDataset;
 let writing: InMemoryWritingRepository;
-const copier: CoverCopier = async (filename) => ({ url: `https://example.test/${filename}.jpg`, resizedFrom: null });
+const copier: CoverCopier = async (filename) => ({ url: `https://example.test/${filename}.jpg`, assetId: null });
 
 beforeEach(() => {
   dataset = new InMemoryDataset();
@@ -69,12 +69,21 @@ describe("runTrackbearImport", () => {
     expect(result2.issues).toContainEqual(expect.objectContaining({ detail: "Cover: odd" }));
   });
 
-  it("notes a cover that was resized", async () => {
-    const resized: CoverCopier = async (filename) => ({ url: `https://example.test/${filename}.jpg`, resizedFrom: "600×900" });
+  it("saves the library image a cover was copied to, named after the project, and says nothing about resizing", async () => {
+    const titles: (string | undefined)[] = [];
+    const library: CoverCopier = async (filename, _memberId, title) => {
+      titles.push(title);
+      return { url: `/api/media/media_AAAAAAAAAAA1/book_cover_shelf`, assetId: "media_AAAAAAAAAAA1" };
+    };
 
-    const result = await runTrackbearImport(writing, ME, makeTrackbearData(), resized);
+    const result = await runTrackbearImport(writing, ME, makeTrackbearData(), library);
 
-    expect(result.issues).toContainEqual(expect.objectContaining({ severity: "changed", detail: expect.stringContaining("600×900") }));
+    expect(result.created.covers).toBe(1);
+    expect(titles).toEqual([expect.any(String)]);
+    expect(titles[0]).toBeTruthy();
+    expect(dataset.writingProjects.filter((p) => p.cover_asset_id === "media_AAAAAAAAAAA1")).toHaveLength(1);
+    expect(dataset.writingProjects.find((p) => p.cover_asset_id)?.cover_url).toBe("/api/media/media_AAAAAAAAAAA1/book_cover_shelf");
+    expect(result.issues.filter((i) => i.severity === "changed")).toEqual([]);
   });
 
   it("finds the ids of projects a concurrent import created first", async () => {

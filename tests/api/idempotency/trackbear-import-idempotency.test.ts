@@ -19,7 +19,7 @@ describe("TrackBear import idempotency", () => {
   const coverCalls: string[] = [];
   const fakeCoverCopier: CoverCopier = async (filename) => {
     coverCalls.push(filename);
-    return { url: `https://example.test/covers/${filename}.jpg`, resizedFrom: "600×900" };
+    return { url: `https://example.test/covers/${filename}.jpg`, assetId: null };
   };
 
   async function countRows(table: string) {
@@ -56,7 +56,7 @@ describe("TrackBear import idempotency", () => {
 
     expect(result.created).toEqual({ projects: 2, entries: 4, goals: 2, startingBalances: 2, covers: 1 });
     expect(result.alreadyImported).toEqual({ projects: 0, entries: 0, goals: 0 });
-    expect(result.issues).toContainEqual(expect.objectContaining({ severity: "changed", detail: expect.stringMatching(/resized from 600×900/) }));
+    expect(result.issues.filter((i) => /resized/.test(i.detail))).toEqual([]); // covers are kept at their own size now
 
     const { data: project } = await supabase
       .from("writing_projects")
