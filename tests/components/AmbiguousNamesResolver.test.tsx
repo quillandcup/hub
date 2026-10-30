@@ -37,16 +37,26 @@ describe('AmbiguousNamesResolver details', () => {
           {
             ...entries[1],
             occurrenceCount: 3,
-            sessions: [{ topic: 'Morning Writing', joinTime: '2026-06-01T14:00:00Z' }],
+            sessions: [{ topic: 'Morning Writing', joinTime: '2026-06-01T14:00:00Z', prickleId: 'prkl_AAAAAAAAAAA1' }],
             companions: [{ id: 'm9', name: 'Ada Example', displayName: 'Ada', sessions: 2 }],
           },
         ]}
       />
     )
 
-    expect(screen.getByText(/Most often there with: Ada \(2\)/)).toBeInTheDocument()
-    expect(screen.getByText(/Morning Writing/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ada' })).toHaveAttribute('href', '/admin/members/m9')
+    expect(screen.getByRole('link', { name: 'Morning Writing' })).toHaveAttribute('href', '/admin/prickles/prkl_AAAAAAAAAAA1')
     expect(screen.getByText('…and 2 more')).toBeInTheDocument()
+  })
+
+  it('shows a session as plain text when no prickle matches it', () => {
+    render(
+      <AmbiguousNamesResolver
+        entries={[{ ...entries[1], sessions: [{ topic: 'Drop-in', joinTime: '2026-06-01T14:00:00Z', prickleId: null }] }]}
+      />
+    )
+    expect(screen.getByText(/Drop-in/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Drop-in' })).not.toBeInTheDocument()
   })
 
   it('has no details section when there is nothing to show', () => {

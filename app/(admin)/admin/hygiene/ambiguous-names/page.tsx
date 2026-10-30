@@ -136,7 +136,7 @@ export default async function AmbiguousNamesPage() {
 
   const SESSIONS_SHOWN = 30;
   const COMPANIONS_SHOWN = 6;
-  const entries = Array.from(groups.entries())
+  const entriesWithMeetings = Array.from(groups.entries())
     .map(([zoomName, g]) => {
       const sessionsWithCompany = new Map<string, number>();
       for (const meetingKey of new Set(g.occurrences.map((o) => o.meetingKey))) {
@@ -164,11 +164,31 @@ export default async function AmbiguousNamesPage() {
         sessions: g.occurrences
           .sort((a, b) => (a.joinTime < b.joinTime ? 1 : -1))
           .slice(0, SESSIONS_SHOWN)
-          .map((o) => ({ topic: o.topic, joinTime: o.joinTime })),
+          .map((o) => ({ topic: o.topic, joinTime: o.joinTime, meetingKey: o.meetingKey })),
         companions,
       };
     })
     .sort((a, b) => b.occurrenceCount - a.occurrenceCount);
+
+  // Link each listed session to its prickle: a pop-up prickle carries the Zoom meeting's uuid, a
+  // calendar prickle is the one running when the person joined. Ambiguous attendees have no
+  // attendance, so the join time is all that ties the session to a prickle.
+  const shown = entriesWithMeetings.flatMap((e) => e.sessions);
+  const popUps = await repos.prickles.byZoomMeetings([...new Set(shown.map((x) => x.meetingKey))]);
+  const joinTimes = shown.map((x) => x.joinTime).sort();
+  const calendar =
+    joinTimes.length > 0
+      ? await repos.prickles.calendarOverlapping({ from: joinTimes[0], to: new Date(new Date(joinTimes[joinTimes.length - 1]).getTime() + 1000).toISOString() })
+      : [];
+  const prickleIdFor = (session: { joinTime: string; meetingKey: string }) => {
+    const during = (p: { startTime: string; endTime: string }) => p.startTime <= session.joinTime && session.joinTime < p.endTime;
+    const popUp = popUps.filter((p) => p.zoomMeetingUuid === session.meetingKey);
+    return (popUp.find(during) ?? calendar.find(during) ?? popUp[0])?.id ?? null;
+  };
+  const entries = entriesWithMeetings.map((e) => ({
+    ...e,
+    sessions: e.sessions.map(({ meetingKey, ...session }) => ({ ...session, prickleId: prickleIdFor({ ...session, meetingKey }) })),
+  }));
 
   return (
     <div className="container mx-auto px-6 py-8">
