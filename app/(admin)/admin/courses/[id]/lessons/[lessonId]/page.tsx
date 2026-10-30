@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadAdminLesson } from "@/lib/courses/admin";
+import { loadAdminLesson, type AdminLessonDetail } from "@/lib/courses/admin";
 import { formatCourseDateTime } from "@/lib/courses/format";
 import CourseBuilderBanner from "../../../CourseBuilderBanner";
+import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { formatClock } from "@/lib/courses/watch-stats";
 import LessonStaffTools from "../../LessonStaffTools";
 import LessonBuilderForm from "./LessonBuilderForm";
 
@@ -18,6 +21,37 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return { title: [detail?.lesson.title, detail?.course.title, "Courses"].filter(Boolean).join(" · ") };
 }
 
+/** Playback tokens for a ready video; null (and logged) when Mux can't sign them. */
+async function mintTokens(playbackId: string): Promise<PlaybackTokens | null> {
+  try {
+    return await signPlaybackTokens(createMuxClient(), playbackId);
+  } catch (error) {
+    console.error("Couldn't mint Mux playback tokens:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/** The lesson's video in the builder, played by the same player members get (no watch tracking: this is an admin looking at the lesson). */
+async function lessonMedia(detail: AdminLessonDetail) {
+  const { lesson, video, hub } = detail;
+  const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
+  if (video?.status === "ready" && video.playbackId) {
+    const tokens = await mintTokens(video.playbackId);
+    if (tokens) return <LessonPlayer title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} />;
+    return <p role="status" className={note}>The video can&apos;t be played right now.</p>;
+  }
+  if (video) return <p role="status" className={note}>{video.status === "errored" ? "This video couldn't be prepared." : "This video is still being prepared."}</p>;
+  if (lesson.hasVideo) {
+    return (
+      <p className={note}>
+        This lesson has a video in Kajabi{lesson.videoDurationSeconds !== null && <> ({formatClock(lesson.videoDurationSeconds)})</>}
+        {hub ? ", not in the Hub yet. It arrives with the next video step." : ". Publish the course to bring it into the Hub."}
+      </p>
+    );
+  }
+  return <p className={note}>No video on this lesson.</p>;
+}
+
 /** One lesson's builder page: the lesson as last imported from Kajabi, read only until the builder can save. */
 export default async function AdminLessonPage({ params }: Params) {
   await requireAdminPage();
@@ -25,6 +59,7 @@ export default async function AdminLessonPage({ params }: Params) {
   const detail = await loadAdminLesson(await createClient(), id, lessonId);
   if (!detail) notFound();
   const { course, lesson, hub } = detail;
+  const media = await lessonMedia(detail);
   const path = hub ? `/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
 
   return (
@@ -54,7 +89,7 @@ export default async function AdminLessonPage({ params }: Params) {
             <LessonStaffTools lessonId={hub.lessonId} lessonPath={path!} preview={lesson.state !== "open"} />
           </div>
         )}
-        <LessonBuilderForm detail={detail} />
+        <LessonBuilderForm detail={detail} media={media} />
       </div>
     </>
   );

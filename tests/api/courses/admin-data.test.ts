@@ -130,6 +130,18 @@ describe('Admin course data', () => {
       await supabase.from('course_lessons').delete().eq('id', hub!.id)
     })
 
+    it("gives the Hub lesson's video, what plays it and whether it is ready, and none before the lesson has one", async () => {
+      const { data: video } = await supabase.from('videos').insert({ source_kind: 'kajabi', source_key: `${PUBLISHED}-media`, status: 'ready', mux_playback_id: 'pb-test', duration_seconds: 410 }).select('id').single()
+      const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: lessonId }).select('id').single()
+      expect((await loadAdminLesson(supabase, PUBLISHED, lessonId))!.video).toBeNull()
+
+      await supabase.from('course_lessons').update({ video_id: video!.id }).eq('id', hub!.id)
+      expect((await loadAdminLesson(supabase, PUBLISHED, lessonId))!.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
+      // Other tests insert the same Hub lesson.
+      await supabase.from('course_lessons').delete().eq('id', hub!.id)
+      await supabase.from('videos').delete().eq('id', video!.id)
+    })
+
     it('is null for a lesson in another course, one that does not exist, or a course Kajabi does not have', async () => {
       expect(await loadAdminLesson(supabase, UNPUBLISHED, lessonId)).toBeNull()
       expect(await loadAdminLesson(supabase, PUBLISHED, 'no-such-lesson')).toBeNull()

@@ -94,7 +94,7 @@ export const EVENTS = {
     option: optional(text(40)),
   },
 
-  /** A course lesson was marked complete or cleared (app/(member)/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
+  /** A course lesson was marked complete or cleared (components/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
 
   /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */

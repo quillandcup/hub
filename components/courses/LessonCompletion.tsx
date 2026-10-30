@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useRef, useState, useTransition, type ReactNode } from "react";
-import { setLessonComplete } from "./actions";
+import { setLessonComplete } from "@/app/(member)/courses/actions";
 import { track } from "@/lib/analytics/client";
 
 /** A lesson counts as watched once the playhead passes this fraction of the video (Kajabi's "about 90%"). */

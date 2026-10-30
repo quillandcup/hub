@@ -11,8 +11,8 @@ import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
-import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
-import { LessonCompletionProvider } from "../../../LessonCompletion";
+import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
 
