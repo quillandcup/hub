@@ -29,7 +29,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { config } from "dotenv";
 import { chromium, type BrowserContext, type Page, type Response } from "playwright";
 import {
   parseLessonContent,
@@ -44,6 +43,7 @@ import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/c
 import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
+import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
@@ -61,18 +61,20 @@ if (!parsed.ok) {
 }
 const args = parsed;
 
-// Probe mode reads no lessons and writes nothing, so it needs no database settings.
+// Probe mode reads no lessons and writes nothing, so it needs no database settings. Otherwise the env file is
+// layered over the .env.shared beside it (like the sync scripts), so --env .env.prod also sees shared values.
 if (!args.probe) {
-  const loaded = config({ path: resolve(process.cwd(), args.envFile) });
-  if (loaded.error) {
-    console.error(`Failed to load ${args.envFile}: ${loaded.error.message}`);
+  try {
+    loadLayeredEnv(resolve(process.cwd(), args.envFile));
+  } catch (error) {
+    console.error(`Failed to load ${args.envFile}: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
 }
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!args.probe && (!url || !key)) {
-  console.error(`${args.envFile} needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.`);
+  console.error(`${args.envFile} (or the .env.shared beside it) needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.`);
   process.exit(1);
 }
 const supabase = createClient(url ?? "https://probe.invalid", key ?? "probe", { auth: { autoRefreshToken: false, persistSession: false } });
@@ -290,7 +292,7 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
  */
 async function captureProgress(courseId: string): Promise<void> {
   const siteId = process.env.KAJABI_SITE_ID;
-  if (!siteId) throw new Error(`${args.envFile} needs KAJABI_SITE_ID.`);
+  if (!siteId) throw new Error(`${args.envFile} (or the .env.shared beside it) needs KAJABI_SITE_ID.`);
   console.log(`${args.apply ? "Capturing" : "Dry run: capturing"} progress for course ${courseId} from ${args.envFile}`);
 
   const context = await chromium.launchPersistentContext(args.profileDir ?? join(homedir(), ".hub-kajabi-profile"), {
