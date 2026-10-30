@@ -123,8 +123,9 @@ describe("BuilderOutline", () => {
     const draftLesson = screen.getByRole("combobox", { name: "Status of Sharpen your quill" });
     expect(draftLesson).toHaveValue("draft");
     // The whole menu is disabled for now, so compare the options' own attribute.
-    expect(within(draftLesson).getByRole("option", { name: /Publish/ })).toHaveAttribute("disabled");
-    expect(within(draftLesson).getByRole("option", { name: /Publish/ })).toHaveTextContent("Publish “Week 1” first");
+    expect(within(draftLesson).getByRole("option", { name: "Publish" })).toHaveAttribute("disabled");
+    // The reason is the option's tooltip, not its text.
+    expect(within(draftLesson).getByRole("option", { name: "Publish" })).toHaveAttribute("title", "Publish “Week 1” first");
     expect(within(draftLesson).getByRole("option", { name: "Draft" })).not.toHaveAttribute("disabled");
 
     // Under a locked module, Publish is fine.
@@ -150,5 +151,17 @@ describe("BuilderOutline", () => {
     expect(select).toHaveValue("published");
     expect(within(select).getByRole("option", { name: "Published" })).toHaveTextContent(/^Published$/);
     expect(within(select).getByRole("option", { name: "Published" })).not.toHaveAttribute("disabled");
+  });
+
+  it("keeps a blocked Publish's reason out of every option's text, so a long module title can't widen the menu", async () => {
+    const user = userEvent.setup();
+    const long = explainCourse(
+      [{ kajabiId: "m1", parentKajabiId: null, position: 1, title: "Week 1: Start Strong! The Story You Need to Tell & The Character Who Drives It", publishingOption: "draft" }],
+      [{ kajabiId: "l1", moduleKajabiId: "m1", position: 1, title: "Sharpen your quill", publishingOption: "draft" }]
+    );
+    render(<BuilderOutline course={course({ loose: [], modules: long.modules, content: {}, hubLessonIds: {} })} />);
+    await user.click(screen.getByRole("button", { name: "Expand all" }));
+
+    for (const option of screen.getAllByRole("option")) expect(option.textContent, option.outerHTML).not.toMatch(/first/);
   });
 });

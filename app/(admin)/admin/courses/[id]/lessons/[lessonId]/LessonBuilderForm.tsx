@@ -82,10 +82,10 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
               {STATUS_CHOICES.filter((c) => c.value === "draft" || c.value === "published").map((c) => {
                 const choice = choices.find((x) => x.value === c.value)!;
                 return (
-                  <label key={c.value} className="flex items-center gap-2">
-                    <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} />
+                  // Why a choice is blocked is its tooltip, not text beside it.
+                  <label key={c.value} title={choice.disabledReason} className="flex items-center gap-2">
+                    <input type="radio" name="status" defaultChecked={lesson.publishingOption === c.value} disabled={!!choice.disabledReason} />
                     {c.label}
-                    {choice.disabledReason && <span className="text-xs text-slate-600 dark:text-slate-400">({choice.disabledReason})</span>}
                   </label>
                 );
               })}
