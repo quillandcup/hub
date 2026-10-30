@@ -3,7 +3,7 @@ import { pageBounds } from "@/lib/pagination";
 import { isAnyId, isId } from "@/lib/ids";
 import { withMentionNames } from "@/lib/chat/names";
 import { createRepos } from "@/lib/data/repos";
-import { throwIfDbError } from "@/lib/query-trace";
+import { throwIfDbError } from "@/lib/db-error";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
