@@ -3,6 +3,7 @@ import { pageBounds } from "@/lib/pagination";
 import { isAnyId, isId } from "@/lib/ids";
 import { withMentionNames } from "@/lib/chat/names";
 import { createRepos } from "@/lib/data/repos";
+import { throwIfDbError } from "@/lib/query-trace";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
@@ -164,7 +165,7 @@ export async function fetchActivityFeed(
 ): Promise<FeedPage> {
   const args = rpcArgs(query, now);
   const { data: count, error: countError } = await supabase.rpc("count_activity_feed", args);
-  if (countError) throw countError;
+  throwIfDbError("activity feed: count_activity_feed", countError);
   const total = (count as number | null) ?? 0;
 
   const bounds = pageBounds(query.page, query.pageSize, total);
@@ -175,7 +176,7 @@ export async function fetchActivityFeed(
     p_offset: bounds.offset,
     p_limit: bounds.pageSize,
   });
-  if (error) throw error;
+  throwIfDbError("activity feed: get_activity_feed", error);
   return { rows: await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])), total, page: bounds.page, pageSize: bounds.pageSize };
 }
 
@@ -240,7 +241,7 @@ export async function fetchRecordHistory(
     p_parent_column: scope.parentColumn ?? null,
     p_member_rows: scope.memberRows ?? false,
   });
-  if (error) throw error;
+  throwIfDbError("record history: get_record_history", error);
   return withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]));
 }
 
