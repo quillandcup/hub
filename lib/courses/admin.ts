@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { fetchAll } from "@/lib/courses/db";
 import { explainCourse, type ExplainedCourse } from "@/lib/courses/explain";
 import { resolveCourseAccess } from "@/lib/courses/member";
@@ -123,7 +124,7 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
       hubLessonIds = Object.fromEntries(hub.map((l) => [l.source_key, l.id]));
       let includesMembership: boolean | null = null;
       if (silver.program_id) {
-        const { data: program } = await supabase.from("programs").select("includes_membership").eq("id", silver.program_id).maybeSingle();
+        const program = await createRepos(supabase).programs.byId(silver.program_id);
         includesMembership = program?.includes_membership ?? null;
       }
       details = { description: silver.description ?? null, includesMembership };
