@@ -1176,6 +1176,13 @@ The Events list now shows a time of day for events that have `start_time`/`end_t
 - **Built, for the per-viewer list:** the played-session record is a `kind = 'viewed'` marker row in `video_watch_segments` (one table, written by the player when it appears, with the user agent), not a consent-gated analytics event: members who decline the banner would otherwise vanish from play rate's denominator. See `docs/ANALYTICS.md`, "Course viewing data", for the decision and the EU/UK risk it carries.
 - **Notice:** the flagged `/privacy` page now says how course videos are watched and where visits come from. Still to consider: a Settings switch to opt out of course viewing statistics (the playhead for resume would stay).
 
+### Course builder: the Video actions that are still disabled _(Needs Scheduling)_
+The lesson builder's Video actions menu (`app/(admin)/admin/courses/[id]/lessons/[lessonId]/VideoActions.tsx`) copies Kajabi's. **Working now:** Video stats (links to the lesson's watch stats) and Copy timestamp URL (the lesson's member address with `?t=<seconds>`, which the member lesson page honours, `startSeconds` in `lib/courses/watch.ts`). **Disabled, and why:**
+- **Closed captions** (Kajabi opens a "Transcription playground": Transcriptions, Translations and Dubbing tabs, upload or generate a transcript). It edits, and no captions manager exists yet. Where to start: the `video_text_tracks` table (`docs/COURSES.md`, "Captions and other per-video assets"), the planned small admin Videos screen for SRT/VTT uploads, and attaching tracks to the Mux asset. A read-only view of existing tracks could ship first.
+- **Download video.** Mux serves no downloadable copy unless MP4 static renditions are turned on for the asset (a Mux setting with storage cost), and the Kajabi source link expires after 7 days. Decide whether the cost is acceptable; then an admin-only route that redirects to a signed `highest.mp4`. Check `docs/MUX_CONFIG.md` first.
+- **Copy link with thumbnail.** Kajabi copies a shareable link with a thumbnail. Ours would need a thumbnail anyone can load: lesson thumbnails are in the private media bucket behind `/api/courses/image`, and lesson pages need a sign-in. A public, short-lived or share-token image URL is the missing piece.
+- **Remove video** is an edit, so it waits for saving.
+
 ### Course Hero Image _(Needs Scheduling)_
 The course page (`app/(member)/courses/[slug]/page.tsx`) has a plain plum hero band, while Kajabi shows a banner photo behind the title (e.g. a notebook for Murky Middle) that is **not** the course thumbnail (the puzzle). Kajabi's course API only returns `thumbnail_url`, so the hero image can't be imported.
 

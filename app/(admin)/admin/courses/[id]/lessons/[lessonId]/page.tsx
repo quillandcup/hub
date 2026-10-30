@@ -6,10 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { loadAdminLesson, type AdminLessonDetail } from "@/lib/courses/admin";
 import { formatCourseDateTime } from "@/lib/courses/format";
 import CourseBuilderBanner from "../../../CourseBuilderBanner";
-import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import type { PlaybackTokens } from "@/components/courses/LessonPlayer";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
 import { formatClock } from "@/lib/courses/watch-stats";
+import { APP_URL } from "@/lib/config";
 import LessonStaffTools from "../../LessonStaffTools";
+import LessonMediaPanel from "./LessonMediaPanel";
+import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
@@ -31,22 +34,44 @@ async function mintTokens(playbackId: string): Promise<PlaybackTokens | null> {
   }
 }
 
-/** The lesson's video in the builder, played by the same player members get (no watch tracking: this is an admin looking at the lesson). */
+/** The lesson's video in the builder, played by the same player members get, with the Video actions menu. */
 async function lessonMedia(detail: AdminLessonDetail) {
-  const { lesson, video, hub } = detail;
+  const { lesson, video, hub, course } = detail;
   const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
+  const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
+  const statsHref = hub && video ? `/admin/courses/${course.kajabiId}/stats/${hub.lessonId}` : null;
+  const actions = (
+    <div className="mt-3">
+      <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} />
+    </div>
+  );
   if (video?.status === "ready" && video.playbackId) {
     const tokens = await mintTokens(video.playbackId);
-    if (tokens) return <LessonPlayer title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} />;
-    return <p role="status" className={note}>The video can&apos;t be played right now.</p>;
+    if (tokens) return <LessonMediaPanel title={lesson.title} playbackId={video.playbackId} tokens={tokens} posterUrl={lesson.thumbnailSrc} statsHref={statsHref} lessonUrl={lessonUrl} />;
+    return (
+      <>
+        <p role="status" className={note}>The video can&apos;t be played right now.</p>
+        {actions}
+      </>
+    );
   }
-  if (video) return <p role="status" className={note}>{video.status === "errored" ? "This video couldn't be prepared." : "This video is still being prepared."}</p>;
+  if (video) {
+    return (
+      <>
+        <p role="status" className={note}>{video.status === "errored" ? "This video couldn't be prepared." : "This video is still being prepared."}</p>
+        {actions}
+      </>
+    );
+  }
   if (lesson.hasVideo) {
     return (
-      <p className={note}>
-        This lesson has a video in Kajabi{lesson.videoDurationSeconds !== null && <> ({formatClock(lesson.videoDurationSeconds)})</>}
-        {hub ? ", not in the Hub yet. It arrives with the next video step." : ". Publish the course to bring it into the Hub."}
-      </p>
+      <>
+        <p className={note}>
+          This lesson has a video in Kajabi{lesson.videoDurationSeconds !== null && <> ({formatClock(lesson.videoDurationSeconds)})</>}
+          {hub ? ", not in the Hub yet. It arrives with the next video step." : ". Publish the course to bring it into the Hub."}
+        </p>
+        {actions}
+      </>
     );
   }
   return <p className={note}>No video on this lesson.</p>;

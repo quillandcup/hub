@@ -107,6 +107,14 @@ function seekMedia(el: HTMLMediaElement, seconds: number) {
   el.currentTime = seconds;
 }
 
+/** Tells the page where the playhead is, to the second (for "Copy timestamp URL" in the course builder). */
+function ReportTime({ onTime }: { onTime: (seconds: number) => void }) {
+  const time = usePlayer(selectTime);
+  const seconds = Math.floor(time?.currentTime ?? 0);
+  useEffect(() => onTime(seconds), [seconds, onTime]);
+  return null;
+}
+
 /** Starts the video where the member left off, once, unless that was (nearly) the end. */
 function ResumePosition({ seconds }: { seconds: number }) {
   const media = useMedia();
@@ -326,6 +334,7 @@ export default function LessonPlayer({
   lessonId,
   resumeSeconds = 0,
   trackProgress = false,
+  onTime,
 }: {
   title: string;
   playbackId: string;
@@ -337,6 +346,8 @@ export default function LessonPlayer({
   resumeSeconds?: number;
   /** Save watch segments and the playhead. Off in sudo and in a staff preview, which leave no viewing history. */
   trackProgress?: boolean;
+  /** Called with the playhead's whole second whenever it changes. */
+  onTime?: (seconds: number) => void;
 }) {
   const poster = courseImageUrl(posterUrl);
   return (
@@ -347,6 +358,7 @@ export default function LessonPlayer({
           <RememberCaptions />
           <AutoCompleteAtWatchedMark />
           <ResumePosition seconds={resumeSeconds} />
+          {onTime && <ReportTime onTime={onTime} />}
           {trackProgress && lessonId && <WatchTracker lessonId={lessonId} />}
           <BigPlayButton />
           <MuxVideo

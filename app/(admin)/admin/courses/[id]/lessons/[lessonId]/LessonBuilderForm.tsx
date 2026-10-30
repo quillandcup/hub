@@ -42,11 +42,6 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
 
           <h3 className="mb-2 mt-6 font-semibold">Media</h3>
           {media}
-          <div className="mt-3">
-            <button type="button" disabled title={SOON} className={BUTTON}>
-              Video actions
-            </button>
-          </div>
 
           <h3 className="mb-2 mt-6 font-semibold">Lesson text</h3>
           {lesson.bodyHtml ? (

@@ -73,3 +73,17 @@ export function parseWatchBatch(body: unknown): WatchBatch | null {
 export function resumeSeconds(saved: number | null | undefined): number {
   return saved != null && saved >= RESUME_MIN_SECONDS ? saved : 0;
 }
+
+/** The longest start time a link may ask for (a day); anything longer is not a timestamp. */
+const MAX_LINK_SECONDS = 24 * 60 * 60;
+
+/**
+ * Where a lesson opens: the second a shared link asks for (`?t=95`, from "Copy timestamp URL" in the
+ * course builder) over the member's own saved position, which stays the default. Only a whole number
+ * counts; a missing, negative, fractional or absurd value is ignored.
+ */
+export function startSeconds(linkParam: string | undefined, resume: number): number {
+  if (linkParam === undefined || !/^\d{1,5}$/.test(linkParam)) return resume;
+  const seconds = Number(linkParam);
+  return seconds > 0 && seconds <= MAX_LINK_SECONDS ? seconds : resume;
+}
