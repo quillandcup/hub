@@ -43,7 +43,7 @@ export default async function AmbiguousNamesPage() {
   }
 
   type Occurrence = { topic: string | null; joinTime: string; meetingKey: string };
-  const usage = new Map<string, { count: number; lastSeenAt: string; occurrences: Occurrence[] }>();
+  const usage = new Map<string, { lastSeenAt: string; occurrences: Occurrence[] }>();
   const names = [...new Set([...stillAmbiguous.values()].map((r) => r.zoomName))];
   if (names.length > 0) {
     const BATCH_SIZE = 1000;
@@ -60,8 +60,7 @@ export default async function AmbiguousNamesPage() {
       if (error) throw error;
       for (const a of batch ?? []) {
         const key = attendeeKey(a.name, a.email);
-        const seen = usage.get(key) ?? { count: 0, lastSeenAt: "", occurrences: [] };
-        seen.count++;
+        const seen = usage.get(key) ?? { lastSeenAt: "", occurrences: [] };
         seen.occurrences.push({ topic: a.topic, joinTime: a.join_time, meetingKey: a.meeting_uuid || a.meeting_id });
         if (a.join_time > seen.lastSeenAt) seen.lastSeenAt = a.join_time;
         usage.set(key, seen);
@@ -128,11 +127,22 @@ export default async function AmbiguousNamesPage() {
   for (const [key, row] of stillAmbiguous) {
     const seen = usage.get(key);
     const group = groups.get(row.zoomName) ?? { occurrenceCount: 0, lastSeenAt: "", candidateIds: new Set<string>(), occurrences: [] };
-    group.occurrenceCount += seen?.count ?? 0;
     group.occurrences.push(...(seen?.occurrences ?? []));
     if ((seen?.lastSeenAt ?? "") > group.lastSeenAt) group.lastSeenAt = seen!.lastSeenAt;
     for (const id of row.candidateIds) group.candidateIds.add(id);
     groups.set(row.zoomName, group);
+  }
+
+  // One occurrence per Zoom session: someone who dropped out and rejoined has several attendee
+  // rows for the same session, and the same name can be stored with and without an email.
+  for (const group of groups.values()) {
+    const bySession = new Map<string, Occurrence>();
+    for (const o of group.occurrences) {
+      const earlier = bySession.get(o.meetingKey);
+      if (!earlier || o.joinTime < earlier.joinTime) bySession.set(o.meetingKey, o);
+    }
+    group.occurrences = [...bySession.values()];
+    group.occurrenceCount = group.occurrences.length;
   }
 
   const SESSIONS_SHOWN = 30;
