@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { track } from "@/lib/analytics/client";
 import { createClient } from "@/lib/supabase/client";
+import { BOOK_COVER_MAX_BYTES, describeBookCoverRequirements } from "@/lib/bookCover";
 import type { MediaSurface } from "@/lib/media/surfaces";
 
 /** A file bigger than this goes straight to storage through a signed URL: a request body can't carry it. */
@@ -17,18 +18,21 @@ const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dar
 /**
  * Uploads an image to the media library: a file (dropped or chosen), an optional title and tags. HEIC photos
  * are converted by the server; a file too big for a request body goes through a signed storage URL. Calls
- * `onUploaded` with the new (or already existing) asset's id; failures go to `onError`.
+ * `onUploaded` with the new (or already existing) asset's id and size; failures go to `onError`. With `own` it is
+ * a member's upload into their own images (`/api/bookshelf/cover`): no title or tags, one request, up to 4 MB.
  */
 export default function MediaUploadForm({
   surface,
   onUploaded,
   onError,
   submitLabel = "Upload and use",
+  own = false,
 }: {
   surface: MediaSurface;
-  onUploaded: (id: string) => void;
+  onUploaded: (id: string, asset: { id: string; width: number; height: number }) => void;
   onError: (message: string | null) => void;
   submitLabel?: string;
+  own?: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -41,13 +45,21 @@ export default function MediaUploadForm({
   // outer one too, saving the event with nothing chosen yet. Enter in a field sends, instead of submitting what is around it.
   async function send() {
     if (!file || busy) return;
-    setBusy(true);
     onError(null);
-    const large = file.size > DIRECT_UPLOAD_ABOVE;
+    if (own && file.size > BOOK_COVER_MAX_BYTES) {
+      onError(`Cover must be under ${BOOK_COVER_MAX_BYTES / (1024 * 1024)} MB`);
+      return;
+    }
+    setBusy(true);
+    const large = !own && file.size > DIRECT_UPLOAD_ABOVE;
     try {
       const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
       let response: Response;
-      if (large) {
+      if (own) {
+        const form = new FormData();
+        form.set("file", file);
+        response = await fetch("/api/bookshelf/cover", { method: "POST", body: form });
+      } else if (large) {
         // Too big for a request body: straight to storage through a signed URL, then ask the library to take it.
         const start = await fetch("/api/media/uploads", { method: "POST" });
         const slot = await start.json();
@@ -69,10 +81,13 @@ export default function MediaUploadForm({
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Upload failed");
       track("media_uploaded", { surface, ok: true, converted: body.convertedFrom === "heic", duplicate: !!body.duplicate, large });
-      onUploaded(body.asset.id);
+      // The staff route answers { asset }, a member's own { assetId, width, height }.
+      const uploaded = own ? { id: body.assetId, width: body.width, height: body.height } : { id: body.asset.id, width: body.asset.width, height: body.asset.height };
+      onUploaded(uploaded.id, uploaded);
     } catch (err) {
       track("media_uploaded", { surface, ok: false, converted: false, duplicate: false, large });
-      onError((err as Error).message);
+      // A request that never got an answer is a TypeError ("Failed to fetch"): say something a person can use.
+      onError(err instanceof TypeError ? "Upload failed, try again" : (err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -105,16 +120,20 @@ export default function MediaUploadForm({
           {file ? "Choose a different file" : "Choose a file"}
         </button>
         <input ref={input} type="file" accept={ACCEPT} aria-label="Image file" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">JPEG, PNG, WebP, GIF, AVIF or an iPhone HEIC photo, up to 25 MB.</p>
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">{own ? describeBookCoverRequirements() : "JPEG, PNG, WebP, GIF, AVIF or an iPhone HEIC photo, up to 25 MB."}</p>
       </div>
+      {!own && (
       <label className="block text-sm">
         Title
         <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={sendOnEnter} placeholder="From the file name if left empty" className={`${INPUT} mt-1`} />
       </label>
+      )}
+      {!own && (
       <label className="block text-sm">
         Tags
         <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} onKeyDown={sendOnEnter} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
       </label>
+      )}
       <button type="button" onClick={() => void send()} disabled={!file || busy} className={PRIMARY}>
         {busy ? "Uploading..." : submitLabel}
       </button>

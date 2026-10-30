@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { uploadCover } from "../helpers/cover-upload";
 import "@testing-library/jest-dom/vitest";
 
 vi.mock("@/lib/analytics/client", () => ({ track: vi.fn() }));
@@ -19,14 +20,14 @@ const URL_ = "/api/media/media_AAAAAAAAAAA1/book_cover_shelf";
 
 beforeEach(() => {
   vi.mocked(updateProjectCover).mockReset();
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ url: URL_, assetId: "media_AAAAAAAAAAA1", width: 1600, height: 2560 }), { status: 200 })));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("?") ? { assets: [] } : { url: URL_, assetId: "media_AAAAAAAAAAA1", width: 1600, height: 2560 }), { status: 200 })));
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-const upload = () => userEvent.upload(screen.getByLabelText("Cover image file"), new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
+const upload = () => uploadCover(new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
 
 describe("ProjectDetailsModal cover", () => {
   it("saves an uploaded cover on the project straight away and shows it", async () => {

@@ -2,6 +2,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { uploadCover } from "../helpers/cover-upload";
 import BookFormModal from "@/components/books/BookFormModal";
 import { addBook, getMyPenNameOptions, updateBook } from "@/app/(member)/bookshelf/actions";
 import { publishProject } from "@/app/(member)/projects/actions";
@@ -109,7 +110,8 @@ describe("BookFormModal cover", () => {
   });
 
   function stubUpload(response: unknown, ok = true) {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok, json: async () => response }) as Response));
+    // The chooser's library tab asks for the member's images first; the upload answers `response`.
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: url.includes("?") ? true : ok, json: async () => (url.includes("?") ? { assets: [] } : response) }) as Response));
   }
 
   it("accepts a cover of any size and saves the library cover the upload answered with", async () => {
@@ -118,7 +120,7 @@ describe("BookFormModal cover", () => {
     const onSaved = vi.fn();
     render(<BookFormModal isOpen onClose={() => {}} onSaved={onSaved} book={BOOK} />);
 
-    await userEvent.upload(screen.getByLabelText("Cover image file"), new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
+    await uploadCover(new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
     await waitFor(() => expect(screen.getByAltText("Cover preview")).toHaveAttribute("src", uploaded.url));
     expect(screen.getByText(/1600 x 2560 px/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Download for Amazon/ })).toHaveAttribute("href", `/api/media/${uploaded.assetId}/book_cover_kdp_ebook?download=1`);
@@ -131,7 +133,7 @@ describe("BookFormModal cover", () => {
   it("says a cover is too small for Amazon, and offers no download", async () => {
     stubUpload({ ...uploaded, width: 290, height: 430 });
     render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={BOOK} />);
-    await userEvent.upload(screen.getByLabelText("Cover image file"), new File([new Uint8Array(10)], "small.png", { type: "image/png" }));
+    await uploadCover(new File([new Uint8Array(10)], "small.png", { type: "image/png" }));
     expect(await screen.findByText(/at least 625 x 1000 px/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Download for Amazon/ })).not.toBeInTheDocument();
   });
@@ -155,7 +157,7 @@ describe("BookFormModal cover", () => {
     render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} projectId="project-1" projectTitle="My Novel" />);
     expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled(); // no cover yet
 
-    await userEvent.upload(screen.getByLabelText("Cover image file"), new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
+    await uploadCover(new File([new Uint8Array(10)], "cover.png", { type: "image/png" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled());
   });
 });
