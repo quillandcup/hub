@@ -147,6 +147,24 @@ export function parseRoster(json: unknown, timeZone: string): ParsedRoster {
   return { count: numberOrNull(root.count), entries, skipped };
 }
 
+/**
+ * Whether a roster response has students in it. Kajabi builds the report in the background (the request carries
+ * `send_to_background`, the response a `status`), so the page's first answer can be an empty one and a later
+ * answer has the students: the capture keeps watching until a response is ready.
+ */
+export function rosterHasMembers(json: unknown): boolean {
+  return isObject(json) && Array.isArray(json.members) && json.members.length > 0;
+}
+
+/** What a roster response says about itself, for the line printed when no students ever arrived: the report's own status and count, never a student. */
+export function describeRosterResponse(json: unknown): string {
+  if (!isObject(json)) return "not an object";
+  const status = typeof json.status === "string" ? json.status.slice(0, 40) : typeof json.status;
+  const count = typeof json.count === "number" ? json.count : typeof json.count;
+  const members = Array.isArray(json.members) ? json.members.length : typeof json.members;
+  return `status ${status}, count ${count}, members ${members}`;
+}
+
 /** Every lesson of every module and week in one student's report; a lesson listed twice keeps its completed copy. */
 export function parseMemberProgress(json: unknown, timeZone: string): ParsedMemberProgress {
   const root = isObject(json) ? json : {};
