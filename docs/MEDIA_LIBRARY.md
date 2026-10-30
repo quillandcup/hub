@@ -105,4 +105,4 @@ Each is its own PR, small enough to review.
 
 - Events and the Bookshelf are members-only for now and become public with the marketing site: `is_public` and the public path in `/api/media` are ready for it; an asset is switched public when the public page that shows it ships.
 - Amazon: ebook covers only (decided); the paperback and hardcover wrap is in `docs/TODO.md`.
-- The courses workstream is paused; when it resumes it adopts step 4 below.
+- The courses workstream: step 4 is done. Its next image slot (a course builder's poster or thumbnail) is an `*_asset_id` column pointing at `media_assets`, never another path pair.
