@@ -284,9 +284,8 @@ export default async function PrivacyPage() {
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
         <p>
-          The Hub can notify you in four places: a direct message from Billie Bot in Slack, email, the bell and banners inside
-          the Hub, and browser notifications on a device you turn them on for. You choose which, for each kind of
-          notification, in{" "}
+          The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose
+          which, for each kind of notification, in{" "}
           <Link href="/settings/notifications" className="underline">
             Settings
           </Link>

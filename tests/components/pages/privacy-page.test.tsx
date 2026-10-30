@@ -170,12 +170,13 @@ describe("/privacy page", () => {
     expect(choices.getByText(/it expires\s+after 30 minutes without activity/)).toBeInTheDocument();
   });
 
-  it("names the four notification channels and says what is recorded about them", async () => {
+  it("says notifications can go to several places without listing them all, and what is recorded about them", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
     expect(choices.getByRole("heading", { name: "Notifications" })).toBeInTheDocument();
-    expect(choices.getByText(/direct message from Billie Bot in Slack, email/)).toBeInTheDocument();
-    expect(choices.getByText(/and browser notifications on a device you turn them on for/)).toBeInTheDocument();
+    // "such as", so the page doesn't need an edit when a channel is added.
+    expect(choices.getByText(/in more than one place, such as Slack, email, inside the Hub, or your browser/)).toBeInTheDocument();
+    expect(choices.queryByText(/four places/)).not.toBeInTheDocument();
     expect(choices.getByText(/We keep a record that we sent you each notification/)).toBeInTheDocument();
     expect(choices.getByText(/takes the tag off the address/)).toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
