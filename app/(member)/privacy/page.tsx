@@ -110,7 +110,7 @@ export default async function PrivacyPage() {
             <CollectRow
               what="Your account and what you do in it"
               detail="Your profile, projects, goals, check-ins, commitments, sign-ins, and the notifications we sent you."
-              why="To run the Hub, and so your seat is kept warm for you through different seasons of life."
+              why="To run the Hub, and so your seat is kept warm through different seasons of life."
             />
             <CollectRow
               what="How you use the Hub"
