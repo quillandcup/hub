@@ -593,6 +593,10 @@ Seen 2026-10-29 on clean `origin/main` (2 of 4 full `pnpm test:unit` runs on a l
 
 CI runs on a machine without the stack and hasn't shown this, so it is cheap to fix now and expensive to find once it starts failing there.
 
+### Page sections that fail alone, and tracing beyond the member page
+
+The admin member page loads about fifteen queries in one server render, so a single statement timeout (57014, seen once in production) blanks the whole page. The PR adding `lib/query-trace.ts` names the failing query in Sentry, logs sections over 2s and adds `error.tsx` pages with a digest, but the page still fails as a whole. Deferred because it needs a decision per panel about what an empty state should say. Start in `app/(admin)/admin/members/[id]/MemberDetailPage.tsx`: wrap the non-essential panels (Slack feed, activity feed, membership history) so an error shows "couldn't load" for that panel only. Then use `traced()` on the other heavy pages (`/admin/activity`, the member dashboard) and watch the `[slow section]` log lines for what to index.
+
 ## Security & Access Control
 
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_

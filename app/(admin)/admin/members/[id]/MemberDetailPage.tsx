@@ -27,6 +27,7 @@ import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS } from "@/lib/activity-feed";
+import { traced } from "@/lib/query-trace";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
 
@@ -81,7 +82,7 @@ export default async function MemberDetailPage({
     .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
-  const attendance = (await createRepos(supabase).attendance.forMemberWithPrickles(id)).map(attendedPrickleRow);
+  const attendance = (await traced("member page: attendance", () => createRepos(supabase).attendance.forMemberWithPrickles(id), { memberId: id })).map(attendedPrickleRow);
 
   // Compute real engagement metrics from member_activities — the mirror of
   // this member's prickle attendance (unbounded, for lastAttendedAt/
@@ -91,10 +92,15 @@ export default async function MemberDetailPage({
   // attendanceRecords panel below.
   const now = new Date();
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [allPrickleAttended, recentActivities] = await Promise.all([
-    createRepos(supabase).activities.prickleAttendances(id),
-    createRepos(supabase).activities.engagementSince(id, thirtyDaysAgoIso),
-  ]);
+  const [allPrickleAttended, recentActivities] = await traced(
+    "member page: engagement activities",
+    () =>
+      Promise.all([
+        createRepos(supabase).activities.prickleAttendances(id),
+        createRepos(supabase).activities.engagementSince(id, thirtyDaysAgoIso),
+      ]),
+    { memberId: id }
+  );
   const activitiesForMetrics: EngagementActivityRow[] = recentActivities;
 
   const metrics = computeMemberEngagementMetrics(allPrickleAttended, [id], now, activitiesForMetrics).get(id) ?? null;
@@ -164,20 +170,25 @@ export default async function MemberDetailPage({
     .in("email", allEmails);
 
   const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
-  const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
+  const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
   // Fetch Slack activities
-  const slackActivities = await createRepos(supabase).activities.slackFeed(id, 50);
+  const slackActivities = await traced("member page: slack feed", () => createRepos(supabase).activities.slackFeed(id, 50), { memberId: id });
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
   // activity, what staff did for or as them, changes to their record), Everything by default.
   // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
   const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
-  const feedPage = await fetchActivityFeed(supabase, {
-    ...activityFilters,
-    page: parsePageParam(searchParams.page),
-    pageSize: parsePageSizeParam(searchParams.pageSize),
-  });
+  const feedPage = await traced(
+    "member page: activity feed",
+    () =>
+      fetchActivityFeed(supabase, {
+        ...activityFilters,
+        page: parsePageParam(searchParams.page),
+        pageSize: parsePageSizeParam(searchParams.pageSize),
+      }),
+    { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
+  );
   const activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
 
   // Get user's timezone preference
