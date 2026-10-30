@@ -4,6 +4,7 @@ import { createRepos } from "@/lib/data/repos";
 import type { MediaAsset } from "@/lib/data/media";
 import { isId } from "@/lib/ids";
 import { parseCustomSize } from "@/lib/media/custom";
+import { assetForVisitor } from "@/lib/media/public-covers";
 import { MEDIA_BUCKET, renditionOf } from "@/lib/media/library";
 import { isPresetName, PRESETS } from "@/lib/media/presets";
 import { FORMAT_INFO, renderImage, settingsFor } from "@/lib/media/render";
@@ -18,8 +19,9 @@ function downloadName(title: string, suffix: string): string {
 
 /**
  * An image at a size. The bucket is private, so every image comes through here: a signed-in caller gets
- * what row-level security lets them read (the shared library, their own, everything for staff), and anyone,
- * signed in or not, gets an asset marked public. Anything else is a plain 404.
+ * what row-level security lets them read (the shared library, their own, everything for staff, a book's cover), and
+ * anyone, signed in or not, gets an asset marked public, or a book's cover at the shelf size while the Bookshelf is
+ * public (lib/media/public-covers.ts). Anything else is a plain 404.
  *
  * `[preset]` is a preset's name (`event_card`, `book_cover_kdp_ebook`, ...), or:
  * - `custom`: any size, `?width=&height=` with optional `&format=` and `&fit=` (signed-in callers only, never cached);
@@ -37,15 +39,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if ((wantsCustom || wantsOriginal) && !user) return new NextResponse("Not found", { status: 404 });
 
   let asset: MediaAsset | null = null;
+  let servedToAnyone = false;
   if (user) asset = await createRepos(await createClient()).media.byId(id).catch(() => null);
   if (!asset || asset.deleted_at) {
-    const publicAsset = await createRepos(service).media.byId(id).catch(() => null);
-    asset = publicAsset && publicAsset.is_public && !publicAsset.deleted_at ? publicAsset : null;
+    asset = await assetForVisitor(createRepos(service).media, id, preset);
+    servedToAnyone = asset !== null;
   }
   if (!asset) return new NextResponse("Not found", { status: 404 });
 
   const download = request.nextUrl.searchParams.get("download") === "1";
-  const headers: Record<string, string> = { "Cache-Control": asset.is_public ? "public, max-age=3600, stale-while-revalidate=86400" : "private, max-age=3600" };
+  const headers: Record<string, string> = { "Cache-Control": asset.is_public || servedToAnyone ? "public, max-age=3600, stale-while-revalidate=86400" : "private, max-age=3600" };
   const saveAs = (name: string) => {
     if (download) headers["Content-Disposition"] = `attachment; filename="${name}"`;
   };
