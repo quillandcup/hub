@@ -8,6 +8,7 @@ vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; chil
 
 import EventDetailsCard, { type EventData } from "@/app/(admin)/admin/events/[id]/EventDetailsCard";
 import MediaUploadForm from "@/components/media/MediaUploadForm";
+import Modal from "@/components/Modal";
 
 const EVENT: EventData = {
   id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", location: "Cedar Lodge",
@@ -61,6 +62,48 @@ describe("choosing a cover image while editing an event", () => {
     await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
 
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1"));
+    expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("is not a form of its own, so nothing it does can submit or navigate", () => {
+    const { container } = render(<MediaUploadForm surface="event_cover" onUploaded={vi.fn()} onError={vi.fn()} />);
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.querySelector("button[type=submit]")).toBeNull();
+  });
+
+  it("uploads on Enter in the title or tags field, without submitting the form around it", async () => {
+    const outer = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onUploaded = vi.fn();
+    render(
+      <form onSubmit={outer}>
+        <MediaUploadForm surface="event_cover" onUploaded={onUploaded} onError={vi.fn()} />
+      </form>,
+    );
+    await userEvent.upload(screen.getByLabelText("Image file"), new File(["x"], "ronda.jpg", { type: "image/jpeg" }));
+    await userEvent.type(screen.getByLabelText("Tags"), "ronda-spain{Enter}");
+
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith("media_AAAAAAAAAAA1"));
+    expect(outer).not.toHaveBeenCalled();
+    const posts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+    expect(posts).toHaveLength(1);
+  });
+
+  it("does nothing on Enter before a file is chosen", async () => {
+    render(<MediaUploadForm surface="event_cover" onUploaded={vi.fn()} onError={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Title"), "Ronda{Enter}");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("closes a modal from a form without submitting the form", async () => {
+    const outer = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onClose = vi.fn();
+    render(
+      <form onSubmit={outer}>
+        <Modal isOpen onClose={onClose} title="Choose an image">content</Modal>
+      </form>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
     expect(outer).not.toHaveBeenCalled();
   });
 });
