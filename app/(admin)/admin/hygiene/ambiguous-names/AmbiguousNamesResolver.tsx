@@ -17,6 +17,10 @@ interface AmbiguousEntry {
   occurrenceCount: number;
   lastSeenAt: string;
   candidates: Candidate[];
+  /** Newest first, capped; `occurrenceCount` is the full number. */
+  sessions?: Array<{ topic: string | null; joinTime: string }>;
+  /** Members most often in the same sessions, with how many of them. */
+  companions?: Array<{ id: string; name: string; displayName?: string | null; sessions: number }>;
 }
 
 export default function AmbiguousNamesResolver({ entries }: { entries: AmbiguousEntry[] }) {
@@ -109,6 +113,32 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                   {busy === `${entry.zoomName}:ignore` ? "Ignoring..." : "Ignore"}
                 </button>
               </div>
+
+              {(entry.sessions?.length || entry.companions?.length) ? (
+                <details className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                  <summary className="cursor-pointer select-none">Sessions and who was there</summary>
+                  {entry.companions?.length ? (
+                    <p className="mt-2">
+                      Most often there with:{" "}
+                      {entry.companions
+                        .map((c) => `${getMemberDisplayName({ name: c.name, display_name: c.displayName })} (${c.sessions})`)
+                        .join(", ")}
+                    </p>
+                  ) : null}
+                  {entry.sessions?.length ? (
+                    <ul className="mt-2 space-y-0.5">
+                      {entry.sessions.map((s, i) => (
+                        <li key={`${s.joinTime}-${i}`}>
+                          {formatDateInZone(s.joinTime, timeZone)} · {s.topic || "Untitled session"}
+                        </li>
+                      ))}
+                      {entry.occurrenceCount > entry.sessions.length && (
+                        <li>…and {entry.occurrenceCount - entry.sessions.length} more</li>
+                      )}
+                    </ul>
+                  ) : null}
+                </details>
+              ) : null}
 
               {errors[entry.zoomName] && (
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2">
