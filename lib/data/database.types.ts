@@ -2239,7 +2239,6 @@ export type Database = {
           source_key: string | null
           state: string
           thumbnail_asset_id: string | null
-          thumbnail_path: string | null
           thumbnail_source: string | null
           thumbnail_url: string | null
           title: string
@@ -2259,7 +2258,6 @@ export type Database = {
           source_key?: string | null
           state?: string
           thumbnail_asset_id?: string | null
-          thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
           title: string
@@ -2279,7 +2277,6 @@ export type Database = {
           source_key?: string | null
           state?: string
           thumbnail_asset_id?: string | null
-          thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
           title?: string
@@ -2325,7 +2322,6 @@ export type Database = {
           parent_id: string | null
           position: number
           poster_asset_id: string | null
-          poster_path: string | null
           poster_source: string | null
           poster_url: string | null
           source: string
@@ -2341,7 +2337,6 @@ export type Database = {
           parent_id?: string | null
           position?: number
           poster_asset_id?: string | null
-          poster_path?: string | null
           poster_source?: string | null
           poster_url?: string | null
           source?: string
@@ -2357,7 +2352,6 @@ export type Database = {
           parent_id?: string | null
           position?: number
           poster_asset_id?: string | null
-          poster_path?: string | null
           poster_source?: string | null
           poster_url?: string | null
           source?: string
@@ -2396,7 +2390,6 @@ export type Database = {
           created_at: string
           description: string | null
           hero_asset_id: string | null
-          hero_path: string | null
           hero_source: string | null
           hero_url: string | null
           id: string
@@ -2407,7 +2400,6 @@ export type Database = {
           source: string
           source_key: string | null
           thumbnail_asset_id: string | null
-          thumbnail_path: string | null
           thumbnail_source: string | null
           thumbnail_url: string | null
           title: string
@@ -2418,7 +2410,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           hero_asset_id?: string | null
-          hero_path?: string | null
           hero_source?: string | null
           hero_url?: string | null
           id?: string
@@ -2429,7 +2420,6 @@ export type Database = {
           source?: string
           source_key?: string | null
           thumbnail_asset_id?: string | null
-          thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
           title: string
@@ -2440,7 +2430,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           hero_asset_id?: string | null
-          hero_path?: string | null
           hero_source?: string | null
           hero_url?: string | null
           id?: string
@@ -2451,7 +2440,6 @@ export type Database = {
           source?: string
           source_key?: string | null
           thumbnail_asset_id?: string | null
-          thumbnail_path?: string | null
           thumbnail_source?: string | null
           thumbnail_url?: string | null
           title?: string

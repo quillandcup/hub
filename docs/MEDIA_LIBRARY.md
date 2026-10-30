@@ -10,7 +10,7 @@ Images are handled four different ways today, and none of them can be reused:
 |---|---|---|
 | Book covers | Public `book-covers` bucket, `member_books.cover_url`, `lib/bookCover.ts` | The upload is rejected unless it is *exactly* 145x215 px. A member whose cover is Amazon-sized (or any other size) can't use it. |
 | Event photos | Private `event-photos` bucket, `event_photos` rows, imported from Google Photos | A gallery per event, not a library: there is no event image to show on the events list and detail page, and nothing to pick twice. |
-| Course images | Private `course-images` bucket, `*_path` / `*_source` columns on `courses`, `course_modules`, `course_lessons`, copied from Kajabi by `lib/courses/images.ts` (now in the library; see below) | One bucket and three sets of columns for one job. Every new place that shows an image would add another. |
+| Course images | Private `course-images` bucket, `*_path` / `*_source` columns on `courses`, `course_modules`, `course_lessons`, copied from Kajabi by `lib/courses/images.ts` (now in the library, below) | One bucket and three sets of columns for one job. Every new place that shows an image would add another. |
 | Help screenshots | `help-images` bucket | Build artifacts, not content. **Stays out of the library.** |
 
 ## Shape
@@ -62,11 +62,11 @@ The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from w
 
 - Each image is a shared library image (`source = 'kajabi'`, `source_key` = the Kajabi link without its query string, tags `kajabi` and the course slug), recorded on the course, module or lesson as `thumbnail_asset_id`, `hero_asset_id` or `poster_asset_id`; `*_source` stays as the cheap "has it changed" check. The same link on a lesson and its module is one library image, fetched once.
 - A changed source stores the new image and removes the old one from the library once nothing shows it. An image Kajabi dropped is cleared the same way. Leftovers (this course's Kajabi images that no course, module or lesson shows) are removed at the end of a run. The library's usage list includes courses, modules and lessons, so a course image can't be deleted in `/admin/media` while it is shown, and the nightly sweep never clears the files of one that is.
-- **The move**: a row that still has an old copy in the `course-images` bucket (`*_path`) gets that copy moved into the library on the next run, with no request to Kajabi, and the old object removed. So nothing depends on Kajabi staying up for this.
-- Access is unchanged: members only ever see `/api/courses/image/<kind>/<id>`, which needs a courses user and keeps a draft's image for staff acting as themselves; it now reads from the library when the row has an asset, falls back to the old bucket copy, and `courseImageSrc` falls back to the Kajabi link before the step has run.
+- **The move** (done 2026-10-30): the images an earlier version copied into the private `course-images` bucket were moved into the library from there, with no request to Kajabi, and the `*_path` columns were dropped (migration `20270305000000`). Only the empty bucket is left, to be deleted through the Storage API or the dashboard (SQL can't).
+- Access is unchanged: members only ever see `/api/courses/image/<kind>/<id>`, which needs a courses user and keeps a draft's image for staff acting as themselves; it reads the library image, and `courseImageSrc` falls back to the Kajabi link before the step has run.
 - Because course images are shared library images, they show up in `/admin/media` and the picker (search `kajabi`, or a course's slug). That is the point: a lesson thumbnail or poster can be replaced with any library image once the course builder exists.
 
-Still to do, once every course has been through the step: drop the `*_path` columns and the `course-images` bucket, and the code that reads them (`docs/TODO.md`).
+Nothing is left of the old bucket but the empty bucket itself.
 
 ## Older covers
 
