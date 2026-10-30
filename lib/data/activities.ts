@@ -86,6 +86,12 @@ const SLACK_SORT_COLUMN: Record<SlackSortColumn, string> = {
   date: "occurred_at",
 };
 
+/** The two PostgREST filters the Slack page applies (the builders return themselves). */
+interface Filterable<T> {
+  eq(column: string, value: string): T;
+  in(column: string, values: string[]): T;
+}
+
 export interface SlackSummary {
   total: number;
   messages: number;
@@ -195,7 +201,7 @@ export class SupabaseActivityRepository implements ActivityRepository {
 
   async slackPage(memberId: string, query: SlackPageQuery) {
     // Filters shared by the count and the page; the typed client takes plain column names only.
-    const filtered = <T extends { eq: Function; in: Function }>(q: T): T => {
+    const filtered = <T extends Filterable<T>>(q: T): T => {
       let out = q.eq("member_id", memberId).eq("source", "slack");
       if (query.kind === "messages") out = out.in("activity_type", SLACK_MESSAGE_TYPES);
       else if (query.kind === "reactions") out = out.eq("activity_type", "slack_reaction");
