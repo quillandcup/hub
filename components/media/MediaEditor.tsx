@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { track } from "@/lib/analytics/client";
+import { amazonCoverProblem } from "@/lib/bookCover";
 import { mediaSrc } from "@/lib/media/url";
 import { MAX_CUSTOM_SIDE } from "@/lib/media/custom";
 import { FIT_MODES, PRESETS, type FitMode } from "@/lib/media/presets";
@@ -146,6 +147,7 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
   const customFitParam = Object.hasOwn(FIT_PARAM, customFit) ? FIT_PARAM[customFit] : "crop";
   const customHref = `/api/media/${assetId}/custom?width=${pixels(width)}&height=${pixels(height)}&format=${customFormat}&fit=${customFitParam}&download=1`;
   const version = asset?.updated_at;
+  const amazonProblem = asset ? amazonCoverProblem(asset) : null;
   // The whole picture, never cropped: a size with the picture's own shape (longest side 800), so a click maps straight to a point on it.
   const scale = asset ? 800 / Math.max(asset.width, asset.height) : 1;
   const wholeWidth = asset ? Math.max(1, Math.round(asset.width * scale)) : 0;
@@ -266,9 +268,16 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
                 The original
               </a>
               )}
-              <a data-track="media-download-kdp" href={`/api/media/${assetId}/book_cover_kdp_ebook?download=1`} onClick={() => track("media_downloaded", { kind: "kdp_ebook" })} className={LINK}>
-                Amazon ebook cover (1600 x 2560 JPEG)
-              </a>
+              {amazonProblem ? (
+                // Too small to make one: the route would answer with a bare JSON error, so say why here instead of linking to it.
+                <span data-testid="amazon-unavailable" className="text-slate-600 dark:text-slate-400">
+                  Amazon ebook cover: {amazonProblem}
+                </span>
+              ) : (
+                <a data-track="media-download-kdp" href={`/api/media/${assetId}/book_cover_kdp_ebook?download=1`} onClick={() => track("media_downloaded", { kind: "kdp_ebook" })} className={LINK}>
+                  Amazon ebook cover (1600 x 2560 JPEG)
+                </a>
+              )}
             </div>
             {!own && (
             <div className="flex flex-wrap gap-2 items-end text-sm">

@@ -111,16 +111,25 @@ describe("MediaEditor", () => {
 
   it("shows the details, where it's used, the sizes, and the download links", async () => {
     usages = [{ kind: "event", id: "evt_AAAAAAAAAAA1", title: "Spring Retreat" }];
+    detail = asset({ width: 1250, height: 2000 }); // big enough for the Amazon cover
     await open();
     expect(screen.getByLabelText("Title")).toHaveValue("Hedgies on First");
     expect(screen.getByLabelText("Tags")).toHaveValue("hedgies, retreat");
     expect(screen.getByLabelText(/Alt text/)).toHaveValue("A hedgehog at a desk");
-    expect(screen.getByText("1000 x 500 px · png")).toBeInTheDocument();
+    expect(screen.getByText("1250 x 2000 px · png")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Spring Retreat" })).toHaveAttribute("href", "/admin/events/evt_AAAAAAAAAAA1");
-    // The whole picture, in its own shape (1000 x 500 -> 800 x 400), so a click maps to a point on it.
-    expect(wholePicture()).toHaveAttribute("src", expect.stringContaining(`/custom?width=800&height=400&format=webp&fit=crop`));
+    // The whole picture, in its own shape (1250 x 2000 -> 500 x 800), so a click maps to a point on it.
+    expect(wholePicture()).toHaveAttribute("src", expect.stringContaining(`/custom?width=500&height=800&format=webp&fit=crop`));
     expect(screen.getByRole("link", { name: "The original" })).toHaveAttribute("href", `/api/media/${ID}/original?download=1`);
     expect(screen.getByRole("link", { name: /Amazon ebook cover/ })).toHaveAttribute("href", `/api/media/${ID}/book_cover_kdp_ebook?download=1`);
+  });
+
+  it("says why instead of linking to the Amazon cover when the image is too small for one", async () => {
+    detail = asset({ width: 145, height: 215 });
+    await open();
+    expect(screen.queryByRole("link", { name: /Amazon ebook cover/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("amazon-unavailable")).toHaveTextContent("This image is 145 x 215 px; at least 625 x 1000 px is needed");
+    expect(screen.getByRole("link", { name: "The original" })).toBeInTheDocument(); // the other downloads stay
   });
 
   it("links an event and a course to their admin pages, and names a module, a lesson, a book or a project without a link", async () => {
