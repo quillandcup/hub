@@ -90,16 +90,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark the unmatched event as resolved
-    const { error: updateError } = await supabase
-      .from("unmatched_calendar_events")
-      .update({
-        status: "resolved",
-        resolved_type_id: resolvedTypeId,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", unmatchedEventId);
-
-    if (updateError) {
+    try {
+      await createRepos(supabase).unmatchedEvents.markResolved([unmatchedEventId], resolvedTypeId, new Date().toISOString());
+    } catch (updateError) {
       console.error("Error updating unmatched event:", updateError);
       // Don't fail - prickle was created successfully
     }

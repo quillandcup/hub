@@ -8,11 +8,17 @@ import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page
 // through the prickle repository, in memory here; the other tables go through a fake client.
 
 let dataset = new InMemoryDataset();
+// When set, marking the unmatched events fails (the prickles are already made, so the route still answers 200).
+let markingFails = false;
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
   return {
     ...actual,
-    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), ...actual.createInMemoryRepos(dataset) }),
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => {
+      const repos = { ...actual.createRepos(db), ...actual.createInMemoryRepos(dataset) };
+      if (markingFails) repos.unmatchedEvents.markResolved = async () => { throw new Error("boom"); };
+      return repos;
+    },
   };
 });
 
@@ -29,6 +35,13 @@ import { POST as resolveBatch } from "@/app/api/prickle-types/resolve-batch/rout
 const ADA = { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test" };
 const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 
+/** A calendar item waiting for review. */
+const queued = (id: string) => ({
+  id, calendar_event_id: `c-${id}`, raw_summary: `Summary ${id}`, status: "pending", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
+  resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null,
+});
+const statuses = () => dataset.unmatchedEvents.map((u) => [u.id, u.status, u.resolved_type_id]);
+
 const post = (route: typeof resolveOne, body: unknown) =>
   route(new NextRequest("http://localhost/api/prickle-types/resolve", { method: "POST", body: JSON.stringify(body) }));
 
@@ -41,9 +54,10 @@ const calendarItem = (id: string, start: string, end: string, description: strin
 
 beforeEach(() => {
   signedIn = true;
-  tables = { member_name_aliases: { data: [] }, unmatched_calendar_events: { data: [] } };
+  tables = { member_name_aliases: { data: [] } };
   fake = createFakeSupabase(tables);
-  dataset = new InMemoryDataset({ members: [ADA], prickleTypes: [SPRINT] });
+  markingFails = false;
+  dataset = new InMemoryDataset({ members: [ADA], prickleTypes: [SPRINT], unmatchedEvents: [queued("u1"), queued("u2")] });
 });
 
 describe("POST /api/prickle-types/resolve", () => {
@@ -55,6 +69,17 @@ describe("POST /api/prickle-types/resolve", () => {
     expect(res.status).toBe(200);
     expect(dataset.prickles).toHaveLength(1);
     expect(dataset.prickles[0]).toMatchObject({ typeId: SPRINT.id, hostId: ADA.id, source: "calendar", startTime: body.startTime });
+    expect(statuses()).toEqual([["u1", "resolved", SPRINT.id], ["u2", "pending", null]]);
+  });
+
+  it("still answers 200 when marking the event resolved fails, since the prickle was made", async () => {
+    markingFails = true;
+
+    const res = await post(resolveOne, { ...body, mode: "existing", typeId: SPRINT.id });
+
+    expect(res.status).toBe(200);
+    expect(dataset.prickles).toHaveLength(1);
+    expect(statuses()[0]).toEqual(["u1", "pending", null]);
   });
 
   it("leaves the host empty when the name matches nobody", async () => {
@@ -96,6 +121,17 @@ describe("POST /api/prickle-types/resolve-batch", () => {
       [SPRINT.id, ADA.id, "2097-03-03T15:00:00Z"],
       [SPRINT.id, ADA.id, "2097-03-10T15:00:00Z"],
     ]);
+    expect(statuses()).toEqual([["u1", "resolved", SPRINT.id], ["u2", "resolved", SPRINT.id]]);
+  });
+
+  it("still answers 200 when marking the events resolved fails", async () => {
+    dataset.calendarEvents = [calendarItem("c1", "2097-03-03T15:00:00Z", "2097-03-03T16:00:00Z", null)];
+    markingFails = true;
+
+    const res = await post(resolveBatch, { unmatchedEventIds: ["u1"], calendarEventIds: ["c1"], mode: "existing", typeId: SPRINT.id });
+
+    expect(res.status).toBe(200);
+    expect(dataset.prickles).toHaveLength(1);
   });
 
   it("creates the new type once for the batch", async () => {

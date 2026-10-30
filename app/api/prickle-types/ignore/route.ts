@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -24,15 +25,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark the unmatched event as ignored
-    const { error } = await supabase
-      .from("unmatched_calendar_events")
-      .update({
-        status: "ignored",
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", unmatchedEventId);
-
-    if (error) {
+    try {
+      await createRepos(supabase).unmatchedEvents.markIgnored([unmatchedEventId], new Date().toISOString());
+    } catch (error) {
       console.error("Error ignoring event:", error);
       return NextResponse.json(
         { error: "Failed to ignore event" },
