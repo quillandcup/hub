@@ -20,6 +20,17 @@ export type StripeProductRow = Tables["stripe_products"]["Row"];
 /** A Stripe subscription (`bronze.stripe_subscriptions`). */
 export type StripeSubscriptionRow = Tables["stripe_subscriptions"]["Row"];
 
+/** What the imports write: the columns of each table (the raw record included). */
+export type NewKajabiContact = Tables["kajabi_contacts"]["Insert"];
+export type NewKajabiCustomer = Tables["kajabi_customers"]["Insert"];
+export type NewKajabiPurchase = Tables["kajabi_purchases"]["Insert"];
+export type NewKajabiOffer = Tables["kajabi_offers"]["Insert"];
+export type NewKajabiMember = Tables["kajabi_members"]["Insert"];
+export type NewStripeCustomer = Tables["stripe_customers"]["Insert"];
+export type NewStripeProduct = Tables["stripe_products"]["Insert"];
+export type NewStripeSubscription = Tables["stripe_subscriptions"]["Insert"];
+export type NewSubscriptionHistory = Tables["subscription_history"]["Insert"];
+
 export type KajabiContactRef = Pick<KajabiContactRow, "kajabi_contact_id" | "email" | "name">;
 export type KajabiCustomerRef = Pick<KajabiCustomerRow, "kajabi_customer_id" | "email">;
 /** What a customer says about themselves (the raw record) and when Kajabi last changed it. */
@@ -49,6 +60,7 @@ export type StripeProductSeed = Pick<StripeProductRow, "stripe_product_id" | "na
 export type StripeSubscriptionSeed = Pick<StripeSubscriptionRow, "stripe_subscription_id" | "stripe_customer_id"> & Partial<StripeSubscriptionRow>;
 
 const ID_CHUNK = 100;
+const WRITE_CHUNK = 500;
 const EPOCH = "1970-01-01T00:00:00.000Z";
 
 type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
@@ -124,6 +136,28 @@ export interface BillingRepository {
   stripeSubscriptionsByCustomers(stripeCustomerIds: string[]): Promise<StripeSubscriptionTrial[]>;
   /** When the newest subscription was imported, or null when none was. */
   lastStripeSubscriptionImportAt(): Promise<string | null>;
+
+  // --- the imports' writes (Bronze: upsert on the natural key, so a re-import never duplicates) ---
+  /** Adds contacts, or replaces the ones with the same Kajabi contact id. Written in chunks. */
+  upsertKajabiContacts(rows: NewKajabiContact[]): Promise<void>;
+  /** Sets the email of one contact, when Kajabi has changed it and the full refresh did not work. */
+  setKajabiContactEmail(kajabiContactId: string, email: string): Promise<void>;
+  /** Adds customers, or replaces the ones with the same Kajabi customer id. Written in chunks. */
+  upsertKajabiCustomers(rows: NewKajabiCustomer[]): Promise<void>;
+  /** Adds purchases, or replaces the ones with the same Kajabi purchase id. Written in chunks. */
+  upsertKajabiPurchases(rows: NewKajabiPurchase[]): Promise<void>;
+  /** Adds offers, or replaces the ones with the same Kajabi offer id. Written in chunks. */
+  upsertKajabiOffers(rows: NewKajabiOffer[]): Promise<void>;
+  /** Adds one snapshot row per member of a members export (append only: processing reads the latest import). Written in chunks. */
+  insertKajabiMembers(rows: NewKajabiMember[]): Promise<void>;
+  /** Adds Stripe customers, or replaces the ones with the same Stripe customer id. Written in chunks. */
+  upsertStripeCustomers(rows: NewStripeCustomer[]): Promise<void>;
+  /** Adds Stripe products, or replaces the ones with the same Stripe product id. Written in chunks. */
+  upsertStripeProducts(rows: NewStripeProduct[]): Promise<void>;
+  /** Adds Stripe subscriptions, or replaces the ones with the same Stripe subscription id. Written in chunks. */
+  upsertStripeSubscriptions(rows: NewStripeSubscription[]): Promise<void>;
+  /** Adds subscription export rows, or replaces the ones with the same Kajabi subscription id and import time. Returns how many rows were written. */
+  upsertSubscriptionHistory(rows: NewSubscriptionHistory[]): Promise<number>;
 }
 
 /** Runs a query for each chunk of the distinct values, together, and joins the rows. */
@@ -370,6 +404,81 @@ export class SupabaseBillingRepository implements BillingRepository {
 
   lastStripeSubscriptionImportAt() {
     return this.newest("stripe_subscriptions");
+  }
+
+  async upsertKajabiContacts(rows: NewKajabiContact[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.contacts.upsert(part, { onConflict: "kajabi_contact_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async setKajabiContactEmail(kajabiContactId: string, email: string) {
+    const { error } = await this.contacts.update({ email }).eq("kajabi_contact_id", kajabiContactId);
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertKajabiCustomers(rows: NewKajabiCustomer[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.customers.upsert(part, { onConflict: "kajabi_customer_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertKajabiPurchases(rows: NewKajabiPurchase[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.purchases.upsert(part, { onConflict: "kajabi_purchase_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertKajabiOffers(rows: NewKajabiOffer[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.offers.upsert(part, { onConflict: "kajabi_offer_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async insertKajabiMembers(rows: NewKajabiMember[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.db.schema("bronze").from("kajabi_members").insert(part);
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertStripeCustomers(rows: NewStripeCustomer[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.stripeCustomerTable.upsert(part, { onConflict: "stripe_customer_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertStripeProducts(rows: NewStripeProduct[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.products.upsert(part, { onConflict: "stripe_product_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertStripeSubscriptions(rows: NewStripeSubscription[]) {
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { error } = await this.subscriptions.upsert(part, { onConflict: "stripe_subscription_id" });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  async upsertSubscriptionHistory(rows: NewSubscriptionHistory[]) {
+    let written = 0;
+    for (const part of chunk(rows, WRITE_CHUNK)) {
+      const { data, error } = await this.db
+        .schema("bronze")
+        .from("subscription_history")
+        .upsert(part, { onConflict: "kajabi_subscription_id,imported_at" })
+        .select("id");
+      if (error) throw new Error(error.message);
+      written += data?.length ?? 0;
+    }
+    return written;
   }
 }
 
@@ -634,6 +743,56 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async lastStripeSubscriptionImportAt() {
     return this.newest(this.subscriptionRows().map((r) => r.imported_at));
+  }
+
+  /** Adds each row, or merges it into the stored row with the same key (a column left out keeps its value, as in SQL). */
+  private upsert<T extends object>(stored: T[], rows: T[], same: (a: T, b: T) => boolean) {
+    for (const row of rows) {
+      const existing = stored.find((s) => same(s, row));
+      if (existing) Object.assign(existing, row);
+      else stored.push({ ...row });
+    }
+  }
+
+  async upsertKajabiContacts(rows: NewKajabiContact[]) {
+    this.upsert(this.dataset.kajabiContacts, rows, (a, b) => a.kajabi_contact_id === b.kajabi_contact_id);
+  }
+
+  async setKajabiContactEmail(kajabiContactId: string, email: string) {
+    for (const c of this.dataset.kajabiContacts) if (c.kajabi_contact_id === kajabiContactId) c.email = email;
+  }
+
+  async upsertKajabiCustomers(rows: NewKajabiCustomer[]) {
+    this.upsert(this.dataset.kajabiCustomers, rows, (a, b) => a.kajabi_customer_id === b.kajabi_customer_id);
+  }
+
+  async upsertKajabiPurchases(rows: NewKajabiPurchase[]) {
+    this.upsert(this.dataset.kajabiPurchases, rows, (a, b) => a.kajabi_purchase_id === b.kajabi_purchase_id);
+  }
+
+  async upsertKajabiOffers(rows: NewKajabiOffer[]) {
+    this.upsert(this.dataset.kajabiOffers, rows, (a, b) => a.kajabi_offer_id === b.kajabi_offer_id);
+  }
+
+  async insertKajabiMembers(rows: NewKajabiMember[]) {
+    this.dataset.kajabiMembers.push(...rows.map((r) => ({ ...r })));
+  }
+
+  async upsertStripeCustomers(rows: NewStripeCustomer[]) {
+    this.upsert(this.dataset.stripeCustomers, rows, (a, b) => a.stripe_customer_id === b.stripe_customer_id);
+  }
+
+  async upsertStripeProducts(rows: NewStripeProduct[]) {
+    this.upsert(this.dataset.stripeProducts, rows, (a, b) => a.stripe_product_id === b.stripe_product_id);
+  }
+
+  async upsertStripeSubscriptions(rows: NewStripeSubscription[]) {
+    this.upsert(this.dataset.stripeSubscriptions, rows, (a, b) => a.stripe_subscription_id === b.stripe_subscription_id);
+  }
+
+  async upsertSubscriptionHistory(rows: NewSubscriptionHistory[]) {
+    this.upsert(this.dataset.subscriptionHistory, rows, (a, b) => a.kajabi_subscription_id === b.kajabi_subscription_id && a.imported_at === b.imported_at);
+    return rows.length;
   }
 }
 

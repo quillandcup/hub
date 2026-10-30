@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
@@ -35,18 +36,15 @@ export async function POST(request: NextRequest) {
 
     // Insert into kajabi_members (Bronze - raw data only)
     const importTimestamp = new Date().toISOString();
-    const { error: kajabiError } = await supabase
-      .schema('bronze')
-      .from("kajabi_members")
-      .insert(
+    try {
+      await createRepos(supabase).billing.insertKajabiMembers(
         rawData.map((row) => ({
           email: row.email.toLowerCase(),
           imported_at: importTimestamp,
           data: row,
         }))
       );
-
-    if (kajabiError) {
+    } catch (kajabiError) {
       console.error("Error inserting to kajabi_members:", kajabiError);
       throw kajabiError;
     }

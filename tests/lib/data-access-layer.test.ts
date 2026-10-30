@@ -83,21 +83,17 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_course_offers: [],
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
-  // --- Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data. Reads are
-  // moved; the imports' writes follow (each slice removes its files from the lists below). ---
-  kajabi_contacts: [
-    "app/api/admin/members/[id]/route.ts",
-    "app/api/import/kajabi/route.ts",
-    "lib/kajabi/contact-refresh.ts",
-  ],
-  kajabi_customers: ["app/api/import/kajabi/route.ts"],
-  kajabi_purchases: ["app/api/import/kajabi/route.ts"],
-  kajabi_offers: ["app/api/import/kajabi/route.ts"],
-  kajabi_members: ["app/api/import/members/route.ts"],
-  stripe_customers: ["app/api/import/stripe/route.ts"],
-  stripe_products: ["app/api/import/stripe/route.ts"],
-  stripe_subscriptions: ["app/api/import/stripe/route.ts"],
-  subscription_history: ["app/api/import/subscriptions/route.ts"],
+  // Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
+  // (lib/courses/process.ts still reads purchases and customers through fetchAllBronzeRows, which this check does not see.)
+  kajabi_contacts: [],
+  kajabi_customers: [],
+  kajabi_purchases: [],
+  kajabi_offers: [],
+  kajabi_members: [],
+  stripe_customers: [],
+  stripe_products: [],
+  stripe_subscriptions: [],
+  subscription_history: [],
 };
 
 const root = path.resolve(__dirname, "../..");

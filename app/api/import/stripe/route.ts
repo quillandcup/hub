@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
@@ -37,15 +38,11 @@ export async function POST(request: NextRequest) {
       data: asJson(customer),
     }));
 
-    const { error: customersError } = await supabase
-      .schema("bronze")
-      .from("stripe_customers")
-      .upsert(customerRecords, { onConflict: "stripe_customer_id" });
-
-    if (customersError) {
-      console.error("Error upserting stripe_customers:", customersError);
-      throw new Error(`Customers import failed: ${customersError.message}`);
-    }
+    const billing = createRepos(supabase).billing;
+    await billing.upsertStripeCustomers(customerRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_customers:", error);
+      throw new Error(`Customers import failed: ${error.message}`);
+    });
 
     // 2. Fetch and import products
     console.log("Fetching products from Stripe API...");
@@ -59,15 +56,10 @@ export async function POST(request: NextRequest) {
       data: asJson(product),
     }));
 
-    const { error: productsError } = await supabase
-      .schema("bronze")
-      .from("stripe_products")
-      .upsert(productRecords, { onConflict: "stripe_product_id" });
-
-    if (productsError) {
-      console.error("Error upserting stripe_products:", productsError);
-      throw new Error(`Products import failed: ${productsError.message}`);
-    }
+    await billing.upsertStripeProducts(productRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_products:", error);
+      throw new Error(`Products import failed: ${error.message}`);
+    });
 
     // 3. Fetch and import subscriptions (all statuses to understand full picture)
     // Stripe's list endpoint excludes canceled subscriptions unless status is
@@ -90,15 +82,10 @@ export async function POST(request: NextRequest) {
       data: asJson(subscription),
     }));
 
-    const { error: subscriptionsError } = await supabase
-      .schema("bronze")
-      .from("stripe_subscriptions")
-      .upsert(subscriptionRecords, { onConflict: "stripe_subscription_id" });
-
-    if (subscriptionsError) {
-      console.error("Error upserting stripe_subscriptions:", subscriptionsError);
-      throw new Error(`Subscriptions import failed: ${subscriptionsError.message}`);
-    }
+    await billing.upsertStripeSubscriptions(subscriptionRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_subscriptions:", error);
+      throw new Error(`Subscriptions import failed: ${error.message}`);
+    });
 
     results.stripe = {
       customers: customerRecords.length,
