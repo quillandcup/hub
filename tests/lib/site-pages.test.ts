@@ -74,10 +74,9 @@ describe("site pages registry", () => {
     expect(links(["chat"])).toContain("/chat");
   });
 
-  it("lists the privacy page only for members it is on for, since it redirects everyone else", () => {
+  it("lists the privacy page for every member", () => {
     const privacy = SITE_PAGES.find((p) => p.href === "/privacy")!;
-    expect(pageEnabled(privacy, [])).toBe(false);
-    expect(pageEnabled(privacy, ["message_privacy"])).toBe(true);
+    expect(pageEnabled(privacy, [])).toBe(true);
   });
 
   it("names My Burrow pages without a My prefix and still finds them by it", () => {

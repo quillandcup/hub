@@ -102,7 +102,7 @@ export const SITE_PAGES: SitePage[] = [
   // Member pages the sidebar doesn't link (Hedgie Help is the question mark in the top bar)
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
   member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
-  member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"], feature: "message_privacy" }),
+  member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
 
   // Tabs
   ...tabPages("/projects", MY_WRITING_TITLE, MY_WRITING_TAB_IDS, MY_WRITING_TAB_LABELS, {

@@ -71,16 +71,12 @@ describe("SlackConnectPanel", () => {
 });
 
 describe("SlackConnectPanel privacy link", () => {
-  it("links to the privacy page, connected or not, when it is on for the member, and not otherwise", () => {
-    render(<SlackConnectPanel connected={false} showPrivacy />);
-    expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
-    cleanup();
-
-    render(<SlackConnectPanel connected showPrivacy />);
+  it("links to the privacy page, connected or not", () => {
+    render(<SlackConnectPanel connected={false} />);
     expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
     cleanup();
 
     render(<SlackConnectPanel connected />);
-    expect(screen.queryByRole("link", { name: /what staff can and can't see/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
   });
 });

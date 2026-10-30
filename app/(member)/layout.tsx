@@ -116,7 +116,7 @@ export default async function MemberLayout({
             />
           </AppHeader>
           {main}
-          <MemberFooter showPrivacy={enabledFeatures.includes('message_privacy')} />
+          <MemberFooter />
         </WithInAppNotifications>
         </SecondaryTimezoneProvider>
         </TimezoneProvider>

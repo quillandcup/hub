@@ -29,11 +29,9 @@ const FLASH: Record<string, { ok: boolean; text: string }> = {
 export default function SlackConnectPanel({
   connected,
   sharesReadState = true,
-  showPrivacy = false,
 }: {
   connected: boolean;
   sharesReadState?: boolean;
-  showPrivacy?: boolean;
 }) {
   const router = useRouter();
   const flash = FLASH[useSearchParams().get("slack") ?? ""];
@@ -101,15 +99,13 @@ export default function SlackConnectPanel({
           </a>
         </>
       )}
-      {showPrivacy && (
-        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-          Wondering who can read what you write?{" "}
-          <Link data-track="settings-slack-privacy" href="/privacy" className="font-medium text-plum-700 underline dark:text-plum-400">
-            See what staff can and can&apos;t see
-          </Link>
-          .
-        </p>
-      )}
+      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+        Wondering who can read what you write?{" "}
+        <Link data-track="settings-slack-privacy" href="/privacy" className="font-medium text-plum-700 underline dark:text-plum-400">
+          See what staff can and can&apos;t see
+        </Link>
+        .
+      </p>
     </section>
   );
 }

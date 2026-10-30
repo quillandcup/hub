@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserFeaturePreviews } from "@/lib/features.server";
 import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { RETENTION } from "@/lib/retention";
@@ -19,8 +18,8 @@ export const PRIVACY_REVIEWED = "2026-10-30";
 /**
  * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
  *
- * Behind the `message_privacy` flag so it can be turned on for everyone together with chat. Every
- * statement here must be true when it is on, so change it with the code. It states policy and lists no
+ * On for every signed-in member (it was behind the `message_privacy` flag until 2026-10-30). Every
+ * statement here must be true, so change it with the code. It states policy and lists no
  * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
  * feature. What is true of the code today (checked 2026-10-30):
  *
@@ -40,8 +39,8 @@ export const PRIVACY_REVIEWED = "2026-10-30";
  * - Deletes: deleted things are kept until the member asks, as soft deletes or in the audit log.
  *
  * **Retention promises that need a job before they can be broken.** The page promises the numbers in
- * `lib/retention.ts`. Nothing enforces them yet: the job is phase 0 of docs/EVENT_LOG.md. It is safe to turn the
- * flag on now because no row is old enough to break them: the oldest possible raw user agent in `access_events`
+ * `lib/retention.ts`. Nothing enforces them yet: the job is phase 0 of docs/EVENT_LOG.md. It is safe to show the page
+ * now because no row is old enough to break them: the oldest possible raw user agent in `access_events`
  * dates from the table's creation (2026-08-27), so the first row passes 90 days on 2026-11-25; raw IPs have
  * been stored only since 2026-10-20, so the first passes on 2027-01-18; usage events pass 13 months in late 2027.
  * **The job must be deployed before 2026-11-25.** Nothing below promises more than that.
@@ -49,9 +48,6 @@ export const PRIVACY_REVIEWED = "2026-10-30";
 export default async function PrivacyPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const enabledFeatures = await getUserFeaturePreviews(user.id);
-  if (!enabledFeatures.includes("message_privacy")) redirect("/dashboard");
 
   const [identity, optedOut] = await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)]);
 

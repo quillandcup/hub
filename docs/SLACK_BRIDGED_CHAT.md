@@ -1,6 +1,6 @@
 # Slack-Bridged Chat: Design
 
-Status: **design agreed; groundwork, the chat_* mirror, the read-only chat UI, search, Realtime and unread state are built; the two-way bridge (phase 3) is next.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `app/(member)/privacy/page.tsx` (behind the `message_privacy` flag until everything it says is true).
+Status: **design agreed; groundwork, the chat_* mirror, the read-only chat UI, search, Realtime and unread state are built; the two-way bridge (phase 3) is next.** Written 2026-09-29 from a design walkthrough. Member-facing summary of the privacy model: `app/(member)/privacy/page.tsx` (on for every member since 2026-10-30; it was behind the `message_privacy` flag until everything it says was true).
 
 ## Goals
 
@@ -323,7 +323,7 @@ Also done (2026-10-29), phase 3 part 22: **the Slack webhook no longer rebuilds 
    - Copy Slack files into Supabase Storage.
 2. **Read-only mirror** (**done**, 2026-10-10): `chat_*` schema with the content/metadata split and RLS (pgTAP), projection + backfill, channel list and channel view, search v1, `restricted` flag. Deliberately no "staff can read this" indicator in the UI (the privacy page covers it). Not done, optional: search term highlighting, `pg_trgm`, semantic search.
 3. **Two-way bridge** (**in progress**, still read-only until its first PR lands): posting with bot fallback, Slack connect (OAuth), outbox, loop prevention, edits/deletes/reactions, membership invite/kick, gap-fill + catch-up on open, attribution fixes in `process/slack` and Wheel of Wonder, `member_interactions`.
-4. **Hub-native**: app-only channels, DMs and group DMs, Realtime, unread counts, break-glass UI, report/flag path. Turn on `message_privacy` once every statement on `/privacy` is true (2026-10-25: the page was rewritten to match the app, so it can go on with chat; its break-glass section is the commitment for the rare case, with no in-app tool behind it yet, so any use of it is done by hand and has to follow what the page promises). **Already built, read-only:** Realtime for the open conversation, unread badges and the read marker, the "New" line, in-place older messages, the profile panel and the Slack-style layout (see "Realtime and read state"). **Not started:** app-only channels, DMs, break-glass UI, report path.
+4. **Hub-native**: app-only channels, DMs and group DMs, Realtime, unread counts, break-glass UI, report/flag path. `/privacy` is on for everyone (the `message_privacy` flag was retired 2026-10-30, once every statement on it was true; on 2026-10-25 the page was rewritten to match the app; its break-glass section is the commitment for the rare case, with no in-app tool behind it yet, so any use of it is done by hand and has to follow what the page promises). **Already built, read-only:** Realtime for the open conversation, unread badges and the read marker, the "New" line, in-place older messages, the profile panel and the Slack-style layout (see "Realtime and read state"). **Not started:** app-only channels, DMs, break-glass UI, report path.
 5. **Later**: notification framework, Block Kit subset + shared action handlers, custom emoji copies, migration tooling, forum exploration.
 
 ## Testing

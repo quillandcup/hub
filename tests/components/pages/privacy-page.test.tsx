@@ -9,16 +9,12 @@ import {
   resetServerPageMocks,
   signInAs,
 } from "@/tests/helpers/server-page";
-import type { FeatureKey } from "@/lib/features";
 import { RETENTION } from "@/lib/retention";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
-
-const getUserFeaturePreviews = vi.fn<(userId: string) => Promise<FeatureKey[]>>();
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => getUserFeaturePreviews(id) }));
 
 const isAnalyticsOptedOut = vi.fn<(userId: string) => Promise<boolean>>();
 vi.mock("@/lib/analytics/opt-out", () => ({ isAnalyticsOptedOut: (id: string) => isAnalyticsOptedOut(id) }));
@@ -34,10 +30,9 @@ function section(id: string) {
   return within(el);
 }
 
-describe("/privacy (message_privacy flag)", () => {
+describe("/privacy access", () => {
   beforeEach(() => {
     resetServerPageMocks();
-    getUserFeaturePreviews.mockReset();
     isAnalyticsOptedOut.mockReset();
     isAnalyticsOptedOut.mockResolvedValue(false);
   });
@@ -47,21 +42,19 @@ describe("/privacy (message_privacy flag)", () => {
     await expectRedirect(PrivacyPage, {}, "/login");
   });
 
-  it("redirects members without the flag to /dashboard", async () => {
+  it("is open to every signed-in member, with no feature flag", async () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    getUserFeaturePreviews.mockResolvedValue([]);
-    await expectRedirect(PrivacyPage, {}, "/dashboard");
+    await renderServerPage(PrivacyPage, {});
+    expect(screen.getByRole("heading", { level: 1, name: "Privacy" })).toBeInTheDocument();
   });
 });
 
 describe("/privacy page", () => {
   beforeEach(async () => {
     resetServerPageMocks();
-    getUserFeaturePreviews.mockReset();
     isAnalyticsOptedOut.mockReset();
     isAnalyticsOptedOut.mockResolvedValue(false);
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    getUserFeaturePreviews.mockResolvedValue(["message_privacy"]);
   });
 
   it("opens with a short summary, a review date and links to each part", async () => {
