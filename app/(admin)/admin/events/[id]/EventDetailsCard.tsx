@@ -6,6 +6,7 @@ import { formatDateOnly } from "@/lib/formatters";
 import EventAudienceFields from "@/components/EventAudienceFields";
 import { audienceSummary, type EventAudience } from "@/lib/event-audience";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
+import PrickleDescription from "@/components/PrickleDescription";
 import MediaPicker from "@/components/media/MediaPicker";
 import { mediaSrc } from "@/lib/media/url";
 
@@ -210,7 +211,7 @@ export default function EventDetailsCard({
                 {form ? (
                   <textarea id="event-description" rows={2} value={form.description ?? ""} disabled={!!prickleId} onChange={(e) => set({ description: e.target.value || null })} className={INPUT} />
                 ) : (
-                  view(event.description)
+                  <PrickleDescription markdown={event.description ?? ""} className="" />
                 )}
               </Field>
             )}

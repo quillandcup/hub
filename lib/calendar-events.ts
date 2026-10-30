@@ -28,9 +28,17 @@ export function hasEventTag(description: string | null | undefined): boolean {
   return EVENT_TAG.test(description);
 }
 
-/** The plain-text description with the #event tag taken out (it is an instruction, not something to show). */
+/** A calendar description (Google's HTML or plain text) as markdown with the #event tag taken out (it is an instruction, not something to show). */
 export function descriptionWithoutEventTag(description: string | null | undefined): string | null {
-  const plain = plainTextDescription(description);
+  return stripEventTag(plainTextDescription(description));
+}
+
+/**
+ * Markdown that is already converted (a prickle's description) with the #event tag taken out. It must not go
+ * through the HTML conversion again: that would escape the markdown (`\*with\*`, `\[link\]`).
+ */
+export function stripEventTag(markdown: string | null | undefined): string | null {
+  const plain = markdown?.trim();
   if (!plain) return null;
   const cleaned = plain
     .replace(EVENT_TAG, "$1")
@@ -124,7 +132,7 @@ export interface PrickleEventFields {
 export function prickleEventFields(prickle: PrickleDetail): PrickleEventFields {
   return {
     title: prickle.title?.trim() || prickle.type?.name || null,
-    description: descriptionWithoutEventTag(prickle.description),
+    description: stripEventTag(prickle.description),
     speakers: prickle.guestSpeaker?.trim() || null,
     host_name: prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : null,
   };
