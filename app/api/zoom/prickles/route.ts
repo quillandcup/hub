@@ -33,16 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: attendeesError.message }, { status: 500 });
     }
 
-    console.log(`Unique meeting UUIDs for "${zoomName}": ${meetingUuids.length}`, meetingUuids.slice(0, 3));
+    console.log("Unique meeting UUIDs for Zoom name:", zoomName, meetingUuids.length, meetingUuids.slice(0, 3));
 
     if (meetingUuids.length === 0) {
-      console.log(`No valid meeting UUIDs for "${zoomName}"`);
+      console.log("No valid meeting UUIDs for Zoom name:", zoomName);
       return NextResponse.json({ prickles: [] });
     }
 
     // Fetch prickles for these meetings
     const prickles = await createRepos(supabase).prickles.byZoomMeetings(meetingUuids);
-    console.log(`Found ${prickles.length} prickles for "${zoomName}"`);
+    console.log("Prickles found for Zoom name:", zoomName, prickles.length);
 
     // Format the response
     const formattedPrickles = prickles.map((p) => ({
