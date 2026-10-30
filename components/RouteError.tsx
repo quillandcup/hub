@@ -6,7 +6,7 @@ import { SUPPORT_EMAIL } from "@/lib/config";
 
 /**
  * What a route group shows when a page throws. A server error reaches the browser with only a
- * `digest` (the real error is already in Sentry and the Vercel logs under the same digest), so it
+ * `digest` (the real error is in the Vercel logs under that digest and in Sentry as the `digest` tag, see lib/request-error.ts), so it
  * is shown for staff to quote; an error raised in the browser has none and is reported from here.
  */
 export default function RouteError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {

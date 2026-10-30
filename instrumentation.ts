@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -10,5 +9,5 @@ export async function register() {
   }
 }
 
-// Automatically captures all unhandled server-side request errors.
-export const onRequestError = Sentry.captureRequestError;
+// Captures all unhandled server-side request errors, tagged with their Next.js digest.
+export { onRequestError } from "./lib/request-error";
