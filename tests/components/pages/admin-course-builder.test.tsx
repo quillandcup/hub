@@ -33,7 +33,11 @@ describe("/admin/courses/new", () => {
     const form = screen.getByRole("form", { name: "Course builder" });
     const controls = form.querySelectorAll("input, select, textarea, button");
     expect(controls.length).toBeGreaterThan(5);
-    for (const control of controls) expect(control).toBeDisabled();
+    for (const control of controls) {
+      // The outline's search and its Expand all only read the course.
+      if (control.matches("input[type=search]") || control.textContent === "Expand all") continue;
+      expect(control, control.outerHTML).toBeDisabled();
+    }
     expect(screen.getByRole("button", { name: "Save course" })).toBeDisabled();
   });
 });

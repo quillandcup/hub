@@ -3,18 +3,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadAdminCourse } from "@/lib/courses/admin";
+import { loadAdminCourse, loadAdminCourseTitle } from "@/lib/courses/admin";
 import { accessLabel } from "@/lib/courses/access-options";
 import { formatCourseDate, formatCourseDateTime } from "@/lib/courses/format";
 import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { tabTitle } from "@/lib/tab-routes";
 import CourseBuilderBanner from "../CourseBuilderBanner";
 import CourseBuilderForm from "../CourseBuilderForm";
 import CourseSettingsForm from "./CourseSettingsForm";
 import CourseVideosPanel from "./CourseVideosPanel";
 import CourseFilesPanel from "./CourseFilesPanel";
 
-export const metadata: Metadata = { title: "Courses" };
+/** The tab shows the course's name first ("The Ready Writer · Courses"), like other record pages. */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const title = await loadAdminCourseTitle(await createClient(), id);
+  return { title: tabTitle({ record: title ?? undefined, section: "Courses" }, "", true) };
+}
 
 /** The admin page for one course: the course builder (read only until it can save), filled from the latest Kajabi import. */
 export default async function AdminCoursePage({ params }: { params: Promise<{ id: string }> }) {
@@ -81,6 +87,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         <div className="mt-6">
           <CourseBuilderForm
             course={{
+              kajabiId: course.kajabiId,
               title: course.title,
               slug: published?.slug ?? null,
               description: details.description,

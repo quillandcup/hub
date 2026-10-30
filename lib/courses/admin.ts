@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { fetchAll } from "@/lib/courses/db";
-import { explainCourse, type ExplainedCourse } from "@/lib/courses/explain";
+import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
+import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
+import { courseImageSrc, courseImageUrl } from "@/lib/courses/image-urls";
 import { resolveCourseAccess } from "@/lib/courses/member";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
-import { slugifyTitle } from "@/lib/courses/visibility";
+import { slugifyTitle, type Visibility } from "@/lib/courses/visibility";
 import { planCourseVideos, type PlannedVideo } from "@/lib/courses/media";
 import { planCourseFiles, type FilePlan } from "@/lib/courses/files";
 
@@ -143,5 +145,113 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
     lastImportedAt,
     explained: explainCourse(toModules(modules), toLessons(lessons)),
     content: Object.fromEntries(lessons.map((l) => [l.kajabi_id, { hasText: l.content_fetched_at !== null, hasVideo: l.video_media_id !== null }])),
+  };
+}
+
+/** A course's title for the browser tab, without loading the rest of the page. Null for a course Kajabi doesn't have. */
+export async function loadAdminCourseTitle(supabase: SupabaseClient, kajabiId: string): Promise<string | null> {
+  const { data, error } = await supabase.schema("bronze").from("kajabi_courses").select("title").eq("kajabi_id", kajabiId).is("deleted_at", null).maybeSingle();
+  if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
+  return data?.title ?? null;
+}
+
+export interface AdminLessonDetail {
+  course: { kajabiId: string; title: string };
+  lesson: {
+    kajabiId: string;
+    title: string;
+    publishingOption: string | null;
+    state: Visibility;
+    reason: string;
+    /** Allowlist-sanitized (never Kajabi's raw HTML); null until the content step has fetched it. */
+    bodyHtml: string | null;
+    /** Our copy's path when the copy step has run, else Kajabi's URL (http(s) only). */
+    thumbnailSrc: string | null;
+    videoDurationSeconds: number | null;
+    hasVideo: boolean;
+    contentFetchedAt: string | null;
+    fetchedAt: string;
+  };
+  /** The modules the lesson sits in, outermost first. */
+  trail: { kajabiId: string; title: string; publishingOption: string | null }[];
+  /** Every module of the course as a path ("Module 2 / Week 1"), for the module picker. */
+  modules: { kajabiId: string; path: string }[];
+  files: { filename: string; sizeBytes: number | null }[];
+  /** The lesson in the Hub, when the course is published there. */
+  hub: { slug: string; lessonId: string } | null;
+}
+
+/** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
+export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: string, lessonKajabiId: string): Promise<AdminLessonDetail | null> {
+  const bronze = supabase.schema("bronze");
+  const [course, lessonRow, modules, lessons, files] = await Promise.all([
+    bronze.from("kajabi_courses").select("kajabi_id, title").eq("kajabi_id", courseKajabiId).is("deleted_at", null).maybeSingle(),
+    bronze
+      .from("kajabi_course_lessons")
+      .select("kajabi_id, title, publishing_option, body_html, thumbnail_url, video_media_id, video_duration_seconds, content_fetched_at, fetched_at")
+      .eq("kajabi_id", lessonKajabiId)
+      .eq("course_kajabi_id", courseKajabiId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)),
+    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)),
+    bronze.from("kajabi_lesson_files").select("filename, size_bytes, kajabi_id").eq("lesson_kajabi_id", lessonKajabiId).is("deleted_at", null).order("filename").order("kajabi_id"),
+  ]);
+  for (const r of [course, lessonRow, files]) if (r.error) throw new Error(`course lesson read failed: ${r.error.message}`);
+  if (!course.data || !lessonRow.data) return null;
+  const l = lessonRow.data;
+
+  const explained = explainCourse(toModules(modules), toLessons(lessons));
+  const flat: ExplainedLesson[] = [...explained.loose];
+  const walk = (ms: typeof explained.modules) => ms.forEach((m) => (flat.push(...m.lessons), walk(m.children)));
+  walk(explained.modules);
+  const explainedLesson = flat.find((x) => x.kajabiId === lessonKajabiId);
+  if (!explainedLesson) return null;
+
+  const byId = new Map(modules.map((m) => [m.kajabi_id as string, m]));
+  const trailOf = (moduleId: string | null) => {
+    const trail: AdminLessonDetail["trail"] = [];
+    for (let id = moduleId, seen = new Set<string>(); id && byId.has(id) && !seen.has(id); ) {
+      seen.add(id);
+      const m = byId.get(id)!;
+      trail.unshift({ kajabiId: m.kajabi_id, title: m.title, publishingOption: m.publishing_option });
+      id = m.parent_kajabi_id;
+    }
+    return trail;
+  };
+  const own = lessons.find((x) => x.kajabi_id === lessonKajabiId);
+
+  let hub: AdminLessonDetail["hub"] = null;
+  let thumbnailSrc = courseImageUrl(l.thumbnail_url);
+  const { data: silver } = await supabase.from("courses").select("id, slug").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
+  if (silver) {
+    const { data: hubLesson } = await supabase.from("course_lessons").select("id, thumbnail_asset_id").eq("course_id", silver.id).eq("source", "kajabi").eq("source_key", lessonKajabiId).maybeSingle();
+    if (hubLesson) {
+      hub = { slug: silver.slug, lessonId: hubLesson.id };
+      thumbnailSrc = courseImageSrc("lesson", hubLesson.id, hubLesson.thumbnail_asset_id, l.thumbnail_url);
+    }
+  }
+
+  return {
+    course: { kajabiId: course.data.kajabi_id, title: course.data.title },
+    lesson: {
+      kajabiId: l.kajabi_id,
+      title: l.title,
+      publishingOption: l.publishing_option,
+      state: explainedLesson.state,
+      reason: explainedLesson.reason,
+      bodyHtml: sanitizeLessonHtml(l.body_html),
+      thumbnailSrc,
+      videoDurationSeconds: l.video_duration_seconds,
+      hasVideo: l.video_media_id !== null,
+      contentFetchedAt: l.content_fetched_at,
+      fetchedAt: l.fetched_at,
+    },
+    trail: trailOf(own?.module_kajabi_id ?? null),
+    modules: modules
+      .map((m) => ({ kajabiId: m.kajabi_id as string, path: trailOf(m.kajabi_id).map((t) => t.title).join(" / ") }))
+      .sort((a, b) => a.path.localeCompare(b.path)),
+    files: (files.data ?? []).map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
+    hub,
   };
 }
