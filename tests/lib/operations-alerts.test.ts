@@ -92,4 +92,15 @@ describe("production operations alerts", () => {
     expect(postMessage.mock.calls[0][0].text).toContain('"a" failed (42501) after 5 ms');
     expect(postMessage.mock.calls[1][0].text).toContain('"b" failed after 5 ms');
   });
+
+  it("alerts a browser crash by route, with the untrusted message trimmed and escaped", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "client_crash", route: "/admin/events/[id]", message: `Error: <b>a & b</b>\n${"x".repeat(500)}` });
+
+    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:client_crash:/admin/events/[id]" }));
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("/admin/events/[id] crashed in a member's or admin's browser");
+    expect(text).toContain("&lt;b&gt;a &amp; b&lt;/b&gt; xxx");
+    expect(text).not.toContain("x".repeat(201));
+  });
 });

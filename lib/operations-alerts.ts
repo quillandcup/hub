@@ -9,6 +9,7 @@ import { getSlackBotToken } from "@/lib/slack-bot-token";
 export type OperationsAlert =
   | { type: "slack_dm_failed"; notificationKind: string; memberId: string }
   | { type: "section_failed"; section: string; code?: string; ms: number }
+  | { type: "client_crash"; route: string; message: string }
   | { type: "cron_partial_failure"; job: string; problems: string[] }
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
@@ -39,6 +40,16 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
       bucket: `operations_alert:section_failed:${alert.section}`,
       title: `Page section ${alert.section} ${what}`,
       text: `Page section "${alert.section}" ${what} after ${alert.ms} ms. Find the event in <${sentrySectionSearchUrl(alert.section)}|Sentry> (tagged section; it has the member id and the request) and the "[section failed]" line in the Vercel logs.`,
+    };
+  }
+
+  if (alert.type === "client_crash") {
+    // The message comes from a browser, so it is untrusted: one short line, escaped for Slack.
+    const message = alert.message.replace(/\s+/g, " ").trim().slice(0, 200).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    return {
+      bucket: `operations_alert:client_crash:${alert.route}`,
+      title: `Page ${alert.route} crashed in the browser`,
+      text: `Page ${alert.route} crashed in a member's or admin's browser: "${message}". Server logs have nothing for it; look for the browser event in Sentry for this route, and in the browser console.`,
     };
   }
 
