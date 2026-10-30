@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { formatDateInZone } from "@/lib/formatters";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useTimeZone } from "@/components/Timezone";
@@ -18,7 +19,7 @@ interface AmbiguousEntry {
   lastSeenAt: string;
   candidates: Candidate[];
   /** Newest first, capped; `occurrenceCount` is the full number. */
-  sessions?: Array<{ topic: string | null; joinTime: string }>;
+  sessions?: Array<{ topic: string | null; joinTime: string; prickleId?: string | null }>;
   /** Members most often in the same sessions, with how many of them. */
   companions?: Array<{ id: string; name: string; displayName?: string | null; sessions: number }>;
 }
@@ -120,16 +121,29 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                   {entry.companions?.length ? (
                     <p className="mt-2">
                       Most often there with:{" "}
-                      {entry.companions
-                        .map((c) => `${getMemberDisplayName({ name: c.name, display_name: c.displayName })} (${c.sessions})`)
-                        .join(", ")}
+                      {entry.companions.map((c, i) => (
+                        <span key={c.id}>
+                          {i > 0 && ", "}
+                          <Link href={`/admin/members/${c.id}`} className="text-plum-700 dark:text-plum-300 hover:underline">
+                            {getMemberDisplayName({ name: c.name, display_name: c.displayName })}
+                          </Link>{" "}
+                          ({c.sessions})
+                        </span>
+                      ))}
                     </p>
                   ) : null}
                   {entry.sessions?.length ? (
                     <ul className="mt-2 space-y-0.5">
                       {entry.sessions.map((s, i) => (
                         <li key={`${s.joinTime}-${i}`}>
-                          {formatDateInZone(s.joinTime, timeZone)} · {s.topic || "Untitled session"}
+                          {formatDateInZone(s.joinTime, timeZone)} ·{" "}
+                          {s.prickleId ? (
+                            <Link href={`/admin/prickles/${s.prickleId}`} className="text-plum-700 dark:text-plum-300 hover:underline">
+                              {s.topic || "Untitled session"}
+                            </Link>
+                          ) : (
+                            s.topic || "Untitled session"
+                          )}
                         </li>
                       ))}
                       {entry.occurrenceCount > entry.sessions.length && (
