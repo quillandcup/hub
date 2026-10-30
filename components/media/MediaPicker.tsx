@@ -6,6 +6,7 @@ import { track } from "@/lib/analytics/client";
 import type { PresetName } from "@/lib/media/presets";
 import { mediaSrc } from "@/lib/media/url";
 import type { MediaSurface } from "@/lib/media/surfaces";
+import MediaEditor from "./MediaEditor";
 import MediaUploadForm from "./MediaUploadForm";
 import { useMediaSearch } from "./useMediaSearch";
 
@@ -35,18 +36,22 @@ export default function MediaPicker({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
+  const [version, setVersion] = useState<string | undefined>();
 
   function choose(id: string, from: "library" | "upload", searched: boolean) {
     track("media_picked", { surface, from, searched });
     onChange(id);
     setOpen(false);
+    // A new upload opens the editor straight away, to set its focal point before it's used.
+    setAdjusting(from === "upload");
   }
 
   return (
     <div>
       {value ? (
         // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-        <img src={mediaSrc(value, preview)} alt="The chosen image" className="w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
+        <img src={mediaSrc(value, preview, version)} alt="The chosen image" className="w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
       ) : (
         <p className="text-sm text-slate-600 dark:text-slate-400">No image chosen.</p>
       )}
@@ -63,6 +68,11 @@ export default function MediaPicker({
         >
           {value ? "Change image" : "Choose image"}
         </button>
+        {value && (
+          <button type="button" data-track="media-picker-adjust" disabled={disabled} onClick={() => setAdjusting(true)} className={SECONDARY}>
+            Adjust crop
+          </button>
+        )}
         {value && (
           <button
             type="button"
@@ -81,6 +91,7 @@ export default function MediaPicker({
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Choose an image" maxWidth="2xl">
         <PickerBody surface={surface} onPick={choose} />
       </Modal>
+      {adjusting && value && <MediaEditor assetId={value} onClose={() => setAdjusting(false)} onChanged={() => setVersion(String(Date.now()))} />}
     </div>
   );
 }
