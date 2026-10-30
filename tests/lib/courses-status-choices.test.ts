@@ -41,4 +41,9 @@ describe("statusChoices", () => {
   it("allows a published week inside a locked module, which Kajabi does too", () => {
     expect(statusChoices([{ title: "Module 2", publishingOption: "locked" }]).find((c) => c.value === "published")?.disabledReason).toBeUndefined();
   });
+
+  it("never blocks the status an item already has, so a published lesson under a draft module isn't marked blocked", () => {
+    const choices = statusChoices([{ title: "Module 1", publishingOption: "draft" }], "published");
+    expect(choices.every((c) => !c.disabledReason)).toBe(true);
+  });
 });

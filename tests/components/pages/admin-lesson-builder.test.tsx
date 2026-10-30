@@ -119,6 +119,13 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByRole("radio", { name: "Draft" })).toBeChecked();
   });
 
+  it("doesn't mark Published as blocked on a lesson that is already published under a draft module", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ trail: [{ kajabiId: "m1", title: "Module 1", publishingOption: "draft" }] }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("radio", { name: "Published" })).toBeChecked();
+    expect(screen.queryByText(/Publish “Module 1” first/)).not.toBeInTheDocument();
+  });
+
   it("titles the tab with the lesson, then the course", async () => {
     loadAdminLesson.mockResolvedValue(detail());
     expect(await generateMetadata(params)).toEqual({ title: "Reader Expectations vs. Reader Preferences · The Ready Writer · Courses" });
