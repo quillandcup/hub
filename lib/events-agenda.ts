@@ -146,6 +146,16 @@ export function agendaWeeks(items: readonly AgendaItem[], month: AgendaMonth, to
   return weeks;
 }
 
+/**
+ * The prickles not already shown as an event: an event that follows a prickle's calendar item stands in for it, so it
+ * isn't listed twice. Here, not in lib/event-prickles.ts, because client components use it and that file pulls in the
+ * server-side repositories.
+ */
+export function withoutFollowedEvents<T extends { calendarEventId: string | null }>(prickles: T[], followedCalendarEventIds: Iterable<string>): T[] {
+  const followed = new Set(followedCalendarEventIds);
+  return prickles.filter((p) => !p.calendarEventId || !followed.has(p.calendarEventId));
+}
+
 /** The month a YYYY-MM-DD date is in. */
 export function monthOf(date: string): AgendaMonth {
   const [y, m] = date.split("-").map(Number);

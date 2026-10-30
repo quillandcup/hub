@@ -2,7 +2,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { dateIn, type AgendaMonth } from "@/lib/events-agenda";
+import { dateIn, withoutFollowedEvents, type AgendaMonth } from "@/lib/events-agenda";
 
 // Upcoming prickle events for the member Events page (app/(member)/events).
 // Prickle events (webinars, Hedgies on First, Monthly Goal Review, pitches...) are ordinary
@@ -93,7 +93,4 @@ export async function fetchPastEventPrickles(
  * The prickles not already shown as an event: an event that follows a prickle's calendar event stands
  * in for it, so it isn't listed twice.
  */
-export function withoutFollowedEvents(prickles: EventPrickle[], followedCalendarEventIds: Iterable<string>): EventPrickle[] {
-  const followed = new Set(followedCalendarEventIds);
-  return prickles.filter((p) => !p.calendarEventId || !followed.has(p.calendarEventId));
-}
+export { withoutFollowedEvents };
