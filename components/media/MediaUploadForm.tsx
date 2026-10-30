@@ -39,6 +39,9 @@ export default function MediaUploadForm({
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
+    // This form sits inside other forms (an event's edit form, the add form): the submit would bubble up and save
+    // them, with nothing chosen yet, before the upload has finished.
+    e.stopPropagation();
     if (!file) return;
     setBusy(true);
     onError(null);
