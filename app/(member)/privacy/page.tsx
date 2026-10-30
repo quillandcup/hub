@@ -129,17 +129,22 @@ export default async function PrivacyPage() {
             />
             <CollectRow
               what="Chat"
-              detail="What you write, and the activity around it: who you talked with, where, when, how often, which channels you are in, and your reactions."
+              detail={
+                <>
+                  What you write, and the activity around it: who you talked with, where, when, how often, which channels you are
+                  in, and your reactions. Chat is covered in{" "}
+                  <a href="#chat" className="underline">
+                    its own section
+                  </a>{" "}
+                  below.
+                </>
+              }
               why="To run chat, and to understand how the community connects."
             />
           </tbody>
         </table>
         <p className="text-sm">
-          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong). Chat is covered in{" "}
-          <a href="#chat" className="underline">
-            its own section
-          </a>{" "}
-          below.
+          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong).
         </p>
       </Section>
 
@@ -346,7 +351,7 @@ function Detail({ title, children }: { title: string; children: React.ReactNode 
   );
 }
 
-function CollectRow({ what, detail, why }: { what: string; detail: string; why: string }) {
+function CollectRow({ what, detail, why }: { what: string; detail: React.ReactNode; why: string }) {
   return (
     <tr className="border-b border-slate-100 dark:border-slate-800">
       <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{what}</td>

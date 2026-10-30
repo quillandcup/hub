@@ -104,7 +104,10 @@ describe("/privacy page", () => {
     expect(collect.getByText(/what kind of search you ran and how many results \(never the words\)/)).toBeInTheDocument();
     expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
     expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
-    expect(collect.getByRole("link", { name: "its own section" })).toHaveAttribute("href", "#chat");
+    // The pointer to the chat section sits in the Chat row itself.
+    const chatRow = collect.getByText("Chat", { selector: "td" }).closest("tr")!;
+    expect(within(chatRow).getByText(/Chat is covered in/)).toBeInTheDocument();
+    expect(within(chatRow).getByRole("link", { name: "its own section" })).toHaveAttribute("href", "#chat");
     expect(section("choices").getByText(/It does not record what you\s+type into search, forms or messages/)).toBeInTheDocument();
   });
 
@@ -181,7 +184,7 @@ describe("/privacy page", () => {
     expect(choices.getByText(/We keep a record of each notification we send you/)).toBeInTheDocument();
     // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
     expect(choices.getByText(/we also keep whether you\s+have read it, so they show the right things/)).toBeInTheDocument();
-    expect(choices.getByText(/separate from usage statistics and works whether they are on or\s+off/)).toBeInTheDocument();
+    expect(choices.getByText(/does not depend on usage statistics, so it works whether they\s+are on or off/)).toBeInTheDocument();
     expect(choices.getByText(/If usage statistics are on, we also note which notification a visit came from/)).toBeInTheDocument();
     expect(choices.getByText(/takes the tag off the address/)).toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
