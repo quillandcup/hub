@@ -178,10 +178,11 @@ describe("/privacy page", () => {
     // "such as", so the page doesn't need an edit when a channel is added.
     expect(choices.getByText(/in more than one place, such as Slack, email, inside the Hub, or your browser/)).toBeInTheDocument();
     expect(choices.queryByText(/four places/)).not.toBeInTheDocument();
-    expect(choices.getByText(/We keep a record that we sent you each notification/)).toBeInTheDocument();
+    expect(choices.getByText(/We keep a record of each notification we send you/)).toBeInTheDocument();
     // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
-    expect(choices.getByText(/whether you have read it, so they know what to show you/)).toBeInTheDocument();
-    expect(choices.getByText(/That does not depend\s+on the usage statistics/)).toBeInTheDocument();
+    expect(choices.getByText(/we also keep whether you\s+have read it, so they show the right things/)).toBeInTheDocument();
+    expect(choices.getByText(/separate from usage statistics and works whether they are on or\s+off/)).toBeInTheDocument();
+    expect(choices.getByText(/If usage statistics are on, we also note which notification a visit came from/)).toBeInTheDocument();
     expect(choices.getByText(/takes the tag off the address/)).toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
   });

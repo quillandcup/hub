@@ -293,11 +293,14 @@ export default async function PrivacyPage() {
           <Link href="/settings/notifications" className="underline">
             Settings
           </Link>
-          , and every email has an unsubscribe link for that kind. We keep a record that we sent you each notification, and,
-          for the bell and banners inside the Hub, whether you have read it, so they know what to show you. That does not depend
-          on the usage statistics. What does is a separate note of which notification a visit came from, by clicking it in the
-          Hub or arriving through a link in it: it is recorded only where those are on. Links in Slack messages, emails and browser notifications carry a short tag saying
-          which notification they came from; the Hub takes the tag off the address as soon as you arrive.
+          , and every email has an unsubscribe link for that kind.
+        </p>
+        <p>
+          We keep a record of each notification we send you. For the bell and banners inside the Hub, we also keep whether you
+          have read it, so they show the right things. That does not depend on usage statistics, so it works whether they
+          are on or off. If usage statistics are on, we also note which notification a visit came from, when you click it in the Hub or
+          arrive through a link in it. Links in Slack messages, emails and browser notifications carry a short tag saying which
+          notification they came from; the Hub takes the tag off the address as soon as you arrive.
         </p>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Asking us</h3>
