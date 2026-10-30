@@ -11,7 +11,7 @@ vi.mock("@sentry/nextjs", () => ({
 
 import { DbQueryError, SLOW_SECTION_MS, throwIfDbError, traced } from "@/lib/query-trace";
 
-const fake = useFakeClock();
+
 
 beforeEach(() => {
   setTag.mockReset();
@@ -46,6 +46,8 @@ describe("throwIfDbError", () => {
 });
 
 describe("traced", () => {
+  const fake = useFakeClock();
+
   it("returns the result without noise when fast", async () => {
     await expect(traced("fast", async () => 7)).resolves.toBe(7);
     expect(logWarn).not.toHaveBeenCalled();
