@@ -594,6 +594,13 @@ CI runs on a machine without the stack and hasn't shown this, so it is cheap to 
 
 ## Security & Access Control
 
+
+### Removal on request for records with a required member id _(Needs Decision)_
+
+`/privacy` promises that when a member asks us to remove something we "either delete it or take your name off it". Nothing implements that yet: removal on request is a manual job for staff. For usage events the design is a scrub that nulls the identity columns and keeps the row (`docs/EVENT_LOG.md`, "What a scrub does"), but records a member owns by a required id (writing goals, progress entries, books, awards, check-ins, commitments, notes) have `member_id NOT NULL` and can't be scrubbed that way. Per table, decide between deleting the rows, re-pointing them at a placeholder "former member" row (keeps content that may itself identify the person), or nulling the content and keeping the empty shape.
+
+Also decide and write down the order of operations: a scrub is irreversible and untraceable (afterwards we can't find a person's rows to delete them later or to answer an access request), so a request for true deletion must happen before any anonymising. Where to start: pick the rule for each member-owned table next to its retention in the event catalog, then build one `remove_member_data(member_id, mode)` routine so staff don't hand-write SQL, and add a pgTAP test that nothing identifying remains. Related: "Soft-delete the rest of the member-written tables" (below, once #576 lands) and phase 0 of `docs/EVENT_LOG.md`.
+
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_
 
 The repo is public. A full-history scan (2026-10-02, every blob in every commit) found private
