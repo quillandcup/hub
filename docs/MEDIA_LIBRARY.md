@@ -9,7 +9,7 @@ Images are handled four different ways today, and none of them can be reused:
 | Where | What exists | Problem |
 |---|---|---|
 | Book covers | Public `book-covers` bucket, `member_books.cover_url`, `lib/bookCover.ts` | The upload is rejected unless it is *exactly* 145x215 px. A member whose cover is Amazon-sized (or any other size) can't use it. |
-| Event photos | Private `event-photos` bucket, `event_photos` rows, imported from Google Photos | A gallery per event, not a library: there is no event image to show on the events list and detail page, and nothing to pick twice. |
+| Event photos | Private `event-photos` bucket, `event_photos` rows, imported from Google Photos | A gallery per event, not a library, and it stays one: an album would flood the picker. A photo you want as the event's cover is copied into the library on demand (picker tab "Event photos", `POST /api/media/from-event-photo`; `source` `event_photo`, `source_key` `<event id>/<photo id>`, so it is copied once). |
 | Course images | Private `course-images` bucket, `*_path` / `*_source` columns on `courses`, `course_modules`, `course_lessons`, copied from Kajabi by `lib/courses/images.ts` (now in the library, below) | One bucket and three sets of columns for one job. Every new place that shows an image would add another. |
 | Help screenshots | `help-images` bucket | Build artifacts, not content. **Stays out of the library.** |
 

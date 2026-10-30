@@ -220,6 +220,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
         removing={changingVisibility}
         onRevert={handleRevert}
         reverting={reverting}
+        photos={visiblePhotos}
       />
 
       {/* Attendees */}
