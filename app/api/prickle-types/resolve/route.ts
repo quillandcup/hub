@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { normalizePrickleType } from "@/lib/prickle-types";
+import { normalizePrickleType, plainTextDescription, prickleTitleFromSummary } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 
 /**
@@ -83,7 +83,17 @@ export async function POST(request: NextRequest) {
 
     // Create the prickle
     try {
-      await createRepos(supabase).prickles.createCalendarPrickles([{ typeId: resolvedTypeId, hostId, startTime, endTime }]);
+      const repos = createRepos(supabase);
+      const [event, resolvedType] = await Promise.all([repos.calendarEvents.byId(calendarEventId), repos.prickles.typeById(resolvedTypeId)]);
+      await repos.prickles.createCalendarPrickles([{
+        typeId: resolvedTypeId,
+        hostId,
+        calendarEventId,
+        title: event?.summary && resolvedType ? prickleTitleFromSummary(event.summary, resolvedType.name, resolvedType.summaryAliases) : null,
+        description: plainTextDescription(event?.description),
+        startTime,
+        endTime,
+      }]);
     } catch (err) {
       console.error("Error creating prickle:", err);
       return NextResponse.json({ error: "Failed to create prickle" }, { status: 500 });

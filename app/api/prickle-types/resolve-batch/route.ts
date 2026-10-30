@@ -1,7 +1,7 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { normalizePrickleType, plainTextDescription } from "@/lib/prickle-types";
+import { normalizePrickleType, plainTextDescription, prickleTitleFromSummary } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 
 /**
@@ -94,9 +94,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Create prickles for all events
+    const resolvedType = await createRepos(supabase).prickles.typeById(resolvedTypeId);
     const pricklesToInsert = calendarEvents.map((event: any) => ({
       typeId: resolvedTypeId as string,
       hostId,
+      calendarEventId: event.id as string,
+      title: resolvedType && event.summary ? prickleTitleFromSummary(event.summary, resolvedType.name, resolvedType.summaryAliases) : null,
       description: plainTextDescription(event.description),
       startTime: event.start_time as string,
       endTime: event.end_time as string,
