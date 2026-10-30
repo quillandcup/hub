@@ -68,6 +68,10 @@ The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from w
 
 **Needs agreeing with whoever owns `courses:content`**: that the foundation PR below lands first, and that its next image work targets `media_assets`.
 
+## Older covers
+
+Covers uploaded before the library were cropped to 145 x 215 into the `book-covers` bucket, or are a link to a picture somewhere else. `pnpm covers:adopt --env <file>` (`scripts/adopt-book-covers.ts`, `lib/media/adopt-covers.ts`) moves them in: each becomes its member's own library image (the same picture twice is one image) and the book or project is pointed at it, only if its cover hasn't changed meanwhile. Without `--apply` it reads every cover and reports counts: how many came from the old bucket and from links, how many are big enough to be an Amazon cover as they are (a 145 x 215 cover isn't; a link to a bigger picture often is), and which can't be read and why. A link is fetched with care (`lib/media/fetch-cover.ts`: public addresses only, checked on every redirect, a size and time limit, and the result must still decode as an image). The old file in the bucket is left. Safe to run again.
+
 ## Housekeeping
 
 `/api/reconcile/media` runs nightly (`lib/media/sweep.ts`): it removes uploads started through the signed URL and never confirmed (over a day old), and the files of images deleted over 30 days ago (original and renditions; the row stays, with `files_removed_at` set, so a title and tags aren't lost). An image something still shows is skipped. Deleting in `/admin/media` is therefore undoable by staff (clear `deleted_at`) for 30 days.
