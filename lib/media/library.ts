@@ -28,7 +28,17 @@ export function titleFromFileName(name: string | null | undefined): string {
 export async function storeImage(
   media: MediaRepository,
   storage: Storage,
-  input: { bytes: Buffer; title?: string | null; ownerMemberId?: string | null; createdBy?: string | null; tags?: string[]; isPublic?: boolean }
+  input: {
+    bytes: Buffer;
+    title?: string | null;
+    ownerMemberId?: string | null;
+    createdBy?: string | null;
+    tags?: string[];
+    isPublic?: boolean;
+    /** Where it came from (an import's name and the key that identifies it there), for an image that isn't an upload. */
+    source?: "upload" | "kajabi" | "video_frame";
+    sourceKey?: string | null;
+  }
 ): Promise<StoreResult> {
   let bytes = input.bytes;
   let convertedFrom: "heic" | null = null;
@@ -62,6 +72,8 @@ export async function storeImage(
     owner_member_id: owner,
     created_by: input.createdBy ?? null,
     is_public: input.isPublic ?? false,
+    source: input.source ?? "upload",
+    source_key: input.sourceKey ?? null,
   });
   return { ok: true, asset, duplicate: false, convertedFrom };
 }

@@ -7,7 +7,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { formatCourseDate } from "@/lib/courses/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

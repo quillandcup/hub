@@ -100,6 +100,8 @@ export class InMemoryDataset {
   chatGapFills: ChatGapFillSeed[];
   /** The media library (`media_assets`). */
   mediaAssets: MediaAsset[];
+  /** Courses, modules and lessons, by which library assets they show (what the media library's usage list needs). */
+  courseImages: { id: string; kind: "course" | "module" | "lesson"; title: string; asset_ids: string[] }[];
   /** Published books: the id and title, when published, and which library asset is the cover (what the media library's usage list needs). */
   memberBooks: { id: string; member_id: string; title: string; published_date: string; cover_asset_id: string | null }[];
   // --- event photos ---
@@ -110,7 +112,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
 
     > = {},
   ) {
@@ -151,6 +153,7 @@ export class InMemoryDataset {
     this.chatGapFills = (init.chatGapFills ?? []).map((row) => ({ ...row }));
     this.mediaAssets = (init.mediaAssets ?? []).map((row) => ({ ...row }));
     this.memberBooks = (init.memberBooks ?? []).map((row) => ({ ...row }));
+    this.courseImages = (init.courseImages ?? []).map((row) => ({ ...row, asset_ids: [...row.asset_ids] }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

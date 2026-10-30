@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { COURSE_IMAGES_BUCKET } from '@/lib/courses/images'
+import { MEDIA_BUCKET } from '@/lib/media/library'
 
 /**
  * The course image route: the private bucket is only reached through it, for a signed-in courses
@@ -94,5 +95,73 @@ describe('Course image route', () => {
     await supabase.from('course_lessons').update({ thumbnail_path: `${SOURCE}/missing.png` }).eq('id', ids.bare)
     as(false)
     expect((await get('lesson', 'bare')).status).toBe(502)
+  })
+
+  describe('an image in the media library', () => {
+    const assetIds: string[] = []
+    const paths: string[] = []
+    const libraryImage = async (key: string, bytes: Buffer, deleted = false) => {
+      const path = `originals/shared/route-${ts}-${key}.png`
+      await supabase.storage.from(MEDIA_BUCKET).upload(path, bytes, { contentType: 'image/png', upsert: true })
+      paths.push(path)
+      const { data, error } = await supabase
+        .from('media_assets')
+        .insert({ storage_path: path, mime_type: 'image/png', width: 1, height: 1, bytes: bytes.length, sha256: `route-${ts}-${key}`, title: key, source: 'kajabi', source_key: `https://kajabi.test/route-${ts}-${key}.png`, deleted_at: deleted ? new Date().toISOString() : null })
+        .select('id')
+        .single()
+      expect(error).toBeNull()
+      assetIds.push(data!.id)
+      return data!.id
+    }
+    afterAll(async () => {
+      await supabase.storage.from(MEDIA_BUCKET).remove(paths)
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: null }).eq('course_id', ids.course)
+      await supabase.from('courses').update({ thumbnail_asset_id: null, hero_asset_id: null }).eq('id', ids.course)
+      await supabase.from('media_assets').delete().in('id', assetIds)
+    })
+
+    it('is streamed from the library, with its own content type, ahead of an older copy in the private bucket', async () => {
+      const bytes = Buffer.from('LIBRARYDATA')
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: await libraryImage('open', bytes) }).eq('id', ids.open)
+      as(false)
+      const res = await get('lesson', 'open') // it also still has a thumbnail_path with PNGDATA
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toBe('image/png')
+      expect(res.headers.get('cache-control')).toContain('private')
+      expect(Buffer.from(await res.arrayBuffer()).toString()).toBe('LIBRARYDATA')
+    })
+
+    it('serves a course cover and hero from the library by the course id', async () => {
+      await supabase.from('courses').update({ thumbnail_asset_id: await libraryImage('cover', Buffer.from('COVER')), hero_asset_id: await libraryImage('hero', Buffer.from('HERO')) }).eq('id', ids.course)
+      as(false)
+      expect(Buffer.from(await (await get('course', 'course')).arrayBuffer()).toString()).toBe('COVER')
+      expect(Buffer.from(await (await get('hero', 'course')).arrayBuffer()).toString()).toBe('HERO')
+    })
+
+    it("keeps a draft lesson's library image for staff acting as themselves, and 404s a row with nothing at all", async () => {
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: await libraryImage('draft', Buffer.from('DRAFT')), thumbnail_path: null }).eq('id', ids.draft)
+      as(false)
+      expect((await get('lesson', 'draft')).status).toBe(404)
+      as(true)
+      expect(Buffer.from(await (await get('lesson', 'draft')).arrayBuffer()).toString()).toBe('DRAFT')
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: null }).eq('id', ids.draft)
+      expect((await get('lesson', 'draft')).status).toBe(404)
+    })
+
+    it('falls back to the older copy when its library image was deleted, and answers 404 when there is none', async () => {
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: await libraryImage('gone', Buffer.from('GONE'), true) }).eq('id', ids.open)
+      as(false)
+      expect(Buffer.from(await (await get('lesson', 'open')).arrayBuffer()).toString()).toBe('PNGDATA')
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: await libraryImage('gone2', Buffer.from('GONE'), true), thumbnail_path: null }).eq('id', ids.bare)
+      expect((await get('lesson', 'bare')).status).toBe(404)
+    })
+
+    it('answers 502 when the library image is in the table but not in storage', async () => {
+      const id = await libraryImage('lost', Buffer.from('LOST'))
+      await supabase.storage.from(MEDIA_BUCKET).remove([paths[paths.length - 1]])
+      await supabase.from('course_lessons').update({ thumbnail_asset_id: id }).eq('id', ids.bare)
+      as(false)
+      expect((await get('lesson', 'bare')).status).toBe(502)
+    })
   })
 })

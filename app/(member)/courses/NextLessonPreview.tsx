@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { useLessonCompletion } from "./LessonCompletion";
 
 /**

@@ -11,6 +11,8 @@ export type MediaContractContext = {
   eventShowing: (assetId: string, title: string, startsAt: string) => Promise<string>;
   /** Makes a published book (by this member) that has this asset as its cover, and returns its id. */
   bookShowing: (assetId: string, ownerMemberId: string, title: string, publishedOn: string) => Promise<string>;
+  /** Makes a course (kind "course", with the image as its cover), module (its poster) or lesson (its thumbnail) that shows this asset, and returns its id. */
+  courseImageShowing: (assetId: string, kind: "course" | "module" | "lesson", title: string) => Promise<string>;
   /** Makes a writing project (of this member) that has this asset as its cover, and returns its id. */
   projectShowing: (assetId: string, ownerMemberId: string) => Promise<string>;
 };
@@ -108,6 +110,21 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
         { kind: "book", id: book1, title: "Older book" },
         { kind: "project", id: project, title: "A writing project" },
       ]);
+    });
+
+    it("lists the course, module and lesson that show an asset, without any of the other places", async () => {
+      const image = await ctx.repo().add(asset("k1"));
+      const unused = await ctx.repo().add(asset("k2"));
+      const course = await ctx.courseImageShowing(image.id, "course", "A course");
+      const poster = await ctx.courseImageShowing(image.id, "module", "A module");
+      const lesson = await ctx.courseImageShowing(image.id, "lesson", "A lesson");
+
+      expect(await ctx.repo().usages(image.id)).toEqual([
+        { kind: "course", id: course, title: "A course" },
+        { kind: "module", id: poster, title: "A module" },
+        { kind: "lesson", id: lesson, title: "A lesson" },
+      ]);
+      expect(await ctx.repo().usages(unused.id)).toEqual([]);
     });
 
     it("lists deleted assets past a cutoff whose files are still there, and stops listing one once its files are marked removed", async () => {

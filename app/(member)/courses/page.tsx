@@ -4,7 +4,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadCourseList } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { formatCourseDate } from "@/lib/courses/format";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 
 export const metadata: Metadata = { title: "Courses" };
 

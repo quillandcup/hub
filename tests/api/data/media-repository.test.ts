@@ -11,9 +11,11 @@ const memberIds: string[] = [];
 const eventIds: string[] = [];
 const bookIds: string[] = [];
 const projectIds: string[] = [];
+const courseRowIds: string[] = [];
 
 // Everything the contract stores carries this run's prefix in its hash or path; the two members are made here.
 afterAll(async () => {
+  if (courseRowIds.length) await db.from("courses").delete().in("id", courseRowIds); // its modules and lessons go with it
   if (bookIds.length) await db.from("member_books").delete().in("id", bookIds);
   if (projectIds.length) await db.from("writing_projects").delete().in("id", projectIds);
   if (eventIds.length) await db.from("events").delete().in("id", eventIds);
@@ -33,6 +35,24 @@ defineMediaContract("SupabaseMediaRepository", () => ({
     if (error) throw new Error(error.message);
     bookIds.push(data.id);
     return data.id;
+  },
+  courseImageShowing: async (assetId, kind, title) => {
+    // A module and a lesson belong to a course; one course holds them all for this run.
+    if (kind === "course") {
+      const { data, error } = await db.from("courses").insert({ slug: `${RUN}-${++counter}`, title, source_key: `${RUN}-c${counter}`, thumbnail_asset_id: assetId }).select("id").single();
+      if (error) throw new Error(error.message);
+      courseRowIds.push(data.id);
+      return data.id;
+    }
+    const parent = await db.from("courses").insert({ slug: `${RUN}-${++counter}`, title: `Parent ${counter}`, source_key: `${RUN}-p${counter}` }).select("id").single();
+    if (parent.error) throw new Error(parent.error.message);
+    courseRowIds.push(parent.data.id);
+    const child =
+      kind === "module"
+        ? await db.from("course_modules").insert({ course_id: parent.data.id, title, source_key: `${RUN}-m${counter}`, poster_asset_id: assetId }).select("id").single()
+        : await db.from("course_lessons").insert({ course_id: parent.data.id, title, position: 1, source_key: `${RUN}-l${counter}`, thumbnail_asset_id: assetId }).select("id").single();
+    if (child.error) throw new Error(child.error.message);
+    return child.data.id;
   },
   projectShowing: async (assetId, ownerMemberId) => {
     const { data, error } = await db.from("writing_projects").insert({ member_id: ownerMemberId, title: `Project ${RUN}`, phase: "drafting", cover_asset_id: assetId }).select("id").single();

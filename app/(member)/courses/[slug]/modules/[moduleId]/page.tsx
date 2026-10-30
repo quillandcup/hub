@@ -5,7 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { moduleView, nodeLessons, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import PageBanner from "@/components/PageBanner";
 

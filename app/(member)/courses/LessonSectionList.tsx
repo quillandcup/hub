@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { courseImageUrl } from "@/lib/courses/images";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import type { Outline, OutlineLesson } from "@/lib/courses/outline";
 
 interface Props {
