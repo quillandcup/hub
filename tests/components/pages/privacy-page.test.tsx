@@ -85,6 +85,14 @@ describe("/privacy page", () => {
     }
   });
 
+  it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
+    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "choices"]);
+    const nav = [...screen.getByRole("navigation", { name: "On this page" }).querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(nav).toEqual(ids.map((id) => `#${id}`));
+  });
+
   it("puts the retention numbers in the summary and the table from the one place the job reads them", async () => {
     await renderServerPage(PrivacyPage, {});
     const summary = within(screen.getByRole("heading", { name: "The short version" }).closest("aside")!);

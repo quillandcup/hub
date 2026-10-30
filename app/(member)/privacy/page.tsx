@@ -93,8 +93,8 @@ export default async function PrivacyPage() {
           <li><a href="#chat" className="underline">Chat and messages</a></li>
           <li><a href="#keep" className="underline">How long we keep things</a></li>
           <li><a href="#cookies" className="underline">Cookies</a></li>
-          <li><a href="#choices" className="underline">Your choices</a></li>
           <li><a href="#services" className="underline">Services we use</a></li>
+          <li><a href="#choices" className="underline">Your choices</a></li>
         </ul>
       </nav>
 
@@ -189,7 +189,7 @@ export default async function PrivacyPage() {
           messages in private channels and direct messages.
         </p>
 
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">What staff can see</h3>
+        <h3 className={SUBHEADING}>What staff can see</h3>
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
@@ -296,8 +296,17 @@ export default async function PrivacyPage() {
         </ul>
       </Section>
 
+      <Section id="services" title="Services that help us run the Hub">
+        <p>
+          Your information passes through the services the Hub is built on: our database provider, our sign-in and auth
+          provider, our hosting provider (which also counts visits and page speed), our error-reporting provider (held in the
+          EU), our video hosting provider, our email provider, Google Analytics (only where you allow it), and Slack. We use
+          them to run the Hub and not for anything else.
+        </p>
+      </Section>
+
       <Section id="choices" title="Your choices">
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Usage statistics</h3>
+        <h3 className={SUBHEADING}>Usage statistics</h3>
         <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
         <p>
           <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
@@ -313,7 +322,7 @@ export default async function PrivacyPage() {
           March&rdquo;), which is how we see trends over several years.
         </Detail>
 
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
+        <h3 className={SUBHEADING}>Notifications</h3>
         <p>
           The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose which,
           for each kind of notification, in{" "}
@@ -323,7 +332,7 @@ export default async function PrivacyPage() {
           , and every email has an unsubscribe link for that kind.
         </p>
 
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Asking us</h3>
+        <h3 className={SUBHEADING}>Asking us</h3>
         <p>
           You can ask us at any time to show you what we hold about you, correct it, remove it, or stop using it for usage
           statistics. Email{" "}
@@ -334,23 +343,17 @@ export default async function PrivacyPage() {
           it can no longer be tied to you.
         </p>
       </Section>
-
-      <Section id="services" title="Services that help us run the Hub">
-        <p>
-          Your information passes through the services the Hub is built on: our database provider, our sign-in and auth
-          provider, our hosting provider (which also counts visits and page speed), our error-reporting provider (held in the
-          EU), our video hosting provider, our email provider, Google Analytics (only where you allow it), and Slack. We use
-          them to run the Hub and not for anything else.
-        </p>
-      </Section>
     </div>
   );
 }
 
+/** Smaller than a section's heading and in capitals, so the two levels can't be mistaken for each other. */
+const SUBHEADING = "pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="mb-10 space-y-3 text-slate-700 dark:text-slate-300 scroll-mt-6">
-      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">{title}</h2>
       {children}
     </section>
   );
