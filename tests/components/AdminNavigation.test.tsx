@@ -76,4 +76,20 @@ describe("AdminNavigation sidebar mode", () => {
     render(<AdminNavigation enabledFeatures={[]} navMode="auto" />);
     expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
   });
+
+  it("keeps folded sections folded in auto-hide, with the same rows at rest and open", () => {
+    render(<AdminNavigation enabledFeatures={[]} navMode="auto" />);
+    const folds = () => Array.from(sidebar().querySelectorAll("details"));
+    const rows = () => sidebar().querySelectorAll("summary, h2, li").length;
+
+    const atRest = rows();
+    expect(folds().length).toBeGreaterThan(0);
+    expect(folds().every((d) => !d.open)).toBe(true);
+    expect(folds()[0].querySelector("summary")).toHaveClass("opacity-0", "pointer-events-none");
+
+    fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
+    expect(rows()).toBe(atRest);
+    expect(folds().every((d) => !d.open)).toBe(true);
+    expect(folds()[0].querySelector("summary")).toHaveClass("opacity-100");
+  });
 });
