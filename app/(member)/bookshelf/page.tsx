@@ -15,6 +15,7 @@ export default async function BookshelfPage() {
     .select(
       "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, pen_name, members:book_member(name, display_name)"
     )
+    .is("deleted_at", null)
     .order("published_date", { ascending: false });
 
   const shelf: ShelfBook[] = (books ?? []).map((row: any) => ({

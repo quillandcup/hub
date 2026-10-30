@@ -1416,6 +1416,11 @@ On payment failure, notify the member (a `payment_failed` notification kind via 
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
+
+### Soft-delete the rest of the member-written tables _(Needs Scheduling)_
+
+Members' deletes of writing goals, progress entries, books and awards now soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). Still hard deletes in the app: private member notes (`member_notes`), calendar-link items added by hand (`calendar_feed_items`), "Ask me about" topics (`member_ask_me_about`), and the starting balances that `replaceStartingBalances` clears in `lib/data/writing.ts`. Deferred because each is small, some are private to the member (a note is deliberately not audited), and the privacy page promises a kept record only for the four above. For each: add `deleted_at`, filter reads, and say on `/privacy` what a delete keeps. Also decide whether a progress entry's `member_activities` row should come back if a restore path is ever added (the delete removes it today so a bogus entry doesn't inflate engagement).
+
 ### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
 `prickle_checkins` (mood before/after, named feeling, intention, got what they came for) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
 - Whether the card should say something (e.g. "Hosts can't see your individual responses").

@@ -68,44 +68,46 @@ const VALID_INPUT: BookInput = {
   format: "print",
 };
 
+/** A query builder where each step returns the same builder and `terminal` resolves the result. */
+function chain(terminal: "order" | "single", result: () => Promise<unknown>, calls: unknown[][]) {
+  const q: Record<string, unknown> = {};
+  for (const step of ["eq", "is", "select"]) {
+    q[step] = vi.fn((...args: unknown[]) => {
+      calls.push([step, ...args]);
+      return q;
+    });
+  }
+  q[terminal] = vi.fn(() => result());
+  return q;
+}
+
 function makeSupabaseMock({
   selectResult = { data: [], error: null } as any,
   writeError = undefined as string | undefined,
   updateSingleResult = { data: { id: "book-1" }, error: null } as any,
-  deleteSingleResult = { data: { id: "book-1" }, error: null } as any,
   previousCoverAssetId = null as string | null,
 } = {}) {
-  const select = vi.fn(() => ({
-    eq: vi.fn(() => ({
-      order: vi.fn().mockResolvedValue(selectResult),
-      // updateBook reads the cover the book has now, to release it if it is replaced.
-      maybeSingle: vi.fn().mockResolvedValue({ data: { cover_asset_id: previousCoverAssetId }, error: null }),
-    })),
-  }));
+  /** Filters applied to the last select/update, e.g. ["is", "deleted_at", null]. */
+  const selectCalls: unknown[][] = [];
+  const updateCalls: unknown[][] = [];
+
+  const select = vi.fn(() => {
+    const q = chain("order", () => Promise.resolve(selectResult), selectCalls);
+    // updateBook reads the cover the book has now, to release it if it is replaced.
+    q.maybeSingle = vi.fn().mockResolvedValue({ data: { cover_asset_id: previousCoverAssetId }, error: null });
+    return q;
+  });
 
   const insert = vi.fn().mockResolvedValue(writeError ? { error: { message: writeError } } : { error: null });
 
-  const updateSingle = vi
-    .fn()
-    .mockResolvedValue(writeError ? { data: null, error: { message: writeError } } : updateSingleResult);
-  const update = vi.fn(() => ({
-    eq: vi.fn(() => ({
-      select: vi.fn(() => ({ single: updateSingle })),
-    })),
-  }));
-
-  const deleteSingle = vi
-    .fn()
-    .mockResolvedValue(writeError ? { data: null, error: { message: writeError } } : deleteSingleResult);
-  const del = vi.fn(() => ({
-    eq: vi.fn(() => ({
-      select: vi.fn(() => ({ single: deleteSingle })),
-    })),
-  }));
+  // Edits and deletes are both updates (a delete sets deleted_at).
+  const update = vi.fn(() =>
+    chain("single", () => Promise.resolve(writeError ? { data: null, error: { message: writeError } } : updateSingleResult), updateCalls),
+  );
 
   const from = vi.fn((table: string) => {
     if (table !== "member_books") throw new Error(`Unexpected table in test: ${table}`);
-    return { select, insert, update, delete: del };
+    return { select, insert, update };
   });
 
   return {
@@ -114,7 +116,8 @@ function makeSupabaseMock({
     __select: select,
     __insert: insert,
     __update: update,
-    __delete: del,
+    __selectCalls: selectCalls,
+    __updateCalls: updateCalls,
   };
 }
 
@@ -166,6 +169,8 @@ describe("getMyBooks", () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 
     const result = await getMyBooks();
+    // A book the member deleted stays in the table but never comes back here.
+    expect(mock.__selectCalls).toContainEqual(["is", "deleted_at", null]);
     expect(result).toEqual([
       {
         id: "book-1",
@@ -377,11 +382,11 @@ describe("deleteBook", () => {
 
     const result = await deleteBook("book-1");
     expect(result).toEqual({ error: "Not authenticated" });
-    expect(mock.__delete).not.toHaveBeenCalled();
+    expect(mock.__update).not.toHaveBeenCalled();
   });
 
   it("reports 'Book not found' when RLS scopes away the row (not owned)", async () => {
-    const mock = makeSupabaseMock({ deleteSingleResult: { data: null, error: null } });
+    const mock = makeSupabaseMock({ updateSingleResult: { data: null, error: null } });
     vi.mocked(createClient).mockResolvedValue(mock as any);
     vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 
@@ -390,13 +395,15 @@ describe("deleteBook", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("deletes the row and revalidates on success", async () => {
+  it("soft-deletes the row (sets deleted_at, keeps it) and revalidates on success", async () => {
     const mock = makeSupabaseMock();
     vi.mocked(createClient).mockResolvedValue(mock as any);
     vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 
     const result = await deleteBook("book-1");
     expect(result).toEqual({ success: true });
+    expect(mock.__update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+    expect(mock.__updateCalls).toContainEqual(["is", "deleted_at", null]);
     expect(revalidatePath).toHaveBeenCalledWith("/bookshelf");
     expect(revalidatePath).toHaveBeenCalledWith("/projects", "layout");
     expect(revalidatePath).toHaveBeenCalledWith("/members/member-1");

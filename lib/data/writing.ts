@@ -4,8 +4,9 @@ import type { InMemoryDataset } from "./in-memory";
 
 /** Stored rows, as the database has them; the twin keeps these. */
 export type WritingProjectRow = Row<"writing_projects">;
-export type WritingGoalRow = Row<"writing_goals">;
-export type WritingEntryRow = Row<"writing_progress_entries">;
+// `deleted_at` is optional on the twin's rows so a fixture that predates soft delete still reads as live.
+export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at"> & { deleted_at?: string | null };
+export type WritingEntryRow = Omit<Row<"writing_progress_entries">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingBalanceRow = Row<"writing_project_starting_balances">;
 
 // --- projects and starting balances: shapes ---
@@ -291,13 +292,13 @@ export class SupabaseWritingRepository implements WritingRepository {
   }
 
   async goalCount(memberId: string) {
-    const { count, error } = await this.db.from("writing_goals").select("id", { count: "exact", head: true }).eq("member_id", memberId);
+    const { count, error } = await this.db.from("writing_goals").select("id", { count: "exact", head: true }).eq("member_id", memberId).is("deleted_at", null);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
 
   async activeGoalMeasures(memberId: string) {
-    const { data, error } = await this.db.from("writing_goals").select("project_id, measure").eq("member_id", memberId).is("archived_at", null);
+    const { data, error } = await this.db.from("writing_goals").select("project_id, measure").eq("member_id", memberId).is("archived_at", null).is("deleted_at", null);
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -307,6 +308,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_progress_entries")
       .select("project_id, measure")
       .eq("member_id", memberId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);
@@ -320,6 +322,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("project_id, measure, mode, amount")
       .eq("member_id", memberId)
       .eq("prickle_id", prickleId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (error) throw new Error(error.message);
@@ -331,6 +334,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_progress_entries")
       .select("entry_date, measure, mode, amount, note, tags, project:writing_projects(title)")
       .eq("member_id", memberId)
+      .is("deleted_at", null)
       .order("entry_date", { ascending: true })
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
@@ -372,18 +376,24 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_goals")
       .select("id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold")
       .eq("id", goalId)
+      .is("deleted_at", null)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
 
   async updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">) {
-    const { error } = await this.db.from("writing_goals").update(patch).eq("id", goalId).eq("member_id", memberId);
+    const { error } = await this.db.from("writing_goals").update(patch).eq("id", goalId).eq("member_id", memberId).is("deleted_at", null);
     if (error) throw new Error(error.message);
   }
 
   async deleteGoal(memberId: string, goalId: string) {
-    const { error } = await this.db.from("writing_goals").delete().eq("id", goalId).eq("member_id", memberId);
+    const { error } = await this.db
+      .from("writing_goals")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", goalId)
+      .eq("member_id", memberId)
+      .is("deleted_at", null);
     if (error) throw new Error(error.message);
   }
 
@@ -394,6 +404,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .eq("project_id", projectId)
       .eq("member_id", memberId)
       .not("archived_at", "is", null)
+      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (error) throw new Error(error.message);
@@ -407,6 +418,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .eq("member_id", memberId)
       .eq("is_starred", true)
       .is("archived_at", null)
+      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (error) throw new Error(error.message);
@@ -423,6 +435,7 @@ export class SupabaseWritingRepository implements WritingRepository {
         .from("writing_goals")
         .select("id, member_id, project_id, measure, writing_projects!inner(title, archived_at)")
         .is("archived_at", null)
+        .is("deleted_at", null)
         .is("writing_projects.archived_at", null)
         .order("id")
         .range(offset, offset + GOAL_PAGE - 1);
@@ -437,7 +450,7 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   // --- progress entries ---
   async findEntry(entryId: string) {
-    const { data, error } = await this.db.from("writing_progress_entries").select("id, project_id, member_id, prickle_id").eq("id", entryId).maybeSingle();
+    const { data, error } = await this.db.from("writing_progress_entries").select("id, project_id, member_id, prickle_id").eq("id", entryId).is("deleted_at", null).maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -451,12 +464,17 @@ export class SupabaseWritingRepository implements WritingRepository {
     if (patch.note !== undefined) updates.note = patch.note;
     if (patch.tags !== undefined) updates.tags = patch.tags;
     if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
-    const { error } = await this.db.from("writing_progress_entries").update(updates).eq("id", entryId).eq("member_id", memberId);
+    const { error } = await this.db.from("writing_progress_entries").update(updates).eq("id", entryId).eq("member_id", memberId).is("deleted_at", null);
     if (error) throw new Error(error.message);
   }
 
   async deleteEntry(memberId: string, entryId: string) {
-    const { error } = await this.db.from("writing_progress_entries").delete().eq("id", entryId).eq("member_id", memberId);
+    const { error } = await this.db
+      .from("writing_progress_entries")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", entryId)
+      .eq("member_id", memberId)
+      .is("deleted_at", null);
     if (error) throw new Error(error.message);
   }
 
@@ -466,6 +484,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, project:writing_projects!inner(title)")
       .eq("member_id", memberId)
       .eq("prickle_id", prickleId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (error) throw new Error(error.message);
@@ -478,6 +497,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("prickle_id")
       .eq("member_id", memberId)
       .not("prickle_id", "is", null)
+      .is("deleted_at", null)
       .gte("created_at", since);
     if (error) throw new Error(error.message);
     return new Set((data ?? []).map((e) => e.prickle_id as string));
@@ -490,6 +510,7 @@ export class SupabaseWritingRepository implements WritingRepository {
         .from("writing_progress_entries")
         .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
         .eq("member_id", memberId)
+        .is("deleted_at", null)
         .in("project_id", projectIds)
         .order("id")
         .range(from, to),
@@ -504,6 +525,7 @@ export class SupabaseWritingRepository implements WritingRepository {
         .eq("project_id", projectId)
         .eq("member_id", memberId)
         .eq("measure", measure)
+        .is("deleted_at", null)
         .order("id")
         .range(from, to),
     );
@@ -515,6 +537,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("measure")
       .eq("project_id", projectId)
       .eq("member_id", memberId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit);
@@ -529,6 +552,7 @@ export class SupabaseWritingRepository implements WritingRepository {
         .select("member_id, prickle_id, project_id")
         .in("prickle_id", prickleIds)
         .in("member_id", memberIds)
+        .is("deleted_at", null)
         .order("id")
         .range(from, to),
     );
@@ -557,7 +581,7 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   async projectEntries(memberId: string): Promise<ProjectEntry[]> {
     return fetchAllRows<ProjectEntry>((from, to) =>
-      this.db.from("writing_progress_entries").select(ENTRY_COLUMNS).eq("member_id", memberId).order("id").range(from, to),
+      this.db.from("writing_progress_entries").select(ENTRY_COLUMNS).eq("member_id", memberId).is("deleted_at", null).order("id").range(from, to),
     );
   }
 
@@ -568,6 +592,7 @@ export class SupabaseWritingRepository implements WritingRepository {
         .select(`${ENTRY_COLUMNS}, prickle_id, prickle:prickles(id, start_time, host:prickle_host(name, display_name), prickle_types:type_id(name))`)
         .eq("project_id", projectId)
         .eq("member_id", memberId)
+        .is("deleted_at", null)
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
@@ -582,7 +607,7 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   async projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]> {
     return fetchAllRows<ProjectGoal>((from, to) => {
-      let query = this.db.from("writing_goals").select(GOAL_COLUMNS).eq("member_id", memberId).is("archived_at", null);
+      let query = this.db.from("writing_goals").select(GOAL_COLUMNS).eq("member_id", memberId).is("archived_at", null).is("deleted_at", null);
       if (projectId) query = query.eq("project_id", projectId);
       return query.order("id").range(from, to);
     });
@@ -716,6 +741,15 @@ export class SupabaseWritingRepository implements WritingRepository {
 export class InMemoryWritingRepository implements WritingRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
+  /** Rows a member deleted stay in the dataset, as in the database, and every read skips them. */
+  private liveGoals() {
+    return this.data.writingGoals.filter((g) => !g.deleted_at);
+  }
+
+  private liveEntries() {
+    return this.data.writingEntries.filter((e) => !e.deleted_at);
+  }
+
   private newestFirst<T extends { created_at: string; id: string }>(rows: T[]) {
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id < b.id ? 1 : -1));
   }
@@ -733,27 +767,27 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async goalCount(memberId: string) {
-    return this.data.writingGoals.filter((g) => g.member_id === memberId).length;
+    return this.liveGoals().filter((g) => g.member_id === memberId).length;
   }
 
   async activeGoalMeasures(memberId: string) {
-    return this.data.writingGoals.filter((g) => g.member_id === memberId && !g.archived_at).map((g) => ({ project_id: g.project_id, measure: g.measure }));
+    return this.liveGoals().filter((g) => g.member_id === memberId && !g.archived_at).map((g) => ({ project_id: g.project_id, measure: g.measure }));
   }
 
   async recentEntryMeasures(memberId: string, limit: number) {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId))
       .slice(0, limit)
       .map((e) => ({ project_id: e.project_id, measure: e.measure }));
   }
 
   async entriesForPrickle(memberId: string, prickleId: string) {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
       .reverse()
       .map((e) => ({ project_id: e.project_id, measure: e.measure, mode: e.mode, amount: e.amount }));
   }
 
   async exportEntries(memberId: string, { projectId }: { projectId?: string } = {}) {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && (!projectId || e.project_id === projectId)))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && (!projectId || e.project_id === projectId)))
       .reverse()
       .sort((a, b) => (a.entry_date < b.entry_date ? -1 : a.entry_date > b.entry_date ? 1 : 0))
       .map((e) => ({
@@ -783,6 +817,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       note: entry.note ?? null,
       tags: entry.tags ?? [],
       external_id: null,
+      deleted_at: null,
       created_at: new Date(Math.max(Date.now(), latest + 1)).toISOString(),
     });
     return id;
@@ -812,34 +847,37 @@ export class InMemoryWritingRepository implements WritingRepository {
       end_date: goal.end_date ?? null,
       target_amount: goal.target_amount ?? null,
       archived_at: goal.archived_at ?? null,
+      deleted_at: null,
       created_at: goal.created_at ?? new Date().toISOString(),
     });
     return id;
   }
 
   async goalForEdit(goalId: string) {
-    const g = this.data.writingGoals.find((x) => x.id === goalId);
+    const g = this.liveGoals().find((x) => x.id === goalId);
     if (!g) return null;
     const { id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold } = g;
     return { id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold };
   }
 
   async updateGoal(memberId: string, goalId: string, patch: Update<"writing_goals">) {
-    for (const g of this.data.writingGoals) {
+    for (const g of this.liveGoals()) {
       if (g.id === goalId && g.member_id === memberId) Object.assign(g, patch);
     }
   }
 
   async deleteGoal(memberId: string, goalId: string) {
-    this.data.writingGoals = this.data.writingGoals.filter((g) => !(g.id === goalId && g.member_id === memberId));
+    for (const g of this.liveGoals()) {
+      if (g.id === goalId && g.member_id === memberId) g.deleted_at = new Date().toISOString();
+    }
   }
 
   async archivedGoals(memberId: string, projectId: string) {
-    return this.oldestFirst(this.data.writingGoals.filter((g) => g.member_id === memberId && g.project_id === projectId && g.archived_at)).map(goalColumns);
+    return this.oldestFirst(this.liveGoals().filter((g) => g.member_id === memberId && g.project_id === projectId && g.archived_at)).map(goalColumns);
   }
 
   async starredGoals(memberId: string) {
-    return this.oldestFirst(this.data.writingGoals.filter((g) => g.member_id === memberId && g.is_starred && !g.archived_at)).map((g) => ({
+    return this.oldestFirst(this.liveGoals().filter((g) => g.member_id === memberId && g.is_starred && !g.archived_at)).map((g) => ({
       ...goalColumns(g),
       project_title: this.data.writingProjects.find((p) => p.id === g.project_id)?.title ?? null,
     }));
@@ -847,7 +885,7 @@ export class InMemoryWritingRepository implements WritingRepository {
 
   async activeGoalCandidates() {
     const out: GoalCandidateRow[] = [];
-    for (const g of [...this.data.writingGoals].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    for (const g of [...this.liveGoals()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
       if (g.archived_at) continue;
       const project = this.data.writingProjects.find((p) => p.id === g.project_id);
       if (!project || project.archived_at) continue;
@@ -862,12 +900,12 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async findEntry(entryId: string) {
-    const e = this.data.writingEntries.find((x) => x.id === entryId);
+    const e = this.liveEntries().find((x) => x.id === entryId);
     return e ? { id: e.id, project_id: e.project_id, member_id: e.member_id, prickle_id: e.prickle_id } : null;
   }
 
   async updateEntry(memberId: string, entryId: string, patch: EntryPatch) {
-    const e = this.data.writingEntries.find((x) => x.id === entryId && x.member_id === memberId);
+    const e = this.liveEntries().find((x) => x.id === entryId && x.member_id === memberId);
     if (!e) return;
     if (patch.entryDate !== undefined) e.entry_date = patch.entryDate;
     if (patch.measure !== undefined) e.measure = patch.measure;
@@ -879,11 +917,13 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async deleteEntry(memberId: string, entryId: string) {
-    this.data.writingEntries = this.data.writingEntries.filter((e) => !(e.id === entryId && e.member_id === memberId));
+    for (const e of this.liveEntries()) {
+      if (e.id === entryId && e.member_id === memberId) e.deleted_at = new Date().toISOString();
+    }
   }
 
   async prickleEntries(memberId: string, prickleId: string): Promise<PrickleEntry[]> {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.prickle_id === prickleId))
       .reverse()
       .flatMap((e) => {
         const project = this.data.writingProjects.find((p) => p.id === e.project_id);
@@ -892,27 +932,27 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async prickleIdsLoggedSince(memberId: string, since: string) {
-    return new Set(this.data.writingEntries.filter((e) => e.member_id === memberId && e.prickle_id && e.created_at >= since).map((e) => e.prickle_id as string));
+    return new Set(this.liveEntries().filter((e) => e.member_id === memberId && e.prickle_id && e.created_at >= since).map((e) => e.prickle_id as string));
   }
 
   async entriesForProjects(memberId: string, projectIds: string[]) {
-    return this.data.writingEntries.filter((e) => e.member_id === memberId && projectIds.includes(e.project_id)).map((e) => this.columns(e));
+    return this.liveEntries().filter((e) => e.member_id === memberId && projectIds.includes(e.project_id)).map((e) => this.columns(e));
   }
 
   async seriesEntries(memberId: string, projectId: string, measure: string) {
-    return this.data.writingEntries
+    return this.liveEntries()
       .filter((e) => e.member_id === memberId && e.project_id === projectId && e.measure === measure)
       .map((e) => ({ entry_date: e.entry_date, mode: e.mode, amount: e.amount, created_at: e.created_at }));
   }
 
   async recentProjectMeasures(memberId: string, projectId: string, limit: number) {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.project_id === projectId))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.project_id === projectId))
       .slice(0, limit)
       .map((e) => e.measure);
   }
 
   async loggedAgainstPrickles(memberIds: string[], prickleIds: string[]) {
-    return this.data.writingEntries
+    return this.liveEntries()
       .filter((e) => e.prickle_id && prickleIds.includes(e.prickle_id) && memberIds.includes(e.member_id))
       .map((e) => ({ member_id: e.member_id, prickle_id: e.prickle_id as string, project_id: e.project_id }));
   }
@@ -933,14 +973,14 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async projectEntries(memberId: string): Promise<ProjectEntry[]> {
-    return this.data.writingEntries
+    return this.liveEntries()
       .filter((e) => e.member_id === memberId)
       .sort((a, b) => (a.id < b.id ? -1 : 1))
       .map(entryOf);
   }
 
   async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
-    return this.newestFirst(this.data.writingEntries.filter((e) => e.member_id === memberId && e.project_id === projectId))
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.project_id === projectId))
       .sort((a, b) => (a.entry_date < b.entry_date ? 1 : a.entry_date > b.entry_date ? -1 : 0))
       .map((e) => {
         const prickle = e.prickle_id ? this.data.prickles.find((p) => p.id === e.prickle_id) : undefined;
@@ -962,7 +1002,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]> {
-    return this.data.writingGoals
+    return this.liveGoals()
       .filter((g) => g.member_id === memberId && !g.archived_at && (!projectId || g.project_id === projectId))
       .sort((a, b) => (a.id < b.id ? -1 : 1))
       .map((g) => ({

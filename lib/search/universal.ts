@@ -188,7 +188,7 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   const authors = await memberIdsNamed(ctx, q.from);
   if (authors && authors.length === 0) return { kind: "books", hits: [], hasMore: false };
   let query = ctx.supabase.from("member_books").select("id, title, description, cover_url, published_date, pen_name, author:book_member(id, name)");
-  query = matchEach(query, matchWords(q), ["title", "description"]);
+  query = matchEach(query, matchWords(q), ["title", "description"]).is("deleted_at", null);
   if (authors) query = query.in("member_id", authors);
   if (q.after) query = query.gte("published_date", q.after.slice(0, 10));
   if (q.before) query = query.lt("published_date", q.before.slice(0, 10));
@@ -209,7 +209,7 @@ async function searchAwards(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   const winners = await memberIdsNamed(ctx, q.from);
   if (winners && winners.length === 0) return { kind: "awards", hits: [], hasMore: false };
   let query = ctx.supabase.from("member_awards").select("id, award_name, category, work_title, award_date");
-  query = matchEach(query, matchWords(q), ["award_name", "category", "work_title"]);
+  query = matchEach(query, matchWords(q), ["award_name", "category", "work_title"]).is("deleted_at", null);
   if (winners) query = query.in("member_id", winners);
   if (q.after) query = query.gte("award_date", q.after.slice(0, 10));
   if (q.before) query = query.lt("award_date", q.before.slice(0, 10));

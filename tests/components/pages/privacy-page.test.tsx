@@ -126,11 +126,13 @@ describe("/privacy usage, notifications and retention sections", () => {
     expect(table.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
   });
 
-  it("says deleting a project, goal, entry, book or award removes it but leaves a record, not that it is merely hidden", async () => {
+  it("says a deleted goal, entry, book or award disappears from the Hub but is kept until the member asks", async () => {
     await renderServerPage(PrivacyPage, {});
-    expect(screen.getByRole("heading", { name: "When you delete something else" })).toBeInTheDocument();
-    expect(screen.getByText(/it is gone from the Hub for you and for/)).toBeInTheDocument();
-    expect(screen.getByText(/Our change history keeps a record that it existed and what it said/)).toBeInTheDocument();
+    // The page sets the policy; it does not list resources, so it needn't change as they do.
+    expect(screen.getByRole("heading", { name: "When you delete something" })).toBeInTheDocument();
+    expect(screen.getByText(/it disappears for you and for everyone else/)).toBeInTheDocument();
+    expect(screen.getByText(/We may keep a copy/)).toBeInTheDocument();
+    expect(screen.getByText(/we either delete it or\s+take your name off it/)).toBeInTheDocument();
   });
 
   it("tells members how to ask, with the configured support address, and for what", async () => {

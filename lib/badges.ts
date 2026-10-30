@@ -305,7 +305,8 @@ export async function getPublishedBookCount(
   const { count } = await supabase
     .from("member_books")
     .select("id", { count: "exact", head: true })
-    .eq("member_id", memberId);
+    .eq("member_id", memberId)
+    .is("deleted_at", null);
   return count ?? 0;
 }
 
@@ -548,6 +549,7 @@ async function getPublishedBookCountsByMember(
     const { data: batch } = await supabase
       .from("member_books")
       .select("member_id")
+      .is("deleted_at", null)
       .range(offset, offset + BATCH_SIZE - 1);
     if (batch && batch.length > 0) {
       for (const row of batch as { member_id: string }[]) {
