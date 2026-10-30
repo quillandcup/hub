@@ -6423,6 +6423,13 @@ export type Database = {
           visibility: string
         }[]
       }
+      member_slack_channels: {
+        Args: { p_member_id: string }
+        Returns: {
+          channel_name: string
+          n: number
+        }[]
+      }
       member_slack_summary: {
         Args: { p_member_id: string; p_since: string }
         Returns: {

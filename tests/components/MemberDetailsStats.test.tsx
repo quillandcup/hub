@@ -38,7 +38,7 @@ function renderDetails(status: string, stats: Partial<MemberView> = { metrics: {
       }}
       attendanceRecords={[]}
       hiatusHistory={[]}
-      slackActivities={[]}
+      slackPage={{ rows: [], total: 0, page: 1, pageSize: 50, kind: 'all', channel: null, channels: [] }}
       slackSummary={{ total: 0, messages: 0, reactions: 0, channels: 0, last30Days: 0 }}
       activityFeed={{ rows: [] } as never}
       activityFilters={{} as never}

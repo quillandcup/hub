@@ -1,3 +1,5 @@
+import { pageBounds } from "@/lib/pagination";
+import type { SlackPageQuery, SlackSortColumn } from "@/lib/slack-activity-table";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Json } from "./database.types";
 import type { Db, Insert, Row } from "./db";
@@ -63,8 +65,10 @@ export interface ActivityRepository {
   prickleAttendances(memberId: string): Promise<{ member_id: string; occurred_at: string }[]>;
   /** A member's activities since this time (ISO), for their engagement metrics. */
   engagementSince(memberId: string, sinceIso: string): Promise<EngagementRow[]>;
-  /** A member's latest Slack activities, newest first. */
-  slackFeed(memberId: string, limit: number): Promise<ActivityRow[]>;
+  /** One page of a member's Slack activities, filtered and sorted in the database. `page` is clamped to the pages that exist. */
+  slackPage(memberId: string, query: SlackPageQuery): Promise<{ rows: ActivityRow[]; total: number; page: number }>;
+  /** The channels a member has Slack activity in, busiest first. */
+  slackChannels(memberId: string): Promise<{ name: string; count: number }[]>;
   /** Totals over ALL of a member's Slack activities (not just the feed's latest page); `last30Days` counts those since the given time (ISO). */
   slackSummary(memberId: string, sinceIso: string): Promise<SlackSummary>;
   /** Which of these members have posted a top-level message in this Slack channel (by name). Chunked, paginated. */
@@ -72,6 +76,15 @@ export interface ActivityRepository {
   /** Which of these related ids a source has already written. Chunked. */
   relatedIdsWritten(source: string, relatedIds: string[]): Promise<Set<string>>;
 }
+
+const SLACK_MESSAGE_TYPES = ["slack_message", "slack_thread_reply"];
+// The database column (or JSON path) each sortable column of the Slack tab orders by.
+const SLACK_SORT_COLUMN: Record<SlackSortColumn, string> = {
+  type: "activity_type",
+  channel: "data->>channel_name",
+  content: "description",
+  date: "occurred_at",
+};
 
 export interface SlackSummary {
   total: number;
@@ -180,17 +193,33 @@ export class SupabaseActivityRepository implements ActivityRepository {
     );
   }
 
-  async slackFeed(memberId: string, limit: number) {
-    const { data, error } = await this.db
-      .from("member_activities")
-      .select("*")
-      .eq("member_id", memberId)
-      .eq("source", "slack")
-      .order("occurred_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit);
+  async slackPage(memberId: string, query: SlackPageQuery) {
+    // Filters shared by the count and the page; the typed client takes plain column names only.
+    const filtered = <T extends { eq: Function; in: Function }>(q: T): T => {
+      let out = q.eq("member_id", memberId).eq("source", "slack");
+      if (query.kind === "messages") out = out.in("activity_type", SLACK_MESSAGE_TYPES);
+      else if (query.kind === "reactions") out = out.eq("activity_type", "slack_reaction");
+      if (query.channel) out = out.eq("data->>channel_name", query.channel);
+      return out;
+    };
+    const counted = await filtered(this.db.from("member_activities").select("id", { count: "exact", head: true }));
+    if (counted.error) throw new Error(counted.error.message);
+    const total = counted.count ?? 0;
+    const bounds = pageBounds(query.page, query.pageSize, total);
+    if (total === 0) return { rows: [], total, page: bounds.page };
+    const ascending = query.sort.direction === "asc";
+    const { data, error } = await filtered(this.db.from("member_activities").select("*"))
+      .order(SLACK_SORT_COLUMN[query.sort.column], { ascending })
+      .order("id", { ascending })
+      .range(bounds.offset, bounds.offset + bounds.pageSize - 1);
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return { rows: data ?? [], total, page: bounds.page };
+  }
+
+  async slackChannels(memberId: string) {
+    const { data, error } = await this.db.rpc("member_slack_channels", { p_member_id: memberId });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ name: r.channel_name, count: r.n }));
   }
 
   async slackSummary(memberId: string, sinceIso: string) {
@@ -325,12 +354,33 @@ export class InMemoryActivityRepository implements ActivityRepository {
       .map((a) => ({ member_id: a.member_id, activity_type: a.activity_type, engagement_value: a.engagement_value, occurred_at: a.occurred_at }));
   }
 
-  async slackFeed(memberId: string, limit: number) {
-    return this.data.activities
+  async slackPage(memberId: string, query: SlackPageQuery) {
+    const channelOf = (a: ActivityRow) => (a.data as { channel_name?: string } | null)?.channel_name ?? null;
+    const sortValue = (a: ActivityRow): string | null =>
+      ({ type: a.activity_type, channel: channelOf(a), content: a.description, date: a.occurred_at })[query.sort.column];
+    const sign = query.sort.direction === "asc" ? 1 : -1;
+    const rows = this.data.activities
       .filter((a) => a.member_id === memberId && a.source === "slack")
-      .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : a.occurred_at > b.occurred_at ? -1 : a.id < b.id ? 1 : -1))
-      .slice(0, limit)
-      .map((a) => ({ ...a }));
+      .filter((a) => query.kind === "all" || (query.kind === "messages" ? SLACK_MESSAGE_TYPES.includes(a.activity_type) : a.activity_type === "slack_reaction"))
+      .filter((a) => !query.channel || channelOf(a) === query.channel)
+      .sort((a, b) => {
+        const x = sortValue(a);
+        const y = sortValue(b);
+        // Postgres: nulls sort last ascending, first descending.
+        const byValue = x === y ? 0 : x === null ? sign : y === null ? -sign : x < y ? -sign : sign;
+        return byValue || (a.id < b.id ? -sign : a.id > b.id ? sign : 0);
+      });
+    const bounds = pageBounds(query.page, query.pageSize, rows.length);
+    return { rows: rows.slice(bounds.offset, bounds.offset + bounds.pageSize).map((a) => ({ ...a })), total: rows.length, page: bounds.page };
+  }
+
+  async slackChannels(memberId: string) {
+    const counts = new Map<string, number>();
+    for (const a of this.data.activities) {
+      const name = (a.data as { channel_name?: string } | null)?.channel_name;
+      if (a.member_id === memberId && a.source === "slack" && name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || (a.name < b.name ? -1 : 1));
   }
 
   async slackSummary(memberId: string, sinceIso: string) {

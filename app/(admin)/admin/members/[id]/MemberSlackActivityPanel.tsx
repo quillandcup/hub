@@ -1,69 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useServerDataTable } from "@/lib/hooks/useDataTable";
+import { DEFAULT_SLACK_SORT, SLACK_SORT_COLUMNS, type SlackKindFilter, type SlackSortColumn } from "@/lib/slack-activity-table";
+import type { SlackSummary } from "@/lib/data/activities";
 import { slackEmojiToUnicode, formatSlackPermalink } from "@/lib/slack-emoji";
 import ReactionEmoji from "@/components/ReactionEmoji";
 import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { SortableTh } from "@/components/SortableTh";
-import { useDataTable } from "@/lib/hooks/useDataTable";
-import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 
+export interface SlackPageData {
+  rows: any[];
+  total: number;
+  page: number;
+  pageSize: number;
+  kind: SlackKindFilter;
+  channel: string | null;
+  /** Every channel the member has Slack activity in, busiest first. */
+  channels: { name: string; count: number }[];
+}
+
 interface MemberSlackActivityPanelProps {
-  slackActivities: any[];
+  slackPage: SlackPageData;
+  /** Totals over all of the member's Slack activity. */
+  slackSummary: SlackSummary;
 }
 
 // TODO: move to env variable
 const SLACK_WORKSPACE_URL = "https://quillandcup.slack.com";
 
-type SortColumn = "type" | "channel" | "content" | "date";
-
-function getSortValue(activity: any, column: SortColumn): SortValue {
-  switch (column) {
-    case "type":
-      return activity.activity_type;
-    case "channel":
-      return activity.data?.channel_name?.toLowerCase() ?? null;
-    case "content":
-      return activity.description?.toLowerCase() || null;
-    case "date":
-      return activity.occurred_at;
+export default function MemberSlackActivityPanel({ slackPage, slackSummary }: MemberSlackActivityPanelProps) {
+  const { rows: slackActivities, kind: slackActivityFilter, channel: slackChannelFilter, channels } = slackPage;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // A new filter starts on page 1; sort and page size carry over.
+  function setParam(name: string, value: string | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(name, value);
+    else params.delete(name);
+    params.delete("page");
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   }
-}
-
-export default function MemberSlackActivityPanel({ slackActivities }: MemberSlackActivityPanelProps) {
-  const [slackActivityFilter, setSlackActivityFilter] = useState<"all" | "messages" | "reactions">("all");
-  const [slackChannelFilter, setSlackChannelFilter] = useState<string | null>(null);
-  const filteredActivities = slackActivities
-    .filter((activity: any) => {
-      if (slackActivityFilter === "messages") {
-        return activity.activity_type === "slack_message" || activity.activity_type === "slack_thread_reply";
-      } else if (slackActivityFilter === "reactions") {
-        return activity.activity_type === "slack_reaction";
-      }
-      return true; // "all" shows everything
-    })
-    .filter((activity: any) => !slackChannelFilter || activity.data?.channel_name === slackChannelFilter);
-  // Standard table paging replaces the old "first 20 / Show all" toggle.
-  const table = useDataTable<any, SortColumn>({
-    rows: filteredActivities,
-    getSortValue,
-    defaultSort: { column: "date", direction: "desc" },
-    resetKey: `${slackActivityFilter}:${slackChannelFilter}`,
+  const setSlackActivityFilter = (kind: SlackKindFilter) => setParam("type", kind === "all" ? null : kind);
+  const setSlackChannelFilter = (channel: string | null) => setParam("channel", channel);
+  const table = useServerDataTable<any, SlackSortColumn>({
+    rows: slackActivities,
+    total: slackPage.total,
+    page: slackPage.page,
+    pageSize: slackPage.pageSize,
+    allowed: SLACK_SORT_COLUMNS,
+    defaultSort: DEFAULT_SLACK_SORT,
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
   const slackStats = {
-    totalMessages: slackActivities.filter(a => a.activity_type === 'slack_message' || a.activity_type === 'slack_thread_reply').length,
-    totalReactions: slackActivities.filter(a => a.activity_type === 'slack_reaction').length,
-    channels: [...new Set(slackActivities.map(a => a.data?.channel_name).filter(Boolean))],
-    last30Days: slackActivities.filter(a => {
-      const occurred = new Date(a.occurred_at);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return occurred >= thirtyDaysAgo;
-    }).length,
-    lastActivity: slackActivities.length > 0 ? new Date(slackActivities[0].occurred_at) : null,
+    totalMessages: slackSummary.messages,
+    totalReactions: slackSummary.reactions,
+    channels,
+    last30Days: slackSummary.last30Days,
   };
 
   return (
@@ -105,7 +102,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
           </div>
         </div>
       </div>
-      {slackActivities.length > 0 ? (
+      {slackSummary.total > 0 ? (
         <div className="p-6">
           {/* Slack Stats Grid */}
           <div className="@container">
@@ -131,7 +128,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
               <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Channels</div>
               <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                {slackStats.channels.length}
+                {slackSummary.channels}
               </div>
             </div>
           </div>
@@ -152,7 +149,7 @@ export default function MemberSlackActivityPanel({ slackActivities }: MemberSlac
                 )}
               </h3>
               <div className="flex flex-wrap gap-2">
-                {slackStats.channels.slice(0, 10).map((channel: string) => (
+                {slackStats.channels.slice(0, 10).map(({ name: channel }) => (
                   <button
                     key={channel}
                     onClick={() => setSlackChannelFilter(channel === slackChannelFilter ? null : channel)}

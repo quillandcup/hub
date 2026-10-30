@@ -3,8 +3,9 @@ import MemberDetailPage, { memberTabMetadata } from "../MemberDetailPage";
 
 export const generateMetadata = memberTabMetadata("slack");
 
-export default async function MemberSlackPage({ params }: PageProps<"/admin/members/[id]/slack">) {
+/** ?type=&channel=&sort=&dir=&page=&pageSize= filter, sort and page the member's Slack activity (lib/slack-activity-table.ts). */
+export default async function MemberSlackPage({ params, searchParams }: PageProps<"/admin/members/[id]/slack">) {
   await requireAdminPage();
   const { id } = await params;
-  return <MemberDetailPage id={id} tab="slack" />;
+  return <MemberDetailPage id={id} tab="slack" searchParams={await searchParams} />;
 }

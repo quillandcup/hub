@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { ActivityRepository, NewActivity } from "@/lib/data/activities";
+import type { SlackPageQuery } from "@/lib/slack-activity-table";
 
 export type ActivityContractContext = {
   repo: () => ActivityRepository;
@@ -100,10 +101,21 @@ export function defineActivityContract(name: string, setup: () => ActivityContra
       const counts = await ctx.repo().slackCountsSince("2097-02-01T00:00:00Z");
       expect([counts.get(a), counts.get(b)]).toEqual([2, 2]);
 
-      expect((await ctx.repo().slackFeed(a, 10)).map((r) => r.title)).toEqual(["second", "first"]);
-      expect((await ctx.repo().slackFeed(a, 1)).map((r) => r.title)).toEqual(["second"]);
+      const query = (extra: Partial<SlackPageQuery> = {}): SlackPageQuery => ({ kind: "all", channel: null, sort: { column: "date", direction: "desc" }, page: 1, pageSize: 10, ...extra });
+      expect((await ctx.repo().slackPage(a, query())).rows.map((r) => r.title)).toEqual(["second", "first"]);
+      expect((await ctx.repo().slackPage(a, query({ pageSize: 1 }))).rows.map((r) => r.title)).toEqual(["second"]);
 
       await ctx.repo().record(slack(0, "2097-03-06T10:00:00Z", { type: "slack_reaction", data: { channel_name: "random" } }));
+      // Filter by kind and channel, sort by channel then date, page, and clamp a page past the end.
+      const all = await ctx.repo().slackPage(a, query());
+      expect([all.total, all.page]).toEqual([3, 1]);
+      expect((await ctx.repo().slackPage(a, query({ kind: "reactions" }))).total).toBe(1);
+      expect((await ctx.repo().slackPage(a, query({ kind: "messages" }))).total).toBe(2);
+      expect((await ctx.repo().slackPage(a, query({ channel: "random" }))).rows.map((r) => r.title)).toEqual(["Logged writing progress", "second"]);
+      expect((await ctx.repo().slackPage(a, query({ kind: "messages", sort: { column: "channel", direction: "asc" } }))).rows.map((r) => r.title)).toEqual(["second", "first"]);
+      const last = await ctx.repo().slackPage(a, query({ pageSize: 2, page: 9 }));
+      expect([last.page, last.rows.length]).toEqual([2, 1]);
+      expect(await ctx.repo().slackChannels(a)).toEqual([{ name: "random", count: 2 }, { name: "start-here", count: 1 }]);
       expect(await ctx.repo().slackSummary(a, "2097-03-02T00:00:00Z")).toEqual({ total: 3, messages: 2, reactions: 1, channels: 2, last30Days: 2 });
 
       expect(await ctx.repo().lastSlackWriteAt()).toEqual(expect.any(String));

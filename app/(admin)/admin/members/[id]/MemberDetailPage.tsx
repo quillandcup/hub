@@ -1,3 +1,4 @@
+import { parseSlackPageQuery } from "@/lib/slack-activity-table";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import { attendedPrickleRow } from "@/lib/attendance-view";
@@ -59,7 +60,7 @@ export default async function MemberDetailPage({
 }: {
   id: string;
   tab: MemberTabId;
-  /** The Activity Log tab's ?page=&pageSize=. */
+  /** The tab's own query: the Activity Log's ?page=&pageSize=, the Slack tab's ?type=&channel=&sort=&page=. */
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const supabase = await createClient();
@@ -174,12 +175,17 @@ export default async function MemberDetailPage({
   const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
-  // Fetch Slack activities
-  // The feed is only the latest page; the tab count and the summary cover all of it.
+  // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=); the other tabs
+  // only need the totals for the tab count and the overview tiles.
   const thirtyDaysAgo = new Date(clock.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [slackActivities, slackSummary] = await Promise.all([
-    traced("member page: slack feed", () => createRepos(supabase).activities.slackFeed(id, 50), { memberId: id }),
-    traced("member page: slack summary", () => createRepos(supabase).activities.slackSummary(id, thirtyDaysAgo), { memberId: id }),
+  const activities = createRepos(supabase).activities;
+  const slackQuery = parseSlackPageQuery(searchParams);
+  const [slackSummary, slackPage, slackChannels] = await Promise.all([
+    traced("member page: slack summary", () => activities.slackSummary(id, thirtyDaysAgo), { memberId: id }),
+    tab === "slack"
+      ? traced("member page: slack page", () => activities.slackPage(id, slackQuery), { memberId: id })
+      : Promise.resolve({ rows: [], total: 0, page: 1 }),
+    tab === "slack" ? traced("member page: slack channels", () => activities.slackChannels(id), { memberId: id }) : Promise.resolve([]),
   ]);
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
@@ -345,7 +351,15 @@ export default async function MemberDetailPage({
           activityFeed={activityFeed}
           activityFilters={activityFilters}
           slackSummary={slackSummary}
-          slackActivities={await withReactionEmoji(await withMentionNames(slackActivities || []))}
+          slackPage={{
+            rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),
+            total: slackPage.total,
+            page: slackPage.page,
+            pageSize: slackQuery.pageSize,
+            kind: slackQuery.kind,
+            channel: slackQuery.channel,
+            channels: slackChannels,
+          }}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
           programOverrides={programOverrides}
