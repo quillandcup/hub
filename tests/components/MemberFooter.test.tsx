@@ -15,29 +15,23 @@ afterEach(() => {
 });
 
 describe("MemberFooter", () => {
-  it("has a way to reach us, and Privacy when the page is on for the member", () => {
-    render(<MemberFooter showPrivacy />);
+  it("has Privacy and a way to reach us", () => {
+    render(<MemberFooter />);
     const footer = screen.getByRole("navigation", { name: "Footer" });
     expect(footer).toContainElement(screen.getByRole("link", { name: "Privacy" }));
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
   });
 
-  it("leaves Privacy out while it is off, since the page would redirect", () => {
-    render(<MemberFooter showPrivacy={false} />);
-    expect(screen.queryByRole("link", { name: "Privacy" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Contact us" })).toBeInTheDocument();
-  });
-
   it("is not shown in chat, which fills the window and links Privacy from its own sidebar", () => {
     for (const path of ["/chat", "/chat/abc", "/chat/abc/members"]) {
       pathname = path;
-      const { container } = render(<MemberFooter showPrivacy />);
+      const { container } = render(<MemberFooter />);
       expect(container).toBeEmptyDOMElement();
       cleanup();
     }
     pathname = "/chatty";
-    render(<MemberFooter showPrivacy />);
+    render(<MemberFooter />);
     expect(screen.getByRole("navigation", { name: "Footer" })).toBeInTheDocument();
   });
 });

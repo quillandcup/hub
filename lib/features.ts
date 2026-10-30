@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -31,11 +31,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'events',
     name: 'Events',
     description: 'Retreats and other events, with metadata and a photo gallery imported from Google Photos',
-  },
-  {
-    key: 'message_privacy',
-    name: 'Privacy Page',
-    description: 'Member-facing /privacy page explaining what staff can see: Slack and Hub chat, how course videos are watched, and where members connect from. The chat part describes the Slack-bridged chat (what staff can read, break-glass, deleted messages); turn it on for everyone together with chat',
   },
   {
     key: 'slack_admin_sign_in',

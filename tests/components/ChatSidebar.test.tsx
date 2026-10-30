@@ -71,7 +71,8 @@ beforeEach(() => {
 const ME = "member-me";
 const insert = (extra: Row = {}) => ({ new: { channel_id: "1", thread_root_id: null, author_member_id: "member-gale", deleted_at: null, ...extra } });
 const flush = () => act(async () => {});
-const links = () => screen.getAllByRole("link").map((a) => a.textContent);
+// The conversation links; the privacy link under them is not one.
+const links = () => screen.getAllByRole("link").map((a) => a.textContent).filter((text) => text !== "Who can see this?");
 
 describe("ChatSidebar", () => {
   it("has a channel finder that is not the message search", () => {
@@ -298,13 +299,8 @@ describe("ChatSidebar prefetching", () => {
 });
 
 describe("ChatSidebar privacy link", () => {
-  it("links to the privacy page only when it is on for the member", () => {
+  it("links to the privacy page under the conversations", () => {
     render(<ChatSidebar channels={CHANNELS} />);
-    expect(screen.queryByRole("link", { name: "Who can see this?" })).not.toBeInTheDocument();
-  });
-
-  it("shows it under the conversations when it is", () => {
-    render(<ChatSidebar channels={CHANNELS} showPrivacy />);
     expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
   });
 });

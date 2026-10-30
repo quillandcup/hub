@@ -18,7 +18,7 @@ vi.mock("@/lib/slack-connect", () => ({ isSlackConnectConfigured: () => slack.co
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/components/SlackConnectPrompt", () => ({ default: ({ need }: { need: string }) => <p data-testid="slack-prompt"><span data-testid="bar">slack</span>{need}</p> }));
 vi.mock("@/components/MemberNavigation", () => ({ default: () => null }));
-vi.mock("@/components/MemberFooter", () => ({ default: ({ showPrivacy }: { showPrivacy: boolean }) => <p data-testid="footer">privacy: {String(showPrivacy)}</p> }));
+vi.mock("@/components/MemberFooter", () => ({ default: () => <p data-testid="footer">footer</p> }));
 vi.mock("@/components/UserMenu", () => ({ default: () => null }));
 vi.mock("@/components/search/SearchPalette", () => ({ default: () => null }));
 vi.mock("@/components/WithInAppNotifications", () => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -57,12 +57,9 @@ it.each(["AAAA", ""])("passes available browser push keys for automatic resume (
   await waitFor(() => expect(syncBrowserPush).toHaveBeenCalledWith("m1", key || null, expect.any(AbortSignal)));
 });
 
-it("shows the footer under the page, with Privacy only once the page is on for the member", async () => {
+it("shows the footer under the page", async () => {
   render(await MemberLayout({ children: <div>Member content</div> }));
-  expect(screen.getByTestId("footer")).toHaveTextContent("privacy: false");
-  previews.list = ["message_privacy"];
-  render(await MemberLayout({ children: <div>Member content</div> }));
-  expect(screen.getAllByTestId("footer")[1]).toHaveTextContent("privacy: true");
+  expect(screen.getByTestId("footer")).toBeInTheDocument();
 });
 
 it.each([

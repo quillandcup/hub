@@ -263,12 +263,7 @@ describe("chat shell", () => {
     expect(screen.getByText("content")).toBeInTheDocument();
   });
 
-  it("links to the privacy page under the conversations once it is on for the member, and not before", async () => {
-    render(await ChatLayout({ children: null }));
-    expect(screen.queryByRole("link", { name: "Who can see this?" })).not.toBeInTheDocument();
-    cleanup();
-
-    vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "message_privacy"]);
+  it("links to the privacy page under the conversations", async () => {
     render(await ChatLayout({ children: null }));
     expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
   });

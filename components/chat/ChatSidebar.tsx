@@ -201,15 +201,12 @@ export default function ChatSidebar({
   channels,
   unread = {},
   selfMemberId = null,
-  showPrivacy = false,
 }: {
   channels: ChannelSummary[];
   /** Unread top-level messages per conversation, as of the page load. */
   unread?: Record<string, number>;
   /** Whose messages don't count as unread; null in sudo (read-only, no counts). */
   selfMemberId?: string | null;
-  /** Link to the privacy page (who can read what is written here), when it is on for the member. */
-  showPrivacy?: boolean;
 }) {
   const pathname = usePathname();
   const activeId = pathname.startsWith("/chat/") ? pathname.split("/")[2] : null;
@@ -260,13 +257,11 @@ export default function ChatSidebar({
       <Section title="Archived" channels={shown.filter((c) => c.archived)} pathname={pathname} unread={counts} />
       {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
       {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
-      {showPrivacy && (
-        <p className="mt-4 px-3 text-xs">
-          <Link data-track="chat-sidebar-privacy" href="/privacy" className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
-            Who can see this?
-          </Link>
-        </p>
-      )}
+      <p className="mt-4 px-3 text-xs">
+        <Link data-track="chat-sidebar-privacy" href="/privacy" className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+          Who can see this?
+        </Link>
+      </p>
     </nav>
   );
 }
