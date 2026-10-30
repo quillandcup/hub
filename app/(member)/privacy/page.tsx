@@ -120,7 +120,7 @@ export default async function PrivacyPage() {
             <CollectRow
               what="Where you connect from"
               detail="The IP address your connection comes from, the city, region and country it appears to be in, the page you opened and your browser."
-              why="To know where our community writes from, and which device and place a visit came from."
+              why="To know where our community writes from, and which device and place you came from."
             />
             <CollectRow
               what="Course videos"
