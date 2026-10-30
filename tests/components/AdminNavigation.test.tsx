@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import MobileMenuButton from "@/components/MobileMenuButton";
 import AdminNavigation from "@/app/(admin)/admin/AdminNavigation";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin" }));
+const updateNavMode = vi.fn(async (_mode: string): Promise<{ success?: boolean; error?: string }> => ({ success: true }));
+vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string) => updateNavMode(mode) }));
 
 describe("AdminNavigation", () => {
   it("opens the mobile drawer from the hamburger in the page header, and closes it again", async () => {
@@ -41,5 +43,37 @@ describe("AdminNavigation drawer and keyboard focus", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
     expect(drawer()).toHaveAttribute("aria-hidden", "false");
     expect(drawer()).not.toHaveAttribute("inert");
+  });
+});
+
+describe("AdminNavigation sidebar mode", () => {
+  const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
+
+  it("is pinned open by default and cycles to auto-hide, closed and back, saving each choice", async () => {
+    updateNavMode.mockClear();
+    render(<AdminNavigation enabledFeatures={[]} />);
+    expect(sidebar()).toHaveClass("w-64");
+
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    expect(updateNavMode).toHaveBeenLastCalledWith("auto");
+    expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
+    expect(sidebar()).toHaveClass("w-16", "overflow-hidden");
+    // At rest the labels are still mounted, on one line and hidden, so nothing shifts when it opens.
+    expect(within(sidebar()).getByText("My View")).toHaveClass("whitespace-nowrap", "opacity-0");
+
+    fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
+    expect(sidebar()).toHaveClass("w-64");
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    expect(updateNavMode).toHaveBeenLastCalledWith("closed");
+    expect(sidebar()).toHaveClass("w-16");
+
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    expect(updateNavMode).toHaveBeenLastCalledWith("open");
+    expect(sidebar()).toHaveClass("w-64");
+  });
+
+  it("starts in the saved mode", () => {
+    render(<AdminNavigation enabledFeatures={[]} navMode="auto" />);
+    expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
   });
 });
