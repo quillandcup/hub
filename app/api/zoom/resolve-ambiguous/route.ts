@@ -61,11 +61,25 @@ export async function POST(request: NextRequest) {
     const checked = await findNameAliasConflict(memberId, zoomName);
     if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 500 });
     const { conflict } = checked;
-    if (conflict && conflict.kind !== "own") {
+    // A Zoom name that matched several members is ambiguous because it is somebody's real name (and
+    // others' aliases or first names). Choosing who uses it is the point, so another member's real
+    // name is allowed here, as long as an unresolved entry exists for it: the alias then wins over
+    // the full-name match. Another member's alias is still refused.
+    let allowedRealNameShadow = false;
+    if (conflict?.kind === "other_name") {
+      const { count, error: lookupError } = await supabase
+        .from("ambiguous_zoom_names")
+        .select("zoom_name", { count: "exact", head: true })
+        .eq("zoom_name", zoomName)
+        .eq("status", "unresolved");
+      if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
+      allowedRealNameShadow = (count ?? 0) > 0;
+    }
+    if (conflict && conflict.kind !== "own" && !allowedRealNameShadow) {
       return NextResponse.json({ error: adminNameAliasConflictMessage(zoomName, conflict) }, { status: 409 });
     }
 
-    if (!conflict) {
+    if (!conflict || allowedRealNameShadow) {
       try {
         await createRepos(supabase).aliases.upsertName(memberId, zoomName, "zoom");
       } catch (err) {

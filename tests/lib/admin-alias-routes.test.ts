@@ -141,9 +141,30 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
     expect(writes("ambiguous_zoom_names", "update")).toHaveLength(0);
   });
 
-  it("doesn't shadow another member's real name", async () => {
+  it("doesn't shadow another member's real name when the name isn't an ambiguous one", async () => {
     rpcMock.mockResolvedValue(conflictRow("other_name"));
     expect((await post({ zoomName: "Fern Example", memberId: ADA.id })).status).toBe(409);
+    expect(dataset.nameAliases).toEqual([]);
+  });
+
+  it("lets the admin pick who uses a name that is another member's real name, when it is ambiguous", async () => {
+    tables.ambiguous_zoom_names = { data: [{ zoom_name: "Fern" }] };
+    rpcMock.mockResolvedValue(conflictRow("other_name"));
+
+    const res = await post({ zoomName: "Fern", memberId: ADA.id });
+
+    expect(res.status).toBe(200);
+    expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Fern", "zoom"]]);
+    expect(triggerReprocessingMock).toHaveBeenCalledWith("member_name_aliases", "local");
+  });
+
+  it("reports a failed lookup of the ambiguous name", async () => {
+    tables.ambiguous_zoom_names = { data: null, error: { message: "lookup down" } };
+    rpcMock.mockResolvedValue(conflictRow("other_name"));
+
+    const res = await post({ zoomName: "Fern", memberId: ADA.id });
+
+    expect(res.status).toBe(500);
     expect(dataset.nameAliases).toEqual([]);
   });
 
