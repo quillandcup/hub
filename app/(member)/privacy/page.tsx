@@ -304,8 +304,7 @@ export default async function PrivacyPage() {
           We keep a record of each notification we send you. For the bell and banners inside the Hub, we also keep whether you
           have read it, so they show the right things. Turning usage statistics off does not stop the bell and banners
           from keeping track of what you have read. If usage statistics are on, we also note which notification a visit came from, when you click it in the Hub or
-          arrive through a link in it. Links in Slack messages, emails and browser notifications carry a short tag saying which
-          notification they came from; the Hub takes the tag off the address as soon as you arrive.
+          arrive through a link in it.
         </p>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Asking us</h3>

@@ -186,7 +186,7 @@ describe("/privacy page", () => {
     expect(choices.getByText(/we also keep whether you\s+have read it, so they show the right things/)).toBeInTheDocument();
     expect(choices.getByText(/Turning usage statistics off does not stop the bell and banners\s+from keeping track of what you have read/)).toBeInTheDocument();
     expect(choices.getByText(/If usage statistics are on, we also note which notification a visit came from/)).toBeInTheDocument();
-    expect(choices.getByText(/takes the tag off the address/)).toBeInTheDocument();
+    expect(choices.queryByText(/takes the tag off the address/)).not.toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
   });
 
