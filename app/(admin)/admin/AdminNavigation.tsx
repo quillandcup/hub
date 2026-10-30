@@ -75,12 +75,16 @@ function NavLinks({ enabledFeatures, pathname, collapsed, keepLayout, onNavigate
             </ul>
           );
 
-          // Collapsible ("Advanced") sections only fold when the sidebar is
-          // expanded — in icon-only mode every item stays reachable at a glance.
-          if (section.collapsible && !collapsed && !keepLayout) {
+          // Collapsible sections (Analytics, System, Developer) fold when the sidebar is open. A pinned-closed
+          // icon rail shows every item at a glance; an auto-hide rail keeps the folded rows too (the heading
+          // invisible), so the list is the same height at rest and open and nothing shifts as it opens.
+          if (section.collapsible && (keepLayout || !collapsed)) {
             return (
               <details key={section.name} className="mb-6 group" open={containsActiveItem}>
-                <summary className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200">
+                <summary
+                  className={`text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 px-3 cursor-pointer select-none list-none flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 ${labelFade} ${keepLayout && collapsed ? "pointer-events-none" : ""}`}
+                  aria-hidden={(keepLayout && collapsed) || undefined}
+                >
                   <span className="inline-block transition-transform group-open:rotate-90">▸</span>
                   {section.name}
                 </summary>
