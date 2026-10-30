@@ -244,19 +244,6 @@ async function fetchCalendarItems(supabase: SupabaseClient, memberId: string): P
   )
 }
 
-/** Prickles the member added by hand (just that one) that start after `windowEnd`. */
-export async function fetchFarCalendarPrickles(
-  supabase: SupabaseClient,
-  items: CalendarItemRow[],
-  windowEnd: string,
-  timeZone: string
-): Promise<UpcomingPrickle[]> {
-  const ids = [...new Set(items.filter((i) => i.kind === "prickle" && i.prickle_id).map((i) => i.prickle_id!))]
-  if (ids.length === 0) return []
-  const prickles = await createRepos(supabase).prickles.byIds(ids)
-  return prickles.filter((p) => p.startTime > windowEnd).map((p) => toUpcomingPrickle(p, timeZone))
-}
-
 /** Upcoming prickle id -> how the member added it to their calendar. Weekly slots match the same
  * way the feed does (lib/calendar-feed.ts, prickleMatchesSlot); "once" wins if both apply. */
 export function computeCalendarAdded(
@@ -498,17 +485,13 @@ export async function getRankedUpcomingPrickles(
   // history (for prickle streaks + sister-streak co-attendance), and the
   // recent past prickles (for sister-likely-attending + community
   // recommendation signals), plus this member's active commitments. ----
-  const [windowUpcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
+  const [upcoming, myAttendance, pastPrickles, commitments, calendarItems] = await Promise.all([
     fetchPrickles(supabase, windowStart, windowEnd, timeZone, true),
     createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     fetchPrickles(supabase, lookbackStart, windowStart, timeZone, false),
     fetchActiveCommitments(supabase, memberId),
     fetchCalendarItems(supabase, memberId),
   ])
-
-  // A prickle added to the calendar by hand stays listed even past the window (a pitch prickle
-  // five weeks out is still something the member chose).
-  const upcoming = [...windowUpcoming, ...(await fetchFarCalendarPrickles(supabase, calendarItems, windowEnd, timeZone))]
 
   // ---- Round 2 (parallel): co-attendance on every prickle this member has
   // attended (sister streaks), all attendance on the recent past prickles
