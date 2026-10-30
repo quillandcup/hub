@@ -74,9 +74,9 @@ describe("ambiguous Zoom names page", () => {
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null, occurrence_count: 4890, last_seen_at: "2026-08-30T00:00:00Z" }] },
       "bronze.zoom_attendees": {
         data: [
-          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
-          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z" },
-          { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z" },
+          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", meeting_uuid: "m1", meeting_id: "1" },
+          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", meeting_uuid: "m2", meeting_id: "2" },
+          { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z", meeting_uuid: "m3", meeting_id: "3" },
         ],
       },
     });
@@ -120,6 +120,26 @@ describe("ambiguous Zoom names page", () => {
       { id: ADA.id, name: ADA.name, displayName: null, sessions: 2 },
       { id: FERN.id, name: FERN.name, displayName: "Penny", sessions: 1 },
     ]);
+  });
+
+  it("counts and lists a session once when the person left and rejoined", async () => {
+    withMembers([ADA, SAM_ADA, SAM_FERN]);
+    useFakeSupabase({
+      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
+      "bronze.zoom_attendees": {
+        data: [
+          { name: "Sam", email: null, join_time: "2026-10-01T00:40:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
+          { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
+          { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Link", meeting_uuid: "m2", meeting_id: "2" },
+        ],
+      },
+    });
+
+    await renderServerPage(AmbiguousNamesPage, {});
+
+    const [entry] = JSON.parse(screen.getByTestId("entries").textContent!);
+    expect(entry.occurrenceCount).toBe(2);
+    expect(entry.sessions.map((s: { joinTime: string }) => s.joinTime)).toEqual(["2026-10-05T00:00:00Z", "2026-10-01T00:00:00Z"]);
   });
 
   it("drops a stored name once an alias settles who it is", async () => {
