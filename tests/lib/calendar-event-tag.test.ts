@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventFields, descriptionWithoutEventTag, hasEventTag } from "@/lib/calendar-events";
+import { calendarEventFields, descriptionWithoutEventTag, hasEventTag, stripEventTag } from "@/lib/calendar-events";
 
 describe("hasEventTag", () => {
   it.each([
@@ -41,6 +41,18 @@ describe("descriptionWithoutEventTag", () => {
     ["", null],
   ])("%j -> %j", (description, expected) => {
     expect(descriptionWithoutEventTag(description)).toBe(expected);
+  });
+});
+
+describe("stripEventTag", () => {
+  it("takes the tag out of markdown without escaping it a second time", () => {
+    const markdown = "Working *with* the month\n\n\\------\n\n[https://example.com/j/1](https://example.com/j/1) #event";
+    expect(stripEventTag(markdown)).toBe("Working *with* the month\n\n\\------\n\n[https://example.com/j/1](https://example.com/j/1)");
+  });
+
+  it("is null for nothing", () => {
+    expect(stripEventTag(null)).toBeNull();
+    expect(stripEventTag("  #event ")).toBeNull();
   });
 });
 
