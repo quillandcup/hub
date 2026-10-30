@@ -68,4 +68,14 @@ describe("production operations alerts", () => {
     expect(text).toContain("Silver step chat failed: statement timeout");
     expect(text).toContain("capture: channel members: boom");
   });
+
+  it("names the section and calls a statement timeout one, with no member content", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "section_failed", section: "member page: activity feed", code: "57014", ms: 8012 });
+
+    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:section_failed:member page: activity feed" }));
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("timed out in the database");
+    expect(text).toContain("member page: activity feed");
+  });
 });
