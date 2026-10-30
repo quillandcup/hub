@@ -561,33 +561,42 @@ jobs:
   # No `cancel-in-progress` on main (see `concurrency` above), so runs queue instead of
   # being killed between rotating the Slack token and saving its replacement.
   #
-  # Only pushes when the push to main changed the manifest or the script. Every run spends
+  # Only pushes when the manifest or the script differs from the last commit it was pushed for
+  # (the `slack-manifest-pushed` tag, moved at the end of a successful push). Every run spends
   # the stored refresh token, and a run reads its secrets when it's queued: a run queued
   # while an earlier one was rotating gets the old, already-spent token and fails with
   # invalid_refresh_token. Skipping the push when nothing changed makes that collision rare.
-  # workflow_dispatch (and a push whose previous commit can't be fetched) always pushes.
+  # Comparing with the last *pushed* commit, not with the commit before this push, matters on a
+  # busy main: only the newest waiting run survives (see `concurrency` above), so a run for the
+  # push that changed the manifest is often cancelled, and a later run, whose own push changed
+  # nothing, must still pick the change up. With no tag yet, or on workflow_dispatch, it pushes
+  # (the script skips the update when the live app already matches).
   push-slack-manifest:
     name: Push Slack app manifest
     needs: deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: write # moves the `slack-manifest-pushed` tag
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check whether the manifest changed
+      - name: Check whether the manifest changed since it was last pushed
         id: manifest
         run: |
-          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
-            echo "No previous commit to compare against: pushing the manifest."
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual run: pushing the manifest."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
-            echo "slack-app-manifest.yml and scripts/slack-manifest.ts are unchanged: skipping the push."
+          elif ! git fetch --quiet --depth=1 origin "+refs/tags/slack-manifest-pushed:refs/tags/slack-manifest-pushed"; then
+            echo "The manifest has never been pushed from CI: pushing it."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet slack-manifest-pushed HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
+            echo "They differ from the last push: pushing the manifest."
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          BEFORE: ${{ github.event.before }}
 
       - uses: pnpm/action-setup@v6.1.0
 
@@ -616,6 +625,14 @@ jobs:
           SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
           # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
           GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}
+
+      # Remember what was pushed, so a later run compares with this and not with its own push. Only after
+      # the push succeeded; a failed one leaves the tag where it was and the next run tries again.
+      - name: Mark this commit as pushed
+        if: steps.manifest.outputs.changed == 'true'
+        run: |
+          git tag --force slack-manifest-pushed "$GITHUB_SHA"
+          git push --force origin refs/tags/slack-manifest-pushed
 
   # vercel-project-config.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
