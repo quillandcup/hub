@@ -22,41 +22,17 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { data: membershipOffers } = await supabase
-      .schema("bronze")
-      .from("kajabi_offers")
-      .select("kajabi_offer_id, name")
-      .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
+    const billing = createRepos(supabase).billing;
+    const membershipOffers = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
 
-    const offerNameById = new Map((membershipOffers ?? []).map((o) => [o.kajabi_offer_id, o.name]));
+    const offerNameById = new Map(membershipOffers.map((o) => [o.kajabi_offer_id, o.name]));
     const membershipOfferIds = [...offerNameById.keys()];
 
     if (membershipOfferIds.length === 0) {
       return NextResponse.json({ grants: [] });
     }
 
-    const purchases: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .schema("bronze")
-          .from("kajabi_purchases")
-          .select("kajabi_purchase_id, kajabi_customer_id, kajabi_offer_id, amount_in_cents, created_at_kajabi, deactivated_at, data")
-          .in("kajabi_offer_id", membershipOfferIds)
-          .is("deactivated_at", null)
-          .range(offset, offset + 999);
-        if (error) throw error;
-        if (batch && batch.length > 0) {
-          purchases.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const purchases: any[] = await billing.kajabiPurchaseRows({ offerIds: membershipOfferIds, stillActive: true });
 
     // A grant has no real transaction behind it — no money moved. Some historical
     // purchases may not have their transactions relationship populated at all
@@ -71,12 +47,8 @@ export async function GET(request: NextRequest) {
     }
 
     const customerIds = [...new Set(grantedPurchases.map((p) => p.kajabi_customer_id))];
-    const { data: kajabiCustomers } = await supabase
-      .schema("bronze")
-      .from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .in("kajabi_customer_id", customerIds);
-    const emailByCustomerId = new Map((kajabiCustomers ?? []).map((c) => [c.kajabi_customer_id, c.email]));
+    const kajabiCustomers = await billing.kajabiCustomersByIds(customerIds);
+    const emailByCustomerId = new Map(kajabiCustomers.map((c) => [c.kajabi_customer_id, c.email]));
 
     const emails = [...new Set([...emailByCustomerId.values()].filter(Boolean))];
     const members = await createRepos(supabase).members.byEmails(emails);

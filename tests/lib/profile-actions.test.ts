@@ -128,9 +128,14 @@ function makeServiceClient({
       if (table === "kajabi_customers") {
         return {
           select: () => ({
-            in: async () => ({
-              data: [{ updated_at_kajabi: "2026-01-01T00:00:00Z", data: { attributes: customerAttributes } }],
-              error: null,
+            // The billing repository pages through a stable order.
+            in: () => ({
+              order: () => ({
+                range: async () => ({
+                  data: [{ updated_at_kajabi: "2026-01-01T00:00:00Z", data: { attributes: customerAttributes } }],
+                  error: null,
+                }),
+              }),
             }),
           }),
         };

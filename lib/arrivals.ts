@@ -5,7 +5,6 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipTimeline, type TimelineSegment } from "@/lib/membership-timeline";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { fetchTrialWindows, pickTrialWindow } from "@/lib/trial-window";
 
 // Who just arrived: the new members who each get a big sister. Nobody types a start date. An
@@ -78,12 +77,8 @@ interface Candidate {
 
 /** Membership subscription purchases created on or after `sinceDate`, as candidates by member. */
 async function membershipCandidates(supabase: SupabaseClient, sinceDate: string): Promise<Candidate[]> {
-  const purchases = (await fetchAllBronzeRows(
-    supabase,
-    "kajabi_purchases",
-    "kajabi_customer_id, kajabi_offer_id, created_at_kajabi",
-    (q) => q.gte("created_at_kajabi", `${sinceDate}T00:00:00Z`)
-  )) as { kajabi_customer_id: string | null; kajabi_offer_id: string | null; created_at_kajabi: string | null }[];
+  const billing = createRepos(supabase).billing;
+  const purchases = await billing.kajabiPurchases({ createdSince: `${sinceDate}T00:00:00Z` });
   if (purchases.length === 0) return [];
 
   const offerIds = [...new Set(purchases.map((p) => p.kajabi_offer_id).filter((id): id is string => !!id))];
@@ -91,12 +86,8 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
   if (offerIds.length === 0 || customerIds.length === 0) return [];
 
   const [offers, customers, aliasRows] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_offers", "kajabi_offer_id, name, data", (q) =>
-      q.in("kajabi_offer_id", offerIds)
-    ),
-    fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id, email", (q) =>
-      q.in("kajabi_customer_id", customerIds)
-    ),
+    billing.kajabiOffersByIds(offerIds),
+    billing.kajabiCustomersByIds(customerIds),
     createRepos(supabase).aliases.emailAliases(),
   ]);
 
@@ -171,12 +162,8 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
   ]);
 
   const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
-  const kajabiCustomers = await fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id", (q) =>
-    q.in("email", emails)
-  );
-  const customerIds = (kajabiCustomers as { kajabi_customer_id: string | null }[])
-    .map((k) => k.kajabi_customer_id)
-    .filter((id): id is string => !!id);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(emails);
+  const customerIds = kajabiCustomers.map((k) => k.kajabi_customer_id).filter((id): id is string => !!id);
   const stints = (await fetchMembershipHistory(supabase, customerIds)).filter(
     (s) => Date.parse(s.created_at_kajabi) < cutoff
   );

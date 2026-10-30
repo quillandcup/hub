@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 // A member's trial length is not a setting anywhere: Kajabi's offers don't expose it
 // (trial_period_days is always null), but each Stripe subscription that had a trial carries
@@ -65,23 +64,17 @@ export async function fetchTrialWindows(
   }
 
   const emails = [...memberByEmail.keys()];
-  const customers = await fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email", (q) =>
-    q.in("email", emails)
-  );
+  const billing = createRepos(supabase).billing;
+  const customers = await billing.stripeCustomers({ emails });
   const memberByCustomer = new Map<string, string>();
-  for (const c of customers as { stripe_customer_id: string; email: string | null }[]) {
+  for (const c of customers) {
     const memberId = c.email ? memberByEmail.get(c.email.toLowerCase()) : undefined;
     if (memberId) memberByCustomer.set(c.stripe_customer_id, memberId);
   }
   if (memberByCustomer.size === 0) return result;
 
-  const subscriptions = await fetchAllBronzeRows(
-    supabase,
-    "stripe_subscriptions",
-    "stripe_customer_id, data",
-    (q) => q.in("stripe_customer_id", [...memberByCustomer.keys()])
-  );
-  for (const s of subscriptions as { stripe_customer_id: string; data: unknown }[]) {
+  const subscriptions = await billing.stripeSubscriptionsByCustomers([...memberByCustomer.keys()]);
+  for (const s of subscriptions) {
     const window = trialWindowFromSubscription(s.data);
     const memberId = memberByCustomer.get(s.stripe_customer_id);
     if (!window || !memberId) continue;

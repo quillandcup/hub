@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
 // The Kajabi/Stripe reconciliation: for each member, what their Stripe subscription says they
 // should have in Kajabi against what they have. Members come from their repository (in memory
-// here); the bronze tables and overrides are faked.
+// here); the Bronze billing data comes from the in-memory dataset and the overrides are faked.
 
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
@@ -49,46 +50,40 @@ const sub = (id: string, customer: string, overrides: Record<string, unknown> = 
 
 beforeEach(() => {
   signedIn = true;
-  repos = createInMemoryRepos(new InMemoryDataset({ members: MEMBERS }));
+  repos = createInMemoryRepos(new InMemoryDataset({
+    members: MEMBERS,
+    kajabiOffers: [{ kajabi_offer_id: "off-1", name: MEMBERSHIP_PRODUCT_NAMES[0] }],
+    kajabiPurchases: [
+      { kajabi_purchase_id: "p1", kajabi_customer_id: "kc-paying", kajabi_offer_id: "off-1", deactivated_at: "2026-09-01T00:00:00Z", imported_at: "2026-10-01T00:00:00Z" },
+      { kajabi_purchase_id: "p2", kajabi_customer_id: "kc-kajabi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-02T00:00:00Z" },
+      // m-multi: the deactivated purchase comes first, but the live one under the other customer is the one that counts.
+      { kajabi_purchase_id: "p3", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-08-01T00:00:00Z", imported_at: "2026-10-03T00:00:00Z" },
+      { kajabi_purchase_id: "p4", kajabi_customer_id: "kc-multi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-04T00:00:00Z" },
+      { kajabi_purchase_id: "p5", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-07-01T00:00:00Z", imported_at: "2026-10-05T00:00:00Z" },
+    ],
+    kajabiCustomers: [
+      { kajabi_customer_id: "kc-paying", email: "paying@example.test" },
+      { kajabi_customer_id: "kc-kajabi", email: "KAJABI@example.test" },
+      { kajabi_customer_id: "kc-multi", email: "multi@example.test" },
+      { kajabi_customer_id: "kc-multi-old", email: "multi.old@example.test" },
+    ],
+    stripeProducts: [{ stripe_product_id: MEMBERSHIP_PRODUCT, name: MEMBERSHIP_PRODUCT_NAMES[0] }],
+    stripeCustomers: [
+      { stripe_customer_id: "cus_paying", email: "other@example.test", data: { metadata: { kjb_member_id: "kj-paying" } } }, // matched by Kajabi id
+      { stripe_customer_id: "cus_paused", email: "paused@example.test", data: {} }, // matched by email
+      { stripe_customer_id: "cus_retreat", email: "retreat@example.test", data: {} },
+      { stripe_customer_id: "cus_pastdue", email: "pastdue@example.test", data: {} },
+      { stripe_customer_id: "cus_canceled", email: "canceled@example.test", data: {} },
+    ],
+    stripeSubscriptions: [
+      sub("sub_paying", "cus_paying"),
+      sub("sub_paused", "cus_paused", { pause_collection: { behavior: "void" } }),
+      sub("sub_retreat", "cus_retreat", {}, "prod_retreat"),
+      sub("sub_pastdue", "cus_pastdue", { status: "past_due" }),
+      sub("sub_canceled", "cus_canceled", { status: "canceled" }),
+    ],
+  }));
   tables = {
-    "bronze.kajabi_offers": { data: [{ kajabi_offer_id: "off-1" }] },
-    "bronze.kajabi_purchases": {
-      data: [
-        { kajabi_purchase_id: "p1", kajabi_customer_id: "kc-paying", kajabi_offer_id: "off-1", deactivated_at: "2026-09-01T00:00:00Z", imported_at: "2026-10-01T00:00:00Z" },
-        { kajabi_purchase_id: "p2", kajabi_customer_id: "kc-kajabi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-02T00:00:00Z" },
-        // m-multi: the deactivated purchase comes first, but the live one under the other customer is the one that counts.
-        { kajabi_purchase_id: "p3", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-08-01T00:00:00Z", imported_at: "2026-10-03T00:00:00Z" },
-        { kajabi_purchase_id: "p4", kajabi_customer_id: "kc-multi", kajabi_offer_id: "off-1", deactivated_at: null, imported_at: "2026-10-04T00:00:00Z" },
-        { kajabi_purchase_id: "p5", kajabi_customer_id: "kc-multi-old", kajabi_offer_id: "off-1", deactivated_at: "2026-07-01T00:00:00Z", imported_at: "2026-10-05T00:00:00Z" },
-      ],
-    },
-    "bronze.kajabi_customers": {
-      data: [
-        { kajabi_customer_id: "kc-paying", email: "paying@example.test" },
-        { kajabi_customer_id: "kc-kajabi", email: "KAJABI@example.test" },
-        { kajabi_customer_id: "kc-multi", email: "multi@example.test" },
-        { kajabi_customer_id: "kc-multi-old", email: "multi.old@example.test" },
-      ],
-    },
-    "bronze.stripe_products": { data: [{ stripe_product_id: MEMBERSHIP_PRODUCT, name: "Quill & Cup Membership" }] },
-    "bronze.stripe_customers": {
-      data: [
-        { stripe_customer_id: "cus_paying", email: "other@example.test", data: { metadata: { kjb_member_id: "kj-paying" } } }, // matched by Kajabi id
-        { stripe_customer_id: "cus_paused", email: "paused@example.test", data: {} }, // matched by email
-        { stripe_customer_id: "cus_retreat", email: "retreat@example.test", data: {} },
-        { stripe_customer_id: "cus_pastdue", email: "pastdue@example.test", data: {} },
-        { stripe_customer_id: "cus_canceled", email: "canceled@example.test", data: {} },
-      ],
-    },
-    "bronze.stripe_subscriptions": {
-      data: [
-        sub("sub_paying", "cus_paying"),
-        sub("sub_paused", "cus_paused", { pause_collection: { behavior: "void" } }),
-        sub("sub_retreat", "cus_retreat", {}, "prod_retreat"),
-        sub("sub_pastdue", "cus_pastdue", { status: "past_due" }),
-        sub("sub_canceled", "cus_canceled", { status: "canceled" }),
-      ],
-    },
     member_status_overrides: { data: [{ id: "ov-1", member_id: "m-gift", override_type: "gift", reason: "180 program", notes: null, starts_at: "2026-01-01", expires_at: null }] },
     member_hiatus_history: { data: [{ member_id: "m-hiatus", start_date: "2020-01-01", end_date: null }] },
     member_email_aliases: { data: [{ canonical_email: "multi@example.test", alias_email: "multi.old@example.test" }] },
@@ -128,7 +123,7 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
   });
 
   it("includes every subscription when Stripe has no membership product configured", async () => {
-    tables["bronze.stripe_products"] = { data: [] };
+    vi.spyOn(repos.billing, "stripeProductsByName").mockResolvedValue([]);
     vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const { members } = await (await call()).json();
@@ -137,6 +132,7 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
   });
 
   it("answers with nothing when no system has any data", async () => {
+    repos = createInMemoryRepos();
     tables = Object.fromEntries(Object.keys(tables).map((key) => [key, { data: [] }]));
 
     const { members, summary } = await (await call()).json();
@@ -146,7 +142,7 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
   });
 
   it("reports a failed products read as a server error", async () => {
-    tables["bronze.kajabi_offers"] = { error: { message: "offers read failed" } };
+    vi.spyOn(repos.billing, "kajabiOffersByName").mockRejectedValue(new Error("offers read failed"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await call();

@@ -28,18 +28,13 @@ export interface ResubscriptionsData {
 export async function fetchResubscriptionsData(
   supabase: SupabaseClient
 ): Promise<ResubscriptionsData> {
-  const BATCH = 1000;
+  const billing = createRepos(supabase).billing;
 
   // Fetch membership offer IDs
-  const { data: membershipOffers } = await supabase
-    .schema("bronze")
-    .from("kajabi_offers")
-    .select("kajabi_offer_id")
-    .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
+  const membershipOffers = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
+  const offerIds = membershipOffers.map((o) => o.kajabi_offer_id);
 
-  const offerIds = membershipOffers?.map((o: any) => o.kajabi_offer_id) ?? [];
-
-  // Fetch all membership purchases (paginated)
+  // Fetch all membership purchases (paginated; every purchase when no membership offer is known)
   type Purchase = {
     kajabi_purchase_id: string;
     kajabi_customer_id: string;
@@ -49,52 +44,10 @@ export async function fetchResubscriptionsData(
     status: string | null;
   };
 
-  const allPurchases: Purchase[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .schema("bronze")
-      .from("kajabi_purchases")
-      .select("kajabi_purchase_id, kajabi_customer_id, effective_start_at, created_at_kajabi, deactivated_at, status")
-      .range(offset, offset + BATCH - 1);
-
-    if (offerIds.length > 0) {
-      query = query.in("kajabi_offer_id", offerIds);
-    }
-
-    const { data: batch } = await query;
-    if (batch && batch.length > 0) {
-      allPurchases.push(...(batch as Purchase[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allPurchases = (await billing.kajabiPurchases(offerIds.length > 0 ? { offerIds } : {})) as Purchase[];
 
   // Fetch customer info: email → customer_id lookup
-  type Customer = { kajabi_customer_id: string; email: string };
-  const allCustomers: Customer[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema("bronze")
-      .from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      allCustomers.push(...(batch as Customer[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allCustomers = await billing.kajabiCustomers();
 
   // Fetch silver members
   const allMembers = await createRepos(supabase).members.list();

@@ -43,39 +43,27 @@ export async function GET(request: NextRequest) {
   ]));
   const stripeIds = members.map(m => m.stripeCustomerId).filter((v): v is string => !!v);
 
+  const billing = createRepos(supabase).billing;
   const [
-    { data: kajabiCustomers },
-    { data: stripeActiveSubs },
+    kajabiCustomers,
+    stripeActiveSubs,
     slackUsers,
   ] = await Promise.all([
-    supabase.schema("bronze").from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .in("email", canonicalEmails),
-    stripeIds.length > 0
-      ? supabase.schema("bronze").from("stripe_subscriptions")
-          .select("stripe_customer_id")
-          .in("stripe_customer_id", stripeIds)
-          .in("status", ["active", "trialing", "past_due"])
-      : Promise.resolve({ data: [] as { stripe_customer_id: string }[] }),
+    billing.kajabiCustomersByEmail(canonicalEmails),
+    billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"], stripeIds),
     createRepos(supabase).slackUsers.byEmails(allEmails, { excludeBots: true }),
   ]);
 
   // Active Kajabi purchases for found customers
-  const kajabiCustomerIds = (kajabiCustomers ?? []).map(c => c.kajabi_customer_id);
-  const { data: kajabiActivePurchases } = kajabiCustomerIds.length > 0
-    ? await supabase.schema("bronze").from("kajabi_purchases")
-        .select("kajabi_customer_id")
-        .in("kajabi_customer_id", kajabiCustomerIds)
-        .eq("status", "active")
-    : { data: [] as { kajabi_customer_id: string }[] };
+  const kajabiCustomerIds = kajabiCustomers.map(c => c.kajabi_customer_id);
+  const activePurchaseCustomers = await billing.activeKajabiPurchaseCustomerIds(kajabiCustomerIds);
 
   const kajabiCustomerByEmail = new Map<string, string>();
-  for (const c of kajabiCustomers ?? []) {
+  for (const c of kajabiCustomers) {
     kajabiCustomerByEmail.set(c.email.toLowerCase(), c.kajabi_customer_id);
   }
 
-  const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
-  const activeStripeCustomers = new Set((stripeActiveSubs ?? []).map(s => s.stripe_customer_id));
+  const activeStripeCustomers = new Set(stripeActiveSubs.map(s => s.stripe_customer_id));
 
   const slackUserByEmail = new Map<string, string>();
   for (const u of slackUsers) {

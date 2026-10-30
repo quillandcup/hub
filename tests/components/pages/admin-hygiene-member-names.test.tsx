@@ -35,18 +35,14 @@ describe("external conflicts page", () => {
           { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", email: "ada@example.test", displayName: "Ada E" },
           { id: "mbr_AAAAAAAAAAA2", name: "Bea Example", email: "bea@example.test" },
         ],
-      }),
-    );
-    useFakeSupabase({
-      "bronze.kajabi_contacts": {
-        data: [
+        kajabiContacts: [
           { kajabi_contact_id: "k1", email: "ada@example.test", name: "Ada" },
           { kajabi_contact_id: "k2", email: "ada@example.test", name: "Ada" },
           { kajabi_contact_id: "k3", email: "bea@example.test", name: "Bea" },
           { kajabi_contact_id: "k4", email: "bea@example.test", name: "Bea" },
         ],
-      },
-    });
+      }),
+    );
 
     await renderServerPage(ExternalConflictsPage, {});
 

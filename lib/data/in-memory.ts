@@ -9,6 +9,7 @@ import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { SlackUserSeed } from "./slack-users";
+import type { KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
 import type { IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow } from "./zoom";
 import type { UnmatchedEvent } from "./unmatched-events";
 import type { ChatChannelMemberSeed, ChatChannelSeed, ChatGapFillSeed, ChatMessageContentSeed, ChatMessageSeed, ChatReactionSeed, ChatSlackAuthorSeed } from "./chat";
@@ -119,6 +120,14 @@ export class InMemoryDataset {
   kajabiCourseOffers: KajabiCourseOffer[];
   kajabiProductProgress: Database["bronze"]["Tables"]["kajabi_product_progress"]["Row"][];
   kajabiLessonProgress: Database["bronze"]["Tables"]["kajabi_lesson_progress"]["Row"][];
+  /** The Bronze copy of Kajabi and Stripe billing (`bronze.kajabi_contacts`, `kajabi_customers`, `kajabi_purchases`, `kajabi_offers`, `stripe_customers`, `stripe_products`, `stripe_subscriptions`). */
+  kajabiContacts: KajabiContactSeed[];
+  kajabiCustomers: KajabiCustomerSeed[];
+  kajabiPurchases: KajabiPurchaseSeed[];
+  kajabiOffers: KajabiOfferSeed[];
+  stripeCustomers: StripeCustomerSeed[];
+  stripeProducts: StripeProductSeed[];
+  stripeSubscriptions: StripeSubscriptionSeed[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -127,7 +136,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions">
 
     > = {},
   ) {
@@ -179,6 +188,13 @@ export class InMemoryDataset {
     this.kajabiCourseOffers = (init.kajabiCourseOffers ?? []).map((row) => ({ ...row }));
     this.kajabiProductProgress = (init.kajabiProductProgress ?? []).map((row) => ({ ...row }));
     this.kajabiLessonProgress = (init.kajabiLessonProgress ?? []).map((row) => ({ ...row }));
+    this.kajabiContacts = (init.kajabiContacts ?? []).map((row) => ({ ...row }));
+    this.kajabiCustomers = (init.kajabiCustomers ?? []).map((row) => ({ ...row }));
+    this.kajabiPurchases = (init.kajabiPurchases ?? []).map((row) => ({ ...row }));
+    this.kajabiOffers = (init.kajabiOffers ?? []).map((row) => ({ ...row }));
+    this.stripeCustomers = (init.stripeCustomers ?? []).map((row) => ({ ...row }));
+    this.stripeProducts = (init.stripeProducts ?? []).map((row) => ({ ...row }));
+    this.stripeSubscriptions = (init.stripeSubscriptions ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

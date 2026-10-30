@@ -16,38 +16,25 @@ export async function GET(request: NextRequest) {
 
   try {
     // Query to get membership product IDs
-    const { data: membershipProducts, error: productsError } = await supabase
-      .schema("bronze")
-      .from("kajabi_offers")
-      .select("kajabi_offer_id")
-      .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
-
-    if (productsError) {
+    const billing = createRepos(supabase).billing;
+    let membershipProducts;
+    try {
+      membershipProducts = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
+    } catch (productsError) {
       console.error("Error fetching membership products:", productsError);
       return NextResponse.json(
-        { error: productsError.message },
+        { error: (productsError as Error).message },
         { status: 500 }
       );
     }
 
-    const membershipProductIds = membershipProducts?.map(p => p.kajabi_offer_id) || [];
+    const membershipProductIds = membershipProducts.map(p => p.kajabi_offer_id);
 
     // Get latest import timestamp for each Bronze table
-    const { data: latestKajabiImport } = await supabase
-      .schema("bronze")
-      .from("kajabi_purchases")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    const { data: latestStripeImport } = await supabase
-      .schema("bronze")
-      .from("stripe_subscriptions")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single();
+    const [latestKajabiImportAt, latestStripeImportAt] = await Promise.all([
+      billing.lastKajabiPurchaseImportAt(),
+      billing.lastStripeSubscriptionImportAt(),
+    ]);
 
     // (A get_subscription_reconciliation RPC was once tried first; it was never created, in any
     // environment, so the reconciliation is built in memory here.)
@@ -61,102 +48,25 @@ export async function GET(request: NextRequest) {
     }));
 
     // Get Kajabi customers for email matching
-    const kajabiCustomers: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("kajabi_customers")
-          .select("kajabi_customer_id, email")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          kajabiCustomers.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const kajabiCustomers: any[] = await billing.kajabiCustomers();
 
-    const kajabiPurchases: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("kajabi_purchases")
-          .select("*")
-          .in("kajabi_offer_id", membershipProductIds)
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          kajabiPurchases.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const kajabiPurchases: any[] = await billing.kajabiPurchaseRows({ offerIds: membershipProductIds });
 
     // Get Stripe customers for metadata matching
-    const stripeCustomers: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("stripe_customers")
-          .select("stripe_customer_id, email, data")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          stripeCustomers.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const stripeCustomers: any[] = await billing.stripeCustomersWithData();
 
     // Get Stripe membership product IDs to filter out retreat payment plans
-    const { data: stripeMembershipProducts } = await supabase
-      .schema("bronze")
-      .from("stripe_products")
-      .select("stripe_product_id, name")
-      .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
+    const stripeMembershipProducts = await billing.stripeProductsByName([...MEMBERSHIP_PRODUCT_NAMES]);
 
     const membershipStripeProductIds = new Set(
-      stripeMembershipProducts?.map(p => p.stripe_product_id) || []
+      stripeMembershipProducts.map(p => p.stripe_product_id)
     );
 
     if (membershipStripeProductIds.size === 0) {
       console.warn("No Stripe membership products found — subscription filter disabled, using all subscriptions");
     }
 
-    const allStripeSubscriptions: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("stripe_subscriptions")
-          .select("*")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          allStripeSubscriptions.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const allStripeSubscriptions: any[] = await billing.stripeSubscriptionRows();
 
     // Filter to only membership subscriptions (exclude retreat payment plans, etc.)
     const stripeSubscriptions = membershipStripeProductIds.size > 0
@@ -339,8 +249,8 @@ export async function GET(request: NextRequest) {
       summary,
       members: filteredData,
       metadata: {
-        kajabi_import_timestamp: latestKajabiImport?.imported_at,
-        stripe_import_timestamp: latestStripeImport?.imported_at,
+        kajabi_import_timestamp: latestKajabiImportAt ?? undefined,
+        stripe_import_timestamp: latestStripeImportAt ?? undefined,
       },
     });
   } catch (error: any) {
