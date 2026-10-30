@@ -12,13 +12,22 @@ import { createRepos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
 const getPrickleType = cache(async (id: string) => {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed, default_host_id, summary_aliases, names_guest_speaker")
-    .eq("id", id)
-    .single();
-  return data;
+  const type = await createRepos(await createClient()).prickles.typeById(id);
+  if (!type) return null;
+  return {
+    id: type.id,
+    name: type.name,
+    normalized_name: type.normalizedName,
+    description: type.description ?? null,
+    purpose: type.purpose,
+    solo_task_friendly: type.soloTaskFriendly,
+    listed_in_events: type.listedInEvents,
+    announced_publicly: type.announcedPublicly,
+    guests_allowed: type.guestsAllowed,
+    default_host_id: type.defaultHostId ?? null,
+    summary_aliases: type.summaryAliases ?? [],
+    names_guest_speaker: type.namesGuestSpeaker ?? false,
+  };
 });
 
 export async function generateMetadata({

@@ -125,9 +125,71 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
 
       const types = await ctx.repo().types();
 
-      expect(types.filter((t) => ctx.types.some((c) => c.id === t.id)).sort((x, y) => x.id.localeCompare(y.id))).toEqual(
+      expect(types.filter((t) => ctx.types.some((c) => c.id === t.id)).sort((x, y) => x.id.localeCompare(y.id))).toMatchObject(
         [...ctx.types].sort((x, y) => x.id.localeCompare(y.id)),
       );
+      expect(types.every((t) => Array.isArray(t.summaryAliases) && typeof t.namesGuestSpeaker === "boolean")).toBe(true);
+    });
+
+    it("reads one type by id, with its aliases and guest-speaker flag, and answers null for an unknown id", async () => {
+      await ctx.seed([]);
+      const found = await ctx.repo().typeById(ctx.types[0].id);
+
+      expect(found).toMatchObject({ ...ctx.types[0], summaryAliases: [], namesGuestSpeaker: false });
+      expect(await ctx.repo().typeById("prty_ZZZZZZZZZZZ9")).toBeNull();
+    });
+
+    it("lists the types that need a host by name, with just their id and name", async () => {
+      await ctx.seed([]);
+      const found = await ctx.repo().typesRequiringHost();
+
+      expect(found).toContainEqual({ id: ctx.types[0].id, name: ctx.types[0].name }); // requires a host
+      expect(found.map((t) => t.id)).not.toContain(ctx.types[1].id); // does not
+      const names = found.map((t) => t.name);
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    });
+
+    it("finds a type by its normalized name, leaving out the one being edited", async () => {
+      await ctx.seed([]);
+      const [sprint, chat] = ctx.types;
+
+      expect(await ctx.repo().typeIdByNormalizedName(sprint.normalizedName)).toBe(sprint.id);
+      expect(await ctx.repo().typeIdByNormalizedName(sprint.normalizedName, { excludingId: chat.id })).toBe(sprint.id);
+      expect(await ctx.repo().typeIdByNormalizedName(sprint.normalizedName, { excludingId: sprint.id })).toBeNull();
+      expect(await ctx.repo().typeIdByNormalizedName("no-such-type-anywhere")).toBeNull();
+    });
+
+    it("creates a type, changes only the fields given, and hands a default host over", async () => {
+      await ctx.seed([]);
+      const suffix = Math.random().toString(36).slice(2, 10);
+      const [ada, fern] = ctx.hosts;
+
+      const created = await ctx.repo().createType({ name: `Made Type ${suffix}`, normalizedName: `made-type-${suffix}`, description: null, purpose: "social", listedInEvents: true });
+
+      expect(created).toMatchObject({ name: `Made Type ${suffix}`, normalizedName: `made-type-${suffix}`, description: null, purpose: "social", listedInEvents: true, announcedPublicly: false, guestsAllowed: false, soloTaskFriendly: true, requiresHost: true, summaryAliases: [], namesGuestSpeaker: false });
+      expect(await ctx.repo().typeById(created.id)).toEqual(created);
+
+      await ctx.repo().updateType(created.id, { description: "A new kind", defaultHostId: ada.id, summaryAliases: ["made", "mt"], namesGuestSpeaker: true, requiresHost: true, soloTaskFriendly: true, announcedPublicly: true, guestsAllowed: true, purpose: undefined });
+      expect(await ctx.repo().typeById(created.id)).toMatchObject({
+        name: `Made Type ${suffix}`, // not given, so not changed
+        purpose: "social",
+        description: "A new kind",
+        defaultHostId: ada.id,
+        summaryAliases: ["made", "mt"],
+        namesGuestSpeaker: true,
+        requiresHost: true,
+        soloTaskFriendly: true,
+        announcedPublicly: true,
+        guestsAllowed: true,
+      });
+
+      await ctx.repo().updateType(created.id, { name: `Renamed ${suffix}`, normalizedName: `renamed-${suffix}`, defaultHostId: null, guestsAllowed: false, announcedPublicly: false, listedInEvents: false });
+      expect(await ctx.repo().typeById(created.id)).toMatchObject({ name: `Renamed ${suffix}`, normalizedName: `renamed-${suffix}`, defaultHostId: null, listedInEvents: false, description: "A new kind" });
+
+      await ctx.repo().updateType(created.id, { defaultHostId: ada.id });
+      await ctx.repo().reassignDefaultHost(ada.id, fern.id);
+      expect((await ctx.repo().typeById(created.id))?.defaultHostId).toBe(fern.id);
+      expect((await ctx.repo().typeById(ctx.types[0].id))?.defaultHostId ?? null).toBeNull();
     });
 
     it("counts what a member hosts and what came from a source", async () => {

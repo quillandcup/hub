@@ -76,18 +76,29 @@ export async function POST(request: NextRequest) {
     const [
       members,
       aliases,
-      { data: prickleTypes },
+      loadedTypes,
       { data: resolvedUnmatchedEvents },
     ] = await Promise.all([
       createRepos(supabase).members.identities({ status: "active" }),
       createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
-      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id, summary_aliases, names_guest_speaker, listed_in_events"),
+      createRepos(supabase).prickles.types(),
       // Load previously resolved/ignored unmatched events to apply learned decisions
       supabase
         .from("unmatched_calendar_events")
         .select("calendar_event_id, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, status")
         .in("status", ["resolved", "ignored"]),
     ]);
+
+    // The shape the matching helpers (matchTypeId) and the loop below read.
+    const prickleTypes = loadedTypes.map((t) => ({
+      id: t.id,
+      name: t.name,
+      normalized_name: t.normalizedName,
+      default_host_id: t.defaultHostId ?? null,
+      summary_aliases: t.summaryAliases ?? [],
+      names_guest_speaker: t.namesGuestSpeaker ?? false,
+      listed_in_events: t.listedInEvents,
+    }));
 
     if (!allEvents || allEvents.length === 0) {
       return NextResponse.json({
@@ -97,7 +108,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`Loaded ${allEvents.length} events, ${members.length} members, ${prickleTypes?.length || 0} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
+    console.log(`Loaded ${allEvents.length} events, ${members.length} members, ${prickleTypes.length} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
 
     // Build lookup maps for fast matching
     const membersByEmail = new Map(
@@ -112,7 +123,7 @@ export async function POST(request: NextRequest) {
       aliases?.map((a) => [a.alias.trim().toLowerCase(), a.member_id]) || []
     );
     const typeByNormalizedName = new Map(
-      prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
+      prickleTypes.map((t) => [t.normalized_name, t.id])
     );
     // Map calendar_event_id → { status, resolved_type_id, resolved_host_id } for user decisions
     const userDecisionByEventId = new Map(
@@ -200,7 +211,7 @@ export async function POST(request: NextRequest) {
         autoResolvedCount++;
       } else {
         // Match to a prickle type by the title's type part, the cleaned title, an alias or a contained name
-        typeId = matchTypeId(event.summary, prickleTypes ?? []);
+        typeId = matchTypeId(event.summary, prickleTypes);
       }
 
       if (!typeId) {
@@ -218,7 +229,7 @@ export async function POST(request: NextRequest) {
       // Add to upsert list — calendar_event_id is the conflict key, so existing prickle UUIDs survive reprocessing
       // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
       // without the "w/Host" tail; the calendar description comes along as plain text.
-      const matchedType = prickleTypes?.find(t => t.id === typeId);
+      const matchedType = prickleTypes.find(t => t.id === typeId);
       if (matchedType?.listed_in_events) {
         qualifyingCalendarEventIds.add(event.id);
         if (new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
@@ -314,10 +325,8 @@ export async function POST(request: NextRequest) {
     const eventsSynced = await syncCalendarEvents(supabase, allEvents);
     const eventsCreated = await ensureCalendarEvents(supabase, [...listedCalendarEventIds]);
     // The automatic events whose reason has gone (the tag taken out, the type un-listed, the calendar item deleted)
-    // are taken away. Only when the prickle types loaded: without them no type would look listed.
-    const eventsRemoved = prickleTypes
-      ? await reconcileAutomaticEvents(supabase, allEvents.map((e) => e.id), qualifyingCalendarEventIds)
-      : 0;
+    // are taken away. The prickle types are loaded above (a failed load stops the run), so every type that is listed counts.
+    const eventsRemoved = await reconcileAutomaticEvents(supabase, allEvents.map((e) => e.id), qualifyingCalendarEventIds);
 
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 

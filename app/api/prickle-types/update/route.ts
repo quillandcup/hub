@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { audienceChainError } from "@/lib/audience-rules";
 import { normalizePrickleType } from "@/lib/prickle-types";
 import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Update an existing prickle type
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  const prickles = createRepos(auth.supabase).prickles;
 
   try {
     const parsed = await request.json().catch(() => undefined);
@@ -55,11 +56,11 @@ export async function POST(request: NextRequest) {
     // Guests need public, public needs listed: judged with the flags the type will have, so an update that
     // names only one of them is judged with the others as they are now.
     {
-      const { data: now } = await supabase.from("prickle_types").select("listed_in_events, announced_publicly, guests_allowed").eq("id", typeId).maybeSingle();
+      const now = await prickles.typeById(typeId);
       const chain = audienceChainError({
-        listed: listedInEvents ?? now?.listed_in_events ?? false,
-        publicly: announcedPublicly ?? now?.announced_publicly ?? false,
-        guests: guestsAllowed ?? now?.guests_allowed ?? false,
+        listed: listedInEvents ?? now?.listedInEvents ?? false,
+        publicly: announcedPublicly ?? now?.announcedPublicly ?? false,
+        guests: guestsAllowed ?? now?.guestsAllowed ?? false,
       });
       if (chain) return NextResponse.json({ error: chain }, { status: 400 });
     }
@@ -90,12 +91,7 @@ export async function POST(request: NextRequest) {
     const normalizedName = normalizePrickleType(name);
 
     // Check if another type already has this normalized name
-    const { data: existingType } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", normalizedName)
-      .neq("id", typeId)
-      .single();
+    const existingType = await prickles.typeIdByNormalizedName(normalizedName, { excludingId: typeId });
 
     if (existingType) {
       return NextResponse.json(
@@ -105,24 +101,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the prickle type
-    const { error: updateError } = await supabase
-      .from("prickle_types")
-      .update({
+    try {
+      await prickles.updateType(typeId, {
         name: name.trim(),
-        normalized_name: normalizedName,
+        normalizedName,
         description: description?.trim() || null,
-        ...(purpose !== undefined ? { purpose } : {}),
-        ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
-        ...(listedInEvents !== undefined ? { listed_in_events: listedInEvents } : {}),
-        ...(announcedPublicly !== undefined ? { announced_publicly: announcedPublicly } : {}),
-        ...(guestsAllowed !== undefined ? { guests_allowed: guestsAllowed } : {}),
-        ...(defaultHostId !== undefined ? { default_host_id: defaultHostId } : {}),
-        ...(aliases !== undefined ? { summary_aliases: aliases } : {}),
-        ...(namesGuestSpeaker !== undefined ? { names_guest_speaker: namesGuestSpeaker } : {}),
-      })
-      .eq("id", typeId);
-
-    if (updateError) {
+        purpose,
+        soloTaskFriendly,
+        listedInEvents,
+        announcedPublicly,
+        guestsAllowed,
+        defaultHostId,
+        summaryAliases: aliases,
+        namesGuestSpeaker,
+      });
+    } catch (updateError) {
       console.error("Error updating prickle type:", updateError);
       return NextResponse.json(
         { error: "Failed to update prickle type" },

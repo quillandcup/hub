@@ -17,10 +17,11 @@ export async function setRequiresHost(typeId: string, requiresHost: boolean): Pr
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
 
-  const { error } = await auth.supabase.from("prickle_types").update({ requires_host: requiresHost }).eq("id", typeId);
-  if (error) {
+  try {
+    await createRepos(auth.supabase).prickles.updateType(typeId, { requiresHost });
+  } catch (error) {
     console.error("Error updating prickle type:", error);
-    return { error: error.message };
+    return { error: (error as Error).message };
   }
   revalidatePath(PAGE);
   return {};
@@ -39,14 +40,13 @@ export async function setDefaultHosts(choices: DefaultHostChoice[]): Promise<{ e
   if (choices.length === 0) return { saved: 0 };
   if (choices.some((c) => c.memberId !== null && !isId(c.memberId, "mbr"))) return { error: "Pick a member" };
 
-  const results = await Promise.all(
-    choices.map((c) => auth.supabase.from("prickle_types").update({ default_host_id: c.memberId }).eq("id", c.typeId)),
-  );
-  const failed = results.find((r) => r.error);
-  if (failed?.error) {
-    console.error("Error setting default host:", failed.error);
+  const prickles = createRepos(auth.supabase).prickles;
+  const results = await Promise.allSettled(choices.map((c) => prickles.updateType(c.typeId, { defaultHostId: c.memberId })));
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (failed) {
+    console.error("Error setting default host:", failed.reason);
     revalidatePath(PAGE);
-    return { error: failed.error.message };
+    return { error: (failed.reason as Error).message };
   }
 
   const { processed } = await triggerPrickleTypeReprocessing();

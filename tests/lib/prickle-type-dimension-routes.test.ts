@@ -1,34 +1,39 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import type { PrickleType } from "@/lib/data/prickles";
 
-// The create and update routes carry the "prickles" flag the Events page reads. A small recording
-// client stands in for Supabase: it captures the written payload and answers "no name clash".
+// The create and update routes carry the "prickles" flag the Events page reads. The prickle types
+// live in an in-memory repository, so the tests look at what the type is after the request.
 
-let written: Record<string, unknown> | undefined;
-// The flags the type being updated has now (the route judges a partial update against them).
-let current: Record<string, boolean> = { listed_in_events: false, announced_publicly: false, guests_allowed: false };
-// The clash check answers "no other type has this name"; the write is captured.
-const client = {
-  from: () => ({
-    select: () => ({
-      eq: () => ({
-        neq: () => ({ single: async () => ({ data: null }) }),
-        single: async () => ({ data: null }),
-        maybeSingle: async () => ({ data: current }),
-      }),
-    }),
-    insert: (payload: Record<string, unknown>) => {
-      written = payload;
-      return { select: () => ({ single: async () => ({ data: { id: "prty_AAAAAAAAAAA1", ...payload }, error: null }) }) };
-    },
-    update: (payload: Record<string, unknown>) => {
-      written = payload;
-      return { eq: async () => ({ error: null }) };
-    },
-  }),
+const TYPE_ID = "prty_AAAAAAAAAAA1";
+const OTHER_TYPE_ID = "prty_AAAAAAAAAAA2";
+const baseType: PrickleType = {
+  id: TYPE_ID,
+  name: "Old Name",
+  normalizedName: "old-name",
+  purpose: "writing",
+  requiresHost: false,
+  soloTaskFriendly: false,
+  listedInEvents: false,
+  announcedPublicly: false,
+  guestsAllowed: false,
 };
+let dataset = new InMemoryDataset();
+let failUpdate = false;
+const typeNow = () => dataset.prickleTypes.find((t) => t.id === TYPE_ID)!;
+
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => {
+    const repos = createInMemoryRepos(dataset);
+    if (failUpdate) repos.prickles.updateType = async () => Promise.reject(new Error("database is down"));
+    return repos;
+  },
+}));
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: client }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 const triggers = vi.hoisted(() => ({ recent: vi.fn(async () => {}), wide: vi.fn(async () => {}) }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: triggers.recent, triggerPrickleTypeReprocessing: triggers.wide }));
@@ -39,9 +44,18 @@ import { POST as update } from "@/app/api/prickle-types/update/route";
 const post = (route: (request: NextRequest) => Promise<Response>, body: unknown) =>
   route(new NextRequest("http://localhost/api/prickle-types", { method: "POST", body: JSON.stringify(body) }));
 
+const seed = (flags: Partial<PrickleType> = {}) => {
+  dataset = new InMemoryDataset({
+    prickleTypes: [
+      { ...baseType, ...flags },
+      { ...baseType, id: OTHER_TYPE_ID, name: "Other", normalizedName: "other" },
+    ],
+  });
+};
+
 beforeEach(() => {
-  written = undefined;
-  current = { listed_in_events: false, announced_publicly: false, guests_allowed: false };
+  failUpdate = false;
+  seed();
   triggers.recent.mockClear();
   triggers.wide.mockClear();
 });
@@ -51,14 +65,53 @@ describe("prickle type routes: dimensions", () => {
     const res = await post(create, { name: "Book Launch Party", listedInEvents: true, announcedPublicly: true, guestsAllowed: false });
 
     expect(res.status).toBe(201);
-    expect(written).toMatchObject({ name: "Book Launch Party", listed_in_events: true, announced_publicly: true, guests_allowed: false });
+    const created = dataset.prickleTypes.find((t) => t.name === "Book Launch Party");
+    expect(created).toMatchObject({ normalizedName: "book-launch-party", listedInEvents: true, announcedPublicly: true, guestsAllowed: false });
+    expect((await res.json()).prickleType).toMatchObject({ id: created!.id, name: "Book Launch Party" });
+  });
+
+  it("refuses to create a type whose normalized name is taken", async () => {
+    const res = await post(create, { name: "Other" });
+
+    expect(res.status).toBe(409);
+    expect(dataset.prickleTypes).toHaveLength(2);
+  });
+
+  it("answers a failed create with the database's message", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    dataset.prickleTypes = null as unknown as PrickleType[]; // makes the repository throw
+
+    const res = await post(create, { name: "Anything" });
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toEqual(expect.any(String));
+    spy.mockRestore();
   });
 
   it("stores each dimension when updating a type", async () => {
-    const res = await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle", listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
+    const res = await post(update, { typeId: TYPE_ID, name: "Pitch Prickle", listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
 
     expect(res.status).toBe(200);
-    expect(written).toMatchObject({ listed_in_events: true, announced_publicly: true, guests_allowed: true });
+    expect(typeNow()).toMatchObject({ name: "Pitch Prickle", normalizedName: "pitch", listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
+  });
+
+  it("refuses to rename a type to another's name", async () => {
+    const res = await post(update, { typeId: TYPE_ID, name: "Other" });
+
+    expect(res.status).toBe(409);
+    expect(typeNow().name).toBe("Old Name");
+  });
+
+  it("answers a failed update with a 500 and leaves the reprocessing alone", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    failUpdate = true;
+
+    const res = await post(update, { typeId: TYPE_ID, name: "Pitch Prickle" });
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Failed to update prickle type");
+    expect(triggers.recent).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it.each([
@@ -67,61 +120,63 @@ describe("prickle type routes: dimensions", () => {
     [{ guestsAllowed: true }, "Guests can only be allowed at something announced publicly"],
   ])("refuses a type's flags %j that break the chain: %s", async (flags, message) => {
     for (const route of [create, update]) {
-      const res = await post(route, { typeId: "prty_AAAAAAAAAAA1", name: "X", ...flags });
+      const res = await post(route, { typeId: TYPE_ID, name: "X", ...flags });
       expect(res.status).toBe(400);
       expect((await res.json()).error).toBe(message);
     }
-    expect(written).toBeUndefined();
+    expect(dataset.prickleTypes).toHaveLength(2);
+    expect(typeNow().name).toBe("Old Name");
   });
 
   it("judges an update that names one flag against the others as the type has them now", async () => {
-    current = { listed_in_events: true, announced_publicly: true, guests_allowed: false };
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", guestsAllowed: true })).status).toBe(200);
+    seed({ listedInEvents: true, announcedPublicly: true, guestsAllowed: false });
+    expect((await post(update, { typeId: TYPE_ID, name: "X", guestsAllowed: true })).status).toBe(200);
 
-    current = { listed_in_events: true, announced_publicly: true, guests_allowed: true };
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", announcedPublicly: false })).status).toBe(400);
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", announcedPublicly: false, guestsAllowed: false })).status).toBe(200);
+    seed({ listedInEvents: true, announcedPublicly: true, guestsAllowed: true });
+    expect((await post(update, { typeId: TYPE_ID, name: "X", announcedPublicly: false })).status).toBe(400);
+    expect((await post(update, { typeId: TYPE_ID, name: "X", announcedPublicly: false, guestsAllowed: false })).status).toBe(200);
   });
 
   it("leaves dimensions alone when the request doesn't mention them", async () => {
-    await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "Pitch Prickle" });
+    seed({ listedInEvents: true, announcedPublicly: true, guestsAllowed: true, soloTaskFriendly: true, purpose: "social" });
 
-    expect(written).not.toHaveProperty("listed_in_events");
-    expect(written).not.toHaveProperty("announced_publicly");
-    expect(written).not.toHaveProperty("guests_allowed");
+    await post(update, { typeId: TYPE_ID, name: "Pitch Prickle" });
+
+    expect(typeNow()).toMatchObject({ name: "Pitch Prickle", listedInEvents: true, announcedPublicly: true, guestsAllowed: true, soloTaskFriendly: true, purpose: "social" });
   });
 
   it.each(["listedInEvents", "announcedPublicly", "guestsAllowed"])("rejects %s when it isn't a boolean", async (field) => {
     expect((await post(create, { name: "X", [field]: "yes" })).status).toBe(400);
-    expect((await post(update, { typeId: "prty_AAAAAAAAAAA1", name: "X", [field]: 1 })).status).toBe(400);
-    expect(written).toBeUndefined();
+    expect((await post(update, { typeId: TYPE_ID, name: "X", [field]: 1 })).status).toBe(400);
+    expect(dataset.prickleTypes).toHaveLength(2);
+    expect(typeNow().name).toBe("Old Name");
   });
 });
 
 describe("prickle type update route: default host, other names, guest speaker", () => {
-  const typeId = "prty_AAAAAAAAAAA1";
-
   it("stores them, normalizing the other names, and rebuilds a year of prickles", async () => {
-    const res = await post(update, { typeId, name: "Educational Prickle", defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: [" EDU-Prickle ", "edu", "", "Learn"], namesGuestSpeaker: true });
+    const res = await post(update, { typeId: TYPE_ID, name: "Educational Prickle", defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: [" EDU-Prickle ", "edu", "", "Learn"], namesGuestSpeaker: true });
 
     expect(res.status).toBe(200);
-    expect(written).toMatchObject({ default_host_id: "mbr_AAAAAAAAAAA1", summary_aliases: ["edu", "learn"], names_guest_speaker: true });
+    expect(typeNow()).toMatchObject({ defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: ["edu", "learn"], namesGuestSpeaker: true });
     expect(triggers.wide).toHaveBeenCalledTimes(1);
     expect(triggers.recent).not.toHaveBeenCalled();
   });
 
   it("clears the default host with null", async () => {
-    await post(update, { typeId, name: "Educational Prickle", defaultHostId: null });
+    seed({ defaultHostId: "mbr_AAAAAAAAAAA1" });
 
-    expect(written).toMatchObject({ default_host_id: null });
+    await post(update, { typeId: TYPE_ID, name: "Educational Prickle", defaultHostId: null });
+
+    expect(typeNow().defaultHostId).toBeNull();
   });
 
   it("leaves them alone, and rebuilds only the recent window, when not mentioned", async () => {
-    await post(update, { typeId, name: "Pitch Prickle" });
+    seed({ defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: ["edu"], namesGuestSpeaker: true });
 
-    expect(written).not.toHaveProperty("default_host_id");
-    expect(written).not.toHaveProperty("summary_aliases");
-    expect(written).not.toHaveProperty("names_guest_speaker");
+    await post(update, { typeId: TYPE_ID, name: "Pitch Prickle" });
+
+    expect(typeNow()).toMatchObject({ defaultHostId: "mbr_AAAAAAAAAAA1", summaryAliases: ["edu"], namesGuestSpeaker: true });
     expect(triggers.recent).toHaveBeenCalledTimes(1);
     expect(triggers.wide).not.toHaveBeenCalled();
   });
@@ -132,7 +187,7 @@ describe("prickle type update route: default host, other names, guest speaker", 
     ["summaryAliases", [1]],
     ["namesGuestSpeaker", "yes"],
   ])("rejects %s of %j", async (field, value) => {
-    expect((await post(update, { typeId, name: "X", [field]: value })).status).toBe(400);
-    expect(written).toBeUndefined();
+    expect((await post(update, { typeId: TYPE_ID, name: "X", [field]: value })).status).toBe(400);
+    expect(typeNow().name).toBe("Old Name");
   });
 });

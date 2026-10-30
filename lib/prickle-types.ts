@@ -69,46 +69,6 @@ export function parsePrickleFromSummary(summary: string): {
 }
 
 /**
- * Match normalized type to database prickle_types
- * Returns type_id if found, or null if needs admin review
- */
-export async function matchPrickleType(
-  supabase: any,
-  rawType: string | null
-): Promise<string | null> {
-  // Default to Progress Prickle if no type specified
-  if (!rawType) {
-    const { data } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", "progress")
-      .single();
-    return data?.id || null;
-  }
-
-  const normalized = normalizePrickleType(rawType);
-
-  // If normalization resulted in empty string (e.g., "Prickle" → ""), treat as Progress Prickle
-  if (!normalized || normalized === "") {
-    const { data } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", "progress")
-      .single();
-    return data?.id || null;
-  }
-
-  // Try exact match first
-  const { data } = await supabase
-    .from("prickle_types")
-    .select("id")
-    .eq("normalized_name", normalized)
-    .single();
-
-  return data?.id || null;
-}
-
-/**
  * The prickle's own name from its calendar summary, or null when it's just the type.
  * Hosts name special prickles ("Educational Webinar: Query Letters w/Sam", "Midnight Crew"),
  * and that name is worth keeping. The "w/Host" tail is dropped (the host is its own field),

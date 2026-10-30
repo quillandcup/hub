@@ -24,7 +24,17 @@ export type PrickleType = {
   description?: string | null;
   /** The member who hosts this kind of prickle unless someone else is assigned. */
   defaultHostId?: string | null;
+  /** Other names the type goes by on calendar titles (normalized); only when read through `types()` or `typeById()`. */
+  summaryAliases?: string[];
+  /** The name after "w/" is a guest speaker rather than the host (educational prickles); only when read through `types()` or `typeById()`. */
+  namesGuestSpeaker?: boolean;
 };
+
+/** What can change on a prickle type; a field left out is not changed, and null empties `description` and `defaultHostId`. */
+export type PrickleTypePatch = Partial<Omit<PrickleType, "id">>;
+
+/** A prickle type to add: a name, and any of the other fields (the rest takes the database defaults). */
+export type NewPrickleType = PrickleTypePatch & { name: string; normalizedName: string };
 
 /** Who hosts a prickle: the public part of the host's member record. */
 export type PrickleHost = { id: string; name: string; displayName: string | null };
@@ -111,8 +121,20 @@ export interface PrickleRepository {
   byCalendarEventIds(calendarEventIds: string[]): Promise<PrickleDetail[]>;
   /** Prickles that start in the window, oldest first. */
   startingBetween(window: StartingBetween): Promise<PrickleDetail[]>;
-  /** Every prickle type, by name. */
+  /** Every prickle type, by name, with its calendar aliases and guest-speaker flag. */
   types(): Promise<PrickleType[]>;
+  /** One prickle type, with its calendar aliases and guest-speaker flag; null when there is none. */
+  typeById(id: string): Promise<PrickleType | null>;
+  /** The types that need a host, by name: just the id and name, for pickers. */
+  typesRequiringHost(): Promise<Pick<PrickleType, "id" | "name">[]>;
+  /** The id of the type with this normalized name (other than `excludingId`), or null when none has it. */
+  typeIdByNormalizedName(normalizedName: string, options?: { excludingId?: string }): Promise<string | null>;
+  /** Adds a prickle type and returns it. */
+  createType(type: NewPrickleType): Promise<PrickleType>;
+  /** Changes a prickle type's fields (see `PrickleTypePatch`). */
+  updateType(id: string, patch: PrickleTypePatch): Promise<void>;
+  /** Hands the default host of every type one member is the default host of to another (merging duplicate members). */
+  reassignDefaultHost(fromMemberId: string, toMemberId: string): Promise<void>;
   /** How many prickles the member is the assigned host of, past and future, or only those starting at or after `since` (ISO). */
   countHostedBy(memberId: string, options?: { since?: string }): Promise<number>;
   /** How many prickles came from this source (e.g. "calendar"). */
@@ -166,6 +188,7 @@ export interface PrickleRepository {
 
 const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
+const FULL_TYPE_COLUMNS = `${TYPE_COLUMNS}, summary_aliases, names_guest_speaker`;
 const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, guest_speaker, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
 const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
@@ -189,6 +212,9 @@ type TypeRow = {
   listed_in_events: boolean;
   announced_publicly: boolean;
   guests_allowed: boolean;
+  // Only selected with FULL_TYPE_COLUMNS.
+  summary_aliases?: string[] | null;
+  names_guest_speaker?: boolean | null;
 };
 type HostRow = { id: string; name: string; display_name: string | null };
 export type DetailRow = {
@@ -222,6 +248,24 @@ const toType = (row: TypeRow): PrickleType => ({
   listedInEvents: row.listed_in_events,
   announcedPublicly: row.announced_publicly,
   guestsAllowed: row.guests_allowed,
+  ...(row.summary_aliases !== undefined ? { summaryAliases: row.summary_aliases ?? [] } : {}),
+  ...(row.names_guest_speaker !== undefined ? { namesGuestSpeaker: row.names_guest_speaker ?? false } : {}),
+});
+
+/** A type's changed fields as database columns. */
+const typeColumns = (patch: PrickleTypePatch) => ({
+  ...(patch.name !== undefined ? { name: patch.name } : {}),
+  ...(patch.normalizedName !== undefined ? { normalized_name: patch.normalizedName } : {}),
+  ...(patch.description !== undefined ? { description: patch.description } : {}),
+  ...(patch.purpose !== undefined ? { purpose: patch.purpose } : {}),
+  ...(patch.requiresHost !== undefined ? { requires_host: patch.requiresHost } : {}),
+  ...(patch.soloTaskFriendly !== undefined ? { solo_task_friendly: patch.soloTaskFriendly } : {}),
+  ...(patch.listedInEvents !== undefined ? { listed_in_events: patch.listedInEvents } : {}),
+  ...(patch.announcedPublicly !== undefined ? { announced_publicly: patch.announcedPublicly } : {}),
+  ...(patch.guestsAllowed !== undefined ? { guests_allowed: patch.guestsAllowed } : {}),
+  ...(patch.defaultHostId !== undefined ? { default_host_id: patch.defaultHostId } : {}),
+  ...(patch.summaryAliases !== undefined ? { summary_aliases: patch.summaryAliases } : {}),
+  ...(patch.namesGuestSpeaker !== undefined ? { names_guest_speaker: patch.namesGuestSpeaker } : {}),
 });
 
 export function toDetail(row: DetailRow): PrickleDetail {
@@ -311,12 +355,56 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async types(): Promise<PrickleType[]> {
     const rows = await fetchAllRows<TypeRow>(
       (from, to) =>
-        this.db.from("prickle_types").select(TYPE_COLUMNS).order("name").order("id").range(from, to) as unknown as PromiseLike<{
+        this.db.from("prickle_types").select(FULL_TYPE_COLUMNS).order("name").order("id").range(from, to) as unknown as PromiseLike<{
           data: TypeRow[] | null;
           error: { message: string } | null;
         }>,
     );
     return rows.map(toType);
+  }
+
+  async typeById(id: string): Promise<PrickleType | null> {
+    const { data, error } = await this.db.from("prickle_types").select(FULL_TYPE_COLUMNS).eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? toType(data as unknown as TypeRow) : null;
+  }
+
+  async typesRequiringHost(): Promise<Pick<PrickleType, "id" | "name">[]> {
+    return fetchAllRows<{ id: string; name: string }>(
+      (from, to) =>
+        this.db.from("prickle_types").select("id, name").eq("requires_host", true).order("name").order("id").range(from, to) as unknown as PromiseLike<{
+          data: { id: string; name: string }[] | null;
+          error: { message: string } | null;
+        }>,
+    );
+  }
+
+  async typeIdByNormalizedName(normalizedName: string, { excludingId }: { excludingId?: string } = {}): Promise<string | null> {
+    let query = this.db.from("prickle_types").select("id").eq("normalized_name", normalizedName);
+    if (excludingId) query = query.neq("id", excludingId);
+    const { data, error } = await query.limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0]?.id ?? null;
+  }
+
+  async createType(type: NewPrickleType): Promise<PrickleType> {
+    const { data, error } = await this.db
+      .from("prickle_types")
+      .insert(typeColumns(type) as { name: string; normalized_name: string })
+      .select(FULL_TYPE_COLUMNS)
+      .single();
+    if (error || !data) throw new Error(error?.message ?? "Couldn't create the prickle type");
+    return toType(data as unknown as TypeRow);
+  }
+
+  async updateType(id: string, patch: PrickleTypePatch): Promise<void> {
+    const { error } = await this.db.from("prickle_types").update(typeColumns(patch)).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async reassignDefaultHost(fromMemberId: string, toMemberId: string): Promise<void> {
+    const { error } = await this.db.from("prickle_types").update({ default_host_id: toMemberId }).eq("default_host_id", fromMemberId);
+    if (error) throw new Error(error.message);
   }
 
   async countHostedBy(memberId: string, { since }: { since?: string } = {}): Promise<number> {
@@ -623,6 +711,11 @@ export class SupabasePrickleRepository implements PrickleRepository {
 const byStartThenId = (a: Prickle, b: Prickle) =>
   a.startTime < b.startTime ? -1 : a.startTime > b.startTime ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
+const byNameThenId = (a: PrickleType, b: PrickleType) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+
+/** The fields of a patch that were given (not undefined). */
+const definedFields = <T extends object>(patch: T): Partial<T> => Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
+
 /** A prickle with its type and host joined in from an in-memory dataset. */
 export function prickleDetail(data: InMemoryDataset, prickle: Prickle): PrickleDetail {
   const type = data.prickleTypes.find((t) => t.id === prickle.typeId) ?? null;
@@ -670,8 +763,56 @@ export class InMemoryPrickleRepository implements PrickleRepository {
       .sort(byStartThenId);
   }
 
+  private full(type: PrickleType): PrickleType {
+    return { ...type, summaryAliases: [...(type.summaryAliases ?? [])], namesGuestSpeaker: type.namesGuestSpeaker ?? false };
+  }
+
   async types() {
-    return this.data.prickleTypes.map((t) => ({ ...t })).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return this.data.prickleTypes.map((t) => this.full(t)).sort(byNameThenId);
+  }
+
+  async typeById(id: string) {
+    const type = this.data.prickleTypes.find((t) => t.id === id);
+    return type ? this.full(type) : null;
+  }
+
+  async typesRequiringHost() {
+    return this.data.prickleTypes
+      .filter((t) => t.requiresHost)
+      .sort(byNameThenId)
+      .map((t) => ({ id: t.id, name: t.name }));
+  }
+
+  async typeIdByNormalizedName(normalizedName: string, { excludingId }: { excludingId?: string } = {}) {
+    return this.data.prickleTypes.find((t) => t.normalizedName === normalizedName && t.id !== excludingId)?.id ?? null;
+  }
+
+  async createType(type: NewPrickleType) {
+    const created: PrickleType = {
+      purpose: "writing",
+      requiresHost: true, // the column's default
+      soloTaskFriendly: true, // the column's default
+      listedInEvents: false,
+      announcedPublicly: false,
+      guestsAllowed: false,
+      description: null,
+      defaultHostId: null,
+      ...definedFields(type),
+      name: type.name,
+      normalizedName: type.normalizedName,
+      id: `prty_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+    };
+    this.data.prickleTypes.push(created);
+    return this.full(created);
+  }
+
+  async updateType(id: string, patch: PrickleTypePatch) {
+    const type = this.data.prickleTypes.find((t) => t.id === id);
+    if (type) Object.assign(type, definedFields(patch));
+  }
+
+  async reassignDefaultHost(fromMemberId: string, toMemberId: string) {
+    for (const t of this.data.prickleTypes) if (t.defaultHostId === fromMemberId) t.defaultHostId = toMemberId;
   }
 
   async countHostedBy(memberId: string, { since }: { since?: string } = {}) {
