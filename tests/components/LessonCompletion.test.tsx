@@ -9,7 +9,7 @@ vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: (...a: [st
 const track = vi.fn();
 vi.mock("@/lib/analytics/client", () => ({ track: (...a: unknown[]) => track(...a) }));
 
-import { AUTO_COMPLETE_FRACTION, LessonCompletionProvider, useLessonCompletion } from "@/app/(member)/courses/LessonCompletion";
+import { AUTO_COMPLETE_FRACTION, LessonCompletionProvider, useLessonCompletion } from "@/components/courses/LessonCompletion";
 
 /** Shows the provider's state and exposes its two actions as buttons, as the player and the button do. */
 function Probe() {

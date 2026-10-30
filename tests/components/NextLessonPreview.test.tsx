@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})) }));
 
-import { LessonCompletionProvider } from "@/app/(member)/courses/LessonCompletion";
+import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import NextLessonPreview from "@/app/(member)/courses/NextLessonPreview";
 
 type Next = { id: string; title: string; thumbnail_url?: string | null };

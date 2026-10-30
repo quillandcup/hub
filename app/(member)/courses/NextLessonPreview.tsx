@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { courseImageUrl } from "@/lib/courses/image-urls";
-import { useLessonCompletion } from "./LessonCompletion";
+import { useLessonCompletion } from "@/components/courses/LessonCompletion";
 
 /**
  * Once the lesson is complete: "Great job! Keep going!" with a preview of the next lesson (its

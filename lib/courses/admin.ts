@@ -179,6 +179,8 @@ export interface AdminLessonDetail {
   files: { filename: string; sizeBytes: number | null }[];
   /** The lesson in the Hub, when the course is published there. */
   hub: { slug: string; lessonId: string } | null;
+  /** The lesson's video in the Hub (what plays), when it has one. */
+  video: { status: string; playbackId: string | null } | null;
 }
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
@@ -222,12 +224,18 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
   const own = lessons.find((x) => x.kajabi_id === lessonKajabiId);
 
   let hub: AdminLessonDetail["hub"] = null;
+  let video: AdminLessonDetail["video"] = null;
   let thumbnailSrc = courseImageUrl(l.thumbnail_url);
   const { data: silver } = await supabase.from("courses").select("id, slug").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
   if (silver) {
-    const { data: hubLesson } = await supabase.from("course_lessons").select("id, thumbnail_asset_id").eq("course_id", silver.id).eq("source", "kajabi").eq("source_key", lessonKajabiId).maybeSingle();
+    const { data: hubLesson } = await supabase.from("course_lessons").select("id, thumbnail_asset_id, video_id").eq("course_id", silver.id).eq("source", "kajabi").eq("source_key", lessonKajabiId).maybeSingle();
     if (hubLesson) {
       hub = { slug: silver.slug, lessonId: hubLesson.id };
+      if (hubLesson.video_id) {
+        const { data: v, error: videoError } = await supabase.from("videos").select("status, mux_playback_id").eq("id", hubLesson.video_id).maybeSingle();
+        if (videoError) throw new Error(`videos read failed: ${videoError.message}`);
+        if (v) video = { status: v.status, playbackId: v.mux_playback_id };
+      }
       thumbnailSrc = courseImageSrc("lesson", hubLesson.id, hubLesson.thumbnail_asset_id, l.thumbnail_url);
     }
   }
@@ -253,5 +261,6 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
       .sort((a, b) => a.path.localeCompare(b.path)),
     files: (files.data ?? []).map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
     hub,
+    video,
   };
 }

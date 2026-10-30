@@ -24,7 +24,7 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
 
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
-vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
+vi.mock("@/components/courses/LessonPlayer", () => ({
   default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
     <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)}>
       {playbackId}
@@ -33,7 +33,7 @@ vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
 }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
-import LessonPlayerMock from "@/app/(member)/courses/LessonPlayer";
+import LessonPlayerMock from "@/components/courses/LessonPlayer";
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";

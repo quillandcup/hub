@@ -1,6 +1,6 @@
+import type { ReactNode } from "react";
 import type { AdminLessonDetail } from "@/lib/courses/admin";
 import { formatBytes } from "@/lib/courses/files";
-import { formatClock } from "@/lib/courses/watch-stats";
 import { STATUS_CHOICES, statusChoices, statusLabel } from "@/lib/courses/status-choices";
 
 const FIELD =
@@ -15,7 +15,7 @@ const SOON = "Not available yet: courses are imported from Kajabi for now";
  * thumbnail and comments beside them), filled from the latest import. Everything that changes the
  * lesson is disabled until the builder can save.
  */
-export default function LessonBuilderForm({ detail }: { detail: AdminLessonDetail }) {
+export default function LessonBuilderForm({ detail, media }: { detail: AdminLessonDetail; media: ReactNode }) {
   const { lesson, trail, modules, files } = detail;
   const choices = statusChoices(trail, lesson.publishingOption);
   const inModule = trail.at(-1)?.kajabiId ?? "";
@@ -41,31 +41,10 @@ export default function LessonBuilderForm({ detail }: { detail: AdminLessonDetai
           </label>
 
           <h3 className="mb-2 mt-6 font-semibold">Media</h3>
-          <div className="rounded border border-slate-200 p-4 text-sm dark:border-slate-700">
-            {lesson.hasVideo ? (
-              <p>
-                Video
-                {lesson.videoDurationSeconds !== null && <> · {formatClock(lesson.videoDurationSeconds)}</>}
-                {detail.hub && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <a href={`/courses/${detail.hub.slug}/lessons/${detail.hub.lessonId}`} className="text-plum-700 underline dark:text-plum-300">
-                      Play it in the Hub
-                    </a>
-                  </>
-                )}
-              </p>
-            ) : (
-              <p className="text-slate-600 dark:text-slate-400">No video on this lesson.</p>
-            )}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          {media}
+          <div className="mt-3">
             <button type="button" disabled title={SOON} className={BUTTON}>
               Video actions
-            </button>
-            <button type="button" disabled title={SOON} className="text-sm disabled:cursor-not-allowed disabled:opacity-60">
-              Use current frame as thumbnail
             </button>
           </div>
 

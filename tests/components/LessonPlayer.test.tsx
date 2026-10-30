@@ -56,8 +56,8 @@ vi.mock("@videojs/react/media/mux-video", () => ({
 }));
 vi.mock("@videojs/react/video/skin.css", () => ({}));
 
-import LessonPlayer from "@/app/(member)/courses/LessonPlayer";
-import { LessonCompletionProvider } from "@/app/(member)/courses/LessonCompletion";
+import LessonPlayer from "@/components/courses/LessonPlayer";
+import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import { setLessonComplete } from "@/app/(member)/courses/actions";
 
 const tokens = { playback: "tok-play", poster: "tok-poster", storyboard: "tok-board" };
