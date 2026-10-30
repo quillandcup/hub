@@ -12,9 +12,11 @@ vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() 
 
 const loadAdminCourses = vi.fn();
 const loadAdminCourse = vi.fn();
+const loadAdminCourseTitle = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({
   loadAdminCourses: (...a: unknown[]) => loadAdminCourses(...a),
   loadAdminCourse: (...a: unknown[]) => loadAdminCourse(...a),
+  loadAdminCourseTitle: (...a: unknown[]) => loadAdminCourseTitle(...a),
 }));
 vi.mock("@/app/(admin)/admin/courses/[id]/CourseVideosPanel", () => ({
   default: (props: { slug: string | null; videos: unknown[] }) => <div data-testid="videos" data-slug={props.slug ?? ""} data-count={props.videos.length} />,
@@ -28,10 +30,8 @@ vi.mock("@/app/(admin)/admin/courses/[id]/CourseSettingsForm", () => ({
   ),
 }));
 
-vi.mock("@/app/(admin)/admin/courses/[id]/LessonStaffTools", () => ({ default: (props: { lessonId: string; preview: boolean }) => <div data-testid="staff-tools" data-lesson={props.lessonId} data-preview={String(props.preview)} /> }));
-
 import AdminCoursesPage from "@/app/(admin)/admin/courses/page";
-import AdminCoursePage from "@/app/(admin)/admin/courses/[id]/page";
+import AdminCoursePage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/page";
 
 const totals = { open: 0, coming_soon: 8, hidden: 45 };
 const row = (over = {}) => ({
@@ -101,21 +101,7 @@ describe("/admin/courses/[id]", () => {
     await expect(Promise.resolve().then(() => AdminCoursePage(params))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
 
-  it("explains each lesson: its state, the Kajabi setting behind it, and what the content step found", async () => {
-    loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
-
-    const lesson = screen.getByDisplayValue("Reader expectations").closest("li")!;
-    expect(within(lesson).getByRole("combobox", { name: "Lesson state" })).toHaveValue("coming_soon");
-    expect(within(lesson).getByText("Inside \u201cModule 2\u201d (Locked)")).toBeInTheDocument();
-    expect(within(lesson).getByText("text \u2713 \u00b7 video \u2013")).toBeInTheDocument();
-    const loose = screen.getByDisplayValue("Loose draft").closest("li")!;
-    expect(within(loose).getByRole("combobox", { name: "Lesson state" })).toHaveValue("hidden");
-    expect(within(loose).getByText("Draft in Kajabi")).toBeInTheDocument();
-    expect(screen.getByText(/0 lessons\s+open, 1 coming soon, 1 hidden/)).toBeInTheDocument();
-  });
-
-  it("is the course builder: the course as last imported, with every field disabled and the support banner above", async () => {
+  it("is the course builder: the course as last imported, with its fields disabled and the support banner above", async () => {
     loadAdminCourse.mockResolvedValue(detail());
     await renderServerPage(AdminCoursePage, params);
 
@@ -125,55 +111,25 @@ describe("/admin/courses/[id]", () => {
     expect(within(form).getByDisplayValue("The Ready Writer")).toBeDisabled();
     expect(within(form).getByDisplayValue("the-ready-writer")).toBeDisabled();
     expect(within(form).getByDisplayValue("Learn to write.")).toBeDisabled();
-    expect(within(form).getByDisplayValue("Module 2")).toBeDisabled();
-    expect(within(form).getByDisplayValue("Week 1")).toBeDisabled();
-    for (const control of form.querySelectorAll("input, select, textarea, button")) expect(control).toBeDisabled();
+    expect(within(form).getByText("Module 2")).toBeInTheDocument();
+    for (const control of form.querySelectorAll("input:not([type=search]), select, textarea, button")) {
+      if (control.textContent?.match(/(Expand|Collapse) all/) || control.getAttribute("aria-label")?.match(/^(Expand|Collapse) /)) continue;
+      if (control.closest("a")) continue;
+      expect(control, control.outerHTML).toBeDisabled();
+    }
+  });
+
+  it("puts the course's name first in the browser tab", async () => {
+    loadAdminCourseTitle.mockResolvedValue("The Ready Writer");
+    expect(await generateMetadata({ params: Promise.resolve({ id: "k1" }) })).toEqual({ title: "The Ready Writer · Courses" });
+    loadAdminCourseTitle.mockResolvedValue(null);
+    expect(await generateMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Courses" });
   });
 
   it("says when nothing has been imported yet", async () => {
     loadAdminCourse.mockResolvedValue(detail(undefined, { lastImportedAt: null }));
     await renderServerPage(AdminCoursePage, params);
     expect(screen.getByText(/Not imported from Kajabi yet/)).toBeInTheDocument();
-  });
-
-  it("gives each lesson that is in the Hub the staff tools, as a preview when members can't open it", async () => {
-    loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
-
-    const lesson = screen.getByDisplayValue("Reader expectations").closest("li")!;
-    expect(within(lesson).getByTestId("staff-tools")).toHaveAttribute("data-lesson", "hub-l1");
-    expect(within(lesson).getByTestId("staff-tools")).toHaveAttribute("data-preview", "true");
-  });
-
-  it("has no staff tools for a lesson the Hub doesn't have yet", async () => {
-    loadAdminCourse.mockResolvedValue(detail(undefined, { hubLessonIds: { l1: "hub-l1" } }));
-    await renderServerPage(AdminCoursePage, params);
-    expect(within(screen.getByDisplayValue("Loose draft").closest("li")!).queryByTestId("staff-tools")).not.toBeInTheDocument();
-  });
-
-  it("links a coming-soon lesson and a draft to their previews in the Hub", async () => {
-    loadAdminCourse.mockResolvedValue(detail());
-    await renderServerPage(AdminCoursePage, params);
-
-    const soon = screen.getByDisplayValue("Reader expectations").closest("li")!;
-    expect(within(soon).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/hub-l1");
-    // Drafts are stored in the Hub too (hidden from members), so staff preview them the same way.
-    const draft = screen.getByDisplayValue("Loose draft").closest("li")!;
-    expect(within(draft).getByRole("link", { name: "Preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/hub-l2");
-  });
-
-  it("has no link for a draft the Hub doesn't have yet (before the next sync)", async () => {
-    loadAdminCourse.mockResolvedValue(detail(undefined, { hubLessonIds: { l1: "hub-l1" } }));
-    await renderServerPage(AdminCoursePage, params);
-
-    expect(within(screen.getByDisplayValue("Loose draft").closest("li")!).queryByRole("link")).not.toBeInTheDocument();
-  });
-
-  it("has no lesson links for an unpublished course", async () => {
-    loadAdminCourse.mockResolvedValue(detail(null, { hubLessonIds: {} }));
-    await renderServerPage(AdminCoursePage, params);
-
-    expect(within(screen.getByDisplayValue("Reader expectations").closest("li")!).queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("gives a published course its settings form with the launch day in the organisation's timezone", async () => {

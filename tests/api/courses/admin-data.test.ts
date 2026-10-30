@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { loadAdminCourse, loadAdminCourses } from '@/lib/courses/admin'
+import { loadAdminCourse, loadAdminCourseTitle, loadAdminLesson, loadAdminCourses } from '@/lib/courses/admin'
 import { accessLabel } from '@/lib/courses/access-options'
 
 /**
@@ -22,6 +22,7 @@ describe('Admin course data', () => {
 
   async function cleanup() {
     await supabase.from('courses').delete().eq('source_key', PUBLISHED)
+    await bronze.from('kajabi_lesson_files').delete().like('kajabi_id', `${PUBLISHED}-%`)
     for (const id of [PUBLISHED, UNPUBLISHED]) {
       await bronze.from('kajabi_course_lessons').delete().eq('course_kajabi_id', id)
       await bronze.from('kajabi_course_modules').delete().eq('course_kajabi_id', id)
@@ -87,6 +88,52 @@ describe('Admin course data', () => {
     it('puts published courses first', async () => {
       const rows = await loadAdminCourses(supabase, now)
       expect(rows.findIndex((c) => c.kajabiId === PUBLISHED)).toBeLessThan(rows.findIndex((c) => c.kajabiId === UNPUBLISHED))
+    })
+  })
+
+  describe('loadAdminCourseTitle', () => {
+    it("is a course's name for the browser tab, and null for one Kajabi does not have", async () => {
+      expect(await loadAdminCourseTitle(supabase, PUBLISHED)).toBe(`Admin Published ${ts}`)
+      expect(await loadAdminCourseTitle(supabase, 'no-such-course')).toBeNull()
+    })
+  })
+
+  describe('loadAdminLesson', () => {
+    const lessonId = `${PUBLISHED}-l1`
+
+    it("gives the lesson with its state, the modules above it, the course's module paths and its downloads", async () => {
+      await bronze.from('kajabi_course_lessons').update({ body_html: '<p>Hey</p><script>alert(1)</script>', thumbnail_url: 'https://example.com/t.jpg', video_duration_seconds: 410 }).eq('kajabi_id', lessonId)
+      await bronze.from('kajabi_lesson_files').insert({ kajabi_id: `${PUBLISHED}-f1`, lesson_kajabi_id: lessonId, filename: 'Tracker.pdf', size_bytes: 2048 })
+
+      const detail = (await loadAdminLesson(supabase, PUBLISHED, lessonId))!
+      expect(detail.course).toEqual({ kajabiId: PUBLISHED, title: `Admin Published ${ts}` })
+      expect(detail.lesson).toMatchObject({ title: 'Published in locked', publishingOption: 'published', state: 'coming_soon', reason: 'Inside “Module 2” (Locked)', hasVideo: true, videoDurationSeconds: 410, thumbnailSrc: 'https://example.com/t.jpg' })
+      // Never Kajabi's raw HTML.
+      expect(detail.lesson.bodyHtml).toBe('<p>Hey</p>')
+      expect(detail.trail.map((t) => t.title)).toEqual(['Module 2', 'Week 1'])
+      expect(detail.modules.map((m) => m.path)).toEqual(['Module 1', 'Module 2', 'Module 2 / Week 1'])
+      expect(detail.files).toEqual([{ filename: 'Tracker.pdf', sizeBytes: 2048 }])
+    })
+
+    it("has no module trail for a lesson outside every module, and no Hub link until the lesson is in the Hub", async () => {
+      const loose = (await loadAdminLesson(supabase, PUBLISHED, `${PUBLISHED}-l3`))!
+      expect(loose.trail).toEqual([])
+      expect(loose.hub).toBeNull()
+      expect(loose.lesson.hasVideo).toBe(false)
+    })
+
+    it("links the lesson to its Hub page once it is there", async () => {
+      const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: lessonId }).select('id').single()
+      const detail = (await loadAdminLesson(supabase, PUBLISHED, lessonId))!
+      expect(detail.hub).toEqual({ slug: `admin-published-${ts}`, lessonId: hub!.id })
+      // Other tests insert the same Hub lesson.
+      await supabase.from('course_lessons').delete().eq('id', hub!.id)
+    })
+
+    it('is null for a lesson in another course, one that does not exist, or a course Kajabi does not have', async () => {
+      expect(await loadAdminLesson(supabase, UNPUBLISHED, lessonId)).toBeNull()
+      expect(await loadAdminLesson(supabase, PUBLISHED, 'no-such-lesson')).toBeNull()
+      expect(await loadAdminLesson(supabase, 'no-such-course', lessonId)).toBeNull()
     })
   })
 
