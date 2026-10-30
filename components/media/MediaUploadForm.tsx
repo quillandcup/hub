@@ -37,12 +37,10 @@ export default function MediaUploadForm({
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    // This form sits inside other forms (an event's edit form, the add form): the submit would bubble up and save
-    // them, with nothing chosen yet, before the upload has finished.
-    e.stopPropagation();
-    if (!file) return;
+  // Not a <form>: this sits inside other forms (an event's edit form, the add form), and a form in a form submits the
+  // outer one too, saving the event with nothing chosen yet. Enter in a field sends, instead of submitting what is around it.
+  async function send() {
+    if (!file || busy) return;
     setBusy(true);
     onError(null);
     const large = file.size > DIRECT_UPLOAD_ABOVE;
@@ -80,8 +78,14 @@ export default function MediaUploadForm({
     }
   }
 
+  function sendOnEnter(e: React.KeyboardEvent) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    void send();
+  }
+
   return (
-    <form onSubmit={send} className="space-y-3">
+    <div className="space-y-3">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -105,15 +109,15 @@ export default function MediaUploadForm({
       </div>
       <label className="block text-sm">
         Title
-        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="From the file name if left empty" className={`${INPUT} mt-1`} />
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={sendOnEnter} placeholder="From the file name if left empty" className={`${INPUT} mt-1`} />
       </label>
       <label className="block text-sm">
         Tags
-        <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
+        <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} onKeyDown={sendOnEnter} placeholder="hedgies-on-first, retreat" className={`${INPUT} mt-1`} />
       </label>
-      <button type="submit" disabled={!file || busy} className={PRIMARY}>
+      <button type="button" onClick={() => void send()} disabled={!file || busy} className={PRIMARY}>
         {busy ? "Uploading..." : submitLabel}
       </button>
-    </form>
+    </div>
   );
 }
