@@ -131,7 +131,8 @@ export function describeDomShape(pattern: string): string[] {
     for (const n of names) {
       if (!isUrlAttr(n)) continue;
       const value = el.getAttribute(n);
-      if (value && !value.startsWith("data:") && !value.startsWith("javascript:") && !value.startsWith("#")) group.urls.add(squeeze(value));
+      // Only http(s) and relative addresses: any other scheme (javascript:, vbscript:, data:, mailto:...) is not a request the page makes.
+      if (value && !value.startsWith("#") && !/^(?!https?:)[a-z][a-z0-9+.-]*:/i.test(value.trim())) group.urls.add(squeeze(value));
     }
     groups.set(key, group);
   }

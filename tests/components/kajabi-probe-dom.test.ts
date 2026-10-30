@@ -20,6 +20,9 @@ const PAGE = `
     </ul>
     <a class="more" href="/products/demo/posts/12345678/comments?page=2">Show More</a>
     <a href="javascript:void(0)" class="unrelated">Elsewhere</a>
+    <a href="vbscript:msgbox(1)" class="comment-vb">Alt</a>
+    <a href="mailto:ada@example.com" class="comment-mail">Mail</a>
+    <a href="DATA:text/html,x" class="comment-data">Data</a>
   </section>
 `;
 
@@ -52,6 +55,12 @@ describe("describeDomShape", () => {
     const text = describeDomShape("comment").join("\n");
     expect(text).not.toContain("unrelated");
     expect(text).not.toContain("javascript");
+    expect(text).not.toContain("vbscript");
+    expect(text).not.toContain("mailto");
+    expect(text).not.toContain("text/html");
+    // Those links are still described (their class matched), just with no address.
+    expect(text).toContain("a.comment-vb x1 attrs: href");
+    expect(text).not.toContain("a.comment-vb x1 attrs: href |");
     // Only the page's show-more and reply style controls are listed whatever the pattern, since they are how more data is asked for.
     const controlsOnly = describeDomShape("nothing-matches-this");
     expect(controlsOnly).toHaveLength(3);
