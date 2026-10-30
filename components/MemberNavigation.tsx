@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
@@ -8,10 +8,14 @@ import Wordmark from "@/components/Wordmark";
 import { useOpenMobileNav } from "@/components/MobileMenuButton";
 import { navGroups, type SitePage } from "@/lib/site-pages";
 import { navTrackName } from "@/lib/analytics/names";
+import { nextNavMode, resolveNavMode, type NavMode } from "@/lib/nav-mode";
+import { updateNavMode } from "@/app/(member)/settings/actions";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
   enabledFeatures: FeatureKey[];
+  /** The member's saved sidebar mode; null until they choose, so the page's default applies (auto-hide on chat). */
+  navMode?: NavMode | null;
 }
 
 interface NavLinksProps {
@@ -91,16 +95,21 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
 // the page while hovered or focused (the page keeps its width, nothing reflows). Open, it sits above the app
 // header (z-30), whose search box would otherwise cover the wordmark.
 const AUTO_HIDE_OPEN_DELAY_MS = 150;
-const isAutoHidePath = (pathname: string) => pathname === "/chat" || pathname.startsWith("/chat/");
 
-export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNavigationProps) {
-  const [collapsed, setCollapsed] = useState(true);
+const NAV_MODE_LABELS: Record<NavMode, string> = { open: "Sidebar pinned open", auto: "Sidebar auto-hides", closed: "Sidebar pinned closed" };
+const NAV_MODE_GLYPHS: Record<NavMode, string> = { open: "«", auto: "»", closed: "→" };
+
+export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = null }: MemberNavigationProps) {
+  const [chosenMode, setChosenMode] = useState<NavMode | null>(navMode);
+  const [, startSave] = useTransition();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
   const [peeking, setPeeking] = useState(false);
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoHide = isAutoHidePath(pathname);
+  const mode = resolveNavMode(chosenMode, pathname);
+  const autoHide = mode === "auto";
+  const collapsed = mode === "closed";
   const railOpen = autoHide && peeking;
 
   useOpenMobileNav(() => setMobileOpen(true));
@@ -119,13 +128,15 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
   };
   useEffect(() => clearPeekTimer, []);
 
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    setCollapsed(isMobile);
-    const handleResize = () => setCollapsed(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const cycleMode = () => {
+    const next = nextNavMode(mode);
+    setChosenMode(next);
+    setPeeking(false);
+    startSave(async () => {
+      const result = await updateNavMode(next);
+      if (result.error) setChosenMode(navMode);
+    });
+  };
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -201,14 +212,15 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
               className={`text-lg whitespace-nowrap ${autoHide ? `transition-opacity duration-200 ${railOpen ? "opacity-100" : "opacity-0"}` : ""}`}
             />
           )}
-          {!autoHide && (
+          {(!autoHide || railOpen) && (
             <button
-              onClick={() => setCollapsed(!collapsed)}
-              data-track="nav-collapse-sidebar"
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={cycleMode}
+              data-track="nav-mode-toggle"
+              className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20 ${autoHide ? "text-plum-600" : ""}`}
+              aria-label={`${NAV_MODE_LABELS[mode]}. Switch to ${NAV_MODE_LABELS[nextNavMode(mode)].toLowerCase()}`}
+              title={NAV_MODE_LABELS[mode]}
             >
-              {collapsed ? "→" : "←"}
+              {NAV_MODE_GLYPHS[mode]}
             </button>
           )}
         </div>

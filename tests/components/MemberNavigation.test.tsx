@@ -10,7 +10,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
 
+const updateNavMode = vi.fn(async (_mode: string): Promise<{ success?: boolean; error?: string }> => ({ success: true }));
+vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string) => updateNavMode(mode) }));
+
 beforeEach(() => {
+  updateNavMode.mockClear();
   pathname = "/dashboard";
 });
 
@@ -166,5 +170,37 @@ describe("MemberNavigation auto-hide on chat", () => {
     render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     expect(sidebar()).not.toHaveAttribute("data-auto-hide");
     expect(screen.getByRole("button", { name: /sidebar/i })).toBeInTheDocument();
+  });
+
+  it("cycles pinned open, auto-hide, pinned closed from the header button and saves each choice", async () => {
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const toggle = () => screen.getByRole("button", { name: /^Sidebar/ });
+
+    await userEvent.click(toggle());
+    expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
+    expect(updateNavMode).toHaveBeenLastCalledWith("auto");
+
+    // Auto-hide rests as a rail with no button; hover opens it, and the button is there to pin it closed.
+    expect(screen.queryByRole("button", { name: /^Sidebar/ })).not.toBeInTheDocument();
+    fireEvent.focus(within(sidebar()).getAllByRole("link")[0]);
+    await userEvent.click(toggle());
+    expect(updateNavMode).toHaveBeenLastCalledWith("closed");
+    expect(sidebar()).not.toHaveAttribute("data-auto-hide");
+    expect(sidebar()).toHaveClass("w-16");
+
+    await userEvent.click(toggle());
+    expect(updateNavMode).toHaveBeenLastCalledWith("open");
+    expect(sidebar()).toHaveClass("w-64");
+  });
+
+  it("uses the saved mode over the page's default, and falls back when saving fails", async () => {
+    pathname = "/chat";
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} navMode="open" />);
+    expect(sidebar()).not.toHaveAttribute("data-auto-hide");
+    expect(sidebar()).toHaveClass("w-64");
+
+    updateNavMode.mockResolvedValueOnce({ error: "nope" });
+    await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
+    await vi.waitFor(() => expect(sidebar()).not.toHaveAttribute("data-auto-hide"));
   });
 });

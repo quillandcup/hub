@@ -45,6 +45,7 @@ export const OUTCOME_ACTIONS = [
   "notification_setting_changed",
   "push_enabled",
   "push_disabled",
+  "nav_mode_changed",
   "timezone_changed",
   "secondary_timezone_changed",
   "session_revoked",

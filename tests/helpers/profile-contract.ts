@@ -88,6 +88,13 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       expect((await ctx.repo().byId(ids.a))?.secondary_timezone).toBeNull();
     });
 
+    it("saves the sidebar mode", async () => {
+      const ids = await ctx.seed([{ key: "a", email: email("navmode") }]);
+      expect((await ctx.repo().byId(ids.a))?.nav_mode ?? null).toBeNull();
+      await ctx.repo().setNavMode(ids.a, "auto");
+      expect((await ctx.repo().byId(ids.a))?.nav_mode).toBe("auto");
+    });
+
     it("records who left usage statistics, and who is back in", async () => {
       const ids = await ctx.seed([
         { key: "a", email: email("ada") },
