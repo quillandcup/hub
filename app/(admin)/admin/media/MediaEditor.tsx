@@ -23,7 +23,9 @@ const FIT_LABELS: Record<FitMode, string> = {
 /** The presets that are book covers: how a picture of another shape fits them is one choice. */
 const COVER_PRESETS = ["book_cover_shelf", "book_cover_kdp_ebook"] as const;
 
-const CUSTOM_FORMATS = ["jpeg", "png", "webp"] as const;
+/** What a download may ask for. The link takes its words from these tables, never from what the dropdowns hold. */
+const FORMAT_PARAM: Record<string, string> = { jpeg: "jpeg", png: "png", webp: "webp" };
+const FIT_PARAM: Record<FitMode, string> = { crop: "crop", extend: "extend", white: "white" };
 
 const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : "#");
 
@@ -140,8 +142,9 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
 
   // Whole pixels within what the route accepts, and only the formats and fits it knows: what is typed never reaches the link as text.
   const pixels = (typed: string) => Math.min(MAX_CUSTOM_SIDE, Math.max(1, Math.trunc(Number(typed)) || 1));
-  const customFormat = CUSTOM_FORMATS.find((f) => f === format) ?? "jpeg";
-  const customHref = `/api/media/${assetId}/custom?width=${pixels(width)}&height=${pixels(height)}&format=${customFormat}&fit=${customFit}&download=1`;
+  const customFormat = Object.hasOwn(FORMAT_PARAM, format) ? FORMAT_PARAM[format] : "jpeg";
+  const customFitParam = Object.hasOwn(FIT_PARAM, customFit) ? FIT_PARAM[customFit] : "crop";
+  const customHref = `/api/media/${assetId}/custom?width=${pixels(width)}&height=${pixels(height)}&format=${customFormat}&fit=${customFitParam}&download=1`;
   const version = asset?.updated_at;
   // The whole picture, never cropped: a size with the picture's own shape (longest side 800), so a click maps straight to a point on it.
   const scale = asset ? 800 / Math.max(asset.width, asset.height) : 1;
