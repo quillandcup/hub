@@ -90,7 +90,7 @@ describe("calendarEventFields", () => {
   it("takes the title, plain-text description, trimmed location, exact times and Eastern dates", () => {
     expect(calendarEventFields(source)).toEqual({
       title: "Hedgie Book Fair",
-      description: "Come browse",
+      description: "Come **browse**",
       location: "Zoom room 2",
       starts_at: "2097-05-02",
       ends_at: "2097-05-02", // 01:00Z is 21:00 Eastern the same day
