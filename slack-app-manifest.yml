@@ -108,7 +108,9 @@ settings:
       # - user_change
   org_deploy_enabled: false
   socket_mode_enabled: false
-  token_rotation_enabled: false
+  # Bot and user tokens last 12 hours and are refreshed by the Hub (lib/slack-bot-token.ts, lib/slack-connect.ts,
+  # docs/SECRET_ROTATION.md "Moving the bot to rotating tokens"). Opting in can't be undone.
+  token_rotation_enabled: true
   # Opting in to rotating app-level tokens can't be undone; keep it off explicitly.
   app_level_token_rotation_enabled: false
   is_mcp_enabled: false
