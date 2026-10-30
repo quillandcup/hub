@@ -68,6 +68,10 @@ The 145x215 rule goes away. `book_cover_shelf` (2x for retina) is derived from w
 
 **Needs agreeing with whoever owns `courses:content`**: that the foundation PR below lands first, and that its next image work targets `media_assets`.
 
+## Housekeeping
+
+`/api/reconcile/media` runs nightly (`lib/media/sweep.ts`): it removes uploads started through the signed URL and never confirmed (over a day old), and the files of images deleted over 30 days ago (original and renditions; the row stays, with `files_removed_at` set, so a title and tags aren't lost). An image something still shows is skipped. Deleting in `/admin/media` is therefore undoable by staff (clear `deleted_at`) for 30 days.
+
 ## Later: poster and thumbnail from a video frame
 
 No schema change. The course builder's picker gets a "from the video" tab that asks Mux for a frame (`image.mux.com/<playback id>/thumbnail.jpg?time=<s>`, see `docs/MUX_CONFIG.md`), stores it as an asset with `source = 'video_frame'`, `source_key = '<video id>@<seconds>'`, and sets the poster or thumbnail from it. The same frame twice is one asset.

@@ -110,6 +110,24 @@ export function defineMediaContract(name: string, setup: () => MediaContractCont
       ]);
     });
 
+    it("lists deleted assets past a cutoff whose files are still there, and stops listing one once its files are marked removed", async () => {
+      const gone = await ctx.repo().add(asset("x1"));
+      const live = await ctx.repo().add(asset("x2"));
+      await ctx.repo().remove(gone.id);
+      const ids = async (before: Date) => (await ctx.repo().expiredDeleted(before, 1000)).map((a) => a.id);
+      const later = new Date(Date.now() + 60_000);
+      const earlier = new Date(Date.now() - 60_000);
+
+      expect(await ids(later)).toContain(gone.id);
+      expect(await ids(later)).not.toContain(live.id); // not deleted
+      expect(await ids(earlier)).not.toContain(gone.id); // deleted too recently
+      expect((await ctx.repo().expiredDeleted(later, 0)).length).toBe(0);
+
+      await ctx.repo().markFilesRemoved(gone.id);
+      expect(await ids(later)).not.toContain(gone.id);
+      expect((await ctx.repo().byId(gone.id))?.files_removed_at).not.toBeNull(); // the row stays
+    });
+
     it("edits an asset, and a deleted one can't be edited or found by search", async () => {
       const added = await ctx.repo().add(asset("e"));
       const edited = await ctx.repo().edit(added.id, { title: "New", alt_text: "A hedgehog", tags: ["B", "a"], focal_x: 0.25, focal_y: 0.75, fits: { book_cover_shelf: "white" }, is_public: true });
