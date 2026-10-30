@@ -5,7 +5,6 @@ import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { courseImageSrc, courseImageUrl } from "@/lib/courses/image-urls";
 import { resolveCourseAccess } from "@/lib/courses/member";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { slugifyTitle, type Visibility } from "@/lib/courses/visibility";
 import { planCourseVideos, type PlannedVideo } from "@/lib/courses/media";
 import { planCourseFiles, type FilePlan } from "@/lib/courses/files";
@@ -55,11 +54,12 @@ async function loadSilverCourses(supabase: SupabaseClient) {
 }
 
 export async function loadAdminCourses(supabase: SupabaseClient, now = new Date()): Promise<AdminCourseRow[]> {
+  const repo = createRepos(supabase).kajabiCourses;
   const [bronze, silver, modules, lessons] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_courses", "kajabi_id, title", (q) => q.is("deleted_at", null)),
+    repo.liveCourses(),
     loadSilverCourses(supabase),
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, course_kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) => q.is("deleted_at", null)),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, course_kajabi_id, module_kajabi_id, position, title, publishing_option", (q) => q.is("deleted_at", null)),
+    repo.liveModules(),
+    repo.liveLessonOutlines(),
   ]);
   const silverByKey = new Map(silver.map((c) => [c.source_key, c]));
   const access = silver.length
@@ -103,13 +103,13 @@ export interface AdminCourseDetail {
 }
 
 export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string, now = new Date()): Promise<AdminCourseDetail | null> {
-  const { data: bronze, error } = await supabase.schema("bronze").from("kajabi_courses").select("kajabi_id, title, fetched_at").eq("kajabi_id", kajabiId).is("deleted_at", null).maybeSingle();
-  if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
+  const repo = createRepos(supabase).kajabiCourses;
+  const bronze = await repo.liveCourse(kajabiId);
   if (!bronze) return null;
 
   const [modules, lessons, rows, videos, files] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option, fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, content_fetched_at, fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
+    repo.liveModules(kajabiId),
+    repo.liveLessonOutlines(kajabiId),
     loadAdminCourses(supabase, now),
     planCourseVideos(supabase, kajabiId, now),
     planCourseFiles(supabase, kajabiId, now),
@@ -150,9 +150,7 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
 
 /** A course's title for the browser tab, without loading the rest of the page. Null for a course Kajabi doesn't have. */
 export async function loadAdminCourseTitle(supabase: SupabaseClient, kajabiId: string): Promise<string | null> {
-  const { data, error } = await supabase.schema("bronze").from("kajabi_courses").select("title").eq("kajabi_id", kajabiId).is("deleted_at", null).maybeSingle();
-  if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
-  return data?.title ?? null;
+  return (await createRepos(supabase).kajabiCourses.liveCourse(kajabiId))?.title ?? null;
 }
 
 export interface AdminLessonDetail {
@@ -185,23 +183,15 @@ export interface AdminLessonDetail {
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
 export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: string, lessonKajabiId: string): Promise<AdminLessonDetail | null> {
-  const bronze = supabase.schema("bronze");
-  const [course, lessonRow, modules, lessons, files] = await Promise.all([
-    bronze.from("kajabi_courses").select("kajabi_id, title").eq("kajabi_id", courseKajabiId).is("deleted_at", null).maybeSingle(),
-    bronze
-      .from("kajabi_course_lessons")
-      .select("kajabi_id, title, publishing_option, body_html, thumbnail_url, video_media_id, video_duration_seconds, content_fetched_at, fetched_at")
-      .eq("kajabi_id", lessonKajabiId)
-      .eq("course_kajabi_id", courseKajabiId)
-      .is("deleted_at", null)
-      .maybeSingle(),
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)),
-    bronze.from("kajabi_lesson_files").select("filename, size_bytes, kajabi_id").eq("lesson_kajabi_id", lessonKajabiId).is("deleted_at", null).order("filename").order("kajabi_id"),
+  const repo = createRepos(supabase).kajabiCourses;
+  const [course, l, modules, lessons, files] = await Promise.all([
+    repo.liveCourse(courseKajabiId),
+    repo.liveLesson(courseKajabiId, lessonKajabiId),
+    repo.liveModules(courseKajabiId),
+    repo.liveLessonOutlines(courseKajabiId),
+    repo.liveFiles([lessonKajabiId]),
   ]);
-  for (const r of [course, lessonRow, files]) if (r.error) throw new Error(`course lesson read failed: ${r.error.message}`);
-  if (!course.data || !lessonRow.data) return null;
-  const l = lessonRow.data;
+  if (!course || !l) return null;
 
   const explained = explainCourse(toModules(modules), toLessons(lessons));
   const flat: ExplainedLesson[] = [...explained.loose];
@@ -241,7 +231,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
   }
 
   return {
-    course: { kajabiId: course.data.kajabi_id, title: course.data.title },
+    course: { kajabiId: course.kajabi_id, title: course.title },
     lesson: {
       kajabiId: l.kajabi_id,
       title: l.title,
@@ -259,7 +249,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
     modules: modules
       .map((m) => ({ kajabiId: m.kajabi_id as string, path: trailOf(m.kajabi_id).map((t) => t.title).join(" / ") }))
       .sort((a, b) => a.path.localeCompare(b.path)),
-    files: (files.data ?? []).map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
+    files: files.map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
     hub,
     video,
   };

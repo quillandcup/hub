@@ -10,6 +10,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Db } from "../data/db";
+import { SupabaseKajabiCourseRepository } from "../data/kajabi-courses";
 
 const HERO_KEY = /hero|banner|cover|background/i;
 const THUMBNAIL_KEY = /thumb|poster/i;
@@ -67,14 +69,10 @@ export async function saveCourseHero(
   now: Date,
   options: { dryRun?: boolean } = {}
 ): Promise<HeroOutcome> {
-  const bronze = supabase.schema("bronze");
-  const { data, error } = await bronze.from("kajabi_courses").select("hero_image_url").eq("kajabi_id", courseKajabiId).is("deleted_at", null).maybeSingle();
-  if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
-  if (!data) return "missing";
-  if (data.hero_image_url === url) return "unchanged";
-  if (!options.dryRun) {
-    const { error: updateError } = await bronze.from("kajabi_courses").update({ hero_image_url: url, hero_captured_at: now.toISOString() }).eq("kajabi_id", courseKajabiId);
-    if (updateError) throw new Error(`kajabi_courses update failed: ${updateError.message}`);
-  }
+  const repo = new SupabaseKajabiCourseRepository(supabase as Db);
+  const course = await repo.liveCourse(courseKajabiId);
+  if (!course) return "missing";
+  if (course.hero_image_url === url) return "unchanged";
+  if (!options.dryRun) await repo.setCourseHero(courseKajabiId, url, now.toISOString());
   return "updated";
 }

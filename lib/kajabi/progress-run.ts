@@ -11,7 +11,7 @@
 
 import type { Db } from "../data/db";
 import { saveProductProgress } from "../courses/product-progress-store";
-import { fetchAllRows } from "../supabase/paginate";
+import { SupabaseKajabiCourseRepository } from "../data/kajabi-courses";
 import { saveMemberLessonProgress } from "./lesson-progress";
 import { memberReportUrl, parseMemberProgress, parseRoster, type RosterEntry } from "./progress-capture";
 
@@ -59,18 +59,8 @@ export interface ProgressSummary {
 const describePath = (url: string) => new URL(url).pathname.replace(/\/members\/[^/]+/, "/members/:id");
 
 export async function loadKnownLessonIds(db: Db, courseKajabiId: string): Promise<Set<string>> {
-  const rows = await fetchAllRows<{ kajabi_id: string }>(
-    (from, to) =>
-      db
-        .schema("bronze")
-        .from("kajabi_course_lessons")
-        .select("kajabi_id")
-        .eq("course_kajabi_id", courseKajabiId)
-        .is("deleted_at", null)
-        .order("kajabi_id")
-        .range(from, to) as unknown as PromiseLike<{ data: { kajabi_id: string }[] | null; error: { message: string } | null }>,
-  );
-  return new Set(rows.map((r) => r.kajabi_id));
+  const ids = await new SupabaseKajabiCourseRepository(db).liveLessonIds(courseKajabiId);
+  return new Set(ids);
 }
 
 export async function runProgressCapture(options: ProgressRunOptions): Promise<ProgressSummary> {

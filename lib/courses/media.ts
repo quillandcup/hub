@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { visibleLessonIds } from "@/lib/courses/visible";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
+import { createRepos } from "@/lib/data/repos";
 import { inBatches } from "@/lib/courses/db";
 import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
 
@@ -65,17 +65,8 @@ interface VideoRow {
 
 /** The videos of a course's lessons, drafts' included and marked, and what each needs. Reads only. */
 export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<PlannedVideo[]> {
-  const [modules, lessons] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-    fetchAllBronzeRows(
-      supabase,
-      "kajabi_course_lessons",
-      "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, video_source, video_duration_seconds",
-      (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-  ]);
+  const repo = createRepos(supabase).kajabiCourses;
+  const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
 
   // Same visibility rule as members get: a video is a draft's when no visible lesson uses it.
   const visibleIds = visibleLessonIds(modules, lessons);

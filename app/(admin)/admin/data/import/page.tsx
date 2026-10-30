@@ -10,6 +10,7 @@ import KajabiApiImportForm from "./KajabiApiImportForm";
 import StripeImportForm from "./StripeImportForm";
 import ProductProgressImportForm from "./ProductProgressImportForm";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { requireAdminPage } from "@/lib/admin-auth";
 
@@ -26,13 +27,8 @@ export default async function ImportPage() {
   }
 
   // Admins can read the Bronze course tables; the import route checks the choice again.
-  const { data: courseRows } = await (await createClient())
-    .schema("bronze")
-    .from("kajabi_courses")
-    .select("kajabi_id, title")
-    .is("deleted_at", null)
-    .order("title");
-  const progressCourses = (courseRows ?? []).map((c) => ({ kajabiId: c.kajabi_id, title: c.title }));
+  const courseRows = await createRepos(await createClient()).kajabiCourses.liveCourses();
+  const progressCourses = courseRows.map((c) => ({ kajabiId: c.kajabi_id, title: c.title }));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

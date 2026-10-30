@@ -10,6 +10,12 @@
 
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { asJson } from "../data/json";
+import { SupabaseKajabiCourseRepository, type LessonContentState, type LessonTarget } from "../data/kajabi-courses";
+import type { Db } from "../data/db";
+
+// Relative imports only: scripts/kajabi-course-content.ts runs this outside Next.
+const coursesOf = (supabase: SupabaseClient) => new SupabaseKajabiCourseRepository(supabase as Db);
 
 /** The editor's lesson response (JSON:API); only the fields read here. */
 export interface EditorPost {
@@ -159,15 +165,9 @@ export const URL_REFRESH_WINDOW_MS = 36 * 60 * 60 * 1000;
 
 export type SaveOutcome = "updated" | "unchanged" | "urls_refreshed" | "missing";
 
-interface LessonRow {
-  kajabi_id: string;
-  content_hash: string | null;
-  video_source: LessonVideoSource | null;
-}
-
 /** Links that step D could still need are close to expiring (or already past it). */
-export function linksNeedRefresh(row: Pick<LessonRow, "video_source">, now: Date): boolean {
-  const expires = row.video_source?.download_url_expires_at;
+export function linksNeedRefresh(row: { video_source: LessonContentState["video_source"] | LessonVideoSource }, now: Date): boolean {
+  const expires = (row.video_source as LessonVideoSource | null)?.download_url_expires_at;
   return !!expires && new Date(expires).getTime() - now.getTime() < URL_REFRESH_WINDOW_MS;
 }
 
@@ -183,15 +183,9 @@ export async function saveLessonContent(
   now: Date,
   { dryRun = false }: { dryRun?: boolean } = {}
 ): Promise<SaveOutcome> {
-  const bronze = supabase.schema("bronze");
+  const repo = coursesOf(supabase);
 
-  const { data: row, error } = await bronze
-    .from("kajabi_course_lessons")
-    .select("kajabi_id, content_hash, video_source")
-    .eq("kajabi_id", content.lessonId)
-    .is("deleted_at", null)
-    .maybeSingle<LessonRow>();
-  if (error) throw new Error(`kajabi_course_lessons: ${error.message}`);
+  const row = await repo.contentState(content.lessonId);
   if (!row) return "missing";
 
   const unchanged = row.content_hash === content.contentHash;
@@ -206,39 +200,23 @@ export async function saveLessonContent(
   if (dryRun) return "updated";
 
   const stamp = now.toISOString();
-  const { error: updateError } = await bronze
-    .from("kajabi_course_lessons")
-    .update({
-      body_html: content.bodyHtml,
-      thumbnail_url: content.thumbnailUrl,
-      video_media_id: content.videoMediaId,
-      video_source: content.videoSource,
-      content_hash: content.contentHash,
-      content_fetched_at: stamp,
-    })
-    .eq("kajabi_id", content.lessonId);
-  if (updateError) throw new Error(`kajabi_course_lessons: ${updateError.message}`);
+  await repo.saveContent(content.lessonId, {
+    body_html: content.bodyHtml,
+    thumbnail_url: content.thumbnailUrl,
+    video_media_id: content.videoMediaId,
+    video_source: asJson(content.videoSource),
+    content_hash: content.contentHash,
+    content_fetched_at: stamp,
+  });
 
   await syncFiles(supabase, content, stamp);
   return "updated";
 }
 
 async function refreshLinks(supabase: SupabaseClient, content: LessonContent): Promise<void> {
-  const bronze = supabase.schema("bronze");
-  const { error } = await bronze
-    .from("kajabi_course_lessons")
-    .update({ video_source: content.videoSource })
-    .eq("kajabi_id", content.lessonId);
-  if (error) throw new Error(`kajabi_course_lessons: ${error.message}`);
-  await Promise.all(
-    content.files.map(async (f) => {
-      const { error: fileError } = await bronze
-        .from("kajabi_lesson_files")
-        .update({ source_url: f.source_url })
-        .eq("kajabi_id", f.kajabi_id);
-      if (fileError) throw new Error(`kajabi_lesson_files: ${fileError.message}`);
-    })
-  );
+  const repo = coursesOf(supabase);
+  await repo.setVideoSource(content.lessonId, asJson(content.videoSource));
+  await Promise.all(content.files.map((f) => repo.setFileSourceUrl(f.kajabi_id, f.source_url)));
 }
 
 /**
@@ -246,45 +224,26 @@ async function refreshLinks(supabase: SupabaseClient, content: LessonContent): P
  * marked deleted), soft-delete what it no longer returns. Only called after a complete response.
  */
 async function syncFiles(supabase: SupabaseClient, content: LessonContent, stamp: string): Promise<void> {
-  const bronze = supabase.schema("bronze");
+  const repo = coursesOf(supabase);
 
-  if (content.files.length > 0) {
-    const { error } = await bronze.from("kajabi_lesson_files").upsert(
-      content.files.map((f) => ({
-        kajabi_id: f.kajabi_id,
-        lesson_kajabi_id: content.lessonId,
-        filename: f.filename,
-        source_url: f.source_url,
-        raw_payload: f.raw_payload,
-        fetched_at: stamp,
-        deleted_at: null,
-      })),
-      { onConflict: "kajabi_id" }
-    );
-    if (error) throw new Error(`kajabi_lesson_files: ${error.message}`);
-  }
-
-  const { data: live, error: liveError } = await bronze
-    .from("kajabi_lesson_files")
-    .select("kajabi_id")
-    .eq("lesson_kajabi_id", content.lessonId)
-    .is("deleted_at", null);
-  if (liveError) throw new Error(`kajabi_lesson_files: ${liveError.message}`);
+  await repo.upsertFiles(
+    content.files.map((f) => ({
+      kajabi_id: f.kajabi_id,
+      lesson_kajabi_id: content.lessonId,
+      filename: f.filename,
+      source_url: f.source_url,
+      raw_payload: asJson(f.raw_payload),
+      fetched_at: stamp,
+      deleted_at: null,
+    }))
+  );
 
   const keep = new Set(content.files.map((f) => f.kajabi_id));
-  const gone = (live ?? []).map((r) => r.kajabi_id as string).filter((id) => !keep.has(id));
-  if (gone.length > 0) {
-    const { error } = await bronze.from("kajabi_lesson_files").update({ deleted_at: stamp }).in("kajabi_id", gone);
-    if (error) throw new Error(`kajabi_lesson_files: ${error.message}`);
-  }
+  const gone = (await repo.liveFileIds(content.lessonId)).filter((id) => !keep.has(id));
+  await repo.softDeleteFiles(gone, stamp);
 }
 
-export interface LessonTarget {
-  kajabi_id: string;
-  course_kajabi_id: string;
-  title: string;
-  publishing_option: string | null;
-}
+export type { LessonTarget };
 
 /**
  * The lessons to capture: live Bronze lessons of a course (or one lesson). Drafts are skipped
@@ -295,29 +254,5 @@ export async function selectLessons(
   scope: { courseId: string } | { lessonId: string },
   { includeDrafts = false }: { includeDrafts?: boolean } = {}
 ): Promise<LessonTarget[]> {
-  const BATCH_SIZE = 1000;
-  const all: LessonTarget[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    let query = supabase
-      .schema("bronze")
-      .from("kajabi_course_lessons")
-      .select("kajabi_id, course_kajabi_id, title, publishing_option")
-      .is("deleted_at", null)
-      .order("kajabi_id");
-    query = "courseId" in scope ? query.eq("course_kajabi_id", scope.courseId) : query.eq("kajabi_id", scope.lessonId);
-    // neq alone would also drop rows where publishing_option is NULL.
-    if (!includeDrafts) query = query.or("publishing_option.is.null,publishing_option.neq.draft");
-    const { data, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw new Error(`kajabi_course_lessons: ${error.message}`);
-    if (data && data.length > 0) {
-      all.push(...(data as LessonTarget[]));
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
+  return coursesOf(supabase).lessonTargets(scope, { includeDrafts });
 }

@@ -86,8 +86,7 @@ export interface MemberProductProgress {
  * the member's addresses, the highest percentage wins.
  */
 export async function memberProductProgress(
-  db: Db,
-  repos: Pick<Repos, "members" | "aliases">,
+  repos: Pick<Repos, "members" | "aliases" | "kajabiCourses">,
   memberId: string,
   courseKajabiId: string,
 ): Promise<MemberProductProgress | null> {
@@ -98,17 +97,7 @@ export async function memberProductProgress(
   const emails = new Set([own]);
   for (const a of aliases) if (a.canonical_email.trim().toLowerCase() === own) emails.add(a.alias_email.trim().toLowerCase());
 
-  const { data, error } = await db
-    .schema("bronze")
-    .from("kajabi_product_progress")
-    .select("percent, logins, started_on, last_activity_on, imported_at")
-    .eq("course_kajabi_id", courseKajabiId)
-    .is("deleted_at", null)
-    .in("email", [...emails])
-    .order("percent", { ascending: false })
-    .limit(1);
-  if (error) throw new Error(`Could not read imported progress: ${error.message}`);
-  const row = data?.[0];
+  const row = await repos.kajabiCourses.bestProductProgress(courseKajabiId, [...emails]);
   if (!row) return null;
   return {
     percent: Number(row.percent),

@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { fetchAll, inBatches } from "@/lib/courses/db";
 
 /**
@@ -81,9 +80,7 @@ export async function importKajabiLessonProgress(
     };
     result.courses.push(summary);
 
-    const bronze = await fetchAllBronzeRows(supabase, "kajabi_lesson_progress", "email, kajabi_lesson_id, completed_at, captured_at", (q) =>
-      q.eq("course_kajabi_id", course.source_key).eq("completed", true).is("deleted_at", null).order("email").order("kajabi_lesson_id"),
-    );
+    const bronze = await createRepos(supabase).kajabiCourses.completedLessons(course.source_key);
     summary.completedInBronze = bronze.length;
     if (bronze.length === 0) continue;
 
