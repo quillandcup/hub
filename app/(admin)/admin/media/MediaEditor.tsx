@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { track } from "@/lib/analytics/client";
 import { mediaSrc } from "@/lib/media/url";
+import { MAX_CUSTOM_SIDE } from "@/lib/media/custom";
 import { FIT_MODES, PRESETS, type FitMode } from "@/lib/media/presets";
 import type { MediaAsset, MediaUsage } from "@/lib/data/media";
 
@@ -21,6 +22,8 @@ const FIT_LABELS: Record<FitMode, string> = {
 };
 /** The presets that are book covers: how a picture of another shape fits them is one choice. */
 const COVER_PRESETS = ["book_cover_shelf", "book_cover_kdp_ebook"] as const;
+
+const CUSTOM_FORMATS = ["jpeg", "png", "webp"] as const;
 
 const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : "#");
 
@@ -135,7 +138,10 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
     }
   }
 
-  const customHref = `/api/media/${assetId}/custom?width=${encodeURIComponent(width)}&height=${encodeURIComponent(height)}&format=${format}&fit=${customFit}&download=1`;
+  // Whole pixels within what the route accepts, and only the formats and fits it knows: what is typed never reaches the link as text.
+  const pixels = (typed: string) => Math.min(MAX_CUSTOM_SIDE, Math.max(1, Math.trunc(Number(typed)) || 1));
+  const customFormat = CUSTOM_FORMATS.find((f) => f === format) ?? "jpeg";
+  const customHref = `/api/media/${assetId}/custom?width=${pixels(width)}&height=${pixels(height)}&format=${customFormat}&fit=${customFit}&download=1`;
   const version = asset?.updated_at;
   // The whole picture, never cropped: a size with the picture's own shape (longest side 800), so a click maps straight to a point on it.
   const scale = asset ? 800 / Math.max(asset.width, asset.height) : 1;

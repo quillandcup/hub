@@ -141,6 +141,18 @@ describe("MediaEditor", () => {
     expect(track).toHaveBeenCalledWith("media_downloaded", { kind: "original" });
   });
 
+  it("keeps a custom-size download inside what the route accepts, whatever is typed", async () => {
+    await open();
+    const link = screen.getByRole("link", { name: "Download this size" });
+    await userEvent.clear(screen.getByLabelText("Width"));
+    await userEvent.type(screen.getByLabelText("Width"), "99999");
+    await userEvent.clear(screen.getByLabelText("Height"));
+    await userEvent.type(screen.getByLabelText("Height"), "12.7");
+    expect(link).toHaveAttribute("href", `/api/media/${ID}/custom?width=8000&height=12&format=jpeg&fit=crop&download=1`);
+    await userEvent.clear(screen.getByLabelText("Height"));
+    expect(link).toHaveAttribute("href", expect.stringContaining("height=1&"));
+  });
+
   it("sets and clears the focal point with a click on the picture, and saves what changed", async () => {
     respond = (url, init) => (url === `/api/media/${ID}` && init?.method === "PATCH" ? json({ asset: { ...detail, title: "Renamed", tags: ["new"], focal_x: 0.25, focal_y: 0.5, is_public: true, updated_at: "2026-10-30T00:00:00Z" } }) : undefined);
     await open();
