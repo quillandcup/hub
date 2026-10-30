@@ -25,11 +25,15 @@ export interface TrackbearImportResult {
   issues: ImportIssue[];
 }
 
-/** Copies one TrackBear cover into Hub storage; returns the new public URL. Injected so tests don't hit the network. */
+/**
+ * Copies one TrackBear cover into the member's media library; returns the URL it is shown at and the library image
+ * (null for a cover that isn't one). `title` names the image (the project's). Injected so tests don't hit the network.
+ */
 export type CoverCopier = (
   coverFilename: string,
-  memberId: string
-) => Promise<{ url: string; resizedFrom: string | null } | { error: string }>;
+  memberId: string,
+  title?: string
+) => Promise<{ url: string; assetId: string | null } | { error: string }>;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -188,13 +192,13 @@ export async function runTrackbearImport(
   for (const batch of chunk(withCovers, COVER_CONCURRENCY)) {
     await Promise.all(
       batch.map(async (project) => {
-        const result = await copyCover(project.coverFilename!, memberId);
+        const result = await copyCover(project.coverFilename!, memberId, project.title);
         if ("error" in result) {
           issues.push({ severity: "dropped", kind: "project", label: project.title, detail: `Cover: ${result.error}` });
           return;
         }
         try {
-          await writing.updateProject(memberId, projectIds.get(project.externalId)!, { cover_url: result.url });
+          await writing.updateProject(memberId, projectIds.get(project.externalId)!, { cover_url: result.url, cover_asset_id: result.assetId });
         } catch (error) {
           issues.push({
             severity: "dropped",
@@ -205,14 +209,6 @@ export async function runTrackbearImport(
           return;
         }
         created.covers++;
-        if (result.resizedFrom) {
-          issues.push({
-            severity: "changed",
-            kind: "project",
-            label: project.title,
-            detail: `Cover resized from ${result.resizedFrom} to Hub's 145×215 cover size.`,
-          });
-        }
       })
     );
   }

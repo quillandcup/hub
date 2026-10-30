@@ -4,11 +4,7 @@ import { safeUrl } from "@/lib/url";
 
 // Book covers (docs/MEDIA_LIBRARY.md). A member uploads a cover at any size; the media library makes the
 // Bookshelf size and the Amazon ebook cover from it. Covers uploaded before that were cropped to exactly
-// 145x215 and live in the `book-covers` bucket; they keep their URL, and so does the Trackbear import, which
-// still crops to this size (lib/trackbear-cover.ts).
-
-export const BOOK_COVER_WIDTH = 145;
-export const BOOK_COVER_HEIGHT = 215;
+// 145x215 and live in the `book-covers` bucket; they keep their URL until `pnpm covers:adopt` moves them.
 
 /** What a request body can carry (Vercel allows about 4.5 MB). A cover is rarely more than a couple of MB. */
 export const BOOK_COVER_MAX_BYTES = 4 * 1024 * 1024;
