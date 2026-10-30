@@ -83,7 +83,8 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
 }
 
 // Chat has its own channel list beside the sidebar, so there the sidebar rests as an icon rail and opens over
-// the page while hovered or focused (the page keeps its width, nothing reflows).
+// the page while hovered or focused (the page keeps its width, nothing reflows). Open, it sits above the app
+// header (z-30), whose search box would otherwise cover the wordmark.
 const AUTO_HIDE_OPEN_DELAY_MS = 150;
 const isAutoHidePath = (pathname: string) => pathname === "/chat" || pathname.startsWith("/chat/");
 
@@ -171,7 +172,9 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
 
       {/* Desktop sidebar. On auto-hide pages the wrapper holds the rail's width and the aside floats over the page. */}
       <div
-        className={`hidden lg:block flex-shrink-0 h-screen relative z-30 transition-all duration-300 ${
+        className={`hidden lg:block flex-shrink-0 h-screen relative transition-all duration-300 ${
+          railOpen ? "z-40" : "z-30"
+        } ${
           autoHide || collapsed ? "w-16" : "w-64"
         }`}
         onMouseEnter={autoHide ? startPeek : undefined}
