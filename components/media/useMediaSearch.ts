@@ -9,15 +9,18 @@ export interface LibraryAsset {
   tags: string[];
   is_public: boolean;
   updated_at: string;
+  width?: number;
+  height?: number;
 }
 
 const PAGE = 24;
 
 /**
  * The media library as a search box and a growing list: searches as you type (after a short pause), pages with
- * `loadMore`, and `reload` fetches the first page again. Staff only, like the route it calls.
+ * `loadMore`, and `reload` fetches the first page again. Staff only, like the route it calls, unless `endpoint`
+ * is another list route with the same shape (a member's own images).
  */
-export function useMediaSearch() {
+export function useMediaSearch(endpoint = "/api/media") {
   const [q, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
@@ -30,7 +33,7 @@ export function useMediaSearch() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/media?q=${encodeURIComponent(term)}&limit=${PAGE}&offset=${offset}`, { signal });
+      const response = await fetch(`${endpoint}?q=${encodeURIComponent(term)}&limit=${PAGE}&offset=${offset}`, { signal });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Couldn't load the library");
       const page: LibraryAsset[] = body.assets;
@@ -41,7 +44,7 @@ export function useMediaSearch() {
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     const controller = new AbortController();

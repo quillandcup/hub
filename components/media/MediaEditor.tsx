@@ -30,8 +30,13 @@ const FIT_PARAM: Record<FitMode, string> = { crop: "crop", extend: "extend", whi
 /** Where staff can open a place that uses the image; a book, a member's project, a module or a lesson has no staff page of its own. */
 const usageLink = (u: MediaUsage) => (u.kind === "event" ? `/admin/events/${u.id}` : u.kind === "course" ? `/admin/courses/${u.id}` : null);
 
-/** One image: its details, where it's used, its focal point and cover fit, and downloads. Saves, deletes. */
-export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: string; onClose: () => void; onChanged: () => void }) {
+/**
+ * One image: its details, where it's used, its focal point and cover fit, and downloads. Saves, deletes. With `own`
+ * it is a member's editor for their own cover: only the focal point, the cover fit and the Amazon download, through
+ * the member's route (`/api/bookshelf/cover/<id>`), never the staff details or delete.
+ */
+export default function MediaEditor({ assetId, onClose, onChanged, own = false }: { assetId: string; onClose: () => void; onChanged: () => void; own?: boolean }) {
+  const api = own ? `/api/bookshelf/cover/${assetId}` : `/api/media/${assetId}`;
   const [asset, setAsset] = useState<MediaAsset | null>(null);
   const [usages, setUsages] = useState<MediaUsage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +70,7 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`/api/media/${assetId}`);
+        const response = await fetch(api);
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || "Couldn't load the image");
         if (cancelled) return;
@@ -78,7 +83,7 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
     return () => {
       cancelled = true;
     };
-  }, [assetId]);
+  }, [api]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -89,16 +94,10 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
     const before = (asset.fits ?? {}) as Record<string, string>;
     const fitChanged = (before.book_cover_shelf ?? PRESETS.book_cover_shelf.defaultFit) !== coverFit;
     const focalChanged = JSON.stringify(focal) !== JSON.stringify(asset.focal_x !== null ? { x: Number(asset.focal_x), y: Number(asset.focal_y) } : null);
-    const patch = {
-      title,
-      alt_text: alt,
-      tags: tagList,
-      is_public: isPublic,
-      focal,
-      ...(fitChanged ? { fits: Object.fromEntries(COVER_PRESETS.map((p) => [p, coverFit])) } : {}),
-    };
+    const looks = { focal, ...(fitChanged ? { fits: Object.fromEntries(COVER_PRESETS.map((p) => [p, coverFit])) } : {}) };
+    const patch = own ? looks : { title, alt_text: alt, tags: tagList, is_public: isPublic, ...looks };
     try {
-      const response = await fetch(`/api/media/${assetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+      const response = await fetch(api, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Couldn't save");
       track("media_edited", {
@@ -123,7 +122,7 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/media/${assetId}`, { method: "DELETE" });
+      const response = await fetch(api, { method: "DELETE" });
       const body = await response.json();
       if (response.status === 409) {
         track("media_deleted", { ok: false, in_use: true });
@@ -184,6 +183,7 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
             </div>
           </div>
 
+          {!own && (
           <div className="@container">
             <div className="grid grid-cols-1 @pair:grid-cols-2 gap-3 text-sm">
               <label>
@@ -204,15 +204,18 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
               </label>
             </div>
           </div>
+          )}
 
           <div>
             <h3 className="text-sm font-semibold mb-1">How it looks</h3>
             <div className="flex gap-4 items-start">
+              {!own && (
               <figure>
                 {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
                 <img src={mediaSrc(assetId, "event_card", version)} alt="As an event card" className="w-48 aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
                 <figcaption className="text-xs text-slate-600 dark:text-slate-400">Event card</figcaption>
               </figure>
+              )}
               <figure>
                 {/* eslint-disable-next-line @next/next/no-img-element -- served by the media route */}
                 <img src={mediaSrc(assetId, "book_cover_shelf", version)} alt="As a book cover" className="h-28 aspect-[290/430] object-cover rounded border border-gray-200 dark:border-slate-700" />
@@ -231,6 +234,7 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
             </label>
           </div>
 
+          {!own && (
           <div>
             <h3 className="text-sm font-semibold mb-1">Where it&apos;s used</h3>
             {usages.length === 0 ? (
@@ -252,17 +256,21 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
               </ul>
             )}
           </div>
+          )}
 
           <div>
             <h3 className="text-sm font-semibold mb-1">Download</h3>
             <div className="flex flex-wrap gap-4 text-sm mb-3">
+              {!own && (
               <a data-track="media-download-original" href={`/api/media/${assetId}/original?download=1`} onClick={() => track("media_downloaded", { kind: "original" })} className={LINK}>
                 The original
               </a>
+              )}
               <a data-track="media-download-kdp" href={`/api/media/${assetId}/book_cover_kdp_ebook?download=1`} onClick={() => track("media_downloaded", { kind: "kdp_ebook" })} className={LINK}>
                 Amazon ebook cover (1600 x 2560 JPEG)
               </a>
             </div>
+            {!own && (
             <div className="flex flex-wrap gap-2 items-end text-sm">
               <label>
                 Width
@@ -294,16 +302,17 @@ export default function MediaEditor({ assetId, onClose, onChanged }: { assetId: 
                 Download this size
               </a>
             </div>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <button type="submit" disabled={busy || !title.trim()} className={PRIMARY}>
+            <button type="submit" disabled={busy || (!own && !title.trim())} className={PRIMARY}>
               {busy ? "Saving..." : "Save"}
             </button>
             <button type="button" disabled={busy} onClick={onClose} className={SECONDARY}>
               Close
             </button>
-            {confirmingDelete ? (
+            {own ? null : confirmingDelete ? (
               <span className="ml-auto flex gap-2 items-center text-sm">
                 Delete this image?
                 <button type="button" disabled={busy} onClick={() => void remove()} className={`${BUTTON} bg-red-700 text-white hover:bg-red-800 disabled:opacity-50`}>
