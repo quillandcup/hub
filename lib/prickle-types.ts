@@ -1,3 +1,6 @@
+import sanitizeHtml from "sanitize-html";
+import TurndownService from "turndown";
+
 /**
  * Normalize prickle type name for matching
  * Examples:
@@ -135,24 +138,34 @@ function assignFromTitle(input: { typedName: string | null; memberId: string | n
   return { hostId, guestSpeaker: memberName ?? typedName };
 }
 
-const HTML_ENTITIES: Record<string, string> = {
-  "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " ",
-};
+const DESCRIPTION_HTML_TAGS = ["b", "strong", "i", "em", "a", "br", "p", "div", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6"];
+
+const descriptionToMarkdown = new TurndownService({ bulletListMarker: "-", emDelimiter: "*", strongDelimiter: "**", br: "", headingStyle: "atx" });
+descriptionToMarkdown.addRule("listItem", { filter: "li", replacement: (content) => `- ${content.trim()}\n` });
+// Calendar descriptions are written in one block, so a heading is just bold text.
+descriptionToMarkdown.addRule("heading", { filter: ["h1", "h2", "h3", "h4", "h5", "h6"], replacement: (content) => `\n\n**${content.trim()}**\n\n` });
 
 /**
- * A calendar event's description as plain text for display. Google Calendar stores
- * rich text as HTML (<br>, <p>, <a>); we keep the line breaks and drop the markup,
- * so it's safe to render as text. Returns null when nothing is left.
+ * A calendar event's description as markdown for display. Google Calendar stores rich text
+ * as HTML (<br>, <p>, <b>, <i>, <a>); we reduce it to an allowlist of those tags (http(s)
+ * and mailto links only), then convert it to markdown, so it is never rendered as raw HTML.
+ * Returns null when nothing is left.
  */
 export function plainTextDescription(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const text = raw
-    .replace(/<\s*br\s*\/?>/gi, "\n")
-    .replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(?:amp|lt|gt|quot|nbsp|#39);/g, (e) => HTML_ENTITIES[e])
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const safe = sanitizeHtml(raw, {
+    allowedTags: DESCRIPTION_HTML_TAGS,
+    allowedAttributes: { a: ["href"] },
+    nonTextTags: ["script", "style", "textarea", "option", "noscript"],
+    // Only absolute http(s) and mailto links survive; any other href is dropped and the link text stays.
+    transformTags: {
+      a: (tagName, attribs) => {
+        const href = attribs.href;
+        const safe: Record<string, string> = href && /^(https?:|mailto:)/i.test(href) ? { href } : {};
+        return { tagName, attribs: safe };
+      },
+    },
+  });
+  const text = descriptionToMarkdown.turndown(safe).replace(/\n{3,}/g, "\n\n").trim();
   return text || null;
 }

@@ -12,6 +12,7 @@ import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
 import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
+import PrickleDescription from "@/components/PrickleDescription";
 import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
@@ -163,7 +164,7 @@ export default function PrickleDetails({
         </div>
         {editing && edit && <div className="mb-4"><PrickleEditForm prickle={prickle} edit={edit} onDone={() => setEditing(false)} /></div>}
         {!editing && prickle.description && (
-          <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-line">{prickle.description}</p>
+          <PrickleDescription markdown={prickle.description} />
         )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           {!editing && (

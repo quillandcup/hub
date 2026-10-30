@@ -109,13 +109,26 @@ describe('prickleTitleFromSummary', () => {
 })
 
 describe('plainTextDescription', () => {
-  it('turns calendar HTML into plain text with line breaks', () => {
+  it('turns calendar HTML into text with paragraphs and line breaks', () => {
     expect(plainTextDescription('<p>Bring a project.</p><p>We chat first &amp; write after.<br>Cameras optional</p>'))
-      .toBe('Bring a project.\nWe chat first & write after.\nCameras optional')
+      .toBe('Bring a project.\n\nWe chat first & write after.\nCameras optional')
   })
 
-  it('does not leave markup behind', () => {
-    expect(plainTextDescription('<a href="x">Join</a><script>alert(1)</script>')).toBe('Joinalert(1)')
+  it('keeps bold, italic and links as markdown', () => {
+    expect(plainTextDescription('<b>Members Only Pitch Prickle</b><br>Say <i>hi </i>at <a href="https://example.com/x">our site</a>'))
+      .toBe('**Members Only Pitch Prickle**\nSay *hi* at [our site](https://example.com/x)')
+  })
+
+  it('drops links that are not http(s) or mailto', () => {
+    expect(plainTextDescription('<a href="javascript:alert(1)">Join</a>')).toBe('Join')
+  })
+
+  it('keeps list items on their own lines', () => {
+    expect(plainTextDescription('<ul><li>One</li><li>Two</li></ul>')).toBe('- One\n- Two')
+  })
+
+  it('does not leave markup or relative links behind', () => {
+    expect(plainTextDescription('<a href="x">Join</a><script>alert(1)</script>')).toBe('Join')
   })
 
   it('is null for empty input', () => {

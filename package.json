@@ -97,6 +97,7 @@
     "sanitize-html": "^2.18.1",
     "sharp": "^0.35.5",
     "stripe": "^22.6.2",
+    "turndown": "^7.2.4",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
@@ -110,6 +111,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/sanitize-html": "^2.16.2",
+    "@types/turndown": "^5.0.6",
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^4.1.11",

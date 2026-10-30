@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import PrickleDescription from "@/components/PrickleDescription";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import { audienceSummary } from "@/lib/event-audience";
 import { locationDisplay } from "@/lib/location-display";
@@ -104,7 +105,7 @@ export default function EventDetailClient({
               <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 About
               </h2>
-              <p className="whitespace-pre-wrap">{event.description}</p>
+              <PrickleDescription markdown={event.description} className="" />
             </div>
           )}
           {event.agenda && (
