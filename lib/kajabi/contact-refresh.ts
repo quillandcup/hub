@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { toKajabiContactBronzeRecord, type KajabiClient, type KajabiContact } from "@/lib/kajabi/client";
 
 /**
@@ -19,13 +20,10 @@ export async function refreshKajabiContactInBronze(
   const contact = await kajabi.fetchContact(contactId);
   const record = toKajabiContactBronzeRecord(contact, new Date().toISOString());
 
-  const { error } = await serviceClient
-    .schema("bronze")
-    .from("kajabi_contacts")
-    .upsert([record], { onConflict: "kajabi_contact_id" });
-
-  if (error) {
-    throw new Error(`kajabi_contacts refresh failed: ${error.message}`);
-  }
+  await createRepos(serviceClient)
+    .billing.upsertKajabiContacts([record])
+    .catch((error: Error) => {
+      throw new Error(`kajabi_contacts refresh failed: ${error.message}`);
+    });
   return contact;
 }

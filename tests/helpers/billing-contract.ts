@@ -20,12 +20,28 @@ export type BillingSeed = {
   stripeSubscriptions?: StripeSubscriptionSeed[];
 };
 
+/** The tables the imports write to, by name. */
+export type BillingTable =
+  | "kajabi_contacts"
+  | "kajabi_customers"
+  | "kajabi_purchases"
+  | "kajabi_offers"
+  | "kajabi_members"
+  | "stripe_customers"
+  | "stripe_products"
+  | "stripe_subscriptions"
+  | "subscription_history";
+
 export type BillingContractContext = {
   repo: () => BillingRepository;
   /** A string no other run has used (ids, emails and names are unique across the tables). */
   unique: (label: string) => string;
   /** Replaces the rows this context made with these. */
   seed: (rows: BillingSeed) => Promise<void>;
+  /** The stored rows of a table whose `column` is one of `values` (what a write left behind), read without the repository. */
+  stored: (table: BillingTable, column: string, values: string[]) => Promise<Record<string, unknown>[]>;
+  /** Removes what the writes in this context stored (rows whose `column` is one of `values`). */
+  removeStored: (table: BillingTable, column: string, values: string[]) => Promise<void>;
 };
 
 const at = (iso: string) => Date.parse(iso);
@@ -249,6 +265,139 @@ export function defineBillingContract(name: string, setup: () => BillingContract
       expect(await ctx.repo().stripeSubscriptionsByCustomers([])).toEqual([]);
 
       expect(mine(await ctx.repo().stripeSubscriptionRows(), (r) => r.stripe_subscription_id, sortedIds(s1, s2, s3)).map((r) => r.stripe_subscription_id)).toEqual(sortedIds(s1, s2, s3));
+    });
+
+    describe("the imports' writes", () => {
+      const NOW = "2026-10-01T00:00:00.000Z";
+      const LATER = "2026-10-02T00:00:00.000Z";
+      const one = async (table: BillingTable, column: string, value: string) => {
+        const rows = await ctx.stored(table, column, [value]);
+        expect(rows).toHaveLength(1);
+        return rows[0];
+      };
+
+      it("adds Kajabi contacts, and replaces the same contact when imported again", async () => {
+        const id = ctx.unique("w-contact");
+        const row = { kajabi_contact_id: id, email: email("w1"), name: "Ada Example", data: { v: 1 }, imported_at: NOW };
+        try {
+          await ctx.repo().upsertKajabiContacts([row]);
+          expect(await one("kajabi_contacts", "kajabi_contact_id", id)).toMatchObject({ email: row.email, name: "Ada Example", data: { v: 1 } });
+
+          await ctx.repo().upsertKajabiContacts([{ ...row, name: "Ada E", data: { v: 2 }, imported_at: LATER }]);
+          expect(await one("kajabi_contacts", "kajabi_contact_id", id)).toMatchObject({ name: "Ada E", data: { v: 2 } });
+          await ctx.repo().upsertKajabiContacts([]);
+        } finally {
+          await ctx.removeStored("kajabi_contacts", "kajabi_contact_id", [id]);
+        }
+      });
+
+      it("writes past one chunk of contacts without duplicating them on a second run", async () => {
+        const rows = Array.from({ length: 1100 }, (_, i) => ({ kajabi_contact_id: ctx.unique(`w-many-${i}`), email: email(`w-many-${i}`), data: {}, imported_at: NOW }));
+        const ids = rows.map((r) => r.kajabi_contact_id);
+        try {
+          await ctx.repo().upsertKajabiContacts(rows);
+          await ctx.repo().upsertKajabiContacts(rows);
+          expect((await ctx.stored("kajabi_contacts", "kajabi_contact_id", ids)).length).toBe(1100);
+        } finally {
+          await ctx.removeStored("kajabi_contacts", "kajabi_contact_id", ids);
+        }
+      });
+
+      it("changes a contact's email, and leaves other contacts alone", async () => {
+        const [a, b] = [ctx.unique("w-email-a"), ctx.unique("w-email-b")];
+        const [emailA, emailB] = [email("w-ea"), email("w-eb")];
+        try {
+          await ctx.repo().upsertKajabiContacts([
+            { kajabi_contact_id: a, email: emailA, data: {} },
+            { kajabi_contact_id: b, email: emailB, data: {} },
+          ]);
+
+          await ctx.repo().setKajabiContactEmail(a, "new@example.test");
+
+          expect(await one("kajabi_contacts", "kajabi_contact_id", a)).toMatchObject({ email: "new@example.test" });
+          expect(await one("kajabi_contacts", "kajabi_contact_id", b)).toMatchObject({ email: emailB });
+        } finally {
+          await ctx.removeStored("kajabi_contacts", "kajabi_contact_id", [a, b]);
+        }
+      });
+
+      it("adds and replaces Kajabi customers, purchases and offers", async () => {
+        const customer = { kajabi_customer_id: ctx.unique("w-cust"), email: email("w-c"), data: { v: 1 }, imported_at: NOW };
+        const purchase = { kajabi_purchase_id: ctx.unique("w-pur"), kajabi_customer_id: customer.kajabi_customer_id, status: "active", amount_in_cents: 100, data: {}, imported_at: NOW };
+        const offer = { kajabi_offer_id: ctx.unique("w-off"), name: "Membership", trial_period_days: 7, data: {}, imported_at: NOW };
+        try {
+          await ctx.repo().upsertKajabiCustomers([customer]);
+          await ctx.repo().upsertKajabiPurchases([purchase]);
+          await ctx.repo().upsertKajabiOffers([offer]);
+          await ctx.repo().upsertKajabiCustomers([{ ...customer, data: { v: 2 } }]);
+          await ctx.repo().upsertKajabiPurchases([{ ...purchase, status: "canceled" }]);
+          await ctx.repo().upsertKajabiOffers([{ ...offer, name: "Renamed", trial_period_days: null }]);
+
+          expect(await one("kajabi_customers", "kajabi_customer_id", customer.kajabi_customer_id)).toMatchObject({ data: { v: 2 } });
+          expect(await one("kajabi_purchases", "kajabi_purchase_id", purchase.kajabi_purchase_id)).toMatchObject({ status: "canceled", amount_in_cents: 100 });
+          expect(await one("kajabi_offers", "kajabi_offer_id", offer.kajabi_offer_id)).toMatchObject({ name: "Renamed", trial_period_days: null });
+          // The reads see what the writes stored.
+          expect(await ctx.repo().kajabiCustomersByIds([customer.kajabi_customer_id])).toEqual([{ kajabi_customer_id: customer.kajabi_customer_id, email: customer.email }]);
+        } finally {
+          await ctx.removeStored("kajabi_customers", "kajabi_customer_id", [customer.kajabi_customer_id]);
+          await ctx.removeStored("kajabi_purchases", "kajabi_purchase_id", [purchase.kajabi_purchase_id]);
+          await ctx.removeStored("kajabi_offers", "kajabi_offer_id", [offer.kajabi_offer_id]);
+        }
+      });
+
+      it("adds one snapshot row per member of a members export, each import on top of the last", async () => {
+        const address = email("w-member");
+        try {
+          await ctx.repo().insertKajabiMembers([{ email: address, data: { Name: "Ada Example" }, imported_at: NOW }]);
+          await ctx.repo().insertKajabiMembers([{ email: address, data: { Name: "Ada Example" }, imported_at: LATER }]);
+          await ctx.repo().insertKajabiMembers([]);
+
+          expect(await ctx.stored("kajabi_members", "email", [address])).toHaveLength(2);
+        } finally {
+          await ctx.removeStored("kajabi_members", "email", [address]);
+        }
+      });
+
+      it("adds and replaces Stripe customers, products and subscriptions", async () => {
+        const customer = { stripe_customer_id: ctx.unique("w-cus"), email: email("w-s"), name: "Ada Example", data: {}, imported_at: NOW };
+        const product = { stripe_product_id: ctx.unique("w-prod"), name: "Membership", active: true, data: {}, imported_at: NOW };
+        const subscription = { stripe_subscription_id: ctx.unique("w-sub"), stripe_customer_id: customer.stripe_customer_id, status: "trialing", data: {}, imported_at: NOW };
+        try {
+          await ctx.repo().upsertStripeCustomers([customer]);
+          await ctx.repo().upsertStripeProducts([product]);
+          await ctx.repo().upsertStripeSubscriptions([subscription]);
+          await ctx.repo().upsertStripeCustomers([{ ...customer, name: "Ada E" }]);
+          await ctx.repo().upsertStripeProducts([{ ...product, active: false }]);
+          await ctx.repo().upsertStripeSubscriptions([{ ...subscription, status: "active" }]);
+
+          expect(await one("stripe_customers", "stripe_customer_id", customer.stripe_customer_id)).toMatchObject({ name: "Ada E" });
+          expect(await one("stripe_products", "stripe_product_id", product.stripe_product_id)).toMatchObject({ active: false });
+          expect(await one("stripe_subscriptions", "stripe_subscription_id", subscription.stripe_subscription_id)).toMatchObject({ status: "active" });
+          expect(await ctx.repo().stripeSubscriptionStatuses(["active"], [customer.stripe_customer_id])).toEqual([{ stripe_customer_id: customer.stripe_customer_id, status: "active" }]);
+        } finally {
+          await ctx.removeStored("stripe_customers", "stripe_customer_id", [customer.stripe_customer_id]);
+          await ctx.removeStored("stripe_products", "stripe_product_id", [product.stripe_product_id]);
+          await ctx.removeStored("stripe_subscriptions", "stripe_subscription_id", [subscription.stripe_subscription_id]);
+        }
+      });
+
+      it("keeps one subscription export row per subscription and import time, and says how many it wrote", async () => {
+        const id = ctx.unique("w-ksub");
+        const row = { kajabi_subscription_id: id, customer_email: email("w-h"), status: "Active", imported_at: NOW, data: { v: 1 } };
+        try {
+          expect(await ctx.repo().upsertSubscriptionHistory([row])).toBe(1);
+          // The same export again changes nothing; a later export adds a snapshot.
+          expect(await ctx.repo().upsertSubscriptionHistory([{ ...row, status: "Canceled" }])).toBe(1);
+          expect(await ctx.repo().upsertSubscriptionHistory([{ ...row, imported_at: LATER }])).toBe(1);
+          expect(await ctx.repo().upsertSubscriptionHistory([])).toBe(0);
+
+          const rows = await ctx.stored("subscription_history", "kajabi_subscription_id", [id]);
+          expect(rows).toHaveLength(2);
+          expect(rows.map((r) => r.status).sort()).toEqual(["Active", "Canceled"]);
+        } finally {
+          await ctx.removeStored("subscription_history", "kajabi_subscription_id", [id]);
+        }
+      });
     });
   });
 }

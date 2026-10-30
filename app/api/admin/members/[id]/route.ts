@@ -235,12 +235,11 @@ async function changePrimaryEmail(supabase: SupabaseClient, member: MemberRow, i
     } catch (err) {
       // Kajabi has the new email; make Bronze agree without the round trip.
       console.error("[admin] Kajabi contact refresh failed after email change, patching Bronze:", err);
-      const { error: bronzeError } = await service
-        .schema("bronze")
-        .from("kajabi_contacts")
-        .update({ email: address })
-        .eq("kajabi_contact_id", member.kajabi_id);
-      if (bronzeError) console.error("[admin] Bronze email patch failed:", bronzeError);
+      try {
+        await createRepos(service).billing.setKajabiContactEmail(member.kajabi_id, address);
+      } catch (bronzeError) {
+        console.error("[admin] Bronze email patch failed:", bronzeError);
+      }
     }
   }
 

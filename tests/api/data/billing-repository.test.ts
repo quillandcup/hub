@@ -1,8 +1,9 @@
 import { afterAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseBillingRepository } from "@/lib/data/billing";
+import { chunk } from "@/lib/supabase/paginate";
 import { asJson } from "@/lib/data/json";
-import { defineBillingContract } from "@/tests/helpers/billing-contract";
+import { defineBillingContract, type BillingTable } from "@/tests/helpers/billing-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
 const db = getTestSupabaseAdminClient() as unknown as Db;
@@ -53,5 +54,20 @@ defineBillingContract("SupabaseBillingRepository", () => ({
     await insert("stripe_customers", withData(rows.stripeCustomers));
     await insert("stripe_products", withData(rows.stripeProducts));
     await insert("stripe_subscriptions", withData(rows.stripeSubscriptions));
+  },
+  stored: async (table: BillingTable, column: string, values: string[]) => {
+    const rows: Record<string, unknown>[] = [];
+    for (const part of chunk(values, 100)) {
+      const { data, error } = await bronze().from(table).select("*").in(column as never, part as never);
+      if (error) throw new Error(error.message);
+      rows.push(...((data ?? []) as unknown as Record<string, unknown>[]));
+    }
+    return rows;
+  },
+  removeStored: async (table: BillingTable, column: string, values: string[]) => {
+    for (const part of chunk(values, 100)) {
+      const { error } = await bronze().from(table).delete().in(column as never, part as never);
+      if (error) throw new Error(error.message);
+    }
   },
 }));

@@ -44,9 +44,19 @@ describe("SupabaseBillingRepository on a database error", () => {
     ["stripeSubscriptionsWithStatus", () => repo.stripeSubscriptionsWithStatus("active")],
     ["stripeSubscriptionsByCustomers", () => repo.stripeSubscriptionsByCustomers(["c"])],
     ["lastStripeSubscriptionImportAt", () => repo.lastStripeSubscriptionImportAt()],
+    ["upsertKajabiContacts", () => repo.upsertKajabiContacts([{ kajabi_contact_id: "c", email: "a@example.test", data: {} }])],
+    ["setKajabiContactEmail", () => repo.setKajabiContactEmail("c", "a@example.test")],
+    ["upsertKajabiCustomers", () => repo.upsertKajabiCustomers([{ kajabi_customer_id: "c", email: "a@example.test", data: {} }])],
+    ["upsertKajabiPurchases", () => repo.upsertKajabiPurchases([{ kajabi_purchase_id: "p", data: {} }])],
+    ["upsertKajabiOffers", () => repo.upsertKajabiOffers([{ kajabi_offer_id: "o", data: {} }])],
+    ["insertKajabiMembers", () => repo.insertKajabiMembers([{ email: "a@example.test", data: {} }])],
+    ["upsertStripeCustomers", () => repo.upsertStripeCustomers([{ stripe_customer_id: "c", data: {} }])],
+    ["upsertStripeProducts", () => repo.upsertStripeProducts([{ stripe_product_id: "p", name: "n", data: {} }])],
+    ["upsertStripeSubscriptions", () => repo.upsertStripeSubscriptions([{ stripe_subscription_id: "s", stripe_customer_id: "c", status: "active", data: {} }])],
+    ["upsertSubscriptionHistory", () => repo.upsertSubscriptionHistory([{ kajabi_subscription_id: "s", customer_email: "a@example.test", status: "Active" }])],
   ];
 
-  it.each(calls)("%s throws instead of reading as empty", async (_name, call) => {
+  it.each(calls)("%s throws instead of reading as empty or reporting success", async (_name, call) => {
     await expect(call()).rejects.toThrow("boom");
   });
 });
