@@ -45,6 +45,7 @@
     "env:sync:vault": "tsx scripts/sync-vault-secrets.ts",
     "templates:render": "tsx scripts/render-email-templates.ts",
     "courses:content": "tsx scripts/kajabi-course-content.ts",
+    "covers:adopt": "tsx scripts/adopt-book-covers.ts",
     "config:diff": "dotenv -e .env.prod -- supabase config diff",
     "config:push": "dotenv -e .env.prod -- supabase config push",
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
