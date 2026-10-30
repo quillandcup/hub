@@ -7,6 +7,7 @@ import { extractTrackbearExport, TrackbearImportError } from "@/lib/trackbear-im
 import { createRepos } from "@/lib/data/repos";
 import { runTrackbearImport } from "@/lib/trackbear-import-runner";
 import { makeTrackbearCoverCopier } from "@/lib/trackbear-cover";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).writing,
       effectiveIdentity.memberId,
       data,
-      makeTrackbearCoverCopier(supabase)
+      makeTrackbearCoverCopier(createRepos(supabase).media, createServiceRoleClient().storage)
     );
     console.log("TrackBear import:", effectiveIdentity.memberId, JSON.stringify(result.created));
 

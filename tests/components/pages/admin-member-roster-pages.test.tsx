@@ -63,8 +63,8 @@ describe("ambiguous Zoom names page", () => {
   const withMembers = (members: object[], nameAliases: object[] = [], prickles: object[] = []) => {
     repos = createInMemoryRepos(new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never, prickles: prickles as never }));
   };
-  const prickle = (id: string, source: string, start: string, end: string, zoomMeetingUuid: string | null = null) => ({
-    id, typeId: null, hostId: null, title: null, startTime: start, endTime: end, source, calendarEventId: null, zoomMeetingUuid,
+  const prickle = (id: string, title: string, source: string, start: string, end: string, zoomMeetingUuid: string | null = null) => ({
+    id, typeId: null, hostId: null, title, startTime: start, endTime: end, source, calendarEventId: null, zoomMeetingUuid,
   });
 
   it("derives candidates, count and last seen from the data, not from the stored row", async () => {
@@ -91,8 +91,8 @@ describe("ambiguous Zoom names page", () => {
 
   it("lists the sessions and the members most often there, leaving out the candidates", async () => {
     withMembers([ADA, FERN, SAM_ADA, SAM_FERN], [], [
-      prickle("prkl_AAAAAAAAAAB1", "calendar", "2026-10-04T23:00:00Z", "2026-10-05T01:00:00Z"), // the evening session
-      prickle("prkl_AAAAAAAAAAB2", "zoom", "2026-10-01T00:00:00Z", "2026-10-01T01:00:00Z", "m1"), // the morning one is a pop-up
+      prickle("prkl_AAAAAAAAAAB1", "Monday Prickle", "calendar", "2026-10-04T23:00:00Z", "2026-10-05T01:00:00Z"), // the evening session
+      prickle("prkl_AAAAAAAAAAB2", "Thursday Prickle", "zoom", "2026-10-01T00:00:00Z", "2026-10-01T01:00:00Z", "m1"), // the morning one is a pop-up
     ]);
     useFakeSupabase({
       ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
@@ -112,8 +112,8 @@ describe("ambiguous Zoom names page", () => {
 
     const [entry] = JSON.parse(screen.getByTestId("entries").textContent!);
     expect(entry.sessions).toEqual([
-      { topic: "Evening Writing", joinTime: "2026-10-05T00:00:00Z", prickleId: "prkl_AAAAAAAAAAB1" },
-      { topic: "Morning Writing", joinTime: "2026-10-01T00:00:00Z", prickleId: "prkl_AAAAAAAAAAB2" },
+      { topic: "Evening Writing", joinTime: "2026-10-05T00:00:00Z", prickleId: "prkl_AAAAAAAAAAB1", prickleTitle: "Monday Prickle" },
+      { topic: "Morning Writing", joinTime: "2026-10-01T00:00:00Z", prickleId: "prkl_AAAAAAAAAAB2", prickleTitle: "Thursday Prickle" },
     ]);
     // Ada was at both sessions, Fern at one; the Sam candidates are not listed as company.
     expect(entry.companions).toEqual([

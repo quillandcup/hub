@@ -370,6 +370,16 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
 
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";
+  // Members' deletes are soft: the row stays and `deleted_at` is set (or cleared, if restored).
+  if (row.event_type === "update" && fields.deleted_at) {
+    const deleted = !fields.deleted_at.old && !!fields.deleted_at.new;
+    const restored = !!fields.deleted_at.old && !fields.deleted_at.new;
+    if (deleted || restored) {
+      if (row.entity_type === "member_book") return deleted ? `removed${quoted} from their bookshelf` : `put${quoted} back on their bookshelf`;
+      const entity = ENTITY_LABELS[row.entity_type ?? ""] ?? humanize(row.entity_type ?? "record");
+      return `${deleted ? "deleted" : "restored"} ${entity}${quoted}`;
+    }
+  }
   if (row.entity_type === "writing_project" && fields.phase && row.event_type === "update") {
     return `moved writing project${quoted} from ${humanize(String(fields.phase.old))} to ${humanize(String(fields.phase.new))}`;
   }

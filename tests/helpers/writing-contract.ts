@@ -502,6 +502,66 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(await ctx.repo().startingBalances(a, ids.q)).toHaveLength(1);
     });
 
+    it("keeps a deleted goal and entry out of every read", async () => {
+      const [a] = ctx.memberIds;
+      const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "P", createdAt: "2026-01-01T10:00:00Z" }] });
+      const repo = ctx.repo();
+      const keepEntry = await repo.addEntry({ memberId: a, projectId: ids.p, entryDate: "2026-03-01", measure: "words", mode: "delta", amount: 5, prickleId: ctx.prickleId });
+      const gone = await repo.addEntry({ memberId: a, projectId: ids.p, entryDate: "2026-03-02", measure: "pages", mode: "delta", amount: 9, prickleId: ctx.prickleId });
+      const keepGoal = await repo.createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 100, is_starred: true });
+      const goneGoal = await repo.createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 7, is_starred: true });
+
+      await repo.deleteEntry(a, gone);
+      await repo.deleteGoal(a, goneGoal);
+
+      expect(await repo.findEntry(gone)).toBeNull();
+      expect(await repo.goalForEdit(goneGoal)).toBeNull();
+      expect(await repo.goalCount(a)).toBe(1);
+      expect(await repo.activeGoalMeasures(a)).toEqual([{ project_id: ids.p, measure: "words" }]);
+      expect((await repo.starredGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
+      expect((await repo.projectGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
+      expect((await repo.projectGoals(a, ids.p)).map((g) => g.id)).toEqual([keepGoal]);
+      expect((await repo.activeGoalCandidates()).map((g) => g.goal_id)).not.toContain(goneGoal);
+
+      expect(await repo.recentEntryMeasures(a, 10)).toEqual([{ project_id: ids.p, measure: "words" }]);
+      expect(await repo.recentProjectMeasures(a, ids.p, 10)).toEqual(["words"]);
+      expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 5 }]);
+      expect((await repo.prickleEntries(a, ctx.prickleId)).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.exportEntries(a)).map((e) => e.measure)).toEqual(["words"]);
+      expect((await repo.entriesForProjects(a, [ids.p])).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.projectEntries(a)).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.projectEntriesWithPrickles(a, ids.p)).map((e) => e.id)).toEqual([keepEntry]);
+      expect(await repo.seriesEntries(a, ids.p, "pages")).toEqual([]);
+      expect(await repo.loggedAgainstPrickles([a], [ctx.prickleId])).toEqual([{ member_id: a, prickle_id: ctx.prickleId, project_id: ids.p }]);
+
+      // Edits and a second delete leave a deleted row alone.
+      await repo.updateEntry(a, gone, { amount: 999 });
+      await repo.updateGoal(a, goneGoal, { target_amount: 999 });
+      expect(await repo.seriesEntries(a, ids.p, "pages")).toEqual([]);
+      expect(await repo.goalForEdit(goneGoal)).toBeNull();
+    });
+
+    it("does not bring back a deleted imported entry or goal when the import runs again", async () => {
+      const [a] = ctx.memberIds;
+      await ctx.seed({});
+      const repo = ctx.repo();
+      const tag = (s: string) => `trackbear:${s}-${a}`;
+      const [project] = await repo.importProjects([{ member_id: a, external_id: tag("p"), title: "Imported", phase: "drafting", created_at: "2025-01-01T10:00:00Z" }]);
+      const row = { member_id: a, project_id: project.id, external_id: tag("e"), entry_date: "2025-02-01", measure: "words", mode: "delta", amount: 5, note: null, tags: [], created_at: "2025-02-01T10:00:00Z" };
+      await repo.importEntries([row]);
+      await repo.importGoals([{ member_id: a, project_id: project.id, external_id: tag("g"), goal_type: "target", measure: "words", target_amount: 10, created_at: "2025-02-01T10:00:00Z" }]);
+
+      const [entry] = await repo.entriesForProjects(a, [project.id]);
+      await repo.deleteEntry(a, entry.id);
+      const goalId = (await repo.projectGoals(a, project.id))[0].id;
+      await repo.deleteGoal(a, goalId);
+
+      expect(await repo.importEntries([row])).toBe(0);
+      expect(await repo.entriesForProjects(a, [project.id])).toEqual([]);
+      expect(await repo.importedEntryExternalIds(a)).toEqual([tag("e")]);
+      expect((await repo.importedGoals(a)).map((g) => g.external_id)).toEqual([tag("g")]);
+    });
+
     it("imports projects, balances, entries and goals once, skipping what is already there", async () => {
       const [a, b] = ctx.memberIds;
       await ctx.seed({});

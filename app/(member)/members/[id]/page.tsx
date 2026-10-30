@@ -88,11 +88,13 @@ export default async function MemberProfilePage({
       .from("member_books")
       .select("id, title, cover_url, purchase_url, published_date")
       .eq("member_id", id)
+      .is("deleted_at", null)
       .order("published_date", { ascending: false }),
     supabase
       .from("member_awards")
       .select("id, award_name, category, work_title, award_date, url")
       .eq("member_id", id)
+      .is("deleted_at", null)
       .order("award_date", { ascending: false }),
     getUserTimezonePreference(),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),

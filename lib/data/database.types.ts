@@ -3122,6 +3122,7 @@ export type Database = {
           book_id: string | null
           category: string | null
           created_at: string
+          deleted_at: string | null
           id: string
           member_id: string
           notes: string | null
@@ -3135,6 +3136,7 @@ export type Database = {
           book_id?: string | null
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           member_id: string
           notes?: string | null
@@ -3148,6 +3150,7 @@ export type Database = {
           book_id?: string | null
           category?: string | null
           created_at?: string
+          deleted_at?: string | null
           id?: string
           member_id?: string
           notes?: string | null
@@ -3239,6 +3242,7 @@ export type Database = {
           cover_asset_id: string | null
           cover_url: string
           created_at: string
+          deleted_at: string | null
           description: string | null
           format: string
           genre: string | null
@@ -3269,6 +3273,7 @@ export type Database = {
           cover_asset_id?: string | null
           cover_url: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           format?: string
           genre?: string | null
@@ -3285,6 +3290,7 @@ export type Database = {
           cover_asset_id?: string | null
           cover_url?: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           format?: string
           genre?: string | null
@@ -5613,6 +5619,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           end_date: string | null
           external_id: string | null
@@ -5632,6 +5639,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date?: string | null
           external_id?: string | null
@@ -5651,6 +5659,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           end_date?: string | null
           external_id?: string | null
@@ -5688,6 +5697,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          deleted_at: string | null
           entry_date: string
           external_id: string | null
           id: string
@@ -5702,6 +5712,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          deleted_at?: string | null
           entry_date: string
           external_id?: string | null
           id?: string
@@ -5716,6 +5727,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          deleted_at?: string | null
           entry_date?: string
           external_id?: string | null
           id?: string

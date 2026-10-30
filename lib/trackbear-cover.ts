@@ -1,7 +1,7 @@
-import { randomUUID } from "crypto";
-import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BOOK_COVER_HEIGHT, BOOK_COVER_WIDTH } from "@/lib/bookCover";
+import { bookCoverUrlFor } from "@/lib/bookCover";
+import type { MediaRepository } from "@/lib/data/media";
+import { storeImage } from "@/lib/media/library";
 import { TRACKBEAR_ORIGIN } from "@/lib/trackbear-import";
 import type { CoverCopier } from "@/lib/trackbear-import-runner";
 
@@ -12,13 +12,14 @@ const MAX_SOURCE_BYTES = 5 * 1024 * 1024; // TrackBear caps uploads at 2MB; leav
 const FETCH_TIMEOUT_MS = 15_000;
 
 /**
- * Copies a TrackBear project cover (public at trackbear.app/uploads/covers/<file>) into the same
- * book-covers bucket /api/bookshelf/cover uses. TrackBear accepts any size and seven formats; Hub
- * covers are PNG/JPEG at exactly 145x215 (lib/bookCover.ts), so every cover is center-cropped to
- * that size and re-encoded as JPEG.
+ * Copies a TrackBear project cover (public at trackbear.app/uploads/covers/<file>) into the media library as the
+ * member's own image, at its original size: the Bookshelf size and the Amazon cover are made from it when asked for
+ * (docs/MEDIA_LIBRARY.md). The same file imported again is the same library image. TrackBear also accepts SVG,
+ * which the library refuses, so that cover is reported for the member to upload by hand. `storage` needs the
+ * service role.
  */
-export function makeTrackbearCoverCopier(supabase: SupabaseClient): CoverCopier {
-  return async (coverFilename, memberId) => {
+export function makeTrackbearCoverCopier(media: MediaRepository, storage: SupabaseClient["storage"]): CoverCopier {
+  return async (coverFilename, memberId, title) => {
     if (!TRACKBEAR_COVER_FILENAME.test(coverFilename)) return { error: "unrecognized cover filename." };
 
     let source: Buffer;
@@ -34,33 +35,13 @@ export function makeTrackbearCoverCopier(supabase: SupabaseClient): CoverCopier 
     }
     if (source.length > MAX_SOURCE_BYTES) return { error: "the TrackBear cover file is too large; upload it by hand." };
 
-    let jpeg: Buffer;
-    let resizedFrom: string | null = null;
     try {
-      const image = sharp(source);
-      const { width, height } = await image.metadata();
-      if (width !== BOOK_COVER_WIDTH || height !== BOOK_COVER_HEIGHT) resizedFrom = `${width}×${height}`;
-      jpeg = await image
-        .resize(BOOK_COVER_WIDTH, BOOK_COVER_HEIGHT, { fit: "cover", position: "centre" })
-        .flatten({ background: "#ffffff" })
-        .jpeg({ quality: 90 })
-        .toBuffer();
+      const stored = await storeImage(media, storage, { bytes: source, title, ownerMemberId: memberId });
+      if (!stored.ok) return { error: `couldn't use the TrackBear cover (${stored.error}); upload it by hand.` };
+      return { url: bookCoverUrlFor(stored.asset.id), assetId: stored.asset.id };
     } catch (err) {
-      console.error("TrackBear cover conversion failed:", coverFilename, err);
-      return { error: "couldn't read the TrackBear cover image; upload it by hand." };
-    }
-
-    const path = `${memberId}/${randomUUID()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("book-covers")
-      .upload(path, jpeg, { contentType: "image/jpeg" });
-    if (uploadError) {
-      console.error("TrackBear cover upload failed:", uploadError);
+      console.error("TrackBear cover upload failed:", coverFilename, err);
       return { error: "upload to Hub failed; upload it by hand." };
     }
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("book-covers").getPublicUrl(path);
-    return { url: publicUrl, resizedFrom };
   };
 }

@@ -29,7 +29,7 @@ export const metadata: Metadata = {
  * and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent rule (`components/ConsentBanner.tsx`,
  * `lib/analytics/consent.ts`), the `hub_sid` cookie (`lib/analytics/session-cookie.ts`), notification sends and
  * opens (`lib/notifications/notify.ts`, `lib/notifications/attribution.ts`), and which deletes keep a record
- * (members' projects, goals, progress entries, books and awards are real deletes; `audit_log` keeps what they said).
+ * (deleted things are kept until the member asks, as soft deletes or in the audit log; the page states the policy and lists no resources).
  *
  * **Retention promises that need a job before they can be broken.** The page promises the numbers in
  * `lib/retention.ts`. Nothing enforces them yet: the job is phase 0 of docs/EVENT_LOG.md. It is safe to turn the
@@ -195,11 +195,11 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="When you delete something else">
+      <Section title="When you delete something">
         <p>
-          When you delete a writing project, goal, progress entry, book or award, it is gone from the Hub for you and for
-          everyone else. Our change history keeps a record that it existed and what it said (such as its title) until you ask
-          us to remove that too.
+          When you delete something you added to the Hub, it disappears for you and for everyone else. We may keep a copy, and
+          our change history keeps a record of the change, until you ask us to remove it. When you ask, we either delete it or
+          take your name off it.
         </p>
       </Section>
 

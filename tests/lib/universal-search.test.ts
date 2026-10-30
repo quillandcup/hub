@@ -53,6 +53,15 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.books.push(...books.map((b) => b.id));
+    // A book and an award their owner deleted: the rows stay, and search never finds them.
+    const deletedAt = new Date().toISOString();
+    const deletedBooks = seeded(
+      await supabase
+        .from("member_books")
+        .insert({ member_id: hostId, title: `${token} Retired Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-06", deleted_at: deletedAt })
+        .select("id")
+    );
+    made.books.push(...deletedBooks.map((b) => b.id));
 
     const awards = seeded(
       await supabase
@@ -61,6 +70,13 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.awards.push(...awards.map((a) => a.id));
+    const deletedAwards = seeded(
+      await supabase
+        .from("member_awards")
+        .insert({ member_id: hostId, award_name: `${token} Retired Prize`, work_title: "A Poem", category: "Poetry", award_date: "2026-04-02", deleted_at: deletedAt })
+        .select("id")
+    );
+    made.awards.push(...deletedAwards.map((a) => a.id));
 
     const events = seeded(
       await supabase
@@ -199,6 +215,13 @@ describe("universalSearch (local database)", () => {
     expect(hits[0]).toMatchObject({ title: `${token} Chronicles`, subtitle: `${token} Hostess`, date: "2026-03-05" });
     expect(hitsOf(await run(`in:books chronicles from:bystander`), "books")).toHaveLength(0);
     expect(hitsOf(await run(`in:books ${token} before:2026-01-01`), "books")).toHaveLength(0);
+  });
+
+  it("never finds a book or award its owner deleted", async () => {
+    const books = hitsOf(await run(`in:books ${token} chronicles`), "books");
+    expect(books.map((b) => b.title)).toEqual([`${token} Chronicles`]);
+    const awards = hitsOf(await run(`in:awards ${token} prize`), "awards");
+    expect(awards.map((a) => a.title)).toEqual([`${token} Prize`]);
   });
 
   it("finds awards and events", async () => {
