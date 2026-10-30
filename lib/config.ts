@@ -56,6 +56,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
 
+/** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */
+export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;
+
 /** Slack workspace URL, no trailing slash, for links that open a channel. */
 export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, "");
 
