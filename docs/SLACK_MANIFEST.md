@@ -2,7 +2,7 @@
 
 `slack-app-manifest.yml` is the source of truth for the Slack app (Billie Bot): its name and description, bot scopes, the `/hub` slash command, event subscriptions and request URLs.
 
-On a push to main that changes `slack-app-manifest.yml` or `scripts/slack-manifest.ts`, after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Pushes that change neither file skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
+On a run on main where `slack-app-manifest.yml` or `scripts/slack-manifest.ts` differs from the last commit pushed (the `slack-manifest-pushed` tag, moved after each successful push; a busy main cancels the run for the merge that changed the manifest, so a later run picks the change up), after the production deploy, CI's `push-slack-manifest` job runs `scripts/slack-manifest.ts push`, which prints the difference between the manifest and the live app and then replaces the live configuration (it skips the update when there is no difference). Runs where neither file differs from the last push skip the job's steps, so they don't spend the refresh token (see [If the job fails on the token](#if-the-job-fails-on-the-token)). A manual run (`gh workflow run ci.yml --ref main`) always pushes.
 
 **The push replaces everything.** Anything set in the Slack dashboard but absent from the manifest is removed on the next manifest push. Change the manifest, not the dashboard.
 
