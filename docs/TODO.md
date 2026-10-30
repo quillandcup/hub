@@ -601,6 +601,10 @@ Every alert today (`lib/operations-alerts.ts`: failed DMs, `section_failed`, `cl
 
 The admin member page loads about fifteen queries in one server render, so a single statement timeout (57014, seen once in production) blanks the whole page. The PR adding `lib/query-trace.ts` names the failing query in Sentry, logs sections over 2s and adds `error.tsx` pages with a digest, but the page still fails as a whole. Deferred because it needs a decision per panel about what an empty state should say. Start in `app/(admin)/admin/members/[id]/MemberDetailPage.tsx`: wrap the non-essential panels (Slack feed, activity feed, membership history) so an error shows "couldn't load" for that panel only. Then use `traced()` on the other heavy pages (`/admin/activity`, the member dashboard) and watch the `[slow section]` log lines for what to index.
 
+### Client bundle check that doesn't depend on a list of packages
+
+`tests/lib/client-server-boundary.test.ts` walks our own imports and flags a client file that reaches a "server-only" one, but what counts as server-only is a hand-written regex of package names (`SERVER_ONLY_PACKAGES` in `tests/helpers/client-server-boundary.ts`). A server SDK missing from it passes CI and breaks pages in the browser: #615 pulled `@slack/web-api` (and through it `node:fs`) into every page with the record-history button, and CI was green (fixed in #626; the list was extended afterwards). Deferred because the fix is a different kind of check, not another entry. Start by scanning the built client output instead: after `next build` (the `Test (db) & build` job already builds), fail if any file under `.next/static/chunks` references `node:fs`, `node:child_process`, `node:net` or other Node-only modules, which catches any package, direct or transitive, with no list to maintain. Keep the import walker for its readable chain ("A -> B -> C") and for the server-imports-client rule.
+
 ## Security & Access Control
 
 
