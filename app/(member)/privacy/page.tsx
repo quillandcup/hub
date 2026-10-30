@@ -237,7 +237,7 @@ export default async function PrivacyPage() {
           </thead>
           <tbody className="align-top">
             <KeepRow
-              what="What you do in the Hub: your projects, check-ins, commitments, course viewing, sign-ins, the notifications we sent you, and your history as a member"
+              what="What you do in the Hub: your projects, check-ins, commitments, course viewing, chat messages and activity, sign-ins, the notifications we sent you, and your history as a member"
               keep="Until you ask us to remove it. If you leave and come back years later, your seat is still warm: your history is here."
             />
             <KeepRow
@@ -248,7 +248,6 @@ export default async function PrivacyPage() {
               what="Your exact IP address and your browser's identification string"
               keep={`${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device`}
             />
-            <KeepRow what="Chat" keep="As described under Chat and messages" />
           </tbody>
         </table>
         <p>
