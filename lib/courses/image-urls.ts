@@ -7,8 +7,8 @@ import { safeUrl } from "@/lib/url";
 export type CourseImageKind = "course" | "hero" | "module" | "lesson";
 
 /**
- * The URL a page puts in an `<img>`: our copy when it exists (`copy` is the row's library asset id, or its old bucket
- * path until the copy step has moved it), the Kajabi URL until then.
+ * The URL a page puts in an `<img>`: our copy when it exists (`copy` is the row's library asset id), the Kajabi URL
+ * until the copy step has run.
  */
 export function courseImageSrc(kind: CourseImageKind, id: string, copy: string | null | undefined, fallbackUrl: string | null | undefined): string | null {
   if (copy) return `/api/courses/image/${kind}/${id}`;

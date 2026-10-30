@@ -2,14 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 import { saveCourseHero } from '@/lib/kajabi/course-hero'
 import { processCourses } from '@/lib/courses/process'
-import { COURSE_IMAGES_BUCKET, copyCourseImages } from '@/lib/courses/images'
+import { copyCourseImages } from '@/lib/courses/images'
 import { MEDIA_BUCKET } from '@/lib/media/library'
 import { solidImage } from '../../helpers/media-fixtures'
 
 /**
  * A course's hero banner, end to end against the real local database and Storage with a fake source:
  * recorded on the Bronze course (never cleared, never overwritten by a re-import), copied to Silver by
- * processing, then into the private bucket once, again when it changes, and removed when it goes.
+ * processing, then into the media library once, again when it changes, and removed when it goes.
  */
 
 const ts = Date.now()
@@ -29,17 +29,10 @@ const download = (async (input: unknown) => {
 describe('Course hero image', () => {
   const supabase = getTestSupabaseAdminClient()
   const bronze = () => supabase.schema('bronze').from('kajabi_courses')
-  const bucket = () => supabase.storage.from(COURSE_IMAGES_BUCKET)
   const silver = async () => (await supabase.from('courses').select('*').eq('source_key', COURSE).single()).data!
   const bronzeRow = async () => (await bronze().select('*').eq('kajabi_id', COURSE).single()).data!
 
   async function cleanup() {
-    const { data: course } = await supabase.from('courses').select('id').eq('source_key', COURSE).maybeSingle()
-    if (course) {
-      const { data } = await bucket().list(course.id)
-      const files = (data ?? []).filter((o) => o.id !== null).map((o) => `${course.id}/${o.name}`)
-      if (files.length) await bucket().remove(files)
-    }
     await supabase.from('courses').delete().eq('source_key', COURSE)
     await bronze().delete().eq('kajabi_id', COURSE)
     const { data: assets } = await supabase.from('media_assets').select('id, storage_path').contains('tags', [SLUG])
@@ -50,7 +43,6 @@ describe('Course hero image', () => {
   }
 
   beforeAll(async () => {
-    await supabase.storage.createBucket(COURSE_IMAGES_BUCKET, { public: false })
     await cleanup()
     await bronze().insert({ kajabi_id: COURSE, title: TITLE, raw_payload: { attributes: { description: 'd', thumbnail_url: 'https://kajabi.test/thumb.png' } } })
   })
@@ -80,7 +72,7 @@ describe('Course hero image', () => {
     expect(course.thumbnail_url).toBe('https://kajabi.test/thumb.png')
   })
 
-  it('copies the hero into the bucket once, records where, and does not fetch it again', async () => {
+  it('copies the hero into the media library once, records which image, and does not fetch it again', async () => {
     const first = await copyCourseImages(supabase, COURSE, download)
     expect(first).toMatchObject({ copied: 2, failed: [] }) // the cover and the hero
     const course = await silver()
