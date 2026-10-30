@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { findKajabiCandidatesForCohort } from "@/lib/kajabi-cohort-matching";
 import { NextRequest, NextResponse } from "next/server";
@@ -12,17 +13,16 @@ export async function GET(
   const { supabase } = auth;
   const { id } = await params;
 
-  const { data: cohort, error: cohortError } = await supabase
-    .from("program_cohorts")
-    .select("id, starts_at, expires_at, program:programs(id, kajabi_offer_names)")
-    .eq("id", id)
-    .single();
-
-  if (cohortError || !cohort) {
-    return NextResponse.json({ error: cohortError?.message || "Cohort not found" }, { status: 404 });
+  const programs = createRepos(supabase).programs;
+  let cohort;
+  try {
+    cohort = await programs.cohortForMatching(id);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Cohort not found" }, { status: 404 });
   }
+  if (!cohort) return NextResponse.json({ error: "Cohort not found" }, { status: 404 });
 
-  const program = Array.isArray(cohort.program) ? cohort.program[0] : cohort.program;
+  const program = cohort.program;
   if (!program) {
     return NextResponse.json({ error: "Cohort has no associated program" }, { status: 500 });
   }
@@ -35,13 +35,7 @@ export async function GET(
     );
 
     // Exclude members already enrolled in this exact cohort.
-    const { data: existingEnrollments, error: enrollmentsError } = await supabase
-      .from("member_program_enrollments")
-      .select("member_id")
-      .eq("cohort_id", id);
-    if (enrollmentsError) throw enrollmentsError;
-
-    const alreadyEnrolledIds = new Set((existingEnrollments || []).map((e) => e.member_id));
+    const alreadyEnrolledIds = await programs.memberIdsInCohort(id);
     const filtered = candidates.filter((c) => !alreadyEnrolledIds.has(c.member_id));
 
     return NextResponse.json({ candidates: filtered, offerNamesConfigured });

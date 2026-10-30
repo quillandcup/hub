@@ -18,6 +18,7 @@ import { InMemoryActivityRepository, SupabaseActivityRepository, type ActivityRe
 import { InMemoryEventRepository, SupabaseEventRepository, type EventRepository } from "./events";
 import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepository } from "./writing";
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
+import { InMemoryProgramRepository, SupabaseProgramRepository, type ProgramRepository } from "./programs";
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 
 /**
@@ -44,6 +45,7 @@ export interface Repos {
   slackUsers: SlackUserRepository;
   unmatchedEvents: UnmatchedEventRepository;
   media: MediaRepository;
+  programs: ProgramRepository;
   chat: ChatRepository;
 }
 
@@ -68,6 +70,7 @@ export function createRepos(db: Db): Repos {
     slackUsers: new SupabaseSlackUserRepository(db),
     unmatchedEvents: new SupabaseUnmatchedEventRepository(db),
     media: new SupabaseMediaRepository(db),
+    programs: new SupabaseProgramRepository(db),
     chat: new SupabaseChatRepository(db),
   };
 }
@@ -93,6 +96,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     slackUsers: new InMemorySlackUserRepository(dataset),
     unmatchedEvents: new InMemoryUnmatchedEventRepository(dataset),
     media: new InMemoryMediaRepository(dataset),
+    programs: new InMemoryProgramRepository(dataset),
     chat: new InMemoryChatRepository(dataset),
   };
 }

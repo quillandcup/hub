@@ -135,16 +135,11 @@ export default async function MemberDetailPage({
   // supabase/migrations/20260903000000_create_program_cohort_tracking.sql)
   // has empty membershipHistory/hiatusHistory, so without this the timeline
   // below shows nothing at all for them.
-  const { data: enrollmentRows } = await supabase
-    .from("member_program_enrollments")
-    .select("id, cohort:program_cohorts(starts_at, expires_at, program:programs(name))")
-    .eq("member_id", id)
-    .order("created_at", { ascending: false });
-  const programOverrides = (enrollmentRows || []).map((row: any) => ({
-    id: row.id,
-    starts_at: row.cohort.starts_at,
-    expires_at: row.cohort.expires_at,
-    reason: row.cohort.program.name,
+  const programOverrides = (await createRepos(supabase).programs.enrollmentsOf(id)).map((e) => ({
+    id: e.id,
+    starts_at: e.startsAt,
+    expires_at: e.expiresAt,
+    reason: e.programName,
   }));
 
   // Fetch status overrides (gift/direct_stripe/special — see

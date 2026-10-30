@@ -14,6 +14,7 @@ import type { ChatChannelMemberSeed, ChatChannelSeed, ChatGapFillSeed, ChatMessa
 import type { UserProfileSeed } from "./profiles";
 import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
+import type { Program, ProgramCohort, ProgramEnrollment } from "./programs";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
@@ -85,6 +86,10 @@ export class InMemoryDataset {
   slackUsers: SlackUserSeed[];
   /** The calendar items queued for review and the decisions made on them (`unmatched_calendar_events`). */
   unmatchedEvents: UnmatchedEvent[];
+  /** Programs, their cohorts and the members enrolled in them. */
+  programs: Program[];
+  programCohorts: ProgramCohort[];
+  programEnrollments: ProgramEnrollment[];
   /** The Hub's mirror of bridged Slack conversations (chat), one array per table. */
   chatChannels: ChatChannelSeed[];
   chatChannelMembers: ChatChannelMemberSeed[];
@@ -107,7 +112,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "unmatchedEvents" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages">
 
     > = {},
   ) {
@@ -136,6 +141,9 @@ export class InMemoryDataset {
     this.calendarEvents = (init.calendarEvents ?? []).map((row) => ({ ...row }));
     this.slackUsers = (init.slackUsers ?? []).map((row) => ({ ...row }));
     this.unmatchedEvents = (init.unmatchedEvents ?? []).map((row) => ({ ...row }));
+    this.programs = (init.programs ?? []).map((row) => ({ ...row }));
+    this.programCohorts = (init.programCohorts ?? []).map((row) => ({ ...row }));
+    this.programEnrollments = (init.programEnrollments ?? []).map((row) => ({ ...row }));
     this.chatChannels = (init.chatChannels ?? []).map((row) => ({ ...row }));
     this.chatChannelMembers = (init.chatChannelMembers ?? []).map((row) => ({ ...row }));
     this.chatMessages = (init.chatMessages ?? []).map((row) => ({ ...row }));

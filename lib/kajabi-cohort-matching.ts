@@ -251,7 +251,7 @@ export async function findKajabiCandidatesForCohort(
   // to this cohort's window) so computeCandidates can annotate any of them —
   // still small, bounded by the same purchase set above.
   const memberIds = Array.from(new Set(Array.from(memberByEmail.values()).map((m) => m.id)));
-  const alreadyElsewhereByMember = await findOtherCohortEnrollments(supabase, program.id, cohort.id, memberIds);
+  const alreadyElsewhereByMember = await createRepos(supabase).programs.enrolledElsewhere(program.id, cohort.id, memberIds);
 
   const candidates = computeCandidates(
     allOfferPurchases,
@@ -265,36 +265,3 @@ export async function findKajabiCandidatesForCohort(
   return { candidates, offerNamesConfigured: true };
 }
 
-async function findOtherCohortEnrollments(
-  supabase: SupabaseClient,
-  programId: string,
-  currentCohortId: string,
-  memberIds: string[]
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>();
-  if (memberIds.length === 0) return result;
-
-  const { data: programCohorts, error: cohortsError } = await supabase
-    .from("program_cohorts")
-    .select("id, name")
-    .eq("program_id", programId);
-  if (cohortsError) throw cohortsError;
-
-  const otherCohortIds = (programCohorts || []).map((c) => c.id).filter((id) => id !== currentCohortId);
-  if (otherCohortIds.length === 0) return result;
-
-  const { data: enrollments, error: enrollmentsError } = await supabase
-    .from("member_program_enrollments")
-    .select("member_id, cohort_id")
-    .in("member_id", memberIds)
-    .in("cohort_id", otherCohortIds);
-  if (enrollmentsError) throw enrollmentsError;
-
-  const cohortNameById = new Map((programCohorts || []).map((c) => [c.id, c.name]));
-  for (const e of enrollments || []) {
-    if (!result.has(e.member_id)) {
-      result.set(e.member_id, cohortNameById.get(e.cohort_id) ?? "another cohort");
-    }
-  }
-  return result;
-}

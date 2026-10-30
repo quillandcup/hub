@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
@@ -11,7 +12,7 @@ import { requireAdminPage } from "@/lib/admin-auth";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: program } = await supabase.from("programs").select("name").eq("id", id).single();
+  const program = await createRepos(supabase).programs.byId(id);
   return {
     title: program?.name ?? "Program",
   };
@@ -28,7 +29,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("program_cohorts")) redirect("/admin");
 
-  const { data: program } = await supabase.from("programs").select("id, name").eq("id", id).single();
+  const program = await createRepos(supabase).programs.byId(id);
   if (!program) notFound();
 
   return (

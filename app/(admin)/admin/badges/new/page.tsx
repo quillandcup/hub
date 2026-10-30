@@ -13,10 +13,10 @@ export default async function NewBadgePage() {
   await requireAdminPage();
   const supabase = await createClient();
   const repos = createRepos(supabase);
-  const [allEvents, linkedEventIds, { data: programs }] = await Promise.all([
+  const [allEvents, linkedEventIds, programs] = await Promise.all([
     repos.events.choices(),
     repos.badges.linkedEventIds(),
-    supabase.from("programs").select("id, name").order("name"),
+    repos.programs.names(),
   ]);
   const events = allEvents.filter((e) => !linkedEventIds.has(e.id));
 
