@@ -16,6 +16,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_attendance: [],
   prickles: [
   ],
+  // Prickle types (PrickleRepository): every query is moved.
+  prickle_types: [],
   members: [
     "app/api/health/route.ts",
   ],

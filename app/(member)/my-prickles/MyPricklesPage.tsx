@@ -81,7 +81,7 @@ export default async function MyPricklesPage({
     ranked,
     scheduleOverview,
     attendedPrickles,
-    { data: prickleTypes },
+    prickleTypes,
     schedules,
     { data: lockRows },
     hostingStats,
@@ -95,7 +95,7 @@ export default async function MyPricklesPage({
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
     createRepos(supabase).attendance.forMemberWithPrickles(memberId),
-    supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
+    createRepos(supabase).prickles.typesRequiringHost(),
     getMySchedules(),
     supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
     getMyHostingStats(),
@@ -280,7 +280,7 @@ export default async function MyPricklesPage({
                       <div data-tour="hosting-schedule">
                         <HostingScheduleManager
                           initialSchedules={schedules}
-                          prickleTypes={prickleTypes ?? []}
+                          prickleTypes={prickleTypes}
                           currentMonth={currentMonth}
                           nextMonth={nextMonth}
                           currentMonthLocked={currentMonthLocked}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import UnmatchedEventsTable from "../../data/prickle-types/UnmatchedEventsTable";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Unmatched Calendar Events",
@@ -64,10 +65,7 @@ export default async function UnmatchedEventsPage() {
   }));
 
   // Fetch all prickle types
-  const { data: prickleTypes } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .order("name");
+  const prickleTypes = (await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name, normalized_name: t.normalizedName }));
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -87,7 +85,7 @@ export default async function UnmatchedEventsPage() {
           </h2>
         </div>
 
-        <UnmatchedEventsTable eventGroups={eventGroups} prickleTypes={prickleTypes || []} />
+        <UnmatchedEventsTable eventGroups={eventGroups} prickleTypes={prickleTypes} />
 
         {eventGroups.length === 0 && (
           <div className="p-12 text-center text-slate-600 dark:text-slate-400">
