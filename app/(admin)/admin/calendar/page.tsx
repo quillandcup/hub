@@ -51,6 +51,9 @@ export default async function CalendarPage({
     .limit(1)
     .maybeSingle();
 
+  // Calendar events waiting to be matched to a prickle type never show up above, so point at the queue
+  const unmatchedCount = await repos.unmatchedEvents.countPending().catch(() => 0);
+
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
@@ -126,6 +129,15 @@ export default async function CalendarPage({
           </div>
         </div>
       </div>
+      {unmatchedCount > 0 && (
+        <Link
+          href="/admin/hygiene/unmatched-events"
+          data-track="admin-calendar-unmatched-events"
+          className="mb-4 inline-block text-sm text-amber-700 dark:text-amber-400 hover:underline"
+        >
+          {unmatchedCount} unmatched calendar {unmatchedCount === 1 ? "event" : "events"} waiting to be released →
+        </Link>
+      )}
       {/* The calendar sync (a Google edit, within seconds) adds, moves or removes prickles: show them without a reload. */}
       <LiveRefresh
         table="prickles"
