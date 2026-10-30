@@ -38,6 +38,17 @@ Housekeeping for the media library's bucket (`docs/MEDIA_LIBRARY.md`), not an im
 **Schedule:** Daily at 3:30am UTC
 **Timeout:** 300 seconds (5 minutes); a run clears at most 200 images and stops starting new work after 240 s
 
+### `/api/reconcile/retention` (4:00am daily)
+
+Enforces what `/privacy` promises about raw network details (`lib/retention/network-details.ts`, constants in `lib/retention.ts`), not an import.
+
+**What it does:**
+- Parses every distinct user-agent string that has no stored device yet and stores the browser and device on its rows (`access_events`, `video_watch_segments`); in usage events the parsed fields replace the raw string
+- Removes the exact IP address and the user agent from rows older than 90 days, keeping the place and the device (a user agent only where the device is already stored)
+
+**Schedule:** Daily at 4:00am UTC
+**Timeout:** 300 seconds (5 minutes); stops starting new work after 240 s and picks up the rest the next night
+
 ### `/api/reconcile/zoom` (2:30am daily)
 
 Reconciles Zoom meeting attendance data.

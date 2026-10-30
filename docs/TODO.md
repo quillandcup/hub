@@ -402,6 +402,10 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Raw browser strings in push subscriptions and feedback _(Needs Decision)_
+
+The nightly retention job (`/api/reconcile/retention`) removes the raw IP and browser string from the visit log, the usage log and course viewing after 90 days, which is what the `/privacy` row says. Two other places keep a raw user agent and are deliberately not covered: `push_subscriptions.user_agent` (the device label in Settings > Notifications, kept while the subscription is) and the user agent a member's feedback submission carries (`app/api/feedback/route.ts`, for support to reproduce a problem). Decide whether to store only the parsed device (`lib/device.ts`) in the first and remove the second after 90 days, or leave both and name them on the page.
+
 ### Two flaky tests on `main` _(Needs Investigation)_
 
 Both failed CI on unrelated PRs on 2026-10-30 and passed on a re-run of the same commit. A re-run is not a fix; each needs its cause found.

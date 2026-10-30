@@ -6554,6 +6554,26 @@ export type Database = {
         }
         Returns: Json
       }
+      retention_pending_user_agents: {
+        Args: { p_limit?: number; p_source: string }
+        Returns: string[]
+      }
+      retention_remove_raw_network: {
+        Args: { p_cutoff: string; p_limit?: number }
+        Returns: {
+          removed: number
+          source: string
+        }[]
+      }
+      retention_set_device: {
+        Args: {
+          p_device: Json
+          p_limit?: number
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: number
+      }
       revoke_my_session: {
         Args: { target_session_id: string }
         Returns: boolean
