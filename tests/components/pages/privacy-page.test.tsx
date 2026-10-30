@@ -192,19 +192,25 @@ describe("/privacy page", () => {
     expect(within(folded).getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
   });
 
-  it("says notifications can go to several places without listing them all, and what is recorded about them", async () => {
+  it("says what is kept about notifications under What we collect, and that turning statistics off doesn't change read marks", async () => {
+    await renderServerPage(PrivacyPage, {});
+    const row = within(section("collect").getByText("Notifications", { selector: "td" }).closest("tr")!);
+    expect(row.getByText(/A record of each notification we send you/)).toBeInTheDocument();
+    // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
+    expect(row.getByText(/whether you have read it, so they show the right things/)).toBeInTheDocument();
+    expect(row.getByText(/turning usage statistics off does not stop that/)).toBeInTheDocument();
+    expect(row.getByText(/If usage statistics are on, also which notification a visit came from/)).toBeInTheDocument();
+    expect(row.queryByText(/takes the tag off the address/)).not.toBeInTheDocument();
+  });
+
+  it("leaves only the choice under Your choices: several places, set per kind in Settings, without listing them all", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
     expect(choices.getByRole("heading", { name: "Notifications" })).toBeInTheDocument();
     // "such as", so the page doesn't need an edit when a channel is added.
     expect(choices.getByText(/in more than one place, such as Slack, email, inside the Hub, or your browser/)).toBeInTheDocument();
     expect(choices.queryByText(/four places/)).not.toBeInTheDocument();
-    expect(choices.getByText(/We keep a record of each notification we send you/)).toBeInTheDocument();
-    // Reading a notification in the Hub is how the bell works; it is not a usage statistic.
-    expect(choices.getByText(/we also keep whether you\s+have read it, so they show the right things/)).toBeInTheDocument();
-    expect(choices.getByText(/Turning usage statistics off does not stop the bell and banners\s+from keeping track of what you have read/)).toBeInTheDocument();
-    expect(choices.getByText(/If usage statistics are on, we also note which notification a visit came from/)).toBeInTheDocument();
-    expect(choices.queryByText(/takes the tag off the address/)).not.toBeInTheDocument();
+    expect(choices.queryByText(/We keep a record/)).not.toBeInTheDocument();
     expect(choices.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings/notifications");
   });
 

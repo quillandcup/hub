@@ -129,6 +129,11 @@ export default async function PrivacyPage() {
               why="To pick up where you left off, and to learn which lessons work."
             />
             <CollectRow
+              what="Notifications"
+              detail="A record of each notification we send you. For the bell and banners inside the Hub, whether you have read it, so they show the right things; turning usage statistics off does not stop that. If usage statistics are on, also which notification a visit came from, when you click it in the Hub or arrive through a link in it."
+              why="To send you what you ask for, and so the bell and banners stay right."
+            />
+            <CollectRow
               what="Chat"
               detail={
                 <>
@@ -309,25 +314,14 @@ export default async function PrivacyPage() {
         </Detail>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>
-            The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose
-            which, for each kind of notification, in{" "}
-            <Link href="/settings/notifications" className="underline">
-              Settings
-            </Link>
-            , and every email has an unsubscribe link for that kind.
-          </li>
-          <li>
-            We keep a record of each notification we send you. For the bell and banners inside the Hub, we also keep whether you
-            have read it, so they show the right things. Turning usage statistics off does not stop the bell and banners from
-            keeping track of what you have read.
-          </li>
-          <li>
-            If usage statistics are on, we also note which notification a visit came from, when you click it in the Hub or arrive
-            through a link in it.
-          </li>
-        </ul>
+        <p>
+          The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose which,
+          for each kind of notification, in{" "}
+          <Link href="/settings/notifications" className="underline">
+            Settings
+          </Link>
+          , and every email has an unsubscribe link for that kind.
+        </p>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Asking us</h3>
         <p>
