@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { agendaItemOfEvent, agendaItemOfPrickle, AgendaWeeks, type EventRow } from "../AgendaList";
-import { pastAgendaWeeks, type AgendaMonth } from "@/lib/events-agenda";
-import { withoutFollowedEvents, type EventPrickle } from "@/lib/event-prickles";
+import { pastAgendaWeeks, withoutFollowedEvents, type AgendaMonth } from "@/lib/events-agenda";
+import type { EventPrickle } from "@/lib/event-prickles";
 
 /** Keep `?month=` in sync without a server round trip. */
 function syncUrl(month: string) {
