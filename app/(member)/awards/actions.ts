@@ -60,6 +60,7 @@ export async function getMyAwards(): Promise<MyAwardRow[]> {
     .from("member_awards")
     .select("id, award_name, category, work_title, book_id, project_id, award_date, url, notes")
     .eq("member_id", effectiveIdentity.memberId)
+    .is("deleted_at", null)
     .order("award_date", { ascending: false });
 
   return (data ?? []).map((row) => ({
@@ -137,6 +138,7 @@ export async function updateAward(
       notes: input.notes?.trim() || null,
     })
     .eq("id", awardId)
+    .is("deleted_at", null)
     .select("id")
     .single();
 
@@ -152,7 +154,14 @@ export async function deleteAward(awardId: string): Promise<{ success: true } | 
   if ("error" in ctx) return ctx;
   const { supabase } = ctx;
 
-  const { data, error } = await supabase.from("member_awards").delete().eq("id", awardId).select("id").single();
+  // Soft delete: the row stays until the member asks us to remove it (/privacy).
+  const { data, error } = await supabase
+    .from("member_awards")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", awardId)
+    .is("deleted_at", null)
+    .select("id")
+    .single();
 
   if (error || !data) return { error: error?.message ?? "Award not found" };
 

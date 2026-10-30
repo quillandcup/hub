@@ -227,6 +227,18 @@ describe("describeRow for projects, books and check-ins", () => {
     expect(describeRow(book(null))).toBe("added “Moon Garden” to their bookshelf");
   });
 
+  it("reads a soft delete as a delete, and clearing it as a restore", () => {
+    const update = (entity_type: string, deleted_at: { old: unknown; new: unknown }) =>
+      row({ entity_type, event_type: "update", description: "Moon Garden", data: { deleted_at } });
+    const when = "2026-10-29T10:00:00Z";
+    expect(describeRow(update("member_book", change(null, when)))).toBe("removed “Moon Garden” from their bookshelf");
+    expect(describeRow(update("member_book", change(when, null)))).toBe("put “Moon Garden” back on their bookshelf");
+    expect(describeRow(update("writing_goal", change(null, when)))).toBe("deleted writing goal “Moon Garden”");
+    expect(describeRow(update("member_award", change(when, null)))).toBe("restored award “Moon Garden”");
+    // Any other change to the same row is still an ordinary update.
+    expect(describeRow(row({ entity_type: "writing_goal", event_type: "update", data: { target_amount: change(1, 2) } }))).toBe("changed writing goal — target amount");
+  });
+
   it("shows the channel of a check-in or check-out", () => {
     const a = (via: string) =>
       row({ kind: "activity", event_type: "prickle_checkin", title: "Checked in to Morning Writing", data: { via } });

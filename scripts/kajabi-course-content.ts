@@ -43,7 +43,7 @@ import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/c
 import { describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
-import { describeRosterResponse, rosterHasMembers } from "../lib/kajabi/progress-capture";
+import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
@@ -311,6 +311,8 @@ async function captureProgress(courseId: string): Promise<void> {
     // Kajabi builds the report in the background, so the page's first answer can be empty and a later one has the
     // students. Watch every roster response and use the first that has students.
     let roster: { url: string; json: unknown } | null = null;
+    // The page's own request carries what Kajabi's API checks (a CSRF or authorization header, say): the cookie alone is refused with a 401.
+    let pageHeaders: Record<string, string> = {};
     const seen: string[] = [];
     page.on("response", (r) => {
       if (r.request().method() !== "GET" || pathOf(r) !== rosterPath) return;
@@ -319,7 +321,10 @@ async function captureProgress(courseId: string): Promise<void> {
         if (!r.ok()) return void seen.push(`HTTP ${r.status()}`);
         const json = await r.json().catch(() => undefined);
         seen.push(describeRosterResponse(json));
-        if (!roster || rosterHasMembers(json)) roster = { url: r.url(), json };
+        if (!roster || rosterHasMembers(json)) {
+          roster = { url: r.url(), json };
+          pageHeaders = forwardableHeaders(await r.request().allHeaders().catch(() => ({})));
+        }
       })();
     });
     await page.goto(`${KAJABI_APP}/admin/sites/${encodeURIComponent(siteId)}/reports/product_progress_report?productId=${encodeURIComponent(courseId)}`, {
@@ -335,10 +340,13 @@ async function captureProgress(courseId: string): Promise<void> {
       const current = roster as { url: string; json: unknown } | null;
       if (current && Date.now() - lastAsked > ROSTER_REASK_MS) {
         lastAsked = Date.now();
-        const again = await page.evaluate(async (u) => {
-          const response = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
-          return { status: response.status, json: response.ok ? await response.json().catch(() => undefined) : undefined };
-        }, current.url);
+        const again = await page.evaluate(
+          async ([u, h]) => {
+            const response = await fetch(u, { credentials: "include", headers: { accept: "application/json", ...(h as Record<string, string>) } });
+            return { status: response.status, json: response.ok ? await response.json().catch(() => undefined) : undefined };
+          },
+          [current.url, pageHeaders] as const
+        );
         if (again.status === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
         if (again.json !== undefined) {
           seen.push(describeRosterResponse(again.json));
@@ -359,11 +367,15 @@ async function captureProgress(courseId: string): Promise<void> {
       courseKajabiId: courseId,
       roster: found,
       fetchReport: (target) =>
-        page.evaluate(async (u) => {
-          const response = await fetch(u, { credentials: "include", headers: { accept: "application/json" } });
-          const json = response.ok ? await response.json().catch(() => undefined) : undefined;
-          return { status: response.status, json };
-        }, target),
+        page.evaluate(
+          async ([u, h]) => {
+            const response = await fetch(u, { credentials: "include", headers: { accept: "application/json", ...(h as Record<string, string>) } });
+            const json = response.ok ? await response.json().catch(() => undefined) : undefined;
+            return { status: response.status, json };
+          },
+          [target, pageHeaders] as const
+        ),
+      refusalHint: `Headers sent with it (names only): ${Object.keys(pageHeaders).join(", ") || "none beyond the cookie"}.`,
       apply: args.apply,
       timeZone: ORG_TIMEZONE,
       concurrency: args.concurrency,

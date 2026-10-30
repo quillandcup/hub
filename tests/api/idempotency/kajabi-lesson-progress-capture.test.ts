@@ -172,6 +172,7 @@ describe('Kajabi per-lesson progress capture idempotency', () => {
     const expired = async () => ({ status: 401 })
     await expect(run([rosterMember(1, 'ada')], { fetchReport: expired })).rejects.toThrow(ProgressSessionExpiredError)
     await expect(run([rosterMember(1, 'ada')], { fetchReport: expired })).rejects.toThrow('401 for /api/client/reports/product_progress/9/members/:id')
+    await expect(run([rosterMember(1, 'ada')], { fetchReport: expired, refusalHint: 'Headers sent with it (names only): x-csrf-token.' })).rejects.toThrow('wants something its own requests send, not a new login. Headers sent with it (names only): x-csrf-token.')
   })
 
   it('does not remove students from a roster whose count disagrees with what it sent', async () => {

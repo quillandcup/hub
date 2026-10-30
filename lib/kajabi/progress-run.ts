@@ -25,6 +25,8 @@ export interface ProgressRunOptions {
   roster: { url: string; json: unknown };
   /** One request for a student's report, made inside the logged-in page. Resolves with the status; never throws for HTTP errors. */
   fetchReport: (url: string) => Promise<{ status: number; json?: unknown }>;
+  /** Said after a 401, so a refusal explains itself (for example which headers were sent, by name). */
+  refusalHint?: string;
   apply: boolean;
   timeZone: string;
   concurrency?: number;
@@ -140,7 +142,9 @@ export async function runProgressCapture(options: ProgressRunOptions): Promise<P
         continue;
       }
       if (response.status === 401) {
-        throw new ProgressSessionExpiredError(`Kajabi answered 401 for ${describePath(url)}: the login expired. Run again and log in.`);
+        throw new ProgressSessionExpiredError(
+          `Kajabi answered 401 for ${describePath(url)}. If the browser window is logged in, Kajabi wants something its own requests send, not a new login.${options.refusalHint ? ` ${options.refusalHint}` : " Run again and log in if the window is not."}`
+        );
       }
       if (response.status < 200 || response.status >= 300) {
         lastReason = `Kajabi answered ${response.status} for ${describePath(url)}`;

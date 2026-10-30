@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import AmbiguousNamesResolver from "./AmbiguousNamesResolver";
 import { requireAdminPage } from "@/lib/admin-auth";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { prickleTitle } from "@/lib/domain/prickle";
 
 export const metadata: Metadata = {
   title: "Ambiguous Zoom Names",
@@ -185,9 +186,17 @@ export default async function AmbiguousNamesPage() {
     const popUp = popUps.filter((p) => p.zoomMeetingUuid === session.meetingKey);
     return (popUp.find(during) ?? calendar.find(during) ?? popUp[0])?.id ?? null;
   };
-  const entries = entriesWithMeetings.map((e) => ({
+  const resolved = entriesWithMeetings.map((e) => ({
     ...e,
     sessions: e.sessions.map(({ meetingKey, ...session }) => ({ ...session, prickleId: prickleIdFor({ ...session, meetingKey }) })),
+  }));
+  // The Zoom topic is often just the name of a shared meeting link ("OCTOBER Prickles & PUPs Link"),
+  // so a linked session is named after its prickle instead.
+  const prickleIds = [...new Set(resolved.flatMap((e) => e.sessions.map((x) => x.prickleId)).filter((id): id is string => !!id))];
+  const titles = new Map((await repos.prickles.byIds(prickleIds)).map((p) => [p.id, prickleTitle(p)]));
+  const entries = resolved.map((e) => ({
+    ...e,
+    sessions: e.sessions.map((x) => ({ ...x, prickleTitle: x.prickleId ? titles.get(x.prickleId) ?? null : null })),
   }));
 
   return (

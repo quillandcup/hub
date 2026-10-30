@@ -175,7 +175,7 @@ everything else per import instead of silently dropping it. Closing these gaps n
 - **Negative starting balances**: `writing_project_starting_balances` has `CHECK (amount >= 0)`.
 - Habit weeks start Monday in Hub; TrackBear uses the member's setting (Sunday by default), so weekly streaks can differ.
 - **Entry "last edited" time** (`updatedAt`): Hub entries only have `created_at`.
-- **Covers**: always cropped to Hub's 145×215 spec; a cover that fails to copy isn't retried on re-import (the project already exists), so the member has to upload it by hand.
+- **Covers**: kept at their original size as the member's own media library image (`lib/trackbear-cover.ts`); a cover that fails to copy (or is an SVG, which the library refuses) isn't retried on re-import (the project already exists), so the member has to upload it by hand.
 - **Not in TrackBear's export at all** (would need their API or a TrackBear change): account-level lifetime starting balance, week-start and other settings, leaderboards.
 - **One-click import**: TrackBear has no OAuth, and its API needs a member-created API key, so import is export-file upload. If TrackBear adds OAuth, switch to it.
 
@@ -571,12 +571,12 @@ Next 16 has a new caching model behind `cacheComponents` in `next.config.ts` (th
 The media library foundation is in (`docs/MEDIA_LIBRARY.md`): table, bucket, repository, upload and serving routes. Left for the PRs that add its first users:
 
 - **Analytics**: the picker and `/admin/media` record `media_picker_opened`, `media_picked`, `media_cleared`, `media_uploaded`, `media_edited`, `media_deleted` and `media_downloaded`. Each new surface (book covers) extends the `surface` list in `lib/analytics/events.ts` and `lib/media/surfaces.ts`.
-- **`/admin/media` is staff only and shows the shared library.** A deleted image can't be brought back from the UI (`deleted_at` is set; the files stay until swept). Usage lists events only; each feature that gets an `*_asset_id` column adds itself to `MediaRepository.usages`.
+- **`/admin/media` is staff only and shows the shared library.** Usage lists events, books and (unnamed) projects; each feature that gets an `*_asset_id` column adds itself to `MediaRepository.usages`.
 - **The picker is staff-only** (the library routes are). Members picking their own book cover need a member scope on `GET`/`POST /api/media`.
-- **Uploads that are started but never confirmed** leave an object under `uploads/` in the `media` bucket (`POST /api/media/uploads`, then the browser never calls the confirm). Sweep objects older than a day, from the nightly cron.
-- **Deleting an asset keeps its files.** `DELETE /api/media/<id>` only sets `deleted_at`. Once the `*_asset_id` foreign keys exist ("in use" is refused), remove the original and `renditions/<id>/` for assets deleted long enough ago to be past any undo.
+- **Orphaned objects** (a file with no `media_assets` row, a `renditions/<id>/` folder for an id that no longer exists) are not swept: the nightly sweep (`lib/media/sweep.ts`) goes from rows to files, not the other way. They can only come from a failed insert after an upload or a hard delete in the database; list the `originals/` and `renditions/` folders against the table if the bucket ever grows unexplained.
+- **Deleted images can't be restored from the UI.** Within the 30 days before the sweep removes the files, staff can clear `deleted_at` in the database; `/admin/media` has no "deleted" view or undo.
 - **Member uploads other than book covers.** `POST /api/media` and the picker are staff-only; only `POST /api/bookshelf/cover` takes a member's upload, as a multipart request up to 4 MB (a request body limit). Bigger covers would need the signed-URL path (`/api/media/uploads`) for members.
-- **Older book covers** (cropped to 145 x 215, in the `book-covers` bucket, or an outside link) were not moved into the library, so they have no Amazon version. A member re-uploads to get one. The Trackbear import still crops its covers to 145 x 215 (`lib/trackbear-cover.ts`); it could store the original as the member's library image instead.
+- **Older book covers** (cropped to 145 x 215, in the `book-covers` bucket, or an outside link) were not moved into the library, so they have no Amazon version. A member re-uploads to get one.
 - **Making the Bookshelf public.** The covers are ready: set `bookshelfPublic: true` in `app.config.ts` and a book's cover is served at its shelf size to visitors who aren't signed in (`lib/media/public-covers.ts`; the Amazon version, a project's cover and other images stay behind sign-in). The page itself is not: `/bookshelf` is a member page, so it still needs a signed-out route, a decision about what it shows of each author, and the proxy to let it through.
 - **Staff can't see a member's covers** in `/admin/media` (it lists the shared library); a cover shows up there only as a usage when a shared image is used by a book.
 - **SVG** is refused. Worth accepting for logos on the marketing site (sanitized, served with a sandboxing CSP); see `docs/MEDIA_LIBRARY.md`, "Upload safety".
@@ -1415,6 +1415,11 @@ On payment failure, notify the member (a `payment_failed` notification kind via 
 ## Writing Projects Tracking
 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
+
+
+### Soft-delete the rest of the member-written tables _(Needs Scheduling)_
+
+Members' deletes of writing goals, progress entries, books and awards now soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). Still hard deletes in the app: private member notes (`member_notes`), calendar-link items added by hand (`calendar_feed_items`), "Ask me about" topics (`member_ask_me_about`), and the starting balances that `replaceStartingBalances` clears in `lib/data/writing.ts`. Deferred because each is small, some are private to the member (a note is deliberately not audited), and the privacy page promises a kept record only for the four above. For each: add `deleted_at`, filter reads, and say on `/privacy` what a delete keeps. Also decide whether a progress entry's `member_activities` row should come back if a restore path is ever added (the delete removes it today so a bogus entry doesn't inflate engagement).
 
 ### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
 `prickle_checkins` (mood before/after, named feeling, intention, got what they came for) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:

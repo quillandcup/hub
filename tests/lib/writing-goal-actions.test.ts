@@ -136,7 +136,11 @@ describe("updateGoal", () => {
 describe("deleteGoal", () => {
   it("deletes the member's goal and refreshes their pages", async () => {
     expect(await deleteGoal("wgol_1")).toEqual({ success: true });
-    expect(dataset.writingGoals.map((g) => g.id)).toEqual(["wgol_other"]);
+    // Soft delete: the row stays with deleted_at set, and the member's lists no longer show it.
+    expect(dataset.writingGoals.map((g) => g.id)).toEqual(["wgol_1", "wgol_other"]);
+    expect(dataset.writingGoals[0].deleted_at).toEqual(expect.any(String));
+    expect(dataset.writingGoals[1].deleted_at ?? null).toBeNull();
+    expect(await createInMemoryRepos(dataset).writing.goalForEdit("wgol_1")).toBeNull();
     expect(revalidatePath).toHaveBeenCalledWith("/projects/wprj_1");
   });
 

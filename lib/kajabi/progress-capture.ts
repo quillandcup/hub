@@ -165,6 +165,23 @@ export function describeRosterResponse(json: unknown): string {
   return `status ${status}, count ${count}, members ${members}`;
 }
 
+/** Request headers the browser sets itself or that would change the answer: never copied onto a request we make. */
+const NOT_FORWARDED = /^(:.*|cookie|host|connection|content-length|accept-encoding|accept-language|user-agent|referer|origin|priority|upgrade-insecure-requests|if-none-match|if-modified-since|sec-.*)$/i;
+
+/**
+ * The headers of one of the page's own requests that another request of ours should carry: the app's custom
+ * headers (a CSRF token, an authorization header...) that its API checks and a plain cookie does not supply.
+ * Lowercased, and never anything the browser adds on its own.
+ */
+export function forwardableHeaders(all: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(all)) {
+    const key = name.toLowerCase();
+    if (!NOT_FORWARDED.test(key) && value !== "") out[key] = value;
+  }
+  return out;
+}
+
 /** Every lesson of every module and week in one student's report; a lesson listed twice keeps its completed copy. */
 export function parseMemberProgress(json: unknown, timeZone: string): ParsedMemberProgress {
   const root = isObject(json) ? json : {};

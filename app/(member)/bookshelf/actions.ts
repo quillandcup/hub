@@ -74,6 +74,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     .from("member_books")
     .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
     .eq("member_id", effectiveIdentity.memberId)
+    .is("deleted_at", null)
     .order("published_date", { ascending: false });
 
   return (data ?? []).map((row) => ({
@@ -172,6 +173,7 @@ export async function updateBook(
       pen_name: pen.penName,
     })
     .eq("id", bookId)
+    .is("deleted_at", null)
     .select("id")
     .single();
 
@@ -190,7 +192,15 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data, error } = await supabase.from("member_books").delete().eq("id", bookId).select("id").single();
+  // Soft delete: the row stays, with the member's own words, until they ask us to remove it (/privacy).
+  // RLS scopes this to the acting member's own rows (or an admin's, during sudo).
+  const { data, error } = await supabase
+    .from("member_books")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", bookId)
+    .is("deleted_at", null)
+    .select("id")
+    .single();
 
   if (error || !data) return { error: error?.message ?? "Book not found" };
 

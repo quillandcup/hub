@@ -205,6 +205,9 @@ describe("deleteEntry", () => {
 
     expect(await deleteEntry("wpe_AAAAAAAAAAA1")).toEqual({ success: true });
     expect(await repos.writing.findEntry("wpe_AAAAAAAAAAA1")).toBeNull();
+    // Soft delete: the row stays, marked deleted, until the member asks us to remove it.
+    expect(dataset.writingEntries).toHaveLength(1);
+    expect(dataset.writingEntries[0].deleted_at).toEqual(expect.any(String));
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prkl_AAAAAAAAAAA1");
   });
 
