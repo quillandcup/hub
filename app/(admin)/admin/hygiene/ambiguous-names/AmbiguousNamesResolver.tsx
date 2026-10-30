@@ -19,7 +19,7 @@ interface AmbiguousEntry {
   lastSeenAt: string;
   candidates: Candidate[];
   /** Newest first, capped; `occurrenceCount` is the full number. */
-  sessions?: Array<{ topic: string | null; joinTime: string; prickleId?: string | null }>;
+  sessions?: Array<{ topic: string | null; joinTime: string; prickleId?: string | null; prickleTitle?: string | null }>;
   /** Members most often in the same sessions, with how many of them. */
   companions?: Array<{ id: string; name: string; displayName?: string | null; sessions: number }>;
 }
@@ -139,7 +139,7 @@ export default function AmbiguousNamesResolver({ entries }: { entries: Ambiguous
                           {formatDateInZone(s.joinTime, timeZone)} ·{" "}
                           {s.prickleId ? (
                             <Link href={`/admin/prickles/${s.prickleId}`} className="text-plum-700 dark:text-plum-300 hover:underline">
-                              {s.topic || "Untitled session"}
+                              {s.prickleTitle || s.topic || "Untitled session"}
                             </Link>
                           ) : (
                             s.topic || "Untitled session"
