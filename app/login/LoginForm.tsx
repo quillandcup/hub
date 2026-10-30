@@ -145,12 +145,6 @@ export default function LoginForm({ slackHomeUrl }: { slackHomeUrl: string | nul
             </div>
           )}
         </div>
-
-        <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300">
-            ← Back to home
-          </Link>
-        </div>
       </div>
     </div>
   );
