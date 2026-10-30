@@ -194,17 +194,16 @@ export class SupabaseActivityRepository implements ActivityRepository {
   }
 
   async slackSummary(memberId: string, sinceIso: string) {
-    const rows = await fetchAllRows<SlackSummaryRow>(
-      (from, to) =>
-        this.db
-          .from("member_activities")
-          .select("activity_type, occurred_at, channel_name:data->>channel_name")
-          .eq("member_id", memberId)
-          .eq("source", "slack")
-          .order("id")
-          .range(from, to) as unknown as PromiseLike<{ data: SlackSummaryRow[] | null; error: { message: string } | null }>
-    );
-    return summarizeSlack(rows, sinceIso);
+    const { data, error } = await this.db.rpc("member_slack_summary", { p_member_id: memberId, p_since: sinceIso });
+    if (error) throw new Error(error.message);
+    const row = data?.[0];
+    return {
+      total: row?.total ?? 0,
+      messages: row?.messages ?? 0,
+      reactions: row?.reactions ?? 0,
+      channels: row?.channels ?? 0,
+      last30Days: row?.last_30_days ?? 0,
+    };
   }
 
   async introducedIn(memberIds: string[], channelName: string) {
