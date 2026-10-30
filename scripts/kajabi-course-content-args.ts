@@ -29,7 +29,7 @@ export const CONTENT_USAGE = [
   "  --course        capture every lesson of this Kajabi course that step A has imported",
   "  --lesson        capture just this lesson",
   "  --apply         write to the database (default: capture and report only)",
-  "  --env           env file with the Supabase URL and service role key (default .env.local)",
+  "  --env           env file with the Supabase URL and service role key (default .env.local); the .env.shared beside it is read too, and the file wins",
   "  --progress      with --course: capture every student's per-lesson progress (roster and one report per student) into Bronze instead of lesson content",
   "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
   "  --hero          also look for the course's hero banner (experimental; the admin product page doesn't carry it)",
