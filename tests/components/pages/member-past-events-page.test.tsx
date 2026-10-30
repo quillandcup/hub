@@ -21,7 +21,7 @@ vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) =
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "America/New_York" }));
 vi.mock("@/lib/event-prickles", async (importActual) => ({
   ...(await importActual<typeof import("@/lib/event-prickles")>()),
-  fetchPastEventPrickles: vi.fn(async (_s: unknown, month: { id: string }) => [{ id: `p-${month.id}`, title: "Pitch", typeName: "Pitch Prickle", hostName: null, calendarEventId: null, startTime: "2020-03-09T18:00:00Z", endTime: "2020-03-09T19:00:00Z" }]),
+  fetchPastEventPrickles: vi.fn(async (_s: unknown, month: { id: string }) => [{ id: `p-${month.id}`, title: "Pitch", typeName: "Pitch Prickle", hostName: null, calendarEventId: null, startTime: "2026-03-09T18:00:00Z", endTime: "2026-03-09T19:00:00Z" }]),
 }));
 vi.mock("@/app/(member)/events/past/PastEventsBrowser", () => ({
   default: (props: { initialMonth: string; months: { id: string }[]; events: { title: string }[]; followedCalendarEventIds: string[]; initialPrickles: { id: string }[] }) => (
@@ -44,19 +44,20 @@ beforeEach(() => {
   useFakeSupabase({});
   dataset = new InMemoryDataset({
     events: [
-      event("1", "Old Retreat", "2020-03-01", "2020-03-03"),
+      event("1", "Old Retreat", "2026-03-01", "2026-03-03"),
+      event("5", "Pre-2026 Gathering", "2025-12-01", "2025-12-01"),
       event("2", "Far Future", "2097-04-01"),
-      event("3", "Removed", "2020-05-01", "2020-05-01", { deleted_at: "2020-06-01T00:00:00Z" }),
-      event("4", "Book Fair", "2020-07-01", "2020-07-01", { speakers: "Ada Example", calendar_event_id: "cal-7" }),
+      event("3", "Removed", "2026-05-01", "2026-05-01", { deleted_at: "2026-06-01T00:00:00Z" }),
+      event("4", "Book Fair", "2026-07-01", "2026-07-01", { speakers: "Ada Example", calendar_event_id: "cal-7" }),
     ],
   });
 });
 
 describe("member past events page", () => {
   it("hands the browser the events that have ended, not the upcoming or removed ones, named the way members know them, with the calendar items events follow", async () => {
-    await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({ month: "2020-03" }) });
+    await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({ month: "2026-03" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("2020-03|Book Fair with Ada Example,Old Retreat|cal-7|p-2020-03");
+    expect(screen.getByTestId("browser")).toHaveTextContent("2026-03|Book Fair with Ada Example,Old Retreat|cal-7|p-2026-03");
     expect(screen.getByRole("link", { name: "← Upcoming events" })).toHaveAttribute("href", "/events");
   });
 
@@ -64,7 +65,7 @@ describe("member past events page", () => {
     await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({}) });
 
     const browser = screen.getByTestId("browser");
-    expect(browser).toHaveAttribute("data-first", "2020-03");
+    expect(browser).toHaveAttribute("data-first", "2026-03");
     expect(browser.getAttribute("data-last")).toMatch(/^\d{4}-\d{2}$/);
     expect(browser.textContent!.startsWith(browser.getAttribute("data-last")!)).toBe(true);
   });
