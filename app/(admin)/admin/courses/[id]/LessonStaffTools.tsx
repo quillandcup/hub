@@ -2,25 +2,23 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { clearMyLessonProgress } from "./actions";
+import { clearMyLessonProgress } from "@/app/(member)/courses/actions";
 
 /**
- * Staff-only controls under the video, for testing watch tracking: turn recording on for a preview of
- * a lesson members can't open yet (off by default, since a preview normally leaves no history), and
- * wipe your own viewing record for the lesson to start over. Only rendered for staff acting as
- * themselves; the clear action checks that again.
+ * Staff-only controls on a lesson of the admin course page, for testing watch tracking: open a
+ * preview of a lesson members can't open yet with recording on (off by default, since a preview
+ * normally leaves no history), and wipe your own viewing record for the lesson to start over. The
+ * clear action checks that the caller is an admin acting as themselves.
  */
 export default function StaffProgressTools({
   lessonId,
   lessonPath,
   preview,
-  recording,
 }: {
   lessonId: string;
   lessonPath: string;
   /** A lesson members can't open yet, where recording is opt-in. */
   preview: boolean;
-  recording: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -34,22 +32,19 @@ export default function StaffProgressTools({
         setResult(outcome.error);
         return;
       }
-      setResult(`Cleared ${outcome.segments ?? 0} watch segments and your progress. Reloading…`);
-      // The player and completion state live in the browser, so reload to start from a clean lesson.
-      window.location.reload();
+      setResult(`Cleared ${outcome.segments ?? 0} watch segments and your progress.`);
     });
 
   return (
-    <div className="mt-3 rounded-lg border border-dashed border-slate-300 p-3 text-sm dark:border-slate-700" aria-label="Staff tools">
-      <p className="font-medium text-slate-700 dark:text-slate-300">Staff tools (only you see this)</p>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="basis-full pl-2 text-xs" aria-label="Staff tools">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {preview && (
           <Link
-            href={recording ? lessonPath : `${lessonPath}?track=1`}
+            href={`${lessonPath}?track=1`}
             data-track="staff-lesson-record-toggle"
             className="text-plum-700 underline hover:text-plum-800 dark:text-plum-300"
           >
-            {recording ? "Stop recording my watching" : "Record my watching in this preview"}
+            Record my watching in this preview
           </Link>
         )}
         {confirming ? (
@@ -80,7 +75,7 @@ export default function StaffProgressTools({
         )}
       </div>
       {result && (
-        <p role="status" className="mt-2 text-slate-600 dark:text-slate-400">
+        <p role="status" className="mt-1 text-slate-600 dark:text-slate-400">
           {result}
         </p>
       )}

@@ -16,6 +16,7 @@ const EXCLUDED: Record<string, string> = {
   "/chat/search": "chat's own search page, reached from chat",
   "/admin/search": "the search results page itself",
   "/admin/badges/new": "a create form, reached from Badges",
+  "/admin/courses/new": "the course builder's blank form, reached from Courses",
   "/admin/data/prickle-types/new": "a create form, reached from Prickle Types",
   "/admin/data/import/testing": "developer test harness, reached from Import Data",
   "/admin/player-spike": "temporary Video.js v10 player spike (docs/COURSES.md), reached by URL; delete with the real lesson player",

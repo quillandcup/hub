@@ -109,6 +109,19 @@ describe('Admin course data', () => {
       expect((await loadAdminCourse(supabase, UNPUBLISHED, now))!.hubLessonIds).toEqual({})
     })
 
+    it('gives the builder its details and when the structure was last imported, newest row first', async () => {
+      await supabase.from('courses').update({ description: 'Learn to write.' }).eq('id', ids.course)
+      const newest = '2031-05-06T12:00:00.000Z'
+      await bronze.from('kajabi_course_lessons').update({ fetched_at: newest }).eq('kajabi_id', `${PUBLISHED}-l3`)
+      const detail = (await loadAdminCourse(supabase, PUBLISHED, now))!
+      expect(detail.details).toEqual({ description: 'Learn to write.', includesMembership: null })
+      expect(new Date(detail.lastImportedAt!).toISOString()).toBe(newest)
+      // Not in the Hub yet: nothing to show beyond Kajabi's own data.
+      const unpublished = (await loadAdminCourse(supabase, UNPUBLISHED, now))!
+      expect(unpublished.details).toEqual({ description: null, includesMembership: null })
+      expect(unpublished.lastImportedAt).not.toBeNull()
+    })
+
     it('is null for a course Kajabi does not have', async () => {
       expect(await loadAdminCourse(supabase, 'no-such-course', now)).toBeNull()
     })
