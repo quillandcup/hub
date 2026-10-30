@@ -398,6 +398,13 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Two flaky tests on `main` _(Needs Investigation)_
+
+Both failed CI on unrelated PRs on 2026-10-30 and passed on a re-run of the same commit. A re-run is not a fix; each needs its cause found.
+
+- **`tests/api/data/member-repository.test.ts`, "searches names and emails: every word, any case, with wildcards typed as plain characters"** (db project). It expected one member for `{ words: ["ZYXEL", "fern"] }` and got all three seeded members, so the second word was not applied. It failed on the CI run of #569 and on `main` after #610, and passed locally in 6 of 6 runs and on the PR run of #610. Where to start: `SupabaseMemberRepository.search` (`lib/data/members.ts`) builds one `.or(...)` per word and adds `id.in.(...)` for alias hits; look at what the shared CI database holds that day (aliases containing the word, leftovers from earlier files) and whether two `or` parameters are always ANDed by PostgREST. Make the test own its data (unique tokens instead of "Zyxel"/"fern") so another file can't change the answer.
+- **`tests/components/AdminDisplayNames.test.tsx`: "window is not defined" after the test finished** (unit project). Vitest reported all 7,271 tests passing but failed the run on one unhandled error: the host field's `onBlur` in `app/(admin)/admin/data/prickle-types/UnmatchedEventsTable.tsx` starts a 200 ms `setTimeout` to hide the dropdown, and it fired after jsdom was torn down. Fix by clearing the timer on unmount (and in the test, finishing before it fires or using the fake clock).
+
 ### Test Framework Follow-ups
 **Status:** Ideas from the coverage work (PR #77); none started
 
