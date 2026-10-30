@@ -92,6 +92,8 @@ export class InMemoryDataset {
   chatGapFills: ChatGapFillSeed[];
   /** The media library (`media_assets`). */
   mediaAssets: MediaAsset[];
+  /** Published books: the id and title, when published, and which library asset is the cover (what the media library's usage list needs). */
+  memberBooks: { id: string; member_id: string; title: string; published_date: string; cover_asset_id: string | null }[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -100,7 +102,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks">
 
     > = {},
   ) {
@@ -136,6 +138,7 @@ export class InMemoryDataset {
     this.chatSlackAuthors = (init.chatSlackAuthors ?? []).map((row) => ({ ...row }));
     this.chatGapFills = (init.chatGapFills ?? []).map((row) => ({ ...row }));
     this.mediaAssets = (init.mediaAssets ?? []).map((row) => ({ ...row }));
+    this.memberBooks = (init.memberBooks ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

@@ -23,7 +23,7 @@ import { POST } from "@/app/api/webhooks/slack/interactions/route";
 const ADA = "mbr_AAAAAAAAAAA1";
 const FERN = "mbr_AAAAAAAAAAA2";
 const project = (id: string, member: string) => ({
-  id, member_id: member, title: "Novel", description: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
+  id, member_id: member, title: "Novel", description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
 });
 
 function answer(projectId: string, amount = "250") {

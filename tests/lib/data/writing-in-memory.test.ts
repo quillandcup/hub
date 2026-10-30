@@ -31,7 +31,7 @@ defineWritingContract("InMemoryWritingRepository", () => {
           member_id: memberIds[p.member],
           title: p.title,
           description: null,
-          cover_url: null,
+          cover_asset_id: null, cover_url: null,
           external_id: null,
           phase: "drafting",
           show_on_profile: false,

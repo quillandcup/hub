@@ -1,32 +1,45 @@
-// The book cover spec this site has always used (see the "Celebrating Your New
-// Published Hedgie Book!" Google Form it replaces): PNG or JPEG, exactly
-// 145x215px. Shared between the client-side picker (fast feedback) and the
-// upload API route (authoritative check on the actual file bytes).
+import { mediaSrc } from "@/lib/media/url";
+import { PRESETS, tooSmallFor } from "@/lib/media/presets";
+import { safeUrl } from "@/lib/url";
+
+// Book covers (docs/MEDIA_LIBRARY.md). A member uploads a cover at any size; the media library makes the
+// Bookshelf size and the Amazon ebook cover from it. Covers uploaded before that were cropped to exactly
+// 145x215 and live in the `book-covers` bucket; they keep their URL, and so does the Trackbear import, which
+// still crops to this size (lib/trackbear-cover.ts).
 
 export const BOOK_COVER_WIDTH = 145;
 export const BOOK_COVER_HEIGHT = 215;
-export const BOOK_COVER_MAX_BYTES = 2 * 1024 * 1024;
-export const BOOK_COVER_ALLOWED_TYPES = ["image/png", "image/jpeg"] as const;
+
+/** What a request body can carry (Vercel allows about 4.5 MB). A cover is rarely more than a couple of MB. */
+export const BOOK_COVER_MAX_BYTES = 4 * 1024 * 1024;
 
 export function describeBookCoverRequirements(): string {
-  return `PNG or JPEG, exactly ${BOOK_COVER_WIDTH}x${BOOK_COVER_HEIGHT}px, under ${
-    BOOK_COVER_MAX_BYTES / (1024 * 1024)
-  }MB`;
+  return `Any size: a JPEG, PNG, WebP or iPhone photo up to ${BOOK_COVER_MAX_BYTES / (1024 * 1024)} MB. We make the Bookshelf size and the Amazon size from it.`;
 }
 
-export function validateBookCoverFile(file: { type: string; size: number }): string | null {
-  if (!(BOOK_COVER_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
-    return "Cover must be a PNG or JPEG image";
-  }
-  if (file.size > BOOK_COVER_MAX_BYTES) {
-    return `Cover must be under ${BOOK_COVER_MAX_BYTES / (1024 * 1024)}MB`;
-  }
-  return null;
+/** The URL a library cover is shown at everywhere a book cover is. */
+export function bookCoverUrlFor(assetId: string): string {
+  return mediaSrc(assetId, "book_cover_shelf");
 }
 
-export function validateBookCoverDimensions(width: number, height: number): string | null {
-  if (width !== BOOK_COVER_WIDTH || height !== BOOK_COVER_HEIGHT) {
-    return `Cover must be exactly ${BOOK_COVER_WIDTH}x${BOOK_COVER_HEIGHT}px (yours is ${width}x${height})`;
-  }
-  return null;
+const LIBRARY_COVER = /^\/api\/media\/(media_[1-9A-HJ-NP-Za-km-z]{12})\/book_cover_shelf$/;
+
+/** The library asset behind a cover URL, or null for a link to somewhere else (an older cover). */
+export function coverAssetIdOf(url: string | null | undefined): string | null {
+  return url ? (LIBRARY_COVER.exec(url)?.[1] ?? null) : null;
+}
+
+/** A cover URL we'll store and show: one of our library paths, or an ordinary http(s) link. */
+export function bookCoverUrl(url: string | null | undefined): string | null {
+  return coverAssetIdOf(url) ? (url as string) : safeUrl(url);
+}
+
+/** Whether a library cover can go to Amazon as it is: null when it can, else why not. */
+export function amazonCoverProblem(asset: { width: number; height: number }): string | null {
+  return tooSmallFor(asset, PRESETS.book_cover_kdp_ebook);
+}
+
+/** Where the Amazon ebook version of a library cover is downloaded. */
+export function amazonCoverHref(assetId: string): string {
+  return `/api/media/${assetId}/book_cover_kdp_ebook?download=1`;
 }

@@ -34,7 +34,7 @@ const project: WritingProjectRow = {
   member_id: ME,
   title: "Novel",
   description: null,
-  cover_url: null,
+  cover_asset_id: null, cover_url: null,
   external_id: null,
   phase: "drafting",
   show_on_profile: false,

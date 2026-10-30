@@ -12,11 +12,7 @@ import {
 } from "@/app/(member)/bookshelf/actions";
 import { publishProject } from "@/app/(member)/projects/actions";
 import type { PenNameOptions } from "@/lib/book-pen-name";
-import {
-  describeBookCoverRequirements,
-  validateBookCoverDimensions,
-  validateBookCoverFile,
-} from "@/lib/bookCover";
+import BookCoverField, { type CoverAsset } from "@/components/books/BookCoverField";
 
 interface BookFormModalProps {
   isOpen: boolean;
@@ -35,23 +31,6 @@ interface BookFormModalProps {
   initialCoverUrl?: string;
 }
 
-/** Reads the pixel dimensions of an image file in the browser, without uploading it. */
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Couldn't read that image file"));
-    };
-    img.src = objectUrl;
-  });
-}
-
 export default function BookFormModal({
   isOpen,
   onClose,
@@ -65,8 +44,7 @@ export default function BookFormModal({
   const [title, setTitle] = useState(book?.title ?? projectTitle ?? "");
   const [description, setDescription] = useState(book?.description ?? initialDescription ?? "");
   const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? initialCoverUrl ?? "");
-  const [coverError, setCoverError] = useState<string | null>(null);
-  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverAsset, setCoverAsset] = useState<CoverAsset | null>(book?.coverAsset ?? null);
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");
   const [publishedDate, setPublishedDate] = useState(book?.publishedDate ?? "");
   const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
@@ -92,50 +70,6 @@ export default function BookFormModal({
   const penNameChoices = penNameOptions
     ? [...penNameOptions.others, ...(penName && !penNameOptions.others.includes(penName) ? [penName] : [])]
     : [];
-
-  async function handleCoverFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file after a failed attempt
-    if (!file) return;
-
-    setCoverError(null);
-
-    const fileError = validateBookCoverFile(file);
-    if (fileError) {
-      setCoverError(fileError);
-      return;
-    }
-
-    let dimensions: { width: number; height: number };
-    try {
-      dimensions = await readImageDimensions(file);
-    } catch {
-      setCoverError("Couldn't read that image file");
-      return;
-    }
-    const dimensionError = validateBookCoverDimensions(dimensions.width, dimensions.height);
-    if (dimensionError) {
-      setCoverError(dimensionError);
-      return;
-    }
-
-    setIsUploadingCover(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/bookshelf/cover", { method: "POST", body });
-      const json = await res.json();
-      if (!res.ok) {
-        setCoverError(json.error ?? "Upload failed, try again");
-        return;
-      }
-      setCoverUrl(json.url);
-    } catch {
-      setCoverError("Upload failed, try again");
-    } finally {
-      setIsUploadingCover(false);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -291,29 +225,14 @@ export default function BookFormModal({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Cover image *
           </label>
-          <div className="flex items-start gap-3">
-            {coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element -- local preview of an uploaded file, not optimizable by next/image
-              <img
-                src={coverUrl}
-                alt="Cover preview"
-                className="w-16 h-24 object-cover rounded border border-slate-200 dark:border-slate-700 flex-shrink-0"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                onChange={handleCoverFileChange}
-                disabled={isUploadingCover}
-                className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
-              />
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                {isUploadingCover ? "Uploading..." : describeBookCoverRequirements()}
-              </p>
-              {coverError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{coverError}</p>}
-            </div>
-          </div>
+          <BookCoverField
+            url={coverUrl}
+            asset={coverAsset}
+            onUploaded={(cover) => {
+              setCoverUrl(cover.url);
+              setCoverAsset(cover.asset);
+            }}
+          />
         </div>
 
         <div>
@@ -341,7 +260,7 @@ export default function BookFormModal({
           </button>
           <button data-track="book-form-save"
             type="submit"
-            disabled={isPending || isUploadingCover || !coverUrl}
+            disabled={isPending || !coverUrl}
             className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
           >
             {isPending ? pendingLabel : submitLabel}

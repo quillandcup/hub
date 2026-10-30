@@ -83,13 +83,13 @@ No schema change. The course builder's picker gets a "from the video" tab that a
 
 ## Build order
 
-Steps 1 and 2 are done: the picker, event covers, and `/admin/media` (search, upload, edit title, alt text, tags and public flag, click to set the focal point, choose how a picture that isn't cover-shaped fits, see where it's used, download the original, the Amazon cover or any size, delete with a refusal while something shows it).
+Steps 1, 2 and 3 are done (book covers, below): the picker, event covers, and `/admin/media` (search, upload, edit title, alt text, tags and public flag, click to set the focal point, choose how a picture that isn't cover-shaped fits, see where it's used, download the original, the Amazon cover or any size, delete with a refusal while something shows it).
 
 Each is its own PR, small enough to review.
 
 1. **Foundation**: migration (`media_assets`, bucket, grants, RLS, usage view), `MediaRepository` (interface, Supabase class, in-memory twin, contract suite, guard-test entry), `lib/media/` (validate, presets, render), upload route, `/api/media/<id>/<preset>`, tests with fixture images (including an EXIF-rotated one and an oversize one), pgTAP for the table and bucket.
 2. **Picker, `/admin/media`, events**: `MediaPicker`; `events.image_id`; the image on the events list and event detail page; analytics events (`media_uploaded`, `media_picked`, `media_reused`) declared in `lib/analytics/events.ts`.
-3. **Book covers**: upload creates an asset owned by the member; `book_cover_shelf` and the Amazon download; remove the exact-size rule; backfill `book-covers`.
+3. **Book covers** (done): the cover upload on the Bookshelf and Projects forms takes any size and keeps it as the member's own library image. `cover_url` still holds the URL every page shows (`/api/media/<id>/book_cover_shelf` for a new cover; older covers keep their own link), and `member_books.cover_asset_id` / `writing_projects.cover_asset_id` say which asset it is. A published book's cover is readable by every signed-in member (the Bookshelf shows it to all); a project's pre-publish cover stays private to its owner. The book form shows the cover's size and a **Download for Amazon** link (the 1600 x 2560 JPEG), or what is missing when it is too small. Replacing a cover removes the old one from the member's library once nothing uses it. Older covers were not moved: they stay as links, and cannot be turned into an Amazon cover (they are 145 x 215).
 4. **Kajabi unification**: `copyCourseImages` writes assets (above), with the idempotency tests in `tests/api/courses/images.test.ts` carried over.
 5. **Course lesson thumbnails** through the picker, then the video-frame tab when the course builder exists.
 

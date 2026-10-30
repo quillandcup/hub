@@ -36,7 +36,7 @@ const OTHER = "mbr_AAAAAAAAAAA2";
 const IDENTITY = { memberId: ME, memberName: "Ada Example", memberEmail: "ada@example.com", isSudo: false };
 
 const project = (id: string, member: string, title = "Novel") => ({
-  id, member_id: member, title, description: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
+  id, member_id: member, title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting", show_on_profile: false, archived_at: null, created_at: "2026-01-01T00:00:00Z",
 });
 
 /** Answers the ownership check on writing_projects from the dataset; everything else is empty. */

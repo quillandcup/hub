@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
-import { imageSize } from "image-size";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import {
-  BOOK_COVER_ALLOWED_TYPES,
-  validateBookCoverDimensions,
-  validateBookCoverFile,
-} from "@/lib/bookCover";
+import { createRepos } from "@/lib/data/repos";
+import { BOOK_COVER_MAX_BYTES, bookCoverUrlFor } from "@/lib/bookCover";
+import { storeImage, titleFromFileName } from "@/lib/media/library";
 
-const EXTENSION_BY_TYPE: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-};
-
+/**
+ * A member's book cover (or a project's) goes into the media library as one of their own images, at any size.
+ * The Bookshelf size and the Amazon ebook cover are made from it when asked for. Answers the URL the cover
+ * is shown at, the asset (for the Amazon download) and its size.
+ */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const user = await getCurrentUser();
@@ -23,44 +20,34 @@ export async function POST(request: NextRequest) {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return NextResponse.json({ error: "No member record" }, { status: 403 });
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) {
+  const formData = await request.formData().catch(() => undefined);
+  const file = formData?.get("file");
+  if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
   }
+  if (file.size > BOOK_COVER_MAX_BYTES) {
+    return NextResponse.json({ error: `Cover must be under ${BOOK_COVER_MAX_BYTES / (1024 * 1024)} MB` }, { status: 400 });
+  }
 
-  const fileError = validateBookCoverFile(file);
-  if (fileError) return NextResponse.json({ error: fileError }, { status: 400 });
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  let dimensions: { width?: number; height?: number };
   try {
-    dimensions = imageSize(buffer);
-  } catch {
-    return NextResponse.json({ error: "Couldn't read that image file" }, { status: 400 });
-  }
-  if (!dimensions.width || !dimensions.height) {
-    return NextResponse.json({ error: "Couldn't read that image file" }, { status: 400 });
-  }
-
-  const dimensionError = validateBookCoverDimensions(dimensions.width, dimensions.height);
-  if (dimensionError) return NextResponse.json({ error: dimensionError }, { status: 400 });
-
-  const extension = EXTENSION_BY_TYPE[file.type as (typeof BOOK_COVER_ALLOWED_TYPES)[number]];
-  const path = `${effectiveIdentity.memberId}/${randomUUID()}.${extension}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("book-covers")
-    .upload(path, buffer, { contentType: file.type });
-  if (uploadError) {
-    console.error("Book cover upload failed:", uploadError);
+    const result = await storeImage(createRepos(supabase).media, createServiceRoleClient().storage, {
+      bytes: Buffer.from(await file.arrayBuffer()),
+      title: titleFromFileName(file.name),
+      ownerMemberId: effectiveIdentity.memberId,
+      createdBy: user.id,
+    });
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    const { asset } = result;
+    return NextResponse.json({
+      url: bookCoverUrlFor(asset.id),
+      assetId: asset.id,
+      width: asset.width,
+      height: asset.height,
+      convertedFrom: result.convertedFrom,
+      duplicate: result.duplicate,
+    });
+  } catch (error) {
+    console.error("Book cover upload failed:", error);
     return NextResponse.json({ error: "Upload failed, try again" }, { status: 500 });
   }
-
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from("book-covers").getPublicUrl(path);
-
-  return NextResponse.json({ url: publicUrl });
 }

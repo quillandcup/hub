@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
 import { resolvePenName } from "@/lib/book-pen-name";
+import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
@@ -490,8 +491,18 @@ export async function updateProjectCover(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { cover_url: coverUrl });
+  const repos = createRepos(supabase);
+  let patch: ProjectPatch = { cover_url: null, cover_asset_id: null };
+  if (coverUrl !== null) {
+    const cover = await resolveBookCover(repos.media, effectiveIdentity.memberId, coverUrl);
+    if ("error" in cover) return cover;
+    patch = { cover_url: cover.url, cover_asset_id: cover.assetId };
+  }
+  const previous = await repos.writing.coverAssetOf(effectiveIdentity.memberId, projectId).catch(() => null);
+
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, patch);
   if (failure) return failure;
+  await releaseReplacedCover(repos.media, effectiveIdentity.memberId, previous, patch.cover_asset_id ?? null);
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -631,12 +642,16 @@ async function publishProjectImpl(
   const pen = await resolvePenName(supabase, effectiveIdentity.memberId, book.penName);
   if ("error" in pen) return pen;
 
+  const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, book.coverUrl);
+  if ("error" in cover) return cover;
+
   const { error: insertError } = await supabase.from("member_books").insert({
     member_id: effectiveIdentity.memberId,
     project_id: projectId,
     title: book.title.trim(),
     description: book.description?.trim() || null,
-    cover_url: safeUrl(book.coverUrl)!, // validated above
+    cover_url: cover.url,
+    cover_asset_id: cover.assetId,
     purchase_url: safeUrl(book.purchaseUrl)!,
     published_date: book.publishedDate,
     price: book.price ?? null,

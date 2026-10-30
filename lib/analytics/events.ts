@@ -144,12 +144,12 @@ export const EVENTS = {
 
   // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,
   // named by us; a title, tag, file name or search text never goes in.
-  media_picker_opened: { surface: oneOf("event_cover", "admin_library") },
+  media_picker_opened: { surface: oneOf("event_cover", "admin_library", "book_cover") },
   /** An image was chosen: from the library (`searched` says a search was typed first) or by uploading it right there. */
-  media_picked: { surface: oneOf("event_cover", "admin_library"), from: oneOf("library", "upload"), searched: bool() },
-  media_cleared: { surface: oneOf("event_cover", "admin_library") },
+  media_picked: { surface: oneOf("event_cover", "admin_library", "book_cover"), from: oneOf("library", "upload"), searched: bool() },
+  media_cleared: { surface: oneOf("event_cover", "admin_library", "book_cover") },
   /** An upload finished or failed. `converted` is a HEIC photo turned into JPEG, `duplicate` a file the library already had, `large` one sent through the signed URL. */
-  media_uploaded: { surface: oneOf("event_cover", "admin_library"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
+  media_uploaded: { surface: oneOf("event_cover", "admin_library", "book_cover"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
   // The staff library (app/(admin)/admin/media). Which fields a save changed; never their values.
   media_edited: { title: bool(), alt: bool(), tags: bool(), focal: bool(), fit: bool(), is_public: bool() },
   /** A delete was attempted; `in_use` means it was refused because something still shows the image. */
