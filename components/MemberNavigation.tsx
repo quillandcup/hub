@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { FeatureKey } from "@/lib/features";
@@ -82,12 +82,36 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, onNavigate }:
   );
 }
 
+// Chat has its own channel list beside the sidebar, so there the sidebar rests as an icon rail and opens over
+// the page while hovered or focused (the page keeps its width, nothing reflows).
+const AUTO_HIDE_OPEN_DELAY_MS = 150;
+const isAutoHidePath = (pathname: string) => pathname === "/chat" || pathname.startsWith("/chat/");
+
 export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNavigationProps) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
+  const [peeking, setPeeking] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoHide = isAutoHidePath(pathname);
+  const railOpen = autoHide && peeking;
+
   useOpenMobileNav(() => setMobileOpen(true));
+
+  const clearPeekTimer = () => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = null;
+  };
+  const startPeek = () => {
+    clearPeekTimer();
+    peekTimer.current = setTimeout(() => setPeeking(true), AUTO_HIDE_OPEN_DELAY_MS);
+  };
+  const stopPeek = () => {
+    clearPeekTimer();
+    setPeeking(false);
+  };
+  useEffect(() => clearPeekTimer, []);
 
   useEffect(() => {
     const isMobile = window.innerWidth < 768;
@@ -100,6 +124,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
     setMobileOpen(false);
+    setPeeking(false);
   }, [pathname]);
 
   return (
@@ -144,35 +169,48 @@ export default function MemberNavigation({ isAdmin, enabledFeatures }: MemberNav
         />
       </aside>
 
-      {/* Desktop sidebar — unchanged collapsible behavior at md and above */}
+      {/* Desktop sidebar. On auto-hide pages the wrapper holds the rail's width and the aside floats over the page. */}
+      <div
+        className={`hidden lg:block flex-shrink-0 h-screen relative z-30 transition-all duration-300 ${
+          autoHide || collapsed ? "w-16" : "w-64"
+        }`}
+        onMouseEnter={autoHide ? startPeek : undefined}
+        onMouseLeave={autoHide ? stopPeek : undefined}
+        onFocus={autoHide ? () => { clearPeekTimer(); setPeeking(true); } : undefined}
+        onBlur={autoHide ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) stopPeek(); } : undefined}
+      >
       <aside
         aria-label="Sidebar navigation"
-        className={`hidden lg:flex flex-shrink-0 h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-10 flex-col ${
-          collapsed ? "w-16" : "w-64"
+        data-auto-hide={autoHide || undefined}
+        className={`flex h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex-col ${
+          autoHide ? `absolute inset-y-0 left-0 ${railOpen ? "w-64 shadow-xl" : "w-16"}` : collapsed ? "w-16" : "w-64"
         }`}
       >
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
-          {!collapsed && (
+          {(autoHide ? railOpen : !collapsed) && (
             <Wordmark className="text-lg" />
           )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            data-track="nav-collapse-sidebar"
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? "→" : "←"}
-          </button>
+          {!autoHide && (
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              data-track="nav-collapse-sidebar"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors relative z-20"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? "→" : "←"}
+            </button>
+          )}
         </div>
 
         <NavLinks
           isAdmin={isAdmin}
           enabledFeatures={enabledFeatures}
           pathname={pathname}
-          collapsed={collapsed}
+          collapsed={autoHide ? !railOpen : collapsed}
         />
       </aside>
+      </div>
     </>
   );
 }

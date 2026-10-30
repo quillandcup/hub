@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MobileMenuButton from "@/components/MobileMenuButton";
 import MemberNavigation from "@/components/MemberNavigation";
@@ -28,7 +28,8 @@ describe("MemberNavigation", () => {
 
     pathname = "/chat/00000000-0000-4000-a000-000000000001";
     rerender(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
-    const link = within(sidebar()).getByRole("link", { name: /Chat/ });
+    // On chat the sidebar rests as an icon rail, so the link is found by its title.
+    const link = within(sidebar()).getByTitle("Chat").closest("a")!;
     expect(link).toHaveAttribute("href", "/chat");
     expect(link.className).toContain("text-plum-600");
   });
@@ -112,5 +113,44 @@ describe("MemberNavigation drawer and keyboard focus", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
     expect(drawer()).toHaveAttribute("aria-hidden", "false");
     expect(drawer()).not.toHaveAttribute("inert");
+  });
+});
+
+describe("MemberNavigation auto-hide on chat", () => {
+  const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });
+
+  it("rests as a rail on chat, opens over the page after a short hover, and closes on leave", () => {
+    vi.useFakeTimers();
+    try {
+      pathname = "/chat/chan-1";
+      render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+      expect(sidebar()).toHaveAttribute("data-auto-hide", "true");
+      expect(sidebar()).toHaveClass("w-16");
+      expect(screen.queryByRole("button", { name: /sidebar/i })).not.toBeInTheDocument();
+
+      fireEvent.mouseEnter(sidebar().parentElement!);
+      expect(sidebar()).toHaveClass("w-16");
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(sidebar()).toHaveClass("w-64", "absolute");
+      expect(within(sidebar()).getByText("Chat")).toBeInTheDocument();
+
+      fireEvent.mouseLeave(sidebar().parentElement!);
+      expect(sidebar()).toHaveClass("w-16");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens when focus moves into the rail", () => {
+    pathname = "/chat";
+    render(<MemberNavigation isAdmin={false} enabledFeatures={["chat"]} />);
+    act(() => { within(sidebar()).getAllByRole("link")[0].focus(); });
+    expect(sidebar()).toHaveClass("w-64");
+  });
+
+  it("keeps the manual collapse button and no auto-hide elsewhere", () => {
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    expect(sidebar()).not.toHaveAttribute("data-auto-hide");
+    expect(screen.getByRole("button", { name: /sidebar/i })).toBeInTheDocument();
   });
 });
