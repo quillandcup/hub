@@ -92,6 +92,7 @@ export default async function PrivacyPage() {
           <li><a href="#who-sees" className="underline">Who can see it</a></li>
           <li><a href="#chat" className="underline">Chat and messages</a></li>
           <li><a href="#keep" className="underline">How long we keep things</a></li>
+          <li><a href="#cookies" className="underline">Cookies</a></li>
           <li><a href="#choices" className="underline">Your choices</a></li>
           <li><a href="#services" className="underline">Services we use</a></li>
         </ul>
@@ -267,24 +268,7 @@ export default async function PrivacyPage() {
         </p>
       </Section>
 
-      <Section id="choices" title="Your choices">
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Usage statistics</h3>
-        <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
-        <p>
-          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
-          if you decline we don&apos;t record any of this. Elsewhere it is on until you turn it off here.
-        </p>
-        <Detail title="How usage statistics work">
-          We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
-          type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
-          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. Our host, Vercel,
-          also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
-          this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
-          individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
-          March&rdquo;), which is how we see trends over several years.
-        </Detail>
-
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Cookies and similar storage</h3>
+      <Section id="cookies" title="Cookies and similar storage">
         <p>
           Most of what the Hub keeps on your device is there to make it work, so we don&apos;t need your consent for it, and you
           can clear it in your browser settings. In short:
@@ -305,6 +289,24 @@ export default async function PrivacyPage() {
             <strong>Google Analytics</strong> sets its own cookie, only if you have allowed it.
           </li>
         </ul>
+      </Section>
+
+      <Section id="choices" title="Your choices">
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100">Usage statistics</h3>
+        <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+        <p>
+          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
+          if you decline we don&apos;t record any of this. Elsewhere it is on until you turn it off here.
+        </p>
+        <Detail title="How usage statistics work">
+          We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
+          type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
+          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. Our host, Vercel,
+          also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
+          this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
+          individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
+          March&rdquo;), which is how we see trends over several years.
+        </Detail>
 
         <h3 className="font-semibold text-slate-900 dark:text-slate-100 pt-2">Notifications</h3>
         <ul className="list-disc pl-5 space-y-1">

@@ -76,6 +76,7 @@ describe("/privacy page", () => {
       ["Who can see it", "who-sees"],
       ["Chat and messages", "chat"],
       ["How long we keep things", "keep"],
+      ["Cookies", "cookies"],
       ["Your choices", "choices"],
       ["Services we use", "services"],
     ] as const) {
@@ -168,10 +169,10 @@ describe("/privacy page", () => {
 
   it("describes the cookies by kind in a short list rather than listing every one, and says which are optional", async () => {
     await renderServerPage(PrivacyPage, {});
-    const choices = section("choices");
-    expect(choices.getByRole("heading", { name: "Cookies and similar storage" })).toBeInTheDocument();
-    expect(choices.getByText(/so we don't need your consent for it, and you\s+can clear it in your browser settings/)).toBeInTheDocument();
-    const list = within(choices.getByText("To make the Hub work:").closest("ul")!);
+    const cookies = section("cookies");
+    expect(cookies.getByRole("heading", { name: "Cookies and similar storage" })).toBeInTheDocument();
+    expect(cookies.getByText(/so we don't need your consent for it, and you\s+can clear it in your browser settings/)).toBeInTheDocument();
+    const list = within(cookies.getByText("To make the Hub work:").closest("ul")!);
     expect(list.getAllByRole("listitem")).toHaveLength(4);
     expect(list.getByText(/your last chat channel,\s+your video speed and captions, and your recent searches/)).toBeInTheDocument();
     expect(list.getByText("Visit number", { selector: "strong" })).toBeInTheDocument();
