@@ -65,6 +65,13 @@ export const CRON_HEARTBEATS = {
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_LOGINS",
     ...daily,
   },
+  "reconcile-retention": {
+    name: "Cron: raw network details retention (daily 04:00 UTC)",
+    path: "/api/reconcile/retention",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_RETENTION",
+    ...daily,
+  },
   "reconcile-media": {
     name: "Cron: media library sweep (daily 03:30 UTC)",
     path: "/api/reconcile/media",

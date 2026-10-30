@@ -44,7 +44,9 @@ export const PRIVACY_EFFECTIVE = "2026-10-30";
  * the oldest user agent in a usage event from 2026-10-20, so the first value passes 90 days on 2027-01-16; usage events
  * pass 13 months in late 2027. (An earlier note here said 2026-11-25, assuming user agents went back to the table's
  * creation; they don't.)
- * **The job must be deployed before 2027-01-16.** Nothing below promises more than that.
+ * **The job (`/api/reconcile/retention`, lib/retention/network-details.ts) must be deployed before 2027-01-16.** It covers the
+ * visit log (`access_events`), the usage log and course viewing, which is what the "How long we keep things" row says; the
+ * browser string attached to a push subscription or to feedback a member submits is not covered, and the row does not claim it.
  */
 export default async function PrivacyPage() {
   // Public: anyone can read it, signed in or not. Only the usage-statistics switch needs an account.
@@ -280,7 +282,7 @@ export default async function PrivacyPage() {
               keep={`${RETENTION.usageMonths} months, then only anonymous totals`}
             />
             <KeepRow
-              what="Your exact IP address and your browser's identification string"
+              what="Your exact IP address and your browser's identification string, as recorded when you visit, use the Hub or watch a course"
               keep={`${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device`}
             />
           </tbody>
