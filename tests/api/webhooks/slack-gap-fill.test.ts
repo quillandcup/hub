@@ -22,9 +22,7 @@ vi.mock('next/server', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 const { fillMessageGap, fillThreadIfRootMissing } = vi.hoisted(() => ({
   fillMessageGap: vi.fn(),

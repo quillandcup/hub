@@ -31,12 +31,10 @@ vi.mock('@supabase/supabase-js', () => ({
   })),
 }))
 
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 import { POST } from '@/app/api/webhooks/slack/route'
-import { triggerReprocessing } from '@/lib/processing/trigger'
+import { projectSlackActivity } from '@/lib/slack-activity-projection'
 
 describe('Slack webhook - Bronze write failures', () => {
   beforeEach(() => {
@@ -60,7 +58,7 @@ describe('Slack webhook - Bronze write failures', () => {
     expect(response.status).toBe(200)
 
     expect(upsertMock).toHaveBeenCalled()
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error upserting Slack message:',
       expect.objectContaining({ message: 'simulated failure' })
@@ -83,7 +81,7 @@ describe('Slack webhook - Bronze write failures', () => {
 
     expect(response.status).toBe(200)
     expect(upsertMock).toHaveBeenCalled()
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error upserting Slack reaction:',
       expect.objectContaining({ message: 'simulated failure' })
