@@ -123,6 +123,16 @@ describe('plainTextDescription', () => {
     expect(plainTextDescription('<a href="javascript:alert(1)">Join</a>')).toBe('Join')
   })
 
+  it('marks bold per line when it spans a line break', () => {
+    expect(plainTextDescription('A <b>all about it!<br></b>We talk<br><b>And more, too.<br><br>Showtime</b>'))
+      .toBe('A **all about it!**\nWe talk\n**And more, too.**\n\n**Showtime**')
+  })
+
+  it('keeps blank lines between paragraphs and bullets after a bold line', () => {
+    expect(plainTextDescription('Intro<br><br>Joining us for <b>a Prickle</b> <b>all about it!<br></b><br>We talk about<ul><li>one,</li><li>two</li></ul><br><b>Mindset, too.<br></b><br>Bye'))
+      .toBe('Intro\n\nJoining us for **a Prickle** **all about it!**\n\nWe talk about\n\n- one,\n- two\n\n**Mindset, too.**\n\nBye')
+  })
+
   it('keeps list items on their own lines', () => {
     expect(plainTextDescription('<ul><li>One</li><li>Two</li></ul>')).toBe('- One\n- Two')
   })

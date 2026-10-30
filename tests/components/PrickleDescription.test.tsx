@@ -17,4 +17,10 @@ describe("PrickleDescription", () => {
     expect(link.getAttribute("rel")).toContain("noopener");
     expect(screen.queryByRole("link", { name: "bad" })).toBeNull();
   });
+
+  it("renders lists with bullets", () => {
+    const { container } = render(<PrickleDescription markdown={"- one\n- two"} />);
+    expect(container.querySelector("ul")?.className).toContain("list-disc");
+    expect(container.querySelectorAll("li")).toHaveLength(2);
+  });
 });

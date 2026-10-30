@@ -10,6 +10,8 @@ export default function PrickleDescription({ markdown, className = "text-sm mb-4
         components={{
           p: ({ children }) => <p className="whitespace-pre-line mb-2 last:mb-0">{children}</p>,
           a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline">{children}</a>,
+          ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
           strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
         }}
       >
