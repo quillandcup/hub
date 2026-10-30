@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { fetchAll } from "@/lib/courses/db";
 import { explainCourse, type ExplainedCourse } from "@/lib/courses/explain";
 import { resolveCourseAccess } from "@/lib/courses/member";
@@ -93,16 +94,20 @@ export interface AdminCourseDetail {
   videos: PlannedVideo[];
   /** Each download of a visible lesson, what is already copied, and what would be removed. */
   files: FilePlan;
+  /** The fields the builder shows (read only for now); null where the course isn't in the Hub yet. */
+  details: { description: string | null; includesMembership: boolean | null };
+  /** When Kajabi's structure for this course was last imported (the newest row's fetch time), or null. */
+  lastImportedAt: string | null;
 }
 
 export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string, now = new Date()): Promise<AdminCourseDetail | null> {
-  const { data: bronze, error } = await supabase.schema("bronze").from("kajabi_courses").select("kajabi_id").eq("kajabi_id", kajabiId).is("deleted_at", null).maybeSingle();
+  const { data: bronze, error } = await supabase.schema("bronze").from("kajabi_courses").select("kajabi_id, title, fetched_at").eq("kajabi_id", kajabiId).is("deleted_at", null).maybeSingle();
   if (error) throw new Error(`kajabi_courses read failed: ${error.message}`);
   if (!bronze) return null;
 
   const [modules, lessons, rows, videos, files] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, content_fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
+    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option, fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
+    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, content_fetched_at, fetched_at", (q) => q.eq("course_kajabi_id", kajabiId).is("deleted_at", null)),
     loadAdminCourses(supabase, now),
     planCourseVideos(supabase, kajabiId, now),
     planCourseFiles(supabase, kajabiId, now),
@@ -111,19 +116,31 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
   if (!course) return null;
 
   let hubLessonIds: Record<string, string> = {};
+  let details: AdminCourseDetail["details"] = { description: null, includesMembership: null };
   if (course.published) {
-    const { data: silver } = await supabase.from("courses").select("id").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
+    const { data: silver } = await supabase.from("courses").select("id, description, program_id").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
     if (silver) {
       const hub = await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", silver.id).eq("source", "kajabi"));
       hubLessonIds = Object.fromEntries(hub.map((l) => [l.source_key, l.id]));
+      let includesMembership: boolean | null = null;
+      if (silver.program_id) {
+        const program = await createRepos(supabase).programs.byId(silver.program_id);
+        includesMembership = program?.includes_membership ?? null;
+      }
+      details = { description: silver.description ?? null, includesMembership };
     }
   }
+
+  const fetchTimes = [bronze.fetched_at, ...modules.map((m) => m.fetched_at), ...lessons.map((l) => l.fetched_at)].filter((t): t is string => !!t);
+  const lastImportedAt = fetchTimes.reduce<string | null>((newest, t) => (!newest || Date.parse(t) > Date.parse(newest) ? t : newest), null);
 
   return {
     course,
     hubLessonIds,
     videos,
     files,
+    details,
+    lastImportedAt,
     explained: explainCourse(toModules(modules), toLessons(lessons)),
     content: Object.fromEntries(lessons.map((l) => [l.kajabi_id, { hasText: l.content_fetched_at !== null, hasVideo: l.video_media_id !== null }])),
   };

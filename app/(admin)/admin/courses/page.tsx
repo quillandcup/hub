@@ -15,7 +15,12 @@ export default async function AdminCoursesPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-6 py-8">
-      <h1 className="mb-2 text-3xl font-bold">Courses</h1>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Courses</h1>
+        <Link href="/admin/courses/new" className="rounded bg-plum-600 px-4 py-2 text-sm font-medium text-white hover:bg-plum-700">
+          New course
+        </Link>
+      </div>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
         Every course in Kajabi and where it stands in the Hub. Sync and publish from{" "}
         <Link href="/admin/data/import" className="underline">

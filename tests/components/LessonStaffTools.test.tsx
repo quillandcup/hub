@@ -1,35 +1,27 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const clearMyLessonProgress = vi.fn();
 vi.mock("@/app/(member)/courses/actions", () => ({ clearMyLessonProgress: (...a: unknown[]) => clearMyLessonProgress(...a) }));
 
-import StaffProgressTools from "@/app/(member)/courses/StaffProgressTools";
+import LessonStaffTools from "@/app/(admin)/admin/courses/[id]/LessonStaffTools";
 
 const PATH = "/courses/the-ready-writer/lessons/l1";
-const tools = (over: Partial<React.ComponentProps<typeof StaffProgressTools>> = {}) => (
-  <StaffProgressTools lessonId="l1" lessonPath={PATH} preview={false} recording={false} {...over} />
+const tools = (over: Partial<React.ComponentProps<typeof LessonStaffTools>> = {}) => (
+  <LessonStaffTools lessonId="l1" lessonPath={PATH} preview={false} {...over} />
 );
 
-const reload = vi.fn();
-beforeEach(() => {
-  clearMyLessonProgress.mockReset();
-  reload.mockReset();
-  Object.defineProperty(window, "location", { value: { ...window.location, reload }, configurable: true });
-});
+beforeEach(() => clearMyLessonProgress.mockReset());
 
-describe("StaffProgressTools", () => {
-  it("offers recording only for a preview, as a link that adds or drops ?track=1", () => {
+describe("LessonStaffTools", () => {
+  it("offers recording only for a preview, as a link that opens the lesson with ?track=1", () => {
     const { rerender } = render(tools());
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
 
     rerender(tools({ preview: true }));
     expect(screen.getByRole("link", { name: "Record my watching in this preview" })).toHaveAttribute("href", `${PATH}?track=1`);
-
-    rerender(tools({ preview: true, recording: true }));
-    expect(screen.getByRole("link", { name: "Stop recording my watching" })).toHaveAttribute("href", PATH);
   });
 
   it("asks before clearing, and does nothing on cancel", async () => {
@@ -43,7 +35,7 @@ describe("StaffProgressTools", () => {
     expect(screen.getByRole("button", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
   });
 
-  it("clears this lesson's progress once confirmed, then reloads for a clean player", async () => {
+  it("clears this lesson's progress once confirmed", async () => {
     clearMyLessonProgress.mockResolvedValue({ segments: 3 });
     const user = userEvent.setup();
     render(tools());
@@ -51,11 +43,10 @@ describe("StaffProgressTools", () => {
     await user.click(screen.getByRole("button", { name: "Yes, clear" }));
 
     expect(clearMyLessonProgress).toHaveBeenCalledWith("l1");
-    await waitFor(() => expect(reload).toHaveBeenCalled());
-    expect(screen.getByRole("status")).toHaveTextContent("Cleared 3 watch segments");
+    expect(await screen.findByRole("status")).toHaveTextContent("Cleared 3 watch segments");
   });
 
-  it("shows why it failed and doesn't reload", async () => {
+  it("shows why it failed", async () => {
     clearMyLessonProgress.mockResolvedValue({ error: "Not available" });
     const user = userEvent.setup();
     render(tools());
@@ -63,6 +54,5 @@ describe("StaffProgressTools", () => {
     await user.click(screen.getByRole("button", { name: "Yes, clear" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Not available");
-    expect(reload).not.toHaveBeenCalled();
   });
 });

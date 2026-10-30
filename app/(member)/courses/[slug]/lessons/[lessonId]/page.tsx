@@ -15,7 +15,6 @@ import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
 import { LessonCompletionProvider } from "../../../LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
-import StaffProgressTools from "../../../StaffProgressTools";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -215,9 +214,6 @@ export default async function LessonPage({
                 </summary>
                 {sectionList}
               </details>
-            )}
-            {caller.scope.isAdminActing && video && (
-              <StaffProgressTools lessonId={lesson.id} lessonPath={`/courses/${view.course.slug}/lessons/${lesson.id}`} preview={preview} recording={watchRecorded} />
             )}
           </div>
 

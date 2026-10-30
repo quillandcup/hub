@@ -720,10 +720,9 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
       expect(screen.getByRole("status")).toHaveTextContent("Your watching is recorded (completion isn't).");
-      expect(screen.getByRole("link", { name: "Stop recording my watching" })).toBeInTheDocument();
     });
 
-    it("keeps a preview off by default, with the toggle offered", async () => {
+    it("keeps a preview off by default", async () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       caller.scope.isAdminActing = true;
       loadLessonView.mockResolvedValue(withVideo({ preview: true }));
@@ -731,7 +730,6 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
       expect(screen.getByRole("status")).toHaveTextContent("Progress isn't tracked here.");
-      expect(screen.getByRole("link", { name: "Record my watching in this preview" })).toHaveAttribute("href", expect.stringContaining("?track=1"));
     });
 
     it("never records in sudo, even with ?track=1", async () => {
@@ -744,18 +742,12 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
     });
 
-    it("shows the staff tools only to staff acting as themselves, with clear but no toggle on an open lesson", async () => {
+    it("leaves the staff tools to the admin course page, even for staff acting as themselves", async () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.scope.isAdminActing = true;
       loadLessonView.mockResolvedValue(withVideo());
       await renderServerPage(LessonPage, params());
       expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
-      cleanup();
-
-      caller.scope.isAdminActing = true;
-      await renderServerPage(LessonPage, params());
-      expect(screen.getByLabelText("Staff tools")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /Record my watching/ })).not.toBeInTheDocument();
     });
 
     it("leaves tracking off in sudo and in a staff preview, which leave no viewing history", async () => {

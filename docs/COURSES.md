@@ -51,7 +51,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 
 - **Access-ending reminder:** a notification some weeks before a course's access ends, prompting the member to switch to or opt in to membership billing.
 - **Video phases 1–2:** Whisper transcripts with search and a follow-along panel; then re-exported clean videos with toggleable caption tracks.
-- **Course builder in the Hub,** so Ania stops authoring in Kajabi.
+- **Course builder in the Hub,** so Ania stops authoring in Kajabi. **Prototype built (2026-10-30):** `/admin/courses/<id>` is the builder (`app/(admin)/admin/courses/CourseBuilderForm.tsx`), showing the course as last imported from Kajabi (details, modules, lessons with their Open / Coming soon / Hidden state, when it was last imported), and `/admin/courses/new` is the blank form. Every field is disabled behind a banner that sends admins to support for a manual Kajabi import; the Hub settings form (access length, launch day) and the video and file panels still work. The staff watch-tracking tools (record my watching in a preview, clear my progress) live on each lesson row there, no longer under the video on the member lesson page. **Still open:** saving (a `source = 'hub'` write path), editing lesson text and video, reordering.
 - **Cohort-based courses:** Self-Editing Academy (reflection quizzes, level progression), the 180.
 - **Other courses:** BFF Mindset Training, Hedgies on First, then the membership video library.
 - **Mini player and pop-out window.**
