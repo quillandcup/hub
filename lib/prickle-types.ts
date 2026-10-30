@@ -141,6 +141,23 @@ function assignFromTitle(input: { typedName: string | null; memberId: string | n
 const DESCRIPTION_HTML_TAGS = ["b", "strong", "i", "em", "a", "br", "p", "div", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6"];
 
 const descriptionToMarkdown = new TurndownService({ bulletListMarker: "-", emDelimiter: "*", strongDelimiter: "**", br: "", headingStyle: "atx" });
+// turndown collapses consecutive <br> into one newline, which loses the blank line Google uses between
+// paragraphs, so each <br> travels through it as this marker and becomes a newline afterwards.
+const BR_MARKER = "\u00a7BR\u00a7";
+
+// Markdown can't bold or italicize across a line break (`**a\n**` shows the asterisks), so mark each line on its own, keeping edge whitespace outside the markers.
+function emphasizeLines(marker: string, content: string): string {
+  return content
+    .split(/(\n|\u00a7BR\u00a7)/)
+    .map((part) => {
+      const core = part.trim();
+      if (!core || part === BR_MARKER) return part;
+      return `${part.match(/^\s*/)?.[0] ?? ""}${marker}${core}${marker}${part.match(/\s*$/)?.[0] ?? ""}`;
+    })
+    .join("");
+}
+descriptionToMarkdown.addRule("strong", { filter: ["strong", "b"], replacement: (content) => emphasizeLines("**", content) });
+descriptionToMarkdown.addRule("emphasis", { filter: ["em", "i"], replacement: (content) => emphasizeLines("*", content) });
 descriptionToMarkdown.addRule("listItem", { filter: "li", replacement: (content) => `- ${content.trim()}\n` });
 // Calendar descriptions are written in one block, so a heading is just bold text.
 descriptionToMarkdown.addRule("heading", { filter: ["h1", "h2", "h3", "h4", "h5", "h6"], replacement: (content) => `\n\n**${content.trim()}**\n\n` });
@@ -166,6 +183,6 @@ export function plainTextDescription(raw: string | null | undefined): string | n
       },
     },
   });
-  const text = descriptionToMarkdown.turndown(safe).replace(/\n{3,}/g, "\n\n").trim();
+  const text = descriptionToMarkdown.turndown(safe.replace(/<br\s*\/?>/gi, BR_MARKER)).replaceAll(BR_MARKER, "\n").replace(/\n{3,}/g, "\n\n").trim();
   return text || null;
 }
