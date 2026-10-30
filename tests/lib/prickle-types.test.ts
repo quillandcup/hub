@@ -133,6 +133,11 @@ describe('plainTextDescription', () => {
       .toBe('Intro\n\nJoining us for **a Prickle** **all about it!**\n\nWe talk about\n\n- one,\n- two\n\n**Mindset, too.**\n\nBye')
   })
 
+  it('keeps the newlines of a plain-text description, and a divider line stays text', () => {
+    expect(plainTextDescription('First paragraph & more.\n\nSecond line\n--------\nAnia is inviting you\nJoin Zoom Meeting\nhttps://example.com/j/1?pwd=x'))
+      .toBe('First paragraph & more.\n\nSecond line\n\\--------\nAnia is inviting you\nJoin Zoom Meeting\nhttps://example.com/j/1?pwd=x')
+  })
+
   it('keeps list items on their own lines', () => {
     expect(plainTextDescription('<ul><li>One</li><li>Two</li></ul>')).toBe('- One\n- Two')
   })

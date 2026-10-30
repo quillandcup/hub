@@ -23,4 +23,9 @@ describe("PrickleDescription", () => {
     expect(container.querySelector("ul")?.className).toContain("list-disc");
     expect(container.querySelectorAll("li")).toHaveLength(2);
   });
+
+  it("links a bare URL", () => {
+    render(<PrickleDescription markdown={"Join Zoom Meeting\nhttps://example.com/j/1?pwd=x"} />);
+    expect(screen.getByRole("link").getAttribute("href")).toBe("https://example.com/j/1?pwd=x");
+  });
 });
