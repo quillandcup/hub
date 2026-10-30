@@ -189,6 +189,10 @@ export function plainTextDescription(raw: string | null | undefined): string | n
   // A description with no tags at all is plain text (Google stores it that way when it was typed without
   // formatting): its newlines are the line breaks, which an HTML converter would otherwise read as spaces.
   const html = /<\/?[a-z][^>]*>/i.test(raw) ? safe : safe.replace(/\r?\n/g, "<br>");
-  const text = descriptionToMarkdown.turndown(html).replaceAll(BR_MARKER, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const text = descriptionToMarkdown.turndown(html).replaceAll(BR_MARKER, "\n").replace(/[ \t]+\n/g, "\n")
+    // A line of dashes (the divider in Zoom invites) is a rule; on its own line, with blank lines around it, markdown reads it as one and not as an underlined heading.
+    .replace(/^\\?-{3,}$/gm, "\n---\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return text || null;
 }
