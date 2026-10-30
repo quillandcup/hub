@@ -117,3 +117,14 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
 
   return { loose: loose.sort(byPosition).map(explainLesson), modules: roots, totals };
 }
+
+/**
+ * What members get from an item, for a card that already shows its own Kajabi status: the effect,
+ * and the module above it when that is what decides ("Inside “Module 2” (Locked)"). The item's own
+ * setting isn't repeated ("Draft in Kajabi", "Published").
+ */
+export function memberEffect(state: Visibility, reason: string): string {
+  const effect = state === "open" ? "Members can open it." : state === "coming_soon" ? "Members see it as coming soon." : "Members don't see it.";
+  const decidedByItself = reason === "Published" || reason.endsWith(" in Kajabi");
+  return decidedByItself ? effect : `${effect} ${reason}.`;
+}

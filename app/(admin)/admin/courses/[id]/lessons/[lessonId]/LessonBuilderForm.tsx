@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { AdminLessonDetail } from "@/lib/courses/admin";
 import { formatBytes } from "@/lib/courses/files";
-import { STATUS_CHOICES, statusChoices, statusLabel } from "@/lib/courses/status-choices";
+import { memberEffect } from "@/lib/courses/explain";
+import { STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -91,7 +92,7 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
             </div>
           </fieldset>
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-            {statusLabel(lesson.publishingOption)} in Kajabi. {lesson.state === "open" ? "Members can open it." : lesson.state === "coming_soon" ? "Members see it as coming soon." : "Members don't see it."} {lesson.reason}.
+            {memberEffect(lesson.state, lesson.reason)}
           </p>
         </div>
 

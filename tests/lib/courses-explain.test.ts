@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { explainCourse, type ExplainLessonIn, type ExplainModuleIn } from "@/lib/courses/explain";
+import { explainCourse, memberEffect, type ExplainLessonIn, type ExplainModuleIn } from "@/lib/courses/explain";
 import { planVisibleTree } from "@/lib/courses/visibility";
 
 const mod = (kajabiId: string, publishingOption: string | null, parentKajabiId: string | null = null, position = 1): ExplainModuleIn => ({
@@ -78,5 +78,18 @@ describe("explainCourse", () => {
 
   it("labels a missing setting", () => {
     expect(explainCourse([], [lesson("L", null)]).loose[0].reason).toBe("no setting in Kajabi");
+  });
+});
+
+describe("memberEffect", () => {
+  it("says what members get, without repeating the item's own Kajabi status", () => {
+    expect(memberEffect("hidden", "Draft in Kajabi")).toBe("Members don't see it.");
+    expect(memberEffect("open", "Published")).toBe("Members can open it.");
+    expect(memberEffect("coming_soon", "Locked in Kajabi")).toBe("Members see it as coming soon.");
+  });
+
+  it("adds the module above when that is what decides", () => {
+    expect(memberEffect("coming_soon", "Inside “Module 2” (Locked)")).toBe("Members see it as coming soon. Inside “Module 2” (Locked).");
+    expect(memberEffect("hidden", "Its module can't be resolved")).toBe("Members don't see it. Its module can't be resolved.");
   });
 });
