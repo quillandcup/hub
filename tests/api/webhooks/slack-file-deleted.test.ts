@@ -14,7 +14,7 @@ vi.mock('next/server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next/server')>()
   return { ...actual, after: (callback: () => void | Promise<void>) => void callback() }
 })
-vi.mock('@/lib/processing/trigger', () => ({ triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })) }))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 const suffix = Date.now()
 const channelId = `CFILEDEL${suffix}`

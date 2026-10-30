@@ -19,9 +19,7 @@ vi.mock('next/server', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
 const channelId = `CREACTSOFT${Date.now()}`
 const nowSec = Math.floor(Date.now() / 1000)

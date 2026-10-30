@@ -6542,6 +6542,10 @@ export type Database = {
         Args: { p_mentorship_id: string; p_note: string }
         Returns: boolean
       }
+      slack_activity_project_message: {
+        Args: { p_channel_id: string; p_message_ts: string }
+        Returns: Json
+      }
       slack_bot_token_get: {
         Args: never
         Returns: {

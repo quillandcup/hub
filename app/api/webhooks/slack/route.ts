@@ -1,7 +1,7 @@
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { projectSlackActivity } from "@/lib/slack-activity-projection";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
@@ -426,14 +426,6 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
  * Trigger Silver layer processing for Slack data
  */
 function triggerSlackProcessing(channelId: string, messageTs: string, opts: { threadTs?: string | null; fillGaps?: boolean } = {}) {
-  const timestamp = new Date(parseFloat(messageTs) * 1000);
-  const from = new Date(timestamp);
-  from.setDate(from.getDate() - 1);
-  const to = new Date(timestamp);
-  to.setDate(to.getDate() + 1);
-
-  // Call the process/slack handler directly — avoids VERCEL_URL routing through
-  // Vercel deployment protection which blocks unauthenticated *.vercel.app requests.
   // Wrapped in after() so Vercel keeps the function alive until processing
   // finishes; a bare floating promise can be cut off once the response is sent
   // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
@@ -463,8 +455,11 @@ function triggerSlackProcessing(channelId: string, messageTs: string, opts: { th
           console.info("[chat] gap-fill from a webhook event recovered %d messages and %d reactions%s", filled.messages, filled.reactions, filled.error ? ` (failed: ${filled.error})` : "");
         }
       }
-      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat", "member_interactions"] });
-      console.log("Slack processing triggered successfully");
+      // The member activities of this one message (and its reactions), not a rebuild of the day: that cost grows
+      // with the day's traffic, and concurrent events rebuilt the same rows at once and queued behind each other
+      // into the 8-second statement timeout. The windowed rebuild is left to imports and the nightly run.
+      const activities = await projectSlackActivity(service, channelId, messageTs);
+      if (activities) console.log("Slack activities projected: %d message, %d reactions", activities.messages, activities.reactions);
     } catch (error) {
       console.error("Error triggering Slack processing:", error);
     }

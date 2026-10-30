@@ -25,11 +25,9 @@ vi.mock('next/server', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
-import { triggerReprocessing } from '@/lib/processing/trigger'
+import { projectSlackActivity } from '@/lib/slack-activity-projection'
 
 const channelId = `CSUBTYPES${Date.now()}`
 const nowSec = Math.floor(Date.now() / 1000)
@@ -104,7 +102,7 @@ describe('Slack webhook: message subtypes', () => {
     expect(stored[0]).toMatchObject({ message_ts: originalTs, user_id: 'UAUTHOR', text: 'final draft', deleted_at: null })
     expect(new Date(stored[0].edited_at!).toISOString()).toBe(new Date(parseFloat(editTs) * 1000).toISOString())
     expect(errorSpy).not.toHaveBeenCalledWith('Error upserting Slack message:', expect.anything())
-    expect(triggerReprocessing).toHaveBeenCalledWith('slack_messages', 'bronze', expect.anything())
+    expect(projectSlackActivity).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String))
   })
 
   it('ignores an edit to a message we never stored (the nightly import brings it in)', async () => {
@@ -136,7 +134,7 @@ describe('Slack webhook: message subtypes', () => {
     expect(row.text).toBe('first draft')
     expect(new Date(row.deleted_at!).toISOString()).toBe(new Date(parseFloat(deleteTs) * 1000).toISOString())
     expect(await rows()).toHaveLength(1)
-    expect(triggerReprocessing).toHaveBeenCalled()
+    expect(projectSlackActivity).toHaveBeenCalled()
   })
 
   it('keeps the first deleted_at if a delete is delivered twice', async () => {
@@ -171,7 +169,7 @@ describe('Slack webhook: message subtypes', () => {
 
     const [row] = await rows()
     expect(row).toMatchObject({ message_ts: oldTs, text: 'from the archive', deleted_at: null })
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
   })
 
   it('stores a bot/app post under its bot_id, like the import does', async () => {
@@ -201,7 +199,7 @@ describe('Slack webhook: message subtypes', () => {
   it.each(['bot_message'])('skips %s, which the import skips too', async (subtype) => {
     await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'something' })
     expect(await rows()).toEqual([])
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
   })
 
   it('shows a join or leave notice as a message and also records it as membership history', async () => {

@@ -24,12 +24,10 @@ vi.mock('next/server', async (importOriginal) => {
   }
 })
 
-// Mock triggerReprocessing — webhook now calls it directly (no HTTP)
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+// Mock the per-message activity projection the webhook calls after each event
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
-import { triggerReprocessing } from '@/lib/processing/trigger'
+import { projectSlackActivity } from '@/lib/slack-activity-projection'
 
 describe('Slack Webhook', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -197,16 +195,7 @@ describe('Slack Webhook', () => {
       await POST(request as unknown as NextRequest)
       await drainAfterWork()
 
-      expect(triggerReprocessing).toHaveBeenCalledWith(
-        'slack_messages',
-        'bronze',
-        expect.objectContaining({
-          dateRange: expect.objectContaining({
-            from: expect.any(Date),
-            to: expect.any(Date),
-          }),
-        })
-      )
+      expect(projectSlackActivity).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String))
     })
 
     it('projects the one message into the chat mirror, and keeps the windowed chat projection off the per-event path', async () => {
@@ -243,11 +232,7 @@ describe('Slack Webhook', () => {
         expect(rows![0].slack_ts).toBe(fixture.body.event.ts)
         expect(rows![0].chat_message_contents).toMatchObject({ body: fixture.body.event.text })
 
-        expect(triggerReprocessing).toHaveBeenCalledWith(
-          'slack_messages',
-          'bronze',
-          expect.objectContaining({ exclude: ['chat', 'member_interactions'] })
-        )
+        expect(projectSlackActivity).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String))
       } finally {
         await supabase.from('chat_channels').delete().eq('id', channel!.id)
       }
