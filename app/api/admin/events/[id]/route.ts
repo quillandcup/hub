@@ -6,7 +6,7 @@ import type { Update } from "@/lib/data/db";
 import { parseEventAudience } from "@/lib/event-audience";
 import { calendarEventFields, overridesAfterEdit } from "@/lib/calendar-events";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
-import { isId } from "@/lib/ids";
+import { eventImageError } from "@/lib/media/event-image";
 
 export async function GET(
   request: NextRequest,
@@ -81,14 +81,9 @@ export async function PATCH(
     if (event_type !== undefined && !isEventType(event_type)) {
       return NextResponse.json({ error: `event_type must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
     }
-    if (image_id !== undefined && image_id !== null && !isId(image_id, "media")) {
-      return NextResponse.json({ error: "image_id must be a media library id, or null" }, { status: 400 });
-    }
     const repos = createRepos(supabase);
-    if (typeof image_id === "string") {
-      const asset = await repos.media.byId(image_id).catch(() => null);
-      if (!asset || asset.deleted_at) return NextResponse.json({ error: "That image isn't in the media library" }, { status: 400 });
-    }
+    const imageError = await eventImageError(repos.media, image_id);
+    if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
     const current = await repos.events.byId(id);
     const audience = parseEventAudience(body, current ?? undefined);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
