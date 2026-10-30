@@ -104,6 +104,7 @@ describe("/privacy page", () => {
     expect(collect.getByText(/what kind of search you ran and how many results \(never the words\)/)).toBeInTheDocument();
     expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
     expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
+    expect(collect.getByRole("link", { name: "its own section" })).toHaveAttribute("href", "#chat");
     expect(section("choices").getByText(/It does not record what you\s+type into search, forms or messages/)).toBeInTheDocument();
   });
 

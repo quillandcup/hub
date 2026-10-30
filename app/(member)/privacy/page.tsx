@@ -135,7 +135,11 @@ export default async function PrivacyPage() {
           </tbody>
         </table>
         <p className="text-sm">
-          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong).
+          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong). Chat is covered in{" "}
+          <a href="#chat" className="underline">
+            its own section
+          </a>{" "}
+          below.
         </p>
       </Section>
 
