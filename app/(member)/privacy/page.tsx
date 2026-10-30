@@ -40,10 +40,12 @@ export const PRIVACY_REVIEWED = "2026-10-30";
  *
  * **Retention promises that need a job before they can be broken.** The page promises the numbers in
  * `lib/retention.ts`. Nothing enforces them yet: the job is phase 0 of docs/EVENT_LOG.md. It is safe to show the page
- * now because no row is old enough to break them: the oldest possible raw user agent in `access_events`
- * dates from the table's creation (2026-08-27), so the first row passes 90 days on 2026-11-25; raw IPs have
- * been stored only since 2026-10-20, so the first passes on 2027-01-18; usage events pass 13 months in late 2027.
- * **The job must be deployed before 2026-11-25.** Nothing below promises more than that.
+ * now because no row is old enough to break them. Checked against production on 2026-10-30: the oldest raw user agent
+ * in `access_events` is from 2026-10-18 (the column is newer than the table), the oldest raw IP from 2026-10-21, and
+ * the oldest user agent in a usage event from 2026-10-20, so the first value passes 90 days on 2027-01-16; usage events
+ * pass 13 months in late 2027. (An earlier note here said 2026-11-25, assuming user agents went back to the table's
+ * creation; they don't.)
+ * **The job must be deployed before 2027-01-16.** Nothing below promises more than that.
  */
 export default async function PrivacyPage() {
   const user = await getCurrentUser();
