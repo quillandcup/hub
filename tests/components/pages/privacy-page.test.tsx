@@ -93,6 +93,8 @@ describe("/privacy page", () => {
     expect(keep.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
     expect(keep.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
     expect(keep.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
+    // Course viewing is kept like the rest of what you do in the Hub, so it has no row of its own.
+    expect(keep.getByText(/What you do in the Hub: .*course viewing/)).toBeInTheDocument();
   });
 
   it("says what is collected, including that search never records the words typed", async () => {
