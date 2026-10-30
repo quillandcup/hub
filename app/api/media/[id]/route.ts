@@ -5,6 +5,24 @@ import { isId } from "@/lib/ids";
 import { isFitMode, isPresetName } from "@/lib/media/presets";
 import type { MediaAssetEdit } from "@/lib/data/media";
 
+/** Staff read one asset (a deleted one too) and where it is used. */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin(request);
+  if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const { id } = await params;
+  if (!isId(id, "media")) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const media = createRepos(auth.supabase).media;
+    const asset = await media.byId(id);
+    if (!asset) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ asset, usages: await media.usages(id) });
+  } catch (error) {
+    console.error("Error reading media:", error);
+    return NextResponse.json({ error: "Failed to load" }, { status: 500 });
+  }
+}
+
 /** Staff change an asset's title, alt text, tags, focal point, public flag or how a preset fits it. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin(request);

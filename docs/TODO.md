@@ -572,8 +572,8 @@ Next 16 has a new caching model behind `cacheComponents` in `next.config.ts` (th
 
 The media library foundation is in (`docs/MEDIA_LIBRARY.md`): table, bucket, repository, upload and serving routes. Left for the PRs that add its first users:
 
-- **Analytics events**: the picker records `media_picker_opened`, `media_picked`, `media_cleared` and `media_uploaded`. Still to add with `/admin/media` and book covers: browsing and editing in the library, and a `kdp_cover_downloaded`. Each new surface also extends the `surface` list in `lib/analytics/events.ts`.
-- **`/admin/media`** (browse, rename, tag, focal point, usage, delete with the 409 list) is not built; staff can only add and pick through the picker for now.
+- **Analytics**: the picker and `/admin/media` record `media_picker_opened`, `media_picked`, `media_cleared`, `media_uploaded`, `media_edited`, `media_deleted` and `media_downloaded`. Each new surface (book covers) extends the `surface` list in `lib/analytics/events.ts` and `lib/media/surfaces.ts`.
+- **`/admin/media` is staff only and shows the shared library.** A deleted image can't be brought back from the UI (`deleted_at` is set; the files stay until swept). Usage lists events only; each feature that gets an `*_asset_id` column adds itself to `MediaRepository.usages`.
 - **The picker is staff-only** (the library routes are). Members picking their own book cover need a member scope on `GET`/`POST /api/media`.
 - **Uploads that are started but never confirmed** leave an object under `uploads/` in the `media` bucket (`POST /api/media/uploads`, then the browser never calls the confirm). Sweep objects older than a day, from the nightly cron.
 - **Deleting an asset keeps its files.** `DELETE /api/media/<id>` only sets `deleted_at`. Once the `*_asset_id` foreign keys exist ("in use" is refused), remove the original and `renditions/<id>/` for assets deleted long enough ago to be past any undo.
