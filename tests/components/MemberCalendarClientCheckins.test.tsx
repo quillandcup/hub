@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MemberCalendarClient from "@/components/MemberCalendarClient";
@@ -13,7 +13,9 @@ vi.mock("@/components/writing/PrickleCheckModal", () => ({
 
 Element.prototype.scrollIntoView = vi.fn();
 
-const NOW = new Date();
+// Pinned mid-month: the month view opens on "now" in the suite's zone (Pacific/Auckland), which is already
+// next month for part of the last day of the month elsewhere.
+const NOW = new Date("2026-09-15T12:00:00Z");
 const join = new Date(Date.UTC(NOW.getUTCFullYear(), NOW.getUTCMonth(), 1, 12)).toISOString();
 const ATTENDANCE = [
   {
@@ -31,6 +33,14 @@ function renderClient(props: Partial<React.ComponentProps<typeof MemberCalendarC
 }
 
 describe("MemberCalendarClient check-in pills", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("adds the pills to the month view's day panel and opens the modal from them", async () => {
     const user = userEvent.setup();
     renderClient({ initialView: "month" });
