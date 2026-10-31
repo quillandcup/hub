@@ -408,7 +408,7 @@ caused the pollution/flakiness in the first place.
 
 ### Point the old marketing site's privacy-policy link at `/privacy` _(Needs Action)_
 
-The former policy lived at `/privacy-policy` on the marketing site (a separate site, not this app) and is probably linked from its footer, checkout and sign-up flows. `/privacy` is now public and is the policy (see `docs/SENTRY_CONFIG.md` and PR #673 for what it covers). Until the links are updated, visitors from those pages read the old text, which no longer matches what the Hub collects. Needs someone with access to the marketing site: change each link to the Hub's `/privacy`, or redirect the old path. Nothing to change in this repo.
+The former policy lived at `/privacy-policy` on the marketing site (a separate site, not this app) and is probably linked from its footer, checkout and sign-up flows. `/privacy` is now public and is the policy. Until the links are updated, visitors from those pages read the old text, which no longer matches what the Hub collects. Needs someone with access to the marketing site: change each link to the Hub's `/privacy`, or redirect the old path. Nothing to change in this repo.
 
 ### Re-check the providers' privacy certifications each year _(Needs Scheduling)_
 
