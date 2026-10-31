@@ -10,10 +10,11 @@ vi.mock("@/app/(member)/projects/actions", () => ({
   updateProjectDetails: vi.fn(),
   setStartingBalances: vi.fn(),
   updateProjectCover: vi.fn(),
+  deleteProject: vi.fn(),
 }));
 
 import ProjectDetailsModal from "@/components/writing/ProjectDetailsModal";
-import { updateProjectCover } from "@/app/(member)/projects/actions";
+import { deleteProject, updateProjectCover } from "@/app/(member)/projects/actions";
 
 const PROJECT = { id: "wprj_AAAAAAAAAAA1", title: "My Novel", description: null, coverUrl: null, startingBalances: {} } as never;
 const URL_ = "/api/media/media_AAAAAAAAAAA1/book_cover_shelf";
@@ -46,5 +47,52 @@ describe("ProjectDetailsModal cover", () => {
     await upload();
     expect(await screen.findByRole("alert")).toHaveTextContent("isn't one of yours");
     expect(screen.queryByAltText("Cover preview")).not.toBeInTheDocument();
+  });
+});
+
+describe("ProjectDetailsModal delete", () => {
+  const originalLocation = window.location;
+  beforeEach(() => {
+    vi.mocked(deleteProject).mockReset();
+    Object.defineProperty(window, "location", { configurable: true, value: { href: "/projects/wprj_AAAAAAAAAAA1" } });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+
+  it("asks first, and deletes nothing when declined", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<ProjectDetailsModal isOpen onClose={() => {}} onSaved={() => {}} project={PROJECT} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete project" }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("My Novel"));
+    expect(deleteProject).not.toHaveBeenCalled();
+  });
+
+  it("deletes after confirming and goes back to My Writing", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(deleteProject).mockResolvedValue({ success: true });
+    render(<ProjectDetailsModal isOpen onClose={() => {}} onSaved={() => {}} project={PROJECT} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete project" }));
+    expect(deleteProject).toHaveBeenCalledWith("wprj_AAAAAAAAAAA1");
+    await waitFor(() => expect(window.location.href).toBe("/projects"));
+  });
+
+  it("stays and says why when the delete fails", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(deleteProject).mockResolvedValue({ error: "Failed to delete project" });
+    render(<ProjectDetailsModal isOpen onClose={() => {}} onSaved={() => {}} project={PROJECT} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete project" }));
+    expect(await screen.findByText("Failed to delete project")).toBeInTheDocument();
+    expect(window.location.href).toBe("/projects/wprj_AAAAAAAAAAA1");
+    expect(screen.getByRole("button", { name: "Delete project" })).toBeEnabled();
+  });
+
+  it("says the book stays when the project has one", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const withBook = { ...(PROJECT as object), book: { id: "b1", title: "B" } } as never;
+    render(<ProjectDetailsModal isOpen onClose={() => {}} onSaved={() => {}} project={withBook} />);
+    await userEvent.click(screen.getByRole("button", { name: "Delete project" }));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Book Shelf stays"));
   });
 });

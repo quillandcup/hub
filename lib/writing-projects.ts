@@ -334,3 +334,13 @@ export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgre
 
   return { currentStreak, longestStreak, typicalStreak, hitRatePercent };
 }
+
+/**
+ * Phases a project is done in: finished, published or given up. My Writing lists these apart from
+ * the ongoing projects, under "Past projects"; changing the status brings one back.
+ */
+export const PAST_PHASES = ["complete", "published", "abandoned"] as const satisfies readonly ProjectPhase[];
+
+export function isPastPhase(phase: string): boolean {
+  return (PAST_PHASES as readonly string[]).includes(phase);
+}

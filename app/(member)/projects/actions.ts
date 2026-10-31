@@ -66,8 +66,6 @@ export interface WritingProjectRow {
   showOnProfile: boolean;
   coverUrl: string | null;
   description: string | null;
-  /** When the member archived it (it then sits under "Archived" on My Writing), else null. */
-  archivedAt: string | null;
   /** How much the member already had before tracking here, by measure -- offsets totalsByMeasure and the chart, not goal progress. */
   startingBalances: Partial<Record<WritingMeasure, number>>;
   totalsByMeasure: Partial<Record<WritingMeasure, number>>;
@@ -200,8 +198,8 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
 }
 
-/** The member's archived projects, with their totals (goals aren't loaded: an archived project is read-only on the list). */
-export async function getMyArchivedProjects(): Promise<WritingProjectRow[]> {
+/** The member's projects in a past phase (complete, published, abandoned), with their totals (goals aren't loaded: the list is read-only). */
+export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
   const ctx = await requireIdentity();
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
@@ -209,7 +207,7 @@ export async function getMyArchivedProjects(): Promise<WritingProjectRow[]> {
   const { writing } = createRepos(supabase);
   const memberId = effectiveIdentity.memberId;
   const [projects, entries, startingBalances, attendance, books] = await Promise.all([
-    writing.archivedProjectSummaries(memberId),
+    writing.pastProjectSummaries(memberId),
     writing.projectEntries(memberId),
     writing.startingBalances(memberId),
     getMyPrickleAttendance(),
@@ -256,7 +254,6 @@ interface RawProject {
   show_on_profile: boolean;
   cover_url: string | null;
   description: string | null;
-  archived_at?: string | null;
 }
 
 interface RawStartingBalance {
@@ -434,7 +431,6 @@ function buildProjectRows(
       showOnProfile: project.show_on_profile,
       coverUrl: project.cover_url,
       description: project.description,
-      archivedAt: project.archived_at ?? null,
       startingBalances: projectStartingBalances,
       totalsByMeasure,
       goals: projectGoals,
@@ -581,36 +577,6 @@ export async function toggleProjectVisibility(
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
   return { success: true };
-}
-
-/**
- * Puts a project away (it moves under "Archived" on My Writing, off the profile and the pickers) or
- * brings it back. The member can still open it either way; deleting is the other, separate action.
- */
-async function setProjectArchived(projectId: string, archived: boolean): Promise<{ success: true } | { error: string }> {
-  const ctx = await requireIdentity();
-  if ("error" in ctx) return ctx;
-  const { supabase, effectiveIdentity } = ctx;
-
-  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
-  if (ownershipError) return { error: ownershipError };
-
-  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { archived_at: archived ? new Date().toISOString() : null });
-  if (failure) return failure;
-
-  revalidatePath("/projects", "layout");
-  revalidatePath(`/projects/${projectId}`);
-  revalidatePath(`/members/${effectiveIdentity.memberId}`);
-  revalidatePath("/dashboard");
-  return { success: true };
-}
-
-async function archiveProjectImpl(projectId: string) {
-  return setProjectArchived(projectId, true);
-}
-
-async function restoreProjectImpl(projectId: string) {
-  return setProjectArchived(projectId, false);
 }
 
 /**
@@ -1479,14 +1445,6 @@ export async function getProfileWriting(
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function createProject(...args: Parameters<typeof createProjectImpl>): ReturnType<typeof createProjectImpl> {
   return withAction("project_created", () => createProjectImpl(...args));
-}
-
-export async function archiveProject(...args: Parameters<typeof archiveProjectImpl>): ReturnType<typeof archiveProjectImpl> {
-  return withAction("project_archived", () => archiveProjectImpl(...args));
-}
-
-export async function restoreProject(...args: Parameters<typeof restoreProjectImpl>): ReturnType<typeof restoreProjectImpl> {
-  return withAction("project_restored", () => restoreProjectImpl(...args));
 }
 
 export async function deleteProject(...args: Parameters<typeof deleteProjectImpl>): ReturnType<typeof deleteProjectImpl> {
