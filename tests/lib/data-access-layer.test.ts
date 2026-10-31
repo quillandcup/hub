@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -107,7 +108,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
   // Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
-  // (lib/courses/process.ts still reads purchases and customers through fetchAllBronzeRows, which this check does not see.)
   kajabi_contacts: [],
   kajabi_customers: [],
   kajabi_purchases: [],
@@ -136,7 +136,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_checkout_dismissals: [],
   // Courses (CourseRepository, lib/data/courses.ts: the Silver curriculum and the Mux videos; CourseProgressRepository,
   // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments): every query is moved.
-  // (lib/retention/network-details.ts reads video_watch_segments through a table-name variable, which this check does not see.)
   courses: [],
   course_modules: [],
   course_lessons: [],
@@ -146,6 +145,62 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
+};
+
+/**
+ * Tables still queried directly outside lib/data/ (no repository yet). The census below fails on a direct
+ * query of a table that is neither registered above nor listed here, so a new table can't slip in without
+ * a repository, and fails on a stale entry here, so the list only shrinks. When a table gets a repository,
+ * move it from here to REPOSITORY_TABLES.
+ */
+const UNMIGRATED_TABLES = new Set([
+  "access_events",
+  "admin_work_queue_completions",
+  "ambiguous_zoom_names",
+  "analytics_events",
+  "big_sister_volunteers",
+  "calendar_watch_channels",
+  "dismissed_duplicate_groups",
+  "feature_flag_segments",
+  "feature_flags",
+  "feedback",
+  "ignored_zoom_appearances",
+  "member_ask_me_about",
+  "member_awards",
+  "member_engagement",
+  "member_metrics",
+  "member_notes",
+  "member_onboarding",
+  "member_roster_opt_outs",
+  "member_slack_connections",
+  "mentorships",
+  "outreach_leads",
+  "outreach_touches",
+  "prickle_checkin_dm_log",
+  "prickle_host_vibes",
+  "prickle_join_settings",
+  "prickle_schedule_locks",
+  "segment_members",
+  "segments",
+  "slack_identities",
+  "slack_sign_in_tokens",
+  "staff",
+  "user_feature_previews",
+  "wheel_of_wonder_matches",
+  "zoom_participant_events",
+]);
+
+/**
+ * Files that build a query on a table named by a variable (`.from(table)`), which no text search of table
+ * names can see. Each needs a reason; the census fails on a new one and on a stale entry.
+ */
+const VARIABLE_TABLE_FILES: Record<string, string> = {
+  "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
+  "app/(admin)/admin/hedgieversaries/page.tsx": "local paging helper; moves with the leftovers repository",
+  "app/(admin)/admin/outreach/page.tsx": "local paging helper; moves with the outreach repository",
+  "app/(admin)/admin/work-queue/page.tsx": "local paging helper; moves with the work-queue repository",
+  "lib/host-vibes.ts": "reads one of two tables chosen by a variable; moves with the leftovers repository",
+  "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 
 const root = path.resolve(__dirname, "../..");
@@ -183,4 +238,57 @@ describe("data access layer", () => {
       expect(allowed.filter((file) => !querying.includes(file)), "no longer queries it directly: remove from the allowlist").toEqual([]);
     });
   }
+});
+
+/**
+ * Every `.from(x)` call outside lib/data/, found by parsing the source (a text search misses a table named by a
+ * variable). File storage (`.storage.from(bucket)`, a bucket constant or a hyphenated name) and `Array.from` /
+ * `Buffer.from` are not queries.
+ */
+function directFromCalls() {
+  const tables = new Map<string, Set<string>>();
+  const variable = new Set<string>();
+  const notQueries = new Set(["Array", "Buffer", "Uint8Array", "Int8Array", "Object", "Promise", "String", "Map", "Set"]);
+  for (const file of files) {
+    const sf = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "from" && node.arguments.length === 1) {
+        const receiver = node.expression.expression;
+        const storage = ts.isPropertyAccessExpression(receiver) && receiver.name.text === "storage";
+        const builtin = ts.isIdentifier(receiver) && notQueries.has(receiver.text);
+        const arg = node.arguments[0];
+        if (!storage && !builtin) {
+          if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
+            if (/^[a-z][a-z0-9_]*$/.test(arg.text)) tables.set(arg.text, (tables.get(arg.text) ?? new Set()).add(file));
+          } else if (!/BUCKET/.test(arg.getText())) {
+            variable.add(file);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return { tables, variable };
+}
+
+describe("data access layer census", () => {
+  const { tables, variable } = directFromCalls();
+  const registered = new Set(Object.keys(REPOSITORY_TABLES));
+
+  it("no table is queried directly unless it is registered or listed as not yet migrated", () => {
+    const unknown = [...tables.keys()].filter((t) => !registered.has(t) && !UNMIGRATED_TABLES.has(t)).sort();
+    expect(unknown, "add a repository in lib/data/ for these tables (and register them in REPOSITORY_TABLES)").toEqual([]);
+  });
+
+  it("UNMIGRATED_TABLES lists only tables that are still queried directly", () => {
+    const stale = [...UNMIGRATED_TABLES].filter((t) => !tables.has(t)).sort();
+    expect(stale, "no longer queried directly: remove from UNMIGRATED_TABLES").toEqual([]);
+    expect([...UNMIGRATED_TABLES].filter((t) => registered.has(t)), "registered tables don't belong in UNMIGRATED_TABLES").toEqual([]);
+  });
+
+  it("a query on a table named by a variable is only in a listed file", () => {
+    expect([...variable].filter((f) => !(f in VARIABLE_TABLE_FILES)).sort(), "name the table with a literal inside a repository").toEqual([]);
+    expect(Object.keys(VARIABLE_TABLE_FILES).filter((f) => !variable.has(f)), "no longer builds a variable-table query: remove from VARIABLE_TABLE_FILES").toEqual([]);
+  });
 });
