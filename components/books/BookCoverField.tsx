@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import AmazonCoverDownload from "@/components/media/AmazonCoverDownload";
 import MediaEditor from "@/components/media/MediaEditor";
 import Modal from "@/components/Modal";
 import { MediaChooser } from "@/components/media/MediaPicker";
 import { track } from "@/lib/analytics/client";
-import { amazonCoverHref, amazonCoverProblem, bookCoverUrlFor, coverAssetIdOf, describeBookCoverRequirements } from "@/lib/bookCover";
+import { bookCoverUrlFor, coverAssetIdOf, describeBookCoverRequirements } from "@/lib/bookCover";
 import { mediaSrc } from "@/lib/media/url";
 
 /** The library image behind a cover, with its size. */
@@ -56,7 +57,6 @@ export default function BookCoverField({
   }
 
   const ownCover = !!asset && coverAssetIdOf(url) === asset.id;
-  const amazonProblem = asset && coverAssetIdOf(url) === asset.id ? amazonCoverProblem(asset) : undefined;
 
   return (
     <div className="flex items-start gap-3">
@@ -80,18 +80,7 @@ export default function BookCoverField({
         {asset && coverAssetIdOf(url) === asset.id && (
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             {asset.width} x {asset.height} px.{" "}
-            {amazonProblem === null ? (
-              <a
-                href={amazonCoverHref(asset.id)}
-                data-track="book-cover-amazon"
-                onClick={() => track("media_downloaded", { kind: "kdp_ebook" })}
-                className="text-plum-600 dark:text-plum-400 hover:underline"
-              >
-                Download for Amazon (1600 x 2560 JPEG)
-              </a>
-            ) : (
-              amazonProblem
-            )}
+            <AmazonCoverDownload asset={asset} />
           </p>
         )}
         {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
