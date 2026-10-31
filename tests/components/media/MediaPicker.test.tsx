@@ -120,7 +120,7 @@ describe("MediaPicker", () => {
     await userEvent.type(screen.getByLabelText("Tags"), "retreat, lodge");
     await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
 
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_CCCCCCCCCCC3"));
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_CCCCCCCCCCC3", expect.objectContaining({ id: "media_CCCCCCCCCCC3" })));
     const post = calls.find((c) => c.url === "/api/media" && c.init?.method === "POST")!;
     const form = post.init!.body as FormData;
     expect([form.get("title"), form.get("tags")]).toEqual(["Phone photo", "retreat,lodge"]);
@@ -143,7 +143,7 @@ describe("MediaPicker", () => {
     await userEvent.upload(screen.getByLabelText("Image file"), big);
     await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
 
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_DDDDDDDDDDD4"));
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_DDDDDDDDDDD4", expect.objectContaining({ id: "media_DDDDDDDDDDD4" })));
     expect(uploadToSignedUrl).toHaveBeenCalledWith("uploads/abc", "tok", big, { contentType: "image/png" });
     const confirm = calls.find((c) => c.url === "/api/media" && c.init?.method === "POST")!;
     expect(JSON.parse(confirm.init!.body as string)).toMatchObject({ uploadPath: "uploads/abc", tags: [] });
@@ -244,5 +244,56 @@ describe("MediaPicker", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't read that photo");
       expect(onChange).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("MediaPicker as a member's cover control", () => {
+  const COVER = { id: "media_AAAAAAAAAAA1", title: "Earlier cover", alt_text: null, width: 1200, height: 1800, updated_at: "2026-10-01T00:00:00Z" };
+  const setupCover = (props: Partial<React.ComponentProps<typeof MediaPicker>> = {}) => {
+    const onChange = vi.fn();
+    render(<MediaPicker own shape="cover" noun="cover" alt="Cover preview" surface="book_cover" preview="book_cover_shelf" removable={false} value={null} onChange={onChange} {...props} />);
+    return onChange;
+  };
+  const ownList = () => {
+    respond = (url) => (url.startsWith("/api/bookshelf/cover?") ? json({ assets: [COVER] }) : undefined);
+  };
+
+  it("names things after the noun, shows a legacy link while there is no library image, and has no Remove", () => {
+    setupCover({ legacyUrl: "https://example.com/old.jpg", children: <p>Requirements</p> });
+    expect(screen.getByAltText("Cover preview")).toHaveAttribute("src", "https://example.com/old.jpg");
+    expect(screen.getByRole("button", { name: "Change cover" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument(); // nothing in the library to adjust
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.getByText("Requirements")).toBeInTheDocument();
+    cleanup();
+    setupCover();
+    expect(screen.getByRole("button", { name: "Choose cover" })).toBeInTheDocument();
+    expect(screen.queryByAltText("Cover preview")).not.toBeInTheDocument();
+  });
+
+  it("lists the member's own images, hands the chosen one over with its size and does not open the editor", async () => {
+    ownList();
+    const onChange = setupCover();
+    await userEvent.click(screen.getByRole("button", { name: "Choose cover" }));
+    await userEvent.click(await screen.findByAltText("Earlier cover"));
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(COVER.id, { id: COVER.id, width: 1200, height: 1800 }));
+    expect(screen.queryByText(/Click the picture/)).not.toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith("media_picked", { surface: "book_cover", from: "library", searched: false });
+  });
+
+  it("shows the parent's reason when it can't take the image, and opens no editor", async () => {
+    ownList();
+    render(<MediaPicker own surface="book_cover" value={null} onChange={() => "Couldn't save the cover"} />);
+    await userEvent.click(screen.getByRole("button", { name: "Choose image" }));
+    await userEvent.click(await screen.findByAltText("Earlier cover"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save the cover");
+  });
+
+  it("opens the member's trimmed editor from Adjust crop", async () => {
+    respond = (url) => (url === `/api/bookshelf/cover/${COVER.id}` ? json({ asset: { ...COVER, tags: [], is_public: false, mime_type: "image/png", focal_x: null, focal_y: null, fits: {} }, usages: [] }) : undefined);
+    setupCover({ value: COVER.id });
+    await userEvent.click(screen.getByRole("button", { name: "Adjust crop" }));
+    expect(await screen.findByText(/Click the picture/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
   });
 });
