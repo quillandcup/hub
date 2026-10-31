@@ -99,5 +99,101 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       await ctx.repo().unrestrictChannel(id);
       expect((await ctx.repo().restrictedChannels()).has(id)).toBe(false);
     });
+
+    it("adds conversations and replaces the ones with the same Slack id", async () => {
+      const existing = channel("existing", { member_count: 1 });
+      await ctx.seed({ channels: [existing] });
+      const fresh = channel("fresh");
+      const many = Array.from({ length: 230 }, (_, i) => channel(`bulk${i}`));
+
+      await ctx.repo().upsertChannels([
+        { channel_id: existing.channel_id, name: "renamed-" + existing.name, member_count: 9, is_mpim: false, raw_payload: {} },
+        { channel_id: fresh.channel_id, name: fresh.name, is_mpim: false, raw_payload: {} },
+        ...many.map((c) => ({ channel_id: c.channel_id, name: c.name, is_mpim: false, raw_payload: {} })),
+      ]);
+      await ctx.repo().upsertChannels([]);
+
+      expect(await ctx.repo().channelById(existing.channel_id)).toMatchObject({ name: "renamed-" + existing.name, member_count: 9 });
+      expect(await ctx.repo().channelById(fresh.channel_id)).toMatchObject({ name: fresh.name });
+      expect(await ctx.repo().channelById(many[229].channel_id)).toMatchObject({ name: many[229].name });
+    });
+
+    it("keeps who is in a conversation: joins, comebacks and leaves", async () => {
+      const [room, ada, grace, mary] = [ctx.unique("room"), ctx.unique("ada"), ctx.unique("grace"), ctx.unique("mary")];
+      const at = (n: number) => `2031-02-0${n}T10:00:00.000Z`;
+      const mine = async () => (await ctx.repo().memberships()).filter((m) => m.channel_id === room);
+
+      await ctx.repo().upsertMemberships([ada, grace, mary].map((user_id) => ({ channel_id: room, user_id, left_at: null, imported_at: at(1) })));
+      await ctx.repo().upsertMemberships([]);
+      expect((await mine()).map((m) => [m.user_id, m.left_at])).toEqual([[ada, null], [grace, null], [mary, null]].sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+      const firstSeen = (await mine())[0].first_seen_at;
+
+      await ctx.repo().markMembersLeft(room, [ada, grace], at(2));
+      await ctx.repo().markMembersLeft(room, [], at(2));
+      await ctx.repo().markMemberLeft(room, mary, at(3));
+      await ctx.repo().markMemberLeft(room, ada, at(4)); // already gone: stays as it was
+      const left = new Map((await mine()).map((m) => [m.user_id, m.left_at && Date.parse(m.left_at)]));
+      expect(left.get(ada)).toBe(Date.parse(at(2)));
+      expect(left.get(grace)).toBe(Date.parse(at(2)));
+      expect(left.get(mary)).toBe(Date.parse(at(3)));
+
+      // Coming back clears left_at and keeps when they were first seen.
+      await ctx.repo().upsertMemberships([{ channel_id: room, user_id: ada, left_at: null, imported_at: at(5) }]);
+      const back = (await mine()).find((m) => m.user_id === ada)!;
+      expect(back.left_at).toBeNull();
+      expect(back.first_seen_at).toBe(firstSeen);
+    });
+
+    it("appends join and leave events once, and tells who is in now", async () => {
+      const [room, other, ada, grace] = [ctx.unique("room"), ctx.unique("other"), ctx.unique("ada"), ctx.unique("grace")];
+      const event = (channel_id: string, user_id: string, kind: "joined" | "left", day: number, source: "history_notice" | "webhook" | "member_list" = "webhook") => ({
+        channel_id,
+        user_id,
+        event: kind,
+        occurred_at: `2031-03-0${day}T10:00:00.000Z`,
+        source,
+      });
+
+      await ctx.repo().recordMemberEvents([
+        event(room, ada, "joined", 1),
+        event(room, ada, "joined", 1), // the same event twice in one batch
+        { ...event(room, ada, "left", 3), inviter_user_id: "U_FAKE_INVITER", slack_ts: "1.1", raw_payload: { fake: true } },
+        event(room, grace, "joined", 2),
+        event(other, ada, "joined", 4),
+      ]);
+      await ctx.repo().recordMemberEvents([event(room, ada, "joined", 1), event(room, ada, "joined", 5, "history_notice")]); // a redelivery, and a new one
+      await ctx.repo().recordMemberEvents([]);
+
+      const last = await ctx.repo().lastMemberEvents();
+      expect(last.get(room)?.get(ada)).toBe("joined"); // the latest, from day 5
+      expect(last.get(room)?.get(grace)).toBe("joined");
+      expect(last.get(other)?.get(ada)).toBe("joined");
+      expect(last.get(ctx.unique("nobody"))).toBeUndefined();
+
+      await ctx.repo().recordMemberEvents([event(room, grace, "left", 6)]);
+      expect((await ctx.repo().lastMemberEvents()).get(room)?.get(grace)).toBe("left");
+    });
+
+    it("keeps the custom emoji and marks the removed ones", async () => {
+      const [wave, party, gone] = [ctx.unique("wave"), ctx.unique("party"), ctx.unique("gone")];
+
+      await ctx.repo().upsertEmoji([
+        { name: wave, image_url: "https://emoji.example.test/wave.png", imported_at: "2031-04-01T00:00:00.000Z" },
+        { name: party, alias_for: wave, imported_at: "2031-04-01T00:00:00.000Z" },
+        { name: gone, image_url: "https://emoji.example.test/gone.png", imported_at: "2031-04-01T00:00:00.000Z" },
+      ]);
+      await ctx.repo().upsertEmoji([{ name: wave, image_url: "https://emoji.example.test/wave2.png", imported_at: "2031-04-02T00:00:00.000Z" }]);
+      await ctx.repo().upsertEmoji([]);
+      const mine = async () => (await ctx.repo().liveEmojiNames()).filter((n) => [wave, party, gone].includes(n));
+      expect(await mine()).toEqual([wave, party, gone].sort());
+
+      await ctx.repo().markEmojiRemoved([gone, ctx.unique("never-existed")], "2031-04-03T00:00:00.000Z");
+      await ctx.repo().markEmojiRemoved([], "2031-04-03T00:00:00.000Z");
+      expect(await mine()).toEqual([wave, party].sort());
+
+      // An emoji that comes back (the sync writes deleted_at: null) is live again.
+      await ctx.repo().upsertEmoji([{ name: gone, image_url: "https://emoji.example.test/gone.png", deleted_at: null, imported_at: "2031-04-04T00:00:00.000Z" }]);
+      expect(await mine()).toEqual([wave, party, gone].sort());
+    });
   });
 }

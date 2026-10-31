@@ -16,6 +16,9 @@ const check = (error: { message: string } | null) => {
 const clear = async () => {
   check((await db.schema("bronze").from("slack_channels").delete().like("channel_id", `${PREFIX}%`)).error);
   check((await db.from("ignored_slack_users").delete().like("user_id", `${PREFIX}%`)).error);
+  check((await db.schema("bronze").from("slack_channel_members").delete().like("channel_id", `${PREFIX}%`)).error);
+  check((await db.schema("bronze").from("slack_channel_member_events").delete().like("channel_id", `${PREFIX}%`)).error);
+  check((await db.schema("bronze").from("slack_custom_emoji").delete().like("name", `${PREFIX}%`)).error);
   check((await db.from("restricted_slack_channels").delete().like("channel_id", `${PREFIX}%`)).error);
 };
 

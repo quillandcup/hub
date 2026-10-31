@@ -41,42 +41,29 @@ export async function POST(request: NextRequest) {
 
     // The CSV's columns go in as they come; the other tables below are tried either way, and the
     // first failure is thrown once they all have been.
-    let usersError: unknown = null;
-    try {
-      await createRepos(supabase).slackUsers.upsert(
-        users.map(u => ({ ...u, imported_at: importTimestamp })) as unknown as NewSlackUser[]
-      );
-    } catch (error) {
-      usersError = error;
-    }
+    const repos = createRepos(supabase);
+    const settle = (run: () => Promise<unknown>) => run().then(() => null, (error: unknown) => error);
 
-    const { error: channelsError } = await supabase
-      .schema('bronze').from("slack_channels")
-      .upsert(
-        channels.map(c => ({ ...c, imported_at: importTimestamp })),
-        { onConflict: "channel_id" }
-      );
+    const usersError = await settle(() =>
+      repos.slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })) as unknown as NewSlackUser[])
+    );
+
+    const channelsError = await settle(() => repos.slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })) as any[]));
 
     invalidateChatLookups();
 
-    const { error: messagesError } = await supabase
-      .schema('bronze').from("slack_messages")
-      .upsert(
-        messages.map(m => ({ ...m, imported_at: importTimestamp })),
-        { onConflict: "channel_id,message_ts" }
-      );
+    const messagesError = await settle(() => repos.slackMessages.upsertMessages(messages.map(m => ({ ...m, imported_at: importTimestamp })) as any[]));
 
-    const { error: reactionsError } = await supabase
-      .schema('bronze').from("slack_reactions")
-      .upsert(
+    const reactionsError = await settle(() =>
+      repos.slackMessages.upsertReactions(
         // CSVs exported before the column was renamed carry `removed_at`.
         reactions.map(({ removed_at, ...r }) => ({
           ...r,
           ...(removed_at !== undefined && r.deleted_at === undefined ? { deleted_at: removed_at } : {}),
           imported_at: importTimestamp,
-        })),
-        { onConflict: "channel_id,message_ts,reaction,user_id" }
-      );
+        })) as any[]
+      )
+    );
 
     if (usersError) throw usersError;
     if (channelsError) throw channelsError;

@@ -27,6 +27,16 @@ describe("SupabaseSlackWorkspaceRepository on a database error", () => {
     ["restrictedChannels", () => repo.restrictedChannels()],
     ["restrictChannel", () => repo.restrictChannel("C1", "secret")],
     ["unrestrictChannel", () => repo.unrestrictChannel("C1")],
+    ["upsertChannels", () => repo.upsertChannels([{ channel_id: "C1", name: "general", raw_payload: {} }])],
+    ["memberships", () => repo.memberships()],
+    ["upsertMemberships", () => repo.upsertMemberships([{ channel_id: "C1", user_id: "U1", left_at: null, imported_at: "2026-01-01T00:00:00Z" }])],
+    ["markMembersLeft", () => repo.markMembersLeft("C1", ["U1"], "2026-01-01T00:00:00Z")],
+    ["markMemberLeft", () => repo.markMemberLeft("C1", "U1", "2026-01-01T00:00:00Z")],
+    ["recordMemberEvents", () => repo.recordMemberEvents([{ channel_id: "C1", user_id: "U1", event: "joined", occurred_at: "2026-01-01T00:00:00Z", source: "webhook" }])],
+    ["lastMemberEvents", () => repo.lastMemberEvents()],
+    ["upsertEmoji", () => repo.upsertEmoji([{ name: "wave" }])],
+    ["liveEmojiNames", () => repo.liveEmojiNames()],
+    ["markEmojiRemoved", () => repo.markEmojiRemoved(["wave"], "2026-01-01T00:00:00Z")],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -47,6 +57,15 @@ describe("SupabaseSlackMessageRepository on a database error", () => {
     ["liveMessagesBetween", () => repo.liveMessagesBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
     ["liveReactionsBetween", () => repo.liveReactionsBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
     ["liveMessageTimes", () => repo.liveMessageTimes()],
+    ["upsertMessages", () => repo.upsertMessages([{ channel_id: "C1", message_ts: "1.1", user_id: "U1", occurred_at: "2026-01-01T00:00:00Z", raw_payload: {} }])],
+    ["upsertReactions", () => repo.upsertReactions([{ channel_id: "C1", message_ts: "1.1", user_id: "U1", reaction: "tada", occurred_at: "2026-01-01T00:00:00Z", raw_payload: {} }])],
+    ["editMessage", () => repo.editMessage("C1", "1.1", { text: "x", edited_at: null, reply_count: 0, reply_users_count: 0, files: null, raw_payload: {} })],
+    ["markMessagesDeleted", () => repo.markMessagesDeleted("C1", ["1.1"], "2026-01-01T00:00:00Z")],
+    ["markReactionRemoved", () => repo.markReactionRemoved({ channel_id: "C1", message_ts: "1.1", user_id: "U1", reaction: "tada" }, "2026-01-01T00:00:00Z")],
+    ["storedMessagesBetween", () => repo.storedMessagesBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
+    ["liveReactionsOn", () => repo.liveReactionsOn("C1", ["1.1"])],
+    ["threadMessages", () => repo.threadMessages("C1", ["1.1"])],
+    ["hasLiveActivityBetween", () => repo.hasLiveActivityBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });

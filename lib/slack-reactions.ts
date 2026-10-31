@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface MessageKey {
@@ -10,8 +11,6 @@ interface ReactionKey extends MessageKey {
   user_id: string;
 }
 
-const TS_CHUNK_SIZE = 100;
-const PAGE_SIZE = 1000;
 const DELETE_CONCURRENCY = 50;
 
 const reactionKey = (r: ReactionKey) => `${r.channel_id}|${r.message_ts}|${r.reaction}|${r.user_id}`;
@@ -50,51 +49,16 @@ export async function markRemovedSlackReactions(
     tsByChannel.set(m.channel_id, list);
   }
 
+  const messages = createRepos(supabase).slackMessages;
   const stale: ReactionKey[] = [];
   for (const [channelId, timestamps] of tsByChannel) {
-    for (let i = 0; i < timestamps.length; i += TS_CHUNK_SIZE) {
-      const tsChunk = timestamps.slice(i, i + TS_CHUNK_SIZE);
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .schema("bronze")
-          .from("slack_reactions")
-          .select("channel_id, message_ts, reaction, user_id")
-          .eq("channel_id", channelId)
-          .in("message_ts", tsChunk)
-          .is("deleted_at", null)
-          .order("message_ts")
-          .order("reaction")
-          .order("user_id")
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-
-        for (const r of (batch ?? []) as ReactionKey[]) {
-          if (!current.has(reactionKey(r))) stale.push(r);
-        }
-        offset += batch?.length ?? 0;
-        hasMore = (batch?.length ?? 0) === PAGE_SIZE;
-      }
+    for (const r of await messages.liveReactionsOn(channelId, timestamps)) {
+      if (!current.has(reactionKey(r))) stale.push(r);
     }
   }
 
   for (let i = 0; i < stale.length; i += DELETE_CONCURRENCY) {
-    const results = await Promise.all(
-      stale.slice(i, i + DELETE_CONCURRENCY).map((r) =>
-        supabase
-          .schema("bronze")
-          .from("slack_reactions")
-          .update({ deleted_at: removedAt })
-          .eq("channel_id", r.channel_id)
-          .eq("message_ts", r.message_ts)
-          .eq("reaction", r.reaction)
-          .eq("user_id", r.user_id)
-          .is("deleted_at", null)
-      )
-    );
-    const failed = results.find((res) => res.error);
-    if (failed?.error) throw failed.error;
+    await Promise.all(stale.slice(i, i + DELETE_CONCURRENCY).map((r) => messages.markReactionRemoved(r, removedAt)));
   }
 
   return stale.length;

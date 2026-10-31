@@ -23,6 +23,11 @@ afterAll(clear);
 defineSlackMessageContract("SupabaseSlackMessageRepository", () => ({
   repo: () => new SupabaseSlackMessageRepository(db),
   unique: (label) => `${PREFIX}${label}${++counter}`,
+  stored: async (channelId, messageTs) => {
+    const { data, error } = await db.schema("bronze").from("slack_messages").select("text, edited_at, reply_count, files").eq("channel_id", channelId).eq("message_ts", messageTs).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  },
   seed: async ({ messages = [], reactions = [] }) => {
     await clear();
     for (let i = 0; i < messages.length; i += 500) {
