@@ -46,8 +46,6 @@ export interface ProfileRepository {
   setSecondaryTimezone(userId: string, timezone: string | null): Promise<void>;
   /** Whether the user chose "leave me out of statistics" on /privacy (lib/analytics/opt-out.ts). */
   analyticsOptedOut(userId: string): Promise<boolean>;
-  /** Which of these users chose it. Chunked. */
-  analyticsOptedOutIds(userIds: string[]): Promise<Set<string>>;
   /** Records that the user left usage statistics at this moment, or, with null, that they are back in. */
   setAnalyticsOptOut(userId: string, at: string | null): Promise<void>;
 }
@@ -128,16 +126,6 @@ export class SupabaseProfileRepository implements ProfileRepository {
     return data?.analytics_opt_out_at != null;
   }
 
-  async analyticsOptedOutIds(userIds: string[]) {
-    const out = new Set<string>();
-    for (const part of chunk([...new Set(userIds)], ID_CHUNK)) {
-      const { data, error } = await this.db.from("user_profiles").select("id").in("id", part).not("analytics_opt_out_at", "is", null);
-      if (error) throw new Error(error.message);
-      for (const row of data ?? []) out.add(row.id);
-    }
-    return out;
-  }
-
   async setAnalyticsOptOut(userId: string, at: string | null) {
     const { error } = await this.db.from("user_profiles").update({ analytics_opt_out_at: at }).eq("id", userId);
     if (error) throw new Error(error.message);
@@ -200,11 +188,6 @@ export class InMemoryProfileRepository implements ProfileRepository {
 
   async analyticsOptedOut(userId: string) {
     return (await this.byId(userId))?.analytics_opt_out_at != null;
-  }
-
-  async analyticsOptedOutIds(userIds: string[]) {
-    const wanted = new Set(userIds);
-    return new Set(this.data.userProfiles.filter((p) => wanted.has(p.id) && p.analytics_opt_out_at != null).map((p) => p.id));
   }
 
   async setAnalyticsOptOut(userId: string, at: string | null) {

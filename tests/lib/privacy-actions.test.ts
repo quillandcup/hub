@@ -21,7 +21,8 @@ vi.mock("@/lib/data/repos", async (importOriginal) => {
 });
 
 // The service-role delete of the member's stored usage events.
-const eq = vi.fn();
+const neq = vi.fn();
+const eq = vi.fn(() => ({ neq }));
 const del = vi.fn(() => ({ eq }));
 const from = vi.fn(() => ({ delete: del }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ from }) }));
@@ -33,7 +34,8 @@ beforeEach(() => {
   getCurrentUser.mockReset().mockResolvedValue(USER);
   getEffectiveIdentity.mockReset().mockResolvedValue({ memberId: "mbr_AAAAAAAAAAA1", isSudo: false });
   revalidatePath.mockReset();
-  eq.mockReset().mockResolvedValue({ count: 7, error: null });
+  eq.mockClear();
+  neq.mockReset().mockResolvedValue({ count: 7, error: null });
   del.mockClear();
   from.mockClear();
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -46,6 +48,8 @@ describe("setAnalyticsOptOut", () => {
     expect(from).toHaveBeenCalledWith("analytics_events");
     expect(del).toHaveBeenCalledWith({ count: "exact" });
     expect(eq).toHaveBeenCalledWith("user_id", USER.id);
+    // Only what the member did: the record that a notification was sent to them (source "system") stays.
+    expect(neq).toHaveBeenCalledWith("source", "system");
     expect(revalidatePath).toHaveBeenCalledWith("/privacy");
   });
 
@@ -77,7 +81,7 @@ describe("setAnalyticsOptOut", () => {
   });
 
   it("says so when the member is left out but the earlier events couldn't be removed", async () => {
-    eq.mockResolvedValue({ count: null, error: { message: "boom" } });
+    neq.mockResolvedValue({ count: null, error: { message: "boom" } });
     const result = await setAnalyticsOptOut(true);
     expect(result).toEqual({ error: expect.stringContaining("couldn't remove what was recorded before") });
     expect(await createInMemoryRepos(dataset).profiles.analyticsOptedOut(USER.id)).toBe(true);
@@ -85,7 +89,7 @@ describe("setAnalyticsOptOut", () => {
   });
 
   it("counts none removed when the delete reports no count", async () => {
-    eq.mockResolvedValue({ count: null, error: null });
+    neq.mockResolvedValue({ count: null, error: null });
     expect(await setAnalyticsOptOut(true)).toEqual({ success: true, removed: 0 });
   });
 });
