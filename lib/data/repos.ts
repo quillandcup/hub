@@ -32,6 +32,8 @@ import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } f
 import { InMemoryPrickleActivityRepository, SupabasePrickleActivityRepository, type PrickleActivityRepository } from "./prickle-activity";
 import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type CalendarFeedRepository } from "./calendar-feed";
 import { InMemoryCalendarSyncStateRepository, SupabaseCalendarSyncStateRepository, type CalendarSyncStateRepository } from "./calendar-sync-state";
+import { InMemoryCourseRepository, SupabaseCourseRepository, type CourseRepository } from "./courses";
+import { InMemoryCourseProgressRepository, SupabaseCourseProgressRepository, type CourseProgressRepository } from "./course-progress";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -71,6 +73,8 @@ export interface Repos {
   calendarFeed: CalendarFeedRepository;
   calendarSyncState: CalendarSyncStateRepository;
   prospects: ProspectRepository;
+  courses: CourseRepository;
+  courseProgress: CourseProgressRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -108,6 +112,8 @@ export function createRepos(db: Db): Repos {
     calendarFeed: new SupabaseCalendarFeedRepository(db),
     calendarSyncState: new SupabaseCalendarSyncStateRepository(db),
     prospects: new SupabaseProspectRepository(db),
+    courses: new SupabaseCourseRepository(db),
+    courseProgress: new SupabaseCourseProgressRepository(db),
   };
 }
 
@@ -146,5 +152,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     calendarFeed: new InMemoryCalendarFeedRepository(dataset),
     calendarSyncState: new InMemoryCalendarSyncStateRepository(dataset),
     prospects: new InMemoryProspectRepository(dataset),
+    courses: new InMemoryCourseRepository(dataset),
+    courseProgress: new InMemoryCourseProgressRepository(dataset),
   };
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
 import { COURSE_FILES_BUCKET } from "@/lib/courses/files";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { isId } from "@/lib/ids";
 
@@ -25,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const lesson = await loadLessonView(supabase, slug, lessonId, caller.scope);
   if (lesson.kind !== "ok") return new NextResponse("Not found", { status: 404 });
 
-  const { data: file } = await supabase.from("course_lesson_files").select("filename, storage_path").eq("id", fileId).eq("lesson_id", lessonId).maybeSingle();
+  const file = await createRepos(supabase).courses.lessonFile(lessonId, fileId);
   if (!file) return new NextResponse("Not found", { status: 404 });
 
   const { data, error } = await supabase.storage.from(COURSE_FILES_BUCKET).createSignedUrl(file.storage_path, SIGNED_URL_SECONDS, { download: file.filename });

@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
-import { fetchAll } from "@/lib/courses/db";
 import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { courseImageSrc, courseImageUrl } from "@/lib/courses/image-urls";
@@ -54,22 +53,18 @@ const toModules = (rows: any[]) =>
 const toLessons = (rows: any[]) =>
   rows.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, position: l.position, title: l.title, publishingOption: l.publishing_option }));
 
-async function loadSilverCourses(supabase: SupabaseClient) {
-  return fetchAll(supabase, "courses", "id, slug, source_key, access_duration, launch_at, is_draft", (q) => q.eq("source", "kajabi"));
-}
 
 export async function loadAdminCourses(supabase: SupabaseClient, now = new Date()): Promise<AdminCourseRow[]> {
-  const repo = createRepos(supabase).kajabiCourses;
+  const repos = createRepos(supabase);
+  const repo = repos.kajabiCourses;
   const [bronze, silver, modules, lessons] = await Promise.all([
     repo.liveCourses(),
-    loadSilverCourses(supabase),
+    repos.courses.courses({ source: "kajabi" }),
     repo.liveModules(),
     repo.liveLessonOutlines(),
   ]);
   const silverByKey = new Map(silver.map((c) => [c.source_key, c]));
-  const access = silver.length
-    ? await fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.in("course_id", silver.map((c) => c.id)))
-    : [];
+  const access = await repos.courseProgress.accessOfCourses(silver.map((c) => c.id));
 
   const imported: AdminCourseRow[] = bronze
     .map((c) => {
@@ -94,13 +89,11 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
 
 /** The Hub-owned courses, shaped like the imported ones for the list. */
 async function loadHubCourseRows(supabase: SupabaseClient, now: Date): Promise<AdminCourseRow[]> {
-  const courses = await fetchAll(supabase, "courses", "id, slug, title, access_duration, launch_at", (q) => q.eq("source", "hub"));
+  const repos = createRepos(supabase);
+  const courses = await repos.courses.courses({ source: "hub" });
   if (courses.length === 0) return [];
   const ids = courses.map((c) => c.id);
-  const [access, lessons] = await Promise.all([
-    fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.in("course_id", ids)),
-    fetchAll(supabase, "course_lessons", "course_id, state", (q) => q.in("course_id", ids)),
-  ]);
+  const [access, lessons] = await Promise.all([repos.courseProgress.accessOfCourses(ids), repos.courses.lessonsOf(ids, { includeHidden: true })]);
   return courses.map((c) => {
     const totals: ExplainedCourse["totals"] = { open: 0, coming_soon: 0, hidden: 0 };
     for (const l of lessons) if (l.course_id === c.id && l.state in totals) totals[l.state as Visibility]++;
@@ -130,10 +123,10 @@ export interface HubCourseDetail {
 
 /** One Hub-owned course for its page; null for an unknown id or a course imported from Kajabi. */
 export async function loadHubCourse(supabase: SupabaseClient, id: string, now = new Date()): Promise<HubCourseDetail | null> {
-  const { data, error } = await supabase.from("courses").select("id, title, slug, description, access_duration, launch_at, program_id").eq("id", id).eq("source", "hub").maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
-  if (!data) return null;
-  const access = await fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.eq("course_id", id));
+  const repos = createRepos(supabase);
+  const data = await repos.courses.courseById(id);
+  if (!data || data.source !== "hub") return null;
+  const access = await repos.courseProgress.accessOfCourses([id]);
   return {
     id: data.id,
     title: data.title,
@@ -166,9 +159,8 @@ export interface AdminCourseDetail {
 /** The Kajabi id behind a Hub course id, or null for an unknown id or a Hub-owned course. The Kajabi id never leaves the server. */
 export async function kajabiIdOfCourse(supabase: SupabaseClient, courseId: string): Promise<string | null> {
   if (!isId(courseId, "crs")) return null;
-  const { data, error } = await supabase.from("courses").select("source_key").eq("id", courseId).eq("source", "kajabi").maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
-  return data?.source_key ?? null;
+  const course = await createRepos(supabase).courses.courseById(courseId);
+  return course?.source === "kajabi" ? course.source_key : null;
 }
 
 export async function loadAdminCourse(supabase: SupabaseClient, courseId: string, now = new Date()): Promise<AdminCourseDetail | null> {
@@ -191,10 +183,10 @@ export async function loadAdminCourse(supabase: SupabaseClient, courseId: string
   let hubLessonIds: Record<string, string> = {};
   let details: AdminCourseDetail["details"] = { description: null, includesMembership: null };
   if (course.published) {
-    const { data: silver } = await supabase.from("courses").select("id, description, program_id").eq("id", courseId).maybeSingle();
+    const silver = await createRepos(supabase).courses.courseById(courseId);
     if (silver) {
-      const hub = await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", silver.id).eq("source", "kajabi"));
-      hubLessonIds = Object.fromEntries(hub.map((l) => [l.source_key, l.id]));
+      const hub = await createRepos(supabase).courses.lessonsOf([silver.id], { source: "kajabi", includeHidden: true });
+      hubLessonIds = Object.fromEntries(hub.flatMap((l) => (l.source_key ? [[l.source_key, l.id]] : [])));
       let includesMembership: boolean | null = null;
       if (silver.program_id) {
         const program = await createRepos(supabase).programs.byId(silver.program_id);
@@ -222,9 +214,7 @@ export async function loadAdminCourse(supabase: SupabaseClient, courseId: string
 /** A course's title for the browser tab, without loading the rest of the page. Null for an unknown id. */
 export async function loadAdminCourseTitle(supabase: SupabaseClient, courseId: string): Promise<string | null> {
   if (!isId(courseId, "crs")) return null;
-  const { data, error } = await supabase.from("courses").select("title").eq("id", courseId).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
-  return data?.title ?? null;
+  return (await createRepos(supabase).courses.courseById(courseId))?.title ?? null;
 }
 
 export interface AdminLessonDetail {
@@ -259,11 +249,12 @@ export interface AdminLessonDetail {
 export async function loadAdminLesson(supabase: SupabaseClient, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
   const courseKajabiId = await kajabiIdOfCourse(supabase, courseId);
   if (!courseKajabiId || !isId(lessonId, "les")) return null;
-  const { data: hubLessonRow, error: lessonError } = await supabase.from("course_lessons").select("source_key").eq("id", lessonId).eq("course_id", courseId).eq("source", "kajabi").maybeSingle();
-  if (lessonError) throw new Error(`course_lessons read failed: ${lessonError.message}`);
-  const lessonKajabiId = hubLessonRow?.source_key;
-  if (!lessonKajabiId) return null;
-  const repo = createRepos(supabase).kajabiCourses;
+  const repos = createRepos(supabase);
+  const found = await repos.courses.lessonById(lessonId);
+  const hubLesson = found && found.course_id === courseId && found.source === "kajabi" ? found : null;
+  const lessonKajabiId = hubLesson?.source_key;
+  if (!hubLesson || !lessonKajabiId) return null;
+  const repo = repos.kajabiCourses;
   const [course, l, modules, lessons, files] = await Promise.all([
     repo.liveCourse(courseKajabiId),
     repo.liveLesson(courseKajabiId, lessonKajabiId),
@@ -296,18 +287,14 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
   let hub: AdminLessonDetail["hub"] = null;
   let video: AdminLessonDetail["video"] = null;
   let thumbnailSrc = courseImageUrl(l.thumbnail_url);
-  const { data: silver } = await supabase.from("courses").select("id, slug").eq("id", courseId).maybeSingle();
+  const silver = await repos.courses.courseById(courseId);
   if (silver) {
-    const { data: hubLesson } = await supabase.from("course_lessons").select("id, thumbnail_asset_id, video_id").eq("course_id", silver.id).eq("source", "kajabi").eq("source_key", lessonKajabiId).maybeSingle();
-    if (hubLesson) {
-      hub = { slug: silver.slug, lessonId: hubLesson.id };
-      if (hubLesson.video_id) {
-        const { data: v, error: videoError } = await supabase.from("videos").select("status, mux_playback_id").eq("id", hubLesson.video_id).maybeSingle();
-        if (videoError) throw new Error(`videos read failed: ${videoError.message}`);
-        if (v) video = { status: v.status, playbackId: v.mux_playback_id };
-      }
-      thumbnailSrc = courseImageSrc("lesson", hubLesson.id, hubLesson.thumbnail_asset_id, l.thumbnail_url);
+    hub = { slug: silver.slug, lessonId: hubLesson.id };
+    if (hubLesson.video_id) {
+      const v = await repos.courses.video(hubLesson.video_id);
+      if (v) video = { status: v.status, playbackId: v.mux_playback_id };
     }
+    thumbnailSrc = courseImageSrc("lesson", hubLesson.id, hubLesson.thumbnail_asset_id, l.thumbnail_url);
   }
 
   return {
@@ -337,13 +324,11 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
 
 /** The modules and lessons of a Hub-owned course, as the builder's outline draws them. */
 export async function loadHubOutline(supabase: SupabaseClient, courseId: string): Promise<HubOutline> {
-  const [modules, lessons] = await Promise.all([
-    fetchAll(supabase, "course_modules", "id, parent_id, title, position, state", (q) => q.eq("course_id", courseId)),
-    // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
-    fetchAll(supabase, "course_lessons", "id, module_id, title, position, state, excerpt, video_id", (q) => q.eq("course_id", courseId)),
-  ]);
+  const courses = createRepos(supabase).courses;
+  const [modules, lessons] = await Promise.all([courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
   return buildHubOutline(
-    modules,
+    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
+    // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
     lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
   );
 }
