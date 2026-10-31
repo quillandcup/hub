@@ -2,12 +2,13 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap;
 SELECT plan(5);
 
-INSERT INTO auth.users (id, email) VALUES
-  ('00000000-0000-0000-0000-0000000000a1', 'prospect-admin@example.com'),
-  ('00000000-0000-0000-0000-0000000000a2', 'prospect-member@example.com');
+INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
+  ('00000000-0000-4000-a000-0000000000a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'prospect-admin@example.test'),
+  ('00000000-0000-4000-a000-0000000000a2', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'prospect-member@example.test');
 INSERT INTO public.user_profiles (id, email, role) VALUES
-  ('00000000-0000-0000-0000-0000000000a1', 'prospect-admin@example.com', 'admin'),
-  ('00000000-0000-0000-0000-0000000000a2', 'prospect-member@example.com', 'member');
+  ('00000000-0000-4000-a000-0000000000a1', 'prospect-admin@example.test', 'admin'),
+  ('00000000-0000-4000-a000-0000000000a2', 'prospect-member@example.test', 'member')
+ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 SELECT lives_ok(
   $$INSERT INTO public.outreach_prospects (instagram_handle) VALUES ('ada.example')$$,
@@ -20,10 +21,10 @@ SELECT throws_ok(
 );
 
 SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-0000000000a2","role":"authenticated"}', true);
 SELECT is((SELECT count(*)::int FROM public.outreach_prospects), 0, 'a member sees no prospects');
 
-SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-a000-0000000000a1","role":"authenticated"}', true);
 SELECT is((SELECT count(*)::int FROM public.outreach_prospects), 1, 'an admin sees them');
 
 SELECT * FROM finish(true);
