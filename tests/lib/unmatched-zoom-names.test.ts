@@ -54,29 +54,26 @@ describe("computeUnmatchedZoomNames with per-prickle ignores", () => {
 
 describe("loadIgnoredAppearances", () => {
   const PRICKLE = { id: "prkl_AAAAAAAAAAA1", typeId: null, hostId: null, title: null, source: "zoom", calendarEventId: null, startTime: AUG3.start, endTime: AUG3.end };
-  repos = createInMemoryRepos(new InMemoryDataset({ prickles: [PRICKLE] as never }));
-
-  const clientWith = (result: { data: unknown; error: { message: string } | null }) =>
-    ({ from: () => ({ select: async () => result }) }) as never;
+  const ignore = (zoom_name: string, prickle_id: string) => ({ id: `igza-${zoom_name}`, zoom_name, prickle_id, reason: null, ignored_by: null, ignored_at: AUG3.start });
+  const client = {} as never;
 
   it("returns nothing without touching prickles when none are ignored", async () => {
-    expect(await loadIgnoredAppearances(clientWith({ data: [], error: null }))).toEqual([]);
+    repos = createInMemoryRepos(new InMemoryDataset({ prickles: [PRICKLE] as never }));
+    const byIds = vi.spyOn(repos.prickles, "byIds");
+    expect(await loadIgnoredAppearances(client)).toEqual([]);
+    expect(byIds).not.toHaveBeenCalled();
   });
 
   it("attaches each ignored name to its prickle's window and skips a prickle that is gone", async () => {
-    const result = await loadIgnoredAppearances(
-      clientWith({
-        data: [
-          { zoom_name: "iPhone", prickle_id: PRICKLE.id },
-          { zoom_name: "Ghost", prickle_id: "prkl_BBBBBBBBBBB2" },
-        ],
-        error: null,
-      })
+    repos = createInMemoryRepos(
+      new InMemoryDataset({ prickles: [PRICKLE] as never, ignoredZoomAppearances: [ignore("iPhone", PRICKLE.id), ignore("Ghost", "prkl_BBBBBBBBBBB2")] })
     );
-    expect(result).toEqual([{ zoomName: "iPhone", startTime: AUG3.start, endTime: AUG3.end }]);
+    expect(await loadIgnoredAppearances(client)).toEqual([{ zoomName: "iPhone", startTime: AUG3.start, endTime: AUG3.end }]);
   });
 
   it("throws when the query fails", async () => {
-    await expect(loadIgnoredAppearances(clientWith({ data: null, error: { message: "boom" } }))).rejects.toThrow("boom");
+    repos = createInMemoryRepos();
+    vi.spyOn(repos.zoom, "ignoredAppearances").mockRejectedValue(new Error("boom"));
+    await expect(loadIgnoredAppearances(client)).rejects.toThrow("Failed to load per-prickle Zoom ignores: boom");
   });
 });

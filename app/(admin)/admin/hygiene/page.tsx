@@ -39,7 +39,7 @@ export default async function DataHygienePage() {
     totalZoomAttendees,
     totalMembers,
     totalAliases,
-    { data: ambiguousNameRows },
+    ambiguousNameRows,
     slackUsersForMatching,
     ignoredSlackUserIds,
     oldUnmatchedEvents,
@@ -61,7 +61,7 @@ export default async function DataHygienePage() {
     createRepos(supabase).zoom.attendeeCount().catch(() => 0), // a failed count shows as none, as before
     createRepos(supabase).members.count(),
     createRepos(supabase).aliases.nameAliasCount(),
-    supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
+    createRepos(supabase).zoom.unresolvedAmbiguousNames().catch(() => []), // a failed read shows none, as before
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
     createRepos(supabase).slackWorkspace.ignoredUserIds().catch(() => new Set<string>()), // a failed read ignores nobody, as before
@@ -93,7 +93,7 @@ export default async function DataHygienePage() {
 
   // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
   // zoom_email is NULL, so the same bare name can produce several rows.
-  const ambiguousNamesCount = new Set((ambiguousNameRows ?? []).map((a) => a.zoom_name)).size;
+  const ambiguousNamesCount = new Set(ambiguousNameRows.map((a) => a.zoom_name)).size;
 
   const duplicateGroups = detectDuplicates(membersForDuplicates);
   const duplicateCount = duplicateGroups.length;

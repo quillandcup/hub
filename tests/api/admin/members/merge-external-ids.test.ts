@@ -23,6 +23,8 @@ function makeSupabaseMock() {
       eq: (col: string, val: unknown) => (call.filters.push(["eq", col, val]), builder),
       in: (col: string, val: unknown) => (call.filters.push(["in", col, val]), builder),
       contains: (col: string, val: unknown) => (call.filters.push(["contains", col, val]), builder),
+      order: () => builder,
+      range: () => builder,
       then: (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null }),
     };
     return builder;

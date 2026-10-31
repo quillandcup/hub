@@ -73,6 +73,13 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   zoom_attendees: [],
   zoom_meetings: [],
   ignored_zoom_names: [],
+  // The ambiguous-name queue, the per-prickle ignores and the live join/leave events (ZoomRepository): every query is moved.
+  ambiguous_zoom_names: [],
+  ignored_zoom_appearances: [],
+  zoom_participant_events: [],
+  // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
+  member_metrics: [],
+  member_engagement: [],
   // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [
@@ -164,14 +171,10 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
  */
 const UNMIGRATED_TABLES = new Set([
   "access_events",
-  "ambiguous_zoom_names",
   "analytics_events",
   "calendar_watch_channels",
   "feature_flag_segments",
   "feature_flags",
-  "ignored_zoom_appearances",
-  "member_engagement",
-  "member_metrics",
   "prickle_checkin_dm_log",
   "prickle_host_vibes",
   "prickle_join_settings",
@@ -182,7 +185,6 @@ const UNMIGRATED_TABLES = new Set([
   "slack_sign_in_tokens",
   "user_feature_previews",
   "wheel_of_wonder_matches",
-  "zoom_participant_events",
 ]);
 
 /**
