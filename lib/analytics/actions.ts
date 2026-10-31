@@ -59,6 +59,7 @@ export const OUTCOME_ACTIONS = [
   "slack_disconnected",
   // Outreach
   "prospects_imported",
+  "prospects_searched",
   "prospect_reviewed",
   // Onboarding
   "onboarding_started",

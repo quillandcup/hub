@@ -11,7 +11,8 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
 ```
 
 - **Table** `outreach_prospects` (admin only; `ProspectRepository` in `lib/data/prospects.ts`). One row per Instagram handle. Re-adding a handle changes nothing, so a reviewed prospect is never overwritten and a source can be re-run.
-- **Discovery (MVP): paste.** On `/admin/outreach/prospects`, one prospect per line: the @handle or profile link, then anything copied from the profile (bio, "2.3k followers", #hashtags, a link). Handles that belong to a member or lead already in the Hub (`members.instagram_url`) are skipped.
+- **Discovery: sources and paste.** Sources (`lib/prospecting/sources/`) only *find* profiles; `runSource` scores them with the same rules, drops anything under `MIN_SCORE_TO_KEEP`, skips people already in the Hub and stores the rest, so every source hits the same filters. Today: **Bluesky** (`bluesky-search`: public API, no account or review; searches bios for what writers say, then fetches follower counts), run from the "Search Bluesky now" button. Add a source by implementing `ProspectSource` and listing it in `searchForProspectsImpl`. Paste still works for anything else (Instagram today).
+- **Paste.** On `/admin/outreach/prospects`, one prospect per line: the @handle or profile link, then anything copied from the profile (bio, "2.3k followers", #hashtags, a link). Handles that belong to a member or lead already in the Hub (`members.instagram_url`) are skipped.
 - **Scoring: rules, not AI.** `lib/prospecting/rules.ts` is a list of weighted patterns over the bio and hashtags plus a follower range. `scoreProspect` is deterministic and returns the reasons, which the review page shows. Changing who we look for is a change to that one file; `ProspectRepository.rescore` re-applies it to everyone.
 - **Review.** To review → Shortlisted → Contacted, or Rejected (with an optional reason, which is the best data we will have for tuning the rules). Whether a prospect later joined is derived by matching the handle to members, never stored (CLAUDE.md, "Business Facts").
 - **AI read, on demand and advisory.** `pnpm prospects:assess [env-file] [--limit=20] [--apply]` runs the Claude Code CLI headless (`claude -p`, no tools, empty temp directory) over prospects without an assessment and stores a fit (`strong`/`maybe`/`weak`), a one-line summary and a draft opener. It uses the Claude subscription logged in on the machine that runs it. The page shows it beside the rules' score. Nothing is sent to anyone and no status changes.
@@ -32,9 +33,19 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
 
 **5. Using a Claude subscription.** A Claude subscription signs in the Claude Code CLI, so a script that shells out to `claude -p` on your own machine works (checked: it answers on the subscription). It cannot be used from the deployed app: the Hub on Vercel would need an Anthropic API key (billed per token), and putting a personal subscription login on a server for an automated product is not what the subscription is for. So: the discovery and scoring parts run anywhere, and the AI read is a local, run-it-yourself step (or a scheduled `launchd` job on the Mac, if you want it nightly). If it later needs to run unattended in the cloud, that is an API key, a `ProspectAssessor` behind the same `parseAssessment` shape, and a monthly cost that is small at 20-50 profiles a day.
 
+## Instagram through Meta's official API: what the docs say
+
+Checked against Meta's docs on 2026-10-31:
+- **Hashtag search** needs an Instagram Business or Creator account, a Meta app, and App Review for "Instagram Public Content Access" plus `instagram_basic`. Limit: 30 unique hashtags per account per rolling 7 days. The docs do not list the author's username on the returned media, so it may yield posts (captions, permalinks) rather than people. Confirm in the app's Graph API Explorer before building on it.
+- **Business discovery** returns another account's public profile and counts, but only for Business/Creator accounts, and you must already know the username. Most individual writers have personal accounts, so it will not cover them.
+- Net: the official API can enrich handles Ania finds and may surface hashtag posts, but it will not list "everyone who writes about novels". That is why Instagram stays paste-in for now and other platforms (Bluesky first) carry automated discovery.
+
+To start the Meta route: create a Meta developer app, link it to the Instagram professional account and a Facebook Page, and submit Public Content Access for review (this takes days to weeks). Then add an `instagram-hashtags` source behind `ProspectSource`, with the app credentials as env vars (`new-env-var.md`).
+
 ## What is not built yet
 
-- A discovery source that runs by itself (see decision 2). The table has a `source` column and `ProspectRepository.addMany` so a source only has to produce `NewProspect`s.
+- Runs by themselves: sources run when someone presses the button. A nightly job needs a pg_cron job and a cron heartbeat (see `app/api/internal/member-reminders`).
+- More sources: Substack and writing-community directories need a look at their terms; Reddit's API needs approved OAuth.
 - Going from "contacted" to the existing Outreach queue: today a prospect who signs up shows up there through Kajabi's "Instagram Handle" field, as before. Logging a prospect touch (so the daily 25 includes prospects) needs a decision on whether prospects become `members` rows; see the questions.
 - Learning from outcomes: rejections (with reasons), replies and sign-ups are the training signal for the rules and for Phase 4's scoring. Nothing reads them yet.
 - Analytics: `prospects_imported` and `prospect_reviewed` outcomes are recorded; a funnel (found → shortlisted → contacted → joined) is not defined in `lib/analytics/funnels.ts`.

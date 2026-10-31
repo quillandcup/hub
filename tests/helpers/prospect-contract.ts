@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { NewProspect, ProspectRepository } from "@/lib/data/prospects";
+import { prospectKey, type NewProspect, type ProspectRepository } from "@/lib/data/prospects";
 
 export type ProspectContractContext = {
   repo: () => ProspectRepository;
@@ -18,6 +18,7 @@ export function defineProspectContract(name: string, setup: () => ProspectContra
     });
 
     const prospect = (handle: string, fitScore: number): NewProspect => ({
+      platform: "instagram",
       handle,
       source: "paste",
       bio: "writing my first novel",
@@ -32,16 +33,27 @@ export function defineProspectContract(name: string, setup: () => ProspectContra
 
     it("adds new handles and leaves existing ones untouched", async () => {
       const [a, b] = ctx.handles;
-      expect(await ctx.repo().addMany([prospect(a, 50)], null)).toEqual({ added: [a], existing: [] });
+      expect(await ctx.repo().addMany([prospect(a, 50)], null)).toEqual({ added: [prospectKey("instagram", a)], existing: [] });
       const [row] = await mine();
       await ctx.repo().review(row.id, "rejected", null, "not a fit");
 
       const again = await ctx.repo().addMany([prospect(a, 90), prospect(b, 10)], null);
 
-      expect(again).toEqual({ added: [b], existing: [a] });
+      expect(again).toEqual({ added: [prospectKey("instagram", b)], existing: [prospectKey("instagram", a)] });
       const kept = (await mine()).find((p) => p.handle === a)!;
       expect(kept).toMatchObject({ fitScore: 50, status: "rejected", rejectReason: "not a fit" });
       expect(await ctx.repo().addMany([], null)).toEqual({ added: [], existing: [] });
+    });
+
+    it("treats the same handle on another platform as another prospect", async () => {
+      const [a] = ctx.handles;
+      await ctx.repo().addMany([prospect(a, 50)], null);
+
+      const result = await ctx.repo().addMany([{ ...prospect(a, 50), platform: "bluesky", handle: `${a}.bsky.social` }, { ...prospect(a, 50), platform: "bluesky" }], null);
+
+      expect(result.existing).toEqual([]);
+      expect(result.added).toHaveLength(2);
+      expect((await ctx.repo().list()).filter((p) => p.handle === a).map((p) => p.platform).sort()).toEqual(["bluesky", "instagram"]);
     });
 
     it("lists best fit first and filters by status", async () => {

@@ -6,6 +6,8 @@ import { withAction } from "@/lib/analytics/server";
 import { createRepos } from "@/lib/data/repos";
 import { PROSPECT_STATUSES, isProspectId, type ProspectStatus } from "@/lib/data/prospects";
 import { importPastedProspects, type ImportSummary } from "@/lib/prospecting/import";
+import { blueskySource } from "@/lib/prospecting/sources/bluesky";
+import { runSource, type SourceRunSummary } from "@/lib/prospecting/sources/run";
 
 const MAX_PASTE_LENGTH = 200_000;
 const MAX_REASON_LENGTH = 200;
@@ -32,6 +34,14 @@ async function reviewProspectImpl(auth: Auth, id: string, status: string, reject
   return { ok: true };
 }
 
+async function searchForProspectsImpl(auth: Auth): Promise<{ error: string } | { summaries: SourceRunSummary[] }> {
+  // One source today; the list is where the next one goes (Instagram needs Meta's app review first).
+  const repos = createRepos(auth.supabase);
+  const summaries = [await runSource(repos, blueskySource, auth.user.id)];
+  revalidatePath("/admin/outreach/prospects");
+  return { summaries };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function importProspects(text: string): Promise<ImportResult> {
   const auth = await requireAdminAction();
@@ -43,4 +53,10 @@ export async function reviewProspect(id: string, status: string, rejectReason?: 
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("prospect_reviewed", () => reviewProspectImpl(auth, id, status, rejectReason));
+}
+
+export async function searchForProspects(): Promise<{ error: string } | { summaries: SourceRunSummary[] }> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("prospects_searched", () => searchForProspectsImpl(auth));
 }

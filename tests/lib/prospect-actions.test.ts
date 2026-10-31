@@ -12,9 +12,11 @@ vi.mock("@/lib/data/repos", async (importOriginal) => ({
   createRepos: () => data.current,
 }));
 vi.mock("@/lib/analytics/server", () => ({ withAction: async (_name: string, run: () => Promise<unknown>) => run() }));
+const run = vi.hoisted(() => ({ runSource: vi.fn() }));
+vi.mock("@/lib/prospecting/sources/run", () => run);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { importProspects, reviewProspect } from "@/app/(admin)/admin/outreach/prospects/actions";
+import { importProspects, reviewProspect, searchForProspects } from "@/app/(admin)/admin/outreach/prospects/actions";
 
 let repos: ReturnType<typeof createInMemoryRepos>;
 beforeEach(() => {
@@ -57,5 +59,21 @@ describe("reviewProspect", () => {
     auth.admin = false;
     expect(await reviewProspect(p.id, "rejected")).toEqual({ error: "Not authorized" });
     expect((await repos.prospects.list())[0].status).toBe("new");
+  });
+});
+
+describe("searchForProspects", () => {
+  it("runs the sources for an admin and returns their summaries", async () => {
+    run.runSource.mockResolvedValue({ source: "bluesky-search", found: 3, added: 1, belowMinimum: 2, alreadyProspects: 0, alreadyMembers: 0, failedQueries: [] });
+    const result = await searchForProspects();
+    expect(result).toMatchObject({ summaries: [{ source: "bluesky-search", added: 1 }] });
+    expect(run.runSource).toHaveBeenCalledWith(repos, expect.objectContaining({ id: "bluesky-search" }), "user-admin");
+  });
+
+  it("refuses non-admins", async () => {
+    run.runSource.mockClear();
+    auth.admin = false;
+    expect(await searchForProspects()).toEqual({ error: "Not authorized" });
+    expect(run.runSource).not.toHaveBeenCalled();
   });
 });

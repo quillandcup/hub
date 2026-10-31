@@ -24,7 +24,7 @@ describe("/admin/outreach/prospects", () => {
     signInAs(ADMIN_USER, null);
     useFakeSupabase({
       user_profiles: userProfiles,
-      outreach_prospects: { data: [{ id: "prsp_AAAAAAAAAAA1", instagram_handle: "ada.example", source: "paste", source_note: null, bio: "writer", follower_count: null, external_url: null, reject_reason: null, ai_assessment: null, reviewed_at: null, hashtags: [], fit_reasons: [], fit_score: 50, status: "new", created_at: "2097-01-01T00:00:00Z" }] },
+      outreach_prospects: { data: [{ id: "prsp_AAAAAAAAAAA1", platform: "instagram", handle: "ada.example", source: "paste", source_note: null, bio: "writer", follower_count: null, external_url: null, reject_reason: null, ai_assessment: null, reviewed_at: null, hashtags: [], fit_reasons: [], fit_score: 50, status: "new", created_at: "2097-01-01T00:00:00Z" }] },
     });
     await renderServerPage(ProspectsPage, {});
 
