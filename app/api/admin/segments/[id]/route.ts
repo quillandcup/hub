@@ -1,7 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { fetchAllRows } from "@/lib/supabase/paginate";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -15,22 +14,15 @@ export async function GET(
 
   const { id } = await params;
 
-  const { data: segment, error } = await supabase
-    .from("segments")
-    .select("id, name, created_at, created_by")
-    .eq("id", id)
-    .single();
+  const repos = createRepos(supabase);
+  const segment = await repos.segments.byId(id).catch(() => null);
 
-  if (error || !segment) {
-    return NextResponse.json({ error: error?.message ?? "Segment not found" }, { status: 404 });
+  if (!segment) {
+    return NextResponse.json({ error: "Segment not found" }, { status: 404 });
   }
 
-  const memberLinks = await fetchAllRows<{ member_id: string }>((from, to) =>
-    supabase.from("segment_members").select("member_id").eq("segment_id", id).range(from, to)
-  );
-
-  const memberIds = memberLinks.map((m) => m.member_id);
-  const members = (await createRepos(supabase).members.byIds(memberIds))
+  const memberIds = await repos.segments.memberIds(id);
+  const members = (await repos.members.byIds(memberIds))
     .map(({ id, name, displayName, email }) => ({ id, name, displayName, email }))
     .sort((a, b) =>
       getMemberDisplayName({ name: a.name, display_name: a.displayName }).localeCompare(
@@ -53,8 +45,11 @@ export async function DELETE(
   const { id } = await params;
 
   // segment_members and feature_flag_segments both cascade on delete
-  const { error } = await supabase.from("segments").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await createRepos(supabase).segments.remove(id);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not delete the segment" }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }

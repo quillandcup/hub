@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/lib/auth";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import type { OutcomeAction } from "@/lib/analytics/actions";
@@ -65,19 +66,19 @@ export async function recordAction(action: OutcomeAction, outcome: ActionOutcome
     const properties = validateProperties("action_completed", { action, ok: outcome.ok, detail: outcome.detail });
     if (!properties.ok) return;
 
-    const supabase = await createClient();
-    const { error } = await supabase.from("analytics_events").insert({
-      message_id: crypto.randomUUID(),
-      user_id: user.id,
-      session_id: session,
-      source: "server",
-      event: "action_completed",
-      properties: properties.properties,
-      context: {},
-      sudo: actingAsHeaderValue(store.get(SUDO_COOKIE_NAME)?.value, user.id) !== null,
-      occurred_at: new Date().toISOString(),
-    });
-    if (error) console.error("[analytics] Recording an action outcome failed:", error.message);
+    await createRepos(await createClient()).analyticsEvents.record([
+      {
+        message_id: crypto.randomUUID(),
+        user_id: user.id,
+        session_id: session,
+        source: "server",
+        event: "action_completed",
+        properties: properties.properties,
+        context: {},
+        sudo: actingAsHeaderValue(store.get(SUDO_COOKIE_NAME)?.value, user.id) !== null,
+        occurred_at: new Date().toISOString(),
+      },
+    ]);
   } catch (error) {
     // No request scope (a test, a script), no session store, a database hiccup: none of it may reach the action.
     console.error("[analytics] Recording an action outcome failed:", error instanceof Error ? error.message : error);

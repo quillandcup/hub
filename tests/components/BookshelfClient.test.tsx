@@ -52,6 +52,6 @@ describe("BookshelfClient genre filter", () => {
 
   it("shows no filter when no book has a genre", () => {
     render(<BookshelfClient shelf={[book("three", [])]} />);
-    expect(screen.queryByRole("group", { name: "Filter by genre" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Filter by genre / tropes" })).not.toBeInTheDocument();
   });
 });

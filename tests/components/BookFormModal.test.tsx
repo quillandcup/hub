@@ -119,7 +119,7 @@ describe("BookFormModal genre tags", () => {
     render(<BookFormModal isOpen onClose={() => {}} onSaved={onSaved} book={BOOK} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Remove Romance" }));
-    await userEvent.type(screen.getByLabelText("Genre"), "Cozy Mystery{Enter}");
+    await userEvent.type(screen.getByLabelText("Genre / Tropes"), "Cozy Mystery{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
