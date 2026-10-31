@@ -156,24 +156,21 @@ async function processSlackEvent(event: any) {
       return;
     } else if (eventType === "message") {
       // UPSERT message to Bronze layer
-      const { error } = await supabase.schema("bronze").from("slack_messages").upsert(
-        {
-          channel_id: event.channel,
-          message_ts: event.ts,
-          user_id: slackMessageUserId(event),
-          text: slackMessageText(event),
-          message_type: event.subtype || "message",
-          thread_ts: event.thread_ts || null,
-          occurred_at: slackTsToIso(event.ts),
-          files: event.files ?? null,
-          raw_payload: event,
-        },
-        {
-          onConflict: "channel_id,message_ts",
-        }
-      );
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.upsertMessages([
+          {
+            channel_id: event.channel,
+            message_ts: event.ts,
+            user_id: slackMessageUserId(event),
+            text: slackMessageText(event),
+            message_type: event.subtype || "message",
+            thread_ts: event.thread_ts || null,
+            occurred_at: slackTsToIso(event.ts),
+            files: event.files ?? null,
+            raw_payload: event,
+          },
+        ]);
+      } catch (error) {
         console.error("Error upserting Slack message:", error);
         return;
       }
@@ -201,25 +198,20 @@ async function processSlackEvent(event: any) {
       triggerSlackProcessing(event.channel, event.ts, { threadTs: event.thread_ts });
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
-      const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
-        {
-          channel_id: event.item.channel,
-          message_ts: event.item.ts,
-          user_id: event.user,
-          reaction: event.reaction,
-          occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
-          // A reaction taken back and added again is live again.
-          deleted_at: null,
-          raw_payload: event,
-        },
-        {
-          // Note: Supabase doesn't support composite unique constraints in upsert
-          // We'll rely on the unique constraint to prevent duplicates
-          onConflict: "channel_id,message_ts,user_id,reaction",
-        }
-      );
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.upsertReactions([
+          {
+            channel_id: event.item.channel,
+            message_ts: event.item.ts,
+            user_id: event.user,
+            reaction: event.reaction,
+            occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
+            // A reaction taken back and added again is live again.
+            deleted_at: null,
+            raw_payload: event,
+          },
+        ]);
+      } catch (error) {
         console.error("Error upserting Slack reaction:", error);
         return;
       }
@@ -231,17 +223,12 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "reaction_removed") {
       // Soft delete: the row stays, marked with when it was taken back. Silver
       // processing and the admin stats skip rows with deleted_at set.
-      const { error } = await supabase
-        .schema("bronze")
-        .from("slack_reactions")
-        .update({ deleted_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
-        .eq("channel_id", event.item.channel)
-        .eq("message_ts", event.item.ts)
-        .eq("user_id", event.user)
-        .eq("reaction", event.reaction)
-        .is("deleted_at", null);
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.markReactionRemoved(
+          { channel_id: event.item.channel, message_ts: event.item.ts, user_id: event.user, reaction: event.reaction },
+          new Date(parseFloat(event.event_ts) * 1000).toISOString()
+        );
+      } catch (error) {
         console.error("Error removing Slack reaction:", error);
         return;
       }
@@ -267,21 +254,16 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
   const message = event.message;
   if (!message?.ts) return;
 
-  const { error } = await supabase
-    .schema("bronze")
-    .from("slack_messages")
-    .update({
+  try {
+    await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {
       text: message.text ?? "",
       edited_at: message.edited?.ts ? slackTsToIso(message.edited.ts) : null,
       reply_count: message.reply_count ?? 0,
       reply_users_count: message.reply_users_count ?? 0,
       files: message.files ?? null,
       raw_payload: message,
-    })
-    .eq("channel_id", event.channel)
-    .eq("message_ts", message.ts);
-
-  if (error) {
+    });
+  } catch (error) {
     console.error("Error applying Slack message edit:", error);
     return;
   }
@@ -305,15 +287,9 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
     return;
   }
 
-  const { error } = await supabase
-    .schema("bronze")
-    .from("slack_messages")
-    .update({ deleted_at: slackTsToIso(event.event_ts ?? event.ts) })
-    .eq("channel_id", event.channel)
-    .eq("message_ts", deletedTs)
-    .is("deleted_at", null);
-
-  if (error) {
+  try {
+    await createRepos(supabase).slackMessages.markMessagesDeleted(event.channel, [deletedTs], slackTsToIso(event.event_ts ?? event.ts));
+  } catch (error) {
     console.error("Error applying Slack message delete:", error);
     return;
   }

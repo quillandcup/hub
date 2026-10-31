@@ -2,6 +2,8 @@ import type { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
+import { createRepos } from "@/lib/data/repos";
+import type { SlackMemberEvent } from "@/lib/data/slack-workspace";
 
 /**
  * The parts of the Slack import that capture more than messages: group DMs the
@@ -89,16 +91,7 @@ export interface MembershipSyncResult {
 // Membership history (bronze.slack_channel_member_events)
 // ---------------------------------------------------------------------------
 
-export interface SlackMemberEvent {
-  channel_id: string;
-  user_id: string;
-  event: "joined" | "left";
-  occurred_at: string;
-  source: "history_notice" | "webhook" | "member_list";
-  inviter_user_id?: string | null;
-  slack_ts?: string | null;
-  raw_payload?: unknown;
-}
+export type { SlackMemberEvent };
 
 const JOIN_NOTICES = new Set(["channel_join", "group_join"]);
 const LEAVE_NOTICES = new Set(["channel_leave", "group_leave"]);
@@ -130,45 +123,7 @@ export function slackMemberNoticeEvent(
 
 /** Append membership events. Each source is idempotent: a repeat is ignored. */
 export async function recordSlackMemberEvents(supabase: SupabaseClient, events: SlackMemberEvent[]): Promise<void> {
-  // One statement can't carry the same key twice.
-  const unique = new Map<string, SlackMemberEvent>();
-  for (const e of events) unique.set(`${e.channel_id}|${e.user_id}|${e.event}|${e.occurred_at}|${e.source}`, e);
-  const rows = [...unique.values()].map((e) => ({
-    channel_id: e.channel_id,
-    user_id: e.user_id,
-    event: e.event,
-    occurred_at: e.occurred_at,
-    source: e.source,
-    inviter_user_id: e.inviter_user_id ?? null,
-    slack_ts: e.slack_ts ?? null,
-    raw_payload: e.raw_payload ?? {},
-  }));
-  for (let i = 0; i < rows.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_member_events")
-      .upsert(rows.slice(i, i + WRITE_BATCH), {
-        onConflict: "channel_id,user_id,event,occurred_at,source",
-        ignoreDuplicates: true,
-      });
-    if (error) throw error;
-  }
-}
-
-/** The latest recorded event per channel and user: whether the log has them in or out. */
-async function loadLastMemberEvents(supabase: SupabaseClient): Promise<Map<string, Map<string, "joined" | "left">>> {
-  const rows: { channel_id: string; user_id: string; event: "joined" | "left" }[] = await fetchAllBronzeRows(
-    supabase,
-    "slack_channel_member_events",
-    "channel_id, user_id, event",
-    (q) => q.order("occurred_at").order("id")
-  );
-  const last = new Map<string, Map<string, "joined" | "left">>();
-  for (const row of rows) {
-    if (!last.has(row.channel_id)) last.set(row.channel_id, new Map());
-    last.get(row.channel_id)!.set(row.user_id, row.event);
-  }
-  return last;
+  await createRepos(supabase).slackWorkspace.recordMemberEvents(events);
 }
 
 /**
@@ -250,10 +205,8 @@ export async function syncChannelMembers(
   await Promise.all(Array.from({ length: MEMBERS_CONCURRENCY }, worker));
   if (fetched.size === 0) return result;
 
-  const stored: { channel_id: string; user_id: string; left_at: string | null; first_seen_at: string }[] =
-    await fetchAllBronzeRows(supabase, "slack_channel_members", "channel_id, user_id, left_at, first_seen_at", (q) =>
-      q.order("channel_id").order("user_id")
-    );
+  const workspace = createRepos(supabase).slackWorkspace;
+  const stored = await workspace.memberships();
   const storedByChannel = new Map<string, Map<string, string | null>>();
   const firstSeenByChannel = new Map<string, Map<string, string>>();
   for (const row of stored) {
@@ -269,7 +222,7 @@ export async function syncChannelMembers(
   // now, record what the member list implies. Notices from this run's channel
   // history must be recorded before this is called, so an announced join or
   // leave keeps its exact time and isn't doubled by an inferred one.
-  const lastEventByChannel = await loadLastMemberEvents(supabase);
+  const lastEventByChannel = await workspace.lastMemberEvents();
   const inferred: SlackMemberEvent[] = [];
   for (const [channelId, members] of fetched) {
     inferred.push(
@@ -302,21 +255,9 @@ export async function syncChannelMembers(
     result.left += gone.length;
   }
 
-  for (let i = 0; i < toUpsert.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .upsert(toUpsert.slice(i, i + WRITE_BATCH), { onConflict: "channel_id,user_id" });
-    if (error) throw error;
-  }
+  await workspace.upsertMemberships(toUpsert);
   for (const { channel_id, user_ids } of toMarkLeft) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .update({ left_at: importTimestamp, imported_at: importTimestamp })
-      .eq("channel_id", channel_id)
-      .in("user_id", user_ids);
-    if (error) throw error;
+    await workspace.markMembersLeft(channel_id, user_ids, importTimestamp);
   }
 
   result.channelsSynced = fetched.size;
@@ -355,27 +296,12 @@ export async function syncCustomEmoji(
     return { emoji: 0, removed: 0, skipped: "missing_scope" };
   }
 
+  const workspace = createRepos(supabase).slackWorkspace;
   const rows = Object.entries(emoji).map(([name, value]) => ({ ...toCustomEmojiRow(name, value), imported_at: importTimestamp }));
-  for (let i = 0; i < rows.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_custom_emoji")
-      .upsert(rows.slice(i, i + WRITE_BATCH), { onConflict: "name" });
-    if (error) throw error;
-  }
+  await workspace.upsertEmoji(rows);
 
-  const stored: { name: string }[] = await fetchAllBronzeRows(supabase, "slack_custom_emoji", "name", (q) =>
-    q.is("deleted_at", null).order("name")
-  );
-  const gone = stored.map((r) => r.name).filter((name) => !(name in emoji));
-  for (let i = 0; i < gone.length; i += 100) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_custom_emoji")
-      .update({ deleted_at: importTimestamp, imported_at: importTimestamp })
-      .in("name", gone.slice(i, i + 100));
-    if (error) throw error;
-  }
+  const gone = (await workspace.liveEmojiNames()).filter((name) => !(name in emoji));
+  await workspace.markEmojiRemoved(gone, importTimestamp);
 
   return { emoji: rows.length, removed: gone.length, skipped: null };
 }
@@ -410,24 +336,11 @@ export async function applySlackMembershipEvent(
     },
   ]);
 
+  const workspace = createRepos(supabase).slackWorkspace;
   if (event.type === "member_joined_channel") {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .upsert(
-        { channel_id: event.channel, user_id: event.user, left_at: null, imported_at: now },
-        { onConflict: "channel_id,user_id" }
-      );
-    if (error) throw error;
+    await workspace.upsertMemberships([{ channel_id: event.channel, user_id: event.user, left_at: null, imported_at: now }]);
   } else if (event.type === "member_left_channel") {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .update({ left_at: now, imported_at: now })
-      .eq("channel_id", event.channel)
-      .eq("user_id", event.user)
-      .is("left_at", null);
-    if (error) throw error;
+    await workspace.markMemberLeft(event.channel, event.user, now);
   }
 }
 
@@ -441,16 +354,9 @@ export async function applySlackEmojiEvent(
   event: { subtype?: string; name?: string; value?: string; names?: string[]; old_name?: string; new_name?: string }
 ): Promise<void> {
   const now = new Date(clock.now()).toISOString();
-  const table = () => supabase.schema("bronze").from("slack_custom_emoji");
-  const add = async (name: string, value: string) => {
-    const { error } = await table().upsert({ ...toCustomEmojiRow(name, value), imported_at: now }, { onConflict: "name" });
-    if (error) throw error;
-  };
-  const remove = async (names: string[]) => {
-    if (names.length === 0) return;
-    const { error } = await table().update({ deleted_at: now, imported_at: now }).in("name", names).is("deleted_at", null);
-    if (error) throw error;
-  };
+  const workspace = createRepos(supabase).slackWorkspace;
+  const add = (name: string, value: string) => workspace.upsertEmoji([{ ...toCustomEmojiRow(name, value), imported_at: now }]);
+  const remove = (names: string[]) => workspace.markEmojiRemoved(names, now);
 
   if (event.subtype === "add" && event.name && event.value) {
     await add(event.name, event.value);

@@ -41,18 +41,17 @@ export default async function DataHygienePage() {
     totalAliases,
     { data: ambiguousNameRows },
     slackUsersForMatching,
-    { data: ignoredSlackUsers },
+    ignoredSlackUserIds,
     oldUnmatchedEvents,
     lastSyncAt,
     lastProcessingAt,
-    { data: lastSlackMessageSync },
-    { data: lastSlackReactionSync },
+    lastSlackSyncAt,
     lastSlackProcessing,
     lastKajabiSyncAt,
     lastKajabiProcessedAt,
     missingStripeCount,
     membersForDuplicates,
-    { data: slackChannelsForAccessCheck },
+    slackChannelsForAccessCheck,
   ] = await Promise.all([
     createRepos(supabase).calendarEvents.count(),
     createRepos(supabase).prickles.countBySource("calendar"),
@@ -65,7 +64,7 @@ export default async function DataHygienePage() {
     supabase.from("ambiguous_zoom_names").select("zoom_name").eq("status", "unresolved"),
     // Slack users for unmatched-count (workspace member list stays well under 1000 rows)
     createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
-    supabase.from("ignored_slack_users").select("user_id"),
+    createRepos(supabase).slackWorkspace.ignoredUserIds().catch(() => new Set<string>()), // a failed read ignores nobody, as before
     // Find old unmatched events (queued before prickle_types migration)
     createRepos(supabase).unmatchedEvents.pendingQueuedBefore("2026-04-06 02:00:00", 10).catch(() => []), // Before prickle_types were added
     // Last calendar sync (use imported_at which updates on UPSERT)
@@ -75,18 +74,7 @@ export default async function DataHygienePage() {
     // Last Slack sync (bronze import — webhook or bulk import, both set imported_at).
     // Checked across both tables since a sync can land only reactions or only
     // messages depending on what happened in Slack during that window.
-    supabase
-      .schema('bronze').from("slack_messages_meta")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single(),
-    supabase
-      .schema('bronze').from("slack_reactions")
-      .select("imported_at")
-      .order("imported_at", { ascending: false })
-      .limit(1)
-      .single(),
+    createRepos(supabase).slackMessages.lastImportedAt().catch(() => null), // a failed read shows as never, as before
     // Last Slack processing (silver — member_activities uses DELETE+INSERT per date range,
     // so created_at reflects the most recent process/slack run)
     createRepos(supabase).activities.lastSlackWriteAt(),
@@ -100,7 +88,7 @@ export default async function DataHygienePage() {
     // Members for duplicate detection (limit 1000; members table stays small)
     createRepos(supabase).members.list({ orderBy: "name" }),
     // Slack channels Billie Bot can currently see (workspace channel count stays well under 1000)
-    supabase.schema('bronze').from("slack_channels").select("channel_id, name, is_private, is_mpim, imported_at"),
+    createRepos(supabase).slackWorkspace.channels().catch(() => []), // a failed read shows as none, as before
   ]);
 
   // Dedupe by zoom_name -- UNIQUE(zoom_name, zoom_email) doesn't dedupe when
@@ -109,7 +97,7 @@ export default async function DataHygienePage() {
 
   const duplicateGroups = detectDuplicates(membersForDuplicates);
   const duplicateCount = duplicateGroups.length;
-  const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck ?? []);
+  const stalePrivateChannels = findStalePrivateChannels(slackChannelsForAccessCheck);
 
   const calendarMatchRate = totalCalendarEvents && matchedCalendarEvents
     ? Math.round((matchedCalendarEvents / totalCalendarEvents) * 100)
@@ -167,7 +155,6 @@ export default async function DataHygienePage() {
     membersForMatching,
     aliasesForMatching || []
   );
-  const ignoredSlackUserIds = new Set((ignoredSlackUsers || []).map(u => u.user_id));
   const unmatchedSlackUsersCount = (slackUsersForMatching || []).filter(
     u => !slackMatchedUserIds.has(u.user_id) && !ignoredSlackUserIds.has(u.user_id) && !u.is_bot
   ).length;
@@ -269,11 +256,6 @@ export default async function DataHygienePage() {
       };
     }
   }
-
-  const lastSlackSyncAt = [lastSlackMessageSync?.imported_at, lastSlackReactionSync?.imported_at]
-    .filter((d): d is string => !!d)
-    .sort()
-    .pop();
 
   // Unmatched Zoom Names count — reuses allAttendeesForMatching (already paginated
   // above), just also needs ignored names and staff to mirror

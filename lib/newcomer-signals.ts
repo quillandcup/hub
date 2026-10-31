@@ -32,12 +32,5 @@ export function loadLastAttendanceByMember(attendance: AttendanceRepository, mem
 
 /** Slack channel id of the intro channel, or null when the workspace has no such channel (yet). Bronze is admin-only, so pass a service-role client. */
 export async function loadIntroChannelId(serviceRole: any): Promise<string | null> {
-  const { data } = await serviceRole
-    .schema("bronze")
-    .from("slack_channels")
-    .select("channel_id")
-    .eq("name", SLACK_INTRO_CHANNEL)
-    .limit(1)
-    .maybeSingle();
-  return (data?.channel_id as string | undefined) ?? null;
+  return createRepos(serviceRole).slackWorkspace.channelIdByName(SLACK_INTRO_CHANNEL);
 }

@@ -52,6 +52,28 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   calendar_events: [],
   // The Bronze Slack users (SlackUserRepository): every query is moved.
   slack_users: [],
+  // The Bronze Slack workspace and messages (SlackWorkspaceRepository, SlackMessageRepository).
+  slack_channels: [],
+  slack_messages: [
+    "lib/chat/gap-fill.ts",
+    "lib/chat/names.ts",
+  ],
+  slack_messages_meta: [],
+  slack_reactions: [
+    "lib/chat/gap-fill.ts",
+  ],
+  slack_files: [
+    "lib/chat/file-cleanup.ts",
+    "lib/chat/slack-upload.ts",
+    "lib/slack-capture.ts",
+  ],
+  slack_custom_emoji: [
+    "lib/chat/names.ts",
+  ],
+  slack_channel_members: [],
+  slack_channel_member_events: [],
+  ignored_slack_users: [],
+  restricted_slack_channels: [],
   // The calendar review queue and admins' decisions (UnmatchedEventRepository): every query is moved.
   unmatched_calendar_events: [],
   // Bronze Zoom attendance and the ignored Zoom names (ZoomRepository): every query is moved.

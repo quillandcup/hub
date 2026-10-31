@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdminPage } from "@/lib/admin-auth";
 import RestrictionToggle from "./RestrictionToggle";
 import { formatDateInZone } from "@/lib/formatters";
@@ -13,15 +14,6 @@ export const metadata: Metadata = {
 // Lifting a restriction rebuilds 90 days of Slack activity before it returns.
 export const maxDuration = 300;
 
-interface ChannelRow {
-  channel_id: string;
-  name: string;
-  is_private: boolean;
-  is_archived: boolean;
-  is_mpim: boolean;
-  member_count: number | null;
-}
-
 /**
  * Which Slack channels staff can read messages in. Channels are readable unless
  * restricted here; group DMs and direct messages are always restricted
@@ -33,19 +25,10 @@ export default async function SlackChannelsPage() {
   const supabase = await createClient();
 
   // Workspace channel count stays well under 1000.
-  const [{ data: channelRows }, { data: restrictedRows }] = await Promise.all([
-    supabase
-      .schema("bronze")
-      .from("slack_channels")
-      .select("channel_id, name, is_private, is_archived, is_mpim, member_count")
-      .order("name"),
-    supabase.from("restricted_slack_channels").select("channel_id, created_at"),
-  ]);
-
-  const conversations = (channelRows ?? []) as ChannelRow[];
+  const repos = createRepos(supabase);
+  const [conversations, restrictedSince] = await Promise.all([repos.slackWorkspace.channels(), repos.slackWorkspace.restrictedChannels()]);
   const channels = conversations.filter((c) => !c.is_mpim);
   const groupDmCount = conversations.length - channels.length;
-  const restrictedSince = new Map((restrictedRows ?? []).map((r) => [r.channel_id, r.created_at as string]));
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-4xl">

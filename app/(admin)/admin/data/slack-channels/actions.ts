@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 
 const PAGE_PATH = "/admin/data/slack-channels";
@@ -16,21 +17,17 @@ export async function restrictSlackChannel(channelId: string) {
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 
-  const { data: channel } = await supabase
-    .schema("bronze")
-    .from("slack_channels")
-    .select("name, is_private, is_mpim")
-    .eq("channel_id", channelId)
-    .maybeSingle();
+  const workspace = createRepos(supabase).slackWorkspace;
+  const channel = await workspace.channelById(channelId).catch(() => null);
   if (!channel) return { error: "Channel not found" };
   // Public channels are open to every member; group DMs are always restricted.
   if (!channel.is_private || channel.is_mpim) return { error: "Only private channels can be restricted" };
 
-  const { error } = await supabase
-    .from("restricted_slack_channels")
-    .insert({ channel_id: channelId, name: channel.name });
-
-  if (error && error.code !== "23505") return { error: error.message }; // already restricted
+  try {
+    await workspace.restrictChannel(channelId, channel.name); // already restricted is fine
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
   revalidatePath(PAGE_PATH);
   return { success: true };
 }
@@ -44,8 +41,11 @@ export async function unrestrictSlackChannel(channelId: string) {
   if (!auth.ok) return { error: auth.error };
   const { supabase } = auth;
 
-  const { error } = await supabase.from("restricted_slack_channels").delete().eq("channel_id", channelId);
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).slackWorkspace.unrestrictChannel(channelId);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   const { processed } = await triggerReprocessing("restricted_slack_channels", "local");
   const failed = processed.find((p) => !p.success);

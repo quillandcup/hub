@@ -205,14 +205,14 @@ describe('Report Route Pagination', () => {
       expect(testUser.message_count).toBe(MESSAGE_COUNT)
     }, 30000)
 
-    it('should verify pagination code exists in unmatched-slack-users route', async () => {
+    it('should count messages through the paginating repository in the unmatched-slack-users route', async () => {
       const fs = await import('fs/promises')
       const path = await import('path')
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/reports/unmatched-slack-users/route.ts'), 'utf-8'
       )
-      expect(content).toContain('while (hasMore)')
-      expect(content).toContain('from("slack_messages_meta")')
+      // The repository pages through the metadata view (its contract covers 1000+ rows)
+      expect(content).toContain('slackMessages.messageCountsByUser()')
       // Must not use the old single-shot destructuring for slack_messages
       expect(content).not.toMatch(/\{\s*data:\s*slackMessages\s*[,}]/)
     })

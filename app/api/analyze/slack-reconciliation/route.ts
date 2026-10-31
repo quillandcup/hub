@@ -21,15 +21,14 @@ export async function GET(request: NextRequest) {
       slackUsers,
       members,
       aliases,
-      { data: ignoredUsers },
+      ignoredUserIds,
     ] = await Promise.all([
       createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
       createRepos(supabase).members.list(),
       createRepos(supabase).aliases.nameAliases(),
-      supabase.from("ignored_slack_users").select("user_id"),
+      createRepos(supabase).slackWorkspace.ignoredUserIds(),
     ]);
 
-    const ignoredUserIds = new Set((ignoredUsers || []).map((u) => u.user_id));
     const nonBotSlackUsers = (slackUsers || []).filter(
       (u) => !u.is_bot && !u.is_deleted && !ignoredUserIds.has(u.user_id)
     );
