@@ -83,13 +83,8 @@ export default async function MemberProfilePage({
   // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
   // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
-  const [{ data: booksData }, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
-    supabase
-      .from("member_books")
-      .select("id, title, cover_url, purchase_url, published_date")
-      .eq("member_id", id)
-      .is("deleted_at", null)
-      .order("published_date", { ascending: false }),
+  const [booksData, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
+    createRepos(supabase).books.ofMember(id),
     supabase
       .from("member_awards")
       .select("id, award_name, category, work_title, award_date, url")
@@ -108,7 +103,7 @@ export default async function MemberProfilePage({
       : Promise.resolve({ data: null }),
   ])
   const askMeAbout: string[] = askMeAboutRow?.topics ?? []
-  const books = booksData ?? []
+  const books = booksData
   const awards = awardsData ?? []
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 

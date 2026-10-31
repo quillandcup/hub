@@ -3,7 +3,7 @@ import { getTestSupabaseAdminClient } from "../../helpers/supabase";
 import { solidImage } from "../../helpers/media-fixtures";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
-import { adoptLegacyCovers, MemberBookCovers } from "@/lib/media/adopt-covers";
+import { adoptLegacyCovers } from "@/lib/media/adopt-covers";
 
 /** Moving older covers into the library, against the real tables and bucket. */
 const db = getTestSupabaseAdminClient() as unknown as Db;
@@ -21,7 +21,7 @@ const deps = () => {
   return {
     media: repos.media,
     writing: repos.writing,
-    books: new MemberBookCovers(db),
+    books: repos.books,
     storage: raw.storage,
     supabaseUrl: "http://127.0.0.1:54321",
     // Only this test's covers resolve; any other older cover in the shared local database fails to read and is left alone.
@@ -57,7 +57,7 @@ const mine = <T extends { id: string }>(rows: T[]) => rows.filter((r) => r.id ==
 describe("adoptLegacyCovers against the database", () => {
   it("finds the books and projects whose cover is still a link", async () => {
     const deps_ = deps();
-    expect(mine(await deps_.books.legacy()).map((b) => ({ id: b.id, memberId: b.memberId, url: b.url }))).toEqual([{ id: bookId, memberId, url: BOOK_LINK }]);
+    expect(mine(await deps_.books.withoutCoverAsset())).toEqual([{ id: bookId, member_id: memberId, title: `Legacy Book ${RUN}`, cover_url: BOOK_LINK }]);
     expect(mine(await deps_.writing.projectsWithLegacyCovers())).toEqual([{ id: projectId, member_id: memberId, title: `Legacy Project ${RUN}`, cover_url: PROJECT_LINK }]);
   });
 
@@ -90,18 +90,17 @@ describe("adoptLegacyCovers against the database", () => {
 
   it("is safe to run again: nothing left to move for them, and no duplicate images", async () => {
     const deps_ = deps();
-    expect(mine(await deps_.books.legacy())).toEqual([]);
+    expect(mine(await deps_.books.withoutCoverAsset())).toEqual([]);
     expect(mine(await deps_.writing.projectsWithLegacyCovers())).toEqual([]);
     await adoptLegacyCovers(deps_, { apply: true });
     expect((await raw.from("media_assets").select("id").eq("owner_member_id", memberId)).data).toHaveLength(2);
   });
 
   it("leaves a book alone whose cover changed after it was read", async () => {
-    const books = new MemberBookCovers(db);
+    const books = createRepos(db).books;
     const asset = (await raw.from("media_assets").select("id").eq("owner_member_id", memberId).limit(1).single()).data!;
     const before = (await raw.from("member_books").select("cover_url, cover_asset_id").eq("id", bookId).single()).data!;
-    const stale = { kind: "book" as const, id: bookId, memberId, title: "t", url: "https://pics.example.test/earlier.png" };
-    expect(await books.adopt(stale, asset.id)).toBe(false);
+    expect(await books.adoptCover(bookId, "https://pics.example.test/earlier.png", { url: "/api/media/x/book_cover_shelf", assetId: asset.id })).toBe(false);
     expect((await raw.from("member_books").select("cover_url, cover_asset_id").eq("id", bookId).single()).data).toEqual(before);
   });
 });

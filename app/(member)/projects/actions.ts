@@ -2,6 +2,7 @@
 
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createRepos } from "@/lib/data/repos";
+import { BookExistsError } from "@/lib/data/books";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectPatch } from "@/lib/data/writing";
@@ -645,24 +646,24 @@ async function publishProjectImpl(
   const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, book.coverUrl);
   if ("error" in cover) return cover;
 
-  const { error: insertError } = await supabase.from("member_books").insert({
-    member_id: effectiveIdentity.memberId,
-    project_id: projectId,
-    title: book.title.trim(),
-    description: book.description?.trim() || null,
-    cover_url: cover.url,
-    cover_asset_id: cover.assetId,
-    purchase_url: safeUrl(book.purchaseUrl)!,
-    published_date: book.publishedDate,
-    price: book.price ?? null,
-    genre: book.genre?.trim() || null,
-    format: book.format,
-    pen_name: pen.penName,
-  });
-
-  if (insertError) {
-    if (insertError.code === "23505") return { error: "This project has already been published." };
-    return { error: insertError.message };
+  try {
+    await createRepos(supabase).books.add({
+      member_id: effectiveIdentity.memberId,
+      project_id: projectId,
+      title: book.title.trim(),
+      description: book.description?.trim() || null,
+      cover_url: cover.url,
+      cover_asset_id: cover.assetId,
+      purchase_url: safeUrl(book.purchaseUrl)!,
+      published_date: book.publishedDate,
+      price: book.price ?? null,
+      genre: book.genre?.trim() || null,
+      format: book.format,
+      pen_name: pen.penName,
+    });
+  } catch (error) {
+    if (error instanceof BookExistsError) return { error: "This project has already been published." };
+    return { error: errorMessage(error, "Failed to publish") };
   }
 
   const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase: "published" });

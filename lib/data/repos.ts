@@ -24,6 +24,7 @@ import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository 
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
 import { InMemoryMemberStatusRepository, SupabaseMemberStatusRepository, type MemberStatusRepository } from "./member-status-overrides";
+import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } from "./books";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -55,6 +56,7 @@ export interface Repos {
   kajabiCourses: KajabiCourseRepository;
   billing: BillingRepository;
   memberStatus: MemberStatusRepository;
+  books: BookRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -84,6 +86,7 @@ export function createRepos(db: Db): Repos {
     kajabiCourses: new SupabaseKajabiCourseRepository(db),
     billing: new SupabaseBillingRepository(db),
     memberStatus: new SupabaseMemberStatusRepository(db),
+    books: new SupabaseBookRepository(db),
   };
 }
 
@@ -114,5 +117,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     kajabiCourses: new InMemoryKajabiCourseRepository(dataset),
     billing: new InMemoryBillingRepository(dataset),
     memberStatus: new InMemoryMemberStatusRepository(dataset),
+    books: new InMemoryBookRepository(dataset),
   };
 }

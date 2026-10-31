@@ -70,14 +70,9 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data } = await supabase
-    .from("member_books")
-    .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
-    .eq("member_id", effectiveIdentity.memberId)
-    .is("deleted_at", null)
-    .order("published_date", { ascending: false });
+  const books = await createRepos(supabase).books.mine(effectiveIdentity.memberId);
 
-  return (data ?? []).map((row) => ({
+  return books.map((row) => ({
     id: row.id,
     title: row.title,
     description: row.description,
@@ -89,7 +84,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     format: row.format as BookFormat, // a check constraint limits the column to print and ebook
     penName: row.pen_name,
     projectId: row.project_id,
-    coverAsset: row.cover_asset ?? null,
+    coverAsset: row.cover_asset,
   }));
 }
 
@@ -107,21 +102,23 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
   const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, input.coverUrl);
   if ("error" in cover) return cover;
 
-  const { error } = await supabase.from("member_books").insert({
-    member_id: effectiveIdentity.memberId,
-    title: input.title.trim(),
-    description: input.description?.trim() || null,
-    cover_url: cover.url,
-    cover_asset_id: cover.assetId,
-    purchase_url: safeUrl(input.purchaseUrl)!,
-    published_date: input.publishedDate,
-    price: input.price ?? null,
-    genre: input.genre?.trim() || null,
-    format: input.format,
-    pen_name: pen.penName,
-  });
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).books.add({
+      member_id: effectiveIdentity.memberId,
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      cover_url: cover.url,
+      cover_asset_id: cover.assetId,
+      purchase_url: safeUrl(input.purchaseUrl)!,
+      published_date: input.publishedDate,
+      price: input.price ?? null,
+      genre: input.genre?.trim() || null,
+      format: input.format,
+      pen_name: pen.penName,
+    });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   // Fire-and-forget: a Slack outage must never block the book from being added.
   notifyStaffNewBook({
@@ -151,16 +148,17 @@ export async function updateBook(
   const pen = await resolvePenName(supabase, effectiveIdentity.memberId, input.penName);
   if ("error" in pen) return pen;
 
-  const media = createRepos(supabase).media;
+  const { media, books } = createRepos(supabase);
   const cover = await resolveBookCover(media, effectiveIdentity.memberId, input.coverUrl);
   if ("error" in cover) return cover;
-  const { data: previous } = await supabase.from("member_books").select("cover_asset_id").eq("id", bookId).maybeSingle();
 
-  // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
-  // zero-row result means the id didn't belong to them, not a silent no-op.
-  const { data, error } = await supabase
-    .from("member_books")
-    .update({
+  let previousCoverAssetId: string | null;
+  let found: boolean;
+  try {
+    previousCoverAssetId = await books.coverAssetIdOf(bookId);
+    // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a
+    // zero-row result means the id didn't belong to them, not a silent no-op.
+    found = await books.update(bookId, {
       title: input.title.trim(),
       description: input.description?.trim() || null,
       cover_url: cover.url,
@@ -171,15 +169,13 @@ export async function updateBook(
       genre: input.genre?.trim() || null,
       format: input.format,
       pen_name: pen.penName,
-    })
-    .eq("id", bookId)
-    .is("deleted_at", null)
-    .select("id")
-    .single();
+    });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  if (!found) return { error: "Book not found" };
 
-  if (error || !data) return { error: error?.message ?? "Book not found" };
-
-  await releaseReplacedCover(media, effectiveIdentity.memberId, previous?.cover_asset_id ?? null, cover.assetId);
+  await releaseReplacedCover(media, effectiveIdentity.memberId, previousCoverAssetId, cover.assetId);
 
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");
@@ -194,15 +190,11 @@ export async function deleteBook(bookId: string): Promise<{ success: true } | { 
 
   // Soft delete: the row stays, with the member's own words, until they ask us to remove it (/privacy).
   // RLS scopes this to the acting member's own rows (or an admin's, during sudo).
-  const { data, error } = await supabase
-    .from("member_books")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", bookId)
-    .is("deleted_at", null)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Book not found" };
+  try {
+    if (!(await createRepos(supabase).books.remove(bookId))) return { error: "Book not found" };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/bookshelf");
   revalidatePath("/projects", "layout");
