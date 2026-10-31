@@ -9,6 +9,7 @@ import { getUserTimezonePreference } from "@/lib/timezone"
 import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
 import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
 import GoalDisplay from "@/components/writing/GoalDisplay"
+import { isMissedGoal } from "@/lib/writing-projects"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
     await getUserFeaturePreviews(user.id)
   )
 
-  const [ranked, starredGoals, projects, unlogged, checkins, mentorships] = await Promise.all([
+  const [ranked, starredGoalRows, projects, unlogged, checkins, mentorships] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
     createRepos(supabase).writing.activeProjects(memberId),
@@ -64,6 +65,7 @@ export default async function DashboardPage() {
       ? getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
       : Promise.resolve({ bigSister: null, mentees: [] }),
   ])
+  const starredGoals = starredGoalRows.filter((goal) => !isMissedGoal(goal))
   // Only this member's own partners, since the Slack lookup uses the service role.
   const slackLinks = Object.fromEntries(
     await getSlackDmLinksForMembers(

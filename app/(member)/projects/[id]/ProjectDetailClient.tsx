@@ -18,6 +18,7 @@ import {
   PROFILE_PUBLIC,
 } from "@/components/writing/VisibilityToggles";
 import { deleteBook } from "@/app/(member)/bookshelf/actions";
+import { isMissedGoal } from "@/lib/writing-projects";
 import {
   WRITING_MEASURES,
   MEASURE_LABELS,
@@ -148,6 +149,72 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
     handleChanged();
   }
 
+  const activeGoals = project.goals.filter((goal) => !isMissedGoal(goal));
+  const missedGoals = project.goals.filter(isMissedGoal);
+
+  const renderGoal = (goal: GoalRow) =>
+      editingGoal?.id === goal.id ? (
+        <GoalForm
+          key={goal.id}
+          projectId={project.id}
+          goal={editingGoal}
+          onSaved={() => {
+            setEditingGoal(null);
+            handleChanged();
+          }}
+          onCancel={() => setEditingGoal(null)}
+          onArchive={() => {
+            setEditingGoal(null);
+            handleArchiveGoal(goal.id);
+          }}
+        />
+      ) : (
+        <div key={goal.id} className="flex items-start gap-3">
+          <div className="flex-shrink-0 mt-1 flex flex-col items-center gap-2">
+            <StarToggle
+              on={goal.isStarred}
+              onToggle={async () => {
+                const result = await toggleGoalStar(goal.id, !goal.isStarred);
+                if ("error" in result) alert(result.error);
+                else handleChanged();
+              }}
+            />
+            <ProfileVisibilityToggle
+              on={goal.showOnProfile}
+              onToggle={async () => {
+                const result = await toggleGoalVisibility(goal.id, !goal.showOnProfile);
+                if ("error" in result) alert(result.error);
+                else handleChanged();
+              }}
+            />
+          </div>
+          <div className="flex-1">
+            <GoalDisplay goal={goal} />
+          </div>
+          <div className="flex-shrink-0 flex items-center gap-3 mt-1">
+            <button data-track="project-edit-goal"
+              type="button"
+              onClick={() => {
+                setEditingGoal(goal);
+                setShowNewGoal(false);
+              }}
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              aria-label="Edit goal"
+            >
+              ✏️
+            </button>
+            <button data-track="project-delete-goal"
+              type="button"
+              onClick={() => handleDeleteGoal(goal.id)}
+              className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+              aria-label="Delete goal"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+      );
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between text-sm">
@@ -271,78 +338,17 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
         </div>
       )}
 
-      {project.goals.length > 0 && (
+      {activeGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Goals</h2>
-          {project.goals.map((goal) =>
-            editingGoal?.id === goal.id ? (
-              <GoalForm
-                key={goal.id}
-                projectId={project.id}
-                goal={editingGoal}
-                onSaved={() => {
-                  setEditingGoal(null);
-                  handleChanged();
-                }}
-                onCancel={() => setEditingGoal(null)}
-                onArchive={() => {
-                  setEditingGoal(null);
-                  handleArchiveGoal(goal.id);
-                }}
-              />
-            ) : (
-              <div key={goal.id} className="flex items-start gap-3">
-                <div className="flex-shrink-0 mt-1 flex flex-col items-center gap-2">
-                  <StarToggle
-                    on={goal.isStarred}
-                    onToggle={async () => {
-                      const result = await toggleGoalStar(goal.id, !goal.isStarred);
-                      if ("error" in result) alert(result.error);
-                      else handleChanged();
-                    }}
-                  />
-                  <ProfileVisibilityToggle
-                    on={goal.showOnProfile}
-                    onToggle={async () => {
-                      const result = await toggleGoalVisibility(goal.id, !goal.showOnProfile);
-                      if ("error" in result) alert(result.error);
-                      else handleChanged();
-                    }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <GoalDisplay goal={goal} />
-                </div>
-                <div className="flex-shrink-0 flex items-center gap-3 mt-1">
-                  <button data-track="project-edit-goal"
-                    type="button"
-                    onClick={() => {
-                      setEditingGoal(goal);
-                      setShowNewGoal(false);
-                    }}
-                    className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    aria-label="Edit goal"
-                  >
-                    ✏️
-                  </button>
-                  <button data-track="project-delete-goal"
-                    type="button"
-                    onClick={() => handleDeleteGoal(goal.id)}
-                    className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
-                    aria-label="Delete goal"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            )
-          )}
+          {activeGoals.map(renderGoal)}
         </div>
       )}
 
-      {archivedGoals.length > 0 && (
+      {(missedGoals.length > 0 || archivedGoals.length > 0) && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-5 space-y-4">
           <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">Past goals</h2>
+          {missedGoals.map(renderGoal)}
           {archivedGoals.map((goal) => (
             <div key={goal.id}>
               <GoalDisplay goal={goal} />
