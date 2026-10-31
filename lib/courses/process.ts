@@ -1,7 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
@@ -87,27 +86,10 @@ export async function rebuildCourseAccess(
   }
   const allOfferIds = Array.from(new Set(offerRows.map((o) => o.offer_kajabi_id)));
 
-  const purchases: any[] = [];
-  for (const batch of chunks(allOfferIds, LOOKUP_BATCH)) {
-    purchases.push(
-      ...(await fetchAllBronzeRows(
-        supabase,
-        "kajabi_purchases",
-        "kajabi_customer_id, kajabi_offer_id, created_at_kajabi, effective_start_at, deactivated_at",
-        (q) => q.in("kajabi_offer_id", batch)
-      ))
-    );
-  }
-
-  const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
-  const customers: any[] = [];
-  for (const batch of chunks(customerIds, LOOKUP_BATCH)) {
-    customers.push(
-      ...(await fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id, email", (q) =>
-        q.in("kajabi_customer_id", batch)
-      ))
-    );
-  }
+  const billing = createRepos(supabase).billing;
+  const purchases = await billing.kajabiPurchases({ offerIds: allOfferIds });
+  const customerIds = Array.from(new Set(purchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
+  const customers = await billing.kajabiCustomersByIds(customerIds);
   const aliases = await createRepos(supabase).aliases.emailAliases({ activeOnly: true });
   const aliasMap = buildAliasMap(aliases);
   const emailByCustomerId = new Map<string, string>();
@@ -128,7 +110,8 @@ export async function rebuildCourseAccess(
       accessDuration: c.access_duration,
       launchAt: c.launch_at,
     })),
-    purchases,
+    // the offer filter above already leaves out a purchase with no offer
+    purchases: purchases.flatMap((p) => (p.kajabi_offer_id ? [{ ...p, kajabi_offer_id: p.kajabi_offer_id }] : [])),
     emailByCustomerId,
     memberIdByEmail,
     grants,
