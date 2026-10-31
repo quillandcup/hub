@@ -51,6 +51,8 @@
     "slack:manifest:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts diff",
     "slack:manifest:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-manifest.ts push",
     "slack:bot-token": "dotenv -e .env.prod -e .env.shared -- tsx scripts/slack-bot-token.ts",
+    "sentry:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-config.ts diff",
+    "sentry:config:push": "dotenv -e .env.prod -e .env.shared -- tsx scripts/sentry-config.ts push",
     "github:config:diff": "tsx scripts/github-config.ts diff",
     "github:config:push": "tsx scripts/github-config.ts push",
     "mux:config:diff": "dotenv -e .env.prod -e .env.shared -- tsx scripts/mux-config.ts diff",

@@ -682,3 +682,49 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
+  # file, not the Settings page. See docs/SENTRY_CONFIG.md.
+  #
+  # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
+  # fetched always applies it. Needs the SENTRY_CONFIG_TOKEN secret (pnpm env:sync:github).
+  push-sentry-config:
+    name: Push Sentry config
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check whether the config changed
+        id: config
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the config."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- sentry-config.yml scripts/sentry-config.ts; then
+            echo "sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
+      - uses: pnpm/action-setup@v6.1.0
+
+
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.changed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        if: steps.config.outputs.changed == 'true'
+
+      - name: Push Sentry config
+        if: steps.config.outputs.changed == 'true'
+        run: pnpm exec tsx scripts/sentry-config.ts push
+        env:
+          SENTRY_CONFIG_TOKEN: ${{ secrets.SENTRY_CONFIG_TOKEN }}
