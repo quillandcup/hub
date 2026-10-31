@@ -302,12 +302,7 @@ export async function getPublishedBookCount(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<number> {
-  const { count } = await supabase
-    .from("member_books")
-    .select("id", { count: "exact", head: true })
-    .eq("member_id", memberId)
-    .is("deleted_at", null);
-  return count ?? 0;
+  return createRepos(supabase).books.countLive(memberId);
 }
 
 export interface BadgeRecipient {
@@ -541,27 +536,7 @@ async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise
 async function getPublishedBookCountsByMember(
   supabase: SupabaseClient
 ): Promise<Map<string, number>> {
-  const countsByMember = new Map<string, number>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_books")
-      .select("member_id")
-      .is("deleted_at", null)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { member_id: string }[]) {
-        countsByMember.set(row.member_id, (countsByMember.get(row.member_id) ?? 0) + 1);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return countsByMember;
+  return createRepos(supabase).books.liveCountsByMember();
 }
 
 /** Distinct prickles attended by a single member -- the per-member counterpart to

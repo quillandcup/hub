@@ -99,6 +99,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_status_overrides: [],
   member_join_date_overrides: [],
   member_profile_overrides: [],
+  // Members' bookshelves (BookRepository, lib/data/books.ts): every query is moved (lib/data/media.ts reads it for the library's usage list, inside lib/data/).
+  member_books: [],
 };
 
 const root = path.resolve(__dirname, "../..");

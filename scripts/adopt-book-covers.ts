@@ -17,7 +17,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "../lib/data/database.types";
 import { createRepos } from "../lib/data/repos";
-import { adoptLegacyCovers, MemberBookCovers } from "../lib/media/adopt-covers";
+import { adoptLegacyCovers } from "../lib/media/adopt-covers";
 import { loadLayeredEnv } from "./load-layered-env";
 import { ADOPT_USAGE, parseAdoptArgs } from "./adopt-book-covers-args";
 
@@ -48,7 +48,7 @@ async function main() {
     {
       media: repos.media,
       writing: repos.writing,
-      books: new MemberBookCovers(db),
+      books: repos.books,
       storage: db.storage,
       supabaseUrl: url,
       onProgress: (done, total) => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import BookshelfClient, { type ShelfBook } from "./BookshelfClient";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 
@@ -10,18 +11,12 @@ export const metadata: Metadata = {
 export default async function BookshelfPage() {
   const supabase = await createClient();
 
-  const { data: books } = await supabase
-    .from("member_books")
-    .select(
-      "id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, pen_name, members:book_member(name, display_name)"
-    )
-    .is("deleted_at", null)
-    .order("published_date", { ascending: false });
+  const books = await createRepos(supabase).books.shelf();
 
-  const shelf: ShelfBook[] = (books ?? []).map((row: any) => ({
+  const shelf: ShelfBook[] = books.map((row) => ({
     id: row.id,
     memberId: row.member_id,
-    memberName: row.pen_name || (row.members ? getMemberDisplayName(row.members) : "A Hedgie"),
+    memberName: row.pen_name || (row.author ? getMemberDisplayName(row.author) : "A Hedgie"),
     title: row.title,
     description: row.description,
     coverUrl: row.cover_url,
@@ -29,7 +24,7 @@ export default async function BookshelfPage() {
     publishedDate: row.published_date,
     price: row.price,
     genre: row.genre,
-    format: row.format,
+    format: row.format as ShelfBook["format"],
   }));
 
   return <BookshelfClient shelf={shelf} />;

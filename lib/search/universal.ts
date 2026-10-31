@@ -187,19 +187,20 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   const { limit, offset } = page(ctx);
   const authors = await memberIdsNamed(ctx, q.from);
   if (authors && authors.length === 0) return { kind: "books", hits: [], hasMore: false };
-  let query = ctx.supabase.from("member_books").select("id, title, description, cover_url, published_date, pen_name, author:book_member(id, name)");
-  query = matchEach(query, matchWords(q), ["title", "description"]).is("deleted_at", null);
-  if (authors) query = query.in("member_id", authors);
-  if (q.after) query = query.gte("published_date", q.after.slice(0, 10));
-  if (q.before) query = query.lt("published_date", q.before.slice(0, 10));
-  const { data } = await query.order("published_date", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).books.search({
+    words: matchWords(q),
+    authorIds: authors,
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "books",
     hasMore,
     hits: rows.map((b) => {
-      const author = Array.isArray(b.author) ? b.author[0] : b.author;
-      return { kind: "books", id: b.id, title: b.title, subtitle: b.pen_name ?? author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
+      return { kind: "books", id: b.id, title: b.title, subtitle: b.pen_name ?? b.author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
     }),
   };
 }

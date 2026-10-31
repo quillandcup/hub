@@ -7,6 +7,7 @@ import type { ReminderLogRow } from "./reminder-log";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
+import type { BookSeed } from "./books";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { SlackUserSeed } from "./slack-users";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
@@ -111,8 +112,8 @@ export class InMemoryDataset {
   mediaAssets: MediaAsset[];
   /** Courses, modules and lessons, by which library assets they show (what the media library's usage list needs). */
   courseImages: { id: string; kind: "course" | "module" | "lesson"; title: string; asset_ids: string[] }[];
-  /** Published books: the id and title, when published, and which library asset is the cover (what the media library's usage list needs). */
-  memberBooks: { id: string; member_id: string; title: string; published_date: string; cover_asset_id: string | null }[];
+  /** Members' bookshelves (`member_books`): the id, owner, title, publish date and cover asset are required, the other columns default. */
+  memberBooks: BookSeed[];
   // --- Kajabi course Bronze (KajabiCourseRepository) ---
   kajabiCourses: KajabiCourse[];
   kajabiModules: KajabiModule[];

@@ -1,9 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { amazonCoverProblem, bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
-import type { Db } from "@/lib/data/db";
+import type { BookRepository } from "@/lib/data/books";
 import type { MediaRepository } from "@/lib/data/media";
 import type { WritingRepository } from "@/lib/data/writing";
-import { fetchAllRows } from "@/lib/supabase/paginate";
 import { fetchLegacyCover, type FetchedCover } from "./fetch-cover";
 import { inspectImage } from "./inspect";
 import { storeImage } from "./library";
@@ -15,36 +14,6 @@ export interface LegacyCover {
   memberId: string;
   title: string;
   url: string;
-}
-
-/** Published books (`member_books`) have no repository yet; this is the little they need for the move. */
-export class MemberBookCovers {
-  constructor(private readonly db: Db) {}
-
-  async legacy(): Promise<LegacyCover[]> {
-    type Row = { id: string; member_id: string; title: string; cover_url: string };
-    const rows = await fetchAllRows<Row>(
-      (from, to) =>
-        this.db.from("member_books").select("id, member_id, title, cover_url").is("cover_asset_id", null).order("id").range(from, to) as unknown as PromiseLike<{
-          data: Row[] | null;
-          error: { message: string } | null;
-        }>
-    );
-    return rows.filter((r) => !coverAssetIdOf(r.cover_url)).map((r) => ({ kind: "book" as const, id: r.id, memberId: r.member_id, title: r.title, url: r.cover_url }));
-  }
-
-  /** Points the book at the library image, unless its cover changed since it was read. */
-  async adopt(book: LegacyCover, assetId: string): Promise<boolean> {
-    const { data, error } = await this.db
-      .from("member_books")
-      .update({ cover_url: bookCoverUrlFor(assetId), cover_asset_id: assetId })
-      .eq("id", book.id)
-      .eq("cover_url", book.url)
-      .is("cover_asset_id", null)
-      .select("id");
-    if (error) throw new Error(error.message);
-    return (data ?? []).length > 0;
-  }
 }
 
 export interface AdoptReport {
@@ -66,7 +35,7 @@ export interface AdoptReport {
 export interface AdoptDeps {
   media: MediaRepository;
   writing: WritingRepository;
-  books: Pick<MemberBookCovers, "legacy" | "adopt">;
+  books: Pick<BookRepository, "withoutCoverAsset" | "adoptCover">;
   /** Service role. */
   storage: SupabaseClient["storage"];
   supabaseUrl: string;
@@ -85,7 +54,9 @@ export async function adoptLegacyCovers(deps: AdoptDeps, { apply }: { apply: boo
   const fetchCover = deps.fetchCover ?? fetchLegacyCover;
   const projects = await deps.writing.projectsWithLegacyCovers();
   const covers: LegacyCover[] = [
-    ...(await deps.books.legacy()),
+    ...(await deps.books.withoutCoverAsset())
+      .filter((b) => !coverAssetIdOf(b.cover_url))
+      .map((b) => ({ kind: "book" as const, id: b.id, memberId: b.member_id, title: b.title, url: b.cover_url })),
     ...projects.filter((p) => !coverAssetIdOf(p.cover_url)).map((p) => ({ kind: "project" as const, id: p.id, memberId: p.member_id, title: p.title, url: p.cover_url })),
   ];
   const report: AdoptReport = { dryRun: !apply, considered: covers.length, adopted: 0, fromOwnBucket: 0, fromLinks: 0, amazonReady: 0, tooSmallForAmazon: 0, failed: [] };
@@ -108,7 +79,7 @@ export async function adoptLegacyCovers(deps: AdoptDeps, { apply }: { apply: boo
           continue;
         }
         let moved = true;
-        if (cover.kind === "book") moved = await deps.books.adopt(cover, stored.asset.id);
+        if (cover.kind === "book") moved = await deps.books.adoptCover(cover.id, cover.url, { url: bookCoverUrlFor(stored.asset.id), assetId: stored.asset.id });
         else await deps.writing.updateProject(cover.memberId, cover.id, { cover_url: bookCoverUrlFor(stored.asset.id), cover_asset_id: stored.asset.id });
         if (!moved) {
           fail(cover, "its cover changed while this ran; left as it is");
