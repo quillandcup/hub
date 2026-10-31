@@ -40,7 +40,7 @@ import {
   type SaveOutcome,
 } from "../lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
-import { describeDomShape, describeJson, formatProbe, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
+import { describeDomShape, describeJson, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
@@ -259,12 +259,21 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
   });
   const seen: ProbedRequest[] = [];
   const pending: Promise<void>[] = [];
-  let dom: string[] = [];
+  // The richest description of each page's comment-related structure seen while recording, by page path.
+  const dom = new Map<string, string[]>();
+  const sampleDom = async () => {
+    for (const p of context.pages()) {
+      const path = normalizeRequestPath(p.url());
+      if (path === "about:blank" || path === "") continue;
+      const lines = await p.evaluate(describeDomShape, "comment").catch(() => [] as string[]);
+      if (lines.length >= (dom.get(path)?.length ?? 0)) dom.set(path, lines);
+    }
+  };
   try {
     await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
     await ensureLoggedIn(context);
-    const page = await context.newPage();
-    page.on("response", (r) => {
+    // On the whole browser context, so a link that opens a new tab is recorded too (the admin's preview links do).
+    context.on("response", (r) => {
       const contentType = (r.headers()["content-type"] ?? "").split(";")[0].trim().toLowerCase();
       const isJson = contentType.includes("json");
       // A page can also load its data as an HTML fragment or a script (Kajabi's member pages do): list those too, by type and path only.
@@ -283,17 +292,26 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
         })()
       );
     });
+    const page = await context.newPage();
     await page.goto(target.url, { waitUntil: "domcontentloaded" });
-    console.log(`Recording for ${target.seconds} seconds. Click around in the browser window (open a week, a module, the next page) so its requests are seen.`);
-    await page.waitForTimeout(target.seconds * 1000);
+    console.log(
+      `Recording for ${target.seconds} seconds, in every tab. Click around in the browser window (open a link that opens a new tab, open a week, a module, press Show More) so its requests are seen.`
+    );
+    const end = Date.now() + target.seconds * 1000;
+    while (Date.now() < end) {
+      await page.waitForTimeout(Math.min(5000, Math.max(0, end - Date.now())));
+      await sampleDom();
+    }
     await Promise.all(pending);
-    // What the page itself looks like where it mentions comments (names only), for data that arrives as HTML.
-    dom = await page.evaluate(describeDomShape, "comment").catch(() => []);
   } finally {
     await context.close();
   }
+  const structure = [...dom.entries()]
+    .map(([path, lines]) => `  ${path}\n${lines.length ? lines.map((l) => `    ${l}`).join("\n") : "    nothing"}`)
+    .join("\n");
+  const hint = loginHint(seen);
   console.log(
-    `\n${formatProbe(seen)}\n\nPage structure where it mentions "comment" (the page you ended on; element names and attribute names only, never text):\n${dom.length ? dom.map((l) => `    ${l}`).join("\n") : "    nothing"}\n\nPage: ${normalizeRequestPath(target.url)}. Names and types only, no values.`
+    `\n${formatProbe(seen)}\n\nPage structure where it mentions "comment" (per page; element names and attribute names only, never text):\n${structure || "  no page"}${hint ? `\n\n${hint}` : ""}\n\nStarted at: ${normalizeRequestPath(target.url)}. Names and types only, no values.`
   );
 }
 

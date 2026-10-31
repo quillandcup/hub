@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeJson, formatProbe, normalizeRequestPath, queryNames } from '@/lib/kajabi/probe'
+import { describeJson, formatProbe, loginHint, normalizeRequestPath, queryNames } from '@/lib/kajabi/probe'
 
 describe('the Kajabi probe output', () => {
   it('squeezes ids and the query string out of a request path', () => {
@@ -63,5 +63,14 @@ describe('the Kajabi probe output', () => {
     expect(out).toContain('POST 204 /api/other')
     expect(out.match(/GET 200/g)).toHaveLength(1)
     expect(formatProbe([])).toBe('No requests of interest were seen.')
+  })
+
+  it('says so when the recording shows the browser sent to a login, and stays quiet otherwise', () => {
+    const request = (path: string) => ({ method: 'GET', status: 200, path, query: [], fields: [] })
+    expect(loginHint([request('/products/demo/posts/:id'), request('/login')])).toContain('preview link from the Kajabi admin')
+    expect(loginHint([request('/users/sign_in')])).not.toBeNull()
+    expect(loginHint([request('/products/demo/posts/:id'), request('/api/x')])).toBeNull()
+    expect(loginHint([request('/blogin'), request('/login/help')])).toBeNull()
+    expect(loginHint([])).toBeNull()
   })
 })
