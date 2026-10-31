@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
@@ -83,7 +84,7 @@ export default async function WorkQueuePage() {
       "id, name, display_name, first_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"])
     ),
-    fetchAllRows(supabase, "member_hiatus_history", "id, member_id, start_date, end_date"),
+    createRepos(supabase).memberStatus.allHiatuses(),
     fetchAllRows(
       supabase,
       "admin_work_queue_completions",

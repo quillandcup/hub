@@ -94,6 +94,11 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   stripe_products: [],
   stripe_subscriptions: [],
   subscription_history: [],
+  // Hiatus, status overrides, join-date corrections and the member-edited profile fields (MemberStatusRepository): every query is moved.
+  member_hiatus_history: [],
+  member_status_overrides: [],
+  member_join_date_overrides: [],
+  member_profile_overrides: [],
 };
 
 const root = path.resolve(__dirname, "../..");

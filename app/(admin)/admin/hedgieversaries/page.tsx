@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
@@ -70,7 +71,7 @@ export default async function HedgieversariesPage() {
       "id, name, display_name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
       (q) => q.in("status", ["active", "on_hiatus"]).not("first_joined_at", "is", null)
     ),
-    fetchAllRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
+    createRepos(supabase).memberStatus.allHiatuses(),
   ]);
 
   const now = new Date();
