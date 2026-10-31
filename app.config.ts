@@ -47,6 +47,8 @@ export const appConfig = {
     introChannel: "start-here",
     /** Production operations alerts for failed notification DMs and ambiguous member matches. */
     alertsChannelId: "C0CA91G8LGH", // #hub-alerts
+    /** The same channel by name, for the Checkly Slack app (__checks__/alert-channels.ts), which takes names. */
+    alertsChannelName: "#hub-alerts",
   },
 
   /**
