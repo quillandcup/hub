@@ -45,7 +45,7 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
 
   return (
     <>
-      <nav className="p-4 overflow-y-auto overflow-x-hidden flex-1">
+      <nav data-sentry-unmask className="p-4 overflow-y-auto overflow-x-hidden flex-1">
         {navGroups("member", enabledFeatures).map((group) => (
           <div key={group.name} className="mb-6">
             {showLabels && (

@@ -1,3 +1,4 @@
+import { SessionReplay } from "@/components/SessionReplay";
 import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import { headers } from "next/headers";
@@ -85,6 +86,7 @@ export default async function RootLayout({
           <EnvironmentIndicator />
           {children}
         </ThemeProvider>
+        <SessionReplay needsConsent={eventsNeedConsent} optedOut={optedOut} />
         {signedIn && <AnalyticsEvents needsConsent={eventsNeedConsent} optedOut={optedOut} />}
         <Analytics />
         <SpeedInsights />

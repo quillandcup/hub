@@ -25,7 +25,7 @@ export function TabBar<T extends string>({
 }) {
   return (
     <div className={`border-b border-slate-200 dark:border-slate-800 ${className}`}>
-      <nav role="tablist" className="flex gap-1 -mb-px overflow-x-auto">
+      <nav role="tablist" data-sentry-unmask className="flex gap-1 -mb-px overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
