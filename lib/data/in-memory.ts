@@ -30,6 +30,24 @@ import type { Database } from "./database.types";
 import type { Row } from "./db";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
+/** The people and profile long-tail tables (staff, mentorships, awards, notes, outreach, work queue, feedback), one array of rows per table. */
+export type PeopleTables = {
+  staff: Row<"staff">[];
+  mentorships: Row<"mentorships">[];
+  bigSisterVolunteers: Row<"big_sister_volunteers">[];
+  awards: Row<"member_awards">[];
+  askMeAbout: Row<"member_ask_me_about">[];
+  memberNotes: Row<"member_notes">[];
+  rosterOptOuts: Row<"member_roster_opt_outs">[];
+  onboarding: Row<"member_onboarding">[];
+  slackConnections: Row<"member_slack_connections">[];
+  outreachLeads: Row<"outreach_leads">[];
+  outreachTouches: Row<"outreach_touches">[];
+  workQueueCompletions: Row<"admin_work_queue_completions">[];
+  dismissedDuplicateGroups: Row<"dismissed_duplicate_groups">[];
+  feedback: Row<"feedback">[];
+};
+
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
 export type MemberSeed = {
   id: string;
@@ -56,6 +74,8 @@ export type MemberSeed = {
   /** When the row was last written; the Kajabi processing run touches it for every Kajabi member. */
   updatedAt?: string | null;
   totalActiveMonths?: number;
+  /** The Kajabi tags on the contact. */
+  kajabiTags?: string[];
   joinedAt?: string;
   firstJoinedAt?: string | null;
   mostRecentJoinedAt?: string | null;
@@ -67,7 +87,22 @@ export type MemberSeed = {
  * world, the way the Supabase ones see one database. Build one in a test, or as a seed profile
  * for demos and docs, with typed rows instead of SQL.
  */
-export class InMemoryDataset {
+export class InMemoryDataset implements PeopleTables {
+  // --- people and profile long tail (StaffRepository, MentorshipRepository, MemberProfileRepository, AwardRepository, OutreachRepository, AdminWorkQueueRepository) ---
+  staff: Row<"staff">[];
+  mentorships: Row<"mentorships">[];
+  bigSisterVolunteers: Row<"big_sister_volunteers">[];
+  awards: Row<"member_awards">[];
+  askMeAbout: Row<"member_ask_me_about">[];
+  memberNotes: Row<"member_notes">[];
+  rosterOptOuts: Row<"member_roster_opt_outs">[];
+  onboarding: Row<"member_onboarding">[];
+  slackConnections: Row<"member_slack_connections">[];
+  outreachLeads: Row<"outreach_leads">[];
+  outreachTouches: Row<"outreach_touches">[];
+  workQueueCompletions: Row<"admin_work_queue_completions">[];
+  dismissedDuplicateGroups: Row<"dismissed_duplicate_groups">[];
+  feedback: Row<"feedback">[];
   members: MemberSeed[];
   prickleTypes: PrickleType[];
   prickles: Prickle[];
@@ -199,21 +234,6 @@ export class InMemoryDataset {
   courseAccess: Row<"course_access">[];
   courseAccessGrants: Row<"course_access_grants">[];
   videoWatchSegments: Row<"video_watch_segments">[];
-  // --- segments, feature flags, Slack sign-in, usage events (SegmentRepository, FeatureFlagRepository, SlackSignInRepository, AnalyticsEventRepository) ---
-  /** Member segments (`segments`) and who is in them (`segment_members`). */
-  segments: Row<"segments">[];
-  segmentMembers: Row<"segment_members">[];
-  /** The flag registry (`feature_flags`), the segments each flag is linked to, and the previews users turned on for themselves. */
-  featureFlags: Row<"feature_flags">[];
-  featureFlagSegments: Row<"feature_flag_segments">[];
-  userFeaturePreviews: Row<"user_feature_previews">[];
-  /** Slack user to Hub account bindings and the single-use sign-in credentials (hashes only). */
-  slackIdentities: Row<"slack_identities">[];
-  slackSignInTokens: Row<"slack_sign_in_tokens">[];
-  /** The raw usage events (`analytics_events`). */
-  analyticsEvents: Row<"analytics_events">[];
-  /** The Google Calendar push channels (`calendar_watch_channels`). */
-  calendarWatchChannels: Row<"calendar_watch_channels">[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -222,10 +242,25 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "segments" | "segmentMembers" | "featureFlags" | "featureFlagSegments" | "userFeaturePreviews" | "slackIdentities" | "slackSignInTokens" | "analyticsEvents" | "calendarWatchChannels" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement">
 
-    > = {},
+    > &
+      Partial<PeopleTables> = {},
   ) {
+    this.staff = (init.staff ?? []).map((row) => ({ ...row }));
+    this.mentorships = (init.mentorships ?? []).map((row) => ({ ...row }));
+    this.bigSisterVolunteers = (init.bigSisterVolunteers ?? []).map((row) => ({ ...row }));
+    this.awards = (init.awards ?? []).map((row) => ({ ...row }));
+    this.askMeAbout = (init.askMeAbout ?? []).map((row) => ({ ...row, topics: [...row.topics] }));
+    this.memberNotes = (init.memberNotes ?? []).map((row) => ({ ...row }));
+    this.rosterOptOuts = (init.rosterOptOuts ?? []).map((row) => ({ ...row }));
+    this.onboarding = (init.onboarding ?? []).map((row) => ({ ...row, marked_steps: [...row.marked_steps] }));
+    this.slackConnections = (init.slackConnections ?? []).map((row) => ({ ...row, scopes: [...row.scopes] }));
+    this.outreachLeads = (init.outreachLeads ?? []).map((row) => ({ ...row }));
+    this.outreachTouches = (init.outreachTouches ?? []).map((row) => ({ ...row }));
+    this.workQueueCompletions = (init.workQueueCompletions ?? []).map((row) => ({ ...row }));
+    this.dismissedDuplicateGroups = (init.dismissedDuplicateGroups ?? []).map((row) => ({ ...row }));
+    this.feedback = (init.feedback ?? []).map((row) => ({ ...row }));
     this.members = (init.members ?? []).map((row) => ({ ...row }));
     this.prickleTypes = (init.prickleTypes ?? []).map((row) => ({ ...row }));
     this.prickles = (init.prickles ?? []).map((row) => ({ ...row }));
@@ -319,15 +354,6 @@ export class InMemoryDataset {
     this.courseAccess = (init.courseAccess ?? []).map((row) => ({ ...row }));
     this.courseAccessGrants = (init.courseAccessGrants ?? []).map((row) => ({ ...row }));
     this.videoWatchSegments = (init.videoWatchSegments ?? []).map((row) => ({ ...row }));
-    this.segments = (init.segments ?? []).map((row) => ({ ...row }));
-    this.segmentMembers = (init.segmentMembers ?? []).map((row) => ({ ...row }));
-    this.featureFlags = (init.featureFlags ?? []).map((row) => ({ ...row }));
-    this.featureFlagSegments = (init.featureFlagSegments ?? []).map((row) => ({ ...row }));
-    this.userFeaturePreviews = (init.userFeaturePreviews ?? []).map((row) => ({ ...row }));
-    this.slackIdentities = (init.slackIdentities ?? []).map((row) => ({ ...row }));
-    this.slackSignInTokens = (init.slackSignInTokens ?? []).map((row) => ({ ...row }));
-    this.analyticsEvents = (init.analyticsEvents ?? []).map((row) => ({ ...row }));
-    this.calendarWatchChannels = (init.calendarWatchChannels ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

@@ -1,3 +1,4 @@
+import { PAST_PHASES, isPastPhase } from "@/lib/writing-projects";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -12,7 +13,7 @@ export type WritingBalanceRow = Row<"writing_project_starting_balances">;
 // --- projects and starting balances: shapes ---
 
 /** A project with the columns the projects pages show. */
-export type ProjectSummary = Pick<WritingProjectRow, "id" | "title" | "phase" | "created_at" | "show_on_profile" | "cover_url" | "description" | "archived_at">;
+export type ProjectSummary = Pick<WritingProjectRow, "id" | "title" | "phase" | "created_at" | "show_on_profile" | "cover_url" | "description">;
 /** An entry with the columns the project totals need. */
 export type ProjectEntry = Pick<WritingEntryRow, "id" | "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags" | "created_at">;
 /** The prickle an entry was logged against, with its type and host joined in. */
@@ -25,9 +26,9 @@ export interface EntryPrickle {
 export type ProjectEntryDetail = ProjectEntry & { prickle_id: string | null; prickle: EntryPrickle | null };
 export type ProjectGoal = GoalColumns;
 export type StartingBalance = Pick<WritingBalanceRow, "project_id" | "measure" | "amount">;
-export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "cover_asset_id" | "show_on_profile" | "phase" | "archived_at">>;
+export type ProjectPatch = Partial<Pick<WritingProjectRow, "title" | "description" | "cover_url" | "cover_asset_id" | "show_on_profile" | "phase">>;
 
-const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_url, description, archived_at";
+const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_url, description";
 const ENTRY_COLUMNS = "id, project_id, entry_date, measure, mode, amount, note, tags, created_at";
 const IMPORT_PREFIX = "trackbear:%";
 
@@ -155,7 +156,7 @@ const goalColumns = (g: WritingGoalRow): GoalColumns => ({
 });
 
 export interface WritingRepository {
-  /** The member's projects that aren't archived or deleted, newest first. */
+  /** The member's projects that aren't archived or deleted, newest first (the picker's list, past phases included). */
   activeProjects(memberId: string): Promise<ProjectChoice[]>;
   /** The id of the member's newest project that isn't archived, or null. */
   latestActiveProjectId(memberId: string): Promise<string | null>;
@@ -217,10 +218,10 @@ export interface WritingRepository {
 
   // --- projects and starting balances ---
 
-  /** The member's projects that aren't archived or deleted, newest first, with the columns the projects pages show. */
+  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show. */
   projectSummaries(memberId: string): Promise<ProjectSummary[]>;
-  /** The member's archived projects (not the deleted ones), most recently created first. */
-  archivedProjectSummaries(memberId: string): Promise<ProjectSummary[]>;
+  /** The member's projects in a past phase (complete, published, abandoned), newest first. */
+  pastProjectSummaries(memberId: string): Promise<ProjectSummary[]>;
   /** One of the member's projects (archived or not), or null when it isn't theirs, is deleted or doesn't exist. */
   projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;
   /** Every entry the member logged, in no particular order (all pages). */
@@ -578,6 +579,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select(SUMMARY_COLUMNS)
       .eq("member_id", memberId)
       .is("archived_at", null)
+      .not("phase", "in", `(${PAST_PHASES.join(",")})`)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
@@ -585,12 +587,13 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data ?? [];
   }
 
-  async archivedProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
+  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
     const { data, error } = await this.db
       .from("writing_projects")
       .select(SUMMARY_COLUMNS)
       .eq("member_id", memberId)
-      .not("archived_at", "is", null)
+      .is("archived_at", null)
+      .in("phase", [...PAST_PHASES])
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
@@ -1017,11 +1020,11 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !p.deleted_at)).map(summaryOf);
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
   }
 
-  async archivedProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && p.archived_at && !p.deleted_at)).map(summaryOf);
+  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
   }
 
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
@@ -1267,7 +1270,6 @@ const summaryOf = (p: WritingProjectRow): ProjectSummary => ({
   show_on_profile: p.show_on_profile,
   cover_url: p.cover_url,
   description: p.description,
-  archived_at: p.archived_at,
 });
 
 const entryOf = (e: WritingEntryRow): ProjectEntry => ({

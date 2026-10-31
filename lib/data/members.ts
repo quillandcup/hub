@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Page } from "./query";
+import { compareText, type Page } from "./query";
 import type { Db, Update } from "./db";
 import type { InMemoryDataset, MemberSeed } from "./in-memory";
 
@@ -85,6 +85,12 @@ function explainByAlias(member: Member, words: string[], aliasFor: (word: string
   return null;
 }
 
+/** A member found by a Kajabi tag, with what outreach shows of them. */
+export type TaggedMember = { id: string; name: string; displayName: string | null; email: string; photoUrl: string | null; instagramUrl: string | null; status: string };
+
+/** A member with the tenure figures the work queue celebrates. */
+export type TenureMember = { id: string; name: string; displayName: string | null; firstJoinedAt: string | null; totalActiveMonths: number };
+
 /** The columns a new member row needs; the rest take the database defaults. */
 export type NewMember = { name: string; email: string; joinedAt: string; status: string; source: "kajabi" | "staff" };
 
@@ -106,6 +112,10 @@ export interface MemberRepository {
    * reports; use `identities` when only the name and email are needed.
    */
   list(options?: { status?: string; orderBy?: "id" | "name" }): Promise<Member[]>;
+  /** The members tagged with this Kajabi tag whose status is one of these, ordered by name then id. Paginated. */
+  withKajabiTag(tag: string, statuses: string[]): Promise<TaggedMember[]>;
+  /** The members whose status is one of these, with their tenure, ordered by id. Paginated. */
+  tenureOf(statuses: string[]): Promise<TenureMember[]>;
   /** The Instagram URL of every member who has one (any status), ordered by id. For keeping people we already have out of prospecting. */
   instagramUrls(): Promise<string[]>;
   /** How many members there are in total. */
@@ -261,6 +271,36 @@ export class SupabaseMemberRepository implements MemberRepository {
       return (orderBy === "name" ? query.order("name").order("id") : query.order("id")).range(from, to) as unknown as PromiseLike<Page<MemberRow>>;
     });
     return rows.map(toMember);
+  }
+
+  async withKajabiTag(tag: string, statuses: string[]): Promise<TaggedMember[]> {
+    type Row = { id: string; name: string; display_name: string | null; email: string; photo_url: string | null; instagram_url: string | null; status: string };
+    const rows = await fetchAllRows<Row>(
+      (from, to) =>
+        this.db
+          .from("members")
+          .select("id, name, display_name, email, photo_url, instagram_url, status")
+          .contains("kajabi_tags", [tag])
+          .in("status", statuses)
+          .order("name")
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page<Row>>,
+    );
+    return rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name, email: r.email, photoUrl: r.photo_url, instagramUrl: r.instagram_url, status: r.status }));
+  }
+
+  async tenureOf(statuses: string[]): Promise<TenureMember[]> {
+    type Row = { id: string; name: string; display_name: string | null; first_joined_at: string | null; total_active_months: number };
+    const rows = await fetchAllRows<Row>(
+      (from, to) =>
+        this.db
+          .from("members")
+          .select("id, name, display_name, first_joined_at, total_active_months")
+          .in("status", statuses)
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page<Row>>,
+    );
+    return rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name, firstJoinedAt: r.first_joined_at, totalActiveMonths: r.total_active_months }));
   }
 
   async instagramUrls(): Promise<string[]> {
@@ -572,6 +612,20 @@ export class InMemoryMemberRepository implements MemberRepository {
     return this.all()
       .filter((m) => status === undefined || m.status === status)
       .sort((a, b) => (orderBy === "name" ? a.name.localeCompare(b.name) : 0) || a.id.localeCompare(b.id));
+  }
+
+  async withKajabiTag(tag: string, statuses: string[]) {
+    return this.data.members
+      .filter((m) => (m.kajabiTags ?? []).includes(tag) && statuses.includes(m.status ?? "active"))
+      .sort((a, b) => compareText(a.name, b.name) || compareText(a.id, b.id))
+      .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName ?? null, email: m.email ?? "", photoUrl: m.photoUrl ?? null, instagramUrl: m.instagramUrl ?? null, status: m.status ?? "active" }));
+  }
+
+  async tenureOf(statuses: string[]) {
+    return this.data.members
+      .filter((m) => statuses.includes(m.status ?? "active"))
+      .sort((a, b) => compareText(a.id, b.id))
+      .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName ?? null, firstJoinedAt: m.firstJoinedAt ?? null, totalActiveMonths: m.totalActiveMonths ?? 0 }));
   }
 
   async instagramUrls() {

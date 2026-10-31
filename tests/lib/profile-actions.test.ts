@@ -73,7 +73,7 @@ function makeUserClient({
     if (table === "member_roster_opt_outs") {
       return {
         select: () => ({
-          eq: () => ({ maybeSingle: async () => ({ data: rosterOptedOut ? { member_id: "member-1" } : null, error: null }) }),
+          in: async () => ({ data: rosterOptedOut ? [{ member_id: "member-1" }] : [], error: null }),
         }),
         upsert: rosterUpsert,
         delete: () => ({ eq: rosterDeleteEq }),

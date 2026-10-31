@@ -260,16 +260,16 @@ export default async function DataHygienePage() {
   // Unmatched Zoom Names count — reuses allAttendeesForMatching (already paginated
   // above), just also needs ignored names and staff to mirror
   // /admin/hygiene/unmatched-zoom exactly.
-  const [ignoredZoomNamesForCount, { data: staffForZoomCount }] = await Promise.all([
+  const [ignoredZoomNamesForCount, staffForZoomCount] = await Promise.all([
     createRepos(supabase).zoom.ignoredNames(),
-    supabase.from("staff").select("name, email"),
+    createRepos(supabase).staff.all(),
   ]);
   const unmatchedZoomNamesCount = computeUnmatchedZoomNames(
     allAttendeesForMatching,
     membersForMatching,
     aliasesForMatching || [],
     ignoredZoomNamesForCount,
-    staffForZoomCount || [],
+    staffForZoomCount,
     await loadIgnoredAppearances(supabase)
   ).length;
 

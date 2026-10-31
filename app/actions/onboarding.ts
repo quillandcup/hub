@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
+import type { OnboardingFields } from "@/lib/data/member-profile";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { allOnboardingKeys, isOnboardingMarkKey, type OnboardingState } from "@/lib/onboarding";
@@ -23,13 +25,12 @@ async function requireOwnMember() {
   return { ok: true, supabase: await createClient(), memberId: identity.memberId } as const;
 }
 
-async function save(fields: Record<string, unknown>, label: string): Promise<Result> {
+async function save(fields: OnboardingFields, label: string): Promise<Result> {
   const ctx = await requireOwnMember();
   if (!ctx.ok) return { error: ctx.error };
-  const { error } = await ctx.supabase
-    .from("member_onboarding")
-    .upsert({ member_id: ctx.memberId, ...fields, updated_at: new Date().toISOString() }, { onConflict: "member_id" });
-  if (error) {
+  try {
+    await createRepos(ctx.supabase).memberProfile.saveOnboarding(ctx.memberId, fields);
+  } catch (error) {
     console.error(`${label}: upsert failed`, { memberId: ctx.memberId, error });
     return { error: "Couldn't save that — please try again." };
   }
@@ -71,11 +72,8 @@ async function markOnboardingStepImpl(stepId: string): Promise<Result> {
   const ctx = await requireOwnMember();
   if (!ctx.ok) return { error: ctx.error };
 
-  const { data: existing } = await ctx.supabase
-    .from("member_onboarding")
-    .select("marked_steps")
-    .eq("member_id", ctx.memberId)
-    .maybeSingle();
+  // A failed read counts as nothing marked yet, as before.
+  const existing = await createRepos(ctx.supabase).memberProfile.onboardingOf(ctx.memberId).catch(() => null);
   const marked = new Set<string>(existing?.marked_steps ?? []);
   marked.add(stepId);
   return save({ marked_steps: [...marked] }, "markOnboardingStep");

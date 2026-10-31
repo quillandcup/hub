@@ -145,18 +145,22 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
-  // Segments (SegmentRepository), feature flags and user previews (FeatureFlagRepository), Slack sign-in
-  // bindings and credentials (SlackSignInRepository), usage events (AnalyticsEventRepository) and the
-  // Google Calendar push channels (CalendarSyncStateRepository): every query is moved.
-  segments: [],
-  segment_members: [],
-  feature_flags: [],
-  feature_flag_segments: [],
-  user_feature_previews: [],
-  slack_identities: [],
-  slack_sign_in_tokens: [],
-  analytics_events: [],
-  calendar_watch_channels: [],
+  // The people and profile long tail (StaffRepository, MentorshipRepository, MemberProfileRepository, AwardRepository,
+  // OutreachRepository, AdminWorkQueueRepository): every query is moved.
+  admin_work_queue_completions: [],
+  big_sister_volunteers: [],
+  dismissed_duplicate_groups: [],
+  feedback: [],
+  member_ask_me_about: [],
+  member_awards: [],
+  member_notes: [],
+  member_onboarding: [],
+  member_roster_opt_outs: [],
+  member_slack_connections: [],
+  mentorships: [],
+  outreach_leads: [],
+  outreach_touches: [],
+  staff: [],
 };
 
 /**
@@ -167,24 +171,19 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
  */
 const UNMIGRATED_TABLES = new Set([
   "access_events",
-  "admin_work_queue_completions",
-  "big_sister_volunteers",
-  "dismissed_duplicate_groups",
-  "feedback",
-  "member_ask_me_about",
-  "member_awards",
-  "member_notes",
-  "member_onboarding",
-  "member_roster_opt_outs",
-  "member_slack_connections",
-  "mentorships",
-  "outreach_leads",
-  "outreach_touches",
+  "analytics_events",
+  "calendar_watch_channels",
+  "feature_flag_segments",
+  "feature_flags",
   "prickle_checkin_dm_log",
   "prickle_host_vibes",
   "prickle_join_settings",
   "prickle_schedule_locks",
-  "staff",
+  "segment_members",
+  "segments",
+  "slack_identities",
+  "slack_sign_in_tokens",
+  "user_feature_previews",
   "wheel_of_wonder_matches",
 ]);
 
@@ -195,9 +194,8 @@ const UNMIGRATED_TABLES = new Set([
 const VARIABLE_TABLE_FILES: Record<string, string> = {
   "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
   "app/(admin)/admin/hedgieversaries/page.tsx": "local paging helper; moves with the leftovers repository",
-  "app/(admin)/admin/outreach/page.tsx": "local paging helper; moves with the outreach repository",
-  "app/(admin)/admin/work-queue/page.tsx": "local paging helper; moves with the work-queue repository",
   "lib/host-vibes.ts": "reads one of two tables chosen by a variable; moves with the leftovers repository",
+  "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 
 const root = path.resolve(__dirname, "../..");

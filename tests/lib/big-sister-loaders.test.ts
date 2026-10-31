@@ -5,6 +5,8 @@ import { fetchTrialWindows } from "@/lib/trial-window";
 import { getVolunteers } from "@/lib/big-sister-volunteers";
 import { getMentorships } from "@/lib/mentorship";
 import { getMyMentorships } from "@/lib/my-mentorship";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 const client = (db: ReturnType<typeof createFakeSupabase>) => db as unknown as SupabaseClient;
 describe("Big Sister query boundaries", () => {
   it("finds multiple Stripe trials through canonical emails and aliases without mixing members", async () => {
@@ -24,33 +26,47 @@ describe("Big Sister query boundaries", () => {
     expect(await fetchTrialWindows(client(db), [{ id: "a", email: "a@example.test" }])).toEqual(new Map());
     expect(db.queries.some(q => q.table === "bronze.stripe_subscriptions")).toBe(false);
   });
-  it("loads every volunteer page, normalizes member embeds, and excludes withdrawn rows in the query", async () => {
-    const rows = Array.from({ length: 1001 }, (_, i) => ({ member_id: `m${i}`, note: null, created_at: "2026-01-01", member: i === 0 ? [{ name: "Ada" }] : i === 1 ? null : { name: "Bea" } }));
-    const db = createFakeSupabase({ big_sister_volunteers: { data: rows } });
-    const volunteers = await getVolunteers(client(db));
-    expect(volunteers).toHaveLength(1001); expect(volunteers[0].name).toBe("Ada"); expect(volunteers[1].name).toBe("Unknown member");
-    expect(db.queries[1].calls).toContainEqual({ method: "range", args: [1000, 1999] });
-    expect(db.queries[0].calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
+  it("names volunteers, normalizes member embeds and leaves out withdrawn rows", async () => {
+    const mentorships = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bea" },
+        ],
+        bigSisterVolunteers: [
+          { member_id: "mbr_AAAAAAAAAAA1", note: null, created_at: "2026-01-01", updated_at: "2026-01-01", deleted_at: null },
+          { member_id: "mbr_AAAAAAAAAAA2", note: "Hi", created_at: "2026-01-01", updated_at: "2026-01-01", deleted_at: "2026-02-01" },
+          { member_id: "mbr_GONE00000000", note: null, created_at: "2026-01-01", updated_at: "2026-01-01", deleted_at: null },
+        ],
+      }),
+    ).mentorship;
+    const volunteers = await getVolunteers(mentorships);
+    expect(volunteers).toHaveLength(2);
+    expect(volunteers[0].name).toBe("Ada");
+    expect(volunteers[1].name).toBe("Unknown member");
   });
   it("names a volunteer by display name and keeps the legal name beside it", async () => {
-    const db = createFakeSupabase({ big_sister_volunteers: { data: [
-      { member_id: "m1", note: null, created_at: "2026-01-01", member: { name: "Ada Example", display_name: "Ada E" } },
-      { member_id: "m2", note: null, created_at: "2026-01-01", member: { name: "Bo Example", display_name: null } },
-    ] } });
-    const volunteers = await getVolunteers(client(db));
+    const mentorships = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example" },
+        ],
+        bigSisterVolunteers: ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"].map((member_id) => ({ member_id, note: null, created_at: "2026-01-01", updated_at: "2026-01-01", deleted_at: null })),
+      }),
+    ).mentorship;
+    const volunteers = await getVolunteers(mentorships);
     expect(volunteers[0]).toMatchObject({ name: "Ada E", realName: "Ada Example" });
     expect(volunteers[1]).toMatchObject({ name: "Bo Example" }); expect(volunteers[1].realName).toBeUndefined();
   });
-  it("loads all match pages and derives outcomes from membership instead of storing them", async () => {
-    const row = { id: "match", mentor_member_id: "a", new_member_id: "b", started_on: "2026-10-01", trial_ends_on: null, kind: "direct", status: "matched", outcome_note: null, mentor: [{ id: "a", name: "Ada" }], new_member: null };
-    const db = createFakeSupabase({ mentorships: { data: Array.from({ length: 1000 }, (_, i) => ({ ...row, id: `${i}` })) } });
-    const rows = await getMentorships(client(db), "2026-10-15");
-    expect(rows).toHaveLength(1000); expect(rows[0]).toMatchObject({ mentorName: "Ada", newMemberName: "Unknown member", outcome: "no_trial", active: true });
-    expect(db.queries[1].calls).toContainEqual({ method: "range", args: [1000, 1999] });
+  it("loads the matches and derives outcomes from membership instead of storing them", async () => {
+    const row = { id: "match", mentor_member_id: "mbr_AAAAAAAAAAA1", new_member_id: "mbr_GONE00000000", started_on: "2026-10-01", trial_ends_on: null, kind: "direct", status: "matched", outcome_note: null, created_at: "2026-10-01", updated_at: "2026-10-01" };
+    const mentorships = createInMemoryRepos(new InMemoryDataset({ members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada" }], mentorships: [row] })).mentorship;
+    const rows = await getMentorships(mentorships, "2026-10-15");
+    expect(rows).toHaveLength(1); expect(rows[0]).toMatchObject({ mentorName: "Ada", newMemberName: "Unknown member", outcome: "no_trial", active: true });
   });
-  it("scopes the member RPC and returns no matches for an empty result", async () => {
-    const db = createFakeSupabase();
-    expect(await getMyMentorships(client(db), "a", "2026-10-15")).toEqual({ bigSister: null, mentees: [] });
-    expect(db.queries[0].calls).toContainEqual({ method: "args", args: [{ p_member_id: "a" }] });
+  it("returns no matches for a member without any", async () => {
+    const mentorships = createInMemoryRepos(new InMemoryDataset()).mentorship;
+    expect(await getMyMentorships(mentorships, "mbr_AAAAAAAAAAA1", "2026-10-15")).toEqual({ bigSister: null, mentees: [] });
   });
 });

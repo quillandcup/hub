@@ -1,5 +1,4 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
@@ -13,11 +12,13 @@ export async function DELETE(
 
   const { id: segmentId, memberId } = await params;
 
-  try {
-    await createRepos(supabase).segments.removeMember(segmentId, memberId);
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not remove the member" }, { status: 500 });
-  }
+  const { error } = await supabase
+    .from("segment_members")
+    .delete()
+    .eq("segment_id", segmentId)
+    .eq("member_id", memberId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ success: true });
 }

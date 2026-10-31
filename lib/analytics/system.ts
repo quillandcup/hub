@@ -1,4 +1,3 @@
-import { createRepos } from "@/lib/data/repos";
 import { SERVER_ONLY_EVENTS, validateProperties, type EventName, type EventProps } from "@/lib/analytics/events";
 
 /** What the app records on its own, outside any visit. */
@@ -41,7 +40,8 @@ export async function recordSystemEvents(supabase: any, events: SystemEvent[]): 
       ];
     });
     if (rows.length === 0) return;
-    await createRepos(supabase).analyticsEvents.record(rows);
+    const { error } = await supabase.from("analytics_events").insert(rows);
+    if (error) console.error("[analytics] Recording system events failed:", error.message);
   } catch (error) {
     console.error("[analytics] Recording system events failed:", error instanceof Error ? error.message : error);
   }

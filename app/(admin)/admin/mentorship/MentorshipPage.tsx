@@ -40,8 +40,8 @@ export default async function MentorshipPage({
   const today = todayKey(new Date());
   const since = new Date(Date.parse(`${today}T00:00:00Z`) - MENTORSHIP_DAYS * 86_400_000).toISOString().slice(0, 10);
   const [rows, volunteers, arrivals] = await Promise.all([
-    getMentorships(supabase, today),
-    getVolunteers(supabase),
+    getMentorships(createRepos(supabase).mentorship, today),
+    getVolunteers(createRepos(supabase).mentorship),
     getArrivals(supabase, since, today),
   ]);
   const ranked = rankVolunteers(volunteers, rows);

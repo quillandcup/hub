@@ -380,7 +380,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const id = await ctx.repo().createProject(a, "Fresh Start", "planning");
 
       expect(await ctx.repo().projectSummaries(a)).toEqual([
-        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: false, cover_url: null, description: null, archived_at: null },
+        { id, title: "Fresh Start", phase: "planning", created_at: expect.any(String), show_on_profile: false, cover_url: null, description: null },
       ]);
       expect((await ctx.repo().projectSummary(a, id))?.title).toBe("Fresh Start");
       expect(await ctx.repo().projectSummary(b, id)).toBeNull();
@@ -401,28 +401,32 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
-    it("archives a project into its own list and brings it back, for its owner only", async () => {
+    it("lists projects in a past phase apart from the ongoing ones, and moves one back when its status changes", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({
         projects: [
-          { key: "p", member: 0, title: "Keep", createdAt: "2026-01-01T10:00:00Z" },
-          { key: "q", member: 0, title: "Put away", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "going", member: 0, title: "Going", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "done", member: 0, title: "Done", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "dropped", member: 0, title: "Dropped", createdAt: "2026-03-01T10:00:00Z" },
           { key: "other", member: 1, title: "Theirs", createdAt: "2026-02-01T10:00:00Z" },
         ],
       });
 
-      await ctx.repo().updateProject(a, ids.q, { archived_at: "2026-03-01T10:00:00Z" });
-      await ctx.repo().updateProject(a, ids.other, { archived_at: "2026-03-01T10:00:00Z" });
+      await ctx.repo().updateProject(a, ids.done, { phase: "complete" });
+      await ctx.repo().updateProject(a, ids.dropped, { phase: "abandoned" });
+      await ctx.repo().updateProject(b, ids.other, { phase: "abandoned" });
 
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Keep"]);
-      expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Keep"]);
-      expect((await ctx.repo().archivedProjectSummaries(a)).map((p) => [p.title, p.archived_at !== null])).toEqual([["Put away", true]]);
-      expect(await ctx.repo().archivedProjectSummaries(b)).toEqual([]);
-      expect((await ctx.repo().projectSummaries(b)).map((p) => p.title)).toEqual(["Theirs"]);
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Going"]);
+      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
+      expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "abandoned" });
+      // Past projects can still be picked to log against; only the lists apart.
+      expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
+      expect(await ctx.repo().projectSummaries(b)).toEqual([]);
+      expect((await ctx.repo().pastProjectSummaries(b)).map((p) => p.title)).toEqual(["Theirs"]);
 
-      await ctx.repo().updateProject(a, ids.q, { archived_at: null });
-      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Put away", "Keep"]);
-      expect(await ctx.repo().archivedProjectSummaries(a)).toEqual([]);
+      await ctx.repo().updateProject(a, ids.dropped, { phase: "revising" });
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Going"]);
+      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => p.title)).toEqual(["Done"]);
     });
 
     it("deletes a project with its goals and entries, only for its owner, and keeps it out of every read", async () => {
@@ -451,17 +455,17 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["Keep"]);
       expect((await repo.activeProjects(a)).map((p) => p.title)).toEqual(["Keep"]);
       expect(await repo.latestActiveProjectId(a)).toBe(ids.p);
-      expect(await repo.archivedProjectSummaries(a)).toEqual([]);
+      expect(await repo.pastProjectSummaries(a)).toEqual([]);
       expect((await repo.projectEntries(a)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.projectGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
       expect(await repo.goalCount(a)).toBe(1);
       expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([]);
       expect((await repo.exportEntries(a)).map((e) => e.project_title)).toEqual(["Keep"]);
 
-      // A deleted project can't be edited or archived back to life.
-      await repo.updateProject(a, ids.gone, { title: "Revived", archived_at: "2026-04-01T10:00:00Z" });
+      // A deleted project can't be edited back to life, nor listed as a past one.
+      await repo.updateProject(a, ids.gone, { title: "Revived", phase: "complete" });
       expect(await repo.projectSummary(a, ids.gone)).toBeNull();
-      expect(await repo.archivedProjectSummaries(a)).toEqual([]);
+      expect(await repo.pastProjectSummaries(a)).toEqual([]);
     });
 
     it("changes only the given fields of the member's own project", async () => {
