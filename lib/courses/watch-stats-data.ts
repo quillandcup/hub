@@ -2,7 +2,6 @@ import { createRepos } from "@/lib/data/repos";
 import type { DeviceInfo } from "@/lib/device-label";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAll, inBatches } from "@/lib/courses/db";
 import { buildOutline, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { computePlaySessions, computeVideoWatchStats, type PlaySession, type VideoWatchStats, type ViewMarker, type WatchSegment } from "@/lib/courses/watch-stats";
 
@@ -62,14 +61,13 @@ export async function loadCourseWatchStats(
   courseId: string,
   options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean; /** How many of the newest visits get a place (the page shows that many). */ sessionLimit?: number } = {}
 ): Promise<CourseWatchStats | null> {
-  const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("id", courseId).eq("is_draft", false).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
-  if (!course) return null;
+  const repos = createRepos(supabase);
+  const course = await repos.courses.courseById(courseId);
+  if (!course || course.is_draft) return null;
 
-  const [modules, rows] = await Promise.all([
-    fetchAll(supabase, "course_modules", "id, parent_id, title, position, state", (q) => q.eq("course_id", course.id)),
-    fetchAll(supabase, "course_lessons", "id, module_id, title, position, state, duration_seconds, video_id", (q) => q.eq("course_id", course.id)),
-  ]);
+  const [moduleRows, lessonRows] = await Promise.all([repos.courses.modulesOf([course.id], { includeHidden: true }), repos.courses.lessonsOf([course.id], { includeHidden: true })]);
+  const modules = moduleRows.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state }));
+  const rows = lessonRows.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, duration_seconds: l.duration_seconds, video_id: l.video_id }));
   const videoOf = new Map<string, string | null>(rows.map((l) => [l.id as string, (l.video_id as string | null) ?? null]));
   const outline = buildOutline(modules as OutlineModule[], rows as OutlineLesson[]);
   const lessons = options.lessonId ? outline.lessons.filter((l) => l.id === options.lessonId) : outline.lessons;
@@ -81,27 +79,22 @@ export async function loadCourseWatchStats(
   const viewsByVideo = new Map<string, ViewMarker[]>();
   const staff = options.includeStaff ? new Set<string>() : await loadStaffMemberIds(supabase);
 
-  for (const batch of inBatches(videoIds)) {
-    const [videos, segments] = await Promise.all([
-      fetchAll(supabase, "videos", "id, duration_seconds, mux_playback_id, status", (q) => q.in("id", batch)),
-      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, kind, start_seconds, end_seconds, playback_rate, captions_language, visible, user_agent, device, started_at", (q) => q.in("video_id", batch)),
-    ]);
-    for (const v of videos) {
-      durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
-      playbackIds.set(v.id, v.status === "ready" ? (v.mux_playback_id ?? null) : null);
+  const [videos, segments] = await Promise.all([repos.courses.videosByIds(videoIds), repos.courseProgress.segmentsOfVideos(videoIds)]);
+  for (const v of videos) {
+    durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
+    playbackIds.set(v.id, v.status === "ready" ? (v.mux_playback_id ?? null) : null);
+  }
+  for (const s of segments) {
+    if (staff.has(s.member_id)) continue;
+    if (s.kind === "viewed") {
+      const views = viewsByVideo.get(s.video_id) ?? [];
+      views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent, device: (s.device as DeviceInfo | null) ?? null });
+      viewsByVideo.set(s.video_id, views);
+      continue;
     }
-    for (const s of segments) {
-      if (staff.has(s.member_id)) continue;
-      if (s.kind === "viewed") {
-        const views = viewsByVideo.get(s.video_id) ?? [];
-        views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent, device: (s.device as DeviceInfo | null) ?? null });
-        viewsByVideo.set(s.video_id, views);
-        continue;
-      }
-      const list = segmentsByVideo.get(s.video_id) ?? [];
-      list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
-      segmentsByVideo.set(s.video_id, list);
-    }
+    const list = segmentsByVideo.get(s.video_id) ?? [];
+    list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
+    segmentsByVideo.set(s.video_id, list);
   }
 
   const statsByVideo = new Map<string, VideoWatchStats>();

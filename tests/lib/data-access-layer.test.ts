@@ -128,44 +128,17 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_checkin_dismissals: [],
   prickle_checkout_dismissals: [],
   // Courses (CourseRepository, lib/data/courses.ts: the Silver curriculum and the Mux videos; CourseProgressRepository,
-  // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments). Moving in three steps (docs/TODO.md,
-  // "Course Silver and Local tables behind a repository"); each step removes its files from the lists below.
-  courses: [
-    "lib/courses/progress-import.ts",
-    "lib/courses/roster-data.ts",
-    "lib/courses/watch-stats-data.ts",
-  ],
-  course_modules: [
-    "lib/courses/watch-stats-data.ts",
-  ],
-  course_lessons: [
-    "app/(member)/courses/actions.ts",
-    "app/api/courses/watch/route.ts",
-    "lib/courses/progress-import.ts",
-    "lib/courses/roster-data.ts",
-    "lib/courses/watch-stats-data.ts",
-  ],
+  // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments): every query is moved.
+  // (lib/retention/network-details.ts reads video_watch_segments through a table-name variable, which this check does not see.)
+  courses: [],
+  course_modules: [],
+  course_lessons: [],
   course_lesson_files: [],
-  videos: [
-    "lib/courses/watch-stats-data.ts",
-  ],
-  lesson_progress: [
-    "app/(member)/courses/actions.ts",
-    "app/api/courses/watch/route.ts",
-    "lib/courses/progress-import.ts",
-    "lib/courses/roster-data.ts",
-  ],
-  course_access: [
-    "lib/courses/progress-import.ts",
-    "lib/courses/roster-data.ts",
-  ],
+  videos: [],
+  lesson_progress: [],
+  course_access: [],
   course_access_grants: [],
-  video_watch_segments: [
-    "app/(member)/courses/actions.ts",
-    "app/api/courses/watch/route.ts",
-    "lib/courses/activity.ts",
-    "lib/courses/watch-stats-data.ts",
-  ],
+  video_watch_segments: [],
 };
 
 const root = path.resolve(__dirname, "../..");

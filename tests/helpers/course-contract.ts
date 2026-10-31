@@ -34,6 +34,8 @@ export type CourseContractContext = {
 
 const T = (n: number) => `2097-03-0${n}T10:00:00.000Z`;
 const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+/** Postgres writes an instant as +00:00; compare instants, not strings. */
+const instant = (v: string | null) => (v === null ? null : new Date(v).toISOString());
 
 /** Behavior every `CourseRepository` and `CourseProgressRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
 export function defineCourseContract(name: string, setup: () => CourseContractContext) {
@@ -469,6 +471,122 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(await repo.updateVideosByAsset(asset, { status: "ready", mux_playback_id: "pb", duration_seconds: 62 })).toBe(1);
       expect(await repo.video(id1)).toMatchObject({ status: "ready", mux_playback_id: "pb" });
       expect((await repo.preparingVideos()).some((v) => v.id === id1)).toBe(false);
+    });
+
+    it("writes a member's progress without disturbing what is already there", async () => {
+      const [m1, m2] = await ctx.members();
+      const course = newCourse("progress-writes");
+      await ctx.seed.courses([course]);
+      const lessons = ["a", "b", "c"].map((t) => lessonRow({ id: newCourseId("les"), course_id: course.id, title: t }));
+      await ctx.seed.lessons(lessons);
+      const [a, b, c] = lessons;
+      const progress = ctx.progress();
+
+      // Completing creates the row; moving the playhead keeps the completion; completing again keeps the position.
+      await progress.setCompletion(m1, a.id, T(1));
+      expect(await progress.lessonPosition(m1, a.id)).toBe(0);
+      await progress.savePosition(m1, a.id, 42.5);
+      expect(await progress.lessonPosition(m1, a.id)).toBe(42.5);
+      expect([...(await progress.completedLessonIds(m1, [a.id]))]).toEqual([a.id]);
+      await progress.setCompletion(m1, a.id, null);
+      expect((await progress.completedLessonIds(m1, [a.id])).size).toBe(0);
+      expect(await progress.lessonPosition(m1, a.id)).toBe(42.5);
+      await progress.setCompletion(m1, a.id, T(2));
+
+      // Position first creates an uncompleted row.
+      await progress.savePosition(m2, b.id, 7);
+      expect((await progress.completedLessonIds(m2, [b.id])).size).toBe(0);
+      expect(await progress.partlyWatched(m2, 5)).toEqual([{ lesson_id: b.id, last_position_seconds: 7 }]);
+
+      // Insert-if-absent never touches a row that exists.
+      await progress.insertProgressIfAbsent([
+        { member_id: m1, lesson_id: a.id, completed_at: T(5), last_position_seconds: 0, imported_from: "kajabi" },
+        { member_id: m1, lesson_id: c.id, completed_at: T(3), last_position_seconds: 0, imported_from: "kajabi" },
+        { member_id: m2, lesson_id: b.id, completed_at: T(4), last_position_seconds: 0, imported_from: "kajabi" },
+      ]);
+      await progress.insertProgressIfAbsent([]);
+      const rows = await progress.progressOfLessons(ids(lessons));
+      expect(rows.map((r) => `${r.member_id}|${r.lesson_id}`)).toEqual([`${m1}|${a.id}`, `${m1}|${c.id}`, `${m2}|${b.id}`].sort());
+      const byKey = new Map(rows.map((r) => [`${r.member_id}|${r.lesson_id}`, r]));
+      expect(byKey.get(`${m1}|${a.id}`)).toMatchObject({ imported_from: null, last_position_seconds: 42.5 });
+      expect(instant(byKey.get(`${m1}|${a.id}`)!.completed_at)).toBe(T(2));
+      expect(byKey.get(`${m1}|${c.id}`)).toMatchObject({ imported_from: "kajabi" });
+      expect(byKey.get(`${m2}|${b.id}`)).toMatchObject({ completed_at: null, last_position_seconds: 7, imported_from: null });
+      expect(await progress.progressOfLessons([])).toEqual([]);
+
+      await progress.clearProgress(m1, a.id);
+      expect(await progress.lessonPosition(m1, a.id)).toBeNull();
+      expect(await progress.lessonPosition(m1, c.id)).toBe(0);
+    });
+
+    it("saves watch segments once per client id, reads what was watched since a time, and clears a member's", async () => {
+      const [m1, m2] = await ctx.members();
+      const course = newCourse("segments");
+      await ctx.seed.courses([course]);
+      const v1 = videoRow({ id: randomUUID(), source_key: ctx.unique("media") });
+      const v2 = videoRow({ id: randomUUID(), source_key: ctx.unique("media") });
+      await ctx.seed.videos([v1, v2]);
+      const progress = ctx.progress();
+      const session = randomUUID();
+      const clientIds = new Map<string, string>();
+      const cid = (label: string) => clientIds.get(label) ?? (clientIds.set(label, randomUUID()), clientIds.get(label)!);
+      const seg = (member: string, video: string, id: string, start: number, end: number, startedAt: string) => ({
+        client_segment_id: cid(id),
+        member_id: member,
+        video_id: video,
+        session_id: session,
+        start_seconds: start,
+        end_seconds: end,
+        playback_rate: 1.5,
+        captions_language: "en",
+        visible: true,
+        started_at: startedAt,
+      });
+
+      expect(await progress.saveSegments([seg(m1, v1.id, "s1", 0, 30, T(1)), seg(m1, v1.id, "s2", 30, 90, T(3))])).toBe(2);
+      // A resend is skipped; only the new one counts.
+      expect(await progress.saveSegments([seg(m1, v1.id, "s2", 30, 90, T(3)), seg(m1, v1.id, "s3", 90, 100, T(4))])).toBe(1);
+      expect(await progress.saveSegments([])).toBe(0);
+      // The same client id from another member is another segment.
+      expect(await progress.saveSegments([seg(m2, v1.id, "s1", 5, 15, T(2)), seg(m1, v2.id, "x1", 0, 10, T(2))])).toBe(2);
+      // A view marker: one per session, kind 'viewed'.
+      const marker = { client_segment_id: session, member_id: m1, video_id: v1.id, session_id: session, kind: "viewed", start_seconds: 0, end_seconds: 0, user_agent: "Test Agent" };
+      expect(await progress.saveSegments([marker])).toBe(1);
+      expect(await progress.saveSegments([marker])).toBe(0);
+
+      expect(await progress.watchedSince(m1, v1.id, T(2))).toEqual([
+        { start_seconds: 30, end_seconds: 90, started_at: expect.any(String) },
+        { start_seconds: 90, end_seconds: 100, started_at: expect.any(String) },
+      ]);
+      expect(await progress.watchedSince(m1, v1.id, T(4))).toHaveLength(1);
+      expect(await progress.watchedSince(m1, v1.id, "2098-01-01T00:00:00.000Z")).toEqual([]);
+      expect(await progress.watchedSince(m2, v2.id, T(1))).toEqual([]);
+
+      const all = await progress.segmentsOfVideos([v1.id, v2.id]);
+      expect(all).toHaveLength(6);
+      expect(all.filter((s) => s.kind === "viewed")).toEqual([expect.objectContaining({ member_id: m1, video_id: v1.id, user_agent: "Test Agent", client_segment_id: session })]);
+      expect(all.find((s) => s.client_segment_id === cid("s3"))).toMatchObject({ playback_rate: 1.5, captions_language: "en", visible: true, kind: "watched" });
+      expect(ids(all)).toEqual(ids(all).slice().sort(compareText));
+      expect(await progress.segmentsOfVideos([])).toEqual([]);
+
+      expect(await progress.clearSegments(m1, v1.id)).toBe(4);
+      expect(await progress.clearSegments(m1, v1.id)).toBe(0);
+      expect((await progress.segmentsOfVideos([v1.id, v2.id])).map((s) => `${s.member_id}|${s.video_id}`).sort()).toEqual([`${m2}|${v1.id}`, `${m1}|${v2.id}`].sort());
+
+      // Past one read page.
+      const many = Array.from({ length: 1005 }, (_, i) => seg(m2, v2.id, `bulk-${i}`, i, i + 1, T(1)));
+      expect(await progress.saveSegments(many)).toBe(1005);
+      expect(await progress.segmentsOfVideos([v2.id])).toHaveLength(1006);
+    });
+
+    it("finds videos by id", async () => {
+      const repo = ctx.courses();
+      const v1 = videoRow({ id: randomUUID(), source_key: ctx.unique("media"), status: "ready", mux_playback_id: "pb-1" });
+      const v2 = videoRow({ id: randomUUID(), source_key: ctx.unique("media") });
+      await ctx.seed.videos([v1, v2]);
+      expect((await repo.videosByIds([v1.id, v2.id, randomUUID()])).map((v) => v.id).sort(compareText)).toEqual([v1.id, v2.id].sort(compareText));
+      expect(await repo.videosByIds([v1.id])).toEqual([expect.objectContaining({ mux_playback_id: "pb-1", status: "ready" })]);
+      expect(await repo.videosByIds([])).toEqual([]);
     });
 
     it("reads staff grants, upserts the derived access on (member, course) and removes it for some members", async () => {

@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { fetchAll } from "@/lib/courses/db";
 import type { NewActivity } from "@/lib/data/activities";
 import { createRepos } from "@/lib/data/repos";
 import { localDateString } from "@/lib/events-filter";
@@ -74,9 +73,7 @@ export async function recordLessonWatched(
   try {
     const today = localDateString(now, ORG_TIMEZONE);
     const since = new Date(now.getTime() - LOOKBACK_MS).toISOString();
-    const rows = await fetchAll(supabase, "video_watch_segments", "start_seconds, end_seconds, started_at", (q) =>
-      q.eq("member_id", lesson.memberId).eq("video_id", lesson.videoId).eq("kind", "watched").gte("started_at", since)
-    );
+    const rows = await createRepos(supabase).courseProgress.watchedSince(lesson.memberId, lesson.videoId, since);
     const watchedSeconds = rows
       .filter((r) => localDateString(new Date(r.started_at), ORG_TIMEZONE) === today)
       .reduce((sum, r) => sum + (Number(r.end_seconds) - Number(r.start_seconds)), 0);

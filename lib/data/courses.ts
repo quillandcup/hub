@@ -126,6 +126,8 @@ export interface CourseRepository {
   saveLessonFile(file: NewLessonFile): Promise<void>;
   deleteLessonFile(id: string): Promise<void>;
   video(id: string): Promise<VideoRecord | null>;
+  /** The videos with these ids, by id, in chunks. */
+  videosByIds(ids: string[]): Promise<VideoRecord[]>;
   /** The videos of one kind (`kajabi`, `upload`) with these source keys, in chunks. */
   videosBySourceKeys(kind: string, keys: string[]): Promise<VideoRecord[]>;
   /** Adds a video and returns its id. */
@@ -379,6 +381,11 @@ export class SupabaseCourseRepository implements CourseRepository {
 
   async video(id: string) {
     return must(await this.db.from("videos").select("*").eq("id", id).maybeSingle());
+  }
+
+  async videosByIds(ids: string[]) {
+    const rows = await inChunks(ids, ID_CHUNK, async (part) => must(await this.db.from("videos").select("*").in("id", part)) ?? []);
+    return rows.sort((a, b) => compareText(a.id, b.id));
   }
 
   async videosBySourceKeys(kind: string, keys: string[]) {
@@ -785,6 +792,14 @@ export class InMemoryCourseRepository implements CourseRepository {
   async video(id: string) {
     const video = this.data.videos.find((v) => v.id === id);
     return video ? copy(video) : null;
+  }
+
+  async videosByIds(ids: string[]) {
+    const wanted = new Set(ids);
+    return this.data.videos
+      .filter((v) => wanted.has(v.id))
+      .map(copy)
+      .sort((a, b) => compareText(a.id, b.id));
   }
 
   async videosBySourceKeys(kind: string, keys: string[]) {
