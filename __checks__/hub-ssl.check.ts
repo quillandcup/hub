@@ -7,7 +7,7 @@
 export {}
 //
 // import { SslMonitor, SslAssertionBuilder } from 'checkly/constructs'
-// import { ownerEmailAlert } from './alert-channels'
+// import { ownerEmailAlert, slackAlert } from './alert-channels'
 // import { appHost } from './config'
 //
 // // The app's own host (appUrl in app.config.ts) specifically -- NOT the root domain, which is the
@@ -16,7 +16,7 @@ export {}
 //   name: `Hedgie Hub SSL certificate (${appHost})`,
 //   activated: true,
 //   locations: ['us-east-1', 'eu-central-1'],
-//   alertChannels: [ownerEmailAlert],
+//   alertChannels: [ownerEmailAlert, slackAlert],
 //   request: {
 //     hostname: appHost,
 //     port: 443,
