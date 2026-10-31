@@ -2,29 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// Slack users, the Slack-user-to-member map and the member directory come from the in-memory repositories;
-// bronze.slack_channels (not behind a repository yet) is a chainable fake service client.
+// Slack users, channels, the Slack-user-to-member map and the member directory come from the in-memory repositories.
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-const channelQueries = vi.fn();
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceRoleClient: () => ({
-    schema: () => ({
-      from: (table: string) => {
-        channelQueries(table);
-        const q: Record<string, unknown> = {};
-        q.select = () => q;
-        q.in = () => q;
-        q.eq = () => q;
-        q.then = (resolve: (v: unknown) => unknown) => resolve({ data: [{ channel_id: "C1", name: "hub-feedback" }] });
-        return q;
-      },
-    }),
-  }),
-}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 import { slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos, withMentionNames } from "@/lib/chat/names";
 
@@ -33,12 +17,15 @@ const MEMBER_2 = "mbr_AAAAAAAAAAA2";
 
 const dataset = (init: ConstructorParameters<typeof InMemoryDataset>[0] = {}) =>
   new InMemoryDataset({
+    slackChannels: [
+      { channel_id: "C1", name: "hub-feedback", is_private: false },
+      { channel_id: "C2", name: "secret-place", is_private: true },
+    ],
     slackUsers: [{ user_id: "U1", display_name: "Fern", real_name: "Fern Quillsby", name: "fern", image_url: "https://example.com/fern.png" }],
     ...init,
   });
 
 beforeEach(() => {
-  channelQueries.mockClear();
   repos = createInMemoryRepos(dataset());
 });
 
@@ -61,10 +48,14 @@ describe("withMentionNames", () => {
     expect(out[0].description).toBe("@moss @someone");
   });
 
-  it("does not query anything when no row mentions anyone", async () => {
+  it("does not name private channels", async () => {
+    const out = await withMentionNames([{ description: "see <#C2>" }]);
+    expect(out[0].description).not.toContain("secret-place");
+  });
+
+  it("returns the rows untouched when no row mentions anyone", async () => {
     const rows = [{ description: "plain" }, { description: undefined }];
     expect(await withMentionNames(rows)).toBe(rows);
-    expect(channelQueries).not.toHaveBeenCalled();
   });
 });
 

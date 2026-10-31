@@ -11,6 +11,8 @@ import { InMemoryPrickleRepository, SupabasePrickleRepository, type PrickleRepos
 import { InMemoryMemberDirectoryRepository, SupabaseMemberDirectoryRepository, type MemberDirectoryRepository } from "./member-directory";
 import { InMemoryChatRepository, SupabaseChatRepository, type ChatRepository } from "./chat";
 import { InMemorySlackUserRepository, SupabaseSlackUserRepository, type SlackUserRepository } from "./slack-users";
+import { InMemorySlackWorkspaceRepository, SupabaseSlackWorkspaceRepository, type SlackWorkspaceRepository } from "./slack-workspace";
+import { InMemorySlackMessageRepository, SupabaseSlackMessageRepository, type SlackMessageRepository } from "./slack-messages";
 import { InMemoryCalendarEventRepository, SupabaseCalendarEventRepository, type CalendarEventRepository } from "./calendar-events";
 import { InMemoryUnmatchedEventRepository, SupabaseUnmatchedEventRepository, type UnmatchedEventRepository } from "./unmatched-events";
 import { InMemoryProfileRepository, SupabaseProfileRepository, type ProfileRepository } from "./profiles";
@@ -52,6 +54,8 @@ export interface Repos {
   profiles: ProfileRepository;
   calendarEvents: CalendarEventRepository;
   slackUsers: SlackUserRepository;
+  slackWorkspace: SlackWorkspaceRepository;
+  slackMessages: SlackMessageRepository;
   unmatchedEvents: UnmatchedEventRepository;
   media: MediaRepository;
   zoom: ZoomRepository;
@@ -86,6 +90,8 @@ export function createRepos(db: Db): Repos {
     profiles: new SupabaseProfileRepository(db),
     calendarEvents: new SupabaseCalendarEventRepository(db),
     slackUsers: new SupabaseSlackUserRepository(db),
+    slackWorkspace: new SupabaseSlackWorkspaceRepository(db),
+    slackMessages: new SupabaseSlackMessageRepository(db),
     unmatchedEvents: new SupabaseUnmatchedEventRepository(db),
     media: new SupabaseMediaRepository(db),
     zoom: new SupabaseZoomRepository(db),
@@ -121,6 +127,8 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     profiles: new InMemoryProfileRepository(dataset),
     calendarEvents: new InMemoryCalendarEventRepository(dataset),
     slackUsers: new InMemorySlackUserRepository(dataset),
+    slackWorkspace: new InMemorySlackWorkspaceRepository(dataset),
+    slackMessages: new InMemorySlackMessageRepository(dataset),
     unmatchedEvents: new InMemoryUnmatchedEventRepository(dataset),
     media: new InMemoryMediaRepository(dataset),
     zoom: new InMemoryZoomRepository(dataset),

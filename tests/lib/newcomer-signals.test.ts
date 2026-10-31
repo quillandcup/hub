@@ -1,5 +1,4 @@
 import { describe, it, expect, vi } from "vitest";
-import { createFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
 import type { ActivityRow } from "@/lib/data/activities";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -11,8 +10,6 @@ import {
 } from "@/lib/newcomer-signals";
 import { SLACK_INTRO_CHANNEL } from "@/lib/config";
 import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
-
-const eqs = (query: FakeQuery) => query.calls.filter((c) => c.method === "eq").map((c) => c.args);
 
 // Slack activity comes from the activity repository (its filters and chunking are in its contract); the twin stands in here.
 let dataset = new InMemoryDataset();
@@ -96,13 +93,18 @@ describe("loadLastAttendanceByMember", () => {
 
 describe("loadIntroChannelId", () => {
   it("reads the intro channel's Slack id from bronze", async () => {
-    const fake = createFakeSupabase({ "bronze.slack_channels": { data: [{ channel_id: "C123" }] } });
+    dataset = new InMemoryDataset({
+      slackChannels: [
+        { channel_id: "C123", name: SLACK_INTRO_CHANNEL },
+        { channel_id: "C999", name: "elsewhere" },
+      ],
+    });
 
-    expect(await loadIntroChannelId(fake)).toBe("C123");
-    expect(eqs(fake.queries[0])).toContainEqual(["name", SLACK_INTRO_CHANNEL]);
+    expect(await loadIntroChannelId({})).toBe("C123");
   });
 
   it("is null when the workspace has no such channel", async () => {
-    expect(await loadIntroChannelId(createFakeSupabase({}))).toBeNull();
+    dataset = new InMemoryDataset();
+    expect(await loadIntroChannelId({})).toBeNull();
   });
 });

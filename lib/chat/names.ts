@@ -99,16 +99,8 @@ async function slackChannelNamesUncached(channelIds: string[]): Promise<Record<s
   const ids = [...new Set(channelIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
-  const service = createServiceRoleClient();
-  for (const batch of chunks(ids)) {
-    const data = ok(await service
-      .schema("bronze")
-      .from("slack_channels")
-      .select("channel_id, name")
-      .in("channel_id", batch)
-      .eq("is_private", false));
-    for (const c of data ?? []) if (c.name) out[c.channel_id] = c.name;
-  }
+  const names = await createRepos(createServiceRoleClient()).slackWorkspace.publicChannelNames(ids);
+  for (const [id, name] of names) out[id] = name;
   return out;
 }
 

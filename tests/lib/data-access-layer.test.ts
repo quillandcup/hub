@@ -52,6 +52,46 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   calendar_events: [],
   // The Bronze Slack users (SlackUserRepository): every query is moved.
   slack_users: [],
+  // The Bronze Slack workspace and messages (SlackWorkspaceRepository, SlackMessageRepository).
+  slack_channels: [
+    "app/api/import/slack-api/route.ts",
+    "app/api/import/slack/route.ts",
+  ],
+  slack_messages: [
+    "app/api/import/slack-api/route.ts",
+    "app/api/import/slack/route.ts",
+    "app/api/process/slack/route.ts",
+    "app/api/webhooks/slack/route.ts",
+    "lib/chat/gap-fill.ts",
+    "lib/chat/names.ts",
+    "lib/slack-deletions.ts",
+  ],
+  slack_messages_meta: [],
+  slack_reactions: [
+    "app/api/import/slack-api/route.ts",
+    "app/api/import/slack/route.ts",
+    "app/api/process/slack/route.ts",
+    "app/api/webhooks/slack/route.ts",
+    "lib/chat/gap-fill.ts",
+    "lib/slack-reactions.ts",
+  ],
+  slack_files: [
+    "lib/chat/file-cleanup.ts",
+    "lib/chat/slack-upload.ts",
+    "lib/slack-capture.ts",
+  ],
+  slack_custom_emoji: [
+    "lib/chat/names.ts",
+    "lib/slack-capture.ts",
+  ],
+  slack_channel_members: [
+    "lib/slack-capture.ts",
+  ],
+  slack_channel_member_events: [
+    "lib/slack-capture.ts",
+  ],
+  ignored_slack_users: [],
+  restricted_slack_channels: [],
   // The calendar review queue and admins' decisions (UnmatchedEventRepository): every query is moved.
   unmatched_calendar_events: [],
   // Bronze Zoom attendance and the ignored Zoom names (ZoomRepository): every query is moved.
