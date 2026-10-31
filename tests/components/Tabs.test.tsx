@@ -15,6 +15,11 @@ const TABS = [
 ] as const
 
 describe('Tabs', () => {
+  it('is unmasked in Session Replay, so recordings show which tab was opened', () => {
+    render(<Tabs tabs={TABS} />)
+    expect(screen.getByRole('tablist')).toHaveAttribute('data-sentry-unmask')
+  })
+
   it('shows the first tab by default and mounts only the active panel', () => {
     render(<Tabs tabs={TABS} />)
     expect(screen.getByRole('tab', { name: 'Projects' })).toHaveAttribute('aria-selected', 'true')

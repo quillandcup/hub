@@ -11,6 +11,12 @@ const updateNavMode = vi.fn(async (_mode: string): Promise<{ success?: boolean; 
 vi.mock("@/app/(member)/settings/actions", () => ({ updateNavMode: (mode: string) => updateNavMode(mode) }));
 
 describe("AdminNavigation", () => {
+  it("is unmasked in Session Replay, so recordings show which page was opened", () => {
+    render(<AdminNavigation enabledFeatures={[]} />);
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
+    expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
+  });
+
   it("opens the mobile drawer from the hamburger in the page header, and closes it again", async () => {
     render(
       <>

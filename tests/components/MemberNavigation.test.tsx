@@ -25,6 +25,12 @@ async function openMobileDrawer() {
 }
 
 describe("MemberNavigation", () => {
+  it("is unmasked in Session Replay, so recordings show which page was opened", () => {
+    render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
+    const sidebar = screen.getByRole("complementary", { name: "Sidebar navigation" });
+    expect(sidebar.querySelector("nav")).toHaveAttribute("data-sentry-unmask");
+  });
+
   it("shows Chat only when the chat feature is on, and marks it active on its pages", () => {
     const { rerender } = render(<MemberNavigation isAdmin={false} enabledFeatures={[]} />);
     const sidebar = () => screen.getByRole("complementary", { name: "Sidebar navigation" });

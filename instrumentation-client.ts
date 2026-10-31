@@ -16,6 +16,9 @@ Sentry.init({
   // Session Replay keeps the last moments in memory and uploads them only when an error happens
   // (full repro context for the reports that matter). Recording ordinary sessions, a small sample,
   // is started by components/SessionReplay.tsx and only where usage statistics are allowed.
+  // Text, form fields and media are masked unless said otherwise (Sentry's defaults, kept on purpose).
+  // Only the app's own navigation and tab labels are unmasked, with data-sentry-unmask, so a recording
+  // shows where someone went without showing what members wrote or who they are.
   integrations: [Sentry.replayIntegration()],
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
