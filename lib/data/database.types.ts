@@ -1438,6 +1438,63 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_rollup_periods: {
+        Row: {
+          period_kind: string
+          period_start: string
+          rolled_up_at: string
+          source_events: number
+        }
+        Insert: {
+          period_kind: string
+          period_start: string
+          rolled_up_at?: string
+          source_events: number
+        }
+        Update: {
+          period_kind?: string
+          period_start?: string
+          rolled_up_at?: string
+          source_events?: number
+        }
+        Relationships: []
+      }
+      analytics_rollups: {
+        Row: {
+          audience: string
+          dimension: string
+          event: string
+          events: number
+          members: number
+          period_kind: string
+          period_start: string
+          value: string
+          visits: number
+        }
+        Insert: {
+          audience: string
+          dimension: string
+          event: string
+          events: number
+          members: number
+          period_kind: string
+          period_start: string
+          value?: string
+          visits: number
+        }
+        Update: {
+          audience?: string
+          dimension?: string
+          event?: string
+          events?: number
+          members?: number
+          period_kind?: string
+          period_start?: string
+          value?: string
+          visits?: number
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           acting_as_member_id: string | null
@@ -6156,6 +6213,14 @@ export type Database = {
           value: string
         }[]
       }
+      analytics_prune_usage_events: {
+        Args: { p_cutoff: string; p_limit?: number; p_tz: string }
+        Returns: number
+      }
+      analytics_rollup_period: {
+        Args: { p_kind: string; p_start: string; p_tz: string }
+        Returns: number
+      }
       analytics_scrub_labels: { Args: never; Returns: number }
       analytics_top_clicks: {
         Args: {
@@ -6172,6 +6237,13 @@ export type Database = {
           members: number
           routes: number
           sessions: number
+        }[]
+      }
+      analytics_unrolled_periods: {
+        Args: { p_now?: string; p_tz: string }
+        Returns: {
+          period_kind: string
+          period_start: string
         }[]
       }
       attendance_member: {

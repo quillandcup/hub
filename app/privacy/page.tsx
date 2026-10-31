@@ -38,14 +38,16 @@ export const PRIVACY_EFFECTIVE = "2026-10-30";
  * - Deletes: deleted things are kept until the member asks, as soft deletes or in the audit log.
  *
  * **Retention promises that need a job before they can be broken.** The page promises the numbers in
- * `lib/retention.ts`. Nothing enforces them yet: the job is phase 0 of docs/EVENT_LOG.md. It is safe to show the page
- * now because no row is old enough to break them. Checked against production on 2026-10-30: the oldest raw user agent
+ * `lib/retention.ts`, and the nightly job in docs/EVENT_LOG.md phase 0 enforces them (deployed 2026-10-31; no row was old
+ * enough to break them before it ran). Checked against production on 2026-10-30: the oldest raw user agent
  * in `access_events` is from 2026-10-18 (the column is newer than the table), the oldest raw IP from 2026-10-21, and
  * the oldest user agent in a usage event from 2026-10-20, so the first value passes 90 days on 2027-01-16; usage events
  * pass 13 months in late 2027. (An earlier note here said 2026-11-25, assuming user agents went back to the table's
  * creation; they don't.)
  * **The job (`/api/reconcile/retention`, lib/retention/network-details.ts) must be deployed before 2027-01-16.** It covers the
- * visit log (`access_events`), the usage log and course viewing, which is what the "How long we keep things" row says; the
+ * visit log (`access_events`), the usage log and course viewing, which is what the "How long we keep things" row says. The same
+ * job rolls usage events up into anonymous totals and removes them after `usageMonths` (lib/retention/usage-events.ts); the first
+ * reach that in late 2027 and are removed only once their totals are kept. The
  * browser string attached to a push subscription or to feedback a member submits is not covered, and the row does not claim it.
  */
 export default async function PrivacyPage() {
