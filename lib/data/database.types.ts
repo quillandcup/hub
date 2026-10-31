@@ -6082,6 +6082,7 @@ export type Database = {
           cover_asset_id: string | null
           cover_url: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           external_id: string | null
           id: string
@@ -6095,6 +6096,7 @@ export type Database = {
           cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           external_id?: string | null
           id?: string
@@ -6108,6 +6110,7 @@ export type Database = {
           cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           external_id?: string | null
           id?: string
