@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
-import { fetchAll, inBatches } from "@/lib/courses/db";
+import type { LessonFileRecord } from "@/lib/data/courses";
 import { visibleLessonIds } from "@/lib/courses/visible";
 
 /**
@@ -100,27 +100,24 @@ export function formatBytes(bytes: number | null | undefined): string | null {
 }
 
 export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<FilePlan> {
-  const repo = createRepos(supabase).kajabiCourses;
+  const repos = createRepos(supabase);
+  const repo = repos.kajabiCourses;
   const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
   const visible = visibleLessonIds(modules, lessons);
   const titleById = new Map(lessons.map((l) => [l.kajabi_id, l.title as string]));
 
   const bronzeFiles = await repo.liveFiles(lessons.map((l) => l.kajabi_id));
 
-  const { data: course, error } = await supabase.from("courses").select("id").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
+  const course = await repos.courses.courseBySource("kajabi", courseKajabiId);
   const courseId: string | null = course?.id ?? null;
 
   const hubLessonByKey = new Map<string, string>();
-  const existing: any[] = [];
+  let existing: LessonFileRecord[] = [];
   if (courseId) {
-    for (const l of await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", courseId).eq("source", "kajabi"))) {
-      hubLessonByKey.set(l.source_key, l.id);
+    for (const l of await repos.courses.lessonsOf([courseId], { source: "kajabi", includeHidden: true })) {
+      if (l.source_key) hubLessonByKey.set(l.source_key, l.id);
     }
-    const hubIds = [...hubLessonByKey.values()];
-    for (const batch of inBatches(hubIds)) {
-      existing.push(...(await fetchAll(supabase, "course_lesson_files", "id, source_key, storage_path, filename", (q) => q.in("lesson_id", batch))));
-    }
+    existing = await repos.courses.filesOfLessons([...hubLessonByKey.values()]);
   }
   const copiedKeys = new Set(existing.map((f) => f.source_key));
 
@@ -185,6 +182,7 @@ export async function copyCourseFiles(
   download: typeof fetch = fetch
 ): Promise<CopyFilesResult> {
   const plan = await planCourseFiles(supabase, courseKajabiId, now);
+  const repos = createRepos(supabase);
   const result: CopyFilesResult = { copied: [], alreadyCopied: 0, removed: 0, needsNewLink: [], waitingForLesson: 0, failed: [] };
   const bucket = supabase.storage.from(COURSE_FILES_BUCKET);
 
@@ -208,20 +206,16 @@ export async function copyCourseFiles(
       const { error: uploadError } = await bucket.upload(path, body, { contentType, upsert: true });
       if (uploadError) throw new Error(uploadError.message);
 
-      const { error: rowError } = await supabase.from("course_lesson_files").upsert(
-        {
-          lesson_id: file.hubLessonId,
-          source_key: file.kajabiFileId,
-          filename: file.filename,
-          content_type: contentType,
-          size_bytes: body.byteLength,
-          content_hash: createHash("sha256").update(body).digest("hex"),
-          storage_path: path,
-          position: file.position,
-        },
-        { onConflict: "source_key" }
-      );
-      if (rowError) throw new Error(rowError.message);
+      await repos.courses.saveLessonFile({
+        lesson_id: file.hubLessonId!,
+        source_key: file.kajabiFileId,
+        filename: file.filename,
+        content_type: contentType,
+        size_bytes: body.byteLength,
+        content_hash: createHash("sha256").update(body).digest("hex"),
+        storage_path: path,
+        position: file.position,
+      });
       result.copied.push({ kajabiFileId: file.kajabiFileId, filename: file.filename, bytes: body.byteLength });
     } catch (error: any) {
       result.failed.push({ kajabiFileId: file.kajabiFileId, filename: file.filename, error: error?.message ?? "copy failed" });
@@ -231,9 +225,12 @@ export async function copyCourseFiles(
   // Files Kajabi no longer lists (or whose lesson is gone): the row and the stored object go.
   for (const stale of plan.stale) {
     await bucket.remove([stale.storagePath]);
-    const { error } = await supabase.from("course_lesson_files").delete().eq("id", stale.id);
-    if (error) result.failed.push({ kajabiFileId: stale.id, filename: stale.filename, error: `couldn't remove the row: ${error.message}` });
-    else result.removed++;
+    try {
+      await repos.courses.deleteLessonFile(stale.id);
+      result.removed++;
+    } catch (error: any) {
+      result.failed.push({ kajabiFileId: stale.id, filename: stale.filename, error: `couldn't remove the row: ${error.message}` });
+    }
   }
 
   return result;

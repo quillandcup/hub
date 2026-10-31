@@ -3,6 +3,7 @@ import { chunk } from "@/lib/supabase/paginate";
 import { SupabaseCourseProgressRepository } from "@/lib/data/course-progress";
 import { SupabaseCourseRepository } from "@/lib/data/courses";
 import type { Db } from "@/lib/data/db";
+import { SupabaseMediaRepository } from "@/lib/data/media";
 import { defineCourseContract } from "@/tests/helpers/course-contract";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
@@ -12,15 +13,17 @@ let counter = 0;
 const courseIds: string[] = [];
 const videoIds: string[] = [];
 const memberIds: string[] = [];
+const assetIds: string[] = [];
 
 // Deleting a course takes its modules, lessons, downloads, progress and access with it.
 afterAll(async () => {
   if (courseIds.length) await db.from("courses").delete().in("id", courseIds);
   if (videoIds.length) await db.from("videos").delete().in("id", videoIds);
   if (memberIds.length) await db.from("members").delete().in("id", memberIds);
+  if (assetIds.length) await db.from("media_assets").delete().in("id", assetIds);
 });
 
-async function insert(table: "courses" | "course_modules" | "course_lessons" | "course_lesson_files" | "videos" | "lesson_progress" | "course_access", rows: object[]) {
+async function insert(table: "courses" | "course_modules" | "course_lessons" | "course_lesson_files" | "videos" | "lesson_progress" | "course_access" | "course_access_grants", rows: object[]) {
   for (const part of chunk(rows, 500)) {
     const { error } = await db.from(table).insert(part as never);
     if (error) throw new Error(`${table}: ${error.message}`);
@@ -61,6 +64,17 @@ defineCourseContract("Supabase course repositories", () => {
       },
       progress: (rows) => insert("lesson_progress", rows),
       access: (rows) => insert("course_access", rows),
+      grants: (rows) => insert("course_access_grants", rows),
+      mediaAsset: async () => {
+        const label = `${RUN}-asset-${++counter}`;
+        const asset = await new SupabaseMediaRepository(db).add({ storage_path: `originals/${label}.png`, mime_type: "image/png", width: 10, height: 10, bytes: 100, sha256: label, title: label });
+        assetIds.push(asset.id);
+        return asset.id;
+      },
+      forget: (ids) => {
+        courseIds.push(...(ids.courses ?? []));
+        videoIds.push(...(ids.videos ?? []));
+      },
     },
   };
 });

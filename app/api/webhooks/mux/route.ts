@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { assetUpdateFromEvent, createMuxClient, unwrapWebhook } from "@/lib/mux";
 
@@ -27,22 +28,19 @@ export async function POST(request: NextRequest) {
   if (!update) return NextResponse.json({ received: true, processed: false });
 
   const supabase = createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("videos")
-    .update({
+  let updated: number;
+  try {
+    updated = await createRepos(supabase).courses.updateVideosByAsset(update.muxAssetId, {
       status: update.status,
       ...(update.playbackId ? { mux_playback_id: update.playbackId } : {}),
       ...(update.durationSeconds !== undefined ? { duration_seconds: update.durationSeconds } : {}),
-    })
-    .eq("mux_asset_id", update.muxAssetId)
-    .select("id");
-
-  if (error) {
+    });
+  } catch (error) {
     console.error("Failed to record Mux asset update:", error);
     // A 5xx makes Mux retry.
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
-  if (!data?.length) {
+  if (updated === 0) {
     // The asset id is saved right after the asset is created, so an early event can arrive first;
     // answer 500 so Mux redelivers rather than losing the "ready".
     console.warn("Mux event for an asset with no videos row yet: %s", update.muxAssetId);

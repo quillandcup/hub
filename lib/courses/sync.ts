@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { importKajabiCourses, type CoursesImportResult, type KajabiCoursesApi } from "@/lib/courses/import";
 import { processCourses, type ProcessCoursesResult } from "@/lib/courses/process";
 import { slugifyTitle } from "@/lib/courses/visibility";
@@ -27,9 +28,8 @@ export async function syncKajabiCourses(supabase: SupabaseClient, kajabi: Kajabi
   try {
     result.imported = await importKajabiCourses(supabase, kajabi);
 
-    const { data: published, error } = await supabase.from("courses").select("source_key").eq("source", "kajabi").eq("is_draft", false);
-    if (error) throw new Error(`courses read failed: ${error.message}`);
-    const publishedKeys = new Set((published ?? []).map((c) => c.source_key));
+    const published = await createRepos(supabase).courses.courses({ source: "kajabi", isDraft: false });
+    const publishedKeys = new Set(published.map((c) => c.source_key));
     result.unpublished = result.imported.courses
       .filter((c) => !publishedKeys.has(c.id))
       .map((c) => ({ id: c.id, title: c.title, slug: slugifyTitle(c.title) }));

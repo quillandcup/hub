@@ -4,7 +4,6 @@ import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { computeCourseAccess, type AccessRow } from "@/lib/courses/access";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
-import { fetchAll } from "@/lib/courses/db";
 import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
 
 /**
@@ -17,15 +16,6 @@ import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
  * changes after, even if the Kajabi title does.
  */
 
-const BATCH = 500;
-const LOOKUP_BATCH = 200;
-
-function chunks<T>(rows: T[], size = BATCH): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
-  return out;
-}
-
 /**
  * Gives every live Bronze course a `courses` row, so each has a Hub id for its admin address. One
  * that isn't published is a draft (`is_draft`): no modules, lessons or access, hidden from members.
@@ -33,8 +23,9 @@ function chunks<T>(rows: T[], size = BATCH): T[][] {
  * gets its row when published, which reports the problem).
  */
 export async function ensureDraftCourses(supabase: SupabaseClient): Promise<number> {
-  const bronze = await createRepos(supabase).kajabiCourses.liveCourses();
-  const rows = await fetchAll(supabase, "courses", "slug, source_key, source", (q) => q);
+  const repos = createRepos(supabase);
+  const bronze = await repos.kajabiCourses.liveCourses();
+  const rows = await repos.courses.courses();
   const have = new Set(rows.filter((r) => r.source === "kajabi").map((r) => r.source_key));
   const slugs = new Set(rows.map((r) => r.slug));
   const drafts: { slug: string; title: string; description: string | null; source: string; source_key: string; is_draft: boolean }[] = [];
@@ -48,10 +39,7 @@ export async function ensureDraftCourses(supabase: SupabaseClient): Promise<numb
     slugs.add(slug);
     drafts.push({ slug, title: c.title, description: (c.raw_payload as any)?.attributes?.description ?? null, source: "kajabi", source_key: c.kajabi_id, is_draft: true });
   }
-  for (const batch of chunks(drafts)) {
-    const { error } = await supabase.from("courses").insert(batch);
-    if (error) throw new Error(`courses draft insert failed: ${error.message}`);
-  }
+  await repos.courses.createCourses(drafts);
   return drafts.length;
 }
 
@@ -83,23 +71,6 @@ export class CourseProcessingError extends Error {
   }
 }
 
-async function upsertAll(supabase: SupabaseClient, table: string, rows: object[], onConflict: string) {
-  const ids = new Map<string, string>();
-  for (const batch of chunks(rows)) {
-    const { data, error } = await supabase.from(table).upsert(batch, { onConflict }).select("id, source_key");
-    if (error) throw new Error(`${table} upsert failed: ${error.message}`);
-    for (const r of data ?? []) ids.set(r.source_key, r.id);
-  }
-  return ids;
-}
-
-async function deleteIds(supabase: SupabaseClient, table: string, ids: string[]) {
-  for (const batch of chunks(ids)) {
-    const { error } = await supabase.from(table).delete().in("id", batch);
-    if (error) throw new Error(`${table} delete failed: ${error.message}`);
-  }
-}
-
 /** Rebuild `course_access` for the given Silver courses: upsert what's derived, delete what no longer is (no gap for members mid-run). */
 export async function rebuildCourseAccess(
   supabase: SupabaseClient,
@@ -128,9 +99,8 @@ export async function rebuildCourseAccess(
   const memberIdByEmail = new Map<string, string>();
   for (const m of await createRepos(supabase).members.byEmails(emails)) memberIdByEmail.set(m.email.toLowerCase(), m.id);
 
-  const grants = await fetchAll(supabase, "course_access_grants", "member_id, course_id, starts_at, ends_at", (q) =>
-    q.in("course_id", courses.map((c) => c.id))
-  );
+  const progress = createRepos(supabase).courseProgress;
+  const grants = await progress.grantsOfCourses(courses.map((c) => c.id));
 
   const rows = computeCourseAccess({
     courses: courses.map((c) => ({
@@ -146,22 +116,20 @@ export async function rebuildCourseAccess(
     grants,
   });
 
-  for (const batch of chunks(rows)) {
-    const { error } = await supabase.from("course_access").upsert(batch, { onConflict: "member_id,course_id" });
-    if (error) throw new Error(`course_access upsert failed: ${error.message}`);
-  }
+  await progress.upsertAccess(rows);
 
   // Stale rows: derived before, not derived now (a refund, a removed grant).
   const keep = new Set(rows.map((r) => `${r.member_id}|${r.course_id}`));
-  const existing = await fetchAll(supabase, "course_access", "member_id, course_id", (q) =>
-    q.in("course_id", courses.map((c) => c.id))
-  );
-  const removed = new Map<string, number>();
+  const existing = await progress.accessOfCourses(courses.map((c) => c.id));
+  const staleByCourse = new Map<string, string[]>();
   for (const e of existing) {
     if (keep.has(`${e.member_id}|${e.course_id}`)) continue;
-    const { error } = await supabase.from("course_access").delete().eq("member_id", e.member_id).eq("course_id", e.course_id);
-    if (error) throw new Error(`course_access delete failed: ${error.message}`);
-    removed.set(e.course_id, (removed.get(e.course_id) ?? 0) + 1);
+    staleByCourse.set(e.course_id, [...(staleByCourse.get(e.course_id) ?? []), e.member_id]);
+  }
+  const removed = new Map<string, number>();
+  for (const [courseId, memberIds] of staleByCourse) {
+    await progress.removeAccess(courseId, memberIds);
+    removed.set(courseId, memberIds.length);
   }
   return { members: new Set(rows.map((r) => r.member_id)).size, removed, rows };
 }
@@ -172,13 +140,9 @@ export async function processCourses(
 ): Promise<ProcessCoursesResult> {
   await ensureDraftCourses(supabase);
   // Which Bronze courses to publish.
-  const bronzeCourses = await createRepos(supabase).kajabiCourses.liveCourses();
-  const existingSilver = await fetchAll(
-    supabase,
-    "courses",
-    "id, slug, source_key, access_duration, launch_at, program_id, is_draft",
-    (q) => q.eq("source", "kajabi")
-  );
+  const repos = createRepos(supabase);
+  const bronzeCourses = await repos.kajabiCourses.liveCourses();
+  const existingSilver = await repos.courses.courses({ source: "kajabi" });
   const silverByKey = new Map(existingSilver.map((c) => [c.source_key, c]));
 
   let targets: any[];
@@ -212,50 +176,39 @@ export async function processCourses(
     if (!silver) {
       const slug = slugifyTitle(bc.title);
       if (!slug) throw new CourseProcessingError(`Course "${bc.title}" has no usable slug`);
-      const programId = await createRepos(supabase).programs.idBySlug(slug);
-      const { data, error } = await supabase
-        .from("courses")
-        .insert({
-          slug,
-          title: bc.title,
-          description,
-          thumbnail_url: thumbnailUrl,
-          hero_url: heroUrl,
-          source: "kajabi",
-          source_key: kajabiId,
-          program_id: programId,
-          ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
-          ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
-        })
-        .select("id, slug, source_key, access_duration, launch_at, program_id, is_draft")
-        .single();
-      if (error) throw new Error(`courses insert failed: ${error.message}`);
-      silver = data;
+      const programId = await repos.programs.idBySlug(slug);
+      silver = await repos.courses.createCourse({
+        slug,
+        title: bc.title,
+        description,
+        thumbnail_url: thumbnailUrl,
+        hero_url: heroUrl,
+        source: "kajabi",
+        source_key: kajabiId,
+        program_id: programId,
+        ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
+        ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
+      });
     } else {
       // Publishing a draft: it gets its program the way a new course does.
-      const programId = silver.is_draft ? await createRepos(supabase).programs.idBySlug(silver.slug) : silver.program_id;
-      const { data, error } = await supabase
-        .from("courses")
-        .update({
-          is_draft: false,
-          program_id: programId,
-          title: bc.title,
-          description,
-          thumbnail_url: thumbnailUrl,
-          hero_url: heroUrl,
-          ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
-          ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
-        })
-        .eq("id", silver.id)
-        .select("id, slug, source_key, access_duration, launch_at, program_id, is_draft")
-        .single();
-      if (error) throw new Error(`courses update failed: ${error.message}`);
-      silver = data;
+      const programId = silver.is_draft ? await repos.programs.idBySlug(silver.slug) : silver.program_id;
+      const updated = await repos.courses.updateCourse(silver.id, {
+        is_draft: false,
+        program_id: programId,
+        title: bc.title,
+        description,
+        thumbnail_url: thumbnailUrl,
+        hero_url: heroUrl,
+        ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
+        ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
+      });
+      if (!updated) throw new Error("courses update failed: the course is gone");
+      silver = updated;
     }
     const courseId: string = silver!.id;
 
-    const modules = await createRepos(supabase).kajabiCourses.liveModules(kajabiId);
-    const lessons = await createRepos(supabase).kajabiCourses.liveLessons(kajabiId);
+    const modules = await repos.kajabiCourses.liveModules(kajabiId);
+    const lessons = await repos.kajabiCourses.liveLessons(kajabiId);
 
     // Every module and lesson is stored with its effective state. A Kajabi draft (or anything under
     // one) is `hidden`: kept so staff can preview it, never shown to members (docs/COURSES.md).
@@ -282,32 +235,19 @@ export async function processCourses(
     const isNested = (m: any) => Boolean(m.parent_kajabi_id && tree.modules.has(m.parent_kajabi_id));
     const roots = modules.filter((m) => !isNested(m));
     const nested = modules.filter(isNested);
-    const moduleIds = await upsertAll(supabase, "course_modules", roots.map((m) => moduleRow(m, null)), "source,source_key");
-    for (const [key, id] of await upsertAll(supabase, "course_modules", nested.map((m) => moduleRow(m)), "source,source_key")) {
+    const moduleIds = await repos.courses.upsertModules(roots.map((m) => moduleRow(m, null)));
+    for (const [key, id] of await repos.courses.upsertModules(nested.map((m) => moduleRow(m)))) {
       moduleIds.set(key, id);
     }
     if (nested.length > 0) {
-      await upsertAll(
-        supabase,
-        "course_modules",
-        nested.map((m) => moduleRow(m, moduleIds.get(m.parent_kajabi_id!)!)),
-        "source,source_key"
-      );
+      await repos.courses.upsertModules(nested.map((m) => moduleRow(m, moduleIds.get(m.parent_kajabi_id!)!)));
     }
 
     // Lessons. A video is linked only when its Local `videos` row exists; lessons without one are
     // upserted without a video_id column at all, so a link made earlier isn't wiped by a re-run.
     const mediaIds = Array.from(new Set(lessons.map((l) => l.video_media_id).filter(Boolean)));
     const videoIdByMedia = new Map<string, string>();
-    for (const batch of chunks(mediaIds, LOOKUP_BATCH)) {
-      const { data, error } = await supabase
-        .from("videos")
-        .select("id, source_key")
-        .eq("source_kind", "kajabi")
-        .in("source_key", batch);
-      if (error) throw new Error(`videos read failed: ${error.message}`);
-      for (const v of data ?? []) videoIdByMedia.set(v.source_key, v.id);
-    }
+    for (const v of await repos.courses.videosBySourceKeys("kajabi", mediaIds as string[])) videoIdByMedia.set(v.source_key, v.id);
     const lessonRow = (l: any) => ({
       course_id: courseId,
       module_id: l.module_kajabi_id ? moduleIds.get(l.module_kajabi_id) ?? null : null,
@@ -323,26 +263,17 @@ export async function processCourses(
     });
     const withVideo = lessons.filter((l) => l.video_media_id && videoIdByMedia.has(l.video_media_id));
     const withoutVideo = lessons.filter((l) => !(l.video_media_id && videoIdByMedia.has(l.video_media_id)));
-    await upsertAll(
-      supabase,
-      "course_lessons",
-      withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id!) })),
-      "source,source_key"
-    );
-    await upsertAll(supabase, "course_lessons", withoutVideo.map(lessonRow), "source,source_key");
+    await repos.courses.upsertLessons(withVideo.map((l) => ({ ...lessonRow(l), video_id: videoIdByMedia.get(l.video_media_id!) })));
+    await repos.courses.upsertLessons(withoutVideo.map(lessonRow));
 
     // Orphans: Silver rows (kajabi-sourced, this course) whose source is gone from Kajabi. A lesson that
     // became a draft stays, as `hidden` (and keeps its members' progress).
-    const silverLessons = await fetchAll(supabase, "course_lessons", "id, source_key", (q) =>
-      q.eq("course_id", courseId).eq("source", "kajabi")
-    );
-    const staleLessons = silverLessons.filter((r) => !tree.lessons.has(r.source_key)).map((r) => r.id);
-    await deleteIds(supabase, "course_lessons", staleLessons);
-    const silverModules = await fetchAll(supabase, "course_modules", "id, source_key", (q) =>
-      q.eq("course_id", courseId).eq("source", "kajabi")
-    );
-    const staleModules = silverModules.filter((r) => !tree.modules.has(r.source_key)).map((r) => r.id);
-    await deleteIds(supabase, "course_modules", staleModules);
+    const silverLessons = await repos.courses.lessonsOf([courseId], { source: "kajabi", includeHidden: true });
+    const staleLessons = silverLessons.filter((r) => !tree.lessons.has(r.source_key as string)).map((r) => r.id);
+    await repos.courses.deleteLessons(staleLessons);
+    const silverModules = await repos.courses.modulesOf([courseId], { source: "kajabi", includeHidden: true });
+    const staleModules = silverModules.filter((r) => !tree.modules.has(r.source_key as string)).map((r) => r.id);
+    await repos.courses.deleteModules(staleModules);
 
     accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at });
     result.courses.push({

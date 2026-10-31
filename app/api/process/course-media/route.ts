@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseMuxApi, createMuxClient } from "@/lib/mux";
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServiceRoleClient();
-  const { data: course } = await supabase.from("courses").select("source_key").eq("slug", slug).eq("source", "kajabi").maybeSingle();
+  const course = await createRepos(supabase).courses.courseBySlug(slug, { source: "kajabi" });
   if (!course) return NextResponse.json({ error: `No published course "${slug}"` }, { status: 404 });
   if (!course.source_key) return NextResponse.json({ error: `Course "${slug}" has no source key` }, { status: 409 });
 
