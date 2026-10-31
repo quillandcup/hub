@@ -100,7 +100,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostedRecently,
     latestSchedule,
     hostVibes,
-    feedToken,
+    feedFetched,
     newcomer,
     bigSistersOn,
     birthday,
@@ -119,12 +119,19 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       console.error("onboarding: failed to count commitments", error);
       return 0;
     }),
-    supabase.from("calendar_feed_items").select("id", { count: "exact", head: true }).eq("member_id", memberId),
+    // A failed read counts as none: the checklist still renders.
+    createRepos(supabase).calendarFeed.countItems(memberId).catch((error) => {
+      console.error("onboarding: failed to count calendar items", error);
+      return 0;
+    }),
     createRepos(supabase).prickles.countHostedBy(memberId),
     createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
     createRepos(supabase).prickleSchedules.latestMonthOf(memberId),
     supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
-    supabase.from("calendar_feed_tokens").select("first_fetched_at").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).calendarFeed.hasBeenFetched(memberId).catch((error) => {
+      console.error("onboarding: failed to read the calendar feed", error);
+      return false;
+    }),
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
     membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
@@ -148,13 +155,13 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       hasHubProfile: override !== null || topics.length > 0,
       latestProjectId: latestProject,
       hasGoal: goals > 0,
-      hasPricklePlan: commitments > 0 || (calendarItems.count ?? 0) > 0,
+      hasPricklePlan: commitments > 0 || calendarItems > 0,
       isHost: hostingOn && (hostedEver > 0 || latestScheduleMonth !== null),
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: hostedRecently > 0,
       hasHostVibe: (hostVibes.count ?? 0) > 0,
-      hasCalendarSynced: !!feedToken.data?.first_fetched_at,
+      hasCalendarSynced: feedFetched,
       hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,
       slackConnect: slackStatus ? { connected: slackStatus.connected && slackStatus.sharesReadState, required: chatOn } : null,

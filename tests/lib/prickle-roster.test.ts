@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
 import { loadPrickleRoster, ROSTER_LIMIT } from "@/lib/prickle-roster";
 import { SCHEDULE_TIMEZONE } from "@/lib/commitments";
@@ -234,5 +234,23 @@ describe("loadPrickleRoster", () => {
       const result = await roster({ ...s, members: [member("m1", "Zoe Host", { status: "cancelled" })] }, null, withHost);
       expect(result.entries).toEqual([]);
     });
+  });
+});
+
+describe("loadPrickleRoster when the calendar items can't be read", () => {
+  it("still lists the committed members, and logs why", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fake = createFakeSupabase({
+      prickle_commitment_slots: { data: [commitment("m1")] },
+      calendar_feed_items: { data: null, error: { message: "database is down" } },
+      member_roster_opt_outs: { data: [] },
+      members: { data: [member("m1", "Fern Quillsby")] },
+    });
+
+    const result = await loadPrickleRoster(fake as never, PRICKLE, null);
+
+    expect(result.entries.map((e) => [e.memberId, e.reason])).toEqual([["m1", "committed"]]);
+    expect(log).toHaveBeenCalledWith("prickle roster: failed to read calendar items", expect.any(Error));
+    log.mockRestore();
   });
 });

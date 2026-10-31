@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import type { WeeklySlotMember } from "@/lib/data/calendar-feed";
 import type { SlotCommitment } from "@/lib/data/prickle-activity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { localDateFor, normalizeTime, SCHEDULE_TIMEZONE, slotTimeForInstant } from "@/lib/commitments";
@@ -44,17 +45,12 @@ export interface RosterPrickle {
   host_id?: string | null;
 }
 
-const BATCH_SIZE = 1000;
 // Keeps each `.in(...)` URL well under PostgREST's length limit.
 const ID_CHUNK = 200;
 
-async function fetchAll<T>(queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let offset = 0; ; offset += BATCH_SIZE) {
-    const { data } = await queryFn(offset, offset + BATCH_SIZE - 1);
-    rows.push(...(data ?? []));
-    if (!data || data.length < BATCH_SIZE) return rows;
-  }
+function calendarReadFailed<T>(error: unknown): T[] {
+  console.error("prickle roster: failed to read calendar items", error);
+  return [];
 }
 
 function chunks<T>(items: T[]): T[][] {
@@ -75,39 +71,23 @@ export async function loadPrickleRoster(
   const startTimeLocal = normalizeTime(slot.startTimeLocal);
   const localDate = localDateFor(new Date(prickle.start_time), SCHEDULE_TIMEZONE);
 
-  const [committedRows, onceRows, weeklyRows] = await Promise.all([
+  const repos = createRepos(service);
+  const [committedRows, onceMemberIds, weeklyRows] = await Promise.all([
     typeId
-      ? createRepos(service).prickleActivity.slotCommitments({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE })
+      ? repos.prickleActivity.slotCommitments({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE })
       : Promise.resolve([] as SlotCommitment[]),
-    fetchAll<{ member_id: string }>((from, to) =>
-      service
-        .from("calendar_feed_items")
-        .select("member_id")
-        .eq("kind", "prickle")
-        .eq("prickle_id", prickle.id)
-        .order("id")
-        .range(from, to)
-    ),
+    // A failed read lists nobody from the calendar rather than failing the page.
+    repos.calendarFeed.memberIdsWithPrickle(prickle.id).catch(calendarReadFailed<string>),
     typeId
-      ? fetchAll<{ member_id: string; start_time_local: string }>((from, to) =>
-          service
-            .from("calendar_feed_items")
-            .select("member_id, start_time_local")
-            .eq("kind", "slot")
-            .eq("type_id", typeId)
-            .eq("day_of_week", slot.dayOfWeek)
-            .eq("timezone", SCHEDULE_TIMEZONE)
-            .order("id")
-            .range(from, to)
-        )
-      : Promise.resolve([] as { member_id: string; start_time_local: string }[]),
+      ? repos.calendarFeed.weeklySlotMembers({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE }).catch(calendarReadFailed<WeeklySlotMember>)
+      : Promise.resolve([] as WeeklySlotMember[]),
   ]);
 
   const reasonByMember = new Map<string, RosterReason>();
   for (const row of weeklyRows) {
-    if (normalizeTime(row.start_time_local) === startTimeLocal) reasonByMember.set(row.member_id, "calendar");
+    if (normalizeTime(row.startTimeLocal) === startTimeLocal) reasonByMember.set(row.memberId, "calendar");
   }
-  for (const row of onceRows) reasonByMember.set(row.member_id, "calendar");
+  for (const memberId of onceMemberIds) reasonByMember.set(memberId, "calendar");
   for (const row of committedRows) {
     if (normalizeTime(row.startTimeLocal) !== startTimeLocal) continue;
     if (row.status !== "active") continue;

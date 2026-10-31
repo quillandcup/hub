@@ -55,33 +55,44 @@ beforeEach(() => {
   );
 });
 
-const inserted = (queries: FakeQuery[]) =>
-  queries.find((q) => q.table === "calendar_feed_items")?.calls.find((c) => c.method === "insert")?.args[0] as Record<string, unknown> | undefined;
+// What the member now has on their calendar feed (the twin's items, as the feed stores them).
+const added = () => repos.calendarFeed.itemsOf(MEMBER_IDENTITY.memberId);
 
 describe("addPrickleToMyCalendar", () => {
   it("adds just this prickle by id", async () => {
-    const fake = useFakeSupabase({});
+    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "once")).toEqual({ ok: true });
+    expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "once")).toEqual({ ok: true }); // already there counts as added
 
-    expect(inserted(fake.queries)).toMatchObject({ kind: "prickle", prickle_id: "prkl_AAAAAAAAAAA1", member_id: MEMBER_IDENTITY.memberId });
+    expect(await added()).toEqual([expect.objectContaining({ kind: "prickle", prickle_id: "prkl_AAAAAAAAAAA1" })]);
   });
 
   it("adds its weekly slot: the type, and the weekday and start time in the schedule's timezone", async () => {
-    const fake = useFakeSupabase({});
+    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "weekly")).toEqual({ ok: true });
 
-    expect(inserted(fake.queries)).toMatchObject({ kind: "slot", type_id: SPRINT.id, day_of_week: 0, start_time_local: "10:00" });
+    expect(await added()).toEqual([expect.objectContaining({ kind: "slot", type_id: SPRINT.id, day_of_week: 0, start_time_local: "10:00:00" })]);
   });
 
   it("refuses a prickle that is gone, one without a type, and an unknown mode", async () => {
-    const fake = useFakeSupabase({});
+    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_ZZZZZZZZZZZZ", "once")).toEqual({ error: "That prickle isn't on the schedule anymore." });
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA2", "once")).toEqual({ error: "That prickle can't be added to your calendar." });
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "daily" as never)).toEqual({ error: "Invalid option" });
-    expect(inserted(fake.queries)).toBeUndefined();
+    expect(await added()).toEqual([]);
+  });
+
+  it("answers with the error message and adds nothing when the database refuses", async () => {
+    useFakeSupabase({});
+    vi.spyOn(repos.calendarFeed, "addItem").mockRejectedValueOnce(new Error("database is down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "once")).toEqual({ error: "Couldn't add that to your calendar. Please try again." });
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
   });
 });
 
@@ -95,15 +106,14 @@ describe("addEventToMyCalendar", () => {
         ],
       }),
     );
-    const fake = useFakeSupabase({});
+    useFakeSupabase({});
 
     expect(await addEventToMyCalendar("evnt_AAAAAAAAAAA1")).toEqual({ ok: true });
-    expect(inserted(fake.queries)).toMatchObject({ kind: "event", event_id: "evnt_AAAAAAAAAAA1", member_id: MEMBER_IDENTITY.memberId });
+    expect(await added()).toEqual([expect.objectContaining({ kind: "event", event_id: "evnt_AAAAAAAAAAA1" })]);
 
-    const refused = useFakeSupabase({});
     expect(await addEventToMyCalendar("evnt_AAAAAAAAAAA2")).toEqual({ error: "That event couldn't be found." });
     expect(await addEventToMyCalendar("evnt_ZZZZZZZZZZZZ")).toEqual({ error: "That event couldn't be found." });
-    expect(inserted(refused.queries)).toBeUndefined();
+    expect(await added()).toHaveLength(1);
   });
 });
 

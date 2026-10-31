@@ -420,18 +420,6 @@ async function loadCalendarFeedSources(
   return { hosted: hostedRows.map(toFeedPrickle), committed, added, events };
 }
 
-interface FeedItemRow {
-  kind: "prickle" | "slot" | "event";
-  prickle_id: string | null;
-  type_id: string | null;
-  day_of_week: number | null;
-  start_time_local: string | null;
-  timezone: string | null;
-  event_id: string | null;
-}
-
-/** Ids per .in() request -- keeps the URL short (a member adds a handful, but stay safe). */
-
 /**
  * calendar_feed_items resolved to prickles and events. A 'prickle' item is that prickle (its row
  * cascades away if the prickle is deleted); a 'slot' item is every prickle on that slot from
@@ -442,12 +430,7 @@ async function loadAddedItems(
   memberId: string,
   since: Date
 ): Promise<{ added: FeedPrickle[]; events: FeedEventRow[] }> {
-  const { data, error } = await supabase
-    .from("calendar_feed_items")
-    .select("kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id")
-    .eq("member_id", memberId);
-  if (error) throw new Error(error.message);
-  const items = (data ?? []) as FeedItemRow[];
+  const items = await createRepos(supabase).calendarFeed.itemsOf(memberId);
 
   const prickleIds = items.filter((i) => i.kind === "prickle").map((i) => i.prickle_id!);
   const slots: CommitmentSlot[] = items

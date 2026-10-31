@@ -11,6 +11,7 @@ import type { MediaAsset } from "./media";
 import type { BookSeed } from "./books";
 import type { CheckinSeed, CommitmentSeed, DismissalSeed } from "./prickle-activity";
 import type { CalendarSourceEvent } from "./calendar-events";
+import type { FeedItemSeed, FeedTokenSeed } from "./calendar-feed";
 import type { SlackUserSeed } from "./slack-users";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
 import type { IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow } from "./zoom";
@@ -23,6 +24,7 @@ import type { Program, ProgramCohort, ProgramEnrollment } from "./programs";
 import type { HiatusRow, JoinDateOverrideRow, ProfileOverrideStoredRow, StatusOverrideRow } from "./member-status-overrides";
 import type { KajabiCourse, KajabiCourseOffer, KajabiLesson, KajabiLessonFile, KajabiModule } from "./kajabi-courses";
 import type { Database } from "./database.types";
+import type { Row } from "./db";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
 
 /** A member as the in-memory repositories need them: names for hosts and attendees, and the email only admins may see. */
@@ -154,6 +156,12 @@ export class InMemoryDataset {
   /** Dismissed check-in offers (`prickle_checkin_dismissals`) and check-out offers (`prickle_checkout_dismissals`). */
   checkinDismissals: DismissalSeed[];
   checkoutDismissals: DismissalSeed[];
+  // --- calendar feed and sync (CalendarFeedRepository, CalendarSyncStateRepository) ---
+  /** Members' calendar feed tokens (`calendar_feed_tokens`) and the items they added by hand (`calendar_feed_items`). */
+  calendarFeedTokens: FeedTokenSeed[];
+  calendarFeedItems: FeedItemSeed[];
+  /** The Google calendar sync leases and watermarks (`calendar_sync_state`). */
+  calendarSyncStates: Row<"calendar_sync_state">[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -162,7 +170,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
 
     > = {},
   ) {
@@ -232,6 +240,9 @@ export class InMemoryDataset {
     this.prickleCheckins = (init.prickleCheckins ?? []).map((row) => ({ ...row, checkin: { ...row.checkin } }));
     this.checkinDismissals = (init.checkinDismissals ?? []).map((row) => ({ ...row }));
     this.checkoutDismissals = (init.checkoutDismissals ?? []).map((row) => ({ ...row }));
+    this.calendarFeedTokens = (init.calendarFeedTokens ?? []).map((row) => ({ ...row }));
+    this.calendarFeedItems = (init.calendarFeedItems ?? []).map((row) => ({ ...row }));
+    this.calendarSyncStates = (init.calendarSyncStates ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

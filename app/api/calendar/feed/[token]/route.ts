@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
   CALENDAR_FEED_NAME,
@@ -21,12 +22,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!token) return new NextResponse("Not found", { status: 404 });
 
   const supabase = createServiceRoleClient();
-  const { data: row, error } = await supabase
-    .from("calendar_feed_tokens")
-    .select("member_id, first_fetched_at")
-    .eq("token", token)
-    .maybeSingle();
-  if (error) {
+  const feed = createRepos(supabase).calendarFeed;
+  let row;
+  try {
+    row = await feed.ownerOfToken(token);
+  } catch (error) {
     console.error("calendar feed: token lookup failed", error);
     return new NextResponse("Calendar feed unavailable", { status: 500 });
   }
@@ -34,18 +34,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // First fetch = a calendar app subscribed. Recorded once (the audit trigger logs it); never on
   // later polls, which would write a row every refresh.
-  if (!row.first_fetched_at) {
-    const { error: fetchedError } = await supabase
-      .from("calendar_feed_tokens")
-      .update({ first_fetched_at: new Date().toISOString() })
-      .eq("token", token)
-      .is("first_fetched_at", null);
-    if (fetchedError) console.error("calendar feed: failed to record first fetch", fetchedError);
+  if (!row.firstFetchedAt) {
+    await feed.recordFirstFetch(token, new Date().toISOString()).catch((error) => {
+      console.error("calendar feed: failed to record first fetch", error);
+    });
   }
 
   try {
     const now = new Date();
-    const events = await loadCalendarFeedEvents(supabase, row.member_id, request.nextUrl.origin, now);
+    const events = await loadCalendarFeedEvents(supabase, row.memberId, request.nextUrl.origin, now);
     const body = renderICalendar(
       {
         name: CALENDAR_FEED_NAME,
@@ -65,7 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (err) {
-    console.error("calendar feed: failed to build feed", { memberId: row.member_id, err });
+    console.error("calendar feed: failed to build feed", { memberId: row.memberId, err });
     return new NextResponse("Calendar feed unavailable", { status: 500 });
   }
 }
