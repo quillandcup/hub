@@ -21,8 +21,6 @@ export const OUTCOME_ACTIONS = [
   // Writing
   "project_created",
   "project_published",
-  "project_archived",
-  "project_restored",
   "project_deleted",
   "progress_logged",
   "goal_created",

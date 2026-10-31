@@ -22,9 +22,6 @@ vi.mock("@/app/(member)/bookshelf/actions", () => ({
 
 vi.mock("@/app/(member)/projects/actions", () => ({
   archiveGoal: vi.fn(),
-  archiveProject: vi.fn(),
-  restoreProject: vi.fn(),
-  deleteProject: vi.fn(),
   createGoal: vi.fn(),
   deleteEntry: vi.fn(),
   deleteGoal: vi.fn(),
