@@ -9,6 +9,10 @@
 --   delete   the row goes (its content or its existence identifies the person)
 --   null     the reference is cleared (the column allows it)
 --   keep     the row stays as it is (it is not about the person, or is needed to run the service)
+--   ask      the row is public and helps us (a book on the bookshelf, and a testimonial if one is ever stored):
+--            staff ask the member whether to keep it. Keep means the byline they chose (pen name or display name)
+--            is written into the row and the row is re-pointed at the placeholder, so the public listing stays;
+--            otherwise it is deleted. The default when they have no preference is to ask, never to assume.
 --
 -- The member row itself is not a column to re-point: the routine replaces it (name, email and every id that
 -- identifies them) and is where "keep" would be used for a table that must stay as it is. None is today.
@@ -21,7 +25,7 @@
 CREATE TABLE public.member_data_handling (
   table_name text NOT NULL,
   column_name text NOT NULL,
-  action text NOT NULL CHECK (action IN ('repoint', 'delete', 'null', 'keep')),
+  action text NOT NULL CHECK (action IN ('repoint', 'delete', 'null', 'keep', 'ask')),
   why text NOT NULL,
   PRIMARY KEY (table_name, column_name)
 );
@@ -40,17 +44,17 @@ INSERT INTO public.member_data_handling (table_name, column_name, action, why) V
   ('writing_goals', 'member_id', 'delete', 'goal titles and descriptions in their own words'),
   ('writing_progress_entries', 'member_id', 'delete', 'notes and tags in their own words'),
   ('writing_project_starting_balances', 'member_id', 'delete', 'belongs to a project that goes'),
-  ('member_books', 'member_id', 'delete', 'a published work under their name or pen name'),
-  ('member_awards', 'member_id', 'delete', 'awards for works under their name'),
+  ('member_books', 'member_id', 'ask', 'a public book on the bookshelf that also supports our claims of success; ask whether they want it kept listed'),
+  ('member_awards', 'member_id', 'ask', 'awards for their books, public like the book; ask together with it'),
   ('member_notes', 'author_member_id', 'delete', 'private notes they wrote'),
   ('member_notes', 'subject_member_id', 'delete', 'notes other members wrote about them'),
   ('member_ask_me_about', 'member_id', 'delete', 'their profile topics'),
   ('member_profile_overrides', 'member_id', 'delete', 'bio and social links'),
-  ('prickle_checkins', 'member_id', 'delete', 'check-in answers in their own words'),
+  ('prickle_checkins', 'member_id', 'repoint', 'check-in answers are useful to us; nothing in the row says who once the member is gone'),
   ('prickle_checkin_dismissals', 'member_id', 'delete', 'their own dismissals'),
   ('prickle_checkout_dismissals', 'member_id', 'delete', 'their own dismissals'),
   ('prickle_commitments', 'member_id', 'delete', 'their own weekly commitments'),
-  ('feedback', 'member_id', 'delete', 'support messages they sent, in their own words'),
+  ('feedback', 'member_id', 'repoint', 'feedback is useful to us; the member goes, the message stays'),
   ('media_assets', 'owner_member_id', 'delete', 'images they uploaded'),
   ('big_sister_volunteers', 'member_id', 'delete', 'their own volunteering'),
   ('wheel_of_wonder_matches', 'spinner_member_id', 'delete', 'a match drawn for them'),

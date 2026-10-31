@@ -1,4 +1,4 @@
--- pgTAP tests for 20270321000000_member_data_handling.sql: every table that points at a member has a decision for
+-- pgTAP tests for 20270326000000_member_data_handling.sql: every table that points at a member has a decision for
 -- what a removal request does to it, so a new member-owned table can't be added without one.
 --   * every foreign key to members(id) has a row in member_data_handling;
 --   * every row names a foreign key that exists (no stale entries after a rename or drop);
@@ -10,7 +10,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(8);
+SELECT plan(9);
 
 -- Every foreign key column that references members(id), as (table, column).
 CREATE TEMP TABLE member_fks ON COMMIT DROP AS
@@ -33,7 +33,7 @@ SELECT is(
   NULL,
   'every row in member_data_handling names a real foreign key to members');
 
-SELECT is((SELECT count(*)::int FROM public.member_data_handling WHERE action NOT IN ('repoint', 'delete', 'null')), 0, 'no table is marked keep without the routine having a reason to');
+SELECT is((SELECT count(*)::int FROM public.member_data_handling WHERE action NOT IN ('repoint', 'delete', 'null', 'ask')), 0, 'no table is marked keep without the routine having a reason to');
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('mbr_AAAAAAAAfbA1', 'Report Member', 'report-member@example.test', now(), 'active');
@@ -47,6 +47,7 @@ SELECT is(
   (SELECT count(*)::int FROM public.member_data_handling), 'and has a line for every decision');
 SELECT is((SELECT count(*)::int FROM public.writing_projects WHERE member_id = 'mbr_AAAAAAAAfbA1'), 1, 'the report changes nothing');
 
+SELECT is((SELECT array_agg(table_name ORDER BY table_name) FROM public.member_data_handling WHERE action = 'ask'), ARRAY['member_awards', 'member_books'], 'the public work they made is asked about, not assumed');
 SELECT ok(NOT has_function_privilege('authenticated', 'public.member_data_report(text)', 'EXECUTE'), 'a signed-in member can''t run the report');
 SELECT ok(has_function_privilege('service_role', 'public.member_data_report(text)', 'EXECUTE'), 'the service role can');
 
