@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "../../helpers/api-fetch";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
+import { insertEvent } from "../../helpers/event-db";
 import { solidImage } from "../../helpers/media-fixtures";
 import { createRepos } from "@/lib/data/repos";
 import type { Db } from "@/lib/data/db";
@@ -36,15 +37,15 @@ async function newAsset(n: number) {
 const patchEvent = (body: unknown) => apiFetch(`/api/admin/events/${eventId}`, { method: "PATCH", headers: admin, body: JSON.stringify(body) });
 
 beforeAll(async () => {
-  const { data, error } = await db.from("events").insert({ slug: `cover-${RUN}`, title: `Cover test ${RUN}`, event_type: "other", starts_at: "2097-05-01", ends_at: "2097-05-01" }).select("id").single();
+  const { data, error } = await insertEvent(db, { slug: `cover-${RUN}`, title: `Cover test ${RUN}`, starts_at: "2097-05-01" });
   if (error) throw new Error(error.message);
-  eventId = data.id;
+  eventId = data!.id;
   assetId = await newAsset(1);
   otherAssetId = await newAsset(2);
 });
 
 afterAll(async () => {
-  await db.from("events").delete().in("id", [eventId, ...created]);
+  await db.from("community_events").delete().in("id", [eventId, ...created]);
   const { data } = await db.from("media_assets").select("storage_path").in("id", assets);
   if (data?.length) await db.storage.from("media").remove(data.map((a) => a.storage_path));
   await db.from("media_assets").delete().in("id", assets);
@@ -58,7 +59,7 @@ describe("an event's cover image", () => {
 
     expect((await patchEvent({ image_id: "not-an-id" })).status).toBe(400);
     expect((await patchEvent({ image_id: "media_AAAAAAAAAAAA" })).status).toBe(400); // well-formed, but not in the library
-    expect((await db.from("events").select("image_id").eq("id", eventId).single()).data?.image_id).toBe(assetId);
+    expect((await db.from("community_events").select("image_id").eq("id", eventId).single()).data?.image_id).toBe(assetId);
 
     const swapped = await patchEvent({ image_id: otherAssetId });
     expect((await swapped.json()).event.image_id).toBe(otherAssetId);
@@ -67,7 +68,7 @@ describe("an event's cover image", () => {
     // An update that doesn't mention the image leaves it alone.
     await patchEvent({ image_id: assetId });
     await patchEvent({ focus: "Writing" });
-    expect((await db.from("events").select("image_id").eq("id", eventId).single()).data?.image_id).toBe(assetId);
+    expect((await db.from("community_events").select("image_id").eq("id", eventId).single()).data?.image_id).toBe(assetId);
   });
 
   it("can be chosen when the event is created, and a bad one is refused before anything is made", async () => {
@@ -81,14 +82,14 @@ describe("an event's cover image", () => {
 
     const plain = await create({});
     created.push((await plain.json()).event.id);
-    expect((await db.from("events").select("image_id").eq("id", created[created.length - 1]).single()).data?.image_id).toBeNull();
+    expect((await db.from("community_events").select("image_id").eq("id", created[created.length - 1]).single()).data?.image_id).toBeNull();
 
-    const before = (await db.from("events").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count;
+    const before = (await db.from("community_event_details").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count;
     for (const bad of ["not-an-id", "media_AAAAAAAAAAAA"]) {
       const refused = await create({ image_id: bad });
       expect(refused.status).toBe(400);
     }
-    expect((await db.from("events").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count).toBe(before);
+    expect((await db.from("community_event_details").select("id", { count: "exact", head: true }).eq("title", `Made ${RUN}`)).count).toBe(before);
   });
 
   it("is carried by the events list, ahead of any imported photo", async () => {

@@ -537,62 +537,71 @@ describe('Calendar Reprocessability', () => {
     }
   })
 
-  it('keeps an event that follows a calendar event in step on every run, leaving a field the admin overrode alone', async () => {
-    const googleId = 'test-event-follows-calendar'
-    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
-      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
-    })
+  const processRange = (fromDate: string, toDate: string) => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+    body: JSON.stringify({ fromDate, toDate }),
+  })
+  const processJune = () => processRange(testDateRange.from, testDateRange.to)
+  /** The events standing on the prickles made from these Bronze items, read with their schedule. */
+  const eventsFor = async (calendarIds: string[]) => {
+    const { data: prickles } = await supabase.from('prickles').select('id, calendar_event_id').in('calendar_event_id', calendarIds)
+    const byPrickle = new Map((prickles ?? []).map((p) => [p.id, p.calendar_event_id]))
+    if (byPrickle.size === 0) return []
+    const { data } = await supabase.from('community_event_details').select('id, prickle_id, title, description, location, starts_at, deleted_at, automatic').in('prickle_id', [...byPrickle.keys()])
+    return (data ?? []).map((e) => ({ ...e, calendar_event_id: byPrickle.get(e.prickle_id!)! }))
+  }
+  const sourcesFor = async (googleIds: string[]) => {
+    const { data } = await supabase.schema('bronze').from('calendar_events').select('id, google_event_id').in('google_event_id', googleIds)
+    return data ?? []
+  }
+  /** Removes test rows: the events first (a prickle an event stands on can't be deleted), then Bronze, then a run to clear the Silver prickles. */
+  const cleanUp = async (googleIds: string[], ranges: [string, string][] = [[testDateRange.from, testDateRange.to]]) => {
+    const sources = await sourcesFor(googleIds)
+    const ids = sources.map((s) => s.id)
+    if (ids.length) {
+      const { data: prickles } = await supabase.from('prickles').select('id').in('calendar_event_id', ids)
+      if (prickles?.length) await supabase.from('community_events').delete().in('prickle_id', prickles.map((p) => p.id))
+    }
+    await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', googleIds)
+    for (const [from, to] of ranges) await processRange(from, to)
+    if (ids.length) await supabase.from('unmatched_calendar_events').delete().in('calendar_event_id', ids)
+  }
 
+  it('keeps the event of a calendar item standing on its prickle, with the prickle following the calendar and an admin override surviving every run', async () => {
+    const googleId = 'test-event-follows-calendar'
     const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
       google_event_id: googleId,
-      summary: 'Hedgie Open House',
+      summary: 'Hedgie Open House #event',
       description: '<p>Come say hi</p>',
       location: 'Zoom',
       start_time: '2099-06-22T23:00:00Z',
       end_time: '2099-06-23T01:00:00Z',
       raw_data: {},
     }).select('id').single()
-    const { data: event } = await supabase.from('events').insert({
-      slug: 'test-follows-calendar-2099-06-22',
-      title: 'Our Open House',
-      event_type: 'other',
-      starts_at: '2099-06-22',
-      ends_at: '2099-06-22',
-      calendar_event_id: source!.id,
-      overridden_fields: ['title'],
-    }).select('id').single()
     try {
-      await supabase.schema('bronze').from('calendar_events')
-        .update({ summary: 'Hedgie Open House (moved)', location: 'Room 9', start_time: '2099-06-24T23:00:00Z', end_time: '2099-06-25T01:00:00Z' })
-        .eq('google_event_id', googleId)
-      const res = await process()
-      expect((await res.json()).eventsSynced).toBeGreaterThanOrEqual(1)
+      await processJune()
+      const first = await eventsFor([source!.id])
+      expect(first).toHaveLength(1)
+      expect(first[0]).toMatchObject({ location: 'Zoom', starts_at: '2099-06-22', automatic: true })
 
-      const { data: after } = await supabase.from('events').select('title, description, location, starts_at, ends_at, calendar_event_id').eq('id', event!.id).single()
-      expect(after).toMatchObject({
-        title: 'Our Open House', // overridden, kept
-        description: 'Come say hi',
-        location: 'Room 9',
-        starts_at: '2099-06-24',
-        ends_at: '2099-06-24',
-        calendar_event_id: source!.id,
-      })
+      // The calendar item moves; the event stands on the same prickle and shows the new schedule. An override survives.
+      await supabase.from('unmatched_calendar_events').insert({ calendar_event_id: source!.id, raw_summary: 'Hedgie Open House #event', status: 'resolved', resolved_title: 'Our Open House', resolved_location: 'Our room' })
+      await supabase.schema('bronze').from('calendar_events')
+        .update({ location: 'Room 9', start_time: '2099-06-24T23:00:00Z', end_time: '2099-06-25T01:00:00Z' })
+        .eq('google_event_id', googleId)
+      await processJune()
+      await processJune()
+      const after = await eventsFor([source!.id])
+      expect(after).toHaveLength(1)
+      expect(after[0]).toMatchObject({ id: first[0].id, prickle_id: first[0].prickle_id, title: 'Our Open House', location: 'Our room', starts_at: '2099-06-24' })
     } finally {
-      await supabase.from('events').delete().eq('id', event!.id)
-      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
-      await process()
+      await cleanUp([googleId])
     }
   })
 
   it('makes an event for each upcoming calendar item of a type listed in Events, never twice, and leaves a hidden one hidden', async () => {
     const word = `Autolisted${Date.now().toString(36)}`
-    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
-      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
-    })
     const { data: listedType } = await supabase.from('prickle_types')
       .insert({ name: word, normalized_name: word.toLowerCase(), listed_in_events: true }).select('id').single()
     const { data: plainType } = await supabase.from('prickle_types')
@@ -603,70 +612,55 @@ describe('Calendar Reprocessability', () => {
       { google_event_id: googleIds[1], summary: word, start_time: '2099-06-11T15:00:00Z', end_time: '2099-06-11T16:00:00Z', raw_data: {} },
       { google_event_id: googleIds[2], summary: `${word}Plain`, start_time: '2099-06-12T15:00:00Z', end_time: '2099-06-12T16:00:00Z', raw_data: {} },
     ])
-    const eventsFor = async () => {
-      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id, google_event_id').in('google_event_id', googleIds)
-      const { data } = await supabase.from('events').select('id, calendar_event_id, deleted_at, title').in('calendar_event_id', sources!.map((s) => s.id))
-      return { sources: sources!, events: data! }
-    }
+    const sources = await sourcesFor(googleIds)
+    const sourceIds = sources.map((s) => s.id)
+    const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
     try {
-      const first = await process()
+      const first = await processJune()
       expect((await first.json()).eventsCreated).toBeGreaterThanOrEqual(2)
-      const { sources, events: made } = await eventsFor()
-      let events = made
-      const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
+      let events = await eventsFor(sourceIds)
       expect(events.map((e) => e.calendar_event_id).sort()).toEqual([idOf(googleIds[0]), idOf(googleIds[1])].sort())
       expect(events.every((e) => e.title === word)).toBe(true)
 
-      // Hiding one keeps it from coming back; a second run adds nothing.
+      // Hiding one keeps it from coming back; a second run adds nothing and keeps the same events.
       const hiddenEvent = events.find((e) => e.calendar_event_id === idOf(googleIds[1]))!
-      await supabase.from('events').update({ deleted_at: new Date().toISOString() }).eq('id', hiddenEvent.id)
-      await process()
-      ;({ events } = await eventsFor())
+      await supabase.from('community_events').update({ deleted_at: new Date().toISOString() }).eq('id', hiddenEvent.id)
+      await processJune()
+      events = await eventsFor(sourceIds)
       expect(events).toHaveLength(2)
       expect(events.find((e) => e.id === hiddenEvent.id)!.deleted_at).not.toBeNull()
 
-      // Un-listing the type takes the automatic events away again, the hidden one too.
+      // Un-listing the type takes the automatic events away again, the hidden one too; the prickles stay.
       await supabase.from('prickle_types').update({ listed_in_events: false }).eq('id', listedType!.id)
-      const afterUnlist = await process()
+      const afterUnlist = await processJune()
       expect((await afterUnlist.json()).eventsRemoved).toBeGreaterThanOrEqual(2)
-      ;({ events } = await eventsFor())
-      expect(events).toHaveLength(0)
+      expect(await eventsFor(sourceIds)).toHaveLength(0)
+      const { data: prickles } = await supabase.from('prickles').select('id').in('calendar_event_id', sourceIds)
+      expect(prickles).toHaveLength(3)
     } finally {
-      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
-      if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
-      await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', googleIds)
-      await process()
+      await cleanUp(googleIds)
       await supabase.from('prickle_types').delete().in('id', [listedType!.id, plainType!.id])
     }
   })
 
-  it('keeps the title, description and guest speaker an admin set for a calendar prickle through reprocessing, and returns to the calendar when they are cleared', async () => {
+  it('keeps the title, description, guest speaker and location an admin set for a calendar prickle through reprocessing, and returns to the calendar when they are cleared', async () => {
     const googleId = 'test-event-text-override'
-    const process = () => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
-      body: JSON.stringify({ fromDate: testDateRange.from, toDate: testDateRange.to }),
-    })
     const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
       google_event_id: googleId,
       summary: 'Heads Down Prickle w/Cody',
       description: '<p>From the calendar</p>',
+      location: 'Calendar room',
       start_time: '2099-06-26T09:00:00Z',
       end_time: '2099-06-26T10:00:00Z',
       raw_data: {},
     }).select('id').single()
     const read = async () => {
-      const { data } = await supabase.from('prickles').select('title, description, guest_speaker').eq('calendar_event_id', source!.id).single()
-      return data
-    }
-    let eventId: string | undefined
-    const readEvent = async () => {
-      const { data } = await supabase.from('events').select('title, description, speakers').eq('id', eventId!).single()
+      const { data } = await supabase.from('prickles').select('id, title, description, guest_speaker, location').eq('calendar_event_id', source!.id).single()
       return data
     }
     try {
-      await process()
-      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
+      await processJune()
+      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null, location: 'Calendar room' })
 
       await supabase.from('unmatched_calendar_events').insert({
         calendar_event_id: source!.id,
@@ -675,74 +669,159 @@ describe('Calendar Reprocessability', () => {
         resolved_title: 'Our own title',
         resolved_description: 'Our own words',
         resolved_guest_speaker: 'Ada Example',
+        resolved_location: 'Our room',
       })
-      await process()
-      expect(await read()).toMatchObject({ title: 'Our own title', description: 'Our own words', guest_speaker: 'Ada Example' })
+      await processJune()
+      expect(await read()).toMatchObject({ title: 'Our own title', description: 'Our own words', guest_speaker: 'Ada Example', location: 'Our room' })
 
-      // An event that stands for the prickle takes the edited text and the guest speaker, on the same run.
-      const { data: standsFor } = await supabase.from('events').insert({
-        slug: 'test-text-override-2099-06-26', title: 'Stale title', event_type: 'other', starts_at: '2099-06-26', ends_at: '2099-06-26', calendar_event_id: source!.id,
-      }).select('id').single()
-      eventId = standsFor!.id
-      await process()
-      expect(await readEvent()).toMatchObject({ title: 'Our own title', description: 'Our own words', speakers: 'Ada Example' })
+      // An event standing on the prickle shows the edited text, location and guest speaker, with nothing copied.
+      const prickle = await read()
+      const { data: standsOn } = await supabase.from('community_events').insert({ slug: 'test-text-override-2099-06-26', event_type: 'other', prickle_id: prickle!.id }).select('id').single()
+      const readEvent = async () => (await supabase.from('community_event_details').select('title, description, speakers, location').eq('id', standsOn!.id).single()).data
+      expect(await readEvent()).toMatchObject({ title: 'Our own title', description: 'Our own words', speakers: 'Ada Example', location: 'Our room' })
 
-      // Reprocessing again changes nothing; clearing them brings the calendar's text back.
-      await process()
-      expect(await read()).toMatchObject({ title: 'Our own title' })
-      await supabase.from('unmatched_calendar_events').update({ resolved_title: null, resolved_description: null, resolved_guest_speaker: null }).eq('calendar_event_id', source!.id)
-      await process()
-      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null })
-      expect(await readEvent()).toMatchObject({ description: 'From the calendar', speakers: null })
-      expect((await readEvent())!.title).not.toBe('Our own title')
+      // Reprocessing again changes nothing (same prickle id); clearing the decision brings the calendar's text back.
+      await processJune()
+      expect((await read())!.id).toBe(prickle!.id)
+      await supabase.from('unmatched_calendar_events').update({ resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null }).eq('calendar_event_id', source!.id)
+      await processJune()
+      expect(await read()).toMatchObject({ title: null, description: 'From the calendar', guest_speaker: null, location: 'Calendar room' })
+      expect(await readEvent()).toMatchObject({ description: 'From the calendar', speakers: null, location: 'Calendar room' })
     } finally {
-      if (eventId) await supabase.from('events').delete().eq('id', eventId)
-      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
-      await process()
+      await cleanUp([googleId])
     }
   })
 
-  it('makes an event for a calendar item tagged #event in Google Calendar, upcoming or past, even with no prickle type, keeps the tag out of its description, and takes the event away when the tag goes', async () => {
+  it('keeps what an admin edited on the event page for a calendar-backed event through reprocessing, the way the prickle page does', async () => {
+    const googleId = 'test-event-page-edit'
+    const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: googleId,
+      summary: 'Heads Down Prickle w/Cody',
+      description: '<p>From the calendar</p>',
+      location: 'Calendar room',
+      start_time: '2099-06-27T09:00:00Z',
+      end_time: '2099-06-27T10:00:00Z',
+      raw_data: {},
+    }).select('id').single()
+    let eventId: string | undefined
+    try {
+      await processJune()
+      const { data: prickle } = await supabase.from('prickles').select('id, start_time, end_time').eq('calendar_event_id', source!.id).single()
+      const { data: made } = await supabase.from('community_events').insert({ slug: 'test-event-page-edit-2099-06-27', event_type: 'other', prickle_id: prickle!.id }).select('id').single()
+      eventId = made!.id
+      const readEvent = async () => (await supabase.from('community_event_details').select('title, description, speakers, location, start_time, end_time').eq('id', eventId!).single()).data
+
+      // The event page's PATCH writes the calendar item's decision (title, description, guest speaker, location); times are not taken.
+      const patched = await apiFetch(`${getTestApiBaseUrl()}/api/admin/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
+        body: JSON.stringify({ title: 'Edited on the event page', description: 'Our words', location: 'Our room', speakers: 'Ada Example', starts_at: '2000-01-01', ends_at: '2000-01-02' }),
+      })
+      expect(patched.status).toBe(200)
+      expect((await patched.json()).overridden).toEqual({ title: true, description: true, guestSpeaker: true, location: true })
+      const { data: decision } = await supabase.from('unmatched_calendar_events').select('resolved_title, resolved_description, resolved_guest_speaker, resolved_location').eq('calendar_event_id', source!.id).single()
+      expect(decision).toEqual({ resolved_title: 'Edited on the event page', resolved_description: 'Our words', resolved_guest_speaker: 'Ada Example', resolved_location: 'Our room' })
+      const expected = { title: 'Edited on the event page', description: 'Our words', speakers: 'Ada Example', location: 'Our room' }
+      expect(await readEvent()).toMatchObject(expected)
+
+      // A calendar reprocess keeps it, and the times are still the calendar's.
+      await processJune()
+      const after = await readEvent()
+      expect(after).toMatchObject(expected)
+      expect(new Date(after!.start_time!).toISOString()).toBe('2099-06-27T09:00:00.000Z')
+      expect(new Date(after!.end_time!).toISOString()).toBe('2099-06-27T10:00:00.000Z')
+    } finally {
+      if (eventId) await supabase.from('community_events').delete().eq('id', eventId)
+      await cleanUp([googleId])
+    }
+  })
+
+  it('makes an Event-type prickle and an automatic event for a calendar item tagged #event with no prickle type, upcoming or past, and takes the event away when the tag goes', async () => {
     const word = `Tagged${Date.now().toString(36)}`
-    const processRange = (fromDate: string, toDate: string) => apiFetch(`${getTestApiBaseUrl()}/api/process/calendar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getTestAuthHeaders() },
-      body: JSON.stringify({ fromDate, toDate }),
-    })
     const googleIds = [`${word}-tagged`, `${word}-plain`, `${word}-past`]
+    const pastRange: [string, string] = ['2020-01-30T00:00:00Z', '2020-02-03T00:00:00Z']
     await supabase.schema('bronze').from('calendar_events').insert([
-      // No prickle type matches these words, so they never become prickles; the tag alone makes the event.
-      { google_event_id: googleIds[0], summary: `${word} Retreat Kickoff`, description: '<p>Come along</p><p>#event</p>', start_time: '2099-06-14T15:00:00Z', end_time: '2099-06-14T16:00:00Z', raw_data: {} },
+      // No prickle type matches these words; the tag alone makes the item an event (an Event-type prickle).
+      { google_event_id: googleIds[0], summary: `${word} Retreat Kickoff`, description: '<p>Come along</p><p>#event</p>', location: 'Camp Example', start_time: '2099-06-14T15:00:00Z', end_time: '2099-06-14T16:00:00Z', raw_data: {} },
       { google_event_id: googleIds[1], summary: `${word} Quiet Hour`, description: 'Nothing special #events', start_time: '2099-06-15T15:00:00Z', end_time: '2099-06-15T16:00:00Z', raw_data: {} },
       { google_event_id: googleIds[2], summary: `${word} Old Retreat`, description: '#event', start_time: '2020-02-01T15:00:00Z', end_time: '2020-02-01T16:00:00Z', raw_data: {} },
     ])
-    const eventsFor = async () => {
-      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id, google_event_id').in('google_event_id', googleIds)
-      const { data } = await supabase.from('events').select('calendar_event_id, title, description').in('calendar_event_id', sources!.map((s) => s.id))
-      return { sources: sources!, events: data! }
-    }
+    const sources = await sourcesFor(googleIds)
+    const sourceIds = sources.map((s) => s.id)
+    const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
     try {
-      await processRange(testDateRange.from, testDateRange.to)
-      await processRange('2020-01-30T00:00:00Z', '2020-02-03T00:00:00Z')
+      await processJune()
+      await processRange(...pastRange)
 
-      const { sources, events } = await eventsFor()
-      const idOf = (g: string) => sources.find((s) => s.google_event_id === g)!.id
-      expect(events.sort((a, b) => a.title.localeCompare(b.title))).toEqual([
-        { calendar_event_id: idOf(googleIds[2]), title: `${word} Old Retreat`, description: null }, // past, tag only: no text left
-        { calendar_event_id: idOf(googleIds[0]), title: `${word} Retreat Kickoff`, description: 'Come along' },
+      const events = await eventsFor(sourceIds)
+      const byTitle = [...events].sort((a, b) => a.title!.localeCompare(b.title!))
+      expect(byTitle.map((e) => [e.calendar_event_id, e.title, e.automatic])).toEqual([
+        [idOf(googleIds[2]), `${word} Old Retreat`, true],
+        [idOf(googleIds[0]), `${word} Retreat Kickoff`, true],
       ])
+      expect(byTitle[1]).toMatchObject({ location: 'Camp Example' })
+      const { data: types } = await supabase.from('prickles').select('prickle_types(normalized_name)').in('calendar_event_id', [idOf(googleIds[0])])
+      expect(types).toEqual([{ prickle_types: { normalized_name: 'event' } }])
+      // The item that isn't an event stays in the review queue, not a prickle.
+      const { data: plain } = await supabase.from('prickles').select('id').eq('calendar_event_id', idOf(googleIds[1]))
+      expect(plain).toHaveLength(0)
 
-      // Taking the tag out of the Google Calendar description takes the automatic event away on the next run.
+      // Taking the tag out takes the automatic event away; the next run then clears the prickle that stood under it.
       await supabase.schema('bronze').from('calendar_events').update({ description: '<p>Come along</p>' }).eq('google_event_id', googleIds[0])
-      await processRange(testDateRange.from, testDateRange.to)
-      const afterUntag = await eventsFor()
-      expect(afterUntag.events.map((e) => e.calendar_event_id)).toEqual([idOf(googleIds[2])])
+      await processJune()
+      expect((await eventsFor(sourceIds)).map((e) => e.calendar_event_id)).toEqual([idOf(googleIds[2])])
+      await processJune()
+      const { data: gone } = await supabase.from('prickles').select('id').eq('calendar_event_id', idOf(googleIds[0]))
+      expect(gone).toHaveLength(0)
     } finally {
-      const { data: sources } = await supabase.schema('bronze').from('calendar_events').select('id').in('google_event_id', googleIds)
-      if (sources?.length) await supabase.from('events').delete().in('calendar_event_id', sources.map((s) => s.id))
-      await supabase.schema('bronze').from('calendar_events').delete().in('google_event_id', googleIds)
-      await processRange(testDateRange.from, testDateRange.to)
-      await processRange('2020-01-30T00:00:00Z', '2020-02-03T00:00:00Z')
+      await cleanUp(googleIds, [[testDateRange.from, testDateRange.to], pastRange])
+    }
+  })
+
+  it('does not delete a prickle an event stands on when its calendar item is deleted, and keeps a hub prickle', async () => {
+    const googleId = 'test-event-source-deleted'
+    const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: googleId, summary: 'Heads Down Prickle', start_time: '2099-06-18T09:00:00Z', end_time: '2099-06-18T10:00:00Z', raw_data: {},
+    }).select('id').single()
+    const { data: session } = await supabase.from('hub_sessions').insert({ title: 'Test hub only', start_time: '2099-06-19T09:00:00Z', end_time: '2099-06-19T10:00:00Z' }).select('id').single()
+    let eventId: string | undefined
+    try {
+      await processJune()
+      const { data: prickle } = await supabase.from('prickles').select('id').eq('calendar_event_id', source!.id).single()
+      const { data: made } = await supabase.from('community_events').insert({ slug: 'test-source-deleted-2099-06-18', event_type: 'other', prickle_id: prickle!.id }).select('id').single()
+      eventId = made!.id
+
+      await supabase.schema('bronze').from('calendar_events').delete().eq('google_event_id', googleId)
+      await processJune()
+
+      const { data: kept } = await supabase.from('prickles').select('id').eq('id', prickle!.id)
+      expect(kept).toHaveLength(1)
+      expect((await supabase.from('community_events').select('id').eq('id', eventId)).data).toHaveLength(1)
+      expect((await supabase.from('prickles').select('id').eq('hub_session_id', session!.id)).data).toHaveLength(1)
+    } finally {
+      if (eventId) await supabase.from('community_events').delete().eq('id', eventId)
+      await supabase.from('hub_sessions').delete().eq('id', session!.id)
+      await supabase.from('prickles').delete().eq('source', 'calendar').is('calendar_event_id', null).gte('start_time', testDateRange.from).lte('end_time', testDateRange.to)
+      await supabase.from('unmatched_calendar_events').delete().eq('calendar_event_id', source!.id)
+    }
+  })
+
+  it('is idempotent with events: processing twice keeps the same prickle and event ids and makes no duplicates', async () => {
+    const googleId = 'test-event-idempotent'
+    const { data: source } = await supabase.schema('bronze').from('calendar_events').insert({
+      google_event_id: googleId, summary: 'Idem Retreat', description: '#event', start_time: '2099-06-20T09:00:00Z', end_time: '2099-06-20T10:00:00Z', raw_data: {},
+    }).select('id').single()
+    try {
+      await processJune()
+      const first = await eventsFor([source!.id])
+      await processJune()
+      await processJune()
+      const again = await eventsFor([source!.id])
+      expect(first).toHaveLength(1)
+      expect(again.map((e) => [e.id, e.prickle_id])).toEqual(first.map((e) => [e.id, e.prickle_id]))
+      expect((await supabase.from('prickles').select('id').eq('calendar_event_id', source!.id)).data).toHaveLength(1)
+    } finally {
+      await cleanUp([googleId])
     }
   })
 })

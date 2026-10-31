@@ -82,7 +82,7 @@ export default async function PrickleInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const types: PrickleType[] = (await createRepos(supabase).prickles.types()).map((t) => ({
+  const types: PrickleType[] = (await createRepos(supabase).prickles.types()).filter((t) => t.normalizedName !== "event").map((t) => ({
     id: t.id,
     name: t.name,
     normalized_name: t.normalizedName,

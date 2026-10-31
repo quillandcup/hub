@@ -156,6 +156,12 @@ export function withoutFollowedEvents<T extends { calendarEventId: string | null
   return prickles.filter((p) => !p.calendarEventId || !followed.has(p.calendarEventId));
 }
 
+/** The prickles no event stands on yet: an event stands on exactly one prickle and replaces it in the list. */
+export function withoutEventPrickles<T extends { id: string }>(prickles: T[], eventPrickleIds: Iterable<string>): T[] {
+  const taken = new Set(eventPrickleIds);
+  return prickles.filter((p) => !taken.has(p.id));
+}
+
 /**
  * The days an event covers as the viewer reads them: from its instants when it has them, else its dates. Here, not in
  * a client component's file, because the past events page (a server component) calls it.

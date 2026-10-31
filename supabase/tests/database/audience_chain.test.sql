@@ -5,6 +5,11 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
+INSERT INTO public.prickles (id, source, start_time, end_time, title) VALUES
+  ('prkl_AUDCHAIN001', 'calendar', '2097-01-01 15:00+00', '2097-01-01 16:00+00', 'A'),
+  ('prkl_AUDCHAIN002', 'calendar', '2097-01-01 15:00+00', '2097-01-01 16:00+00', 'B'),
+  ('prkl_AUDCHAIN003', 'calendar', '2097-01-01 15:00+00', '2097-01-01 16:00+00', 'C');
+
 SELECT plan(10);
 
 SELECT throws_ok(
@@ -37,15 +42,15 @@ SELECT throws_ok(
 );
 
 SELECT throws_ok(
-  $$INSERT INTO public.events (slug, title, event_type, starts_at, ends_at, guests_allowed) VALUES ('audience-test-ev-a', 'A', 'other', '2097-01-01', '2097-01-01', true)$$,
+  $$INSERT INTO public.community_events (slug, event_type, prickle_id, guests_allowed) VALUES ('audience-test-ev-a', 'other', 'prkl_AUDCHAIN001', true)$$,
   '23514', NULL, 'an event that allows guests must be announced publicly'
 );
 SELECT lives_ok(
-  $$INSERT INTO public.events (slug, title, event_type, starts_at, ends_at, announced_publicly, guests_allowed) VALUES ('audience-test-ev-b', 'B', 'other', '2097-01-01', '2097-01-01', true, true)$$,
+  $$INSERT INTO public.community_events (slug, event_type, prickle_id, announced_publicly, guests_allowed) VALUES ('audience-test-ev-b', 'other', 'prkl_AUDCHAIN002', true, true)$$,
   'an event announced publicly may allow guests'
 );
 SELECT lives_ok(
-  $$INSERT INTO public.events (slug, title, event_type, starts_at, ends_at) VALUES ('audience-test-ev-c', 'C', 'other', '2097-01-01', '2097-01-01')$$,
+  $$INSERT INTO public.community_events (slug, event_type, prickle_id) VALUES ('audience-test-ev-c', 'other', 'prkl_AUDCHAIN003')$$,
   'an event for members only is allowed'
 );
 

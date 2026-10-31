@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SupabaseEventRepository } from "@/lib/data/events";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { createFakeSupabase } from "@/tests/helpers/server-page";
 import { parseUniversal } from "@/lib/search/syntax";
@@ -16,7 +17,7 @@ import { universalSearch } from "@/lib/search/universal";
 
 // A failed query is an error, never an empty result.
 describe("SupabaseEventRepository on a database error", () => {
-  const failing = () => new SupabaseEventRepository(createFakeSupabase({ events: { error: { message: "boom" } }, event_photos: { error: { message: "boom" } }, event_attendees: { error: { message: "boom" } } }) as never);
+  const failing = () => new SupabaseEventRepository(createFakeSupabase({ community_event_details: { error: { message: "boom" } }, community_events: { error: { message: "boom" } }, event_photos: { error: { message: "boom" } }, event_attendees: { error: { message: "boom" } } }) as never);
 
   it("throws from every member read", async () => {
     await expect(failing().listWithCover()).rejects.toThrow("boom");
@@ -40,11 +41,11 @@ describe("universal search over events", () => {
   });
   const seed = () => {
     dataset = new InMemoryDataset({
-      events: [
+      ...eventSeed([
         { id: "evnt_AAAAAAAAAAA1", slug: "lakeside-retreat", title: "Lakeside Retreat", starts_at: "2097-04-01", ends_at: "2097-04-03", location: "Asheville" },
         { id: "evnt_AAAAAAAAAAA2", slug: "lakeside-workshop", title: "Lakeside Workshop", starts_at: "2097-03-01", ends_at: "2097-03-01", speakers: "Ada Example" },
         { id: "evnt_AAAAAAAAAAA3", slug: "lakeside-hidden", title: "Lakeside Hidden", starts_at: "2097-02-01", ends_at: "2097-02-01", deleted_at: "2097-01-01T00:00:00Z" },
-      ],
+      ]),
       eventAttendees: [{ event_id: "evnt_AAAAAAAAAAA2", member_id: "mbr_AAAAAAAAAAA1" }],
     });
   };

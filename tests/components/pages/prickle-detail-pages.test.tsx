@@ -145,7 +145,7 @@ describe("admin prickle page", () => {
 
       const { edit } = JSON.parse(screen.getByTestId("details").textContent!);
       expect(edit.types).toEqual(["prty_AAAAAAAAAAA1"]);
-      expect(edit.overridden).toEqual({ title: true, description: false, guestSpeaker: false });
+      expect(edit.overridden).toEqual({ title: true, description: false, guestSpeaker: false, location: false });
     });
 
     it("leaves a prickle that isn't from the calendar read-only", async () => {
@@ -174,17 +174,17 @@ describe("admin prickle page", () => {
       expect(controlProps()).toEqual({ calendarEventId: CALENDAR_ID, initial: null });
     });
 
-    const followingEvent = (deleted_at: string | null) => [{ id: "evt_AAAAAAAAAAA1", title: "Sprint", slug: "sprint", calendar_event_id: CALENDAR_ID, deleted_at }];
+    const followingEvent = (deleted_at: string | null) => [{ id: "evt_AAAAAAAAAAA1", slug: "sprint", prickle_id: "prkl_AAAAAAAAAAA1", deleted_at }];
 
     it("starts from the event that follows the prickle, shown or hidden", async () => {
       repos = dataset([prickle({ calendarEventId: CALENDAR_ID })], [], followingEvent(null));
       await renderServerPage(AdminPrickleDetailPage, memberProps);
-      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: false });
+      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", slug: "sprint", hidden: false });
       cleanup();
 
       repos = dataset([prickle({ calendarEventId: CALENDAR_ID })], [], followingEvent("2097-01-01T00:00:00Z"));
       await renderServerPage(AdminPrickleDetailPage, memberProps);
-      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", hidden: true });
+      expect(controlProps().initial).toEqual({ id: "evt_AAAAAAAAAAA1", slug: "sprint", hidden: true });
     });
 
     it("leaves the control out for a prickle with no calendar event, and when events aren't enabled", async () => {

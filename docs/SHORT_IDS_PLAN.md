@@ -66,7 +66,7 @@ tail is cryptic; nobody minds either).
 | `prickle_commitments` | `cmt_` | `courses` | `crs_` |
 | `writing_projects` | `prj_` | `course_modules` | `mod_` |
 | `member_books` | `book_` | `course_lessons` | `les_` |
-| `events` | `evt_` | `event_photos` | `photo_` |
+| `community_events` (was `events`) | `evt_` | `event_photos` | `photo_` |
 | `programs` | `prg_` | `course_lesson_files` | `file_` |
 | `chat_messages` | `msg_` | `media_assets` | `media_` |
 
@@ -199,7 +199,7 @@ is fine; no batching needed.
 | `prickles` | 8 |
 | `prickle_types` | 6 |
 | `writing_projects` | 5 |
-| `events` | 5 |
+| `community_events` | 5 |
 | `chat_messages` | 3, including self `thread_root_id` |
 | `courses` | 4 (`course_access`, `course_access_grants`, `course_modules`, `course_lessons`) |
 | `course_modules` | 2, including self `parent_id` |

@@ -22,6 +22,7 @@ import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepos
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
 import { InMemoryProgramRepository, SupabaseProgramRepository, type ProgramRepository } from "./programs";
 import { InMemoryZoomRepository, SupabaseZoomRepository, type ZoomRepository } from "./zoom";
+import { InMemoryHubSessionRepository, SupabaseHubSessionRepository, type HubSessionRepository } from "./hub-sessions";
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
@@ -48,6 +49,7 @@ export interface Repos {
   aliases: AliasRepository;
   writing: WritingRepository;
   events: EventRepository;
+  hubSessions: HubSessionRepository;
   prickleSchedules: PrickleScheduleRepository;
   activities: ActivityRepository;
   directory: MemberDirectoryRepository;
@@ -84,6 +86,7 @@ export function createRepos(db: Db): Repos {
     aliases: new SupabaseAliasRepository(db),
     writing: new SupabaseWritingRepository(db),
     events: new SupabaseEventRepository(db),
+    hubSessions: new SupabaseHubSessionRepository(db),
     prickleSchedules: new SupabasePrickleScheduleRepository(db),
     activities: new SupabaseActivityRepository(db),
     directory: new SupabaseMemberDirectoryRepository(db),
@@ -121,6 +124,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     aliases: new InMemoryAliasRepository(dataset),
     writing: new InMemoryWritingRepository(dataset),
     events: new InMemoryEventRepository(dataset),
+    hubSessions: new InMemoryHubSessionRepository(dataset),
     prickleSchedules: new InMemoryPrickleScheduleRepository(dataset),
     activities: new InMemoryActivityRepository(dataset),
     directory: new InMemoryMemberDirectoryRepository(dataset),

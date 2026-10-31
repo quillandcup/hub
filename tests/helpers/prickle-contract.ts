@@ -230,6 +230,23 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().inProgressAt(at(9))).toBeNull();
     });
 
+    it("leaves out the prickle an event stands on (the Event type) from session lists, unless asked for", async () => {
+      const [session, eventPrickle] = await ctx.seed([
+        { start: at(1), end: at(5), title: "contract-session" },
+        { start: at(0), end: at(4), title: "contract-session" }, // starts first, so it would win every "earliest" if it counted
+      ]);
+      const eventTypeId = await ctx.repo().findOrCreateType({ name: "Event", normalizedName: "event" });
+      await ctx.repo().setType(eventPrickle, eventTypeId);
+      const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+
+      expect(ids(await ctx.repo().startingBetween({ from: at(0), to: at(10) }))).toEqual([session]);
+      expect(ids(await ctx.repo().startingBetween({ from: at(0), to: at(10), includeEventType: true }))).toEqual([eventPrickle, session]);
+      expect(ids(await ctx.repo().activeBetween({ from: at(2), to: at(3) }))).toEqual([session]);
+      expect((await ctx.repo().inProgressAt(at(2)))?.id).toBe(session);
+      expect((await ctx.repo().nextOrMostRecent(at(-1)))?.id).toBe(session);
+      expect(ids(await ctx.repo().search({ words: [{ text: "contract-session", hostIds: [] }], limit: 10, offset: 0 }))).toEqual([session]);
+    });
+
     it("counts how many prickles each member hosted before a moment, with zero for members who hosted none", async () => {
       await ctx.seed([
         { host: 0, start: at(0) },

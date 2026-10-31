@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
 import { agendaItemOfEvent, agendaItemOfPrickle, AgendaWeeks, type EventRow } from "../AgendaList";
-import { pastAgendaWeeks, withoutFollowedEvents, type AgendaMonth } from "@/lib/events-agenda";
+import { pastAgendaWeeks, withoutEventPrickles, type AgendaMonth } from "@/lib/events-agenda";
 import type { EventPrickle } from "@/lib/event-prickles";
 
 /** Keep `?month=` in sync without a server round trip. */
@@ -24,7 +24,7 @@ export default function PastEventsBrowser({
   initialMonth,
   months,
   events,
-  followedCalendarEventIds,
+  eventPrickleIds,
   initialPrickles,
   timeZone,
 }: {
@@ -34,7 +34,7 @@ export default function PastEventsBrowser({
   /** The events that have already ended. */
   events: EventRow[];
   /** Calendar items an event follows: such an event stands in for its prickle. */
-  followedCalendarEventIds: string[];
+  eventPrickleIds: string[];
   /** The listed prickles of `initialMonth`, loaded with the page. */
   initialPrickles: EventPrickle[];
   timeZone: string;
@@ -78,7 +78,7 @@ export default function PastEventsBrowser({
   const loaded = prickles[month.id];
   const items = [
     ...events.map((e) => agendaItemOfEvent(e, timeZone)),
-    ...withoutFollowedEvents(loaded ?? [], followedCalendarEventIds).map((p) => agendaItemOfPrickle(p, timeZone)),
+    ...withoutEventPrickles(loaded ?? [], eventPrickleIds).map((p) => agendaItemOfPrickle(p, timeZone)),
   ];
   const weeks = pastAgendaWeeks(items, month);
 

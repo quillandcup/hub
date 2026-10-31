@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe("ShowInEvents", () => {
   it("shows a calendar prickle in Events and then offers to edit or hide the event", async () => {
-    respond = () => ({ body: { event: { id: "evt_AAAAAAAAAAA1", slug: "x", hidden: false } } });
+    respond = () => ({ body: { event: { id: "evt_AAAAAAAAAAA1", slug: "spring-retreat", hidden: false } } });
     render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={null} />);
     expect(screen.getByText("Not shown in Events.")).toBeInTheDocument();
 
@@ -42,12 +42,12 @@ describe("ShowInEvents", () => {
 
     expect(await screen.findByText("Shown in Events.")).toBeInTheDocument();
     expect(calls[0]).toEqual({ url: "/api/admin/events/calendar", body: { calendarEventId: CALENDAR_ID } });
-    expect(screen.getByRole("link", { name: "Edit the event" })).toHaveAttribute("href", "/admin/events/evt_AAAAAAAAAAA1");
+    expect(screen.getByRole("link", { name: "Edit the event" })).toHaveAttribute("href", "/admin/events/spring-retreat");
     expect(screen.getByRole("button", { name: "Remove from Events" })).toBeInTheDocument();
   });
 
   it("hides a shown event and shows it again", async () => {
-    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: false }} />);
+    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", slug: "spring-retreat", hidden: false }} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Remove from Events" }));
     expect(await screen.findByText("Removed from Events.")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("ShowInEvents", () => {
   });
 
   it("starts from a hidden event, and says how to use the Google Calendar tag", () => {
-    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: true }} />);
+    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", slug: "spring-retreat", hidden: true }} />);
 
     expect(screen.getByText("Removed from Events.")).toBeInTheDocument();
     expect(screen.getByText(/add #event to the event's description in Google Calendar/)).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("ShowInEvents", () => {
     cleanup();
 
     respond = () => ({ ok: false, body: {} });
-    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", hidden: false }} />);
+    render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={{ id: "evt_AAAAAAAAAAA1", slug: "spring-retreat", hidden: false }} />);
     await userEvent.click(screen.getByRole("button", { name: "Remove from Events" }));
     expect(await screen.findByText("That didn't work")).toBeInTheDocument();
   });

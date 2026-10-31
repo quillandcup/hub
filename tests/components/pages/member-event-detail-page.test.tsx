@@ -12,6 +12,7 @@ import {
   useFakeSupabase,
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { photoRow } from "@/tests/helpers/event-contract";
 
@@ -54,10 +55,10 @@ beforeEach(() => {
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase({});
   dataset = new InMemoryDataset({
-    events: [
+    ...eventSeed([
       { id: "evnt_AAAAAAAAAAA1", slug: "spring-retreat", title: "Spring Retreat", starts_at: "2097-04-01", ends_at: "2097-04-03" },
       { id: "evnt_AAAAAAAAAAA2", slug: "secret", title: "Secret", starts_at: "2097-04-01", ends_at: "2097-04-03", deleted_at: "2097-01-01T00:00:00Z" },
-    ],
+    ]),
     eventPhotos: [
       photoRow({ id: "evph_AAAAAAAAAAA1", event_id: "evnt_AAAAAAAAAAA1", taken_at: "2097-04-02T10:00:00Z" }),
       photoRow({ id: "evph_AAAAAAAAAAA2", event_id: "evnt_AAAAAAAAAAA1", taken_at: "2097-04-01T10:00:00Z" }),

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "../../helpers/api-fetch";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
+import { insertEvent } from "../../helpers/event-db";
 import { solidImage } from "../../helpers/media-fixtures";
 
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
@@ -26,9 +27,9 @@ const photoPath = (name: string) => `from-photo-${RUN}/${name}.png`;
 const assetIds: string[] = [];
 
 beforeAll(async () => {
-  const { data: event, error } = await db.from("events").insert({ slug: `from-photo-${RUN}`, title: `Spring Retreat ${RUN}`, event_type: "other", starts_at: "2097-06-01", ends_at: "2097-06-01" }).select("id").single();
+  const { data: event, error } = await insertEvent(db, { slug: `from-photo-${RUN}`, title: `Spring Retreat ${RUN}`, starts_at: "2097-06-01" });
   if (error) throw new Error(error.message);
-  eventId = event.id;
+  eventId = event!.id;
   const bytes = await solidImage(640, 360, "png", { r: RUN % 256, g: 90, b: 140 });
   await db.storage.from("event-photos").upload(photoPath("a"), bytes, { contentType: "image/png", upsert: true });
   const { data: photos, error: photoError } = await db
@@ -44,7 +45,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.from("events").delete().eq("id", eventId); // its photo rows go with it
+  await db.from("community_events").delete().eq("id", eventId); // its photo rows go with it
   await db.storage.from("event-photos").remove([photoPath("a")]);
   const { data } = await db.from("media_assets").select("storage_path").in("id", assetIds);
   if (data?.length) await db.storage.from("media").remove(data.map((a) => a.storage_path));

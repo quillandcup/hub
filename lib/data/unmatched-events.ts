@@ -17,15 +17,15 @@ export type PendingUnmatchedEvent = Pick<UnmatchedEvent, "id" | "calendar_event_
 /** A queued item that has been resolved or ignored: what processing applies on every run. */
 export type UnmatchedEventDecision = Pick<
   UnmatchedEvent,
-  "calendar_event_id" | "status" | "resolved_type_id" | "resolved_host_id" | "resolved_title" | "resolved_description" | "resolved_guest_speaker"
+  "calendar_event_id" | "status" | "resolved_type_id" | "resolved_host_id" | "resolved_title" | "resolved_description" | "resolved_guest_speaker" | "resolved_location"
 >;
 
 /** What an admin has set by hand for one calendar item. */
-export type UnmatchedEventValues = Pick<UnmatchedEvent, "resolved_type_id" | "resolved_host_id" | "resolved_title" | "resolved_description" | "resolved_guest_speaker">;
+export type UnmatchedEventValues = Pick<UnmatchedEvent, "resolved_type_id" | "resolved_host_id" | "resolved_title" | "resolved_description" | "resolved_guest_speaker" | "resolved_location">;
 
 const PENDING_COLUMNS = "id, calendar_event_id, raw_summary, suggested_type, suggested_host, status, created_at";
-const DECISION_COLUMNS = "calendar_event_id, status, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker";
-const VALUE_COLUMNS = "resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker";
+const DECISION_COLUMNS = "calendar_event_id, status, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, resolved_location";
+const VALUE_COLUMNS = "resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, resolved_location";
 // Small chunks: long `.in()` lists fail with "URI too long".
 const ID_CHUNK = 100;
 
@@ -185,7 +185,7 @@ export class InMemoryUnmatchedEventRepository implements UnmatchedEventRepositor
     return this.rows
       .filter((r) => r.status === "resolved" || r.status === "ignored")
       .sort((a, b) => (a.id < b.id ? -1 : 1))
-      .map(({ calendar_event_id, status, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker }) => ({
+      .map(({ calendar_event_id, status, resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, resolved_location }) => ({
         calendar_event_id,
         status,
         resolved_type_id,
@@ -193,14 +193,15 @@ export class InMemoryUnmatchedEventRepository implements UnmatchedEventRepositor
         resolved_title,
         resolved_description,
         resolved_guest_speaker,
+        resolved_location,
       }));
   }
 
   async valuesFor(calendarEventId: string) {
     const row = this.rows.find((r) => r.calendar_event_id === calendarEventId);
     if (!row) return null;
-    const { resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker } = row;
-    return { resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker };
+    const { resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, resolved_location } = row;
+    return { resolved_type_id, resolved_host_id, resolved_title, resolved_description, resolved_guest_speaker, resolved_location };
   }
 
   async existsForCalendarEvent(calendarEventId: string) {
@@ -223,6 +224,7 @@ export class InMemoryUnmatchedEventRepository implements UnmatchedEventRepositor
       resolved_at: null,
       resolved_description: null,
       resolved_guest_speaker: null,
+      resolved_location: null,
       resolved_host_id: null,
       resolved_title: null,
       resolved_type_id: null,

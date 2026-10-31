@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
+import { createRepos } from '@/lib/data/repos'
 
 /**
  * Exercises RLS on events / event_attendees / event_photos directly over PostgREST (not through
@@ -17,6 +18,7 @@ describe('events / event_attendees / event_photos RLS', () => {
   const authUserIds: string[] = []
   const memberIds: string[] = []
   const eventIds: string[] = []
+  const sessionIds: string[] = []
   let eventId: string
   let photoId: string
   let memberClient: ReturnType<typeof getTestSupabaseClient>
@@ -44,15 +46,18 @@ describe('events / event_attendees / event_photos RLS', () => {
     return data!.id as string
   }
 
-  const eventRow = (suffix: string) => ({
-    slug: `events-rls-${suffix}-${ts}`,
-    title: `Events RLS ${suffix} ${ts}`,
-    event_type: 'other',
-    starts_at: '2026-06-01',
-    ends_at: '2026-06-01',
-  })
+  // An event stands on a prickle, so each row gets a Hub session (made with the service role) to stand on.
+  const eventRow = async (suffix: string) => {
+    const session = await createRepos(service).hubSessions.create({
+      title: `Events RLS ${suffix} ${ts}`,
+      startTime: '2026-06-01T04:00:00Z',
+      endTime: '2026-06-02T04:00:00Z',
+    })
+    sessionIds.push(session.id)
+    return { slug: `events-rls-${suffix}-${ts}`, event_type: 'other', prickle_id: session.prickleId! }
+  }
 
-  const readEvent = async () => (await service.from('events').select('title').eq('id', eventId).single()).data
+  const readEvent = async () => (await service.from('community_events').select('focus').eq('id', eventId).single()).data
   const readPhoto = async () => (await service.from('event_photos').select('hidden_at').eq('id', photoId).maybeSingle()).data
   const attendeeCount = async (memberId: string) =>
     (await service.from('event_attendees').select('id').eq('event_id', eventId).eq('member_id', memberId)).data?.length ?? 0
@@ -63,7 +68,7 @@ describe('events / event_attendees / event_photos RLS', () => {
     memberClient = await signedInClient(`events-rls-member-${ts}@example.com`, 'member')
     adminClient = await signedInClient(`events-rls-admin-${ts}@example.com`, 'admin')
 
-    const { data: event } = await service.from('events').insert(eventRow('base')).select('id').single()
+    const { data: event } = await service.from('community_events').insert(await eventRow('base')).select('id').single()
     eventId = event!.id
     eventIds.push(eventId)
 
@@ -80,7 +85,8 @@ describe('events / event_attendees / event_photos RLS', () => {
 
   afterAll(async () => {
     // Scoped cleanup only: ids this test created (cascades remove attendees/photos).
-    if (eventIds.length) await service.from('events').delete().in('id', eventIds)
+    if (eventIds.length) await service.from('community_events').delete().in('id', eventIds)
+    for (const id of sessionIds) await createRepos(service).hubSessions.remove(id).catch(() => {})
     if (memberIds.length) await service.from('members').delete().in('id', memberIds)
     for (const id of authUserIds) await service.auth.admin.deleteUser(id).catch(() => {})
   })
@@ -91,12 +97,12 @@ describe('events / event_attendees / event_photos RLS', () => {
   ])('%s', (label, getClient) => {
     it('cannot insert, update or delete events', async () => {
       const client = getClient()
-      const ins = await client.from('events').insert(eventRow(`denied-${label.replace(/\W/g, '')}`)).select('id')
+      const ins = await client.from('community_events').insert(await eventRow(`denied-${label.replace(/\W/g, '')}`)).select('id')
       expect(ins.error).not.toBeNull()
 
-      await client.from('events').update({ title: 'hijacked' }).eq('id', eventId)
-      await client.from('events').delete().eq('id', eventId)
-      expect((await readEvent())?.title).toBe(`Events RLS base ${ts}`)
+      await client.from('community_events').update({ focus: 'hijacked' }).eq('id', eventId)
+      await client.from('community_events').delete().eq('id', eventId)
+      expect((await readEvent())?.focus).toBeNull()
     })
 
     it('cannot insert or delete event attendees', async () => {
@@ -127,7 +133,7 @@ describe('events / event_attendees / event_photos RLS', () => {
 
   it('a signed-in member can still read events, attendees and photos', async () => {
     const [events, attendees, photos] = await Promise.all([
-      memberClient.from('events').select('id').eq('id', eventId),
+      memberClient.from('community_events').select('id').eq('id', eventId),
       memberClient.from('event_attendees').select('id').eq('event_id', eventId),
       memberClient.from('event_photos').select('id').eq('event_id', eventId),
     ])
@@ -137,20 +143,20 @@ describe('events / event_attendees / event_photos RLS', () => {
   })
 
   it('anon cannot read events', async () => {
-    const { data } = await anon.from('events').select('id').eq('id', eventId)
+    const { data } = await anon.from('community_events').select('id').eq('id', eventId)
     expect(data ?? []).toEqual([])
   })
 
   it('an admin session can insert, update and delete events', async () => {
-    const { data: created, error } = await adminClient.from('events').insert(eventRow('admin')).select('id').single()
+    const { data: created, error } = await adminClient.from('community_events').insert(await eventRow('admin')).select('id').single()
     expect(error).toBeNull()
     eventIds.push(created!.id)
 
-    const upd = await adminClient.from('events').update({ title: `Events RLS admin-edited ${ts}` }).eq('id', created!.id).select('title')
+    const upd = await adminClient.from('community_events').update({ focus: `Events RLS admin-edited ${ts}` }).eq('id', created!.id).select('focus')
     expect(upd.error).toBeNull()
-    expect(upd.data).toEqual([{ title: `Events RLS admin-edited ${ts}` }])
+    expect(upd.data).toEqual([{ focus: `Events RLS admin-edited ${ts}` }])
 
-    const del = await adminClient.from('events').delete().eq('id', created!.id).select('id')
+    const del = await adminClient.from('community_events').delete().eq('id', created!.id).select('id')
     expect(del.error).toBeNull()
     expect(del.data).toHaveLength(1)
   })

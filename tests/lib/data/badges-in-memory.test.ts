@@ -9,7 +9,10 @@ const events = [
 ] as const;
 
 defineBadgeContract("InMemoryBadgeRepository", () => {
-  const data = new InMemoryDataset({ events: [...events] });
+  const data = new InMemoryDataset({
+    events: events.map((e) => ({ id: e.id, slug: e.slug, prickle_id: `prkl_${e.id}` })),
+    prickles: events.map((e) => ({ id: `prkl_${e.id}`, typeId: null, hostId: null, title: e.title, startTime: "2097-03-01T15:00:00Z", endTime: "2097-03-01T16:00:00Z", source: "calendar", calendarEventId: null })),
+  });
   let n = 0;
   return {
     repo: () => new InMemoryBadgeRepository(data),

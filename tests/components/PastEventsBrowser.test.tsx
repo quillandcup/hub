@@ -38,7 +38,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 const renderBrowser = (initialMonth = '2026-10', events = EVENTS, months = MONTHS) =>
-  render(<PastEventsBrowser initialMonth={initialMonth} months={months} events={events} followedCalendarEventIds={['cal-1']} initialPrickles={bodies[initialMonth] ?? []} timeZone="America/New_York" />)
+  render(<PastEventsBrowser initialMonth={initialMonth} months={months} events={events} eventPrickleIds={['p-followed']} initialPrickles={bodies[initialMonth] ?? []} timeZone="America/New_York" />)
 
 const calls = () => fetchMock.mock.calls.map(([url]) => new URL(url as string, 'http://x').searchParams.get('month'))
 

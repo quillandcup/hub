@@ -1,5 +1,6 @@
 import { randomInt } from "crypto";
 import type { Db, Insert, Row } from "./db";
+import { eventDetails } from "./events";
 import type { InMemoryDataset } from "./in-memory";
 
 export type MediaAsset = Row<"media_assets">;
@@ -151,7 +152,7 @@ export class SupabaseMediaRepository implements MediaRepository {
 
   async usages(id: string) {
     const [events, books, projects, courses, modules, lessons] = await Promise.all([
-      this.db.from("events").select("id, title").eq("image_id", id).order("starts_at", { ascending: false }).order("id"),
+      this.db.from("community_event_details").select("id, title").eq("image_id", id).order("starts_at", { ascending: false }).order("id"),
       this.db.from("member_books").select("id, title").eq("cover_asset_id", id).order("published_date", { ascending: false }).order("id"),
       this.db.from("writing_projects").select("id").eq("cover_asset_id", id).order("id"),
       this.db.from("courses").select("id, title").or(`thumbnail_asset_id.eq.${id},hero_asset_id.eq.${id}`).order("id"),
@@ -160,7 +161,7 @@ export class SupabaseMediaRepository implements MediaRepository {
     ]);
     for (const result of [events, books, projects, courses, modules, lessons]) if (result.error) throw new Error(result.error.message);
     return [
-      ...(events.data ?? []).map((e) => ({ kind: "event" as const, id: e.id, title: e.title })),
+      ...(events.data ?? []).map((e) => ({ kind: "event" as const, id: e.id as string, title: e.title as string })),
       ...(books.data ?? []).map((b) => ({ kind: "book" as const, id: b.id, title: b.title })),
       ...(projects.data ?? []).map((p) => ({ kind: "project" as const, id: p.id, title: "A writing project" })),
       ...(courses.data ?? []).map((c) => ({ kind: "course" as const, id: c.id, title: c.title })),
@@ -261,9 +262,9 @@ export class InMemoryMediaRepository implements MediaRepository {
   }
 
   async usages(id: string) {
-    const events = this.data.events
+    const events = eventDetails(this.data)
       .filter((e) => e.image_id === id)
-      .sort((a, b) => ((a.starts_at ?? "") < (b.starts_at ?? "") ? 1 : (a.starts_at ?? "") > (b.starts_at ?? "") ? -1 : a.id < b.id ? -1 : 1))
+      .sort((a, b) => (a.starts_at < b.starts_at ? 1 : a.starts_at > b.starts_at ? -1 : a.id < b.id ? -1 : 1))
       .map((e) => ({ kind: "event" as const, id: e.id, title: e.title }));
     const books = this.data.memberBooks
       .filter((b) => b.cover_asset_id === id)

@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
 }));
 
 import EventsClient from "@/app/(admin)/admin/events/EventsClient";
-import EventDetailClient from "@/app/(admin)/admin/events/[id]/EventDetailClient";
+import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
 
 const EVENT = {
   id: "evt_AAAAAAAAAAA1",
@@ -30,8 +30,9 @@ const EVENT = {
   capacity: null,
   selection: "first_come",
   speakers: null,
-  calendar_event_id: null as string | null,
-  overridden_fields: [] as string[],
+  host_name: null,
+  start_time: "2097-05-01T04:00:00Z",
+  end_time: "2097-05-02T04:00:00Z",
   deleted_at: null as string | null,
 };
 
@@ -45,7 +46,7 @@ function serve(event: typeof EVENT, afterChange?: typeof EVENT) {
       if (url.endsWith("/visibility")) {
         return { ok: !!afterChange, json: async () => (afterChange ? { event: afterChange } : { error: "Event not found" }) } as Response;
       }
-      return { ok: true, json: async () => ({ event, photos: [], badgeType: null, attendees: [] }) } as Response;
+      return { ok: true, json: async () => ({ event, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, photos: [], badgeType: null, attendees: [] }) } as Response;
     }),
   );
 }
@@ -72,7 +73,7 @@ describe("hiding an event from members", () => {
   });
 
   it("says the calendar sync leaves a hidden calendar event hidden, and shows it again on request", async () => {
-    const hidden = { ...EVENT, calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z" };
+    const hidden = { ...EVENT, deleted_at: "2097-01-01T00:00:00Z" };
     serve(hidden, { ...hidden, deleted_at: null });
     render(<EventDetailClient eventId={EVENT.id} />);
     expect(await screen.findByText(/The calendar sync leaves it removed\./)).toBeInTheDocument();

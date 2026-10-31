@@ -42,6 +42,10 @@ const emptyForm = {
   location: "",
   starts_at: "",
   ends_at: "",
+  start_clock: "",
+  end_clock: "",
+  host_name: "",
+  speakers: null as string | null,
   focus: "",
   description: "",
   agenda: "",
@@ -111,6 +115,7 @@ export default function EventsClient() {
           ...formData,
           slug: slugify(formData.title),
           location: formData.location || null,
+          host_name: formData.host_name || null,
           focus: formData.focus || null,
           description: formData.description || null,
           agenda: formData.agenda || null,
@@ -198,6 +203,19 @@ export default function EventsClient() {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
                 required
               />
+            </div>
+            <div>
+              <label htmlFor="new-event-start-clock" className="block text-sm font-medium mb-1 dark:text-gray-200">Start time</label>
+              <input id="new-event-start-clock" type="time" value={formData.start_clock} onChange={(e) => setFormData({ ...formData, start_clock: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+            </div>
+            <div>
+              <label htmlFor="new-event-end-clock" className="block text-sm font-medium mb-1 dark:text-gray-200">End time</label>
+              <input id="new-event-end-clock" type="time" value={formData.end_clock} onChange={(e) => setFormData({ ...formData, end_clock: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+            </div>
+            <p className="@pair:col-span-2 -mt-1 text-xs text-slate-600 dark:text-slate-400">Dates in Eastern time. Leave both times empty for an all-day event.</p>
+            <div>
+              <label htmlFor="new-event-host" className="block text-sm font-medium mb-1 dark:text-gray-200">Host</label>
+              <input id="new-event-host" type="text" value={formData.host_name} onChange={(e) => setFormData({ ...formData, host_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Location (optional)</label>
@@ -323,7 +341,7 @@ export default function EventsClient() {
                 <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
-                      href={`/admin/events/${event.id}`}
+                      href={`/admin/events/${event.slug}`}
                       className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {event.title}

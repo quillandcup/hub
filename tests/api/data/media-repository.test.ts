@@ -9,6 +9,7 @@ const RUN = `mediarepo${Date.now()}`;
 let counter = 0;
 const memberIds: string[] = [];
 const eventIds: string[] = [];
+const eventPrickleIds: string[] = [];
 const bookIds: string[] = [];
 const projectIds: string[] = [];
 const courseRowIds: string[] = [];
@@ -18,7 +19,8 @@ afterAll(async () => {
   if (courseRowIds.length) await db.from("courses").delete().in("id", courseRowIds); // its modules and lessons go with it
   if (bookIds.length) await db.from("member_books").delete().in("id", bookIds);
   if (projectIds.length) await db.from("writing_projects").delete().in("id", projectIds);
-  if (eventIds.length) await db.from("events").delete().in("id", eventIds);
+  if (eventIds.length) await db.from("community_events").delete().in("id", eventIds);
+  if (eventPrickleIds.length) await db.from("prickles").delete().in("id", eventPrickleIds);
   await db.from("media_assets").delete().like("storage_path", `%${RUN}%`);
   if (memberIds.length) await db.from("members").delete().in("id", memberIds);
 });
@@ -61,9 +63,18 @@ defineMediaContract("SupabaseMediaRepository", () => ({
     return data.id;
   },
   eventShowing: async (assetId, title, startsAt) => {
+    const type = await db.from("prickle_types").select("id").eq("normalized_name", "event").single();
+    if (type.error) throw new Error(type.error.message);
+    const prickle = await db
+      .from("prickles")
+      .insert({ source: "calendar", type_id: type.data.id, title, start_time: `${startsAt}T15:00:00Z`, end_time: `${startsAt}T16:00:00Z` })
+      .select("id")
+      .single();
+    if (prickle.error) throw new Error(prickle.error.message);
+    eventPrickleIds.push(prickle.data.id);
     const { data, error } = await db
-      .from("events")
-      .insert({ slug: `${RUN}-${++counter}`, title, event_type: "other", starts_at: startsAt, ends_at: startsAt, image_id: assetId })
+      .from("community_events")
+      .insert({ slug: `${RUN}-${++counter}`, event_type: "other", prickle_id: prickle.data.id, image_id: assetId })
       .select("id")
       .single();
     if (error) throw new Error(error.message);

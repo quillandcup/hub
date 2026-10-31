@@ -11,7 +11,10 @@ TRUNCATE prickle_attendance CASCADE;
 TRUNCATE member_hiatus_history CASCADE;
 TRUNCATE member_status_overrides CASCADE;
 TRUNCATE member_name_aliases CASCADE;
-TRUNCATE prickles CASCADE;
+-- DELETE, not a cascading truncate: events stand on prickles (community_events.prickle_id), and a cascading truncate would
+-- empty community_events and then everything that references them, badge definitions included. Events go first: the key is RESTRICT.
+DELETE FROM community_events;
+DELETE FROM prickles;
 TRUNCATE bronze.zoom_attendees CASCADE;
 -- DELETE, not TRUNCATE ... CASCADE: events point at calendar events (events.calendar_event_id), and a
 -- cascading truncate would empty events and then everything that references them, badge definitions included.

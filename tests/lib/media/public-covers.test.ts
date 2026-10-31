@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { InMemoryMediaRepository } from "@/lib/data/media";
 
 const config = vi.hoisted(() => ({ public: false }));
 vi.mock("@/lib/config", () => ({
+  ORG_TIMEZONE: "America/New_York",
   get BOOKSHELF_PUBLIC() {
     return config.public;
   },
@@ -44,7 +46,9 @@ describe("isPublicBookCover", () => {
     const unused = await asset("d");
     data.memberBooks.push({ id: "book_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA1", title: "T", published_date: "2026-01-01", cover_asset_id: bookCover.id });
     data.writingProjects.push({ id: "wprj_AAAAAAAAAAA1", member_id: "mbr_AAAAAAAAAAA1", cover_asset_id: projectCover.id } as never);
-    data.events.push({ id: "evt_AAAAAAAAAAA1", slug: "e", title: "E", image_id: eventImage.id });
+    const seeded = eventSeed([{ id: "evt_AAAAAAAAAAA1", slug: "e", title: "E", image_id: eventImage.id }]);
+    data.prickles.push(...seeded.prickles);
+    data.events.push(...seeded.events);
 
     expect(await isPublicBookCover(media, bookCover.id, "book_cover_kdp_ebook")).toBe(false);
     expect(await isPublicBookCover(media, bookCover.id, "thumb")).toBe(false);

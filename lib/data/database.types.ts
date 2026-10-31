@@ -1623,7 +1623,14 @@ export type Database = {
             foreignKeyName: "badge_types_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "badge_types_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
           {
@@ -1712,7 +1719,14 @@ export type Database = {
             foreignKeyName: "calendar_feed_items_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_feed_items_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
           {
@@ -2151,6 +2165,87 @@ export type Database = {
           },
         ]
       }
+      community_events: {
+        Row: {
+          agenda: string | null
+          announced_publicly: boolean
+          automatic: boolean
+          capacity: number | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          event_type: string
+          focus: string | null
+          google_photos_album_url: string | null
+          guests_allowed: boolean
+          id: string
+          image_id: string | null
+          prickle_id: string
+          registration: string
+          results: string | null
+          selection: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          agenda?: string | null
+          announced_publicly?: boolean
+          automatic?: boolean
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_type: string
+          focus?: string | null
+          google_photos_album_url?: string | null
+          guests_allowed?: boolean
+          id?: string
+          image_id?: string | null
+          prickle_id: string
+          registration?: string
+          results?: string | null
+          selection?: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          agenda?: string | null
+          announced_publicly?: boolean
+          automatic?: boolean
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          event_type?: string
+          focus?: string | null
+          google_photos_album_url?: string | null
+          guests_allowed?: boolean
+          id?: string
+          image_id?: string | null
+          prickle_id?: string
+          registration?: string
+          results?: string | null
+          selection?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_events_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_events_prickle_id_fkey"
+            columns: ["prickle_id"]
+            isOneToOne: true
+            referencedRelation: "prickles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_access: {
         Row: {
           course_id: string
@@ -2585,7 +2680,14 @@ export type Database = {
             foreignKeyName: "event_attendees_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
           {
@@ -2639,111 +2741,14 @@ export type Database = {
             foreignKeyName: "event_photos_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "community_event_details"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      events: {
-        Row: {
-          agenda: string | null
-          announced_publicly: boolean
-          automatic: boolean
-          calendar_event_id: string | null
-          capacity: number | null
-          created_at: string
-          created_by: string | null
-          deleted_at: string | null
-          description: string | null
-          end_time: string | null
-          ends_at: string
-          event_type: string
-          focus: string | null
-          google_photos_album_url: string | null
-          guests_allowed: boolean
-          host_name: string | null
-          id: string
-          image_id: string | null
-          location: string | null
-          overridden_fields: string[]
-          registration: string
-          results: string | null
-          selection: string
-          slug: string
-          speakers: string | null
-          start_time: string | null
-          starts_at: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          agenda?: string | null
-          announced_publicly?: boolean
-          automatic?: boolean
-          calendar_event_id?: string | null
-          capacity?: number | null
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          description?: string | null
-          end_time?: string | null
-          ends_at: string
-          event_type: string
-          focus?: string | null
-          google_photos_album_url?: string | null
-          guests_allowed?: boolean
-          host_name?: string | null
-          id?: string
-          image_id?: string | null
-          location?: string | null
-          overridden_fields?: string[]
-          registration?: string
-          results?: string | null
-          selection?: string
-          slug: string
-          speakers?: string | null
-          start_time?: string | null
-          starts_at: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          agenda?: string | null
-          announced_publicly?: boolean
-          automatic?: boolean
-          calendar_event_id?: string | null
-          capacity?: number | null
-          created_at?: string
-          created_by?: string | null
-          deleted_at?: string | null
-          description?: string | null
-          end_time?: string | null
-          ends_at?: string
-          event_type?: string
-          focus?: string | null
-          google_photos_album_url?: string | null
-          guests_allowed?: boolean
-          host_name?: string | null
-          id?: string
-          image_id?: string | null
-          location?: string | null
-          overridden_fields?: string[]
-          registration?: string
-          results?: string | null
-          selection?: string
-          slug?: string
-          speakers?: string | null
-          start_time?: string | null
-          starts_at?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "events_image_id_fkey"
-            columns: ["image_id"]
+            foreignKeyName: "event_photos_event_id_fkey"
+            columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "media_assets"
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
         ]
@@ -2851,6 +2856,66 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hub_sessions: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_time: string
+          guest_speaker: string | null
+          host: string | null
+          host_name: string | null
+          id: string
+          location: string | null
+          start_time: string
+          title: string
+          type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_time: string
+          guest_speaker?: string | null
+          host?: string | null
+          host_name?: string | null
+          id?: string
+          location?: string | null
+          start_time: string
+          title: string
+          type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          guest_speaker?: string | null
+          host?: string | null
+          host_name?: string | null
+          id?: string
+          location?: string | null
+          start_time?: string
+          title?: string
+          type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hub_sessions_host_fkey"
+            columns: ["host"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hub_sessions_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "prickle_types"
             referencedColumns: ["id"]
           },
         ]
@@ -3327,7 +3392,14 @@ export type Database = {
             foreignKeyName: "member_badges_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "community_event_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_badges_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "community_events"
             referencedColumns: ["id"]
           },
           {
@@ -5027,7 +5099,9 @@ export type Database = {
           end_time: string
           guest_speaker: string | null
           host: string | null
+          hub_session_id: string | null
           id: string
+          location: string | null
           source: string
           start_time: string
           title: string | null
@@ -5056,7 +5130,9 @@ export type Database = {
           end_time: string
           guest_speaker?: string | null
           host?: string | null
+          hub_session_id?: string | null
           id?: string
+          location?: string | null
           source: string
           start_time: string
           title?: string | null
@@ -5071,7 +5147,9 @@ export type Database = {
           end_time?: string
           guest_speaker?: string | null
           host?: string | null
+          hub_session_id?: string | null
           id?: string
+          location?: string | null
           source?: string
           start_time?: string
           title?: string | null
@@ -5085,6 +5163,13 @@ export type Database = {
             columns: ["host"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prickles_hub_session_id_fkey"
+            columns: ["hub_session_id"]
+            isOneToOne: false
+            referencedRelation: "hub_sessions"
             referencedColumns: ["id"]
           },
           {
@@ -5460,6 +5545,7 @@ export type Database = {
           resolved_description: string | null
           resolved_guest_speaker: string | null
           resolved_host_id: string | null
+          resolved_location: string | null
           resolved_title: string | null
           resolved_type_id: string | null
           status: string
@@ -5475,6 +5561,7 @@ export type Database = {
           resolved_description?: string | null
           resolved_guest_speaker?: string | null
           resolved_host_id?: string | null
+          resolved_location?: string | null
           resolved_title?: string | null
           resolved_type_id?: string | null
           status?: string
@@ -5490,6 +5577,7 @@ export type Database = {
           resolved_description?: string | null
           resolved_guest_speaker?: string | null
           resolved_host_id?: string | null
+          resolved_location?: string | null
           resolved_title?: string | null
           resolved_type_id?: string | null
           status?: string
@@ -6041,7 +6129,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      community_event_details: {
+        Row: {
+          agenda: string | null
+          announced_publicly: boolean | null
+          automatic: boolean | null
+          capacity: number | null
+          created_at: string | null
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          end_time: string | null
+          ends_at: string | null
+          event_type: string | null
+          focus: string | null
+          google_photos_album_url: string | null
+          guests_allowed: boolean | null
+          host_id: string | null
+          host_name: string | null
+          id: string | null
+          image_id: string | null
+          location: string | null
+          prickle_id: string | null
+          registration: string | null
+          results: string | null
+          selection: string | null
+          slug: string | null
+          speakers: string | null
+          start_time: string | null
+          starts_at: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_events_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_events_prickle_id_fkey"
+            columns: ["prickle_id"]
+            isOneToOne: true
+            referencedRelation: "prickles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prickles_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       access_locations_at: {
@@ -6650,6 +6793,7 @@ export type Database = {
       }
       name_alias_key: { Args: { p_name: string }; Returns: string }
       new_id: { Args: { prefix: string }; Returns: string }
+      org_timezone: { Args: never; Returns: string }
       prickle_host: {
         Args: { "": Database["public"]["Tables"]["prickles"]["Row"] }
         Returns: {
@@ -6673,6 +6817,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      prickle_starts_on: { Args: { p_prickle_id: string }; Returns: string }
+      project_hub_sessions: { Args: never; Returns: undefined }
       project_slack_chat_channels: {
         Args: { user_member_map: Json }
         Returns: Json
@@ -6702,6 +6848,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      reprocess_hub_prickles_atomic: { Args: never; Returns: undefined }
       reprocess_member_interactions_atomic: {
         Args: { from_date: string; to_date: string }
         Returns: Json

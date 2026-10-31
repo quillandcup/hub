@@ -10,6 +10,7 @@ import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
 import type { BookSeed } from "./books";
 import type { CheckinSeed, CommitmentSeed, DismissalSeed } from "./prickle-activity";
+import type { HubSessionRow } from "./hub-sessions";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { FeedItemSeed, FeedTokenSeed } from "./calendar-feed";
 import type { SlackUserSeed } from "./slack-users";
@@ -82,8 +83,10 @@ export class InMemoryDataset {
   badgeTypes: BadgeType[];
   badgeLevels: BadgeLevel[];
   memberBadges: MemberBadge[];
-  /** Events: at least the title and member-facing slug the badges link to; the other columns are optional. */
+  /** Events: a slug and the prickle each stands on (its schedule is that prickle's); the other columns are optional. */
   events: EventRow[];
+  /** The schedules of events made in the Hub (`hub_sessions`), projected into `prickles` with source "hub". */
+  hubSessions: HubSessionRow[];
   /** Hosting schedules (a host's slot for a month). */
   prickleSchedules: ScheduleRow[];
   writingProjects: WritingProjectRow[];
@@ -185,7 +188,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
 
     > = {},
   ) {
@@ -204,6 +207,7 @@ export class InMemoryDataset {
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
     this.events = (init.events ?? []).map((row) => ({ ...row }));
+    this.hubSessions = (init.hubSessions ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
     this.prickleSchedules = (init.prickleSchedules ?? []).map((row) => ({ ...row }));
     this.writingProjects = (init.writingProjects ?? []).map((row) => ({ ...row }));

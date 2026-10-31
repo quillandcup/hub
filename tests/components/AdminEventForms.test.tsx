@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
 }));
 
 import EventsClient from "@/app/(admin)/admin/events/EventsClient";
-import EventDetailClient from "@/app/(admin)/admin/events/[id]/EventDetailClient";
+import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
 
 const EVENT = {
   id: "evt_AAAAAAAAAAA1",
@@ -30,8 +30,9 @@ const EVENT = {
   capacity: 7,
   selection: "selected",
   speakers: "Ada Example",
-  calendar_event_id: null,
-  overridden_fields: [] as string[],
+  host_name: null,
+  start_time: "2097-05-01T04:00:00Z",
+  end_time: "2097-05-16T04:00:00Z",
   deleted_at: null as string | null,
 };
 
@@ -48,7 +49,7 @@ beforeEach(() => {
       if (url === "/api/admin/events" && method === "GET") return { ok: true, json: async () => ({ events: [] }) } as Response;
       if (url === "/api/admin/events") return { ok: true, json: async () => ({ event: EVENT }) } as Response;
       if (url === `/api/admin/events/${EVENT.id}` && method === "GET") {
-        return { ok: true, json: async () => ({ event: EVENT, photos: [], badgeType: null, attendees: [] }) } as Response;
+        return { ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: true, photos: [], badgeType: null, attendees: [] }) } as Response;
       }
       if (url === `/api/admin/events/${EVENT.id}`) return { ok: true, json: async () => ({ event: { ...EVENT, capacity: 9 } }) } as Response;
       return { ok: true, json: async () => ({}) } as Response;
@@ -71,6 +72,9 @@ describe("admin create event form", () => {
     await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "workshop");
     await userEvent.type(starts, "2097-06-01");
     await userEvent.type(ends, "2097-06-01");
+    await userEvent.type(screen.getByLabelText("Start time"), "10:00");
+    await userEvent.type(screen.getByLabelText("End time"), "11:30");
+    await userEvent.type(screen.getByLabelText("Host"), "Fern Example");
     await userEvent.click(screen.getByLabelText("Announced publicly"));
     await userEvent.click(screen.getByLabelText("Guests allowed"));
     await userEvent.selectOptions(screen.getByLabelText("How people join"), "signup");
@@ -82,6 +86,10 @@ describe("admin create event form", () => {
     expect(post.body).toMatchObject({
       title: "Craft Workshop",
       slug: "craft-workshop",
+      starts_at: "2097-06-01",
+      start_clock: "10:00",
+      end_clock: "11:30",
+      host_name: "Fern Example",
       event_type: "workshop",
       guests_allowed: true,
       announced_publicly: true,
@@ -119,6 +127,8 @@ describe("admin event detail", () => {
         ok: true,
         json: async () => ({
           event: { ...EVENT, announced_publicly: false, guests_allowed: false, registration: "none", capacity: null, speakers: null },
+          prickleId: "prkl_AAAAAAAAAAA1",
+          hubSession: true,
           photos: [],
           badgeType: null,
           attendees: [],
@@ -131,56 +141,29 @@ describe("admin event detail", () => {
   });
 });
 
-describe("admin event that follows the calendar", () => {
-  const FOLLOWING = { ...EVENT, calendar_event_id: "00000000-0000-4000-8000-00000000000a", start_time: "2097-05-02T23:00:00Z" };
-
-  function serve(event: typeof FOLLOWING, revertTo?: typeof FOLLOWING) {
+describe("admin event on a calendar prickle", () => {
+  function serve(hubSession: boolean) {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string, init?: RequestInit) => {
-        const method = init?.method ?? "GET";
-        calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
-        if (url.endsWith("/revert-to-calendar")) return { ok: !!revertTo, json: async () => (revertTo ? { event: revertTo } : { error: "The calendar event is gone" }) } as Response;
-        return { ok: true, json: async () => ({ event, photos: [], badgeType: null, attendees: [] }) } as Response;
-      }),
+      vi.fn(async () => ({ ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession, photos: [], badgeType: null, attendees: [] }) }) as Response),
     );
   }
 
-  it("says the calendar owns the dates and the text until it's changed", async () => {
-    serve(FOLLOWING);
-    render(<EventDetailClient eventId={EVENT.id} />);
+  it("keeps the dates read-only, since they come from Google Calendar, and links to the prickle", async () => {
+    serve(false);
+    const { container } = render(<EventDetailClient eventId={EVENT.id} />);
+    expect(await screen.findByRole("link", { name: "View prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Title")).toBeEnabled();
 
-    expect(await screen.findByText(/Follows the shared calendar: dates and times come from it; the title, description and location do too/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Follow the calendar again" })).not.toBeInTheDocument();
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(0);
   });
 
-  it("lists what was changed and follows the calendar again on request", async () => {
-    serve({ ...FOLLOWING, overridden_fields: ["title", "location"] }, FOLLOWING);
-    render(<EventDetailClient eventId={EVENT.id} />);
-    expect(await screen.findByText(/you changed the title, location\./)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Follow the calendar again" }));
-
-    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/revert-to-calendar") && c.method === "POST")).toBe(true));
-    expect(await screen.findByText(/the title, description and location do too/)).toBeInTheDocument();
-  });
-
-  it("shows why it couldn't follow the calendar again", async () => {
-    serve({ ...FOLLOWING, overridden_fields: ["title"] });
-    render(<EventDetailClient eventId={EVENT.id} />);
-
-    await userEvent.click(await screen.findByRole("button", { name: "Follow the calendar again" }));
-
-    expect(await screen.findByText("The calendar event is gone")).toBeInTheDocument();
-  });
-
-  it("locks the dates while editing, since the calendar owns them", async () => {
-    serve(FOLLOWING);
+  it("edits the dates of an event made in the Hub", async () => {
+    serve(true);
     const { container } = render(<EventDetailClient eventId={EVENT.id} />);
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
-    const dates = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="date"]'));
-    expect(dates).toHaveLength(2);
-    expect(dates.every((d) => d.disabled)).toBe(true);
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
   });
 });

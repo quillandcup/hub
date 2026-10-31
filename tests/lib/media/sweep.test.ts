@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { InMemoryMediaRepository } from "@/lib/data/media";
 import { DELETED_KEEP_DAYS, STALE_UPLOAD_MS, sweepMedia } from "@/lib/media/sweep";
 import { useFakeClock } from "@/tests/helpers/fake-clock";
@@ -138,7 +139,9 @@ describe("sweepMedia: deleted images", () => {
 
   it("skips an image something still shows, and says so", async () => {
     const used = await asset("used", 90);
-    data.events.push({ id: "evt_AAAAAAAAAAA1", slug: "e", title: "Retreat", image_id: used.id });
+    const seeded = eventSeed([{ id: "evt_AAAAAAAAAAA1", slug: "e", title: "Retreat", image_id: used.id }]);
+    data.prickles.push(...seeded.prickles);
+    data.events.push(...seeded.events);
     const result = await sweepMedia(media, storage());
     expect(result).toMatchObject({ assetsCleared: 0, assetsInUse: 1 });
     expect(bucket.objects.size).toBe(3);
