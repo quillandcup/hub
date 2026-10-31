@@ -183,10 +183,11 @@ export async function POST(request: NextRequest) {
     const storedUsers = await createRepos(supabase).slackUsers.list();
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
     await createRepos(supabase).slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })));
-    await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
+    // (small batches, two at a time: see the repositories' upserts)
+    await createRepos(supabase).slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })));
     invalidateChatLookups();
-    await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
-    await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
+    await createRepos(supabase).slackMessages.upsertMessages(allMessages.map(m => ({ ...m, imported_at: importTimestamp })));
+    await createRepos(supabase).slackMessages.upsertReactions(allReactions.map(r => ({ ...r, imported_at: importTimestamp })));
 
     // Upserts can't express "this reaction was taken back", so mark stored
     // reactions on the fetched messages that Slack no longer reports (deleted_at).
@@ -479,32 +480,15 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
     tsByChannel.set(p.channel_id, list);
   }
 
-  const CHUNK = 100;
-  const PAGE = 1000;
+  const messages = createRepos(supabase).slackMessages;
   for (const [channelId, threadTs] of tsByChannel) {
-    for (let i = 0; i < threadTs.length; i += CHUNK) {
-      const chunk = threadTs.slice(i, i + CHUNK);
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .schema('bronze')
-          .from('slack_messages')
-          .select('thread_ts, message_ts')
-          .eq('channel_id', channelId)
-          .in('thread_ts', chunk)
-          .is('deleted_at', null)
-          .order('message_ts')
-          .range(offset, offset + PAGE - 1);
-        if (error) throw error;
-        for (const row of data ?? []) {
-          if (row.message_ts === row.thread_ts) continue; // the parent itself
-          const key = threadKey(channelId, row.thread_ts);
-          const have = stored.get(key) ?? { count: 0, latestTs: null };
-          have.count++;
-          if (!have.latestTs || parseFloat(row.message_ts) > parseFloat(have.latestTs)) have.latestTs = row.message_ts;
-          stored.set(key, have);
-        }
-        if (!data || data.length < PAGE) break;
-      }
+    for (const row of await messages.threadMessages(channelId, threadTs)) {
+      if (row.message_ts === row.thread_ts) continue; // the parent itself
+      const key = threadKey(channelId, row.thread_ts);
+      const have = stored.get(key) ?? { count: 0, latestTs: null };
+      have.count++;
+      if (!have.latestTs || parseFloat(row.message_ts) > parseFloat(have.latestTs)) have.latestTs = row.message_ts;
+      stored.set(key, have);
     }
   }
   return stored;
@@ -556,26 +540,6 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
 
   await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
   return { messages, reactions, seenByThread, deferred: queue.length };
-}
-
-// Small batches: each upsert is one statement under the API role's 8s statement timeout, and a
-// 90-day import's 500-row reaction batches (four at once) hit it in prod.
-const UPSERT_BATCH_SIZE = 100;
-const UPSERT_CONCURRENCY = 2;
-
-async function upsertInBatches(supabase: SupabaseClient, table: string, rows: any[], onConflict: string) {
-  const batches: any[][] = [];
-  for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) batches.push(rows.slice(i, i + UPSERT_BATCH_SIZE));
-
-  for (let i = 0; i < batches.length; i += UPSERT_CONCURRENCY) {
-    const results = await Promise.all(
-      batches.slice(i, i + UPSERT_CONCURRENCY).map(batch =>
-        supabase.schema('bronze').from(table).upsert(batch, { onConflict })
-      )
-    );
-    const failed = results.find(r => r.error);
-    if (failed?.error) throw failed.error;
-  }
 }
 
 function dedupeBy<T>(rows: T[], key: (row: T) => string) {

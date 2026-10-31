@@ -71,19 +71,12 @@ export async function POST(request: NextRequest) {
 
     // STEP 3: Does nothing when Bronze has no Slack data in the range, so an
     // empty range never wipes existing activities.
-    const [{ data: anyMessage, error: messageCheckError }, { data: anyReaction, error: reactionCheckError }] = await Promise.all([
-      supabase.schema("bronze").from("slack_messages").select("message_ts")
-        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
-      supabase.schema("bronze").from("slack_reactions").select("message_ts")
-        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
-    ]);
-    if (messageCheckError) throw messageCheckError;
-    if (reactionCheckError) throw reactionCheckError;
+    const hasSlackData = await createRepos(supabase).slackMessages.hasLiveActivityBetween(fromDate, toDate);
 
     let messages = 0;
     let reactions = 0;
 
-    if ((anyMessage?.length ?? 0) > 0 || (anyReaction?.length ?? 0) > 0) {
+    if (hasSlackData) {
       // STEP 4: Transform + DELETE + INSERT, one week per call. Each call is one
       // transaction, so a failed week keeps its old rows; the weeks before it
       // are already rebuilt and the next run redoes them all. One call for the

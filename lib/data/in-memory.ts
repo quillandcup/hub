@@ -13,7 +13,7 @@ import type { CheckinSeed, CommitmentSeed, DismissalSeed } from "./prickle-activ
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { FeedItemSeed, FeedTokenSeed } from "./calendar-feed";
 import type { SlackUserSeed } from "./slack-users";
-import type { IgnoredSlackUserSeed, RestrictedChannelSeed, SlackChannelSeed } from "./slack-workspace";
+import type { IgnoredSlackUserSeed, RestrictedChannelSeed, SlackChannelMembershipSeed, SlackChannelSeed, SlackEmojiSeed, SlackMemberEventSeed } from "./slack-workspace";
 import type { SlackMessageSeed, SlackReactionSeed } from "./slack-messages";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
 import type { IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow } from "./zoom";
@@ -102,6 +102,10 @@ export class InMemoryDataset {
   slackChannels: SlackChannelSeed[];
   ignoredSlackUsers: IgnoredSlackUserSeed[];
   restrictedSlackChannels: RestrictedChannelSeed[];
+  /** Who is in each Slack conversation (`bronze.slack_channel_members`), the append-only join/leave history (`slack_channel_member_events`) and the custom emoji (`slack_custom_emoji`). */
+  slackChannelMembers: SlackChannelMembershipSeed[];
+  slackMemberEvents: SlackMemberEventSeed[];
+  slackCustomEmoji: SlackEmojiSeed[];
   /** The Bronze copy of Slack messages and reactions (`bronze.slack_messages`, `slack_reactions`). */
   slackMessages: SlackMessageSeed[];
   slackReactions: SlackReactionSeed[];
@@ -179,7 +183,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackMessages" | "slackReactions" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
 
     > = {},
   ) {
@@ -211,6 +215,9 @@ export class InMemoryDataset {
     this.slackChannels = (init.slackChannels ?? []).map((row) => ({ ...row }));
     this.ignoredSlackUsers = (init.ignoredSlackUsers ?? []).map((row) => ({ ...row }));
     this.restrictedSlackChannels = (init.restrictedSlackChannels ?? []).map((row) => ({ ...row }));
+    this.slackChannelMembers = (init.slackChannelMembers ?? []).map((row) => ({ ...row }));
+    this.slackMemberEvents = (init.slackMemberEvents ?? []).map((row) => ({ ...row }));
+    this.slackCustomEmoji = (init.slackCustomEmoji ?? []).map((row) => ({ ...row }));
     this.slackMessages = (init.slackMessages ?? []).map((row) => ({ ...row }));
     this.slackReactions = (init.slackReactions ?? []).map((row) => ({ ...row }));
     this.zoomAttendees = (init.zoomAttendees ?? []).map((row) => ({ ...row }));

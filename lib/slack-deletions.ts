@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 /**
  * Working out which stored Slack messages were deleted in Slack, from what an
  * import run fetched.
@@ -121,8 +122,6 @@ export interface DeletionResult {
   suspiciousChannels: { channel_id: string; missing: number; judged: number }[];
 }
 
-const PAGE_SIZE = 1000;
-const TS_CHUNK_SIZE = 100;
 
 /**
  * Soft-delete stored messages that this import run shows were deleted in Slack.
@@ -138,22 +137,8 @@ export async function markMessagesDeletedInSlack(
   const result: DeletionResult = { judged: 0, deleted: 0, suspiciousChannels: [] };
   if (!window || seen.topLevelByChannel.size === 0) return result;
 
-  const stored: StoredSlackMessage[] = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .schema("bronze")
-      .from("slack_messages")
-      .select("channel_id, message_ts, thread_ts, occurred_at")
-      .gte("occurred_at", window.from)
-      .lte("occurred_at", window.to)
-      .is("deleted_at", null)
-      .order("channel_id")
-      .order("message_ts")
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) throw error;
-    stored.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
+  const messages = createRepos(supabase).slackMessages;
+  const stored: StoredSlackMessage[] = await messages.storedMessagesBetween(window.from, window.to);
 
   // Count verdicts per channel by judging everything against "nothing was
   // returned": whatever that flags is exactly the set that gets a verdict.
@@ -180,16 +165,7 @@ export async function markMessagesDeletedInSlack(
       result.suspiciousChannels.push({ channel_id: channelId, missing: timestamps.length, judged });
       continue;
     }
-    for (let i = 0; i < timestamps.length; i += TS_CHUNK_SIZE) {
-      const { error } = await supabase
-        .schema("bronze")
-        .from("slack_messages")
-        .update({ deleted_at: deletedAt })
-        .eq("channel_id", channelId)
-        .in("message_ts", timestamps.slice(i, i + TS_CHUNK_SIZE))
-        .is("deleted_at", null);
-      if (error) throw error;
-    }
+    await messages.markMessagesDeleted(channelId, timestamps, deletedAt);
     result.deleted += timestamps.length;
   }
 
