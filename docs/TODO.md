@@ -402,9 +402,11 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
-### Set the Checkly heartbeat URL for the retention job _(Needs Action)_
+### Set the Checkly heartbeat URL for the retention job _(Blocked on the Checkly plan)_
 
-`/api/reconcile/retention` (the nightly job that keeps the device and removes raw IPs and browser strings after 90 days) is deployed with a heartbeat registered in `lib/cron-heartbeats.ts` (`reconcile-retention`), but `pingCronHeartbeat` does nothing until its env var is set, so a failed or missed night alerts nobody. Deploy the checks (`__checks__/cron-heartbeats.check.ts` builds one monitor per entry), copy the new monitor's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_RETENTION`, and run `pnpm env:sync` (see the header of `lib/cron-heartbeats.ts`). The deadline that matters is 2027-01-16, when the first raw value is old enough to be removed; the monitor should be live well before it. The media sweep (`reconcile-media`) was added the same way and has the same step.
+`/api/reconcile/retention` (the nightly job that keeps the device and removes raw IPs and browser strings after 90 days) is deployed with a heartbeat registered in `lib/cron-heartbeats.ts` (`reconcile-retention`), but `pingCronHeartbeat` does nothing until its env var is set, so a failed or missed night alerts nobody. Adding the monitor needs more heartbeat checks than the current Checkly plan allows; the upgrade goes from $0 to $24/month (2026-10-31), so it is held. The same limit applies to `reconcile-media`.
+
+If the plan stays as it is, cheaper partial cover for the failure case (not for a night that never runs): report the route's caught error to Sentry (`Sentry.captureException` in the `catch` of `app/api/reconcile/retention/route.ts`, with an alert rule), and glance at the route's `[Reconciliation] Network retention complete` log line in Vercel after a deploy. When upgrading: deploy the checks (`__checks__/cron-heartbeats.check.ts` builds one monitor per entry), copy the new monitor's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_RETENTION`, and run `pnpm env:sync` (see the header of `lib/cron-heartbeats.ts`). The date that matters is 2027-01-16, when the first raw value is old enough to be removed.
 
 ### Point the old marketing site's privacy-policy link at `/privacy` _(Needs Action)_
 
