@@ -11,6 +11,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { cleanGenres } from "@/lib/book-genres";
 import { resolvePenName } from "@/lib/book-pen-name";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
@@ -657,7 +658,7 @@ async function publishProjectImpl(
       purchase_url: safeUrl(book.purchaseUrl)!,
       published_date: book.publishedDate,
       price: book.price ?? null,
-      genre: book.genre?.trim() || null,
+      genres: cleanGenres(book.genres),
       format: book.format,
       pen_name: pen.penName,
     });

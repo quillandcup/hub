@@ -215,7 +215,7 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             </a>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
               <span className="capitalize">{project.book.format}</span>
-              {project.book.genre && <span>· {project.book.genre}</span>}
+              {project.book.genres.length > 0 && <span>· {project.book.genres.join(", ")}</span>}
               {project.book.price != null && <span>· ${project.book.price.toFixed(2)}</span>}
             </p>
             <p className="text-xs mt-2">

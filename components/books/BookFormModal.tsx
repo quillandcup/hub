@@ -15,7 +15,7 @@ import type { PenNameOptions } from "@/lib/book-pen-name";
 import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
 import MediaPicker from "@/components/media/MediaPicker";
 import TagInput from "@/components/TagInput";
-import { joinGenres, MAX_GENRE_LENGTH, MAX_GENRES, parseGenres } from "@/lib/book-genres";
+import { MAX_GENRE_LENGTH, MAX_GENRES } from "@/lib/book-genres";
 import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface BookFormModalProps {
@@ -52,7 +52,7 @@ export default function BookFormModal({
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");
   const [publishedDate, setPublishedDate] = useState(book?.publishedDate ?? "");
   const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
-  const [genres, setGenres] = useState(() => parseGenres(book?.genre));
+  const [genres, setGenres] = useState<string[]>(book?.genres ?? []);
   const [format, setFormat] = useState<BookFormat>(book?.format ?? "print");
   const [penName, setPenName] = useState(book?.penName ?? "");
   const [penNameOptions, setPenNameOptions] = useState<PenNameOptions | null>(null);
@@ -86,7 +86,7 @@ export default function BookFormModal({
       purchaseUrl,
       publishedDate,
       price: price.trim() === "" ? null : Number(price),
-      genre: joinGenres(genres),
+      genres,
       format,
       penName,
     };

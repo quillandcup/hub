@@ -69,7 +69,7 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     purchaseUrl: null,
     publishedDate: "2025-06-15",
     price: null,
-    genre: null,
+    genres: [],
     format: "ebook",
     projectId: null,
     ...overrides,

@@ -3422,7 +3422,8 @@ export type Database = {
           deleted_at: string | null
           description: string | null
           format: string
-          genre: string | null
+          genres: string[]
+          genres_search: string | null
           id: string
           member_id: string
           pen_name: string | null
@@ -3453,7 +3454,8 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           format?: string
-          genre?: string | null
+          genres?: string[]
+          genres_search?: string | null
           id?: string
           member_id: string
           pen_name?: string | null
@@ -3470,7 +3472,8 @@ export type Database = {
           deleted_at?: string | null
           description?: string | null
           format?: string
-          genre?: string | null
+          genres?: string[]
+          genres_search?: string | null
           id?: string
           member_id?: string
           pen_name?: string | null
@@ -6419,6 +6422,7 @@ export type Database = {
         Args: { entity: string; subject: Json }
         Returns: string
       }
+      book_genres_search_text: { Args: { genres: string[] }; Returns: string }
       book_member: {
         Args: { "": Database["public"]["Tables"]["member_books"]["Row"] }
         Returns: {
@@ -7047,6 +7051,7 @@ export type Database = {
         Args: { topics: string[] }
         Returns: boolean
       }
+      valid_book_genres: { Args: { genres: string[] }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
