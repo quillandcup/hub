@@ -195,5 +195,23 @@ export function defineSlackWorkspaceContract(name: string, setup: () => SlackWor
       await ctx.repo().upsertEmoji([{ name: gone, image_url: "https://emoji.example.test/gone.png", deleted_at: null, imported_at: "2031-04-04T00:00:00.000Z" }]);
       expect(await mine()).toEqual([wave, party, gone].sort());
     });
+
+    it("reads live emoji by name, with their image or alias target", async () => {
+      const [wave, party, gone] = [ctx.unique("wave"), ctx.unique("party"), ctx.unique("gone")];
+      await ctx.repo().upsertEmoji([
+        { name: wave, image_url: "https://emoji.example.test/wave.png" },
+        { name: party, alias_for: wave },
+        { name: gone, image_url: "https://emoji.example.test/gone.png", deleted_at: "2031-05-01T00:00:00.000Z" },
+      ]);
+      const many = Array.from({ length: 250 }, (_, i) => `${ctx.unique("nope")}-${i}`);
+
+      const rows = await ctx.repo().emojiByNames([wave, party, gone, ...many]);
+
+      expect(rows).toEqual([
+        { name: party, image_url: null, alias_for: wave },
+        { name: wave, image_url: "https://emoji.example.test/wave.png", alias_for: null },
+      ].sort((x, y) => (x.name < y.name ? -1 : 1)));
+      expect(await ctx.repo().emojiByNames([])).toEqual([]);
+    });
   });
 }

@@ -14,6 +14,7 @@ const check = (error: { message: string } | null) => {
 
 // Everything the contract stores carries this run's prefix in its channel id.
 const clear = async () => {
+  check((await db.schema("bronze").from("slack_files").delete().like("channel_id", `${PREFIX}%`)).error);
   check((await db.schema("bronze").from("slack_reactions").delete().like("channel_id", `${PREFIX}%`)).error);
   check((await db.schema("bronze").from("slack_messages").delete().like("channel_id", `${PREFIX}%`)).error);
 };

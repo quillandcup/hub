@@ -37,6 +37,7 @@ describe("SupabaseSlackWorkspaceRepository on a database error", () => {
     ["upsertEmoji", () => repo.upsertEmoji([{ name: "wave" }])],
     ["liveEmojiNames", () => repo.liveEmojiNames()],
     ["markEmojiRemoved", () => repo.markEmojiRemoved(["wave"], "2026-01-01T00:00:00Z")],
+    ["emojiByNames", () => repo.emojiByNames(["wave"])],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });
@@ -66,6 +67,16 @@ describe("SupabaseSlackMessageRepository on a database error", () => {
     ["liveReactionsOn", () => repo.liveReactionsOn("C1", ["1.1"])],
     ["threadMessages", () => repo.threadMessages("C1", ["1.1"])],
     ["hasLiveActivityBetween", () => repo.hasLiveActivityBetween("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z")],
+    ["storedTimestamps", () => repo.storedTimestamps("C1", ["1.1"])],
+    ["newestTimestamp", () => repo.newestTimestamp("C1")],
+    ["authorsByTs", () => repo.authorsByTs("C1", ["1.1"])],
+    ["recordFiles", () => repo.recordFiles([{ file_id: "F1", channel_id: "C1", message_ts: "1.1", raw_payload: {} }])],
+    ["replaceFile", () => repo.replaceFile({ file_id: "F1", channel_id: "C1", message_ts: "1.1", raw_payload: {} })],
+    ["fileById", () => repo.fileById("F1")],
+    ["updateFile", () => repo.updateFile("F1", { copy_error: "x" })],
+    ["filesWithoutCopy", () => repo.filesWithoutCopy()],
+    ["liveFilesSince", () => repo.liveFilesSince("1.1")],
+    ["deletedFilesWithBytes", () => repo.deletedFilesWithBytes(10)],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });

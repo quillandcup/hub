@@ -12,7 +12,7 @@ export type SlackMessageContractContext = {
 };
 
 /** The days the contract's rows are on: long ago, so rows other runs or the dev seed hold never fall inside. */
-const DAY = (n: number) => (n <= 31 ? `2001-03-${String(n).padStart(2, "0")}T12:00:00.000Z` : `2001-04-${String(n - 31).padStart(2, "0")}T12:00:00.000Z`);
+const DAY = (n: number) => new Date(Date.UTC(2001, 2, n, 12)).toISOString();
 
 /** Postgres writes the same instant as `+00:00`, a twin as `Z`: compare instants. */
 const atMs = <T extends { occurred_at: string }>(row: T) => ({ ...row, occurred_at: Date.parse(row.occurred_at) });
@@ -278,6 +278,63 @@ export function defineSlackMessageContract(name: string, setup: () => SlackMessa
       expect(await ctx.repo().hasLiveActivityBetween(DAY(52), DAY(52))).toBe(true); // only a reaction
       expect(await ctx.repo().hasLiveActivityBetween(DAY(48), DAY(48))).toBe(false); // a deleted message
       expect(await ctx.repo().hasLiveActivityBetween(DAY(54), DAY(54))).toBe(false); // a reaction taken back
+    });
+
+    it("tells which message timestamps of a channel are stored, the newest one, and who wrote them", async () => {
+      const [channel, other, ada, grace] = [ctx.unique("c"), ctx.unique("o"), ctx.unique("ada"), ctx.unique("grace")];
+      const first = message(channel, ada, 60, { message_ts: "1700000000.000100" });
+      const second = message(channel, grace, 60, { message_ts: "1700000500.000100", deleted_at: DAY(61) });
+      const elsewhere = message(other, ada, 60, { message_ts: "1700000900.000100" });
+      await ctx.seed({ messages: [first, second, elsewhere] });
+      const many = Array.from({ length: 250 }, (_, i) => `1600000000.${String(i).padStart(6, "0")}`);
+
+      const stored = await ctx.repo().storedTimestamps(channel, [first.message_ts, second.message_ts, elsewhere.message_ts, "1.1", ...many]);
+      expect([...stored].sort()).toEqual([first.message_ts, second.message_ts]); // deleted ones count; other channels don't
+      expect((await ctx.repo().storedTimestamps(channel, [])).size).toBe(0);
+
+      expect(await ctx.repo().newestTimestamp(channel)).toBe(second.message_ts);
+      expect(await ctx.repo().newestTimestamp(ctx.unique("empty"))).toBeNull();
+
+      const authors = await ctx.repo().authorsByTs(channel, [first.message_ts, second.message_ts, elsewhere.message_ts, ...many]);
+      expect([...authors]).toEqual([[first.message_ts, ada], [second.message_ts, grace]]);
+      expect((await ctx.repo().authorsByTs(channel, [])).size).toBe(0);
+    });
+
+    it("keeps files: records them once, finds the ones without a copy, updates, and lists deleted ones with bytes", async () => {
+      const [channel, other] = [ctx.unique("c"), ctx.unique("o")];
+      const [a, b, c, d] = [ctx.unique("fa"), ctx.unique("fb"), ctx.unique("fc"), ctx.unique("fd")];
+      const file = (file_id: string, ts: string, extra = {}) => ({ file_id, channel_id: channel, message_ts: ts, name: file_id + ".png", mimetype: "image/png", size_bytes: 10, raw_payload: { id: file_id }, ...extra });
+      await ctx.seed({});
+
+      await ctx.repo().recordFiles([file(a, "1700000100.000100"), file(b, "1700000200.000100"), file(c, "1700000300.000100", { channel_id: other })]);
+      await ctx.repo().recordFiles([{ ...file(a, "1700000100.000100"), name: "overwritten.png" }, file(d, "1700000400.000100")]); // a is left as it was
+      await ctx.repo().recordFiles([]);
+
+      expect(await ctx.repo().fileById(a)).toMatchObject({ file_id: a, channel_id: channel, name: a + ".png", mimetype: "image/png", size_bytes: 10, storage_path: null, copy_error: null, deleted_at: null, raw_payload: { id: a } });
+      expect(await ctx.repo().fileById(ctx.unique("none"))).toBeNull();
+      const mine = (rows: { file_id: string }[]) => rows.filter((r) => [a, b, c, d].includes(r.file_id)).map((r) => r.file_id);
+      expect(mine(await ctx.repo().filesWithoutCopy())).toEqual([a, b, c, d]); // oldest message first
+
+      await ctx.repo().updateFile(a, { storage_path: a + "/a.png", copied_at: DAY(62) });
+      await ctx.repo().updateFile(b, { copy_error: "skipped: deleted", deleted_at: DAY(63) });
+      await ctx.repo().updateFile(c, { deleted_at: DAY(62), storage_path: c + "/c.png" });
+      await ctx.repo().updateFile(d, { deleted_at: DAY(64), storage_path: d + "/d.png" });
+      expect(mine(await ctx.repo().filesWithoutCopy())).toEqual([b]);
+      expect(await ctx.repo().fileById(b)).toMatchObject({ copy_error: "skipped: deleted" });
+
+      // Live files on messages from a timestamp on, by file id.
+      expect(mine(await ctx.repo().liveFilesSince("1700000050.000000"))).toEqual([a]);
+      expect(mine(await ctx.repo().liveFilesSince("1700000150.000000"))).toEqual([]);
+
+      // Deleted files whose bytes are still stored, the longest deleted first.
+      const withBytes = (await ctx.repo().deletedFilesWithBytes(1000)).filter((r) => [c, d].includes(r.file_id));
+      expect(withBytes).toEqual([{ file_id: c, storage_path: c + "/c.png" }, { file_id: d, storage_path: d + "/d.png" }]);
+      expect((await ctx.repo().deletedFilesWithBytes(1)).length).toBe(1);
+
+      // Replacing a file's row overwrites it.
+      await ctx.repo().replaceFile({ ...file(a, "1700000100.000100"), name: "replaced.png", storage_path: a + "/new.png" });
+      await ctx.repo().replaceFile(file(ctx.unique("fresh"), "1700000500.000100"));
+      expect(await ctx.repo().fileById(a)).toMatchObject({ name: "replaced.png", storage_path: a + "/new.png" });
     });
   });
 }

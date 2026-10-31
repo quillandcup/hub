@@ -1,7 +1,7 @@
 import { SLACK_SYSTEM_SUBTYPES } from "@/lib/slack-messages";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { chunk } from "@/lib/supabase/paginate";
-import { asPage, byKeyThenId, must, upsertInChunks } from "./query";
+import { asPage, byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import { asJson } from "./json";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
@@ -43,6 +43,27 @@ export type SlackMessageEdit = {
 
 /** A stored message's place in its thread and in time (no content), for judging what went missing from Slack. */
 export type StoredSlackMessageRef = { channel_id: string; message_ts: string; thread_ts: string | null; occurred_at: string };
+
+type FileTable = Database["bronze"]["Tables"]["slack_files"];
+
+/** What the capture records for a file attached to a message: `bronze.slack_files`'s columns. */
+export type NewSlackFile = FileTable["Insert"];
+
+/** A stored file: where it hangs, its metadata, and where our copy is. Service role only. */
+export type SlackFile = Pick<
+  FileTable["Row"],
+  "file_id" | "channel_id" | "message_ts" | "name" | "mimetype" | "size_bytes" | "storage_path" | "copy_error" | "deleted_at"
+> & {
+  /** What Slack sent for the file (a vendor payload: the download URLs are in it). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  raw_payload: any;
+};
+
+/** A file as the in-memory dataset keeps it. */
+export type SlackFileSeed = Pick<SlackFile, "file_id" | "channel_id" | "message_ts"> & Partial<Omit<SlackFile, "file_id" | "channel_id" | "message_ts">> & { copied_at?: string | null };
+
+/** The columns of a file the copy and cleanup steps change. */
+export type SlackFileChange = Partial<Pick<FileTable["Row"], "copy_error" | "storage_path" | "copied_at" | "deleted_at">>;
 
 /** What the engagement stats read of a message (no content). */
 export type SlackMessageEngagementRow = {
@@ -110,6 +131,28 @@ export interface SlackMessageRepository {
   storedMessagesBetween(from: string, to: string): Promise<StoredSlackMessageRef[]>;
   /** The live reactions on these messages of one channel. Chunked. */
   liveReactionsOn(channelId: string, messageTs: string[]): Promise<ReactionKey[]>;
+  /** Of these message timestamps in one channel, the ones we have stored (deleted or not). Chunked. */
+  storedTimestamps(channelId: string, messageTs: string[]): Promise<Set<string>>;
+  /** The newest stored message timestamp of a channel (deleted or not), or null. Service role. */
+  newestTimestamp(channelId: string): Promise<string | null>;
+  /** message ts -> the Slack user who wrote it, for these messages of one channel (those we have). Chunked. Service role. */
+  authorsByTs(channelId: string, messageTs: string[]): Promise<Map<string, string>>;
+
+  /** Records files seen on messages. A file we already have is left as it is (never overwrites its copy). Chunked. */
+  recordFiles(files: NewSlackFile[]): Promise<void>;
+  /** Saves a file's row, replacing the one with the same Slack file id. */
+  replaceFile(file: NewSlackFile): Promise<void>;
+  /** One file, or null. */
+  fileById(fileId: string): Promise<SlackFile | null>;
+  /** Changes some columns of one file. */
+  updateFile(fileId: string, change: SlackFileChange): Promise<void>;
+  /** The files we have no copy of yet (deleted ones included), oldest message first. */
+  filesWithoutCopy(): Promise<SlackFile[]>;
+  /** The live files on messages from `oldestMessageTs` on: where each hangs. By file id. */
+  liveFilesSince(oldestMessageTs: string): Promise<{ file_id: string; channel_id: string; message_ts: string }[]>;
+  /** Deleted files whose bytes are still stored, longest deleted first, at most `limit`. */
+  deletedFilesWithBytes(limit: number): Promise<{ file_id: string; storage_path: string }[]>;
+
   /**
    * The live messages of these threads of one channel, the thread's own first message included, as
    * `{ thread_ts, message_ts }`. Chunked, and paged past 1000 rows.
@@ -120,7 +163,8 @@ export interface SlackMessageRepository {
 }
 
 const TS_CHUNK = 100;
-const PAGE_SIZE = 1000;
+const AUTHOR_CHUNK = 200;
+const FILE_COLUMNS = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, deleted_at, raw_payload";
 
 const messageOrder = <Q extends { order(column: string): Q }>(q: Q) => q.order("occurred_at").order("channel_id").order("message_ts");
 
@@ -272,6 +316,69 @@ export class SupabaseSlackMessageRepository implements SlackMessageRepository {
     return keys;
   }
 
+  async storedTimestamps(channelId: string, messageTs: string[]) {
+    const rows = await inChunks(messageTs, TS_CHUNK, async (part) =>
+      must(await this.bronze.from("slack_messages").select("message_ts").eq("channel_id", channelId).in("message_ts", part)) ?? []
+    );
+    return new Set(rows.map((r) => r.message_ts));
+  }
+
+  async newestTimestamp(channelId: string) {
+    const row = must(await this.bronze.from("slack_messages").select("message_ts").eq("channel_id", channelId).order("message_ts", { ascending: false }).limit(1).maybeSingle());
+    return row?.message_ts ?? null;
+  }
+
+  async authorsByTs(channelId: string, messageTs: string[]) {
+    const rows = await inChunks(messageTs, AUTHOR_CHUNK, async (part) =>
+      must(await this.bronze.from("slack_messages").select("message_ts, user_id").eq("channel_id", channelId).in("message_ts", part)) ?? []
+    );
+    return new Map(rows.map((r) => [r.message_ts, r.user_id]));
+  }
+
+  private get files() {
+    return this.bronze.from("slack_files");
+  }
+
+  async recordFiles(files: NewSlackFile[]) {
+    for (const part of chunk(files, 500)) {
+      // ignoreDuplicates: never overwrite a row that already has its storage_path.
+      must(await this.files.upsert(part, { onConflict: "file_id", ignoreDuplicates: true }));
+    }
+  }
+
+  async replaceFile(file: NewSlackFile) {
+    must(await this.files.upsert(file, { onConflict: "file_id" }));
+  }
+
+  async fileById(fileId: string) {
+    return must(await this.files.select(FILE_COLUMNS).eq("file_id", fileId).maybeSingle()) as SlackFile | null;
+  }
+
+  async updateFile(fileId: string, change: SlackFileChange) {
+    must(await this.files.update(change).eq("file_id", fileId));
+  }
+
+  async filesWithoutCopy() {
+    return fetchAllRows<SlackFile>((first, last) =>
+      asPage<SlackFile>(this.files.select(FILE_COLUMNS).is("storage_path", null).order("message_ts").order("file_id").range(first, last))
+    );
+  }
+
+  async liveFilesSince(oldestMessageTs: string) {
+    return fetchAllRows<{ file_id: string; channel_id: string; message_ts: string }>((first, last) =>
+      asPage<{ file_id: string; channel_id: string; message_ts: string }>(
+        this.files.select("file_id, channel_id, message_ts").is("deleted_at", null).gte("message_ts", oldestMessageTs).order("file_id").range(first, last)
+      )
+    );
+  }
+
+  async deletedFilesWithBytes(limit: number) {
+    const rows = must(
+      await this.files.select("file_id, storage_path").not("deleted_at", "is", null).not("storage_path", "is", null).order("deleted_at").order("file_id").limit(limit)
+    );
+    return (rows ?? []) as { file_id: string; storage_path: string }[];
+  }
+
   async threadMessages(channelId: string, threadTs: string[]) {
     const rows: { thread_ts: string; message_ts: string }[] = [];
     for (const part of chunk(threadTs, TS_CHUNK)) {
@@ -408,6 +515,69 @@ export class InMemorySlackMessageRepository implements SlackMessageRepository {
       .filter((r) => r.channel_id === channelId && messageTs.includes(r.message_ts) && !r.deleted_at)
       .map(({ channel_id, message_ts, reaction, user_id }) => ({ channel_id, message_ts, reaction, user_id }))
       .sort(byKeyThenId((r) => `${r.message_ts}|${r.reaction}`, (r) => r.user_id));
+  }
+
+  async storedTimestamps(channelId: string, messageTs: string[]) {
+    const wanted = new Set(messageTs);
+    return new Set(this.data.slackMessages.filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => m.message_ts));
+  }
+
+  async newestTimestamp(channelId: string) {
+    const all = this.data.slackMessages.filter((m) => m.channel_id === channelId).map((m) => m.message_ts);
+    return all.length > 0 ? all.reduce((newest, ts) => (ts > newest ? ts : newest)) : null;
+  }
+
+  async authorsByTs(channelId: string, messageTs: string[]) {
+    const wanted = new Set(messageTs);
+    return new Map(this.data.slackMessages.filter((m) => m.channel_id === channelId && wanted.has(m.message_ts)).map((m) => [m.message_ts, m.user_id]));
+  }
+
+  private fileRow(f: SlackFileSeed): SlackFile {
+    return { name: null, mimetype: null, size_bytes: null, storage_path: null, copy_error: null, deleted_at: null, raw_payload: {}, ...f };
+  }
+
+  async recordFiles(files: NewSlackFile[]) {
+    for (const f of files) {
+      if (!this.data.slackFiles.some((x) => x.file_id === f.file_id)) this.data.slackFiles.push({ ...f });
+    }
+  }
+
+  async replaceFile(file: NewSlackFile) {
+    const existing = this.data.slackFiles.find((x) => x.file_id === file.file_id);
+    if (existing) Object.assign(existing, file);
+    else this.data.slackFiles.push({ ...file });
+  }
+
+  async fileById(fileId: string) {
+    const f = this.data.slackFiles.find((x) => x.file_id === fileId);
+    return f ? this.fileRow(f) : null;
+  }
+
+  async updateFile(fileId: string, change: SlackFileChange) {
+    const f = this.data.slackFiles.find((x) => x.file_id === fileId);
+    if (f) Object.assign(f, change);
+  }
+
+  async filesWithoutCopy() {
+    return this.data.slackFiles
+      .filter((f) => !f.storage_path)
+      .map((f) => this.fileRow(f))
+      .sort(byKeyThenId((f) => f.message_ts, (f) => f.file_id));
+  }
+
+  async liveFilesSince(oldestMessageTs: string) {
+    return this.data.slackFiles
+      .filter((f) => !f.deleted_at && f.message_ts >= oldestMessageTs)
+      .map(({ file_id, channel_id, message_ts }) => ({ file_id, channel_id, message_ts }))
+      .sort((a, b) => compareText(a.file_id, b.file_id));
+  }
+
+  async deletedFilesWithBytes(limit: number) {
+    return this.data.slackFiles
+      .filter((f) => f.deleted_at && f.storage_path)
+      .sort(byKeyThenId((f) => f.deleted_at as string, (f) => f.file_id))
+      .slice(0, limit)
+      .map((f) => ({ file_id: f.file_id, storage_path: f.storage_path as string }));
   }
 
   async threadMessages(channelId: string, threadTs: string[]) {
