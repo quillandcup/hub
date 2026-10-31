@@ -324,6 +324,7 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       const id = await ctx.repo().create({ name: "Hope Example", email, joinedAt: "2026-02-03", status: "cancelled", source: "kajabi" });
 
       expect(await ctx.repo().byId(id)).toMatchObject({ id, name: "Hope Example", email, status: "cancelled", source: "kajabi" });
+      await ctx.repo().deleteDerivedStats(id); // a member with no stats: nothing to drop
       await ctx.repo().delete(id);
       expect(await ctx.repo().byId(id)).toBeNull();
     });

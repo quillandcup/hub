@@ -223,11 +223,11 @@ describe("unmatched Zoom names", () => {
     repos = dataset([prickle()], [], [], [], {
       zoomAttendees,
       ignoredZoomNames: [{ id: "ign-1", zoom_name: "Everywhere Ignored", reason: null, ignored_by: null, ignored_at: null, created_at: null }],
+      ignoredZoomAppearances: [{ id: "igza-1", prickle_id: "prkl_AAAAAAAAAAA1", zoom_name: "iPhone", reason: "a guest", ignored_by: null, ignored_at: "2097-03-03T00:00:00Z" }],
     });
   };
   const fakeTables = (role: string) => ({
     user_profiles: { data: { role } },
-    ignored_zoom_appearances: { data: [{ zoom_name: "iPhone", reason: "a guest" }] },
     staff: { data: [] },
   });
 

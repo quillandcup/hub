@@ -8,11 +8,13 @@ import type { IgnoredAppearance } from "@/lib/unmatched-zoom-names";
  * ones whose join/leave overlaps its window, as on the prickle page).
  */
 export async function loadIgnoredAppearances(supabase: Db): Promise<IgnoredAppearance[]> {
-  const { data, error } = await supabase.from("ignored_zoom_appearances").select("zoom_name, prickle_id");
-  if (error) throw new Error(`Failed to load per-prickle Zoom ignores: ${error.message}`);
-  if (!data || data.length === 0) return [];
+  const repos = createRepos(supabase);
+  const data = await repos.zoom.ignoredAppearances().catch((error: Error) => {
+    throw new Error(`Failed to load per-prickle Zoom ignores: ${error.message}`);
+  });
+  if (data.length === 0) return [];
 
-  const prickles = await createRepos(supabase).prickles.byIds([...new Set(data.map((r) => r.prickle_id))]);
+  const prickles = await repos.prickles.byIds([...new Set(data.map((r) => r.prickle_id))]);
   const windows = new Map(prickles.map((p) => [p.id, p]));
   return data.flatMap((r) => {
     const p = windows.get(r.prickle_id);

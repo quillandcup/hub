@@ -10,24 +10,6 @@ import type { Json } from "@/lib/data/database.types";
  * the meeting ends remains the source of truth.
  */
 
-const BATCH_SIZE = 1000;
-
-export async function fetchAllPaginated<T>(queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
 
 export interface ParticipantEventRow {
   meeting_uuid: string;
@@ -165,18 +147,7 @@ export async function loadPresenceByMember(
   since: Date,
   now: Date = new Date()
 ): Promise<Map<string, PresenceInterval[]>> {
-  const [allEvents, hostIds] = await Promise.all([
-    fetchAllPaginated<any>((offset) =>
-      supabase
-        .schema("bronze")
-        .from("zoom_participant_events")
-        .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
-        .gte("event_time", since.toISOString())
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    loadImportedHostIds(supabase, now),
-  ]);
+  const [allEvents, hostIds] = await Promise.all([createRepos(supabase).zoom.participantEventsSince(since.toISOString()), loadImportedHostIds(supabase, now)]);
   const events = allEvents.filter((e) => e.host_id && hostIds.has(e.host_id));
   const result = new Map<string, PresenceInterval[]>();
   if (events.length === 0) return result;

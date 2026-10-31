@@ -17,8 +17,8 @@ export default async function AmbiguousNamesPage() {
   const supabase = await createClient();
 
   const repos = createRepos(supabase);
-  const [{ data: ambiguousRows }, allMembers, aliases, emailAliases] = await Promise.all([
-    supabase.from("ambiguous_zoom_names").select("zoom_name, zoom_email").eq("status", "unresolved"),
+  const [ambiguousRows, allMembers, aliases, emailAliases] = await Promise.all([
+    repos.zoom.unresolvedAmbiguousNames().catch(() => []), // a failed read shows none, as before
     repos.members.identities(),
     repos.aliases.nameAliases({ activeOnly: true }),
     repos.aliases.emailAliases({ activeOnly: true }),
@@ -32,7 +32,7 @@ export default async function AmbiguousNamesPage() {
   // stopped being ambiguous (a member merged or aliased) drops off by itself.
   const attendeeKey = (name: string, email: string | null) => `${name}|${email || ""}`;
   const stillAmbiguous = new Map<string, { zoomName: string; zoomEmail: string | null; candidateIds: string[] }>();
-  for (const row of ambiguousRows ?? []) {
+  for (const row of ambiguousRows) {
     const match = matchAttendeeToMember(row.zoom_name, row.zoom_email, allMembers, aliases, emailAliases);
     if (!match || !("reason" in match)) continue;
     stillAmbiguous.set(attendeeKey(row.zoom_name, row.zoom_email), {

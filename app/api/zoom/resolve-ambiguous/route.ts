@@ -42,13 +42,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "ignore") {
-      const { error } = await supabase
-        .from("ambiguous_zoom_names")
-        .update({ status: "ignored" })
-        .eq("zoom_name", zoomName)
-        .eq("status", "unresolved");
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      try {
+        await createRepos(supabase).zoom.ignoreAmbiguousName(zoomName);
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -67,13 +65,11 @@ export async function POST(request: NextRequest) {
     // the full-name match. Another member's alias is still refused.
     let allowedRealNameShadow = false;
     if (conflict?.kind === "other_name") {
-      const { count, error: lookupError } = await supabase
-        .from("ambiguous_zoom_names")
-        .select("zoom_name", { count: "exact", head: true })
-        .eq("zoom_name", zoomName)
-        .eq("status", "unresolved");
-      if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
-      allowedRealNameShadow = (count ?? 0) > 0;
+      try {
+        allowedRealNameShadow = await createRepos(supabase).zoom.hasUnresolvedAmbiguousName(zoomName);
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
     }
     if (conflict && conflict.kind !== "own" && !allowedRealNameShadow) {
       return NextResponse.json({ error: adminNameAliasConflictMessage(zoomName, conflict) }, { status: 409 });
@@ -87,13 +83,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { error: resolveError } = await supabase
-      .from("ambiguous_zoom_names")
-      .update({ status: "resolved", resolved_member_id: memberId })
-      .eq("zoom_name", zoomName)
-      .eq("status", "unresolved");
-
-    if (resolveError) return NextResponse.json({ error: resolveError.message }, { status: 500 });
+    try {
+      await createRepos(supabase).zoom.resolveAmbiguousName(zoomName, memberId);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
 
     console.log("Triggering attendance reprocessing from ambiguous_zoom_names resolution");
     await triggerReprocessing("member_name_aliases", "local");

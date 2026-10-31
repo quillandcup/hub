@@ -36,6 +36,8 @@ function makeSupabaseMock(failOn?: { table: string; op: string }) {
       eq: (col: string, val: unknown) => (call.filters.push(["eq", col, val]), builder),
       in: (col: string, val: unknown) => (call.filters.push(["in", col, val]), builder),
       contains: (col: string, val: unknown) => (call.filters.push(["contains", col, val]), builder),
+      order: () => builder,
+      range: () => builder,
       single: () => {
         const id = call.filters.find(([, col]) => col === "id")?.[2];
         return Promise.resolve({ data: id === PRIMARY.id ? PRIMARY : id === SECONDARY.id ? SECONDARY : null, error: null });
