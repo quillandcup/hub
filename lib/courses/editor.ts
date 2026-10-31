@@ -79,3 +79,11 @@ export function parseCourseDetails(input: CourseDetailsInput): { ok: true; value
     },
   };
 }
+
+/** A module's or lesson's name: trimmed, and between 1 and `MAX_TITLE` characters. */
+export function parseItemTitle(title: string): { ok: true; title: string } | { ok: false; error: string } {
+  const trimmed = title.trim();
+  if (!trimmed) return { ok: false, error: "Give it a name." };
+  if (trimmed.length > MAX_TITLE) return { ok: false, error: `Keep the name under ${MAX_TITLE} characters.` };
+  return { ok: true, title: trimmed };
+}

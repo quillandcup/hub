@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { loadAdminCourse, loadAdminCourseTitle, loadAdminLesson, loadAdminCourses, loadHubCourse } from '@/lib/courses/admin'
+import { loadAdminCourse, loadAdminCourseTitle, loadAdminLesson, loadAdminCourses, loadHubCourse, loadHubOutline } from '@/lib/courses/admin'
 import { accessLabel } from '@/lib/courses/access-options'
 
 /**
@@ -122,6 +122,27 @@ describe('Admin course data', () => {
       const course = (await loadHubCourse(supabase, hubId, now))!
       expect(course).toMatchObject({ id: hubId, title: `Admin Hub ${ts}`, slug: HUB, description: 'Made in the Hub.', programId: null, access: { current: 1, upcoming: 0, ended: 0 } })
       expect(new Date(course.launchAt!).getTime()).toBeGreaterThan(now.getTime())
+    })
+
+    it("give their outline: modules, submodules and lessons in position order, with what each has, and nothing of another course's", async () => {
+      const { data: m2 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'Second', position: 2, state: 'hidden', source: 'hub' }).select('id').single()
+      const { data: m1 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'First', position: 1, state: 'hidden', source: 'hub' }).select('id').single()
+      const { data: week } = await supabase.from('course_modules').insert({ course_id: hubId, parent_id: m1!.id, title: 'Week', position: 1, state: 'hidden', source: 'hub' }).select('id').single()
+      await supabase.from('course_lessons').insert([
+        { course_id: hubId, module_id: week!.id, title: 'With text', position: 2, state: 'hidden', excerpt: 'Hello', source: 'hub' },
+        { course_id: hubId, module_id: week!.id, title: 'Plain', position: 1, state: 'hidden', source: 'hub' },
+        { course_id: hubId, module_id: m2!.id, title: 'In second', position: 1, state: 'open', source: 'hub' },
+      ])
+      const outline = await loadHubOutline(supabase, hubId)
+      expect(outline.modules.map((m) => m.title)).toEqual(['First', 'Second'])
+      expect(outline.modules[0].children.map((c) => c.title)).toEqual(['Week'])
+      expect(outline.modules[0].children[0].lessons.map((l) => l.title)).toEqual(['Plain', 'With text'])
+      expect(outline.modules[1].lessons[0]).toMatchObject({ title: 'In second', state: 'open', publishingOption: 'published' })
+      const ids = Object.fromEntries(outline.modules[0].children[0].lessons.map((l) => [l.title, l.kajabiId]))
+      expect(outline.content[ids['With text']]).toEqual({ hasText: true, hasVideo: false })
+      expect(outline.content[ids['Plain']]).toEqual({ hasText: false, hasVideo: false })
+      // Loose lessons in the Hub course from the earlier test of this block are in it too, and no other course's are.
+      expect((await loadHubOutline(supabase, 'crs_AAAAAAAAAAA1')).modules).toEqual([])
     })
 
     it('are null for a course imported from Kajabi, even by its own id, and for an unknown one', async () => {

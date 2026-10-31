@@ -1,7 +1,20 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+// The outline's actions reach the database; its own tests (BuilderOutline.editing.test.tsx) fake them.
+vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
+  addCourseLesson: vi.fn(),
+  addCourseModule: vi.fn(),
+  deleteCourseItem: vi.fn(),
+  duplicateCourseItem: vi.fn(),
+  renameCourseItem: vi.fn(),
+  reorderCourseItems: vi.fn(),
+}));
+
 import BuilderOutline, { type OutlineCourse } from "@/app/(admin)/admin/courses/BuilderOutline";
 import { explainCourse } from "@/lib/courses/explain";
 

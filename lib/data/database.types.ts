@@ -2302,6 +2302,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "course_lessons_module_same_course"
+            columns: ["module_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "course_modules"
+            referencedColumns: ["id", "course_id"]
+          },
+          {
             foreignKeyName: "course_lessons_thumbnail_asset_id_fkey"
             columns: ["thumbnail_asset_id"]
             isOneToOne: false
@@ -2377,6 +2384,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "course_modules"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_modules_parent_same_course"
+            columns: ["parent_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "course_modules"
+            referencedColumns: ["id", "course_id"]
           },
           {
             foreignKeyName: "course_modules_poster_asset_id_fkey"
@@ -6340,6 +6354,14 @@ export type Database = {
         }
         Returns: number
       }
+      duplicate_course_lesson: {
+        Args: { p_lesson_id: string }
+        Returns: string
+      }
+      duplicate_course_module: {
+        Args: { p_module_id: string }
+        Returns: string
+      }
       find_pending_invite: {
         Args: { p_email: string }
         Returns: {
@@ -6597,6 +6619,15 @@ export type Database = {
       }
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
+        Returns: undefined
+      }
+      reorder_course_children: {
+        Args: {
+          p_course_id: string
+          p_ids: string[]
+          p_kind: string
+          p_parent_id: string
+        }
         Returns: undefined
       }
       reprocess_member_interactions_atomic: {
