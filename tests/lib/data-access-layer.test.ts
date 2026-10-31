@@ -72,6 +72,13 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   zoom_attendees: [],
   zoom_meetings: [],
   ignored_zoom_names: [],
+  // The ambiguous-name queue, the per-prickle ignores and the live join/leave events (ZoomRepository): every query is moved.
+  ambiguous_zoom_names: [],
+  ignored_zoom_appearances: [],
+  zoom_participant_events: [],
+  // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
+  member_metrics: [],
+  member_engagement: [],
   // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [

@@ -17,7 +17,7 @@ import type { SlackUserSeed } from "./slack-users";
 import type { IgnoredSlackUserSeed, RestrictedChannelSeed, SlackChannelMembershipSeed, SlackChannelSeed, SlackEmojiSeed, SlackMemberEventSeed } from "./slack-workspace";
 import type { SlackFileSeed, SlackMessageSeed, SlackReactionSeed } from "./slack-messages";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
-import type { IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow } from "./zoom";
+import type { AmbiguousZoomNameRow, IgnoredZoomAppearanceRow, IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow, ZoomParticipantEventRow } from "./zoom";
 import type { UnmatchedEvent } from "./unmatched-events";
 import type { ChatChannelMemberSeed, ChatChannelSeed, ChatGapFillSeed, ChatMessageContentSeed, ChatMessageSeed, ChatReactionSeed, ChatSlackAuthorSeed } from "./chat";
 import type { UserProfileSeed } from "./profiles";
@@ -118,6 +118,13 @@ export class InMemoryDataset {
   zoomAttendees: ZoomAttendeeRow[];
   zoomMeetings: ZoomMeetingRow[];
   ignoredZoomNames: IgnoredZoomNameRow[];
+  /** Zoom names ignored for one prickle, the live join/leave events and the ambiguous-name queue (ZoomRepository). */
+  ignoredZoomAppearances: IgnoredZoomAppearanceRow[];
+  zoomParticipantEvents: ZoomParticipantEventRow[];
+  ambiguousZoomNames: AmbiguousZoomNameRow[];
+  /** Per-member stats recomputed from attendance (`member_metrics`, `member_engagement`); the repositories only drop a member's rows. */
+  memberMetrics: { member_id: string }[];
+  memberEngagement: { member_id: string }[];
   /** The calendar items queued for review and the decisions made on them (`unmatched_calendar_events`). */
   unmatchedEvents: UnmatchedEvent[];
   /** Programs, their cohorts and the members enrolled in them. */
@@ -200,7 +207,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments">
 
     > = {},
   ) {
@@ -242,6 +249,11 @@ export class InMemoryDataset {
     this.zoomAttendees = (init.zoomAttendees ?? []).map((row) => ({ ...row }));
     this.zoomMeetings = (init.zoomMeetings ?? []).map((row) => ({ ...row }));
     this.ignoredZoomNames = (init.ignoredZoomNames ?? []).map((row) => ({ ...row }));
+    this.ignoredZoomAppearances = (init.ignoredZoomAppearances ?? []).map((row) => ({ ...row }));
+    this.zoomParticipantEvents = (init.zoomParticipantEvents ?? []).map((row) => ({ ...row }));
+    this.ambiguousZoomNames = (init.ambiguousZoomNames ?? []).map((row) => ({ ...row, candidate_member_ids: [...row.candidate_member_ids] }));
+    this.memberMetrics = (init.memberMetrics ?? []).map((row) => ({ ...row }));
+    this.memberEngagement = (init.memberEngagement ?? []).map((row) => ({ ...row }));
     this.unmatchedEvents = (init.unmatchedEvents ?? []).map((row) => ({ ...row }));
     this.programs = (init.programs ?? []).map((row) => ({ ...row }));
     this.programCohorts = (init.programCohorts ?? []).map((row) => ({ ...row }));

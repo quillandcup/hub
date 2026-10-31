@@ -2,7 +2,7 @@ import { createRepos } from "@/lib/data/repos";
 import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle-join";
-import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
+import { loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
 
 /**
  * Who's on the Prickle link right now, for the "On air" light in the member header.
@@ -12,7 +12,6 @@ import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type Participant
 
 /** Events older than this are ignored: a lost "left" webhook must not leave someone "in the room" for good. */
 export const LIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
-const BATCH_SIZE = 1000;
 
 type LiveEvent = Pick<
   ParticipantEventRow,
@@ -66,15 +65,7 @@ export interface LiveRoom {
 /** Reads participant events, so it needs the service role client (the table is service role only). */
 export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promise<LiveRoom> {
   const [events, hostIds, settings] = await Promise.all([
-    fetchAllPaginated<any>((offset) =>
-      supabase
-        .schema("bronze")
-        .from("zoom_participant_events")
-        .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
-        .gte("event_time", new Date(now.getTime() - LIVE_WINDOW_MS).toISOString())
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).zoom.participantEventsSince(new Date(now.getTime() - LIVE_WINDOW_MS).toISOString()),
     loadImportedHostIds(supabase, now),
     loadPrickleJoinSettings(supabase),
   ]);

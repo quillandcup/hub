@@ -1,4 +1,4 @@
-import type { ZoomAttendeeRow } from "@/lib/data/zoom";
+import type { AmbiguousZoomNameRow, ZoomAttendeeRow } from "@/lib/data/zoom";
 
 let n = 0;
 
@@ -22,6 +22,25 @@ export function zoomAttendee(fields: Partial<ZoomAttendeeRow> & Pick<ZoomAttende
     status: null,
     topic: null,
     user_id: null,
+    ...fields,
+  };
+}
+
+/** An unresolved ambiguous Zoom name for an in-memory dataset; only what a test cares about needs saying. */
+export function ambiguousZoomName(fields: Partial<AmbiguousZoomNameRow> & Pick<AmbiguousZoomNameRow, "zoom_name">): AmbiguousZoomNameRow {
+  n += 1;
+  return {
+    id: `amb-${String(n).padStart(6, "0")}`,
+    candidate_member_ids: [],
+    created_at: null,
+    first_seen_at: null,
+    last_seen_at: null,
+    notes: null,
+    occurrence_count: 1,
+    resolved_member_id: null,
+    status: "unresolved",
+    updated_at: null,
+    zoom_email: null,
     ...fields,
   };
 }

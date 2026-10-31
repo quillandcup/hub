@@ -142,6 +142,8 @@ export interface MemberRepository {
   create(member: NewMember): Promise<string>;
   /** Removes a member. Everything that still points at them cascades away or is nulled. */
   delete(id: string): Promise<void>;
+  /** Drops a member's derived stats (`member_metrics`, `member_engagement`), which are recomputed for whoever remains (a merge). */
+  deleteDerivedStats(id: string): Promise<void>;
   /**
    * Sets the real name, in one write with `displayName` when given (an admin rename that keeps the old
    * name as the display name). `selfService` also stamps the member's one self-service change. False if
@@ -463,6 +465,15 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (error) throw new Error(error.message);
   }
 
+  async deleteDerivedStats(id: string): Promise<void> {
+    const [metrics, engagement] = await Promise.all([
+      this.db.from("member_metrics").delete().eq("member_id", id),
+      this.db.from("member_engagement").delete().eq("member_id", id),
+    ]);
+    const failed = metrics.error ?? engagement.error;
+    if (failed) throw new Error(failed.message);
+  }
+
   setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {
     const patch: Update<"members"> = { name };
     if (selfService) patch.self_service_name_changed_at = new Date().toISOString();
@@ -692,6 +703,11 @@ export class InMemoryMemberRepository implements MemberRepository {
 
   async delete(id: string) {
     this.data.members = this.data.members.filter((m) => m.id !== id);
+  }
+
+  async deleteDerivedStats(id: string) {
+    this.data.memberMetrics = this.data.memberMetrics.filter((r) => r.member_id !== id);
+    this.data.memberEngagement = this.data.memberEngagement.filter((r) => r.member_id !== id);
   }
 
   async setName(id: string, name: string, { selfService = false, displayName }: { selfService?: boolean; displayName?: string } = {}) {

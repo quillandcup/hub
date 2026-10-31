@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
+import { ambiguousZoomName, zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -103,6 +103,29 @@ describe("data health page", () => {
     };
     await renderServerPage(DataHygienePage, {});
     expect(screen.getByText(/\/0 in processed meetings/)).toBeInTheDocument(); // a failed count shows as none
+  });
+
+  it("counts the distinct unresolved ambiguous Zoom names, and shows none when they can't be read", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        ambiguousZoomNames: [
+          ambiguousZoomName({ zoom_name: "Sam", zoom_email: null }),
+          ambiguousZoomName({ zoom_name: "Sam", zoom_email: "sam@example.test" }),
+          ambiguousZoomName({ zoom_name: "Lee" }),
+          ambiguousZoomName({ zoom_name: "Done", status: "resolved" }),
+        ],
+      })
+    );
+
+    await renderServerPage(DataHygienePage, {});
+    expect(screen.getByText("Ambiguous Names").closest("a")).toHaveTextContent(/2\s*Zoom names matching multiple members/);
+
+    cleanup();
+    repos.zoom.unresolvedAmbiguousNames = async () => {
+      throw new Error("boom");
+    };
+    await renderServerPage(DataHygienePage, {});
+    expect(screen.getByText("Ambiguous Names").closest("a")).toHaveTextContent(/0\s*Zoom names matching multiple members/);
   });
 
   it("shows no Pop-Up Prickle warning when every one has attendance", async () => {
