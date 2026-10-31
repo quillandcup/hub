@@ -38,7 +38,7 @@ function NavLinks({ enabledFeatures, pathname, collapsed, keepLayout, onNavigate
       </div>
 
       {/* Navigation */}
-      <nav className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto overflow-x-hidden flex-1">
+      <nav data-sentry-unmask className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto overflow-x-hidden flex-1">
         {navGroups("admin", enabledFeatures).map((section) => {
           const visibleItems = section.items;
 
