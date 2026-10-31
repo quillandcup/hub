@@ -2,7 +2,6 @@ import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { NavMode } from "@/lib/nav-mode";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
-import { escapeLike } from "./query";
 
 /** A signed-in user's profile row (one per Supabase Auth user): their role and time zone settings. Not a member record. */
 export type UserProfile = Row<"user_profiles">;
@@ -39,8 +38,6 @@ export interface ProfileRepository {
   all(): Promise<UserProfile[]>;
   /** Sets a user's role. */
   setRole(userId: string, role: string): Promise<void>;
-  /** The one profile whose sign-in email is this address (any case), or null when none or several match. */
-  uniqueByEmail(email: string): Promise<StaffProfile | null>;
   /** Saves the user's time zone preference ("browser" until one is detected). */
   setTimezonePreference(userId: string, timezone: string): Promise<void>;
   /** Saves how the user's sidebar behaves (pinned open, pinned closed, auto-hide). */
@@ -60,12 +57,6 @@ export class SupabaseProfileRepository implements ProfileRepository {
     const { data, error } = await this.db.from("user_profiles").select("*").eq("id", userId).maybeSingle();
     if (error) throw new Error(error.message);
     return data;
-  }
-
-  async uniqueByEmail(email: string) {
-    const { data, error } = await this.db.from("user_profiles").select("id, email, role").ilike("email", escapeLike(email)).limit(2);
-    if (error) throw new Error(error.message);
-    return data?.length === 1 ? data[0] : null;
   }
 
   async isAdmin(userId: string) {
@@ -152,11 +143,6 @@ export class InMemoryProfileRepository implements ProfileRepository {
   async byId(userId: string) {
     const p = this.data.userProfiles.find((x) => x.id === userId);
     return p ? this.full(p) : null;
-  }
-
-  async uniqueByEmail(email: string) {
-    const matches = this.data.userProfiles.filter((p) => p.email.toLowerCase() === email.toLowerCase());
-    return matches.length === 1 ? { id: matches[0].id, email: matches[0].email, role: this.full(matches[0]).role } : null;
   }
 
   async isAdmin(userId: string) {

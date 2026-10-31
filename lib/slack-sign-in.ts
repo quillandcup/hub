@@ -81,6 +81,11 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+/** Escape LIKE wildcards so an email containing `_` or `%` only matches itself under ilike. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 function randomCode(): string {
   // 256 is a multiple of 32, so masking each byte to 5 bits is unbiased.
   return [...randomBytes(SLACK_CODE_LENGTH)].map((b) => SLACK_CODE_ALPHABET[b & 31]).join("");
@@ -109,6 +114,25 @@ async function findProfileById(service: SupabaseClient, userId: string): Promise
   return profile ? { id: profile.id, email: profile.email, role: profile.role } : null;
 }
 
+/** A single row matching `column` case-insensitively, or null (none, several, or an error). */
+async function findOneByEmail<T>(
+  service: SupabaseClient,
+  table: string,
+  select: string,
+  column: string,
+  email: string,
+  filter?: (q: any) => any // eslint-disable-line @typescript-eslint/no-explicit-any
+): Promise<T | null> {
+  let query = service.from(table).select(select).ilike(column, escapeLike(email));
+  if (filter) query = filter(query);
+  const { data, error } = await query.limit(2);
+  if (error) {
+    console.error("slack-sign-in: %s lookup by email failed:", table, error);
+    return null;
+  }
+  return data?.length === 1 ? (data[0] as T) : null;
+}
+
 /**
  * The Hub account a Slack-verified email belongs to, and how it matched. In order:
  * 1. the account's own sign-in email (user_profiles.email);
@@ -122,32 +146,25 @@ async function findProfileForSlackEmail(
   service: SupabaseClient,
   email: string
 ): Promise<{ profile: ProfileRow; via: "email_match" | "email_alias" } | null> {
-  const repos = createRepos(service);
-  // Each lookup wants exactly one match; none, several or a database error all mean "no match here".
-  const lookup = async <T>(what: string, run: () => Promise<T | null>): Promise<T | null> => {
-    try {
-      return await run();
-    } catch (error) {
-      console.error("slack-sign-in: %s lookup by email failed:", what, error);
-      return null;
-    }
-  };
+  const direct = await findOneByEmail<ProfileRow>(service, "user_profiles", "id, email, role", "email", email);
+  if (direct) return { profile: direct, via: "email_match" };
 
-  const direct = await lookup("user_profiles", () => repos.profiles.uniqueByEmail(email));
-  if (direct) return { profile: { id: direct.id, email: direct.email, role: direct.role }, via: "email_match" };
-
-  const memberUserId = await lookup("members", async () => {
-    const hits = await repos.members.search({ emailEquals: email, limit: 2 });
-    return hits.length === 1 ? hits[0].userId : null;
-  });
-  if (memberUserId) {
-    const profile = await findProfileById(service, memberUserId);
+  const member = await findOneByEmail<{ user_id: string | null }>(service, "members", "user_id", "email", email);
+  if (member?.user_id) {
+    const profile = await findProfileById(service, member.user_id);
     if (profile) return { profile, via: "email_match" };
   }
 
-  const aliasMemberId = await lookup("member_email_aliases", () => repos.aliases.uniqueActiveEmailOwner(email));
-  if (aliasMemberId) {
-    const aliased = await repos.members.byId(aliasMemberId);
+  const alias = await findOneByEmail<{ member_id: string | null }>(
+    service,
+    "member_email_aliases",
+    "member_id",
+    "alias_email",
+    email,
+    (q) => q.eq("active", true)
+  );
+  if (alias?.member_id) {
+    const aliased = await createRepos(service).members.byId(alias.member_id);
     const profile = aliased?.userId ? await findProfileById(service, aliased.userId) : null;
     if (profile) return { profile, via: "email_alias" };
   }
@@ -156,18 +173,27 @@ async function findProfileForSlackEmail(
 
 /** The Hub account bound to this Slack user id, if any. */
 async function findBoundProfile(service: SupabaseClient, slackUserId: string): Promise<ProfileRow | null> {
-  const binding = await createRepos(service).slackSignIn.identityBySlackUser(slackUserId).catch(() => null);
-  return binding?.userId ? findProfileById(service, binding.userId) : null;
+  const { data: binding } = await service
+    .from("slack_identities")
+    .select("user_id")
+    .eq("slack_user_id", slackUserId)
+    .maybeSingle();
+  return binding?.user_id ? findProfileById(service, binding.user_id as string) : null;
 }
 
 /** Whether this admin turned on Slack sign-in for themselves (their own preview row only). */
 async function adminOptedIn(service: SupabaseClient, userId: string): Promise<boolean> {
-  try {
-    return (await createRepos(service).featureFlags.previewKeys(userId)).includes(ADMIN_OPT_IN_FEATURE);
-  } catch (error) {
+  const { data, error } = await service
+    .from("user_feature_previews")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("feature_key", ADMIN_OPT_IN_FEATURE)
+    .maybeSingle();
+  if (error) {
     console.error("slack-sign-in: admin opt-in lookup failed for %s:", userId, error);
     return false;
   }
+  return data !== null;
 }
 
 async function toResolution(service: SupabaseClient, profile: ProfileRow | null): Promise<SlackSignInResolution> {
@@ -200,11 +226,12 @@ export async function resolveHubUserForSlackUser(
   const resolution = await toResolution(service, match?.profile ?? null);
   if (resolution.status !== "ok" || !match) return resolution;
 
-  try {
-    await createRepos(service).slackSignIn.bind(slackUserId, resolution.userId, match.via);
-  } catch (error) {
-    // A unique violation on user_id: this Hub account is already bound to a different Slack user.
-    // Don't guess which one is right.
+  const { error } = await service
+    .from("slack_identities")
+    .insert({ slack_user_id: slackUserId, user_id: resolution.userId, linked_via: match.via });
+  if (error) {
+    // 23505 on user_id: this Hub account is already bound to a different Slack user. Don't
+    // guess which one is right.
     console.error("slack-sign-in: could not bind %s to user %s:", slackUserId, resolution.userId, error);
     return { status: "no_account" };
   }
@@ -222,15 +249,20 @@ export async function issueSlackSignIn(
   const ttlMinutes = params.ttlMinutes ?? SLACK_SIGN_IN_TTL_MINUTES;
   const expiresAt = new Date(now + ttlMinutes * 60_000);
 
-  const signIn = createRepos(service).slackSignIn;
-  try {
-    await signIn.storeToken({ tokenHash: sha256(token), codeHash: sha256(code), slackUserId: params.slackUserId, expiresAt });
-  } catch (error) {
-    throw new Error(`Failed to store Slack sign-in token: ${error instanceof Error ? error.message : error}`);
-  }
+  const { error } = await service.from("slack_sign_in_tokens").insert({
+    token_hash: sha256(token),
+    code_hash: sha256(code),
+    slack_user_id: params.slackUserId,
+    expires_at: expiresAt.toISOString(),
+  });
+  if (error) throw new Error(`Failed to store Slack sign-in token: ${error.message}`);
 
-  // Housekeeping: drop this user's rows that expired more than a day ago. A failure only leaves them for next time.
-  await signIn.deleteExpiredTokens(params.slackUserId, new Date(now - 24 * 60 * 60_000)).catch(() => undefined);
+  // Housekeeping: drop this user's rows that expired more than a day ago.
+  await service
+    .from("slack_sign_in_tokens")
+    .delete()
+    .eq("slack_user_id", params.slackUserId)
+    .lt("expires_at", new Date(now - 24 * 60 * 60_000).toISOString());
 
   const url = new URL("/auth/slack", params.origin);
   url.searchParams.set("token", token);
@@ -245,28 +277,42 @@ export async function consumeSlackSignIn(
   service: SupabaseClient,
   credential: { token: string } | { code: string }
 ): Promise<string | null> {
-  let hashed: { tokenHash: string } | { codeHash: string };
+  let column: "token_hash" | "code_hash";
+  let value: string;
   if ("token" in credential) {
-    if (!credential.token) return null;
-    hashed = { tokenHash: sha256(credential.token) };
+    column = "token_hash";
+    value = credential.token;
   } else {
-    const code = normalizeSlackSignInCode(credential.code);
-    if (code.length !== SLACK_CODE_LENGTH) return null;
-    hashed = { codeHash: sha256(code) };
+    column = "code_hash";
+    value = normalizeSlackSignInCode(credential.code);
+    if (value.length !== SLACK_CODE_LENGTH) return null;
   }
+  if (!value) return null;
 
-  try {
-    return await createRepos(service).slackSignIn.consumeToken(hashed, new Date());
-  } catch (error) {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await service
+    .from("slack_sign_in_tokens")
+    .update({ used_at: nowIso })
+    .eq(column, sha256(value))
+    .is("used_at", null)
+    .gt("expires_at", nowIso)
+    .select("slack_user_id");
+  if (error) {
     console.error("slack-sign-in: spending credential failed:", error);
     return null;
   }
+  return (data?.[0]?.slack_user_id as string | undefined) ?? null;
 }
 
 /** Who a button token was issued to, whatever its state -- to refresh their Home tab on expiry. */
 export async function findSlackUserForToken(service: SupabaseClient, token: string): Promise<string | null> {
   if (!token) return null;
-  return createRepos(service).slackSignIn.slackUserForToken(sha256(token)).catch(() => null);
+  const { data } = await service
+    .from("slack_sign_in_tokens")
+    .select("slack_user_id")
+    .eq("token_hash", sha256(token))
+    .maybeSingle();
+  return (data?.slack_user_id as string | undefined) ?? null;
 }
 
 /** Minimal slice of a Supabase client that can verify an OTP and store the session (SSR client). */

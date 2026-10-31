@@ -102,7 +102,7 @@ jobs:
   # migration that merged below one production already has fails here on every run until
   # it is renumbered. See scripts/check-migration-order.ts.
   check-migrations:
-    name: Check migrations
+    name: Check migration numbering
     needs: changes
     # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
     if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}

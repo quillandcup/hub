@@ -26,17 +26,12 @@ export default async function BigSistersPage() {
   }
 
   const supabase = await createClient();
-  const mentorships = await getMyMentorships(supabase, identity.memberId, new Date().toISOString().slice(0, 10));
+  const mentorships = await getMyMentorships(createRepos(supabase).mentorship, identity.memberId, new Date().toISOString().slice(0, 10));
   const partnerIds = [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
     (id): id is string => !!id
   );
-  const [{ data: volunteer }, member] = await Promise.all([
-    supabase
-      .from("big_sister_volunteers")
-      .select("note")
-      .eq("member_id", identity.memberId)
-      .is("deleted_at", null)
-      .maybeSingle(),
+  const [volunteer, member] = await Promise.all([
+    createRepos(supabase).mentorship.volunteerNote(identity.memberId),
     createRepos(supabase).members.byId(identity.memberId),
   ]);
   const eligibility = member

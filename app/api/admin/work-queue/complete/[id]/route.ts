@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -14,12 +15,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const { error } = await supabase.from("admin_work_queue_completions").delete().eq("id", id);
-
-    if (error) {
-      console.error("Error undoing work queue completion:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await createRepos(supabase).adminWork.undoCompletion(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -20,16 +20,16 @@ async function setBigSisterAvailabilityImpl(available: boolean, note?: string): 
   if (identity.isSudo) return { error: "Viewing as a member is read-only." };
 
   const supabase = await createClient();
+  const repos = createRepos(supabase);
 
   if (!available) {
-    const { error } = await supabase
-      .from("big_sister_volunteers")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("member_id", identity.memberId)
-      .is("deleted_at", null);
-    if (error) return { error: error.message };
+    try {
+      await repos.mentorship.withdraw(identity.memberId);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
   } else {
-    const member = await createRepos(supabase).members.byId(identity.memberId);
+    const member = await repos.members.byId(identity.memberId);
     if (!member) return { error: "No member record" };
     const eligibility = getVolunteerEligibility(
       { firstJoinedAt: member.firstJoinedAt, mostRecentJoinedAt: member.mostRecentJoinedAt },
@@ -39,10 +39,11 @@ async function setBigSisterAvailabilityImpl(available: boolean, note?: string): 
 
     const trimmed = note?.trim() || null;
     if (trimmed && trimmed.length > 300) return { error: "Keep the note under 300 characters." };
-    const { error } = await supabase
-      .from("big_sister_volunteers")
-      .upsert({ member_id: identity.memberId, note: trimmed, deleted_at: null }, { onConflict: "member_id" });
-    if (error) return { error: error.message };
+    try {
+      await repos.mentorship.volunteer(identity.memberId, trimmed);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   revalidatePath("/big-sisters");
@@ -63,9 +64,13 @@ export async function saveReasonNote(mentorshipId: string, note: string): Promis
   if (note.trim().length > 1000) return { error: "Keep it under 1000 characters." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("set_mentorship_note", { p_mentorship_id: mentorshipId, p_note: note });
-  if (error) return { error: error.message };
-  if (data !== true) return { error: "That isn't one of your matches." };
+  let saved: boolean;
+  try {
+    saved = await createRepos(supabase).mentorship.setNote(mentorshipId, note);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+  if (!saved) return { error: "That isn't one of your matches." };
 
   revalidatePath("/big-sisters");
   revalidatePath("/dashboard");

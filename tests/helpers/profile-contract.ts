@@ -29,16 +29,6 @@ export function defineProfileContract(name: string, setup: () => ProfileContract
       expect(await ctx.repo().byId(NONE)).toBeNull();
     });
 
-    it("finds the one profile with a sign-in email, whatever its case, and nobody for none or a wildcard", async () => {
-      const mine = email("findxme");
-      const ids = await ctx.seed([{ key: "a", email: mine, role: "assistant" }, { key: "b", email: email("other") }]);
-
-      expect(await ctx.repo().uniqueByEmail(mine.toUpperCase())).toEqual({ id: ids.a, email: mine, role: "assistant" });
-      expect(await ctx.repo().uniqueByEmail(email("nobody"))).toBeNull();
-      expect(await ctx.repo().uniqueByEmail("%@example.test")).toBeNull(); // LIKE wildcards match only themselves
-      expect(await ctx.repo().uniqueByEmail(mine.replace("findxme", "find_me"))).toBeNull(); // an underscore is not a wildcard either
-    });
-
     it("says who is an admin, and says no when it can't tell", async () => {
       const ids = await ctx.seed([
         { key: "admin", email: email("admin"), role: "admin" },

@@ -33,9 +33,6 @@ export async function inChunks<T>(values: string[], size: number, run: (part: st
   return (await Promise.all(parts.map(run))).flat();
 }
 
-/** Escapes LIKE wildcards, so an `ilike` of an email containing `_` or `%` matches only itself (case aside). */
-export const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
-
 /** -1, 0 or 1 comparing two strings by code unit, as the database orders the ids and emails stored here. */
 export function compareText(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;

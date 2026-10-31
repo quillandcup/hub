@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { NOTE_WINDOW_DAYS, deriveOutcome, isMentorshipActive, type MentorshipKind } from "@/lib/mentorship";
 
@@ -96,10 +96,9 @@ export function currentMentorships(rows: MyMentorshipRow[], today: string): MyMe
 }
 
 export async function getMyMentorships(
-  supabase: SupabaseClient,
+  mentorships: MentorshipRepository,
   memberId: string,
   today: string
 ): Promise<MyMentorships> {
-  const { data } = await supabase.rpc("my_mentorships", { p_member_id: memberId });
-  return currentMentorships((data ?? []) as MyMentorshipRow[], today);
+  return currentMentorships((await mentorships.myMentorships(memberId)) as MyMentorshipRow[], today);
 }

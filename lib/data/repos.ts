@@ -34,10 +34,12 @@ import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type Ca
 import { InMemoryCalendarSyncStateRepository, SupabaseCalendarSyncStateRepository, type CalendarSyncStateRepository } from "./calendar-sync-state";
 import { InMemoryCourseRepository, SupabaseCourseRepository, type CourseRepository } from "./courses";
 import { InMemoryCourseProgressRepository, SupabaseCourseProgressRepository, type CourseProgressRepository } from "./course-progress";
-import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepository } from "./segments";
-import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
-import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type SlackSignInRepository } from "./slack-sign-in";
-import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
+import { InMemoryStaffRepository, SupabaseStaffRepository, type StaffRepository } from "./staff";
+import { InMemoryMentorshipRepository, SupabaseMentorshipRepository, type MentorshipRepository } from "./mentorship";
+import { InMemoryMemberProfileRepository, SupabaseMemberProfileRepository, type MemberProfileRepository } from "./member-profile";
+import { InMemoryAwardRepository, SupabaseAwardRepository, type AwardRepository } from "./awards";
+import { InMemoryOutreachRepository, SupabaseOutreachRepository, type OutreachRepository } from "./outreach";
+import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, type AdminWorkQueueRepository } from "./admin-work";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -79,10 +81,12 @@ export interface Repos {
   prospects: ProspectRepository;
   courses: CourseRepository;
   courseProgress: CourseProgressRepository;
-  segments: SegmentRepository;
-  featureFlags: FeatureFlagRepository;
-  slackSignIn: SlackSignInRepository;
-  analyticsEvents: AnalyticsEventRepository;
+  staff: StaffRepository;
+  mentorship: MentorshipRepository;
+  memberProfile: MemberProfileRepository;
+  awards: AwardRepository;
+  outreach: OutreachRepository;
+  adminWork: AdminWorkQueueRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -122,10 +126,12 @@ export function createRepos(db: Db): Repos {
     prospects: new SupabaseProspectRepository(db),
     courses: new SupabaseCourseRepository(db),
     courseProgress: new SupabaseCourseProgressRepository(db),
-    segments: new SupabaseSegmentRepository(db),
-    featureFlags: new SupabaseFeatureFlagRepository(db),
-    slackSignIn: new SupabaseSlackSignInRepository(db),
-    analyticsEvents: new SupabaseAnalyticsEventRepository(db),
+    staff: new SupabaseStaffRepository(db),
+    mentorship: new SupabaseMentorshipRepository(db),
+    memberProfile: new SupabaseMemberProfileRepository(db),
+    awards: new SupabaseAwardRepository(db),
+    outreach: new SupabaseOutreachRepository(db),
+    adminWork: new SupabaseAdminWorkQueueRepository(db),
   };
 }
 
@@ -166,9 +172,11 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     prospects: new InMemoryProspectRepository(dataset),
     courses: new InMemoryCourseRepository(dataset),
     courseProgress: new InMemoryCourseProgressRepository(dataset),
-    segments: new InMemorySegmentRepository(dataset),
-    featureFlags: new InMemoryFeatureFlagRepository(dataset),
-    slackSignIn: new InMemorySlackSignInRepository(dataset),
-    analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
+    staff: new InMemoryStaffRepository(dataset),
+    mentorship: new InMemoryMentorshipRepository(dataset),
+    memberProfile: new InMemoryMemberProfileRepository(dataset),
+    awards: new InMemoryAwardRepository(dataset),
+    outreach: new InMemoryOutreachRepository(dataset),
+    adminWork: new InMemoryAdminWorkQueueRepository(dataset),
   };
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Member, MemberAlias, normalizeName } from './member-matching';
+import { createRepos } from '@/lib/data/repos';
 
 // Slack's own system assistant account. Slack's API reports it with
 // is_bot: false (unlike real app/bot integrations), so the usual `is_bot`
@@ -28,9 +29,7 @@ export interface SlackMatchResult {
  * matchSlackUsersToMembers, where it outranks every inference.
  */
 export async function loadVerifiedSlackLinks(supabase: SupabaseClient): Promise<Map<string, string>> {
-  const { data, error } = await supabase.from('member_slack_connections').select('slack_user_id, member_id');
-  if (error) throw error;
-  return new Map((data ?? []).map((row) => [row.slack_user_id as string, row.member_id as string]));
+  return createRepos(supabase).memberProfile.slackUserLinks();
 }
 
 /**

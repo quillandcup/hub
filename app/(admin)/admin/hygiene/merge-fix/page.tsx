@@ -23,10 +23,7 @@ export default async function MergeFixPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { data: dismissedRows } = await supabase
-    .from("dismissed_duplicate_groups")
-    .select("group_key");
-  const dismissedKeys = new Set((dismissedRows ?? []).map((r) => r.group_key));
+  const dismissedKeys = await createRepos(supabase).adminWork.dismissedGroupKeys();
 
   const allMembers = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
     id: m.id,
