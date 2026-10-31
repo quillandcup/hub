@@ -1,4 +1,5 @@
 import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
+import { createRepos } from "@/lib/data/repos";
 import { WebClient } from '@slack/web-api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,7 +12,6 @@ import {
   slackThreadKey,
   type SeenInSlack,
 } from '@/lib/slack-deletions';
-import { fetchAllBronzeRows } from '@/lib/supabase/bronze-pagination';
 import {
   addSlackMessage as addMessage,
   threadKey,
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     // Batched: a 90-day import (with thread replies) is thousands of messages
     // and 10k+ reactions, and one statement that size hits Postgres's
     // statement timeout when an admin runs the import from the page.
-    const storedUsers = await fetchAllBronzeRows(supabase, "slack_users", "user_id, email, image_url");
+    const storedUsers = await createRepos(supabase).slackUsers.list();
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
     await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
     await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");

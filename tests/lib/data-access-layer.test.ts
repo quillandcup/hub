@@ -113,7 +113,14 @@ const files = ["app", "lib", "components"]
 
 function filesQuerying(table: string): string[] {
   const direct = new RegExp(`\\.from\\(\\s*["'\`]${table}["'\`]\\s*\\)`);
-  return files.filter((file) => direct.test(fs.readFileSync(path.join(root, file), "utf8"))).sort();
+  // The table name handed to a paginating helper that runs .from(table) inside it.
+  const viaHelper = new RegExp(`\\b(?:fetchAllBronzeRows|fetchAll)\\(\\s*[^,()]+,\\s*["'\`]${table}["'\`]`);
+  return files
+    .filter((file) => {
+      const source = fs.readFileSync(path.join(root, file), "utf8");
+      return direct.test(source) || viaHelper.test(source);
+    })
+    .sort();
 }
 
 describe("data access layer", () => {

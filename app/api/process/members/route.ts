@@ -7,7 +7,6 @@ import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resol
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
 import { applyProfileOverride, type ProfileOverride } from "@/lib/member-profile-overrides";
@@ -39,14 +38,10 @@ export const maxDuration = 300;
  * 3. Applies business logic
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
-// fetchAllBronzeRows (imported above from lib/supabase/bronze-pagination) paginates
-// past Supabase's default 1000-row cap so large Bronze tables (e.g. kajabi_contacts,
-// kajabi_purchases, stripe_customers) don't get silently truncated. See CLAUDE.md
-// "Database Query Limits". It's shared with lib/kajabi/membership-history.ts so every
-// Bronze read in this pipeline goes through the same paginated fetch.
+// Bronze reads (billing, Slack users) page past Supabase's default 1000-row cap inside their
+// repositories in lib/data/. See CLAUDE.md "Database Query Limits".
 
-// Same pagination as fetchAllBronzeRows, for public-schema (Local/Silver)
-// tables that can also grow past 1000 rows — used here for `members` and
+// Pagination for public-schema (Local/Silver) tables that can also grow past 1000 rows — used here for `members` and
 // `member_status_overrides`.
 async function fetchAllPublicRows(
   supabase: SupabaseClient,
@@ -88,7 +83,7 @@ export async function POST(request: NextRequest) {
     // STEP 1: Load Bronze data + Local data.
     // kajabi_contacts, kajabi_customers, kajabi_purchases, kajabi_offers, and
     // stripe_customers can each exceed Supabase's default 1000-row cap, so
-    // they're paginated in parallel loops (fetchAllBronzeRows/fetchAllPublicRows).
+    // they're paginated in parallel loops (the repositories and fetchAllPublicRows).
     // staff is a small Local-layer table and is not expected to approach that limit;
     // the email aliases are paginated by their repository.
     const [
@@ -109,7 +104,7 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).billing.kajabiCustomerRows() as Promise<any[]>,
       createRepos(supabase).billing.kajabiPurchaseRows() as Promise<any[]>,
       createRepos(supabase).billing.kajabiOfferRows() as Promise<any[]>,
-      fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
+      createRepos(supabase).slackUsers.list(),
       supabase.from("staff").select("*"),
       createRepos(supabase).aliases.emailOwners(),
       createRepos(supabase).billing.stripeCustomers(),
