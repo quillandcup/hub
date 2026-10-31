@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { createRepos } from "@/lib/data/repos"
 import { getCurrentUser } from "@/lib/auth"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getMemberDisplayName } from "@/lib/member-display-name"
@@ -59,14 +60,9 @@ export default async function MemberDirectoryPage({
 
   // The viewer's own private notes, so they can search them too. Skipped in sudo: RLS would
   // return the admin's notes, not the sudo'd member's (see members/[id]/noteActions.ts).
-  const notesBySubject = new Map<string, string>()
-  if (!effectiveIdentity.isSudo) {
-    const { data: notes } = await supabase
-      .from("member_notes")
-      .select("subject_member_id, body")
-      .eq("author_member_id", effectiveIdentity.memberId)
-    for (const n of notes ?? []) notesBySubject.set(n.subject_member_id, n.body)
-  }
+  const notesBySubject = effectiveIdentity.isSudo
+    ? new Map<string, string>()
+    : await createRepos(supabase).memberProfile.notesBy(effectiveIdentity.memberId)
 
   const entries: DirectoryEntry[] = rows
     .map((row) => ({

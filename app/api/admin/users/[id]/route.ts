@@ -36,9 +36,14 @@ export async function PATCH(
 
   if (features !== undefined) {
     tasks.push(
-      createRepos(supabase)
-        .featureFlags.replacePreviews(id, features as string[])
-        .catch((error) => console.error("Updating the feature previews failed:", error))
+      (async () => {
+        await supabase.from("user_feature_previews").delete().eq("user_id", id);
+        if ((features as string[]).length > 0) {
+          await supabase.from("user_feature_previews").insert(
+            (features as string[]).map((key: string) => ({ user_id: id, feature_key: key }))
+          );
+        }
+      })()
     );
   }
 

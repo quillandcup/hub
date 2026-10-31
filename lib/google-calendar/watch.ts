@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/data/database.types";
 import type { GoogleCalendarClient } from "@/lib/google-calendar/client";
-import { createRepos } from "@/lib/data/repos";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Ask Google for a week; it may grant less, so the row stores the expiry it returns.
@@ -32,14 +31,19 @@ export async function ensureCalendarWatchChannel(params: {
   const { supabase, client, calendarId, address, token } = params;
   const now = params.now ?? new Date();
 
-  const state = createRepos(supabase).calendarSyncState;
-  const active = await state.activeWatchChannels(calendarId).catch((error: Error) => {
-    throw new Error(`Failed to read calendar watch channels: ${error.message}`);
-  });
+  const { data: active, error } = await supabase
+    .from("calendar_watch_channels")
+    .select("id, channel_id, resource_id, expires_at")
+    .eq("calendar_id", calendarId)
+    .is("stopped_at", null)
+    .order("expires_at", { ascending: false });
+  if (error) throw new Error(`Failed to read calendar watch channels: ${error.message}`);
 
-  const current = active.find((c) => new Date(c.expiresAt).getTime() - now.getTime() > RENEW_WHEN_LEFT_MS);
+  const current = (active ?? []).find(
+    (c) => new Date(c.expires_at).getTime() - now.getTime() > RENEW_WHEN_LEFT_MS
+  );
   if (current) {
-    return { action: "kept", channelId: current.channelId, expiresAt: current.expiresAt };
+    return { action: "kept", channelId: current.channel_id, expiresAt: current.expires_at };
   }
 
   const channelId = randomUUID();
@@ -50,24 +54,30 @@ export async function ensureCalendarWatchChannel(params: {
     token,
     expiration: new Date(now.getTime() + REQUESTED_LIFETIME_MS),
   });
-  try {
-    await state.saveWatchChannel({ calendarId, channelId, resourceId: opened.resourceId, expiresAt: opened.expiresAt });
-  } catch (insertError) {
+  const { error: insertError } = await supabase.from("calendar_watch_channels").insert({
+    calendar_id: calendarId,
+    channel_id: channelId,
+    resource_id: opened.resourceId,
+    expires_at: opened.expiresAt.toISOString(),
+  });
+  if (insertError) {
     // Without a row the channel can't be stopped or renewed later; don't leave it delivering.
     await client.stopChannel(channelId, opened.resourceId).catch(() => undefined);
-    throw new Error(`Failed to save calendar watch channel: ${insertError instanceof Error ? insertError.message : insertError}`);
+    throw new Error(`Failed to save calendar watch channel: ${insertError.message}`);
   }
 
   let stopped = 0;
-  for (const old of active) {
+  for (const old of active ?? []) {
     try {
-      await client.stopChannel(old.channelId, old.resourceId);
+      await client.stopChannel(old.channel_id, old.resource_id);
     } catch (e) {
       // Usually "channel not found" because it already expired.
-      console.warn(`[calendar-watch] could not stop channel ${old.channelId}:`, e);
+      console.warn(`[calendar-watch] could not stop channel ${old.channel_id}:`, e);
     }
-    // A failure to record it leaves the old channel to be retried (and re-stopped) tomorrow.
-    await state.markWatchChannelStopped(old.id, now).catch((e) => console.warn(`[calendar-watch] could not mark channel ${old.channelId} stopped:`, e));
+    await supabase
+      .from("calendar_watch_channels")
+      .update({ stopped_at: now.toISOString() })
+      .eq("id", old.id);
     stopped++;
   }
 

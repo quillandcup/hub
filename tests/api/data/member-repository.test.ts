@@ -61,6 +61,7 @@ defineMemberContract("SupabaseMemberRepository", () => ({
       birthday_day: m.birthday?.[1] ?? null,
       first_joined_at: m.firstJoinedAt ?? null,
       total_active_months: m.totalActiveMonths ?? 0,
+      kajabi_tags: m.kajabiTags ?? [],
     }));
     const ids: string[] = [];
     for (let i = 0; i < rows.length; i += 500) {

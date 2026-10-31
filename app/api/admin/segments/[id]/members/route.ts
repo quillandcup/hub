@@ -1,5 +1,6 @@
 import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { chunk } from "@/lib/supabase/paginate";
 import { NextRequest, NextResponse } from "next/server";
 
 type MemberResultStatus = "added" | "already_in_segment" | "not_found";
@@ -45,18 +46,21 @@ export async function POST(
     return NextResponse.json({ error: "No emails provided" }, { status: 400 });
   }
 
-  const repos = createRepos(supabase);
-  const segment = await repos.segments.byId(segmentId).catch(() => null);
+  const { data: segment } = await supabase.from("segments").select("id").eq("id", segmentId).single();
   if (!segment) return NextResponse.json({ error: "Segment not found" }, { status: 404 });
 
   // Resolve emails -> member_id in batches (matches the existing
   // apply-aliases pattern of looking members up by email).
-  const matchedMembers = await repos.members.byEmails(emails);
+  const matchedMembers = await createRepos(supabase).members.byEmails(emails);
   const memberByEmail = new Map(matchedMembers.map((m) => [m.email.toLowerCase(), m]));
 
-  const existingMemberIds = new Set(await repos.segments.memberIds(segmentId));
+  const { data: existingLinks } = await supabase
+    .from("segment_members")
+    .select("member_id")
+    .eq("segment_id", segmentId);
+  const existingMemberIds = new Set((existingLinks ?? []).map((l) => l.member_id));
 
-  const toInsert: string[] = [];
+  const toInsert: { segment_id: string; member_id: string }[] = [];
   const results: MemberResult[] = [];
 
   for (const email of emails) {
@@ -69,15 +73,15 @@ export async function POST(
       results.push({ email, status: "already_in_segment" });
       continue;
     }
-    toInsert.push(member.id);
+    toInsert.push({ segment_id: segmentId, member_id: member.id });
     existingMemberIds.add(member.id); // guard against duplicate emails resolving to the same member
     results.push({ email, status: "added" });
   }
 
-  try {
-    await repos.segments.addMembers(segmentId, toInsert);
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not add the members" }, { status: 500 });
+  for (const batch of chunk(toInsert, 500)) {
+    if (batch.length === 0) continue;
+    const { error } = await supabase.from("segment_members").insert(batch);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   const summary = {

@@ -92,14 +92,14 @@ export default async function AdminPrickleDetailPage({
     createRepos(supabase).aliases.nameAliases(),
     createRepos(supabase).zoom.ignoredNames(),
     supabase.from("ignored_zoom_appearances").select("zoom_name, reason").eq("prickle_id", prickle.id),
-    supabase.from("staff").select("name, email"),
+    createRepos(supabase).staff.all(),
   ]);
 
   const members = membersResult;
   const aliases = aliasesResult;
   const ignoredHere = (ignoredHereResult.data || []).map((i) => ({ zoomName: i.zoom_name, reason: i.reason }));
   const ignoredNames = [...ignoredResult, ...(ignoredHereResult.data || []).map((i) => i.zoom_name)];
-  const staff = staffResult.data || [];
+  const staff = staffResult;
 
   const unmatchedZoomAttendees = findUnmatchedZoomAttendees(
     zoomResult,

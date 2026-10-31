@@ -61,7 +61,7 @@ export default async function DashboardPage() {
     getUnloggedRecentPrickles(),
     getMyCheckins(),
     bigSistersOn
-      ? getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+      ? getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
       : Promise.resolve({ bigSister: null, mentees: [] }),
   ])
   // Only this member's own partners, since the Slack lookup uses the service role.
