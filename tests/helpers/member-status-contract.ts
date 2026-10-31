@@ -216,12 +216,14 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
         await repo.saveProfileOverride(ctx.members[bo].id, { bio: "Bo bio" }, ctx.userId);
         await repo.saveProfileOverride(ctx.members[ada].id, { bio: "Ada bio" }, ctx.userId);
 
+        // The database orders ids by its collation, not by code point: compare the rows regardless of order.
+        const byMember = <T extends { member_id: string }>(rows: T[]) => [...rows].sort((a, b) => (a.member_id < b.member_id ? -1 : 1));
         const ours = (await repo.profileOverrides()).filter((p) => mine(p.member_id));
-        expect(ours).toEqual(
-          [
+        expect(byMember(ours)).toEqual(
+          byMember([
             { member_id: ctx.members[ada].id, bio: "Ada bio", instagram_url: null, facebook_url: null, twitter_url: null },
             { member_id: ctx.members[bo].id, bio: "Bo bio", instagram_url: null, facebook_url: null, twitter_url: null },
-          ].sort((a, b) => (a.member_id < b.member_id ? -1 : 1)),
+          ]),
         );
       });
 
