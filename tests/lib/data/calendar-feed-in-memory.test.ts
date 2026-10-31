@@ -2,6 +2,7 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { InMemoryCalendarFeedRepository } from "@/lib/data/calendar-feed";
 import type { Prickle, PrickleType } from "@/lib/data/prickles";
 import { defineCalendarFeedContract } from "@/tests/helpers/calendar-feed-contract";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 
 const members: [string, string] = ["mbr_AAAAAAAAAAA1", "mbr_AAAAAAAAAAA2"];
 const type = (n: number, name: string): PrickleType => ({
@@ -31,14 +32,15 @@ const events = [
   { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", starts_at: "2097-04-10", ends_at: "2097-04-12" },
   { id: "evnt_AAAAAAAAAAA2", slug: "workshop", title: "Autumn Workshop", starts_at: "2097-10-01", ends_at: "2097-10-01" },
 ] as const;
+const seededEvents = eventSeed(events.map((e) => ({ ...e })));
 const eventContext = (e: (typeof events)[number]) => ({ id: e.id, title: e.title, startsAt: e.starts_at, endsAt: e.ends_at });
 
 defineCalendarFeedContract("InMemoryCalendarFeedRepository", () => {
   const dataset = new InMemoryDataset({
     members: members.map((id, i) => ({ id, name: `Member ${i + 1} Example` })),
     prickleTypes: [...types],
-    prickles: [...prickles],
-    events: events.map((e) => ({ ...e })),
+    prickles: [...prickles, ...seededEvents.prickles],
+    events: seededEvents.events,
   });
   return {
     repo: () => new InMemoryCalendarFeedRepository(dataset),

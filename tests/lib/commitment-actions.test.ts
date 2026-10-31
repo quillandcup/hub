@@ -64,6 +64,11 @@ function makeSupabaseMock({
 
   const from = vi.fn((table: string) => {
     if (table === "prickles") return chain({ data: prickles });
+    if (table === "prickle_types") {
+      const c = chain({ data: [] });
+      c.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null }); // no Event type to leave out
+      return c;
+    }
     if (table === "prickle_attendance") return chain({ data: attendance });
     if (table === "prickle_commitments") {
       const c = chain({ data: commitments });

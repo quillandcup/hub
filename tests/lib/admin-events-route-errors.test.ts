@@ -37,13 +37,12 @@ vi.mock("@/lib/calendar-events", async () => ({
 
 import { GET as list } from "@/app/api/admin/events/route";
 import { GET as read, DELETE as destroy } from "@/app/api/admin/events/[id]/route";
-import { POST as revert } from "@/app/api/admin/events/[id]/revert-to-calendar/route";
 import { POST as visibility } from "@/app/api/admin/events/[id]/visibility/route";
 
 const ID = "evt_AAAAAAAAAAA1";
 const ctx = { params: Promise.resolve({ id: ID }) };
 const request = (body?: unknown) => new NextRequest("http://localhost/api/admin/events", { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
-const EVENT = { id: ID, title: "Open house", calendar_event_id: null };
+const EVENT = { id: ID, title: "Open house", prickle_id: "prkl_AAAAAAAAAAA1" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -103,44 +102,6 @@ describe("DELETE /api/admin/events/[id]", () => {
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe("in use");
     expect(remove).not.toHaveBeenCalled();
-  });
-});
-
-describe("POST /api/admin/events/[id]/revert-to-calendar", () => {
-  it("is 500 when the event can't be loaded, 404 when missing, 400 when it follows nothing", async () => {
-    events.byId.mockRejectedValueOnce(new Error("boom"));
-    expect((await revert(request({}), ctx)).status).toBe(500);
-    events.byId.mockResolvedValueOnce(null);
-    expect((await revert(request({}), ctx)).status).toBe(404);
-    events.byId.mockResolvedValueOnce(EVENT);
-    expect((await revert(request({}), ctx)).status).toBe(400);
-  });
-
-  it("is 500 with the message when the calendar item can't be read", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    calendarFails = true;
-    events.byId.mockResolvedValueOnce({ ...EVENT, calendar_event_id: "cal" });
-
-    const res = await revert(request({}), ctx);
-
-    expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe("calendar read failed");
-  });
-
-  it("is 500 when the update fails, and falls back to the updated event when it can't be re-read", async () => {
-    const source = { summary: "S", description: null, location: null, start_time: "2097-01-01T00:00:00Z", end_time: "2097-01-01T01:00:00Z" };
-    calendarSource = source;
-    events.byId.mockResolvedValueOnce({ ...EVENT, calendar_event_id: "cal" });
-    events.edit.mockRejectedValueOnce(new Error("no write"));
-    const failed = await revert(request({}), ctx);
-    expect(failed.status).toBe(500);
-    expect((await failed.json()).error).toBe("no write");
-
-    events.byId.mockResolvedValueOnce({ ...EVENT, calendar_event_id: "cal" });
-    events.edit.mockResolvedValueOnce({ ...EVENT, title: "Updated" });
-    events.byId.mockRejectedValueOnce(new Error("gone"));
-    const res = await revert(request({}), ctx);
-    expect((await res.json()).event.title).toBe("Updated");
   });
 });
 

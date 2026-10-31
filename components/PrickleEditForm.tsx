@@ -5,22 +5,16 @@ import { useRouter } from "next/navigation";
 import MemberSearch from "@/components/MemberSearch";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { PrickleDetail } from "@/lib/domain/prickle";
+import type { PrickleEdits } from "@/lib/prickle-edits";
 
-/** What an admin changed on a calendar prickle; a field left out was not touched, text left empty follows the calendar. */
-export interface PrickleEdits {
-  typeId?: string;
-  hostId?: string;
-  title?: string | null;
-  description?: string | null;
-  guestSpeaker?: string | null;
-}
+export type { PrickleEdits };
 
 /** What the admin prickle page hands the details card to make it editable. */
 export interface PrickleEditConfig {
   types: { id: string; name: string }[];
   members: { id: string; name: string; email: string; displayName?: string | null }[];
   /** The text fields an admin has set by hand; the others follow the calendar. */
-  overridden: { title: boolean; description: boolean; guestSpeaker: boolean };
+  overridden: { title: boolean; description: boolean; guestSpeaker: boolean; location: boolean };
   onSave: (edits: PrickleEdits) => Promise<{ success?: true; error?: string }>;
 }
 
@@ -44,6 +38,7 @@ export default function PrickleEditForm({
   const [title, setTitle] = useState(prickle.title ?? "");
   const [description, setDescription] = useState(prickle.description ?? "");
   const [guestSpeaker, setGuestSpeaker] = useState(prickle.guestSpeaker ?? "");
+  const [location, setLocation] = useState(prickle.location ?? "");
   const [typeId, setTypeId] = useState(prickle.typeId ?? "");
   // The host as the community knows them (their display name), until another member is picked.
   const [pickedHost, setPickedHost] = useState<{ id: string; label: string } | null>(
@@ -57,6 +52,7 @@ export default function PrickleEditForm({
     if (title.trim() !== (prickle.title ?? "").trim()) edits.title = title;
     if (description.trim() !== (prickle.description ?? "").trim()) edits.description = description;
     if (guestSpeaker.trim() !== (prickle.guestSpeaker ?? "").trim()) edits.guestSpeaker = guestSpeaker;
+    if (location.trim() !== (prickle.location ?? "").trim()) edits.location = location;
     if (typeId && typeId !== prickle.typeId) edits.typeId = typeId;
     if (pickedHost && pickedHost.id !== prickle.host?.id) edits.hostId = pickedHost.id;
 
@@ -124,10 +120,16 @@ export default function PrickleEditForm({
             </label>
             <input id="prickle-guest-speaker" type="text" value={guestSpeaker} onChange={(e) => setGuestSpeaker(e.target.value)} className={INPUT} />
           </div>
+          <div>
+            <label htmlFor="prickle-location" className={LABEL}>
+              Location{edited(edit.overridden.location)}
+            </label>
+            <input id="prickle-location" type="text" value={location} onChange={(e) => setLocation(e.target.value)} className={INPUT} />
+          </div>
         </div>
       </div>
       <p className="text-xs text-slate-600 dark:text-slate-400">
-        Leave the title, description or guest speaker empty to follow the calendar. Pick another member to change the host (cleared, the host stays as it is). The date and time come from the calendar.
+        Leave the title, description, guest speaker or location empty to follow the calendar. Pick another member to change the host (cleared, the host stays as it is). The date and time come from the calendar.
       </p>
       <div className="flex gap-2">
         <button

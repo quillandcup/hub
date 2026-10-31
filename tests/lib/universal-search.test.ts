@@ -1,3 +1,4 @@
+import { insertEvent } from "@/tests/helpers/event-db";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { getTestSupabaseAdminClient } from "../helpers/supabase";
 import { parseUniversal } from "@/lib/search/syntax";
@@ -27,6 +28,10 @@ describe("universalSearch (local database)", () => {
   const run = (input: string, over: Partial<SearchContext> = {}) =>
     universalSearch(ctx(over), parseUniversal(input), { skip: ["chat", "channels"] });
   /** Rows from a seeding insert, or the database's own error. */
+  const seededOne = <T,>(res: { data: T | null; error: { message: string } | null }): T => {
+    if (res.error || !res.data) throw new Error(res.error?.message ?? "no row returned");
+    return res.data;
+  };
   const seeded = <T,>(res: { data: T[] | null; error: { message: string } | null }): T[] => {
     if (res.error || !res.data) throw new Error(res.error?.message ?? "insert returned nothing");
     return res.data;
@@ -78,20 +83,17 @@ describe("universalSearch (local database)", () => {
     );
     made.awards.push(...deletedAwards.map((a) => a.id));
 
-    const events = seeded(
-      await supabase
-        .from("events")
-        .insert({ slug: `${token}-retreat`, title: `${token} Retreat`, event_type: "other", location: "Lakeside", starts_at: "2026-05-01", ends_at: "2026-05-03" })
-        .select("id")
-    );
+    const events = [
+      seededOne(
+        await insertEvent(supabase, { slug: `${token}-retreat`, title: `${token} Retreat`, location: "Lakeside", starts_at: "2026-05-01", ends_at: "2026-05-03" })
+      ),
+    ];
     made.events.push(...events.map((e) => e.id));
     // An event an admin hid: members never find it, admins still do.
-    const hidden = seeded(
-      await supabase
-        .from("events")
-        .insert({ slug: `${hiddenWord}-retreat`, title: `${hiddenWord} Retreat`, event_type: "other", starts_at: "2020-05-01", ends_at: "2020-05-03", deleted_at: new Date().toISOString() })
-        .select("id")
-    );
+    const hidden = [
+      seededOne(await insertEvent(supabase, { slug: `${hiddenWord}-retreat`, title: `${hiddenWord} Retreat`, starts_at: "2020-05-01", ends_at: "2020-05-03" })),
+    ];
+    seeded(await supabase.from("community_events").update({ deleted_at: new Date().toISOString() }).eq("id", hidden[0].id).select("id"));
     made.events.push(...hidden.map((e) => e.id));
     // Rows go away with the event and member (ON DELETE CASCADE).
     seeded(await supabase.from("event_attendees").insert({ event_id: events[0].id, member_id: otherId }).select("id"));
@@ -123,7 +125,7 @@ describe("universalSearch (local database)", () => {
   afterAll(async () => {
     await supabase.from("prickles").delete().in("id", made.prickles);
     await supabase.from("prickle_types").delete().in("id", made.types);
-    await supabase.from("events").delete().in("id", made.events);
+    await supabase.from("community_events").delete().in("id", made.events);
     await supabase.from("member_awards").delete().in("id", made.awards);
     await supabase.from("member_books").delete().in("id", made.books);
     await supabase.from("members").delete().in("id", made.members);

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import {
   MEMBER_IDENTITY,
@@ -100,10 +101,10 @@ describe("addEventToMyCalendar", () => {
   it("adds a visible event, and refuses a hidden or unknown one", async () => {
     repos = createInMemoryRepos(
       new InMemoryDataset({
-        events: [
+        ...eventSeed([
           { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Retreat" },
           { id: "evnt_AAAAAAAAAAA2", slug: "secret", title: "Secret", deleted_at: "2097-01-01T00:00:00Z" },
-        ],
+        ]),
       }),
     );
     useFakeSupabase({});

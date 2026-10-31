@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
-import EventDetailsCard, { type EventData } from "./EventDetailsCard";
+import EventDetailsCard, { type EventData, type EventForm, type EventOverrides } from "./EventDetailsCard";
 
 interface Photo {
   id: string;
@@ -14,8 +15,11 @@ interface Photo {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
+
+const NOTHING_OVERRIDDEN: EventOverrides = { title: false, description: false, guestSpeaker: false, location: false };
 
 interface Attendee {
   id: string;
@@ -35,13 +39,15 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [badgeType, setBadgeType] = useState<BadgeTypeLink | null>(null);
-  // The prickle this event stands for, when it has one: the source of its title, description, guest speaker and host.
+  // The prickle the event stands on, and whether it is a Hub session (edited here) or a calendar prickle (edited on the prickle).
   const [prickleId, setPrickleId] = useState<string | null>(null);
+  const [hubSession, setHubSession] = useState(false);
+  // What was set by hand on a calendar-backed event (it follows the calendar for the rest).
+  const [overridden, setOverridden] = useState<EventOverrides>(NOTHING_OVERRIDDEN);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [reverting, setReverting] = useState(false);
   const [changingVisibility, setChangingVisibility] = useState(false);
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -70,6 +76,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setPhotos(body.photos);
       setBadgeType(body.badgeType);
       setPrickleId(body.prickleId ?? null);
+      setHubSession(!!body.hubSession);
+      setOverridden(body.overridden ?? NOTHING_OVERRIDDEN);
       setAttendees(body.attendees);
     } catch (err: any) {
       setError(err.message);
@@ -123,7 +131,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   };
 
   /** Saves the card's form; returns an error message for the card to show, or null when it saved. */
-  const saveEvent = async (form: EventData): Promise<string | null> => {
+  const saveEvent = async (form: EventForm): Promise<string | null> => {
     setError(null);
     try {
       const response = await fetch(`/api/admin/events/${eventId}`, {
@@ -134,8 +142,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Failed to save event");
       setEvent(body.event);
+      setOverridden(body.overridden ?? NOTHING_OVERRIDDEN);
+      track("event_edited", { source: hubSession ? "hub" : "calendar", ok: true });
       return null;
     } catch (err: any) {
+      track("event_edited", { source: hubSession ? "hub" : "calendar", ok: false });
       return err.message as string;
     }
   };
@@ -156,21 +167,6 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setError(err.message);
     } finally {
       setChangingVisibility(false);
-    }
-  };
-
-  const handleRevert = async () => {
-    setError(null);
-    setReverting(true);
-    try {
-      const response = await fetch(`/api/admin/events/${eventId}/revert-to-calendar`, { method: "POST" });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Failed to follow the calendar again");
-      setEvent(body.event);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setReverting(false);
     }
   };
 
@@ -214,12 +210,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
       <EventDetailsCard
         event={event}
-        prickleId={prickleId}
+        prickleId={prickleId ?? ""}
+        hubSession={hubSession}
+        members={allMembers}
+        overridden={overridden}
         onSave={saveEvent}
         onToggleRemoved={() => setHidden(!event.deleted_at)}
         removing={changingVisibility}
-        onRevert={handleRevert}
-        reverting={reverting}
         photos={visiblePhotos}
       />
 

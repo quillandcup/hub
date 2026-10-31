@@ -154,6 +154,14 @@ export const EVENTS = {
   media_edited: { title: bool(), alt: bool(), tags: bool(), focal: bool(), fit: bool(), is_public: bool() },
   /** A delete was attempted; `in_use` means it was refused because something still shows the image. */
   media_deleted: { ok: bool(), in_use: bool() },
+
+  // Admin: managing events (app/(admin)/admin/events, the prickle page's "Events" card). `source` is where the
+  // schedule comes from: a calendar item, or a Hub session for an event made in the Hub. Answers: do admins
+  // edit events on the event page (the one place), and how often is one made by hand rather than from the calendar.
+  /** An admin saved the event's details. */
+  event_edited: { source: oneOf("calendar", "hub"), ok: bool() },
+  /** An admin made an event: from the create form (`hub_form`) or by showing a calendar item in Events (`calendar_item`). */
+  event_created: { from: oneOf("hub_form", "calendar_item"), ok: bool() },
   /** A download was started: the original file, the Amazon ebook cover, or a custom size. */
   media_downloaded: { kind: oneOf("original", "kdp_ebook", "custom") },
 } satisfies Record<string, Record<string, Spec>>;

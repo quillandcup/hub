@@ -97,8 +97,8 @@ describe("admin calendar page data", () => {
           withCalendarEvent("prkl_AAAAAAAAAAA4", null, "2026-10-22T15:00:00Z", "2026-10-22T16:00:00Z"),
         ],
         events: [
-          { id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", calendar_event_id: "00000000-0000-4000-8000-000000000001", deleted_at: null },
-          { id: "evt_AAAAAAAAAAA2", title: "Hidden one", slug: "hidden-one", calendar_event_id: "00000000-0000-4000-8000-000000000002", deleted_at: "2026-10-01T00:00:00Z" },
+          { id: "evt_AAAAAAAAAAA1", slug: "open-house", prickle_id: "prkl_AAAAAAAAAAA1", deleted_at: null },
+          { id: "evt_AAAAAAAAAAA2", slug: "hidden-one", prickle_id: "prkl_AAAAAAAAAAA2", deleted_at: "2026-10-01T00:00:00Z" },
         ],
       }),
     );

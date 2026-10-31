@@ -32,7 +32,7 @@ export async function loadMissingHosts(repos: Pick<Repos, "prickles" | "members"
     repos.members.list({ orderBy: "name" }),
   ]);
 
-  const typesWithGaps = types.filter((t) => counts.has(t.id));
+  const typesWithGaps = types.filter((t) => counts.has(t.id) && t.normalizedName !== "event");
   const defaultHosts = await repos.members.byIds([...new Set(typesWithGaps.map((t) => t.defaultHostId).filter((id): id is string => !!id))]);
   const hostName = new Map(defaultHosts.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
 

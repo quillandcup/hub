@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The badge admin routes read and write badge types, levels and awards through the badge
@@ -30,7 +31,7 @@ const type = (id: string, over: object = {}) => ({
 });
 
 beforeEach(() => {
-  dataset = new InMemoryDataset({ events: [{ id: "evt-1", title: "Spring", slug: "spring" }] });
+  dataset = new InMemoryDataset(eventSeed([{ id: "evt-1", title: "Spring", slug: "spring" }]));
   auth = { user: { id: "admin-user" } };
   rpc.mockClear();
 });

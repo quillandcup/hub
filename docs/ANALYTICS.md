@@ -49,6 +49,15 @@ Search is measured with a few typed events plus named controls (`lib/analytics/s
 
 Pages that report as they render use `trackWhenEnabled` (`lib/analytics/client.ts`): on a first page load the report can run a moment before consent has been read, so it waits for tracking to be switched on, and is dropped (never held) if it isn't.
 
+## Managing events (admin)
+
+| Event | Fires | Answers |
+|---|---|---|
+| `event_edited` | an admin saved an event's details, with `source` `calendar` (the schedule comes from a calendar item) or `hub` (an event made in the Hub) and `ok` | whether the event page is where admins edit (the prickle page used to be), and how often the Hub-made kind is edited |
+| `event_created` | an admin made an event: `from` `hub_form` (the create form) or `calendar_item` ("Show in Events" on a prickle), with `ok` | how many events are made by hand against promoted from the calendar |
+
+Events that appear on their own (a listed prickle type, an `#event` tag) are made by the calendar sync, not an admin, so they are not counted here. No names, titles or free text are recorded.
+
 ## What analytics is not for
 
 Operational records stay in their own tables. The Wheel of Wonder's connections (`wheel_of_wonder_matches`) are the source of truth for who was matched and whether a Slack reply confirmed it: they drive the spin's matching, the count shown to members, and are written server-side from Slack webhooks. Usage events are consent-gated, lossy (a declined banner, a blocked script, a closed tab) and deliberately hold no other member's id, so they can show the *funnel around* a feature (spun, revealed, joined) but not replace its record.

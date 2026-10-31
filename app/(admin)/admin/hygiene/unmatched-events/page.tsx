@@ -37,7 +37,7 @@ export default async function UnmatchedEventsPage() {
   }));
 
   // Fetch all prickle types
-  const prickleTypes = (await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name, normalized_name: t.normalizedName }));
+  const prickleTypes = (await createRepos(supabase).prickles.types()).filter((t) => t.normalizedName !== "event").map((t) => ({ id: t.id, name: t.name, normalized_name: t.normalizedName }));
 
   return (
     <div className="container mx-auto px-6 py-8">

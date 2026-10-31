@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The admin event page lists attendees by display name, with the legal name beside it when it differs.
@@ -10,7 +11,7 @@ vi.mock("@/lib/supabase/api-auth", () => ({
 }));
 const repos = createInMemoryRepos(
   new InMemoryDataset({
-    events: [{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", calendar_event_id: null }],
+    ...eventSeed([{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house" }]),
     members: [
       { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", email: "ada@example.com" },
       { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null, email: "bo@example.com" },

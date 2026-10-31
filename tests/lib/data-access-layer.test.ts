@@ -37,9 +37,12 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   writing_goals: [],
   writing_progress_entries: [],
   // Events (EventRepository): every query on the three event tables is moved.
-  events: [],
+  community_events: [],
   event_attendees: [],
   event_photos: [],
+  // The event schedule view and the Hub-made events' schedules (EventRepository, HubSessionRepository).
+  community_event_details: [],
+  hub_sessions: [],
   // Media library (MediaRepository): every query is in the repository.
   media_assets: [],
   // Member activity log (ActivityRepository): every query is moved.

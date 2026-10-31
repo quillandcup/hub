@@ -12,7 +12,7 @@ interface ImportProgress {
   remaining: number;
 }
 
-export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: string; pickerUri: string }) {
+export default function ImportPhotosClient({ eventId, slug, pickerUri }: { eventId: string; slug: string; pickerUri: string }) {
   const [phase, setPhase] = useState<Phase>("picking");
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
@@ -116,7 +116,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
             Done — {progress?.imported ?? 0} of {progress?.total ?? 0} photos imported
             {progress?.skipped ? ` (${progress.skipped} were already imported)` : ""}.
           </p>
-          <Link href={`/admin/events/${eventId}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
+          <Link href={`/admin/events/${slug}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
             ← Back to event
           </Link>
         </>
@@ -125,7 +125,7 @@ export default function ImportPhotosClient({ eventId, pickerUri }: { eventId: st
       {phase === "error" && (
         <>
           <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-          <Link href={`/admin/events/${eventId}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
+          <Link href={`/admin/events/${slug}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
             ← Back to event
           </Link>
         </>

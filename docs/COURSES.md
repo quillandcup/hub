@@ -23,7 +23,7 @@ Kajabi's "product" is broad: a course, community, coaching, podcast, newsletter.
 | **Program** | Something a member buys or enrolls in, as the business tracks it: its Kajabi offers (`kajabi_offer_names`), whether it includes membership, cohorts and enrollments, badges, Big Sisters, the leakage report. Exists today. | `programs`, `program_cohorts`, `member_program_enrollments` |
 | **Course** | The curriculum a program delivers: modules, weeks, lessons, videos, downloads, and member progress. New in this plan. | `courses`, `course_modules`, `course_lessons` |
 
-- **A program may have no course.** BFF is matching and coaching; retreats are `events`; the membership itself is subscription logic, not a program.
+- **A program may have no course.** BFF is matching and coaching; retreats are events (`community_events`); the membership itself is subscription logic, not a program.
 - **A course belongs to at most one program** (`courses.program_id`), and the program is where access and membership rules live (`programs.includes_membership`), so those rules stay in one place.
 - **We don't build a separate `kajabi_products` catalog** (the old idea in `KAJABI_DATA_MODEL.md`). `programs` plus its Kajabi offer names covers it. Communities (Hub chat replaces them), podcasts and newsletters aren't enrollments we track. If a non-course program needs to be told apart later, add `programs.kind` then.
 

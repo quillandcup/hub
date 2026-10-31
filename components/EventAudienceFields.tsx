@@ -1,11 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   REGISTRATION_LABELS,
   REGISTRATION_MODES,
   SELECTION_LABELS,
   SELECTION_MODES,
-  type EventAudience,
+  type EventAudienceForm as EventAudience,
 } from "@/lib/event-audience";
 import { withAudienceChange } from "@/lib/audience-rules";
 
@@ -19,12 +20,12 @@ const LABEL = "block text-sm font-medium mb-1 dark:text-gray-200";
 export default function EventAudienceFields({
   value,
   onChange,
-  speakersLocked = false,
+  speakersExtra,
 }: {
   value: EventAudience;
   onChange: (next: EventAudience) => void;
-  /** The event stands for a prickle, which is where its guest speaker is edited. */
-  speakersLocked?: boolean;
+  /** Shown beside the guest speakers label (the event page marks one set by hand). */
+  speakersExtra?: ReactNode;
 }) {
   const set = (patch: Partial<EventAudience>) => onChange({ ...value, ...patch });
   const registers = value.registration !== "none";
@@ -106,14 +107,16 @@ export default function EventAudienceFields({
         </div>
       </div>
       <div>
-        <label className={LABEL} htmlFor="event-speakers">Guest speakers</label>
+        <div className="flex items-baseline gap-2">
+          <label className={LABEL} htmlFor="event-speakers">Guest speakers</label>
+          {speakersExtra}
+        </div>
         <input
           id="event-speakers"
           type="text"
           value={value.speakers ?? ""}
           onChange={(e) => set({ speakers: e.target.value || null })}
-          disabled={speakersLocked}
-          className={`${INPUT} disabled:opacity-60`}
+          className={INPUT}
         />
       </div>
     </fieldset>

@@ -140,7 +140,7 @@ export async function getWizardRecommendations(
 
   const prickleRepo = createRepos(supabase).prickles;
   const toCandidates = (rows: PrickleDetail[]): CandidatePrickle[] =>
-    rows.map((p) => ({ id: p.id, type_id: p.typeId, host_id: p.hostId, start_time: p.startTime }));
+    rows.filter((p) => p.type?.normalizedName !== "event").map((p) => ({ id: p.id, type_id: p.typeId, host_id: p.hostId, start_time: p.startTime }));
 
   const [types, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
     prickleRepo.types(),

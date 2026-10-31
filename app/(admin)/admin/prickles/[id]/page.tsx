@@ -130,7 +130,7 @@ export default async function AdminPrickleDetailPage({
   const calendarTypes = prickle.calendarEventId ? (await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name })) : [];
   const decision = prickle.calendarEventId
     ? await loadEventDecision(supabase, prickle.calendarEventId)
-    : { resolved_title: null, resolved_description: null, resolved_guest_speaker: null };
+    : { resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null };
 
   const normalizedName = prickle.type?.normalizedName;
   let insightsSlotUrl: string | undefined;
@@ -170,6 +170,7 @@ export default async function AdminPrickleDetailPage({
                       title: decision.resolved_title !== null,
                       description: decision.resolved_description !== null,
                       guestSpeaker: decision.resolved_guest_speaker !== null,
+                      location: decision.resolved_location !== null,
                     },
                     onSave: updatePrickle.bind(null, prickle.id),
                   }
@@ -179,7 +180,7 @@ export default async function AdminPrickleDetailPage({
           {eventsEnabled && prickle.calendarEventId && (
             <ShowInEvents
               calendarEventId={prickle.calendarEventId}
-              initial={eventFollowing ? { id: eventFollowing.id, hidden: eventFollowing.hidden } : null}
+              initial={eventFollowing ? { id: eventFollowing.id, slug: eventFollowing.slug, hidden: eventFollowing.hidden } : null}
             />
           )}
           <TestCheckinDMs prickleId={prickle.id} />

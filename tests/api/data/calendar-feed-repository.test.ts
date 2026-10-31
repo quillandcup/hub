@@ -2,6 +2,7 @@ import { afterAll, beforeAll } from "vitest";
 import type { Db } from "@/lib/data/db";
 import { SupabaseCalendarFeedRepository } from "@/lib/data/calendar-feed";
 import { defineCalendarFeedContract } from "@/tests/helpers/calendar-feed-contract";
+import { insertEvent } from "@/tests/helpers/event-db";
 import { getTestSupabaseAdminClient } from "@/tests/helpers/supabase";
 
 const db = getTestSupabaseAdminClient() as unknown as Db;
@@ -47,21 +48,20 @@ beforeAll(async () => {
   const specs = [0, 1].map((i) => ({
     title: `Feed Contract Event ${i} ${RUN}`,
     slug: `feed-contract-${i}-${RUN}`,
-    event_type: "other",
     starts_at: `2097-0${4 + i}-10`,
     ends_at: `2097-0${4 + i}-12`,
   }));
-  const { data: eventRows, error: eventError } = await db.from("events").insert(specs).select("id, title, starts_at, ends_at");
-  if (eventError) throw new Error(eventError.message);
-  events = specs.map((spec) => {
-    const row = eventRows!.find((e) => e.title === spec.title)!;
-    return { id: row.id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at };
-  });
+  events = [];
+  for (const spec of specs) {
+    const { data: row, error: eventError } = await insertEvent(db, spec);
+    if (eventError || !row) throw new Error(eventError?.message ?? "no event");
+    events.push({ id: row.id, title: spec.title, startsAt: spec.starts_at, endsAt: spec.ends_at });
+  }
 });
 
 afterAll(async () => {
   await clear();
-  await db.from("events").delete().in("id", events.map((e) => e.id));
+  await db.from("community_events").delete().in("id", events.map((e) => e.id));
   await db.from("prickles").delete().in("id", prickles.map((p) => p.id));
   await db.from("prickle_types").delete().in("id", types.map((t) => t.id));
   await db.from("members").delete().in("id", members);

@@ -11,7 +11,7 @@ import {
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import type { EventRow } from "@/lib/data/events";
+import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
 import { photoRow } from "@/tests/helpers/event-contract";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -47,11 +47,12 @@ vi.mock("@/app/(member)/events/EventsBrowser", () => ({
 
 import EventsPage from "@/app/(member)/events/page";
 
-const seed = (events: EventRow[], eventPhotos: InMemoryDataset["eventPhotos"] = []) => {
-  dataset = new InMemoryDataset({ events, eventPhotos });
+const JENN = { id: "mbr_AAAAAAAAAAA9", name: "Jenn Parker", displayName: null, email: "jenn@example.com" };
+const seed = (events: EventSpec[], eventPhotos: InMemoryDataset["eventPhotos"] = []) => {
+  dataset = new InMemoryDataset({ ...eventSeed(events), eventPhotos, members: [JENN] });
 };
 
-const RETREAT: EventRow = { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", starts_at: "2097-04-01", ends_at: "2097-04-03" };
+const RETREAT: EventSpec = { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", starts_at: "2097-04-01", ends_at: "2097-04-03" };
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -89,7 +90,7 @@ describe("member Events page", () => {
 
   it("gives an event the icon of the badge linked to it", async () => {
     dataset = new InMemoryDataset({
-      events: [RETREAT],
+      ...eventSeed([RETREAT]),
       badgeTypes: [{ id: "bdgt_AAAAAAAAAAA1", key: "spring_retreat", name: "Spring Retreat", description: null, icon: "💡", category: "retreat", has_levels: false, is_automatic: false, program_id: null, event_id: RETREAT.id }],
     });
 
@@ -99,7 +100,7 @@ describe("member Events page", () => {
   });
 
   it("lists a prickle once: an event that follows its calendar event stands in for it", async () => {
-    seed([{ id: "evnt_AAAAAAAAAAA2", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", calendar_event_id: "00000000-0000-4000-8000-00000000000a" }]);
+    seed([{ id: "evnt_AAAAAAAAAAA2", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", prickleId: "prkl_AAAAAAAAAAA2" }]);
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });
 
@@ -108,7 +109,7 @@ describe("member Events page", () => {
 
   it("lists neither a hidden event nor the prickle it stands for", async () => {
     seed([
-      { id: "evnt_AAAAAAAAAAA3", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", calendar_event_id: "00000000-0000-4000-8000-00000000000a", deleted_at: "2097-01-01T00:00:00Z" },
+      { id: "evnt_AAAAAAAAAAA3", slug: "pitch-night", title: "Pitch Night", event_type: "other", starts_at: "2097-03-04", ends_at: "2097-03-04", prickleId: "prkl_AAAAAAAAAAA2", deleted_at: "2097-01-01T00:00:00Z" },
       { id: "evnt_AAAAAAAAAAA4", slug: "spring-retreat", title: "Spring Retreat", event_type: "other", starts_at: "2097-04-01", ends_at: "2097-04-03" },
     ]);
 
@@ -121,7 +122,7 @@ describe("member Events page", () => {
     seed([
       { id: "evnt_AAAAAAAAAAA5", slug: "money", title: "A Way to Make Money", event_type: "other", starts_at: "2097-04-01", ends_at: "2097-04-01", speakers: "Brayden Example" },
       { id: "evnt_AAAAAAAAAAA6", slug: "fair", title: "Book Fair", event_type: "other", starts_at: "2097-05-01", ends_at: "2097-05-01" },
-      { id: "evnt_AAAAAAAAAAA7", slug: "progress", title: "Progress Prickle", event_type: "other", starts_at: "2097-05-02", ends_at: "2097-05-02", host_name: "Jenn Parker" },
+      { id: "evnt_AAAAAAAAAAA7", slug: "progress", title: "Progress Prickle", event_type: "other", starts_at: "2097-05-02", ends_at: "2097-05-02", hostId: JENN.id },
     ]);
 
     await renderServerPage(EventsPage, { searchParams: Promise.resolve({}) });

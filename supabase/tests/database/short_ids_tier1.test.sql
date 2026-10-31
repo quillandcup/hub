@@ -12,7 +12,7 @@ SELECT plan(5);
 CREATE TEMP TABLE t1(tbl text PRIMARY KEY, prefix text);
 INSERT INTO t1 VALUES
   ('members', 'mbr'), ('prickles', 'prkl'), ('prickle_types', 'prty'), ('prickle_commitments', 'cmt'),
-  ('writing_projects', 'prj'), ('member_books', 'book'), ('events', 'evt'), ('programs', 'prg'),
+  ('writing_projects', 'prj'), ('member_books', 'book'), ('community_events', 'evt'), ('programs', 'prg'),
   ('chat_messages', 'msg'), ('chat_channels', 'chn'), ('segments', 'seg'), ('badge_types', 'bdgt'),
   ('courses', 'crs'), ('course_modules', 'mod'), ('course_lessons', 'les'), ('event_photos', 'photo'),
   ('course_lesson_files', 'file');

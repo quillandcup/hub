@@ -4,7 +4,7 @@ import { screen } from "@testing-library/react";
 import { MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import type { EventRow } from "@/lib/data/events";
+import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -24,16 +24,16 @@ vi.mock("@/lib/event-prickles", async (importActual) => ({
   fetchPastEventPrickles: vi.fn(async (_s: unknown, month: { id: string }) => [{ id: `p-${month.id}`, title: "Pitch", typeName: "Pitch Prickle", hostName: null, calendarEventId: null, startTime: "2026-03-09T18:00:00Z", endTime: "2026-03-09T19:00:00Z" }]),
 }));
 vi.mock("@/app/(member)/events/past/PastEventsBrowser", () => ({
-  default: (props: { initialMonth: string; months: { id: string }[]; events: { title: string }[]; followedCalendarEventIds: string[]; initialPrickles: { id: string }[] }) => (
+  default: (props: { initialMonth: string; months: { id: string }[]; events: { title: string }[]; eventPrickleIds: string[]; initialPrickles: { id: string }[] }) => (
     <div data-testid="browser" data-first={props.months[0].id} data-last={props.months.at(-1)!.id}>
-      {props.initialMonth}|{props.events.map((e) => e.title).join(",")}|{props.followedCalendarEventIds.join(",")}|{props.initialPrickles.map((p) => p.id).join(",")}
+      {props.initialMonth}|{props.events.map((e) => e.title).join(",")}|{props.eventPrickleIds.join(",")}|{props.initialPrickles.map((p) => p.id).join(",")}
     </div>
   ),
 }));
 
 import PastEventsPage from "@/app/(member)/events/past/page";
 
-const event = (id: string, title: string, starts_at: string, ends_at = starts_at, extra: Partial<EventRow> = {}): EventRow => ({
+const event = (id: string, title: string, starts_at: string, ends_at = starts_at, extra: Partial<EventSpec> = {}): EventSpec => ({
   id: `evnt_AAAAAAAAAAA${id}`, slug: `e${id}`, title, event_type: "other", starts_at, ends_at, ...extra,
 });
 
@@ -43,21 +43,21 @@ beforeEach(() => {
   signInAs(MEMBER_USER);
   useFakeSupabase({});
   dataset = new InMemoryDataset({
-    events: [
+    ...eventSeed([
       event("1", "Old Retreat", "2026-03-01", "2026-03-03"),
       event("5", "Pre-2026 Gathering", "2025-12-01", "2025-12-01"),
       event("2", "Far Future", "2097-04-01"),
       event("3", "Removed", "2026-05-01", "2026-05-01", { deleted_at: "2026-06-01T00:00:00Z" }),
-      event("4", "Book Fair", "2026-07-01", "2026-07-01", { speakers: "Ada Example", calendar_event_id: "cal-7" }),
-    ],
+      event("4", "Book Fair", "2026-07-01", "2026-07-01", { speakers: "Ada Example", prickleId: "prkl_AAAAAAAAAAA7" }),
+    ]),
   });
 });
 
 describe("member past events page", () => {
-  it("hands the browser the events that have ended, not the upcoming or removed ones, named the way members know them, with the calendar items events follow", async () => {
+  it("hands the browser the events that have ended, not the upcoming or removed ones, named the way members know them, with the prickles events stand on", async () => {
     await renderServerPage(PastEventsPage, { searchParams: Promise.resolve({ month: "2026-03" }) });
 
-    expect(screen.getByTestId("browser")).toHaveTextContent("2026-03|Book Fair with Ada Example,Old Retreat|cal-7|p-2026-03");
+    expect(screen.getByTestId("browser")).toHaveTextContent("2026-03|Book Fair with Ada Example,Old Retreat|prkl_SEEDEVENT003,prkl_AAAAAAAAAAA7,prkl_SEEDEVENT004,prkl_SEEDEVENT001,prkl_SEEDEVENT002|p-2026-03");
     expect(screen.getByRole("link", { name: "← Upcoming events" })).toHaveAttribute("href", "/events");
   });
 

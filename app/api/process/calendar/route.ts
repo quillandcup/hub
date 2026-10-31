@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
-import { ensureCalendarEvents, hasEventTag, matchTypeId, reconcileAutomaticEvents, syncCalendarEvents } from "@/lib/calendar-events";
+import { calendarTitle, ensureCalendarEvents, hasEventTag, matchTypeId, reconcileAutomaticEvents } from "@/lib/calendar-events";
 import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {
     const typeByNormalizedName = new Map(
       prickleTypes.map((t) => [t.normalized_name, t.id])
     );
+    const eventTypeId = typeByNormalizedName.get("event") ?? null;
     // Map calendar_event_id → { status, resolved_type_id, resolved_host_id } for user decisions
     const userDecisionByEventId = new Map(
       resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, {
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
         title: r.resolved_title,
         description: r.resolved_description,
         guestSpeaker: r.resolved_guest_speaker,
+        location: r.resolved_location,
       }]) || []
     );
 
@@ -206,6 +208,10 @@ export async function POST(request: NextRequest) {
         typeId = matchTypeId(event.summary, prickleTypes);
       }
 
+      // An item tagged #event that matches no prickle type is still an event: a prickle of the Event type
+      // (a retreat), which the event then stands on. Anything else unmatched goes to the review queue.
+      if (!typeId && hasEventTag(event.description) && eventTypeId) typeId = eventTypeId;
+
       if (!typeId) {
         // Type extracted but not in prickle_types table - queue for admin review
         unmatchedEvents.push({
@@ -241,10 +247,11 @@ export async function POST(request: NextRequest) {
         calendar_event_id: event.id,
         type_id: typeId,
         // What an admin set by hand (type and host above, text here) wins over what the calendar says.
-        title: userDecision?.title ?? (matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary),
+        title: userDecision?.title ?? (matchedType?.id === eventTypeId ? calendarTitle(event.summary) : matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary),
         description: userDecision?.description ?? plainTextDescription(event.description),
         host: finalHostId,
         guest_speaker: userDecision?.guestSpeaker ?? guestSpeaker,
+        location: userDecision?.location ?? (event.location?.trim() || null),
         start_time: event.start_time,
         end_time: event.end_time,
         source: "calendar",
@@ -297,9 +304,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 5: Events shown in Events (events rows that follow a calendar event) keep their dates, times
-    // and any text an admin hasn't overridden in step with the calendar.
-    const eventsSynced = await syncCalendarEvents(supabase, allEvents);
+    // STEP 5: Prickles made in the Hub (source hub) are projected from hub_sessions, so reprocessing keeps them.
+    await createRepos(supabase).hubSessions.project();
+
+    // STEP 6: Events stand on prickles, so they follow the calendar through them; only new ones need making.
     const eventsCreated = await ensureCalendarEvents(supabase, [...listedCalendarEventIds]);
     // The automatic events whose reason has gone (the tag taken out, the type un-listed, the calendar item deleted)
     // are taken away. The prickle types are loaded above (a failed load stops the run), so every type that is listed counts.
@@ -316,7 +324,6 @@ export async function POST(request: NextRequest) {
       skipped: skippedNoSummary,
       autoResolved: autoResolvedCount,
       ignored: ignoredCount,
-      eventsSynced,
       eventsCreated,
       eventsRemoved,
     });

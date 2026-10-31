@@ -1,5 +1,6 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db } from "./db";
+import { eventDetails } from "./events";
 import type { InMemoryDataset } from "./in-memory";
 
 /** A kind of badge: an automatic one is computed in code, a manual one is awarded by an admin. */
@@ -159,7 +160,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   constructor(private readonly db: Db) {}
 
   async types(): Promise<BadgeType[]> {
-    const { data, error } = await this.db.from("badge_types").select(`${TYPE_COLUMNS}, event:events(slug)`).order("category").order("name");
+    const { data, error } = await this.db.from("badge_types").select(`${TYPE_COLUMNS}, event:community_events(slug)`).order("category").order("name");
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => ({ ...toType(row as unknown as TypeRow), event_slug: one((row as unknown as { event: { slug: string } | { slug: string }[] | null }).event)?.slug ?? null }));
   }
@@ -308,7 +309,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
   async awardsWithDetails(memberId: string): Promise<MemberBadgeDetail[]> {
     const { data, error } = await this.db
       .from("member_badges")
-      .select(`${AWARD_COLUMNS}, badge_types(name, icon), events(title, slug)`)
+      .select(`${AWARD_COLUMNS}, badge_types(name, icon), community_event_details(title, slug)`)
       .eq("member_id", memberId)
       .order("occurred_at", { ascending: false })
       .order("id", { ascending: false });
@@ -316,10 +317,10 @@ export class SupabaseBadgeRepository implements BadgeRepository {
     return (data ?? []).map((row) => {
       const r = row as unknown as AwardRow & {
         badge_types: { name: string; icon: string } | { name: string; icon: string }[] | null;
-        events: { title: string; slug: string } | { title: string; slug: string }[] | null;
+        community_event_details: { title: string; slug: string } | { title: string; slug: string }[] | null;
       };
       const type = one(r.badge_types);
-      const event = one(r.events);
+      const event = one(r.community_event_details);
       return { ...toAward(r), badgeTypeName: type?.name ?? null, badgeTypeIcon: type?.icon ?? null, eventTitle: event?.title ?? null, eventSlug: event?.slug ?? null };
     });
   }
@@ -462,7 +463,7 @@ export class InMemoryBadgeRepository implements BadgeRepository {
       .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : a.id < b.id ? 1 : -1))
       .map((b) => {
         const type = this.data.badgeTypes.find((t) => t.id === b.badgeTypeId);
-        const event = this.data.events.find((e) => e.id === b.eventId);
+        const event = eventDetails(this.data).find((e) => e.id === b.eventId);
         return { ...b, badgeTypeName: type?.name ?? null, badgeTypeIcon: type?.icon ?? null, eventTitle: event?.title ?? null, eventSlug: event?.slug ?? null };
       });
   }

@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 
-import EventDetailsCard, { type EventData } from "@/app/(admin)/admin/events/[id]/EventDetailsCard";
+import EventDetailsCard, { type EventData } from "@/app/(admin)/admin/events/[slug]/EventDetailsCard";
 import MediaUploadForm from "@/components/media/MediaUploadForm";
 import Modal from "@/components/Modal";
 
@@ -14,7 +14,7 @@ const EVENT: EventData = {
   id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Spring Retreat", event_type: "in_person_retreat", location: "Cedar Lodge",
   starts_at: "2097-04-01", ends_at: "2097-04-03", focus: null, description: null, agenda: null, results: null, google_photos_album_url: null,
   announced_publicly: false, guests_allowed: false, registration: "none", capacity: null, selection: "first_come", speakers: null,
-  calendar_event_id: null, overridden_fields: [], deleted_at: null, image_id: null,
+  host_name: null, host_id: null, start_time: "2097-04-01T04:00:00Z", end_time: "2097-04-04T04:00:00Z", deleted_at: null, image_id: null,
 } as EventData;
 
 const onSave = vi.fn();
@@ -35,7 +35,7 @@ afterEach(() => {
 
 describe("choosing a cover image while editing an event", () => {
   it("uploads the file and fills the picker, without saving the event behind the modal", async () => {
-    render(<EventDetailsCard event={EVENT} prickleId={null} onSave={onSave} onToggleRemoved={vi.fn()} removing={false} onRevert={vi.fn()} reverting={false} />);
+    render(<EventDetailsCard event={EVENT} prickleId="prkl_AAAAAAAAAAA1" hubSession members={[]} overridden={{ title: false, description: false, guestSpeaker: false, location: false }} onSave={onSave} onToggleRemoved={vi.fn()} removing={false} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
     await userEvent.click(screen.getByRole("button", { name: /Choose image/ }));
     await userEvent.click(screen.getByRole("tab", { name: "Upload" }));

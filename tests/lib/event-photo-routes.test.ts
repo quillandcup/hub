@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The event photo routes (hide/unhide, the import commit batch, the image proxy) go through
@@ -66,7 +67,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   auth = { user: { id: "admin" }, supabase };
   dataset = new InMemoryDataset({
-    events: [{ id: EVENT, title: "Retreat", slug: "retreat" }],
+    ...eventSeed([{ id: EVENT, title: "Retreat", slug: "retreat" }]),
     eventPhotos: [{ id: "evph_1", event_id: EVENT, storage_path: `${EVENT}/a.jpg`, google_media_item_id: "a", mime_type: "image/jpeg", hidden_at: null, width: null, height: null, taken_at: null, created_at: "2097-01-01T00:00:00Z" }],
   });
   repos = createInMemoryRepos(dataset);

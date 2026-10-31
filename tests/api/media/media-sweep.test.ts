@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "../../helpers/api-fetch";
 import { getTestSupabaseAdminClient } from "../../helpers/supabase";
+import { insertEvent } from "../../helpers/event-db";
 import { solidImage } from "../../helpers/media-fixtures";
 import { useFakeClock } from "../../helpers/fake-clock";
 
@@ -41,7 +42,7 @@ const deleteAt = async (id: string, daysAgo: number) => {
 };
 
 afterAll(async () => {
-  if (eventIds.length) await db.from("events").delete().in("id", eventIds);
+  if (eventIds.length) await db.from("community_events").delete().in("id", eventIds);
   const { data } = await db.from("media_assets").select("storage_path").in("id", assetIds);
   const paths = [...(data ?? []).map((a) => a.storage_path), ...assetIds.map((id) => `renditions/${id}/thumb-test.webp`)];
   await db.storage.from("media").remove(paths);
@@ -94,7 +95,7 @@ describe("GET /api/reconcile/media", () => {
 
   it("leaves a deleted image's files alone while an event still shows it", async () => {
     const used = await newAsset();
-    const { data: event, error } = await db.from("events").insert({ slug: `sweep-${RUN}`, title: `Sweep ${RUN}`, event_type: "other", starts_at: "2097-08-01", ends_at: "2097-08-01", image_id: used.id }).select("id").single();
+    const { data: event, error } = await insertEvent(db, { slug: `sweep-${RUN}`, title: `Sweep ${RUN}`, starts_at: "2097-08-01", image_id: used.id });
     expect(error).toBeNull();
     eventIds.push(event!.id);
     await db.from("media_assets").update({ deleted_at: new Date(Date.now() - 60 * DAY).toISOString() }).eq("id", used.id); // deleted behind the app's back

@@ -40,6 +40,12 @@ function makeSupabaseMock({ hostsType, signupOnly = false, upsertError }: { host
           ? [{ type_id: "type-a", prickle_types: { id: "type-a", name: "Writing" } }] : [] });
         return query;
       }
+      if (table === "prickle_types") {
+        const query: any = {};
+        for (const method of ["select", "eq"]) query[method] = vi.fn(() => query);
+        query.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null }); // no Event type to leave out
+        return query;
+      }
       if (table === "prickle_host_vibes") {
         const query: any = { upsert };
         for (const method of ["select", "eq"]) query[method] = vi.fn(() => query);
@@ -178,9 +184,11 @@ function makeQueryFake(tables: Record<string, unknown[]>) {
     for (const method of ["select", "eq", "gte", "lte", "lt", "order", "not", "is", "in", "range"]) {
       builder[method] = (...args: unknown[]) => {
         calls.push({ table, method, args });
-        return builder;
+        builder.maybeSingle = () => Promise.resolve({ data: null, error: null }); // the Event type lookup: none to leave out
+    return builder;
       };
     }
+    builder.maybeSingle = () => Promise.resolve({ data: null, error: null }); // the Event type lookup: none to leave out
     return builder;
   });
   return {
