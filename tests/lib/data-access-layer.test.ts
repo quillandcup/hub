@@ -156,7 +156,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
 const UNMIGRATED_TABLES = new Set([
   "access_events",
   "admin_work_queue_completions",
-  "ambiguous_zoom_names",
   "analytics_events",
   "big_sister_volunteers",
   "calendar_watch_channels",
@@ -164,11 +163,8 @@ const UNMIGRATED_TABLES = new Set([
   "feature_flag_segments",
   "feature_flags",
   "feedback",
-  "ignored_zoom_appearances",
   "member_ask_me_about",
   "member_awards",
-  "member_engagement",
-  "member_metrics",
   "member_notes",
   "member_onboarding",
   "member_roster_opt_outs",
@@ -187,7 +183,6 @@ const UNMIGRATED_TABLES = new Set([
   "staff",
   "user_feature_previews",
   "wheel_of_wonder_matches",
-  "zoom_participant_events",
 ]);
 
 /**
