@@ -51,12 +51,22 @@ async function step<T>(what: string, run: () => Promise<T>): Promise<T> {
 }
 
 async function loadExistingImports(writing: WritingRepository, memberId: string): Promise<ExistingImports> {
-  const [projects, entryExternalIds, goals] = await Promise.all([
+  const [projects, entryExternalIds, goals, balances] = await Promise.all([
     writing.importedProjects(memberId),
     writing.importedEntryExternalIds(memberId),
     writing.importedGoals(memberId),
+    writing.startingBalances(memberId),
   ]);
+  const externalIdByProjectId = new Map(projects.map((p) => [p.id, p.external_id]));
+  const startingBalanceMeasures = new Map<string, Set<string>>();
+  for (const b of balances) {
+    const externalId = externalIdByProjectId.get(b.project_id);
+    if (!externalId) continue;
+    if (!startingBalanceMeasures.has(externalId)) startingBalanceMeasures.set(externalId, new Set());
+    startingBalanceMeasures.get(externalId)!.add(b.measure);
+  }
   return {
+    startingBalanceMeasures,
     projectIdsByExternalId: new Map(projects.map((p) => [p.external_id, p.id])),
     entryExternalIds: new Set(entryExternalIds),
     goalExternalIds: new Set(goals.map((g) => g.external_id)),
@@ -112,14 +122,23 @@ export async function runTrackbearImport(
   const freshProjects = plan.newProjects.filter((p) => insertedProjectIds.has(p.externalId));
 
   // 2. Starting balances
-  const balanceRows = freshProjects.flatMap((p) =>
-    p.startingBalances.map((b) => ({
-      project_id: projectIds.get(p.externalId)!,
+  const balanceRows = [
+    ...freshProjects.flatMap((p) =>
+      p.startingBalances.map((b) => ({
+        project_id: projectIds.get(p.externalId)!,
+        member_id: memberId,
+        measure: b.measure,
+        amount: b.amount,
+      }))
+    ),
+    // Projects imported earlier that have no balance for a measure yet.
+    ...plan.startingBalanceBackfills.map((b) => ({
+      project_id: projectIds.get(b.projectExternalId)!,
       member_id: memberId,
       measure: b.measure,
       amount: b.amount,
-    }))
-  );
+    })),
+  ];
   if (balanceRows.length > 0) {
     await step("Failed to save starting balances", () => writing.importStartingBalances(balanceRows));
     created.startingBalances = balanceRows.length;

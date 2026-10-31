@@ -188,6 +188,15 @@ export interface ExistingImports {
   goalExternalIds: Set<string>;
   /** Already-imported goals with no title and no description -- imported before Hub goals had them. */
   goalExternalIdsMissingDetails?: Set<string>;
+  /** Project external_id -> measures that already have a starting balance row in Hub. */
+  startingBalanceMeasures?: Map<string, Set<string>>;
+}
+
+/** A starting balance for a project imported earlier that has none for this measure yet. */
+export interface StartingBalanceBackfill {
+  projectExternalId: string;
+  measure: Exclude<WritingMeasure, "prickles">;
+  amount: number;
 }
 
 export interface PlannedProject {
@@ -261,6 +270,7 @@ export interface TrackbearImportPlan {
   newEntries: PlannedEntry[];
   newGoals: PlannedGoal[];
   goalDetailBackfills: GoalDetailBackfill[];
+  startingBalanceBackfills: StartingBalanceBackfill[];
   alreadyImported: { projects: number; entries: number; goals: number };
   issues: ImportIssue[];
 }
@@ -274,6 +284,33 @@ function goalLabel(goal: TrackbearGoal): string {
   return goal.title?.trim() || `Untitled ${goal.type}`;
 }
 
+/** A project's importable starting balances; zero, negative and unrecognized-measure ones are reported and left out. */
+function parseStartingBalances(project: TrackbearData["projects"][number], label: string, issues: ImportIssue[]): PlannedProject["startingBalances"] {
+  const startingBalances: PlannedProject["startingBalances"] = [];
+  for (const [tbMeasure, amount] of Object.entries(project.startingBalance ?? {})) {
+    const measure = TRACKBEAR_MEASURE_MAP[tbMeasure];
+    if (!amount) continue;
+    if (!measure) {
+      issues.push({
+        severity: "dropped",
+        kind: "project",
+        label,
+        detail: `Starting balance of ${amount} in unrecognized measure "${tbMeasure}".`,
+      });
+    } else if (amount < 0) {
+      issues.push({
+        severity: "dropped",
+        kind: "project",
+        label,
+        detail: `Negative starting balance (${amount} ${measure}) -- Hub only allows starting balances of 0 or more.`,
+      });
+    } else {
+      startingBalances.push({ measure, amount });
+    }
+  }
+  return startingBalances;
+}
+
 export function planTrackbearImport(data: TrackbearData, existing: ExistingImports): TrackbearImportPlan {
   const issues: ImportIssue[] = [];
   const alreadyImported = { projects: 0, entries: 0, goals: 0 };
@@ -283,13 +320,20 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
 
   // --- Projects ---
   const newProjects: PlannedProject[] = [];
+  const startingBalanceBackfills: StartingBalanceBackfill[] = [];
   for (const project of data.projects) {
     const externalId = trackbearExternalId(project.uuid);
+    const label = project.title.trim() || "Untitled project";
     if (existing.projectIdsByExternalId.has(externalId)) {
       alreadyImported.projects++;
+      // A balance Hub has no row for yet (the first import predates balances or failed to save them). Rows
+      // already there win, since the member may have edited them. Problems were reported on the first import.
+      const have = existing.startingBalanceMeasures?.get(externalId);
+      for (const b of parseStartingBalances(project, label, [])) {
+        if (!have?.has(b.measure)) startingBalanceBackfills.push({ projectExternalId: externalId, ...b });
+      }
       continue;
     }
-    const label = project.title.trim() || "Untitled project";
 
     let phase = TRACKBEAR_PHASE_MAP[project.phase];
     if (!phase) {
@@ -302,28 +346,7 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
       });
     }
 
-    const startingBalances: PlannedProject["startingBalances"] = [];
-    for (const [tbMeasure, amount] of Object.entries(project.startingBalance ?? {})) {
-      const measure = TRACKBEAR_MEASURE_MAP[tbMeasure];
-      if (!amount) continue;
-      if (!measure) {
-        issues.push({
-          severity: "dropped",
-          kind: "project",
-          label,
-          detail: `Starting balance of ${amount} in unrecognized measure "${tbMeasure}".`,
-        });
-      } else if (amount < 0) {
-        issues.push({
-          severity: "dropped",
-          kind: "project",
-          label,
-          detail: `Negative starting balance (${amount} ${measure}) -- Hub only allows starting balances of 0 or more.`,
-        });
-      } else {
-        startingBalances.push({ measure, amount });
-      }
-    }
+    const startingBalances = parseStartingBalances(project, label, issues);
 
     if (project.starred) {
       issues.push({
@@ -521,5 +544,5 @@ export function planTrackbearImport(data: TrackbearData, existing: ExistingImpor
     for (const detail of dropped) issues.push({ severity: "dropped", kind: "goal", label, detail });
   }
 
-  return { newProjects, newEntries, newGoals, goalDetailBackfills, alreadyImported, issues };
+  return { newProjects, newEntries, newGoals, goalDetailBackfills, startingBalanceBackfills, alreadyImported, issues };
 }
