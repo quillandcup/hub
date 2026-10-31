@@ -11,7 +11,7 @@ import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
 import { getProfileWriting } from "@/app/(member)/projects/actions"
-import { MEASURE_LABELS } from "@/lib/writing-projects"
+import { MEASURE_LABELS, isMissedGoal } from "@/lib/writing-projects"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import { createRepos } from "@/lib/data/repos"
@@ -75,7 +75,8 @@ export default async function MemberProfilePage({
 
   if (!member) notFound()
 
-  const writing = await getProfileWriting(id)
+  const profileWriting = await getProfileWriting(id)
+  const writing = { ...profileWriting, goals: profileWriting.goals.filter((goal) => !isMissedGoal(goal)) }
 
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,

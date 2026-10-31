@@ -8,7 +8,7 @@ import LogProgressModal from "@/components/writing/LogProgressModal";
 import PastProjects from "./PastProjects";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
-import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
+import { MEASURE_LABELS, PHASE_LABELS, isMissedGoal } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
 
 interface ProjectsClientProps {
@@ -150,9 +150,9 @@ export default function ProjectsClient({ initialProjects, pastProjects = [] }: P
               </div>
             )}
 
-            {project.goals.length > 0 && (
+            {project.goals.some((goal) => !isMissedGoal(goal)) && (
               <div className="mt-4 space-y-3">
-                {project.goals.map((goal) => (
+                {project.goals.filter((goal) => !isMissedGoal(goal)).map((goal) => (
                   <GoalDisplay key={goal.id} goal={goal} />
                 ))}
               </div>

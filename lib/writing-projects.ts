@@ -214,6 +214,14 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
   };
 }
 
+/**
+ * A target goal whose end date passed before it reached its target. Shown only under "Past goals" on the
+ * project page: on the project list, dashboard and profile it would sit next to the project as a standing miss.
+ */
+export function isMissedGoal(goal: { kind: string; status?: string }): boolean {
+  return goal.kind === "target" && goal.status === "ended";
+}
+
 function daysBetween(fromIso: string, toIso: string): number {
   const from = new Date(`${fromIso}T00:00:00Z`).getTime();
   const to = new Date(`${toIso}T00:00:00Z`).getTime();

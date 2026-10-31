@@ -15,8 +15,10 @@ describe("GoalProgressBar", () => {
 
   it("says Ended, not Behind pace, once the end date has passed", () => {
     render(<GoalProgressBar {...BASE} status="ended" endDate="2026-03-13" />);
-    expect(screen.getByText("Ended")).toBeInTheDocument();
+    expect(screen.getByText("Ended 2026-03-13")).toBeInTheDocument();
     expect(screen.queryByText("Behind pace")).not.toBeInTheDocument();
+    expect(screen.queryByText("70%")).not.toBeInTheDocument();
+    expect(screen.queryByText(/by 2026-03-13/)).not.toBeInTheDocument();
     expect(screen.queryByTitle("Pace needed to finish on time")).not.toBeInTheDocument();
   });
 
