@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { commitmentEndDate, type Commitment, type CommitmentSlot, type CommitmentStatus } from "@/lib/commitments";
+import type { Commitment, CommitmentSlot, CommitmentStatus } from "@/lib/commitments";
 import { checkinFromRow, checkinToRow, CHECKIN_COLUMNS, isEmptyCheckin, type CheckinInput } from "@/lib/prickle-checkins";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -64,7 +64,16 @@ export class CommitmentConflictError extends Error {
   }
 }
 
-const pairKey = (memberId: string, prickleId: string) => `${memberId}:${prickleId}`;
+/**
+ * Last day of a commitment's window, as the database's generated `end_date` column has it. Not
+ * `commitmentEndDate` from lib/commitments.ts: that module imports lib/prickle-schedules, which
+ * imports the repositories, and a cycle through here breaks tests that mock `createRepos`.
+ */
+function windowEnd(startDate: string, weeks: number): string {
+  return new Date(Date.parse(`${startDate}T00:00:00Z`) + (weeks * 7 - 1) * 86_400_000).toISOString().slice(0, 10);
+}
+
+const pairKey =(memberId: string, prickleId: string) => `${memberId}:${prickleId}`;
 const DISMISSALS_TABLE = { checkin: "prickle_checkin_dismissals", checkout: "prickle_checkout_dismissals" } as const;
 
 const bySlotOrder = (a: { dayOfWeek: number; startTimeLocal: string }, b: { dayOfWeek: number; startTimeLocal: string }) =>
@@ -451,7 +460,7 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
     return this.data.prickleCommitments
       .filter((c) => c.memberId === memberId)
       .filter((c) => !filter.status || (c.status ?? "active") === filter.status)
-      .filter((c) => !filter.endsOnOrAfter || commitmentEndDate(c.startDate, c.weeks) >= filter.endsOnOrAfter)
+      .filter((c) => !filter.endsOnOrAfter || windowEnd(c.startDate, c.weeks) >= filter.endsOnOrAfter)
       .sort((a, b) => (a.startDate !== b.startDate ? (a.startDate < b.startDate ? 1 : -1) : (a.createdAt ?? "") !== (b.createdAt ?? "") ? ((a.createdAt ?? "") < (b.createdAt ?? "") ? 1 : -1) : byIdAsc(a, b)))
       .map((c) => this.stored(c));
   }
@@ -463,13 +472,13 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
 
   async createCommitment(c: NewCommitment) {
     if (c.slots.length === 0) throw new Error("A commitment needs at least one slot");
-    const end = commitmentEndDate(c.startDate, c.weeks);
+    const end = windowEnd(c.startDate, c.weeks);
     const clash = this.data.prickleCommitments.some(
       (other) =>
         other.memberId === c.memberId &&
         (other.status ?? "active") === "active" &&
         other.startDate <= end &&
-        c.startDate <= commitmentEndDate(other.startDate, other.weeks) &&
+        c.startDate <= windowEnd(other.startDate, other.weeks) &&
         other.slots.some((os) => c.slots.some((s) => os.typeId === s.typeId && os.dayOfWeek === s.dayOfWeek && sameTime(os.startTimeLocal, s.startTimeLocal) && os.timezone === s.timezone))
     );
     if (clash) throw new CommitmentConflictError();
@@ -498,7 +507,7 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
     return this.data.prickleCommitments.flatMap((c) =>
       c.slots
         .filter((s) => s.typeId === slot.typeId && s.dayOfWeek === slot.dayOfWeek && s.timezone === slot.timezone)
-        .map((s) => ({ memberId: c.memberId, status: c.status ?? "active", startDate: c.startDate, endDate: commitmentEndDate(c.startDate, c.weeks), startTimeLocal: withSeconds(s.startTimeLocal) }))
+        .map((s) => ({ memberId: c.memberId, status: c.status ?? "active", startDate: c.startDate, endDate: windowEnd(c.startDate, c.weeks), startTimeLocal: withSeconds(s.startTimeLocal) }))
     );
   }
 
