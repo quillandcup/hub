@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -137,9 +138,7 @@ export class SupabaseUnmatchedEventRepository implements UnmatchedEventRepositor
   }
 
   async queue(rows: NewUnmatchedEvent[]) {
-    const results = await Promise.all(chunk(rows, ID_CHUNK).map((part) => this.table.upsert(part, { onConflict: "calendar_event_id" })));
-    const failed = results.find((r) => r.error);
-    if (failed?.error) throw new Error(failed.error.message);
+    await upsertInChunks(this.table, rows, "calendar_event_id", ID_CHUNK, Number.POSITIVE_INFINITY);
   }
 }
 

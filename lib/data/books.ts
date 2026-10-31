@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { fetchAllRows } from "@/lib/supabase/paginate";
+import type { PageQuery } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -93,7 +94,6 @@ export interface BookRepository {
   adoptCover(id: string, currentUrl: string, cover: { url: string; assetId: string }): Promise<boolean>;
 }
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 export class SupabaseBookRepository implements BookRepository {
   constructor(private readonly db: Db) {}
@@ -108,7 +108,7 @@ export class SupabaseBookRepository implements BookRepository {
           .is("deleted_at", null)
           .order("published_date", { ascending: false })
           .order("id")
-          .range(from, to) as unknown as Page<Raw>
+          .range(from, to) as unknown as PageQuery<Raw>
     );
     return rows.map((row) => ({ ...row, author: one(row.author) }));
   }
@@ -170,7 +170,7 @@ export class SupabaseBookRepository implements BookRepository {
 
   async liveCountsByMember() {
     const rows = await fetchAllRows<{ member_id: string }>(
-      (from, to) => this.db.from("member_books").select("member_id").is("deleted_at", null).order("id").range(from, to) as unknown as Page<{ member_id: string }>
+      (from, to) => this.db.from("member_books").select("member_id").is("deleted_at", null).order("id").range(from, to) as unknown as PageQuery<{ member_id: string }>
     );
     const counts = new Map<string, number>();
     for (const row of rows) counts.set(row.member_id, (counts.get(row.member_id) ?? 0) + 1);
@@ -194,7 +194,7 @@ export class SupabaseBookRepository implements BookRepository {
 
   async withoutCoverAsset() {
     return fetchAllRows<BookWithLegacyCover>(
-      (from, to) => this.db.from("member_books").select("id, member_id, title, cover_url").is("cover_asset_id", null).order("id").range(from, to) as unknown as Page<BookWithLegacyCover>
+      (from, to) => this.db.from("member_books").select("id, member_id, title, cover_url").is("cover_asset_id", null).order("id").range(from, to) as unknown as PageQuery<BookWithLegacyCover>
     );
   }
 

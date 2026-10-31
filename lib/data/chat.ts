@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { PageQuery } from "./query";
 import type { Db, Row } from "./db";
 import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
@@ -96,7 +97,6 @@ const SEARCH_MESSAGE_COLUMNS =
 const REACTION_PAGE = 1000;
 const ID_CHUNK = 200;
 
-type PagedResult<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 /** A conversation as the chat pages list it. */
 export interface ChannelRecord {
@@ -143,7 +143,6 @@ const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, sl
 /** Ids per `.in(...)` request. */
 const IN_CHUNK = 100;
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 /**
  * Chat: the Hub's mirror of bridged Slack conversations and what members do in it. The repository
@@ -448,7 +447,7 @@ export class SupabaseChatRepository implements ChatRepository {
             .is("deleted_at", null)
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
-            .range(from, to) as unknown as PagedResult<ChatReplyAuthorRow>
+            .range(from, to) as unknown as PageQuery<ChatReplyAuthorRow>
       );
       out.push(...rows);
     }
@@ -503,7 +502,7 @@ export class SupabaseChatRepository implements ChatRepository {
 
   async listChannels() {
     return fetchAllRows<ChannelRecord>(
-      (from, to) => this.db.from("chat_channels").select(CHANNEL_COLUMNS).order("name").order("id").range(from, to) as unknown as Page<ChannelRecord>
+      (from, to) => this.db.from("chat_channels").select(CHANNEL_COLUMNS).order("name").order("id").range(from, to) as unknown as PageQuery<ChannelRecord>
     );
   }
 
@@ -627,7 +626,7 @@ export class SupabaseChatRepository implements ChatRepository {
           .eq("member_id", memberId)
           .is("left_at", null)
           .order("channel_id")
-          .range(from, to) as unknown as Page<Row>
+          .range(from, to) as unknown as PageQuery<Row>
     );
     return rows.flatMap((r) => {
       const c = Array.isArray(r.chat_channels) ? r.chat_channels[0] : r.chat_channels;

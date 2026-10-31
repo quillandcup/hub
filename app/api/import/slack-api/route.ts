@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     // statement timeout when an admin runs the import from the page.
     const storedUsers = await createRepos(supabase).slackUsers.list();
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
-    await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
+    await createRepos(supabase).slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })));
     await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
     invalidateChatLookups();
     await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");

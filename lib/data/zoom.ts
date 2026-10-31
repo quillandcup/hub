@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { upsertInChunks, type PageQuery } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -21,7 +22,6 @@ const PAGE_CHUNK = 100;
 const SESSION_CHUNK = 50;
 const WRITE_CHUNK = 500;
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
 /**
  * The Bronze copy of Zoom's attendance (`bronze.zoom_attendees`, `bronze.zoom_meetings`) and the
@@ -101,26 +101,26 @@ export class SupabaseZoomRepository implements ZoomRepository {
     return fetchAllRows<ZoomAttendeeRef>((a, b) => {
       let query = this.attendees.select("name, email, meeting_uuid, join_time, leave_time");
       if (withMeetingOnly) query = query.not("meeting_uuid", "is", null);
-      return query.order("id").range(a, b) as unknown as Page<ZoomAttendeeRef>;
+      return query.order("id").range(a, b) as unknown as PageQuery<ZoomAttendeeRef>;
     });
   }
 
   async attendeesSince(from: string) {
     return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>(
-      (a, b) => this.attendees.select("name, email, meeting_uuid").gte("join_time", from).order("id").range(a, b) as unknown as Page<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>
+      (a, b) => this.attendees.select("name, email, meeting_uuid").gte("join_time", from).order("id").range(a, b) as unknown as PageQuery<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>
     );
   }
 
   async attendeeNamesOverlapping(from: string, to: string) {
     return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email">>(
       (a, b) =>
-        this.attendees.select("name, email").lt("join_time", to).gt("leave_time", from).order("id").range(a, b) as unknown as Page<Pick<ZoomAttendeeRow, "name" | "email">>
+        this.attendees.select("name, email").lt("join_time", to).gt("leave_time", from).order("id").range(a, b) as unknown as PageQuery<Pick<ZoomAttendeeRow, "name" | "email">>
     );
   }
 
   async attendeesOverlapping(from: string, to: string) {
     return fetchAllRows<ZoomAttendeeRow>(
-      (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b) as unknown as Page<ZoomAttendeeRow>
+      (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b) as unknown as PageQuery<ZoomAttendeeRow>
     );
   }
 
@@ -130,7 +130,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
       rows.push(
         ...(await fetchAllRows<ZoomNameAppearance>(
           (a, b) =>
-            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id").in("name", part).order("id").range(a, b) as unknown as Page<ZoomNameAppearance>
+            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id").in("name", part).order("id").range(a, b) as unknown as PageQuery<ZoomNameAppearance>
         ))
       );
     }
@@ -142,7 +142,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
     for (const part of chunk([...new Set(names)], PAGE_CHUNK)) {
       const rows = await fetchAllRows<{ name: string; meeting_uuid: string | null }>(
         (a, b) =>
-          this.attendees.select("name, meeting_uuid").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as Page<{
+          this.attendees.select("name, meeting_uuid").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as PageQuery<{
             name: string;
             meeting_uuid: string | null;
           }>
@@ -159,7 +159,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
 
   async meetingUuidsForName(name: string) {
     const rows = await fetchAllRows<{ meeting_uuid: string | null }>(
-      (a, b) => this.attendees.select("meeting_uuid").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as Page<{ meeting_uuid: string | null }>
+      (a, b) => this.attendees.select("meeting_uuid").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as PageQuery<{ meeting_uuid: string | null }>
     );
     return [...new Set(rows.flatMap((r) => (r.meeting_uuid ? [r.meeting_uuid] : [])))];
   }
@@ -172,7 +172,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
       // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
       for (const column of ["meeting_uuid", "meeting_id"] as const) {
         const rows = await fetchAllRows<Row>(
-          (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id").in(column, part).order("id").range(a, b) as unknown as Page<Row>
+          (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id").in(column, part).order("id").range(a, b) as unknown as PageQuery<Row>
         );
         for (const r of rows) {
           const key = r.meeting_uuid || r.meeting_id;
@@ -186,10 +186,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async upsertAttendees(rows: NewZoomAttendee[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.attendees.upsert(part, { onConflict: "meeting_uuid,name,join_time", ignoreDuplicates: false });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.attendees, rows, "meeting_uuid,name,join_time", WRITE_CHUNK);
   }
 
   async latestMeetingStart() {
@@ -205,13 +202,13 @@ export class SupabaseZoomRepository implements ZoomRepository {
 
   async importedHostIds(since: string) {
     const rows = await fetchAllRows<{ host_id: string | null }>(
-      (a, b) => this.meetings.select("id, host_id:data->>host_id").gte("start_time", since).order("id").range(a, b) as unknown as Page<{ host_id: string | null }>
+      (a, b) => this.meetings.select("id, host_id:data->>host_id").gte("start_time", since).order("id").range(a, b) as unknown as PageQuery<{ host_id: string | null }>
     );
     return new Set(rows.flatMap((r) => (r.host_id ? [r.host_id] : [])));
   }
 
   async ignoredNames() {
-    const rows = await fetchAllRows<{ zoom_name: string }>((a, b) => this.ignored.select("zoom_name").order("id").range(a, b) as unknown as Page<{ zoom_name: string }>);
+    const rows = await fetchAllRows<{ zoom_name: string }>((a, b) => this.ignored.select("zoom_name").order("id").range(a, b) as unknown as PageQuery<{ zoom_name: string }>);
     return rows.map((r) => r.zoom_name);
   }
 

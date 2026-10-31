@@ -1,4 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
+import { byKeyThenId, type Page } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -39,15 +40,9 @@ const OVERRIDE_WINDOW_COLUMNS = "id, override_type, reason, starts_at, expires_a
 const OVERRIDE_WITH_MEMBER = "*, member:members(id, name, display_name, email)";
 const PROFILE_COLUMNS = "member_id, bio, instagram_url, facebook_url, twitter_url";
 
-type Page<T> = { data: T[] | null; error: { message: string } | null };
 
-/** Desc order on a string key, with the id as the tie-break so pages never repeat or skip a row. */
-const byKey = <T extends { id: string }>(key: (row: T) => string, descending = false) => (a: T, b: T) => {
-  const x = key(a);
-  const y = key(b);
-  if (x !== y) return (x < y ? -1 : 1) * (descending ? -1 : 1);
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-};
+/** Ordered by a text key, then by id (see `byKeyThenId`). */
+const byKey = <T extends { id: string }>(key: (row: T) => string, descending = false) => byKeyThenId(key, (row: T) => row.id, descending);
 
 /** PostgREST returns a to-one embed as an object, though callers have also met it as a one-item array. */
 function one<T>(embed: T | T[] | null | undefined): T | null {

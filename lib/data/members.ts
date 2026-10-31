@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { Page } from "./query";
 import type { Db, Update } from "./db";
 import type { InMemoryDataset, MemberSeed } from "./in-memory";
 
@@ -181,7 +182,6 @@ type MemberRow = IdentityRow & {
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
 };
-type Page<T> = { data: T[] | null; error: { message: string } | null };
 
 const toIdentity = (row: IdentityRow): MemberIdentity => ({
   id: row.id,

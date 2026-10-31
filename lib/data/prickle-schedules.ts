@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { Page } from "./query";
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -67,7 +68,6 @@ export interface PrickleScheduleRepository {
   reassignHost(fromHostId: string, toHostId: string): Promise<void>;
 }
 
-type Page<T> = { data: T[] | null; error: { message: string } | null };
 
 export class SupabasePrickleScheduleRepository implements PrickleScheduleRepository {
   constructor(private readonly db: Db) {}

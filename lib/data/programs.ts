@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { byKeyThenId } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -71,14 +72,6 @@ export class ProgramEnrollmentExistsError extends Error {
 
 // Small chunks: long `.in()` lists fail with "URI too long".
 const ID_CHUNK = 100;
-
-/** Asc order on strings, with the id as the tie-break so pages never repeat or skip a row. */
-const byKey = <T>(key: (row: T) => string, id: (row: T) => string, descending = false) => (a: T, b: T) => {
-  const x = key(a);
-  const y = key(b);
-  if (x !== y) return (x < y ? -1 : 1) * (descending ? -1 : 1);
-  return id(a) < id(b) ? -1 : id(a) > id(b) ? 1 : 0;
-};
 
 /** PostgREST returns a to-one embed as an object, though callers have also met it as a one-item array. */
 function one<T>(embed: T | T[] | null | undefined): T | null {
@@ -366,11 +359,11 @@ export class InMemoryProgramRepository implements ProgramRepository {
   }
 
   async names() {
-    return [...this.data.programs].sort(byKey((p) => p.name, (p) => p.id)).map(({ id, name }) => ({ id, name }));
+    return [...this.data.programs].sort(byKeyThenId((p) => p.name, (p) => p.id)).map(({ id, name }) => ({ id, name }));
   }
 
   async listWithCounts() {
-    return [...this.data.programs].sort(byKey((p) => p.name, (p) => p.id)).map((p) => {
+    return [...this.data.programs].sort(byKeyThenId((p) => p.name, (p) => p.id)).map((p) => {
       const cohorts = this.data.programCohorts.filter((c) => c.program_id === p.id);
       return { ...p, cohort_count: cohorts.length, enrollment_count: this.data.programEnrollments.filter((e) => cohorts.some((c) => c.id === e.cohort_id)).length };
     });
@@ -417,12 +410,12 @@ export class InMemoryProgramRepository implements ProgramRepository {
   async cohortsWithEnrollments(programId: string) {
     return this.data.programCohorts
       .filter((c) => c.program_id === programId)
-      .sort(byKey((c) => c.starts_at, (c) => c.id, true))
+      .sort(byKeyThenId((c) => c.starts_at, (c) => c.id, true))
       .map((c) => ({
         ...c,
         member_program_enrollments: this.data.programEnrollments
           .filter((e) => e.cohort_id === c.id)
-          .sort(byKey((e) => e.created_at, (e) => e.id))
+          .sort(byKeyThenId((e) => e.created_at, (e) => e.id))
           .map((e) => {
             const m = this.memberOf(e.member_id);
             return { id: e.id, notes: e.notes, created_at: e.created_at, member: m && { id: m.id, name: m.name, display_name: m.display_name, email: m.email, status: m.status } };
@@ -461,7 +454,7 @@ export class InMemoryProgramRepository implements ProgramRepository {
     const result = new Map<string, string>();
     const others = new Map(this.data.programCohorts.filter((c) => c.program_id === programId && c.id !== exceptCohortId).map((c) => [c.id, c.name]));
     const wanted = new Set(memberIds);
-    for (const e of [...this.data.programEnrollments].sort(byKey((x) => x.created_at, (x) => x.id))) {
+    for (const e of [...this.data.programEnrollments].sort(byKeyThenId((x) => x.created_at, (x) => x.id))) {
       if (wanted.has(e.member_id) && others.has(e.cohort_id) && !result.has(e.member_id)) result.set(e.member_id, others.get(e.cohort_id)!);
     }
     return result;
@@ -494,7 +487,7 @@ export class InMemoryProgramRepository implements ProgramRepository {
   async enrollmentsOf(memberId: string) {
     return this.data.programEnrollments
       .filter((e) => e.member_id === memberId)
-      .sort(byKey((e) => e.created_at, (e) => e.id, true))
+      .sort(byKeyThenId((e) => e.created_at, (e) => e.id, true))
       .flatMap((e) => {
         const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
         const program = cohort && this.data.programs.find((p) => p.id === cohort.program_id);
@@ -504,14 +497,14 @@ export class InMemoryProgramRepository implements ProgramRepository {
   }
 
   async allEnrollmentCohorts() {
-    return [...this.data.programEnrollments].sort(byKey((e) => e.id, (e) => e.id)).flatMap((e) => {
+    return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
       const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
       return cohort ? [{ memberId: e.member_id, programId: cohort.program_id, expiresAt: cohort.expires_at }] : [];
     });
   }
 
   async membershipArrivals(sinceDate: string, today: string) {
-    return [...this.data.programEnrollments].sort(byKey((e) => e.id, (e) => e.id)).flatMap((e) => {
+    return [...this.data.programEnrollments].sort(byKeyThenId((e) => e.id, (e) => e.id)).flatMap((e) => {
       const cohort = this.data.programCohorts.find((c) => c.id === e.cohort_id);
       const program = cohort && this.data.programs.find((p) => p.id === cohort.program_id);
       if (!cohort || !program?.includes_membership || cohort.starts_at < sinceDate || cohort.starts_at > today) return [];

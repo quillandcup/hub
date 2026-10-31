@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { asPage, inChunks as inChunksOf, sortByKey, upsertInChunks } from "./query";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -62,9 +63,6 @@ export type StripeSubscriptionSeed = Pick<StripeSubscriptionRow, "stripe_subscri
 const ID_CHUNK = 100;
 const WRITE_CHUNK = 500;
 const EPOCH = "1970-01-01T00:00:00.000Z";
-
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
-const asPage = <T>(query: unknown) => query as Page<T>;
 
 /**
  * The Kajabi and Stripe billing data as the imports keep it in Bronze: contacts, customers, purchases
@@ -161,15 +159,7 @@ export interface BillingRepository {
 }
 
 /** Runs a query for each chunk of the distinct values, together, and joins the rows. */
-async function inChunks<T>(values: string[], run: (part: string[]) => Promise<T[]>): Promise<T[]> {
-  const parts = chunk([...new Set(values)], ID_CHUNK);
-  return (await Promise.all(parts.map(run))).flat();
-}
-
-/** Rows ordered by a text column (ids compare as in the database's byte order for the ids and emails stored here). */
-function byKey<T>(rows: T[], key: (row: T) => string): T[] {
-  return [...rows].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
-}
+const inChunks = <T>(values: string[], run: (part: string[]) => Promise<T[]>) => inChunksOf(values, ID_CHUNK, run);
 
 export class SupabaseBillingRepository implements BillingRepository {
   constructor(private readonly db: Db) {}
@@ -238,7 +228,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.customers.select("kajabi_customer_id, email").in("email", part).order("kajabi_customer_id").range(from, to))
       )
     );
-    return byKey(rows, (r) => r.kajabi_customer_id);
+    return sortByKey(rows, (r) => r.kajabi_customer_id);
   }
 
   async kajabiCustomerProfilesByEmail(emails: string[]) {
@@ -255,7 +245,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.customers.select("kajabi_customer_id, email").in("kajabi_customer_id", part).order("kajabi_customer_id").range(from, to))
       )
     );
-    return byKey(rows, (r) => r.kajabi_customer_id);
+    return sortByKey(rows, (r) => r.kajabi_customer_id);
   }
 
   async kajabiOfferRows() {
@@ -275,7 +265,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.offers.select("kajabi_offer_id, name").in("name", part).order("kajabi_offer_id").range(from, to))
       )
     );
-    return byKey(rows, (r) => r.kajabi_offer_id);
+    return sortByKey(rows, (r) => r.kajabi_offer_id);
   }
 
   async kajabiOffersByIds(offerIds: string[]) {
@@ -284,7 +274,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.offers.select("kajabi_offer_id, name, data, trial_period_days").in("kajabi_offer_id", part).order("kajabi_offer_id").range(from, to))
       )
     );
-    return byKey(rows, (r) => r.kajabi_offer_id);
+    return sortByKey(rows, (r) => r.kajabi_offer_id);
   }
 
   async kajabiPurchaseRows({ offerIds, stillActive = false }: { offerIds?: string[]; stillActive?: boolean } = {}) {
@@ -296,7 +286,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         return asPage(query.order("kajabi_purchase_id").range(from, to));
       });
     if (!offerIds) return read();
-    return byKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
+    return sortByKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
   }
 
   async kajabiPurchases({ offerIds, createdSince }: { offerIds?: string[]; createdSince?: string } = {}) {
@@ -308,7 +298,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         return asPage(query.order("kajabi_purchase_id").range(from, to));
       });
     if (!offerIds) return read();
-    return byKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
+    return sortByKey(await inChunks(offerIds, read), (r) => r.kajabi_purchase_id);
   }
 
   async kajabiPurchasesByCustomers(customerIds: string[]) {
@@ -343,7 +333,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         return asPage(query.order("stripe_customer_id").range(from, to));
       });
     if (!emails) return read();
-    return byKey(await inChunks(emails, read), (r) => r.stripe_customer_id);
+    return sortByKey(await inChunks(emails, read), (r) => r.stripe_customer_id);
   }
 
   async stripeCustomersWithData() {
@@ -358,7 +348,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         asPage(this.products.select("stripe_product_id, name").in("name", part).order("stripe_product_id").range(from, to))
       )
     );
-    return byKey(rows, (r) => r.stripe_product_id);
+    return sortByKey(rows, (r) => r.stripe_product_id);
   }
 
   async stripeSubscriptionStatuses(statuses: string[], customerIds?: string[]) {
@@ -399,7 +389,7 @@ export class SupabaseBillingRepository implements BillingRepository {
         )
       )
     );
-    return byKey(rows, (r) => r.stripe_subscription_id).map(({ stripe_subscription_id: _id, ...trial }) => trial);
+    return sortByKey(rows, (r) => r.stripe_subscription_id).map(({ stripe_subscription_id: _id, ...trial }) => trial);
   }
 
   lastStripeSubscriptionImportAt() {
@@ -407,10 +397,7 @@ export class SupabaseBillingRepository implements BillingRepository {
   }
 
   async upsertKajabiContacts(rows: NewKajabiContact[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.contacts.upsert(part, { onConflict: "kajabi_contact_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.contacts, rows, "kajabi_contact_id", WRITE_CHUNK);
   }
 
   async setKajabiContactEmail(kajabiContactId: string, email: string) {
@@ -419,24 +406,15 @@ export class SupabaseBillingRepository implements BillingRepository {
   }
 
   async upsertKajabiCustomers(rows: NewKajabiCustomer[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.customers.upsert(part, { onConflict: "kajabi_customer_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.customers, rows, "kajabi_customer_id", WRITE_CHUNK);
   }
 
   async upsertKajabiPurchases(rows: NewKajabiPurchase[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.purchases.upsert(part, { onConflict: "kajabi_purchase_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.purchases, rows, "kajabi_purchase_id", WRITE_CHUNK);
   }
 
   async upsertKajabiOffers(rows: NewKajabiOffer[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.offers.upsert(part, { onConflict: "kajabi_offer_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.offers, rows, "kajabi_offer_id", WRITE_CHUNK);
   }
 
   async insertKajabiMembers(rows: NewKajabiMember[]) {
@@ -447,24 +425,15 @@ export class SupabaseBillingRepository implements BillingRepository {
   }
 
   async upsertStripeCustomers(rows: NewStripeCustomer[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.stripeCustomerTable.upsert(part, { onConflict: "stripe_customer_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.stripeCustomerTable, rows, "stripe_customer_id", WRITE_CHUNK);
   }
 
   async upsertStripeProducts(rows: NewStripeProduct[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.products.upsert(part, { onConflict: "stripe_product_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.products, rows, "stripe_product_id", WRITE_CHUNK);
   }
 
   async upsertStripeSubscriptions(rows: NewStripeSubscription[]) {
-    for (const part of chunk(rows, WRITE_CHUNK)) {
-      const { error } = await this.subscriptions.upsert(part, { onConflict: "stripe_subscription_id" });
-      if (error) throw new Error(error.message);
-    }
+    await upsertInChunks(this.subscriptions, rows, "stripe_subscription_id", WRITE_CHUNK);
   }
 
   async upsertSubscriptionHistory(rows: NewSubscriptionHistory[]) {
@@ -593,11 +562,11 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async kajabiContacts() {
-    return byKey(this.contactRows(), (r) => r.kajabi_contact_id).map(({ kajabi_contact_id, email, name }) => ({ kajabi_contact_id, email, name }));
+    return sortByKey(this.contactRows(), (r) => r.kajabi_contact_id).map(({ kajabi_contact_id, email, name }) => ({ kajabi_contact_id, email, name }));
   }
 
   async kajabiContactRows() {
-    return byKey(this.contactRows(), (r) => r.kajabi_contact_id);
+    return sortByKey(this.contactRows(), (r) => r.kajabi_contact_id);
   }
 
   async kajabiContactData(kajabiContactId: string) {
@@ -609,11 +578,11 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async kajabiCustomers() {
-    return byKey(this.customerRows(), (r) => r.kajabi_customer_id).map(({ kajabi_customer_id, email }) => ({ kajabi_customer_id, email }));
+    return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id).map(({ kajabi_customer_id, email }) => ({ kajabi_customer_id, email }));
   }
 
   async kajabiCustomerRows() {
-    return byKey(this.customerRows(), (r) => r.kajabi_customer_id);
+    return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id);
   }
 
   async kajabiCustomersByEmail(emails: string[]) {
@@ -623,7 +592,7 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async kajabiCustomerProfilesByEmail(emails: string[]) {
     const wanted = new Set(emails);
-    return byKey(this.customerRows(), (r) => r.kajabi_customer_id)
+    return sortByKey(this.customerRows(), (r) => r.kajabi_customer_id)
       .filter((c) => wanted.has(c.email))
       .map(({ data, updated_at_kajabi }) => ({ data, updated_at_kajabi }));
   }
@@ -634,7 +603,7 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async kajabiOfferRows() {
-    return byKey(this.offerRows(), (r) => r.kajabi_offer_id);
+    return sortByKey(this.offerRows(), (r) => r.kajabi_offer_id);
   }
 
   async kajabiOfferNames() {
@@ -643,28 +612,28 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async kajabiOffersByName(names: string[]) {
     const wanted = new Set(names);
-    return byKey(this.offerRows(), (r) => r.kajabi_offer_id)
+    return sortByKey(this.offerRows(), (r) => r.kajabi_offer_id)
       .filter((o) => o.name !== null && wanted.has(o.name))
       .map(({ kajabi_offer_id, name }) => ({ kajabi_offer_id, name }));
   }
 
   async kajabiOffersByIds(offerIds: string[]) {
     const wanted = new Set(offerIds);
-    return byKey(this.offerRows(), (r) => r.kajabi_offer_id)
+    return sortByKey(this.offerRows(), (r) => r.kajabi_offer_id)
       .filter((o) => wanted.has(o.kajabi_offer_id))
       .map(({ kajabi_offer_id, name, data, trial_period_days }) => ({ kajabi_offer_id, name, data, trial_period_days }));
   }
 
   async kajabiPurchaseRows({ offerIds, stillActive = false }: { offerIds?: string[]; stillActive?: boolean } = {}) {
     const wanted = offerIds && new Set(offerIds);
-    return byKey(this.purchaseRows(), (r) => r.kajabi_purchase_id).filter(
+    return sortByKey(this.purchaseRows(), (r) => r.kajabi_purchase_id).filter(
       (p) => (!wanted || (p.kajabi_offer_id !== null && wanted.has(p.kajabi_offer_id))) && (!stillActive || p.deactivated_at === null)
     );
   }
 
   async kajabiPurchases({ offerIds, createdSince }: { offerIds?: string[]; createdSince?: string } = {}) {
     const wanted = offerIds && new Set(offerIds);
-    return byKey(this.purchaseRows(), (r) => r.kajabi_purchase_id)
+    return sortByKey(this.purchaseRows(), (r) => r.kajabi_purchase_id)
       .filter(
         (p) =>
           (!wanted || (p.kajabi_offer_id !== null && wanted.has(p.kajabi_offer_id))) &&
@@ -693,18 +662,18 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async stripeCustomers({ emails }: { emails?: string[] } = {}) {
     const wanted = emails && new Set(emails);
-    return byKey(this.stripeCustomerRows(), (r) => r.stripe_customer_id)
+    return sortByKey(this.stripeCustomerRows(), (r) => r.stripe_customer_id)
       .filter((c) => !wanted || (c.email !== null && wanted.has(c.email)))
       .map(({ stripe_customer_id, email, name }) => ({ stripe_customer_id, email, name }));
   }
 
   async stripeCustomersWithData() {
-    return byKey(this.stripeCustomerRows(), (r) => r.stripe_customer_id).map(({ stripe_customer_id, email, data }) => ({ stripe_customer_id, email, data }));
+    return sortByKey(this.stripeCustomerRows(), (r) => r.stripe_customer_id).map(({ stripe_customer_id, email, data }) => ({ stripe_customer_id, email, data }));
   }
 
   async stripeProductsByName(names: string[]) {
     const wanted = new Set(names);
-    return byKey(this.dataset.stripeProducts, (r) => r.stripe_product_id)
+    return sortByKey(this.dataset.stripeProducts, (r) => r.stripe_product_id)
       .filter((p) => wanted.has(p.name))
       .map(({ stripe_product_id, name }) => ({ stripe_product_id, name }));
   }
@@ -712,17 +681,17 @@ export class InMemoryBillingRepository implements BillingRepository {
   async stripeSubscriptionStatuses(statuses: string[], customerIds?: string[]) {
     const wantedStatuses = new Set(statuses);
     const wantedCustomers = customerIds && new Set(customerIds);
-    return byKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
+    return sortByKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
       .filter((s) => wantedStatuses.has(s.status) && (!wantedCustomers || wantedCustomers.has(s.stripe_customer_id)))
       .map(({ stripe_customer_id, status }) => ({ stripe_customer_id, status }));
   }
 
   async stripeSubscriptionRows() {
-    return byKey(this.subscriptionRows(), (r) => r.stripe_subscription_id);
+    return sortByKey(this.subscriptionRows(), (r) => r.stripe_subscription_id);
   }
 
   async stripeSubscriptionsWithStatus(status: string) {
-    return byKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
+    return sortByKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
       .filter((s) => s.status === status)
       .map(({ stripe_subscription_id, stripe_customer_id, status, created_at_stripe, canceled_at, data }) => ({
         stripe_subscription_id,
@@ -736,7 +705,7 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   async stripeSubscriptionsByCustomers(stripeCustomerIds: string[]) {
     const wanted = new Set(stripeCustomerIds);
-    return byKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
+    return sortByKey(this.subscriptionRows(), (r) => r.stripe_subscription_id)
       .filter((s) => wanted.has(s.stripe_customer_id))
       .map(({ stripe_customer_id, created_at_stripe, canceled_at, data }) => ({ stripe_customer_id, created_at_stripe, canceled_at, data }));
   }

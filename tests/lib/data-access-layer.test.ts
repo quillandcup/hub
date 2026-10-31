@@ -121,7 +121,7 @@ const files = ["app", "lib", "components"]
 function filesQuerying(table: string): string[] {
   const direct = new RegExp(`\\.from\\(\\s*["'\`]${table}["'\`]\\s*\\)`);
   // The table name handed to a paginating helper that runs .from(table) inside it.
-  const viaHelper = new RegExp(`\\b(?:fetchAllBronzeRows|fetchAllPublicRows|fetchAll)\\(\\s*[^,()]+,\\s*["'\`]${table}["'\`]`);
+  const viaHelper = new RegExp(`\\b(?:fetchAllBronzeRows|fetchAllPublicRows|fetchAll|upsertInBatches)\\(\\s*[^,()]+,\\s*["'\`]${table}["'\`]`);
   return files
     .filter((file) => {
       const source = fs.readFileSync(path.join(root, file), "utf8");
