@@ -46,17 +46,10 @@ export interface RosterPrickle {
 }
 
 // Keeps each `.in(...)` URL well under PostgREST's length limit.
-const ID_CHUNK = 200;
 
 function calendarReadFailed<T>(error: unknown): T[] {
   console.error("prickle roster: failed to read calendar items", error);
   return [];
-}
-
-function chunks<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += ID_CHUNK) out.push(items.slice(i, i + ID_CHUNK));
-  return out;
 }
 
 export async function loadPrickleRoster(
@@ -98,13 +91,10 @@ export async function loadPrickleRoster(
   if (reasonByMember.size === 0) return { entries: [], total: 0 };
 
   const memberIds = [...reasonByMember.keys()];
-  const [hidden, members] = await Promise.all([
-    Promise.all(
-      chunks(memberIds).map(async (ids) => (await service.from("member_roster_opt_outs").select("member_id").in("member_id", ids)).data ?? [])
-    ),
-    createRepos(service).members.byIds(memberIds),
+  const [hiddenIds, members] = await Promise.all([
+    repos.memberProfile.rosterOptOuts(memberIds),
+    repos.members.byIds(memberIds),
   ]);
-  const hiddenIds = new Set(hidden.flat().map((r: { member_id: string }) => r.member_id));
 
   const entries: RosterEntry[] = [];
   for (const m of members) {

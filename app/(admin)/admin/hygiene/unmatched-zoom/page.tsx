@@ -19,12 +19,12 @@ export default async function AliasSearchPage() {
     allMembers,
     aliases,
     ignoredNames,
-    { data: staffMembers },
+    staffMembers,
   ] = await Promise.all([
     createRepos(supabase).members.identities(),
     createRepos(supabase).aliases.nameAliases(),
     createRepos(supabase).zoom.ignoredNames(),
-    supabase.from("staff").select("name, email"),
+    createRepos(supabase).staff.all(),
   ]);
 
   // The repository pages through zoom_attendees (the table exceeds 1000 rows)
@@ -35,7 +35,7 @@ export default async function AliasSearchPage() {
     allMembers || [],
     aliases || [],
     ignoredNames,
-    staffMembers || [],
+    staffMembers,
     await loadIgnoredAppearances(supabase)
   ).sort((a, b) => b.appearances - a.appearances);
 

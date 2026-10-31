@@ -2,6 +2,7 @@ import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseDateOnly } from "@/lib/member-tenure";
 import type { AttendanceRepository } from "@/lib/data/attendance";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
 import { createRepos } from "@/lib/data/repos";
 
 export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
@@ -564,15 +565,9 @@ async function getAttendedPrickleCountsByMember(
 
 /** Big Sister matches per mentor, from mentorship_counts(). Goes through that function because
  * members can't read `mentorships` (it names the mentees); it returns only ids and counts. */
-export async function getMentorshipCounts(supabase: SupabaseClient): Promise<Map<string, MentorshipCount>> {
-  const { data } = await supabase.rpc("mentorship_counts");
+export async function getMentorshipCounts(mentorships: MentorshipRepository): Promise<Map<string, MentorshipCount>> {
   const counts = new Map<string, MentorshipCount>();
-  for (const row of (data ?? []) as {
-    member_id: string;
-    mentored_count: number;
-    first_started_on: string;
-    last_started_on: string;
-  }[]) {
+  for (const row of await mentorships.counts()) {
     counts.set(row.member_id, {
       count: row.mentored_count,
       firstStartedOn: row.first_started_on,
@@ -674,7 +669,7 @@ export async function getBadgeRecipients(
       publishedBookCountsByMember = await getPublishedBookCountsByMember(supabase);
       break;
     case "hedgie_mentor": {
-      mentorshipByMember = await getMentorshipCounts(supabase);
+      mentorshipByMember = await getMentorshipCounts(createRepos(supabase).mentorship);
       legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
       break;
     }
@@ -712,7 +707,7 @@ export async function getMemberBadges(
     getHostedQuarterCount(supabase, memberId),
     getPublishedBookCount(supabase, memberId),
     getProgramCompletions(supabase, memberId),
-    getMentorshipCounts(supabase),
+    getMentorshipCounts(createRepos(supabase).mentorship),
   ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();

@@ -1,5 +1,5 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
 import { quarterKey } from "@/lib/badges";
 import { isId } from "@/lib/ids";
 
@@ -309,34 +309,9 @@ export function toMentorshipRows(dbRows: MentorshipDbRow[], today: string): Ment
   });
 }
 
-const MEMBER_COLUMNS = "id, name, display_name, status, first_joined_at, most_recent_joined_at";
-
-/** Every match (newest first) with names and the derived outcome. Paginated per CLAUDE.md. */
-export async function getMentorships(supabase: SupabaseClient, today: string): Promise<MentorshipRow[]> {
-  const BATCH_SIZE = 1000;
-  const all: MentorshipDbRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("mentorships")
-      .select(
-        `id, mentor_member_id, new_member_id, started_on, trial_ends_on, kind, status, outcome_note,
-         mentor:members!mentorships_mentor_member_id_fkey(${MEMBER_COLUMNS}),
-         new_member:members!mentorships_new_member_id_fkey(${MEMBER_COLUMNS})`
-      )
-      .order("started_on", { ascending: false })
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      all.push(...(batch as unknown as MentorshipDbRow[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return toMentorshipRows(all, today);
+/** Every match (newest first) with names and the derived outcome. */
+export async function getMentorships(mentorships: MentorshipRepository, today: string): Promise<MentorshipRow[]> {
+  return toMentorshipRows((await mentorships.listWithMembers()) as MentorshipDbRow[], today);
 }
 
 export interface MatchInput {

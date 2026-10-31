@@ -136,9 +136,9 @@ export interface MemberCard {
 
 /** One member's card from member_directory and their "Ask me about…" topics (both readable by any member). */
 export async function loadMemberCard(supabase: SupabaseClient, memberId: string): Promise<MemberCard | null> {
-  const [m, { data: topics }] = await Promise.all([
+  const [m, topics] = await Promise.all([
     createRepos(supabase).directory.byId(memberId),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).memberProfile.askMeAbout(memberId),
   ]);
   if (!m) return null;
   const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
@@ -149,7 +149,7 @@ export async function loadMemberCard(supabase: SupabaseClient, memberId: string)
     bio: m.bio || null,
     firstJoinedAt: m.first_joined_at ?? null,
     totalActiveMonths: m.total_active_months ?? 0,
-    askMeAbout: topics?.topics ?? [],
+    askMeAbout: topics,
     instagramUrl: safeUrl(m.instagram_url),
     facebookUrl: safeUrl(m.facebook_url),
     twitterUrl: safeUrl(m.twitter_url),

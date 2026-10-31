@@ -40,17 +40,6 @@ export interface SearchContext {
   stages?: Record<string, number>;
 }
 
-/** One word as a quoted PostgREST ilike pattern, with its wildcards and separators neutralized. */
-const pattern = (word: string) => `"%${word.replace(/[\\%_,()"]/g, " ").trim()}%"`;
-
-/** Adds one AND-ed `.or(field ilike word, ...)` per word. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function matchEach<T extends { or: (f: string) => any }>(query: T, words: string[], fields: string[]): T {
-  let out = query;
-  for (const w of words) out = out.or(fields.map((f) => `${f}.ilike.${pattern(w)}`).join(","));
-  return out;
-}
-
 /** Directory ids of members whose name contains `typed`; "me" is the viewer. null = no such filter. */
 async function memberIdsNamed(ctx: SearchContext, typed: string | undefined): Promise<string[] | null> {
   if (!typed) return null;
@@ -209,12 +198,14 @@ async function searchAwards(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   const { limit, offset } = page(ctx);
   const winners = await memberIdsNamed(ctx, q.from);
   if (winners && winners.length === 0) return { kind: "awards", hits: [], hasMore: false };
-  let query = ctx.supabase.from("member_awards").select("id, award_name, category, work_title, award_date");
-  query = matchEach(query, matchWords(q), ["award_name", "category", "work_title"]).is("deleted_at", null);
-  if (winners) query = query.in("member_id", winners);
-  if (q.after) query = query.gte("award_date", q.after.slice(0, 10));
-  if (q.before) query = query.lt("award_date", q.before.slice(0, 10));
-  const { data } = await query.order("award_date", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).awards.search({
+    words: matchWords(q),
+    memberIds: winners,
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "awards",

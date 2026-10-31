@@ -83,28 +83,14 @@ export default async function MemberProfilePage({
   // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
   // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
-  const [booksData, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
+  const [booksData, awards, tzPref, askMeAbout, noteRow] = await Promise.all([
     createRepos(supabase).books.ofMember(id),
-    supabase
-      .from("member_awards")
-      .select("id, award_name, category, work_title, award_date, url")
-      .eq("member_id", id)
-      .is("deleted_at", null)
-      .order("award_date", { ascending: false }),
+    createRepos(supabase).awards.ofMember(id),
     getUserTimezonePreference(),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),
-    showNotes
-      ? supabase
-          .from("member_notes")
-          .select("body, updated_at")
-          .eq("author_member_id", effectiveIdentity.memberId)
-          .eq("subject_member_id", id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    createRepos(supabase).memberProfile.askMeAbout(id),
+    showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
   ])
-  const askMeAbout: string[] = askMeAboutRow?.topics ?? []
   const books = booksData
-  const awards = awardsData ?? []
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
   // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather

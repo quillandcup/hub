@@ -69,8 +69,8 @@ describe('Slack User Matching', () => {
   });
 
   it('should read verified links from the connections, kept after a disconnect', async () => {
-    const select = async () => ({ data: [{ slack_user_id: 'U9', member_id: 'member-2' }], error: null });
-    const supabase = { from: (table: string) => ({ select: table === 'member_slack_connections' ? select : undefined }) };
+    const range = async () => ({ data: [{ slack_user_id: 'U9', member_id: 'member-2' }], error: null });
+    const supabase = { from: (table: string) => ({ select: () => ({ order: () => ({ range: table === 'member_slack_connections' ? range : undefined }) }) }) };
 
     const links = await loadVerifiedSlackLinks(supabase as never);
 
@@ -78,7 +78,7 @@ describe('Slack User Matching', () => {
   });
 
   it('should fail loudly when the connections cannot be read', async () => {
-    const supabase = { from: () => ({ select: async () => ({ data: null, error: new Error('down') }) }) };
+    const supabase = { from: () => ({ select: () => ({ order: () => ({ range: async () => ({ data: null, error: { message: 'down' } }) }) }) }) };
 
     await expect(loadVerifiedSlackLinks(supabase as never)).rejects.toThrow('down');
   });

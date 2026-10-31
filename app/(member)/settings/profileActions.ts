@@ -184,11 +184,19 @@ async function loadOverride(ctx: Ctx) {
 }
 
 async function loadAskMeAbout(ctx: Ctx) {
-  return ctx.supabase
-    .from("member_ask_me_about")
-    .select("topics")
-    .eq("member_id", ctx.effectiveIdentity.memberId)
-    .maybeSingle();
+  try {
+    return { data: await createRepos(ctx.supabase).memberProfile.askMeAbout(ctx.effectiveIdentity.memberId), error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function loadRosterOptOut(ctx: Ctx) {
+  try {
+    return { data: (await createRepos(ctx.supabase).memberProfile.rosterOptOuts([ctx.effectiveIdentity.memberId])).size > 0, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 function toDetails(fields: ProfileFields): ProfileDetails {
@@ -209,7 +217,7 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     loadMember(ctx),
     loadOverride(ctx),
     loadAskMeAbout(ctx),
-    ctx.supabase.from("member_roster_opt_outs").select("member_id").eq("member_id", memberId).maybeSingle(),
+    loadRosterOptOut(ctx),
   ]);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
   if (overrideError || askError || optOutError) {
@@ -243,9 +251,9 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     kajabiLinked: member.kajabi_id != null,
     instagramUrl: effective.instagram_url,
     details: toDetails(effective),
-    askMeAbout: askRow?.topics ?? [],
+    askMeAbout: askRow ?? [],
     syncPending,
-    showInRoster: optOut === null,
+    showInRoster: !optOut,
   };
 }
 
@@ -260,12 +268,9 @@ async function setRosterVisibilityImpl(show: boolean): Promise<{ success: true }
   if (typeof show !== "boolean") return { error: "Invalid setting" };
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = show
-    ? await supabase.from("member_roster_opt_outs").delete().eq("member_id", effectiveIdentity.memberId)
-    : await supabase
-        .from("member_roster_opt_outs")
-        .upsert({ member_id: effectiveIdentity.memberId }, { onConflict: "member_id", ignoreDuplicates: true });
-  if (error) {
+  try {
+    await createRepos(supabase).memberProfile.setRosterVisible(effectiveIdentity.memberId, show);
+  } catch (error) {
     console.error("[profile] Saving roster visibility failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save that — please try again." };
   }
@@ -398,18 +403,14 @@ async function updateAskMeAboutImpl(input: string[]): Promise<UpdateProfileResul
     console.error("[profile] Failed to load ask-me-about for member", effectiveIdentity.memberId, loadError);
     return { error: "Couldn't load your profile" };
   }
-  const current = existing?.topics ?? [];
+  const current = existing ?? [];
   if (current.length === parsed.topics.length && current.every((t: string, i: number) => t === parsed.topics[i])) {
     return { success: true, syncPending: false };
   }
 
-  const { error } = await supabase
-    .from("member_ask_me_about")
-    .upsert(
-      { member_id: effectiveIdentity.memberId, topics: parsed.topics, updated_by: user.id },
-      { onConflict: "member_id" }
-    );
-  if (error) {
+  try {
+    await createRepos(supabase).memberProfile.saveAskMeAbout(effectiveIdentity.memberId, parsed.topics, user.id);
+  } catch (error) {
     console.error("[profile] Saving ask-me-about failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save your topics — please try again." };
   }

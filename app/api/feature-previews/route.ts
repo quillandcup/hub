@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/supabase/api-auth';
-import { createRepos } from '@/lib/data/repos';
 import { FEATURE_PREVIEWS, type FeatureKey } from '@/lib/features';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (auth.forbidden) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const features = await createRepos(auth.supabase).featureFlags.previewKeys(auth.user!.id);
+  const { data } = await auth.supabase
+    .from('user_feature_previews')
+    .select('feature_key')
+    .eq('user_id', auth.user!.id);
 
-  return NextResponse.json({ features });
+  return NextResponse.json({ features: (data ?? []).map((r) => r.feature_key) });
 }
 
 export async function POST(request: NextRequest) {
@@ -25,7 +27,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid feature key' }, { status: 400 });
   }
 
-  await createRepos(auth.supabase).featureFlags.setPreview(auth.user!.id, feature, Boolean(enabled));
+  const userId = auth.user!.id;
+
+  if (enabled) {
+    await auth.supabase
+      .from('user_feature_previews')
+      .upsert({ user_id: userId, feature_key: feature }, { onConflict: 'user_id,feature_key' });
+  } else {
+    await auth.supabase
+      .from('user_feature_previews')
+      .delete()
+      .eq('user_id', userId)
+      .eq('feature_key', feature);
+  }
 
   return NextResponse.json({ success: true });
 }

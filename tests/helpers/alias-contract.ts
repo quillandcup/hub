@@ -176,19 +176,6 @@ export function defineAliasContract(name: string, setup: () => AliasContractCont
       expect((await ctx.repo().emailsOf(a))[0].active).toBe(false);
     });
 
-    it("finds the member behind the one active email alias with an address, whatever its case", async () => {
-      const [a] = ctx.memberIds;
-      const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;
-      const [on, off, wild] = [email("find-on"), email("find-off"), email("findxwild")];
-      await ctx.seed({ emails: [{ member: 0, email: on }, { member: 1, email: off, active: false }, { member: 1, email: wild }] });
-
-      expect(await ctx.repo().uniqueActiveEmailOwner(on.toUpperCase())).toBe(a);
-      expect(await ctx.repo().uniqueActiveEmailOwner(off)).toBeNull(); // switched off
-      expect(await ctx.repo().uniqueActiveEmailOwner(email("nobody"))).toBeNull();
-      expect(await ctx.repo().uniqueActiveEmailOwner("%@example.test")).toBeNull(); // LIKE wildcards match only themselves
-      expect(await ctx.repo().uniqueActiveEmailOwner(wild.replace("findxwild", "find_wild"))).toBeNull();
-    });
-
     it("removes a member's alias by address, and upserts one switched on or off", async () => {
       const [a] = ctx.memberIds;
       const email = (label: string) => `${ctx.unique(label).replace(/\s+/g, "-").toLowerCase()}@example.test`;

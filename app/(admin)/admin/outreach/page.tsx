@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import OutreachTable, { type OutreachLead } from "./OutreachTable";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import OutreachTable, { type OutreachLead, type LeadStatus } from "./OutreachTable";
+import { createRepos } from "@/lib/data/repos";
 import { etDate } from "@/lib/community-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 
@@ -22,38 +22,6 @@ const IDEAL_HEDGIE_TAG = "Ideal Hedgie";
 // via OutreachTable's "Include former members" filter.
 const OUTREACH_STATUSES = ["lead", "cancelled"];
 
-// Same pagination pattern as app/api/process/members/route.ts — members can
-// exceed Supabase's 1000-row cap, even though the Ideal Hedgie-tagged subset
-// filtered below normally won't.
-async function fetchAllRows(
-  supabase: SupabaseClient,
-  table: string,
-  columns: string,
-  filter?: (query: any) => any
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.from(table).select(columns);
-    if (filter) query = filter(query);
-    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
-}
-
 export default async function OutreachPage() {
   await requireAdminPage();
   const supabase = await createClient();
@@ -61,57 +29,35 @@ export default async function OutreachPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
+  const repos = createRepos(supabase);
   const [leads, statuses] = await Promise.all([
-    fetchAllRows(
-      supabase,
-      "members",
-      "id, name, display_name, email, photo_url, instagram_url, status",
-      (q) => q.contains("kajabi_tags", [IDEAL_HEDGIE_TAG]).in("status", OUTREACH_STATUSES).order("name")
-    ),
-    fetchAllRows(supabase, "outreach_leads", "member_id, status, updated_at"),
+    repos.members.withKajabiTag(IDEAL_HEDGIE_TAG, OUTREACH_STATUSES),
+    repos.outreach.leadStatuses(),
   ]);
 
   const memberIds = leads.map((m) => m.id);
 
-  const touchRows =
-    memberIds.length > 0
-      ? await fetchAllRows(supabase, "outreach_touches", "member_id, touched_at", (q) =>
-          q.in("member_id", memberIds)
-        )
-      : [];
+  const lastTouchByMemberId = await repos.outreach.lastTouchByMember(memberIds);
 
   // "Today" totals are computed over a 48h window (not filtered to these
   // members) rather than a precise ET-midnight query boundary, then bucketed
   // by etDate — cheap, DST-safe, and avoids reconstructing a UTC day
   // boundary from an ET wall-clock date.
-  const recentTouches = await fetchAllRows(
-    supabase,
-    "outreach_touches",
-    "touched_at",
-    (q) => q.gte("touched_at", new Date(clock.now() - 2 * 24 * 60 * 60 * 1000).toISOString())
-  );
+  const recentTouches = await repos.outreach.touchTimesSince(new Date(clock.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
   const todayET = etDate(new Date().toISOString());
-  const todayTouchCount = recentTouches.filter((t) => etDate(t.touched_at) === todayET).length;
+  const todayTouchCount = recentTouches.filter((touchedAt) => etDate(touchedAt) === todayET).length;
 
   const statusByMemberId = new Map(statuses.map((s) => [s.member_id, s]));
 
-  const lastTouchByMemberId = new Map<string, string>();
-  for (const t of touchRows) {
-    const existing = lastTouchByMemberId.get(t.member_id);
-    if (!existing || t.touched_at > existing) {
-      lastTouchByMemberId.set(t.member_id, t.touched_at);
-    }
-  }
-
   const rows: OutreachLead[] = leads.map((m) => ({
     id: m.id,
-    name: getMemberDisplayName(m),
+    name: getMemberDisplayName({ name: m.name, display_name: m.displayName }),
     legalName: m.name,
     email: m.email,
-    photoUrl: m.photo_url,
-    instagramUrl: m.instagram_url,
+    photoUrl: m.photoUrl,
+    instagramUrl: m.instagramUrl,
     memberStatus: m.status,
-    outreachStatus: statusByMemberId.get(m.id)?.status ?? "cold",
+    outreachStatus: (statusByMemberId.get(m.id)?.status ?? "cold") as LeadStatus,
     outreachUpdatedAt: statusByMemberId.get(m.id)?.updated_at ?? null,
     lastTouchedAt: lastTouchByMemberId.get(m.id) ?? null,
   }));

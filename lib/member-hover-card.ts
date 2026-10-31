@@ -27,9 +27,9 @@ export interface MemberHoverCardData {
  * or alias reaches the browser. Null when the member isn't visible to the caller.
  */
 export async function loadMemberHoverCard(supabase: SupabaseClient, memberId: string): Promise<MemberHoverCardData | null> {
-  const [m, { data: topics }, slackLinks] = await Promise.all([
+  const [m, topics, slackLinks] = await Promise.all([
     createRepos(supabase).directory.byId(memberId),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).memberProfile.askMeAbout(memberId),
     getSlackDmLinksForMembers([memberId]),
   ]);
   if (!m) return null;
@@ -38,7 +38,7 @@ export async function loadMemberHoverCard(supabase: SupabaseClient, memberId: st
     name: m.display_name || m.name,
     photoUrl: safeUrl(m.photo_url),
     firstJoinedAt: m.first_joined_at ?? null,
-    askMeAbout: ((topics?.topics ?? []) as string[]).slice(0, HOVER_CARD_MAX_TOPICS),
+    askMeAbout: topics.slice(0, HOVER_CARD_MAX_TOPICS),
     instagramUrl: safeUrl(m.instagram_url),
     facebookUrl: safeUrl(m.facebook_url),
     twitterUrl: safeUrl(m.twitter_url),

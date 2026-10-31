@@ -16,6 +16,8 @@ export type MemberSeedRecord = {
   instagramUrl?: string;
   birthday?: [month: number, day: number];
   totalActiveMonths?: number;
+  /** Kajabi tags on the contact. */
+  kajabiTags?: string[];
   /** Name aliases (nicknames, pen names); a Supabase run suffixes them, since an alias is unique across members. */
   aliases?: { alias: string; active?: boolean }[];
 };
@@ -432,6 +434,33 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       expect(view?.stripeCustomerId).toMatch(/^cus_3/);
       expect(view?.firstJoinedAt).toMatch(/^2025-03-04/);
       expect(await ctx.repo().adminView("mbr_ZZZZZZZZZZZZ")).toBeNull();
+    });
+
+    it("finds the members with a Kajabi tag and one of the statuses, by name, and gives their tenure by status", async () => {
+      const tag = `Contract Tag ${Math.random().toString(36).slice(2, 8)}`;
+      const [bea, ada, cy, dee, eli] = await ctx.seed([
+        { name: "Bea Example", kajabiTags: [tag, "Other"], status: "lead", instagramUrl: "https://instagram.com/bea.example" },
+        { name: "Ada Example", displayName: "Penny Quill", kajabiTags: [tag], status: "cancelled" },
+        { name: "Cy Example", kajabiTags: [tag], status: "active" },
+        { name: "Dee Example", kajabiTags: ["Other"], status: "lead" },
+        { name: "Eli Example", status: "on_hiatus", firstJoinedAt: "2025-03-04", totalActiveMonths: 9 },
+      ]);
+
+      const tagged = await ctx.repo().withKajabiTag(tag, ["lead", "cancelled"]);
+      expect(tagged.map((m) => m.id)).toEqual([ada, bea]);
+      expect(tagged[0]).toMatchObject({ name: "Ada Example", displayName: "Penny Quill", email: ctx.emailOf(ada), photoUrl: null, instagramUrl: null, status: "cancelled" });
+      expect(tagged[1]).toMatchObject({ instagramUrl: "https://instagram.com/bea.example", status: "lead" });
+      expect((await ctx.repo().withKajabiTag(tag, ["active"])).map((m) => m.id)).toEqual([cy]);
+      expect(await ctx.repo().withKajabiTag(`${tag} nope`, ["lead", "cancelled", "active"])).toEqual([]);
+      expect(dee).toBeDefined();
+
+      const tenure = (await ctx.repo().tenureOf(["on_hiatus"])).filter((m) => m.id === eli);
+      expect(tenure).toHaveLength(1);
+      expect(tenure[0]).toMatchObject({ id: eli, name: "Eli Example", displayName: null, totalActiveMonths: 9 });
+      expect(tenure[0].firstJoinedAt).toMatch(/^2025-03-04/);
+      const both = (await ctx.repo().tenureOf(["on_hiatus", "active"])).map((m) => m.id);
+      expect(both).toEqual(expect.arrayContaining([eli, cy]));
+      expect(both).not.toContain(ada);
     });
   });
 }

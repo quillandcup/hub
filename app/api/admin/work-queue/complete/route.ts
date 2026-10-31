@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -47,26 +48,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: completion, error } = await supabase
-      .from("admin_work_queue_completions")
-      .upsert(
-        {
-          queue_type,
-          member_id,
-          occurrence_key,
-          status,
-          postponed_until: status === "postponed" ? postponedUntil : null,
-          completed_by: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
-        },
-        { onConflict: "queue_type,member_id,occurrence_key" }
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error completing work queue item:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const completion = await createRepos(supabase).adminWork.complete({
+      queue_type,
+      member_id,
+      occurrence_key,
+      status,
+      postponed_until: status === "postponed" ? postponedUntil : null,
+      completed_by: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
+    });
 
     return NextResponse.json({ completion }, { status: 201 });
   } catch (error: any) {

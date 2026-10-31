@@ -18,19 +18,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required field: member_id" }, { status: 400 });
     }
 
-    const { data: touch, error } = await supabase
-      .from("outreach_touches")
-      .insert({
-        member_id,
-        touched_by: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error logging outreach touch:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const touch = await createRepos(supabase).outreach.logTouch(
+      member_id,
+      user.id !== "service-role" && user.id !== "cron" ? user.id : null
+    );
 
     // Best-effort mirror into the activity log — log-and-continue on
     // failure, same convention as the writing-progress mirror in

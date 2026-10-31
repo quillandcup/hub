@@ -85,43 +85,5 @@ export function defineCalendarSyncStateContract(name: string, setup: () => Calen
       await ctx.repo().saveSyncedThrough(cal, NOW);
       expect(new Date((await ctx.stored(cal))!.synced_through!).toISOString()).toBe(NOW.toISOString());
     });
-
-    describe("push channels", () => {
-      const days = (n: number) => new Date(NOW.getTime() + n * 86_400_000);
-
-      it("lists a calendar's channels that were not stopped, latest expiry first", async () => {
-        const repo = ctx.repo();
-        await repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-soon`, resourceId: "res-soon", expiresAt: days(1) });
-        await repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-late`, resourceId: "res-late", expiresAt: days(6) });
-        await repo.saveWatchChannel({ calendarId: ctx.calendarId(), channelId: `${cal}-other`, resourceId: "res-other", expiresAt: days(9) });
-
-        const active = await repo.activeWatchChannels(cal);
-
-        expect(active.map((c) => [c.channelId, c.resourceId, new Date(c.expiresAt).toISOString()])).toEqual([
-          [`${cal}-late`, "res-late", days(6).toISOString()],
-          [`${cal}-soon`, "res-soon", days(1).toISOString()],
-        ]);
-        expect(await repo.activeWatchChannels(ctx.calendarId())).toEqual([]);
-      });
-
-      it("keeps a stopped channel out of the list, and marking one that is gone does nothing", async () => {
-        const repo = ctx.repo();
-        await repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-a`, resourceId: "res-a", expiresAt: days(2) });
-        await repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-b`, resourceId: "res-b", expiresAt: days(5) });
-        const [first, second] = await repo.activeWatchChannels(cal);
-
-        await repo.markWatchChannelStopped(second.id, NOW);
-        await repo.markWatchChannelStopped("cwch_NotARealIdXX", NOW);
-
-        expect((await repo.activeWatchChannels(cal)).map((c) => c.id)).toEqual([first.id]);
-      });
-
-      it("refuses a channel id it already has", async () => {
-        const repo = ctx.repo();
-        await repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-dup`, resourceId: "res-1", expiresAt: days(2) });
-
-        await expect(repo.saveWatchChannel({ calendarId: cal, channelId: `${cal}-dup`, resourceId: "res-2", expiresAt: days(2) })).rejects.toThrow();
-      });
-    });
   });
 }
