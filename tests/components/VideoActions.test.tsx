@@ -48,13 +48,63 @@ describe("VideoActions", () => {
     await open();
     expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", STATS);
     expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
-    for (const name of ["Closed captions", "Copy link with thumbnail", "Download video", "Remove video"]) expect(screen.getByRole("menuitem", { name })).toBeDisabled();
+    for (const name of ["Closed captions", "Download video", "Remove video"]) expect(screen.getByRole("menuitem", { name })).toBeDisabled();
   });
 
-  it("says why Download video and Copy link with thumbnail aren't available", async () => {
+  it("says why Download video isn't available", async () => {
     await open();
     expect(screen.getByRole("menuitem", { name: "Download video" })).toHaveAttribute("title", expect.stringMatching(/MP4.*Mux/));
-    expect(screen.getByRole("menuitem", { name: "Copy link with thumbnail" })).toHaveAttribute("title", expect.stringMatching(/private/));
+  });
+
+  describe("Copy link with thumbnail", () => {
+    const link = { url: URL, imageUrl: "https://hub.example/api/courses/image/lesson/les_AAAAAAAAAAA1", title: 'Reader "Expectations" & <more>' };
+
+    it("is disabled with the reason on hover while the lesson has no public link", async () => {
+      await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={null} thumbnailLinkBlocked="Only a lesson that is open to members has a public link" />);
+      const item = screen.getByRole("menuitem", { name: "Copy link with thumbnail" });
+      expect(item).toBeDisabled();
+      expect(item).toHaveAttribute("title", "Only a lesson that is open to members has a public link");
+    });
+
+    it("copies the picture as a link to the lesson, with the plain address as text, escaping the title", async () => {
+      const written: { type: string; text: string }[][] = [];
+      class FakeClipboardItem {
+        constructor(public items: Record<string, Blob>) {}
+      }
+      vi.stubGlobal("ClipboardItem", FakeClipboardItem);
+      const write = vi.fn(async (items: FakeClipboardItem[]) => {
+        written.push(await Promise.all(Object.entries(items[0].items).map(async ([type, blob]) => ({ type, text: await blob.text() }))));
+      });
+      const user = userEvent.setup();
+      render(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText, write }, configurable: true });
+      await user.click(screen.getByRole("button", { name: /Video actions/ }));
+      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+
+      expect(written[0]).toEqual([
+        { type: "text/html", text: `<a href="${URL}"><img src="${link.imageUrl}" alt="Reader &quot;Expectations&quot; &amp; &lt;more&gt;" width="480"></a>` },
+        { type: "text/plain", text: URL },
+      ]);
+      expect(screen.getByRole("status")).toHaveTextContent("Copied a link with the thumbnail.");
+      vi.unstubAllGlobals();
+    });
+
+    it("copies just the address where the browser can't copy rich text", async () => {
+      vi.stubGlobal("ClipboardItem", undefined);
+      const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
+      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+      expect(writeText).toHaveBeenCalledWith(URL);
+      vi.unstubAllGlobals();
+    });
+
+    it("says when the clipboard refuses", async () => {
+      vi.stubGlobal("ClipboardItem", undefined);
+      writeText.mockRejectedValue(new Error("denied"));
+      const user = await open(<VideoActions statsHref={STATS} lessonUrl={URL} thumbnailLink={link} thumbnailLinkBlocked="" />);
+      await user.click(screen.getByRole("menuitem", { name: "Copy link with thumbnail" }));
+      expect(screen.getByRole("status")).toHaveTextContent("Couldn't copy the link.");
+      vi.unstubAllGlobals();
+    });
   });
 
   it("copies the lesson's address at the playhead, and says so", async () => {

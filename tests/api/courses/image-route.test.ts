@@ -90,6 +90,49 @@ describe('Course image route', () => {
     expect((await get('hero', 'les_AAAAAAAAAAA1')).status).toBe(404) // a lesson id is not a course id
   })
 
+  describe('for a signed-out visitor (a shared link showing the lesson thumbnail)', () => {
+    let priorFlag: { feature_key: string; enabled_globally: boolean } | null = null
+    beforeAll(async () => {
+      const { data } = await supabase.from('feature_flags').select('feature_key, enabled_globally').eq('feature_key', 'courses').maybeSingle()
+      priorFlag = data
+    })
+    afterAll(async () => {
+      if (priorFlag) await supabase.from('feature_flags').upsert(priorFlag)
+      else await supabase.from('feature_flags').delete().eq('feature_key', 'courses')
+    })
+    const flag = (on: boolean) => supabase.from('feature_flags').upsert({ feature_key: 'courses', enabled_globally: on })
+
+    it("serves an open lesson's thumbnail, cached publicly, when the courses feature is on for everyone", async () => {
+      await flag(true)
+      as(null)
+      const res = await get('lesson', 'open')
+      expect(res.status).toBe(200)
+      expect(res.headers.get('cache-control')).toContain('public')
+      expect(await body(res)).toBe('OPEN')
+    })
+
+    it('still answers 404 for a draft lesson, a course cover or banner, and a lesson that has no image', async () => {
+      await flag(true)
+      as(null)
+      expect((await get('lesson', 'draft')).status).toBe(404)
+      expect((await get('course', 'course')).status).toBe(404)
+      expect((await get('hero', 'course')).status).toBe(404)
+      expect((await get('lesson', 'bare')).status).toBe(404)
+    })
+
+    it('answers 404 for everything while the courses feature is not on for everyone', async () => {
+      await flag(false)
+      as(null)
+      expect((await get('lesson', 'open')).status).toBe(404)
+    })
+
+    it('keeps a signed-in courses user on the private cache header, even for a public lesson', async () => {
+      await flag(true)
+      as(false)
+      expect((await get('lesson', 'open')).headers.get('cache-control')).toContain('private')
+    })
+  })
+
   it('answers 404 for no caller, a bad kind or id, a lesson without an image and an unknown row', async () => {
     as(null)
     expect((await get('course', 'course')).status).toBe(404)
