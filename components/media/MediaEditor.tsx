@@ -88,6 +88,8 @@ export default function MediaEditor({ assetId, onClose, onChanged, own = false }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    // This modal is portaled out of a form (the book's), but React still bubbles its submit up to that form's onSubmit.
+    e.stopPropagation();
     if (!asset) return;
     setBusy(true);
     setError(null);
