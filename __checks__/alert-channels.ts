@@ -14,4 +14,7 @@ export const slackAlert = new SlackAppAlertChannel('hub-alerts-slack-alert', {
   sendRecovery: true,
   sendFailure: true,
   sendDegraded: true,
+  // Certificate expiry alerts come from the channel, for the API checks' hosts, so no separate SSL monitor.
+  sslExpiry: true,
+  sslExpiryThreshold: 30,
 })
