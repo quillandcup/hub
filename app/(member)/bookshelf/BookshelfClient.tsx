@@ -75,7 +75,7 @@ export default function BookshelfClient({ shelf }: BookshelfClientProps) {
         The Shelf ({shown.length})
       </h2>
       {genres.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filter by genre">
+        <div className="flex flex-wrap gap-1.5 mb-4" role="group" aria-label="Filter by genre / tropes">
           <button
             type="button"
             data-track="bookshelf-filter-genre"
