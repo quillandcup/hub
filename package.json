@@ -100,7 +100,7 @@
     "remark-gfm": "^4.0.1",
     "sanitize-html": "^2.18.1",
     "sharp": "^0.35.5",
-    "stripe": "^22.6.2",
+    "stripe": "^23.0.1",
     "turndown": "^7.2.4",
     "web-push": "^3.6.7"
   },
