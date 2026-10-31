@@ -1,0 +1,14 @@
+# Source of truth for the Sentry organization settings below. CI pushes this file after a production
+# deploy that changed it or scripts/sentry-config.ts (ci.yml, push-sentry-config); `pnpm sentry:config:diff`
+# previews against the live organization (read-only). Change the file, not the Settings page: the next
+# push puts these values back. See docs/SENTRY_CONFIG.md.
+#
+# Settings > Security & Privacy. Organization-wide, so every project inherits them (a project's own
+# switches show as locked). Server-side scrubbing covers errors, traces and logs; Session Replay masking
+# is client-side (instrumentation-client.ts), and replay retention is set by Sentry's plan, not here.
+organization:
+  # Strip passwords, credit card numbers and other sensitive values from events on Sentry's servers.
+  dataScrubber: true
+  dataScrubberDefaults: true
+  # Sentry has no use for member IP addresses; the Hub keeps its own coarse location.
+  scrubIPAddresses: true

@@ -63,8 +63,11 @@ export const appConfig = {
    */
   bookshelfPublic: false,
 
-  /** Sentry org/project slugs for the production build's source map upload. */
-  sentry: { org: "quillandcup", project: "hub" },
+  /**
+   * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
+   * settings are read and written on (sentry-config.yml, scripts/sentry-config.ts). The org is in the EU region.
+   */
+  sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 } as const;
 
 export default appConfig;
