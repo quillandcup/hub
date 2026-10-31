@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTimeout } from "@/components/useTimeout";
 import {
   introduceOnSlack,
   spinWheel,
@@ -114,6 +115,8 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
   const [introducing, setIntroducing] = useState(false);
   const [introFallback, setIntroFallback] = useState<WheelIntroduction | null>(null);
 
+  const startRevealTimer = useTimeout();
+  const startCopiedTimer = useTimeout();
   const wheelRef = useRef<HTMLDivElement>(null);
   const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
   const slotsRef = useRef<SlotPhoto[]>(slots);
@@ -202,24 +205,24 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
           setPhase("revealed");
           setWinner(result.winner);
           setJustRevealed(true);
-          setTimeout(() => setJustRevealed(false), 900);
+          startRevealTimer(() => setJustRevealed(false), 900);
         }
       };
 
       animFrameRef.current = requestAnimationFrame(step);
     },
-    [applyRotation, setSlot]
+    [applyRotation, setSlot, startRevealTimer]
   );
 
   const handleCopyStarter = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setStarterCopied(true);
-      setTimeout(() => setStarterCopied(false), 2000);
+      startCopiedTimer(() => setStarterCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy starter text:", error);
     }
-  }, []);
+  }, [startCopiedTimer]);
 
   const handleMessageOnSlack = useCallback(async (memberId: string) => {
     setIntroducing(true);

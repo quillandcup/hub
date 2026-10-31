@@ -17,6 +17,7 @@ import {
   FILTERS_ON_KEY, HISTORY_ON_KEY, isTrackablePlace, readFlag, readPlaces, readSearches, removeSearch, saveSearch, savePlace, writeFlag, type Place,
 } from "@/lib/search/recents";
 import { SEARCH_KINDS, matchWords, parseUniversal, withKind } from "@/lib/search/syntax";
+import { useTimeout } from "@/components/useTimeout";
 import Highlight from "@/components/search/Highlight";
 import SearchSpinner from "@/components/search/SearchSpinner";
 
@@ -154,6 +155,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
   // Bumped after the stored lists change, so they are read again.
   const [storeVersion, setStoreVersion] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  const startCopiedTimer = useTimeout();
 
   // Usage analytics (lib/analytics/search.ts): what a search looked like, never what was typed.
   const openRef = useRef(false);
@@ -413,7 +415,7 @@ export default function SearchPalette({ resultsPath, isAdmin }: { resultsPath: s
     try {
       await navigator.clipboard.writeText(query);
       setCopied(query);
-      setTimeout(() => setCopied((c) => (c === query ? null : c)), 1500);
+      startCopiedTimer(() => setCopied((c) => (c === query ? null : c)), 1500);
     } catch {
       // No clipboard access: nothing to confirm.
     }

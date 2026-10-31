@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -322,6 +322,35 @@ describe("SearchPalette", () => {
     expect(screen.getByRole("button", { name: "fern" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("hub:recent-searches")!)).toEqual(["fern"]);
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
+  });
+
+  it("confirms a copied recent search for 1.5 s with one timer, restarts it on another copy, and leaves none behind on unmount", async () => {
+    localStorage.setItem("hub:search-history-on", "true");
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
+    await open();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const baseline = vi.getTimerCount();
+      const copy = async (query: string) =>
+        act(async () => void fireEvent.click(screen.getByRole("button", { name: `Copy search query “${query}”` })));
+
+      await copy("cody");
+      expect(screen.getByRole("button", { name: "Copy search query “cody”" })).toHaveAttribute("title", "Copied");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+
+      await copy("fern");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+      act(() => void vi.advanceTimersByTime(1500));
+      expect(screen.getByRole("button", { name: "Copy search query “fern”" })).toHaveAttribute("title", "Copy search query");
+
+      await copy("cody");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("runs a recent search when it is chosen", async () => {

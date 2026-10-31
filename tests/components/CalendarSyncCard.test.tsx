@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { calendarFeedUrls } from "@/lib/calendar-feed";
 
@@ -51,6 +51,31 @@ describe("CalendarSyncCard", () => {
     await user.click(screen.getByRole("button", { name: "Copy link" }));
     expect(writeText).toHaveBeenCalledWith(URLS.https);
     expect(await screen.findByRole("button", { name: "Copied!" })).toBeInTheDocument();
+  });
+
+  it("shows Copied! for 2 s with a single timer, restarts it on a second copy, and leaves none behind on unmount", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      render(<CalendarSyncCard initialUrls={URLS} />);
+      await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Copy link" })));
+      expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
+      expect(vi.getTimerCount()).toBe(1);
+
+      await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Copied!" })));
+      expect(vi.getTimerCount()).toBe(1);
+      act(() => void vi.advanceTimersByTime(1999));
+      expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument();
+      act(() => void vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+
+      await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Copy link" })));
+      expect(vi.getTimerCount()).toBe(1);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("asks before generating a new link, then switches every button to it", async () => {

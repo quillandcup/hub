@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTimeout } from "@/components/useTimeout";
 import { saveHostVibe } from "@/app/(member)/prickle-picker/actions";
 import type { Vibe } from "@/lib/prickle-picker";
 
@@ -18,6 +19,7 @@ const VIBE_OPTIONS: { value: Vibe; label: string }[] = [
 ];
 
 function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
+  const startSavedTimer = useTimeout();
   const [vibe, setVibe] = useState<Vibe>(initial.vibe);
   const [notes, setNotes] = useState(initial.notes);
   const [saving, setSaving] = useState(false);
@@ -39,7 +41,7 @@ function HostedTypeRow({ initial }: { initial: HostedVibeInfo }) {
       return;
     }
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    startSavedTimer(() => setSaved(false), 2500);
   }
 
   return (

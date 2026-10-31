@@ -2,6 +2,7 @@
 
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useState } from "react";
+import { useTimeout } from "@/components/useTimeout";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -31,6 +32,7 @@ export default function MatchingGame({
   membersWithNoAttendance: Member[];
 }) {
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const startClearTimer = useTimeout();
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
@@ -95,7 +97,7 @@ export default function MatchingGame({
       setSaveResult(`✓ Saved ${data.inserted} aliases!`);
 
       // Clear matches after successful save
-      setTimeout(() => {
+      startClearTimer(() => {
         setMatches([]);
         setSaveResult(null);
       }, 2000);

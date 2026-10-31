@@ -3,6 +3,7 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
+import { useTimeout } from "@/components/useTimeout";
 import Modal from "@/components/Modal";
 import { formatDateTime } from "@/lib/formatters";
 import { useTimeZone } from "@/components/Timezone";
@@ -39,6 +40,7 @@ export default function AliasSearchForm({
   prickleId?: string;
 }) {
   const timeZone = useTimeZone();
+  const startClearTimer = useTimeout();
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function AliasSearchForm({
       setSaveResult(`✓ Saved ${data.inserted} aliases!`);
 
       // Clear matches after successful save
-      setTimeout(() => {
+      startClearTimer(() => {
         setMatches([]);
         setSaveResult(null);
       }, 2000);
