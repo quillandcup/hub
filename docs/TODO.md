@@ -402,6 +402,10 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
+### Set the Checkly heartbeat URL for the retention job _(Needs Action)_
+
+`/api/reconcile/retention` (the nightly job that keeps the device and removes raw IPs and browser strings after 90 days) is deployed with a heartbeat registered in `lib/cron-heartbeats.ts` (`reconcile-retention`), but `pingCronHeartbeat` does nothing until its env var is set, so a failed or missed night alerts nobody. Deploy the checks (`__checks__/cron-heartbeats.check.ts` builds one monitor per entry), copy the new monitor's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_RETENTION`, and run `pnpm env:sync` (see the header of `lib/cron-heartbeats.ts`). The deadline that matters is 2027-01-16, when the first raw value is old enough to be removed; the monitor should be live well before it. The media sweep (`reconcile-media`) was added the same way and has the same step.
+
 ### Raw browser strings in push subscriptions and feedback _(Needs Decision)_
 
 The nightly retention job (`/api/reconcile/retention`) removes the raw IP and browser string from the visit log, the usage log and course viewing after 90 days, which is what the `/privacy` row says. Two other places keep a raw user agent and are deliberately not covered: `push_subscriptions.user_agent` (the device label in Settings > Notifications, kept while the subscription is) and the user agent a member's feedback submission carries (`app/api/feedback/route.ts`, for support to reproduce a problem). Decide whether to store only the parsed device (`lib/device.ts`) in the first and remove the second after 90 days, or leave both and name them on the page.
