@@ -72,8 +72,11 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
         expect(ours).toHaveLength(2);
         expect(ours.find((h) => h.id === a.id)).toEqual({ id: a.id, member_id: ctx.members[ada].id, start_date: "2026-01-01", end_date: null });
         expect(ours.find((h) => h.id === b.id)).toMatchObject({ end_date: "2026-03-01" });
+        // The order is by id, but which one is the database's collation (random mixed-case ids sort 'g' before 'W' there, after it in JavaScript):
+        // assert the scan is unique and repeats in the same order, not that it matches a JavaScript sort.
         const ids = all.map((h) => h.id);
-        expect(ids).toEqual([...ids].sort());
+        expect(new Set(ids).size).toBe(ids.length);
+        expect((await repo.allHiatuses()).map((h) => h.id)).toEqual(ids);
       });
 
       it("knows who is on hiatus on a day: begun, and open or ending on or after it", async () => {
