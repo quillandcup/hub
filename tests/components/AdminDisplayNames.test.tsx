@@ -4,7 +4,7 @@
  * in the unmatched-events modal. The legal name sits beneath only when it differs.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import HostsClient from "@/app/(admin)/admin/hosts/HostsClient";
 import UnmatchedEventsTable from "@/app/(admin)/admin/data/prickle-types/UnmatchedEventsTable";
@@ -112,6 +112,47 @@ describe("UnmatchedEventsTable host picker", () => {
     await userEvent.type(input, "two@");
     expect(screen.getByText("Bea Plain")).toBeInTheDocument();
     expect(screen.queryByText("Ada E")).toBeNull();
+  });
+
+  it("leaves no pending blur timer behind when the table unmounts", async () => {
+    const input = await openPicker();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.blur(input);
+      expect(vi.getTimerCount()).toBe(1); // hides the dropdown in 200 ms
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0); // otherwise it fires into a torn-down DOM ("window is not defined")
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides the dropdown 200 ms after the field loses focus, and not if it regains it or is blurred again first", async () => {
+    const input = await openPicker();
+    expect(screen.getByText("Ada E")).toBeInTheDocument();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      // Blur, then 200 ms: the dropdown goes.
+      fireEvent.blur(input);
+      act(() => void vi.advanceTimersByTime(200));
+      expect(screen.queryByText("Ada E")).toBeNull();
+
+      // Focus again: it comes back, and a blur followed by a refocus within the delay keeps it.
+      fireEvent.focus(input);
+      expect(screen.getByText("Ada E")).toBeInTheDocument();
+      fireEvent.blur(input);
+      fireEvent.focus(input);
+      expect(vi.getTimerCount()).toBe(0);
+      act(() => void vi.advanceTimersByTime(300));
+      expect(screen.getByText("Ada E")).toBeInTheDocument();
+
+      // Two blurs in a row leave one timer, not two.
+      fireEvent.blur(input);
+      fireEvent.blur(input);
+      expect(vi.getTimerCount()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("writes the legal name into the host field when a member is picked", async () => {

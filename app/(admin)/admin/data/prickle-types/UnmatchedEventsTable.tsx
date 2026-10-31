@@ -1,7 +1,7 @@
 "use client";
 
 import { getMemberDisplayName } from "@/lib/member-display-name";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import MemberSearch from "@/components/MemberSearch";
@@ -75,6 +75,11 @@ export default function UnmatchedEventsTable({
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [hostSearchTerm, setHostSearchTerm] = useState("");
   const [showHostDropdown, setShowHostDropdown] = useState(false);
+  const hostBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A pending blur must not fire after the table is gone (it would set state on an unmounted component).
+  useEffect(() => () => {
+    if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+  }, []);
 
   // Fetch members when component mounts
   useEffect(() => {
@@ -382,10 +387,14 @@ export default function UnmatchedEventsTable({
                       setHost(e.target.value);
                       setShowHostDropdown(true);
                     }}
-                    onFocus={() => setShowHostDropdown(true)}
+                    onFocus={() => {
+                      if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+                      setShowHostDropdown(true);
+                    }}
                     onBlur={() => {
                       // Delay to allow click on dropdown item
-                      setTimeout(() => setShowHostDropdown(false), 200);
+                      if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+                      hostBlurTimer.current = setTimeout(() => setShowHostDropdown(false), 200);
                     }}
                     placeholder="Search for a member or leave empty..."
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"

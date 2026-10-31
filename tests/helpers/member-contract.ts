@@ -166,18 +166,19 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
     it("searches names and emails: every word, any case, with wildcards typed as plain characters", async () => {
       const [ada, fern, gale] = await ctx.seed([
         { name: "Zyxel Ada Quill" },
-        { name: "Zyxel Fern Moss", status: "cancelled" },
-        { name: "Zyxel Gale 100%" },
+        { name: "Zyxel Fqzvern Moss", status: "cancelled" },
+        { name: "Zyxel Gale Qzvhalf%" },
       ]);
       const ours = new Set([ada, fern, gale]);
       const found = async (query: Parameters<ReturnType<typeof ctx.repo>["search"]>[0]) =>
         (await ctx.repo().search(query)).filter((m) => ours.has(m.id)).map((m) => m.id);
 
       expect(await found({ words: ["zyxel"] })).toEqual([ada, fern, gale]); // by name
-      expect(await found({ words: ["ZYXEL", "fern"] })).toEqual([fern]); // every word
+      expect(await found({ words: ["ZYXEL", "fqzvern"] })).toEqual([fern]); // every word
       expect(await found({ words: ["zyxel", "nobody"] })).toEqual([]);
       expect(await found({ words: ["zyxel"], status: "active" })).toEqual([ada, gale]);
-      expect(await found({ words: ["100%"] })).toEqual([gale]);
+      // Letters only: a digit token like "100" also occurs in the run-stamped emails a Supabase run gives its members.
+      expect(await found({ words: ["qzvhalf%"] })).toEqual([gale]);
       expect(await found({ words: ["z_xel"] })).toEqual([]); // _ is not a wildcard
       expect(await found({ words: [ctx.emailOf(ada).toUpperCase()] })).toEqual([ada]); // by email, any case
     });
