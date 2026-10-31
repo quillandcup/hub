@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos"
+import { toPlainCommitment } from "@/lib/data/prickle-activity"
 import type { PrickleDetail } from "@/lib/data/prickles"
 import type { createClient } from "@/lib/supabase/server"
 import {
@@ -15,8 +16,6 @@ import {
   effectiveCommitmentStatus,
   prickleMatchesSlot,
   type Commitment,
-  type CommitmentSlot,
-  type CommitmentStatus,
   type SlotPrickle,
 } from "@/lib/commitments"
 import {
@@ -177,45 +176,11 @@ export const PRIORITY = {
   none: 6,
 } as const
 
-/** The member's commitments with stored status 'active' (a member has only a handful, but
- * paginated anyway per CLAUDE.md). Like the other fetches here, a query error yields no rows, so
+/** The member's commitments with stored status 'active'. Like the other fetches here, a query error yields no rows, so
  * the Upcoming list still renders -- just without commitment badges. */
 async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string): Promise<Commitment[]> {
-  type SlotRow = { type_id: string; day_of_week: number; start_time_local: string; timezone: string }
-  type Row = {
-    id: string
-    start_date: string
-    weeks: number
-    status: CommitmentStatus
-    cancelled_at: string | null
-    prickle_commitment_slots: SlotRow[] | null
-  }
-  const rows = await fetchAllPaginated<Row>((offset) =>
-    supabase
-      .from("prickle_commitments")
-      .select(
-        "id, start_date, weeks, status, cancelled_at, prickle_commitment_slots(type_id, day_of_week, start_time_local, timezone)"
-      )
-      .eq("member_id", memberId)
-      .eq("status", "active")
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  )
-  return rows.map((r) => ({
-    id: r.id,
-    startDate: r.start_date,
-    weeks: r.weeks,
-    status: r.status,
-    cancelledAt: r.cancelled_at,
-    slots: (r.prickle_commitment_slots ?? []).map(
-      (s): CommitmentSlot => ({
-        typeId: s.type_id,
-        dayOfWeek: s.day_of_week,
-        startTimeLocal: s.start_time_local,
-        timezone: s.timezone,
-      })
-    ),
-  }))
+  const rows = await createRepos(supabase).prickleActivity.commitmentsOf(memberId, { status: "active" }).catch(() => [])
+  return rows.map(toPlainCommitment)
 }
 
 /** How an upcoming prickle got into the member's calendar feed by hand (calendar_feed_items). */

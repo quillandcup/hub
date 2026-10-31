@@ -2,6 +2,7 @@
 
 import { createRepos } from "@/lib/data/repos";
 import type { PrickleDetail } from "@/lib/data/prickles";
+import { CommitmentConflictError, toPlainCommitment, type StoredCommitment } from "@/lib/data/prickle-activity";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -20,7 +21,6 @@ import {
   SCHEDULE_TIMEZONE,
   slotInTimeZone,
   validateCommitmentInput,
-  type Commitment,
   type CommitmentInput,
   type CommitmentProgress,
   type CommitmentSlot,
@@ -52,56 +52,9 @@ export interface MyCommitment {
   progress: CommitmentProgress;
 }
 
-interface SlotRow {
-  type_id: string;
-  day_of_week: number;
-  start_time_local: string;
-  timezone: string;
-  prickle_types?: { name: string } | { name: string }[] | null;
-}
-
-interface CommitmentRow {
-  id: string;
-  start_date: string;
-  weeks: number;
-  status: CommitmentStatus;
-  cancelled_at: string | null;
-  prickle_commitment_slots: SlotRow[] | null;
-}
-
-function toSlot(s: SlotRow): CommitmentSlot {
-  return { typeId: s.type_id, dayOfWeek: s.day_of_week, startTimeLocal: s.start_time_local, timezone: s.timezone };
-}
-
-function toCommitment(row: CommitmentRow): Commitment {
-  return {
-    id: row.id,
-    startDate: row.start_date,
-    weeks: row.weeks,
-    status: row.status,
-    cancelledAt: row.cancelled_at,
-    slots: (row.prickle_commitment_slots ?? []).map(toSlot),
-  };
-}
-
-function typeNameOf(s: SlotRow): string {
-  const type = Array.isArray(s.prickle_types) ? s.prickle_types[0] : s.prickle_types;
-  return type?.name ?? "Prickle";
-}
-
-/** Chronological slot order (day, then time) so M/W/F reads in order everywhere. */
-function sortSlotRows(rows: SlotRow[]): SlotRow[] {
-  return [...rows].sort(
-    (a, b) => a.day_of_week - b.day_of_week || a.start_time_local.localeCompare(b.start_time_local)
-  );
-}
-
 function toSlotPrickle(p: PrickleDetail): SlotPrickle {
   return { id: p.id, typeId: p.typeId, startTime: p.startTime, endTime: p.endTime };
 }
-
-const COMMITMENT_SELECT =
-  "id, start_date, weeks, status, cancelled_at, prickle_commitment_slots(type_id, day_of_week, start_time_local, timezone, prickle_types(name))";
 
 /**
  * The acting member's commitments (newest first) with kept/missed progress per occurrence,
@@ -119,34 +72,26 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
   if (!effectiveIdentity) return [];
   const memberId = effectiveIdentity.memberId;
 
-  const { data: rows, error } = await supabase
-    .from("prickle_commitments")
-    .select(COMMITMENT_SELECT)
-    .eq("member_id", memberId)
-    .order("start_date", { ascending: false })
-    .order("created_at", { ascending: false });
-  if (error) {
+  let stored: StoredCommitment[];
+  try {
+    stored = await createRepos(supabase).prickleActivity.commitmentsOf(memberId);
+  } catch (error) {
     console.error("getMyCommitments: failed to load prickle_commitments", error);
     return [];
   }
-  const commitmentRows = ((rows ?? []) as unknown as CommitmentRow[])
-    .map((r) => ({ ...r, prickle_commitment_slots: sortSlotRows(r.prickle_commitment_slots ?? []) }))
-    .filter((r) => r.prickle_commitment_slots.length > 0);
+  const commitmentRows = stored.filter((r) => r.slots.length > 0);
   if (commitmentRows.length === 0) return [];
 
   const now = new Date();
-  const commitments = commitmentRows.map(toCommitment);
+  const commitments = commitmentRows.map(toPlainCommitment);
 
   const expiredIds = commitments
     .filter((c) => c.status === "active" && effectiveCommitmentStatus(c, now) === "completed")
     .map((c) => c.id);
   if (expiredIds.length > 0) {
-    const { error: flipError } = await supabase
-      .from("prickle_commitments")
-      .update({ status: "completed", updated_at: now.toISOString() })
-      .in("id", expiredIds)
-      .eq("status", "active");
-    if (flipError) console.error("getMyCommitments: failed to mark commitments completed", flipError);
+    await createRepos(supabase)
+      .prickleActivity.markCommitmentsCompleted(expiredIds, now.toISOString())
+      .catch((flipError) => console.error("getMyCommitments: failed to mark commitments completed", flipError));
   }
 
   const window = commitmentsFetchWindow(commitments)!;
@@ -169,9 +114,9 @@ export async function getMyCommitments(): Promise<MyCommitment[]> {
   return commitmentRows.map((row, i) => {
     const c = commitments[i];
     const progress = computeCommitmentProgress(c, prickles, attended, now);
-    const slots: MyCommitmentSlot[] = row.prickle_commitment_slots.map((s, j) => {
+    const slots: MyCommitmentSlot[] = row.slots.map((s, j) => {
       const slot = c.slots[j];
-      const typeName = typeNameOf(s);
+      const typeName = s.typeName ?? "Prickle";
       return {
         ...slot,
         startTimeLocal: slot.startTimeLocal.slice(0, 5),
@@ -239,12 +184,8 @@ async function createCommitmentImpl(
     return { error: "One of those prickles isn't on the upcoming schedule -- pick from All Prickles" };
   }
 
-  const { data: existingRows } = await supabase
-    .from("prickle_commitments")
-    .select(COMMITMENT_SELECT)
-    .eq("member_id", effectiveIdentity.memberId)
-    .eq("status", "active");
-  const existing = ((existingRows ?? []) as unknown as CommitmentRow[]).map(toCommitment);
+  // A failed read counts as "no existing commitments": the database's overlap rule still applies on save.
+  const existing = (await createRepos(supabase).prickleActivity.commitmentsOf(effectiveIdentity.memberId, { status: "active" }).catch(() => [])).map(toPlainCommitment);
   const overlap = findOverlappingCommitment({ startDate: input.startDate, weeks: input.weeks, slots }, existing, now);
   if (overlap) {
     return {
@@ -252,23 +193,20 @@ async function createCommitmentImpl(
     };
   }
 
-  const { data: id, error } = await supabase.rpc("create_prickle_commitment", {
-    p_member_id: effectiveIdentity.memberId,
-    p_start_date: input.startDate,
-    p_weeks: input.weeks,
-    p_slots: slots.map((s) => ({
-      type_id: s.typeId,
-      day_of_week: s.dayOfWeek,
-      start_time_local: s.startTimeLocal,
-      timezone: s.timezone,
-    })),
-    p_created_by: user.id,
-  });
-  if (error || !id) {
-    if (error?.code === "23505") return { error: "You're already committed to one of these prickles for those weeks" };
-    return { error: error?.message ?? "Failed to save commitment" };
+  let commitmentId: string;
+  try {
+    commitmentId = await createRepos(supabase).prickleActivity.createCommitment({
+      memberId: effectiveIdentity.memberId,
+      startDate: input.startDate,
+      weeks: input.weeks,
+      slots,
+      createdBy: user.id,
+    });
+  } catch (error) {
+    if (error instanceof CommitmentConflictError) return { error: "You're already committed to one of these prickles for those weeks" };
+    console.error("createCommitment: failed to save commitment", error);
+    return { error: "Failed to save commitment" };
   }
-  const commitmentId = id as string;
 
   // Append-only activity signal (docs/ACTIVITY_AND_AUDIT_LOG.md): best-effort, never fails the
   // commitment that was already saved. Under sudo it's an admin acting on the member's behalf.
@@ -313,21 +251,17 @@ async function cancelCommitmentImpl(id: string): Promise<{ success: true } | { e
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const { data: existing } = await supabase
-    .from("prickle_commitments")
-    .select("id, member_id, status")
-    .eq("id", id)
-    .single();
-  if (!existing || existing.member_id !== effectiveIdentity.memberId) return { error: "Commitment not found" };
+  const repo = createRepos(supabase).prickleActivity;
+  const existing = await repo.commitmentOwner(id).catch(() => null);
+  if (!existing || existing.memberId !== effectiveIdentity.memberId) return { error: "Commitment not found" };
   if (existing.status !== "active") return { error: "Only active commitments can be cancelled" };
 
-  const nowIso = new Date().toISOString();
-  const { error } = await supabase
-    .from("prickle_commitments")
-    .update({ status: "cancelled", cancelled_at: nowIso, updated_at: nowIso })
-    .eq("id", id)
-    .eq("member_id", effectiveIdentity.memberId);
-  if (error) return { error: error.message };
+  try {
+    await repo.cancelCommitment(id, effectiveIdentity.memberId, new Date().toISOString());
+  } catch (error) {
+    console.error("cancelCommitment: failed to cancel commitment", error);
+    return { error: "Couldn't cancel that commitment" };
+  }
 
   revalidatePath("/my-prickles", "layout");
   return { success: true };

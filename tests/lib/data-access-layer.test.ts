@@ -101,6 +101,12 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_profile_overrides: [],
   // Members' bookshelves (BookRepository, lib/data/books.ts): every query is moved (lib/data/media.ts reads it for the library's usage list, inside lib/data/).
   member_books: [],
+  // Commitments, check-ins and the dismissed check-in/check-out offers (PrickleActivityRepository, lib/data/prickle-activity.ts): every query is moved.
+  prickle_commitments: [],
+  prickle_commitment_slots: [],
+  prickle_checkins: [],
+  prickle_checkin_dismissals: [],
+  prickle_checkout_dismissals: [],
 };
 
 const root = path.resolve(__dirname, "../..");

@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Prickle check-ins: how a member feels coming into a prickle and leaving it, what they came for,
@@ -395,41 +394,6 @@ export function checkinToRow(c: CheckinInput): CheckinRow {
     energy_after: c.energyAfter,
     emotion_after: c.emotionAfter,
   };
-}
-
-/**
- * Writes a validated check-in: upserts it (restoring one that was cleared), or, when every
- * answer is cleared, soft-deletes it, keeping its last answers (migration 20261003140000).
- * Shared by the prickle page (session client, RLS owner-only) and the Slack DMs (service role,
- * caller has matched the Slack user to `memberId`). Returns the Supabase error, if any.
- */
-export async function writeCheckin(
-  supabase: SupabaseClient,
-  memberId: string,
-  prickleId: string,
-  checkin: CheckinInput,
-  via: "web" | "slack" = "web"
-) {
-  if (isEmptyCheckin(checkin)) {
-    const { error } = await supabase
-      .from("prickle_checkins")
-      .update({ deleted_at: new Date().toISOString(), saved_via: via })
-      .eq("member_id", memberId)
-      .eq("prickle_id", prickleId)
-      .is("deleted_at", null);
-    return error ?? null;
-  }
-  const { error } = await supabase.from("prickle_checkins").upsert(
-    {
-      member_id: memberId,
-      prickle_id: prickleId,
-      ...checkinToRow(checkin),
-      saved_via: via,
-      deleted_at: null,
-    },
-    { onConflict: "member_id,prickle_id" }
-  );
-  return error ?? null;
 }
 
 /** The "coming in" answers Find a Prickle carries to a prickle's check-in, so it starts pre-filled. */

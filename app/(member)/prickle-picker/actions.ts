@@ -76,42 +76,21 @@ async function fetchAttendanceForPrickleIds(
   return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
-interface RawRatedCheckin {
-  pleasant_before: number | null;
-  energy_before: number | null;
-  emotion_before: string | null;
-  need: string | null;
-  intention_met: number;
-  prickles: { type_id: string | null; host: string | null } | { type_id: string | null; host: string | null }[];
-}
-
 /**
  * Every check-in where the member said whether they got what they came for, keyed to its prickle's series -- the personal history the
  * picker weighs against how they feel now. All time, not just HISTORY_MONTHS: check-ins are
  * sparse and a series' character changes slowly.
  */
 async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string): Promise<PersonalCheckin[]> {
-  const rows = await fetchAllPaginated<RawRatedCheckin>((offset) =>
-    supabase
-      .from("prickle_checkins")
-      .select("pleasant_before, energy_before, emotion_before, need, intention_met, prickles!inner(type_id, host)")
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .not("intention_met", "is", null)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return rows.map((r) => {
-    const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-    return {
-      seriesKey: seriesKeyFor(prickle?.type_id ?? null, prickle?.host ?? null),
-      pleasantBefore: r.pleasant_before,
-      energyBefore: r.energy_before,
-      emotionBefore: (r.emotion_before ?? null) as Emotion | null,
-      need: (r.need ?? null) as Need | null,
-      intentionMet: r.intention_met,
-    };
-  });
+  const rows = await createRepos(supabase).prickleActivity.ratedCheckinsOf(memberId);
+  return rows.map((r) => ({
+    seriesKey: seriesKeyFor(r.typeId, r.hostId),
+    pleasantBefore: r.pleasantBefore,
+    energyBefore: r.energyBefore,
+    emotionBefore: (r.emotionBefore ?? null) as Emotion | null,
+    need: (r.need ?? null) as Need | null,
+    intentionMet: r.intentionMet,
+  }));
 }
 
 /**

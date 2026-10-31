@@ -54,7 +54,11 @@ function makeSupabaseMock({
   activityError = undefined as string | undefined,
 } = {}) {
   const rpc = vi.fn().mockResolvedValue(rpcError ? { data: null, error: rpcError } : { data: "new-c", error: null });
-  const updateEqEq = vi.fn().mockResolvedValue({ error: null });
+  // The final filter of an update: awaited as is, or followed by .select() to learn whether a row changed.
+  const updateEqEq = vi.fn(() => {
+    const done = Promise.resolve({ data: [{ id: "c1" }], error: null });
+    return Object.assign(done, { select: () => done });
+  });
   const commitmentUpdate = vi.fn(() => ({ eq: vi.fn(() => ({ eq: updateEqEq })), in: vi.fn(() => ({ eq: updateEqEq })) }));
   const activityInsert = vi.fn().mockResolvedValue(activityError ? { error: { message: activityError } } : { error: null });
 
@@ -63,7 +67,7 @@ function makeSupabaseMock({
     if (table === "prickle_attendance") return chain({ data: attendance });
     if (table === "prickle_commitments") {
       const c = chain({ data: commitments });
-      c.single = vi.fn().mockResolvedValue({ data: existingRow });
+      c.maybeSingle = vi.fn().mockResolvedValue({ data: existingRow });
       return { ...c, update: commitmentUpdate };
     }
     if (table === "member_activities") return { insert: activityInsert };
@@ -231,7 +235,10 @@ describe("createCommitment", () => {
     const mock = makeSupabaseMock({ rpcError: { message: "permission denied", code: "42501" } });
     vi.mocked(createClient).mockResolvedValue(mock as never);
 
-    expect(await createCommitment(VALID_INPUT)).toEqual({ error: "permission denied" });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // The database's own wording is logged, not shown.
+    expect(await createCommitment(VALID_INPUT)).toEqual({ error: "Failed to save commitment" });
   });
 });
 

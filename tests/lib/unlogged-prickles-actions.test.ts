@@ -25,32 +25,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
-import { checkinToRow, EMPTY_CHECKIN } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN } from "@/lib/prickle-checkins";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 
-/** Chainable query fake: every filter returns itself; awaiting resolves the table's rows. */
-function makeQueryFake(tables: Record<string, unknown[]>, upsertError: unknown = null) {
-  const calls: { table: string; method: string; args: unknown[] }[] = [];
-  const from = vi.fn((table: string) => {
-    const builder: Record<string, unknown> = {
-      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve({ data: tables[table] ?? [], error: null }).then(resolve, reject),
-      upsert: (...args: unknown[]) => {
-        calls.push({ table, method: "upsert", args });
-        return Promise.resolve({ error: upsertError });
-      },
-    };
-    for (const method of ["select", "eq", "gte", "not", "in", "is", "update", "order"]) {
-      builder[method] = (...args: unknown[]) => {
-        calls.push({ table, method, args });
-        return builder;
-      };
-    }
-    return builder;
-  });
-  vi.mocked(createClient).mockResolvedValue({ from } as never);
-  return calls;
+/** The repositories answer everything; the client is only passed through. */
+function useClient() {
+  vi.mocked(createClient).mockResolvedValue({} as never);
 }
 
 const SPRINT = { id: "ptyp-sprint", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
@@ -80,13 +61,14 @@ function loggedEntry(id: string, prickleId: string, hoursAgo: number): WritingEn
   };
 }
 
-function attendedDataset(rows: ReturnType<typeof attended>[], writingEntries: WritingEntryRow[] = []) {
+function attendedDataset(rows: ReturnType<typeof attended>[], writingEntries: WritingEntryRow[] = [], more: ConstructorParameters<typeof InMemoryDataset>[0] = {}) {
   return createInMemoryRepos(
     new InMemoryDataset({
       prickleTypes: [SPRINT, social],
       prickles: rows.map((r) => r.prickle),
       attendance: rows.map((r) => r.attendance),
       writingEntries,
+      ...more,
     }),
   );
 }
@@ -108,46 +90,48 @@ describe("getUnloggedRecentPrickles", () => {
       attended("p-checked-in", recent(1)),
       attended("p-social", recent(1), social), // not a writing prickle: never asked about
       attended("p-long-ago", recent(24 * 60)), // older than the lookback
-    ], [loggedEntry("wpe_AAAAAAAAAAA1", "p-logged", 4)]);
-    const calls = makeQueryFake({
-      prickle_checkout_dismissals: [{ prickle_id: "p-dismissed" }],
-      prickle_checkins: [
-        { prickle_id: "p-checked-out", ...checkinToRow({ ...EMPTY_CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 }) },
+    ], [loggedEntry("wpe_AAAAAAAAAAA1", "p-logged", 4)], {
+      checkoutDismissals: [
+        { memberId: "member-1", prickleId: "p-dismissed", dismissedAt: recent(1) },
+        // Another member's dismissal is theirs.
+        { memberId: "member-2", prickleId: "p-open", dismissedAt: recent(1) },
+      ],
+      // A check-in dismissal is a different offer: it doesn't hide the check-out prompt.
+      checkinDismissals: [{ memberId: "member-1", prickleId: "p-open", dismissedAt: recent(1) }],
+      prickleCheckins: [
+        { memberId: "member-1", prickleId: "p-checked-out", checkin: { ...EMPTY_CHECKIN, intentionMet: 4, pleasantAfter: 4, energyAfter: 3 } },
         // Only the check-in half answered: still owed a check-out.
-        { prickle_id: "p-checked-in", ...checkinToRow({ ...EMPTY_CHECKIN, pleasantBefore: 3, energyBefore: 3, need: "company" }) },
+        { memberId: "member-1", prickleId: "p-checked-in", checkin: { ...EMPTY_CHECKIN, pleasantBefore: 3, energyBefore: 3, need: "company" } },
       ],
     });
+    useClient();
 
     const result = await getUnloggedRecentPrickles();
 
     expect(result.map((p) => p.id).sort()).toEqual(["p-checked-in", "p-open"]);
-    expect(calls).toContainEqual({ table: "prickle_checkout_dismissals", method: "eq", args: ["member_id", "member-1"] });
   });
 });
 
 describe("dismissUnloggedPrickle", () => {
   it("records the dismissal for the acting member", async () => {
-    const calls = makeQueryFake({});
+    repos = createInMemoryRepos();
+    useClient();
     expect(await dismissUnloggedPrickle("p1")).toEqual({ success: true });
-    expect(calls).toContainEqual({
-      table: "prickle_checkout_dismissals",
-      method: "upsert",
-      args: [
-        { member_id: "member-1", prickle_id: "p1" },
-        { onConflict: "member_id,prickle_id", ignoreDuplicates: true },
-      ],
-    });
+    expect(await repos.prickleActivity.dismissedAmong("checkout", "member-1", ["p1"])).toEqual(new Set(["p1"]));
+    expect(await repos.prickleActivity.dismissedAmong("checkin", "member-1", ["p1"])).toEqual(new Set());
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
   it("reports a database error", async () => {
-    makeQueryFake({}, { message: "boom" });
+    repos = createInMemoryRepos();
+    vi.spyOn(repos.prickleActivity, "dismiss").mockRejectedValue(new Error("boom"));
+    useClient();
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await dismissUnloggedPrickle("p1")).toEqual({ error: "Couldn't dismiss that prickle — please try again." });
   });
 
   it("rejects a missing prickle id", async () => {
-    makeQueryFake({});
+    useClient();
     expect(await dismissUnloggedPrickle("")).toEqual({ error: "Invalid prickle" });
   });
 });
@@ -164,7 +148,7 @@ describe("prickle labels name the host by display name", () => {
         attendance: [row.attendance],
       }),
     );
-    makeQueryFake({ prickle_checkout_dismissals: [], prickle_checkins: [] });
+    useClient();
 
     const [option] = await getUnloggedRecentPrickles();
 
