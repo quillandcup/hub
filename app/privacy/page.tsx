@@ -204,7 +204,7 @@ export default async function PrivacyPage() {
               keep="Your account and activity, your course viewing and where you connect from (by name), and usage statistics, mostly as totals, though the individual records are tied to your account while they are kept. Chat is covered in its own section below."
             />
             <KeepRow
-              what="Our engineering team"
+              what="Our product and engineering team"
               keep="Errors and the recordings of what was on screen around them, in our monitoring tool. Other staff cannot see them."
             />
             <KeepRow what="The services that run the Hub" keep="Only what they need to do their job. They are listed at the bottom." />

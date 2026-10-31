@@ -309,7 +309,7 @@ describe("/privacy policy sections", () => {
   });
 
   it("says who can see error recordings and how long recordings are kept", () => {
-    const who = within(section("who-sees").getByText("Our engineering team", { selector: "td" }).closest("tr")!);
+    const who = within(section("who-sees").getByText("Our product and engineering team", { selector: "td" }).closest("tr")!);
     expect(who.getByText(/the recordings of what was on screen around them, in our monitoring tool/)).toBeInTheDocument();
     expect(who.getByText(/Other staff cannot see them/)).toBeInTheDocument();
     const keep = within(section("keep").getByText(/Errors and screen recordings/, { selector: "td" }).closest("tr")!);
