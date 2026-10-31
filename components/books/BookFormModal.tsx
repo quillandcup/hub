@@ -202,7 +202,7 @@ export default function BookFormModal({
 
         <div>
           <label htmlFor="book-genres" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Genre
+            Genre / Tropes
           </label>
           <TagInput
             id="book-genres"
