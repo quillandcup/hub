@@ -27,6 +27,8 @@ export const OUTCOME_ACTIONS = [
   "award_added",
   // Courses
   "lesson_completion_saved",
+  "course_created",
+  "course_details_saved",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

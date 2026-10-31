@@ -22,7 +22,7 @@ export default async function AdminCoursesPage() {
         </Link>
       </div>
       <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
-        Every course in Kajabi and where it stands in the Hub. Sync and publish from{" "}
+        Every course, whether it comes from Kajabi or lives in the Hub, and where it stands. Kajabi courses sync and publish from{" "}
         <Link href="/admin/data/import" className="underline">
           Import Data
         </Link>
@@ -47,6 +47,7 @@ export default async function AdminCoursesPage() {
                   <Link href={`/admin/courses/${c.kajabiId}`} className="text-plum-700 hover:underline dark:text-plum-300">
                     {c.title}
                   </Link>
+                  {c.source === "hub" && <span className="ml-2 rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900/30 dark:text-plum-200">Hub</span>}
                 </td>
                 <td className="px-4 py-3">{c.published ? <span>Published</span> : <span className="text-slate-600 dark:text-slate-400">Not published</span>}</td>
                 <td className="px-4 py-3">

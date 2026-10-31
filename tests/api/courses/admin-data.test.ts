@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { loadAdminCourse, loadAdminCourseTitle, loadAdminLesson, loadAdminCourses } from '@/lib/courses/admin'
+import { loadAdminCourse, loadAdminCourseTitle, loadAdminLesson, loadAdminCourses, loadHubCourse } from '@/lib/courses/admin'
 import { accessLabel } from '@/lib/courses/access-options'
 
 /**
@@ -88,6 +88,53 @@ describe('Admin course data', () => {
     it('puts published courses first', async () => {
       const rows = await loadAdminCourses(supabase, now)
       expect(rows.findIndex((c) => c.kajabiId === PUBLISHED)).toBeLessThan(rows.findIndex((c) => c.kajabiId === UNPUBLISHED))
+    })
+  })
+
+  describe('Hub-owned courses', () => {
+    const HUB = `test-adm-hub-${ts}`
+    let hubId: string
+    beforeAll(async () => {
+      const { data } = await supabase.from('courses').insert({ slug: HUB, title: `Admin Hub ${ts}`, source: 'hub', description: 'Made in the Hub.', access_duration: '6 months', launch_at: days(5) }).select('id').single()
+      hubId = data!.id
+      await supabase.from('course_lessons').insert([
+        { course_id: hubId, title: 'Open one', position: 1, state: 'open' },
+        { course_id: hubId, title: 'Open two', position: 2, state: 'open' },
+        { course_id: hubId, title: 'Soon', position: 3, state: 'coming_soon' },
+        { course_id: hubId, title: 'Draft', position: 4, state: 'hidden' },
+      ])
+      const { data: member } = await supabase.from('members').insert({ name: 'Adm Hub', email: `adm-hub-${ts}@example.com`, joined_at: now.toISOString(), status: 'active' }).select('id').single()
+      await supabase.from('course_access').insert({ member_id: member!.id, course_id: hubId, starts_at: days(-1), ends_at: days(100), origin: 'purchase' })
+    })
+    afterAll(async () => {
+      await supabase.from('courses').delete().eq('id', hubId)
+    })
+
+    it('are in the list beside the imported ones, marked as the Hub\'s, with their lesson states and access', async () => {
+      const row = (await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === hubId)!
+      expect(row).toMatchObject({ source: 'hub', title: `Admin Hub ${ts}`, slug: HUB, totals: { open: 2, coming_soon: 1, hidden: 1 }, access: { current: 1, upcoming: 0, ended: 0 } })
+      expect(row.published).toMatchObject({ slug: HUB })
+      expect(accessLabel(row.published!.accessDuration)).toBe('6 months')
+      expect((await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === PUBLISHED)!.source).toBe('kajabi')
+    })
+
+    it('load for their own page, with the details the form edits', async () => {
+      const course = (await loadHubCourse(supabase, hubId, now))!
+      expect(course).toMatchObject({ id: hubId, title: `Admin Hub ${ts}`, slug: HUB, description: 'Made in the Hub.', programId: null, access: { current: 1, upcoming: 0, ended: 0 } })
+      expect(new Date(course.launchAt!).getTime()).toBeGreaterThan(now.getTime())
+    })
+
+    it('are null for a course imported from Kajabi, even by its own id, and for an unknown one', async () => {
+      const { data: imported } = await supabase.from('courses').select('id').eq('source_key', PUBLISHED).single()
+      expect(await loadHubCourse(supabase, imported!.id, now)).toBeNull()
+      expect(await loadHubCourse(supabase, 'crs_AAAAAAAAAAA1', now)).toBeNull()
+    })
+
+    it("give the tab their own name, and nothing for an imported course's id or an unknown one", async () => {
+      expect(await loadAdminCourseTitle(supabase, hubId)).toBe(`Admin Hub ${ts}`)
+      const { data: imported } = await supabase.from('courses').select('id').eq('source_key', PUBLISHED).single()
+      expect(await loadAdminCourseTitle(supabase, imported!.id)).toBeNull()
+      expect(await loadAdminCourseTitle(supabase, 'crs_AAAAAAAAAAA1')).toBeNull()
     })
   })
 

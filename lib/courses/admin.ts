@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
+import { isId } from "@/lib/ids";
 import { fetchAll } from "@/lib/courses/db";
 import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
@@ -23,6 +24,9 @@ export interface AccessCounts {
 }
 
 export interface AdminCourseRow {
+  /** Where the course lives: imported from Kajabi (read only here) or owned by the Hub (editable). */
+  source: "kajabi" | "hub";
+  /** Kajabi's course id, or for a Hub-owned course its own id (what the admin page's address takes). */
   kajabiId: string;
   title: string;
   /** Null until the course is published in the Hub. */
@@ -66,7 +70,7 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
     ? await fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.in("course_id", silver.map((c) => c.id)))
     : [];
 
-  return bronze
+  const imported: AdminCourseRow[] = bronze
     .map((c) => {
       const s = silverByKey.get(c.kajabi_id);
       const explained = explainCourse(
@@ -74,6 +78,7 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
         toLessons(lessons.filter((l) => l.course_kajabi_id === c.kajabi_id))
       );
       return {
+        source: "kajabi" as const,
         kajabiId: c.kajabi_id,
         title: c.title,
         published: s ? { slug: s.slug, accessDuration: s.access_duration, launchAt: s.launch_at } : null,
@@ -81,8 +86,62 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
         access: s ? countAccess(access.filter((a) => a.course_id === s.id), now) : { current: 0, upcoming: 0, ended: 0 },
         totals: explained.totals,
       };
-    })
-    .sort((a, b) => Number(!!b.published) - Number(!!a.published) || a.title.localeCompare(b.title));
+    });
+  return [...imported, ...(await loadHubCourseRows(supabase, now))].sort((a, b) => Number(!!b.published) - Number(!!a.published) || a.title.localeCompare(b.title));
+}
+
+/** The Hub-owned courses, shaped like the imported ones for the list. */
+async function loadHubCourseRows(supabase: SupabaseClient, now: Date): Promise<AdminCourseRow[]> {
+  const courses = await fetchAll(supabase, "courses", "id, slug, title, access_duration, launch_at", (q) => q.eq("source", "hub"));
+  if (courses.length === 0) return [];
+  const ids = courses.map((c) => c.id);
+  const [access, lessons] = await Promise.all([
+    fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.in("course_id", ids)),
+    fetchAll(supabase, "course_lessons", "course_id, state", (q) => q.in("course_id", ids)),
+  ]);
+  return courses.map((c) => {
+    const totals: ExplainedCourse["totals"] = { open: 0, coming_soon: 0, hidden: 0 };
+    for (const l of lessons) if (l.course_id === c.id && l.state in totals) totals[l.state as Visibility]++;
+    return {
+      source: "hub" as const,
+      kajabiId: c.id,
+      title: c.title,
+      published: { slug: c.slug, accessDuration: c.access_duration, launchAt: c.launch_at },
+      slug: c.slug,
+      access: countAccess(access.filter((a) => a.course_id === c.id), now),
+      totals,
+    };
+  });
+}
+
+export interface HubCourseDetail {
+  id: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  /** As stored (ISO 8601 or Postgres text), null = lifetime. */
+  accessDuration: string | null;
+  launchAt: string | null;
+  programId: string | null;
+  access: AccessCounts;
+}
+
+/** One Hub-owned course for its page; null for an unknown id or a course imported from Kajabi. */
+export async function loadHubCourse(supabase: SupabaseClient, id: string, now = new Date()): Promise<HubCourseDetail | null> {
+  const { data, error } = await supabase.from("courses").select("id, title, slug, description, access_duration, launch_at, program_id").eq("id", id).eq("source", "hub").maybeSingle();
+  if (error) throw new Error(`courses read failed: ${error.message}`);
+  if (!data) return null;
+  const access = await fetchAll(supabase, "course_access", "course_id, starts_at, ends_at", (q) => q.eq("course_id", id));
+  return {
+    id: data.id,
+    title: data.title,
+    slug: data.slug,
+    description: data.description,
+    accessDuration: data.access_duration,
+    launchAt: data.launch_at,
+    programId: data.program_id,
+    access: countAccess(access, now),
+  };
 }
 
 export interface AdminCourseDetail {
@@ -150,6 +209,11 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
 
 /** A course's title for the browser tab, without loading the rest of the page. Null for a course Kajabi doesn't have. */
 export async function loadAdminCourseTitle(supabase: SupabaseClient, kajabiId: string): Promise<string | null> {
+  if (isId(kajabiId, "crs")) {
+    const { data, error } = await supabase.from("courses").select("title").eq("id", kajabiId).eq("source", "hub").maybeSingle();
+    if (error) throw new Error(`courses read failed: ${error.message}`);
+    return data?.title ?? null;
+  }
   return (await createRepos(supabase).kajabiCourses.liveCourse(kajabiId))?.title ?? null;
 }
 
