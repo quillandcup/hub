@@ -1,3 +1,4 @@
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -24,6 +25,11 @@ const FUTURE = "2097-03-03T15:00:00Z";
 const prickle = (id: string, startTime: string) => ({ id, typeId: SPRINT.id, hostId: null, title: null, startTime, endTime: startTime, source: "calendar", calendarEventId: null });
 const tokenIn = (url: string) => /([0-9a-f]{32})/.exec(url)?.[1];
 
+const seededEvents = eventSeed([
+  { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Retreat", starts_at: "2097-04-10", ends_at: "2097-04-12" },
+  { id: "evnt_AAAAAAAAAAA2", slug: "old", title: "Old Retreat", starts_at: "2020-04-10", ends_at: "2020-04-12" },
+]);
+
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
@@ -32,11 +38,8 @@ beforeEach(() => {
   repos = createInMemoryRepos(
     new InMemoryDataset({
       prickleTypes: [SPRINT],
-      prickles: [prickle("prkl_AAAAAAAAAAA1", FUTURE), prickle("prkl_AAAAAAAAAAA2", "2020-01-01T15:00:00Z")],
-      events: [
-        { id: "evnt_AAAAAAAAAAA1", slug: "retreat", title: "Retreat", starts_at: "2097-04-10", ends_at: "2097-04-12" },
-        { id: "evnt_AAAAAAAAAAA2", slug: "old", title: "Old Retreat", starts_at: "2020-04-10", ends_at: "2020-04-12" },
-      ],
+      prickles: [prickle("prkl_AAAAAAAAAAA1", FUTURE), prickle("prkl_AAAAAAAAAAA2", "2020-01-01T15:00:00Z"), ...seededEvents.prickles],
+      events: seededEvents.events,
     }),
   );
 });
