@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
-import { imageTable, type CourseImageKind } from "@/lib/courses/images";
+import type { CourseImageKind } from "@/lib/courses/image-urls";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { MEDIA_BUCKET } from "@/lib/media/library";
@@ -27,14 +27,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const isPublic = !caller && kind === "lesson" && "preview" in (await publicLessonPreview(supabase, id));
   if (!caller && !isPublic) return new NextResponse("Not found", { status: 404 });
 
-  const t = imageTable(kind as CourseImageKind);
-  const columns = kind === "course" || kind === "hero" ? t.assetColumn : `${t.assetColumn}, state`;
-  const { data: row } = await supabase.from(t.table).select(columns).eq("id", id).maybeSingle();
-  const assetId = (row as any)?.[t.assetColumn] as string | null | undefined;
-  if (!assetId) return new NextResponse("Not found", { status: 404 });
-  if (kind !== "course" && kind !== "hero" && (row as any).state === "hidden" && !caller?.scope.isAdminActing) return new NextResponse("Not found", { status: 404 });
+  const repos = createRepos(supabase);
+  const image = await repos.courses.imageOf(kind as CourseImageKind, id);
+  if (!image?.assetId) return new NextResponse("Not found", { status: 404 });
+  if (image.state === "hidden" && !caller?.scope.isAdminActing) return new NextResponse("Not found", { status: 404 });
 
-  const asset = await createRepos(supabase).media.byId(assetId).catch(() => null);
+  const asset = await repos.media.byId(image.assetId).catch(() => null);
   if (!asset || asset.deleted_at) return new NextResponse("Not found", { status: 404 });
   const { data: blob, error } = await supabase.storage.from(MEDIA_BUCKET).download(asset.storage_path);
   if (error || !blob) {

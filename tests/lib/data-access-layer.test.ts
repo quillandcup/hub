@@ -131,56 +131,35 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments). Moving in three steps (docs/TODO.md,
   // "Course Silver and Local tables behind a repository"); each step removes its files from the lists below.
   courses: [
-    "app/(admin)/admin/courses/actions.ts",
-    "app/api/process/course-files/route.ts",
-    "app/api/process/course-media/route.ts",
-    "lib/courses/files.ts",
-    "lib/courses/images.ts",
-    "lib/courses/process.ts",
     "lib/courses/progress-import.ts",
     "lib/courses/roster-data.ts",
-    "lib/courses/sync.ts",
     "lib/courses/watch-stats-data.ts",
   ],
   course_modules: [
-    "app/(admin)/admin/courses/outline-actions.ts",
-    "lib/courses/process.ts",
     "lib/courses/watch-stats-data.ts",
   ],
   course_lessons: [
-    "app/(admin)/admin/courses/outline-actions.ts",
     "app/(member)/courses/actions.ts",
     "app/api/courses/watch/route.ts",
-    "lib/courses/files.ts",
-    "lib/courses/process.ts",
     "lib/courses/progress-import.ts",
     "lib/courses/roster-data.ts",
     "lib/courses/watch-stats-data.ts",
   ],
-  course_lesson_files: [
-    "lib/courses/files.ts",
-  ],
+  course_lesson_files: [],
   videos: [
-    "app/api/webhooks/mux/route.ts",
-    "lib/courses/media.ts",
-    "lib/courses/process.ts",
     "lib/courses/watch-stats-data.ts",
   ],
   lesson_progress: [
-    "app/(admin)/admin/courses/outline-actions.ts",
     "app/(member)/courses/actions.ts",
     "app/api/courses/watch/route.ts",
     "lib/courses/progress-import.ts",
     "lib/courses/roster-data.ts",
   ],
   course_access: [
-    "lib/courses/process.ts",
     "lib/courses/progress-import.ts",
     "lib/courses/roster-data.ts",
   ],
-  course_access_grants: [
-    "lib/courses/process.ts",
-  ],
+  course_access_grants: [],
   video_watch_segments: [
     "app/(member)/courses/actions.ts",
     "app/api/courses/watch/route.ts",

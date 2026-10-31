@@ -1,12 +1,16 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, inChunks, must, type PageQuery } from "./query";
-import type { Db, Row } from "./db";
+import { chunk } from "@/lib/supabase/paginate";
+import { compareText, inChunks, must, upsertInChunks, type PageQuery } from "./query";
+import type { Db, Insert, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Who may open a course and when (`course_access`): derived from purchases and grants by `/api/process/courses`. */
 export type CourseAccessRecord = Row<"course_access">;
 /** Where a member left off in a lesson, and whether they finished it (`lesson_progress`). */
 export type LessonProgressRecord = Row<"lesson_progress">;
+/** Staff-granted access (`course_access_grants`): comps and staff, written by admins, never derived. */
+export type CourseGrantRecord = Row<"course_access_grants">;
+export type NewCourseAccess = Insert<"course_access">;
 
 const ID_CHUNK = 200;
 
@@ -29,6 +33,16 @@ export interface CourseProgressRepository {
   partlyWatched(memberId: string, limit: number): Promise<{ lesson_id: string; last_position_seconds: number }[]>;
   /** Where the member left off in a lesson, or null when there is no progress row. */
   lessonPosition(memberId: string, lessonId: string): Promise<number | null>;
+  /** Whether any member has a progress row (started or completed) in any of these lessons. */
+  hasProgressIn(lessonIds: string[]): Promise<boolean>;
+
+  // --- access (derived by the processing run) ---
+  /** The staff grants for these courses, by course then member. Paginated. */
+  grantsOfCourses(courseIds: string[]): Promise<CourseGrantRecord[]>;
+  /** Adds or updates access rows on (member, course), in chunks. */
+  upsertAccess(rows: NewCourseAccess[]): Promise<void>;
+  /** Removes these members' access to the course, in chunks. */
+  removeAccess(courseId: string, memberIds: string[]): Promise<void>;
 }
 
 export class SupabaseCourseProgressRepository implements CourseProgressRepository {
@@ -80,6 +94,35 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
     const row = must(await this.db.from("lesson_progress").select("last_position_seconds").eq("member_id", memberId).eq("lesson_id", lessonId).maybeSingle());
     return row ? Number(row.last_position_seconds) : null;
   }
+
+  async hasProgressIn(lessonIds: string[]) {
+    for (const part of chunk(lessonIds, ID_CHUNK)) {
+      const { count, error } = await this.db.from("lesson_progress").select("lesson_id", { count: "exact", head: true }).in("lesson_id", part);
+      if (error) throw new Error(error.message);
+      if (count) return true;
+    }
+    return false;
+  }
+
+  async grantsOfCourses(courseIds: string[]) {
+    const rows = await inChunks(courseIds, ID_CHUNK, (part) =>
+      fetchAllRows<CourseGrantRecord>(
+        (from, to) => this.db.from("course_access_grants").select("*").in("course_id", part).order("course_id").order("member_id").range(from, to) as unknown as PageQuery<CourseGrantRecord>
+      )
+    );
+    return rows.sort((a, b) => compareText(a.course_id, b.course_id) || compareText(a.member_id, b.member_id));
+  }
+
+  async upsertAccess(rows: NewCourseAccess[]) {
+    await upsertInChunks(this.db.from("course_access"), rows, "member_id,course_id");
+  }
+
+  async removeAccess(courseId: string, memberIds: string[]) {
+    for (const part of chunk(memberIds, ID_CHUNK)) {
+      const { error } = await this.db.from("course_access").delete().eq("course_id", courseId).in("member_id", part);
+      if (error) throw new Error(error.message);
+    }
+  }
 }
 
 const copy = <T extends object>(row: T): T => ({ ...row });
@@ -120,5 +163,31 @@ export class InMemoryCourseProgressRepository implements CourseProgressRepositor
   async lessonPosition(memberId: string, lessonId: string) {
     const row = this.data.lessonProgress.find((p) => p.member_id === memberId && p.lesson_id === lessonId);
     return row ? Number(row.last_position_seconds) : null;
+  }
+
+  async hasProgressIn(lessonIds: string[]) {
+    const wanted = new Set(lessonIds);
+    return this.data.lessonProgress.some((p) => wanted.has(p.lesson_id));
+  }
+
+  async grantsOfCourses(courseIds: string[]) {
+    const wanted = new Set(courseIds);
+    return this.data.courseAccessGrants
+      .filter((g) => wanted.has(g.course_id))
+      .map(copy)
+      .sort((a, b) => compareText(a.course_id, b.course_id) || compareText(a.member_id, b.member_id));
+  }
+
+  async upsertAccess(rows: NewCourseAccess[]) {
+    for (const row of rows) {
+      const existing = this.data.courseAccess.find((a) => a.member_id === row.member_id && a.course_id === row.course_id);
+      if (existing) Object.assign(existing, { ends_at: null, ...row });
+      else this.data.courseAccess.push({ ends_at: null, ...row });
+    }
+  }
+
+  async removeAccess(courseId: string, memberIds: string[]) {
+    const gone = new Set(memberIds);
+    this.data.courseAccess = this.data.courseAccess.filter((a) => !(a.course_id === courseId && gone.has(a.member_id)));
   }
 }

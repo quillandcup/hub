@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
+import { CourseWriteError } from "@/lib/data/courses";
+import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { parseItemTitle } from "@/lib/courses/editor";
 
@@ -19,7 +21,6 @@ export type OutlineResult = { error?: string; id?: string };
 export type ItemKind = "module" | "lesson";
 
 const PREFIX = { module: "mod", lesson: "les" } as const;
-const TABLE = { module: "course_modules", lesson: "course_lessons" } as const;
 const MAX_REORDER = 500;
 const NOT_EDITABLE = "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi.";
 
@@ -41,32 +42,23 @@ function revalidate(courseId: string) {
   revalidatePath("/courses", "layout");
 }
 
-/** The next position after the last of the siblings, so an added item goes at the end. */
-async function nextPosition(auth: Auth, kind: ItemKind, courseId: string, parentId: string | null): Promise<number> {
-  if (kind === "module") {
-    const query = auth.supabase.from("course_modules").select("position").eq("course_id", courseId);
-    const { data } = await (parentId ? query.eq("parent_id", parentId) : query.is("parent_id", null)).order("position", { ascending: false }).limit(1);
-    return (data?.[0]?.position ?? 0) + 1;
-  }
-  const query = auth.supabase.from("course_lessons").select("position").eq("course_id", courseId);
-  const { data } = await (parentId ? query.eq("module_id", parentId) : query.is("module_id", null)).order("position", { ascending: false }).limit(1);
-  return (data?.[0]?.position ?? 0) + 1;
-}
+/** A refused or failed write as the {@link DbError} `describe` explains; a database refusal keeps its code. */
+const asDbError = (error: unknown): DbError => ({ code: error instanceof CourseWriteError ? error.code : undefined, message: error instanceof Error ? error.message : String(error) });
 
 async function addModuleImpl(auth: Auth, courseId: string, parentModuleId: string | null, title: string): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || (parentModuleId !== null && !isId(parentModuleId, "mod"))) return { error: "Course not found." };
   const name = parseItemTitle(title);
   if (!name.ok) return { error: name.error };
 
-  const position = await nextPosition(auth, "module", courseId, parentModuleId);
-  const { data, error } = await auth.supabase
-    .from("course_modules")
-    .insert({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, state: "hidden", source: "hub" })
-    .select("id")
-    .single();
-  if (error) return { error: describe(error, "add the module") };
-  revalidate(courseId);
-  return { id: data.id };
+  const courses = createRepos(auth.supabase).courses;
+  try {
+    const position = await courses.nextPosition("module", courseId, parentModuleId);
+    const id = await courses.addModule({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, state: "hidden", source: "hub" });
+    revalidate(courseId);
+    return { id };
+  } catch (error) {
+    return { error: describe(asDbError(error), "add the module") };
+  }
 }
 
 async function addLessonImpl(auth: Auth, courseId: string, moduleId: string, title: string): Promise<OutlineResult> {
@@ -74,15 +66,15 @@ async function addLessonImpl(auth: Auth, courseId: string, moduleId: string, tit
   const name = parseItemTitle(title);
   if (!name.ok) return { error: name.error };
 
-  const position = await nextPosition(auth, "lesson", courseId, moduleId);
-  const { data, error } = await auth.supabase
-    .from("course_lessons")
-    .insert({ course_id: courseId, module_id: moduleId, title: name.title, position, state: "hidden", source: "hub" })
-    .select("id")
-    .single();
-  if (error) return { error: describe(error, "add the lesson") };
-  revalidate(courseId);
-  return { id: data.id };
+  const courses = createRepos(auth.supabase).courses;
+  try {
+    const position = await courses.nextPosition("lesson", courseId, moduleId);
+    const id = await courses.addLesson({ course_id: courseId, module_id: moduleId, title: name.title, position, state: "hidden", source: "hub" });
+    revalidate(courseId);
+    return { id };
+  } catch (error) {
+    return { error: describe(asDbError(error), "add the lesson") };
+  }
 }
 
 async function renameItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string, title: string): Promise<OutlineResult> {
@@ -90,54 +82,53 @@ async function renameItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: 
   const name = parseItemTitle(title);
   if (!name.ok) return { error: name.error };
 
-  const { data, error } = await auth.supabase.from(TABLE[kind]).update({ title: name.title }).eq("id", id).eq("course_id", courseId).eq("source", "hub").select("id");
-  if (error) return { error: describe(error, "rename it") };
-  if (!data || data.length === 0) return { error: NOT_EDITABLE };
+  try {
+    if (!(await createRepos(auth.supabase).courses.renameItem(kind, { id, courseId }, name.title))) return { error: NOT_EDITABLE };
+  } catch (error) {
+    return { error: describe(asDbError(error), "rename it") };
+  }
   revalidate(courseId);
   return { id };
-}
-
-/** The lessons that go with a module (its own and its submodules'), or the one lesson. */
-async function lessonIdsUnder(auth: Auth, kind: ItemKind, id: string): Promise<string[]> {
-  if (kind === "lesson") return [id];
-  const { data: children } = await auth.supabase.from("course_modules").select("id").eq("parent_id", id);
-  const moduleIds = [id, ...(children ?? []).map((c) => c.id)];
-  const { data: lessons } = await auth.supabase.from("course_lessons").select("id").in("module_id", moduleIds);
-  return (lessons ?? []).map((l) => l.id);
 }
 
 async function deleteItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || !(kind in PREFIX) || !isId(id, PREFIX[kind])) return { error: "Not found." };
 
   // A lesson members have worked through is theirs too: deleting it would erase their progress.
-  const lessonIds = await lessonIdsUnder(auth, kind, id);
-  if (lessonIds.length > 0) {
-    const { count } = await auth.supabase.from("lesson_progress").select("lesson_id", { count: "exact", head: true }).in("lesson_id", lessonIds);
-    if (count) return { error: `Members have progress in ${kind === "lesson" ? "this lesson" : "its lessons"}, so it can't be deleted. Hide it instead.` };
+  const repos = createRepos(auth.supabase);
+  try {
+    const lessonIds = await repos.courses.lessonIdsUnder(kind, id);
+    if (lessonIds.length > 0 && (await repos.courseProgress.hasProgressIn(lessonIds))) {
+      return { error: `Members have progress in ${kind === "lesson" ? "this lesson" : "its lessons"}, so it can't be deleted. Hide it instead.` };
+    }
+    if (!(await repos.courses.deleteItem(kind, { id, courseId }))) return { error: NOT_EDITABLE };
+  } catch (error) {
+    return { error: describe(asDbError(error), "delete it") };
   }
-
-  const { data, error } = await auth.supabase.from(TABLE[kind]).delete().eq("id", id).eq("course_id", courseId).eq("source", "hub").select("id");
-  if (error) return { error: describe(error, "delete it") };
-  if (!data || data.length === 0) return { error: NOT_EDITABLE };
   revalidate(courseId);
   return { id };
 }
 
 async function duplicateItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || !(kind in PREFIX) || !isId(id, PREFIX[kind])) return { error: "Not found." };
-  const { data, error } =
-    kind === "module" ? await auth.supabase.rpc("duplicate_course_module", { p_module_id: id }) : await auth.supabase.rpc("duplicate_course_lesson", { p_lesson_id: id });
-  if (error) return { error: describe(error, "duplicate it") };
-  revalidate(courseId);
-  return { id: data as string };
+  try {
+    const copyId = await createRepos(auth.supabase).courses.duplicateItem(kind, id);
+    revalidate(courseId);
+    return { id: copyId };
+  } catch (error) {
+    return { error: describe(asDbError(error), "duplicate it") };
+  }
 }
 
 async function reorderItemsImpl(auth: Auth, courseId: string, kind: ItemKind, parentId: string | null, orderedIds: string[]): Promise<OutlineResult> {
   if (!isId(courseId, "crs") || !(kind in PREFIX) || (parentId !== null && !isId(parentId, "mod"))) return { error: "Not found." };
   if (!Array.isArray(orderedIds) || orderedIds.length === 0 || orderedIds.length > MAX_REORDER || !orderedIds.every((id) => isId(id, PREFIX[kind]))) return { error: "Not found." };
 
-  const { error } = await auth.supabase.rpc("reorder_course_children", { p_course_id: courseId, p_kind: kind, p_parent_id: parentId as string, p_ids: orderedIds });
-  if (error) return { error: describe(error, "reorder them") };
+  try {
+    await createRepos(auth.supabase).courses.reorderChildren({ courseId, kind, parentId, ids: orderedIds });
+  } catch (error) {
+    return { error: describe(asDbError(error), "reorder them") };
+  }
   revalidate(courseId);
   return { id: courseId };
 }

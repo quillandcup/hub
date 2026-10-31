@@ -19,6 +19,9 @@ defineCourseContract("InMemory course repositories", () => {
       videos: async (rows) => void data.videos.push(...rows),
       progress: async (rows) => void data.lessonProgress.push(...rows),
       access: async (rows) => void data.courseAccess.push(...rows),
+      grants: async (rows) => void data.courseAccessGrants.push(...rows),
+      mediaAsset: async () => `media_${++n}`,
+      forget: () => undefined,
     },
   };
 });
