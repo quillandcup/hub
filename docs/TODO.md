@@ -197,6 +197,9 @@ The past events page (`app/(member)/events/past/page.tsx`, `PAST_EVENTS_FROM`) h
 
 ## Infrastructure & Deployment
 
+### Check that a Dropped Column Is No Longer Referenced
+Squawk (`.squawk.toml`, run in the `Check migration numbering` job) fails any new migration that drops or renames a column, table or function, so a drop needs a deliberate, approved `-- squawk-ignore`. It reads only SQL: it can't tell whether the code still uses the column, which is how `member_books.genre` was dropped in the same PR that stopped reading it and took `/projects` down while the deploy rolled out. Add a script (next to `scripts/check-migration-order.ts`) that, for a migration carrying `squawk-ignore ban-drop-column` (also table and function), extracts the dropped name and fails if the same PR's tree still references it (grep `app/`, `lib/`, `components/`; ignore `lib/data/database.types.ts`, which `pnpm types:gen` regenerates), and a stronger variant that checks the previous production deploy's code instead of the PR's. Deferred because the lint plus the approval rule already stops the accident; worth doing if approved ignores start slipping through.
+
 ### Test Slack Integrations at the HTTP Level with MSW
 Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand-written fake (e.g. `tests/api/slack-sign-in.test.ts`). That skips the real client's request encoding, retries and error handling, and only returns the happy responses each test remembers to stub. Intercept `https://slack.com/api/*` with MSW instead (the shared server is already set up in `tests/setup-msw.ts`):
 - A reusable Slack fake: handlers for `users.info`, `views.publish`, `chat.postMessage`, `conversations.*` that record calls and return realistic responses, including `ok: false` errors (`user_not_found`, `invalid_blocks`, `ratelimited` with `Retry-After`).

@@ -132,6 +132,7 @@
     "playwright": "^1.64.1",
     "postcss": "^8.5.31",
     "slack-blocks-to-jsx": "^1.2.1",
+    "squawk-cli": "^2.70.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.15",
     "typescript": "^5",
