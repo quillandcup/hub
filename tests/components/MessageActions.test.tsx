@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -48,6 +48,36 @@ describe("MessageActions menu", () => {
       { messageId: "m1", what: "edit" },
       { messageId: "m1", what: "delete" },
     ]);
+  });
+
+  it("shows 'Message copied' for 1.5 s with a single timer, restarts it on a second copy, and leaves none behind on unmount", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const copyMessage = async () => {
+        fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+        await act(async () => void fireEvent.click(screen.getByRole("menuitem", { name: "Copy message" })));
+      };
+      render(<MessageActions {...props} />);
+      await copyMessage();
+      expect(screen.getByRole("status")).toHaveTextContent("Message copied");
+      expect(vi.getTimerCount()).toBe(1);
+
+      act(() => void vi.advanceTimersByTime(1000));
+      await copyMessage();
+      expect(vi.getTimerCount()).toBe(1);
+      act(() => void vi.advanceTimersByTime(1499));
+      expect(screen.getByRole("status")).toBeInTheDocument();
+      act(() => void vi.advanceTimersByTime(1));
+      expect(screen.queryByRole("status")).toBeNull();
+
+      await copyMessage();
+      expect(vi.getTimerCount()).toBe(1);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("leaves them out for everyone else", async () => {

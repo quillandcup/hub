@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTimeout } from "@/components/useTimeout";
 import { CALENDAR_FEED_NAME, type CalendarFeedUrls } from "@/lib/calendar-feed";
 import { regenerateMyCalendarFeedToken } from "./calendar-feed-actions";
 
@@ -26,6 +27,7 @@ function CalendarIcon({ className = "" }: { className?: string }) {
  * by hand is listed separately (AddedToCalendarList), not hidden in here.
  */
 export default function CalendarSyncCard({ initialUrls }: { initialUrls: CalendarFeedUrls }) {
+  const startCopiedTimer = useTimeout();
   const [urls, setUrls] = useState(initialUrls);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,7 +61,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
     try {
       await navigator.clipboard.writeText(urls.https);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      startCopiedTimer(() => setCopied(false), 2000);
     } catch {
       setError(`Couldn't copy automatically. Your link: ${urls.https}`);
     }

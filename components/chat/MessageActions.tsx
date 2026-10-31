@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTimeout } from "@/components/useTimeout";
 import EmojiPicker from "@/components/chat/EmojiPicker";
 import { useToggleReaction } from "@/components/chat/ReactionBar";
 import type { CustomEmoji } from "@/lib/chat/emoji";
@@ -92,6 +93,7 @@ export default function MessageActions({
 }) {
   const [open, setOpen] = useState<"react" | "more" | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const startCopiedTimer = useTimeout();
   const root = useRef<HTMLDivElement>(null);
   const { toggle, pending, error } = useToggleReaction(channelId, messageId);
 
@@ -117,7 +119,7 @@ export default function MessageActions({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
-      setTimeout(() => setCopied(null), 1500);
+      startCopiedTimer(() => setCopied(null), 1500);
     } catch {
       setCopied(null);
     }
