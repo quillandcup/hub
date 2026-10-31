@@ -176,7 +176,8 @@ export function defineMemberStatusContract(name: string, setup: () => MemberStat
       await ctx.seedJoinDate(ctx.members[ada].id, "2018-01-02T00:00:00Z");
 
       const ours = (await ctx.repo().joinDateOverrides()).filter((o) => mine(o.member_id));
-      expect(ours.map((o) => o.member_id)).toEqual([ctx.members[ada].id, ctx.members[bo].id].sort());
+      // Ids are random mixed-case text, which the database orders by its collation and JavaScript by code unit: compare as sets.
+      expect(ours.map((o) => o.member_id).sort()).toEqual([ctx.members[ada].id, ctx.members[bo].id].sort());
       expect(new Date(ours.find((o) => o.member_id === ctx.members[bo].id)!.first_joined_at).toISOString()).toBe("2019-03-04T00:00:00.000Z");
       expect(Object.keys(ours[0]).sort()).toEqual(["first_joined_at", "member_id"]);
     });

@@ -22,7 +22,6 @@ vi.mock("@/lib/data/repos", async () => ({
 let storedBytes: Record<string, string>;
 let removed: string[][];
 let dataset: InMemoryDataset;
-let bronzeRows: unknown[];
 const rpc = vi.fn(async (_n: string, _a: unknown) => ({ error: null }));
 const fail = vi.fn(async (_reason: string) => "failed" as const);
 
@@ -41,7 +40,6 @@ const supabase = {
       },
     }),
   },
-  schema: () => ({ from: () => ({ upsert: async (row: unknown) => (bronzeRows.push(row), { error: null }) }) }),
 };
 
 const FILES = [
@@ -68,7 +66,6 @@ beforeEach(() => {
   removed = [];
   dataset = new InMemoryDataset({ chatMessages: [{ id: "m1", channel_id: "chn_AAAAAAAAAAA1" }], chatMessageContents: [{ message_id: "m1", files: [] }] });
   repos = createInMemoryRepos(dataset);
-  bronzeRows = [];
   tokensUsed.length = 0;
   rpc.mockClear();
   fail.mockClear();
@@ -120,7 +117,10 @@ describe("sendChatFilesToSlack", () => {
     expect(rpc).toHaveBeenCalledWith("chat_mark_message_sent", { p_message_id: "m1", p_slack_ts: "1700000000.000200" });
     expect(dataset.chatMessages[0].posted_via).toBe("user_token");
     expect(Object.keys(storedBytes).filter((k) => k.startsWith("uploaded:"))).toEqual(["uploaded:F1/cat.gif", "uploaded:F2/notes.pdf"]);
-    expect(bronzeRows).toHaveLength(2);
+    expect(dataset.slackFiles.map((f) => [f.file_id, f.channel_id, f.message_ts, f.storage_path])).toEqual([
+      ["F1", "C1", "1700000000.000200", "F1/cat.gif"],
+      ["F2", "C1", "1700000000.000200", "F2/notes.pdf"],
+    ]);
     expect(removed).toEqual([["staging/2026-10-22/m-1/cat.gif", "staging/2026-10-22/m-1/notes.pdf"]]);
   });
 

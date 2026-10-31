@@ -16,6 +16,7 @@ defineSlackMessageContract("InMemorySlackMessageRepository", () => {
     seed: async ({ messages = [], reactions = [] }) => {
       data.slackMessages = messages.map((m) => ({ ...m }));
       data.slackReactions = reactions.map((r) => ({ ...r }));
+      data.slackFiles = [];
     },
   };
 });

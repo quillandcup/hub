@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
 import { createRepos } from "@/lib/data/repos";
 import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 export type FileBytesResult = "removed" | "kept" | "nothing" | "failed";
 
@@ -26,16 +25,12 @@ export async function removeChatFileBytes(
       if (await createRepos(service).chat.fileIsListed(fileId)) return "kept";
     }
 
-    const bronze = () => service.schema("bronze").from("slack_files");
-    const { data: row, error: rowError } = await bronze().select("storage_path, deleted_at").eq("file_id", fileId).maybeSingle();
-    if (rowError) throw rowError;
+    const files = createRepos(service).slackMessages;
+    const row = await files.fileById(fileId);
     if (!row) return "nothing";
 
     if (!row.deleted_at) {
-      const { error } = await bronze()
-        .update({ deleted_at: new Date(clock.now()).toISOString(), copy_error: DELETED_COPY_ERROR })
-        .eq("file_id", fileId);
-      if (error) throw error;
+      await files.updateFile(fileId, { deleted_at: new Date(clock.now()).toISOString(), copy_error: DELETED_COPY_ERROR });
     }
     return (await dropBytes(service, fileId, row.storage_path)) ? "removed" : "failed";
   } catch (error) {
@@ -52,8 +47,9 @@ async function dropBytes(service: SupabaseClient, fileId: string, path: string |
       return false;
     }
   }
-  const { error } = await service.schema("bronze").from("slack_files").update({ storage_path: null, copied_at: null }).eq("file_id", fileId);
-  if (error) {
+  try {
+    await createRepos(service).slackMessages.updateFile(fileId, { storage_path: null, copied_at: null });
+  } catch (error) {
     console.error("clearing storage_path of file %s failed:", fileId, error);
     return false;
   }
@@ -62,21 +58,16 @@ async function dropBytes(service: SupabaseClient, fileId: string, path: string |
 
 /** Retry removals that failed earlier: soft-deleted Bronze files whose bytes are still in the bucket. */
 export async function sweepDeletedFileBytes(service: SupabaseClient, limit = 100): Promise<{ removed: number; failed: number }> {
-  const { data, error } = await service
-    .schema("bronze")
-    .from("slack_files")
-    .select("file_id, storage_path")
-    .not("deleted_at", "is", null)
-    .not("storage_path", "is", null)
-    .order("deleted_at")
-    .limit(limit);
-  if (error) {
+  let rows: { file_id: string; storage_path: string }[];
+  try {
+    rows = await createRepos(service).slackMessages.deletedFilesWithBytes(limit);
+  } catch (error) {
     console.error("listing deleted chat files to sweep failed:", error);
     return { removed: 0, failed: 1 };
   }
   let removed = 0;
   let failed = 0;
-  for (const row of data ?? []) {
+  for (const row of rows) {
     if (await dropBytes(service, row.file_id, row.storage_path)) removed++;
     else failed++;
   }
@@ -127,12 +118,7 @@ export async function removeFilesGoneFromSlack(
 ): Promise<{ gone: number; removed: number; failed: number }> {
   if (messages.length === 0) return { gone: 0, removed: 0, failed: 0 };
   const oldest = messages.reduce((min, m) => (m.message_ts < min ? m.message_ts : min), messages[0].message_ts);
-  const stored: { file_id: string; channel_id: string; message_ts: string }[] = await fetchAllBronzeRows(
-    service,
-    "slack_files",
-    "file_id, channel_id, message_ts",
-    (q) => q.is("deleted_at", null).gte("message_ts", oldest).order("file_id")
-  );
+  const stored = await createRepos(service).slackMessages.liveFilesSince(oldest);
   const gone = filesGoneFromSlack(messages, stored).slice(0, limit);
   let removed = 0;
   let failed = 0;

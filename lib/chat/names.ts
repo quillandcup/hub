@@ -14,12 +14,6 @@ import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/li
 
 const BATCH = 200;
 
-/** The rows of a result, or a throw on a database error so a failed lookup is never cached as empty. */
-function ok<T>(result: { data: T[] | null; error?: { message: string } | null }): T[] {
-  if (result.error) throw new Error(result.error.message);
-  return result.data ?? [];
-}
-
 function chunks<T>(items: T[]): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += BATCH) out.push(items.slice(i, i + BATCH));
@@ -141,16 +135,8 @@ async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string
 export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (messageTs.length === 0) return out;
-  const service = createServiceRoleClient();
-  for (const batch of chunks(messageTs)) {
-    const { data } = await service
-      .schema("bronze")
-      .from("slack_messages")
-      .select("message_ts, user_id")
-      .eq("channel_id", slackChannelId)
-      .in("message_ts", batch);
-    for (const row of data ?? []) out[row.message_ts] = row.user_id;
-  }
+  const authors = await createRepos(createServiceRoleClient()).slackMessages.authorsByTs(slackChannelId, messageTs);
+  for (const [ts, userId] of authors) out[ts] = userId;
   return out;
 }
 
@@ -172,22 +158,14 @@ async function customEmojiUncached(names: string[]): Promise<Record<string, Cust
   let wanted = [...new Set(names)];
   const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
   if (wanted.length === 0) return {};
-  const service = createServiceRoleClient();
+  const workspace = createRepos(createServiceRoleClient()).slackWorkspace;
 
   // Aliases point at other names, which may be custom too: fetch until nothing new turns up.
   for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
     const next = new Set<string>();
-    for (const batch of chunks(wanted)) {
-      const data = ok(await service
-        .schema("bronze")
-        .from("slack_custom_emoji")
-        .select("name, image_url, alias_for")
-        .in("name", batch)
-        .is("deleted_at", null));
-      for (const r of data ?? []) {
-        rows.set(r.name, r);
-        if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
-      }
+    for (const r of await workspace.emojiByNames(wanted)) {
+      rows.set(r.name, r);
+      if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
     }
     wanted = [...next];
   }
