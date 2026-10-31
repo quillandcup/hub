@@ -41,8 +41,7 @@ type ChangeResult = Promise<string | null | void> | string | null | void;
  *
  * `own` makes it a member's: their own images only, uploaded as covers, and the member's trimmed editor. Without it
  * it is staff's, over the shared library. `shape="cover"` lays the preview out small and portrait with the buttons
- * beside it, and `children` go under the buttons (a book's requirements and Amazon download). `legacyUrl` is shown
- * while there is no library image (an older cover that is a link).
+ * beside it, and `children` go under the buttons (a book's requirements and Amazon download).
  */
 export default function MediaPicker({
   value,
@@ -56,7 +55,6 @@ export default function MediaPicker({
   noun = "image",
   alt = "The chosen image",
   removable = true,
-  legacyUrl,
   children,
 }: {
   value: string | null;
@@ -70,7 +68,6 @@ export default function MediaPicker({
   noun?: string;
   alt?: string;
   removable?: boolean;
-  legacyUrl?: string;
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -93,9 +90,9 @@ export default function MediaPicker({
   const imageClass = cover
     ? "w-16 h-24 object-cover rounded border border-slate-200 dark:border-slate-700 flex-shrink-0"
     : "w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700";
-  const shown = value ? mediaSrc(value, preview, version) : legacyUrl;
+  const shown = value ? mediaSrc(value, preview, version) : null;
   const picture = shown ? (
-    // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset (or an older cover's own link)
+    // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
     <img src={shown} alt={alt} className={imageClass} />
   ) : cover ? null : (
     <p className="text-sm text-slate-600 dark:text-slate-400">No {noun} chosen.</p>
@@ -114,7 +111,7 @@ export default function MediaPicker({
           }}
           className={SECONDARY}
         >
-          {value || legacyUrl ? `Change ${noun}` : `Choose ${noun}`}
+          {value ? `Change ${noun}` : `Choose ${noun}`}
         </button>
         {value && (
           <button type="button" data-track="media-picker-adjust" disabled={disabled} onClick={() => setAdjusting(true)} className={SECONDARY}>

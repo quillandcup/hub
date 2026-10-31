@@ -145,12 +145,6 @@ describe("BookFormModal cover", () => {
     expect(screen.getByRole("link", { name: /Download for Amazon/ })).toBeInTheDocument();
   });
 
-  it("offers no download for an older cover, which is a link to somewhere else", () => {
-    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={BOOK} />);
-    expect(screen.queryByRole("link", { name: /Download for Amazon/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/ px\./)).not.toBeInTheDocument();
-  });
-
   it("can be published once a cover has been uploaded", async () => {
     stubUpload(uploaded);
     vi.mocked(publishProject).mockResolvedValue({ success: true });

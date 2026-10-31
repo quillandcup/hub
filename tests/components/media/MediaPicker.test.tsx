@@ -254,21 +254,22 @@ describe("MediaPicker as a member's cover control", () => {
     render(<MediaPicker own shape="cover" noun="cover" alt="Cover preview" surface="book_cover" preview="book_cover_shelf" removable={false} value={null} onChange={onChange} {...props} />);
     return onChange;
   };
+  const respond2 = (url: string) => (url.startsWith("/api/bookshelf/cover?") ? json({ assets: [COVER] }) : undefined);
   const ownList = () => {
-    respond = (url) => (url.startsWith("/api/bookshelf/cover?") ? json({ assets: [COVER] }) : undefined);
+    respond = respond2;
   };
 
-  it("names things after the noun, shows a legacy link while there is no library image, and has no Remove", () => {
-    setupCover({ legacyUrl: "https://example.com/old.jpg", children: <p>Requirements</p> });
-    expect(screen.getByAltText("Cover preview")).toHaveAttribute("src", "https://example.com/old.jpg");
+  it("names things after the noun, has no Remove, and shows its children under the buttons", () => {
+    setupCover({ value: COVER.id, children: <p>Requirements</p> });
+    expect(screen.getByAltText("Cover preview")).toHaveAttribute("src", `/api/media/${COVER.id}/book_cover_shelf`);
     expect(screen.getByRole("button", { name: "Change cover" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument(); // nothing in the library to adjust
     expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
     expect(screen.getByText("Requirements")).toBeInTheDocument();
     cleanup();
     setupCover();
     expect(screen.getByRole("button", { name: "Choose cover" })).toBeInTheDocument();
     expect(screen.queryByAltText("Cover preview")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Adjust crop" })).not.toBeInTheDocument();
   });
 
   it("lists the member's own images, hands the chosen one over with its size and does not open the editor", async () => {
@@ -295,5 +296,65 @@ describe("MediaPicker as a member's cover control", () => {
     await userEvent.click(screen.getByRole("button", { name: "Adjust crop" }));
     expect(await screen.findByText(/Click the picture/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  });
+
+  const uploadOwn = async (file: File) => {
+    await userEvent.click(screen.getByRole("button", { name: /Choose cover|Change cover/ }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Upload" }));
+    await userEvent.upload(screen.getByLabelText("Image file"), file);
+    await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
+  };
+
+  it("uploads a cover to the member's own images with no title or tags, and hands it over with its size", async () => {
+    ownList();
+    respond = (url, init) => (url === "/api/bookshelf/cover" && init?.method === "POST" ? json({ url: "/api/media/media_NNNNNNNNNNN9/book_cover_shelf", assetId: "media_NNNNNNNNNNN9", width: 1600, height: 2560, convertedFrom: "heic", duplicate: false }) : respond2(url));
+    const onChange = setupCover();
+    await userEvent.click(screen.getByRole("button", { name: "Choose cover" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Upload" }));
+    expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tags")).not.toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText("Image file"), new File([new Uint8Array(10)], "cover.heic", { type: "image/heic" }));
+    await userEvent.click(screen.getByRole("button", { name: "Upload and use" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_NNNNNNNNNNN9", { id: "media_NNNNNNNNNNN9", width: 1600, height: 2560 }));
+    expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "book_cover", ok: true, converted: true, duplicate: false, large: false });
+    expect(track).toHaveBeenCalledWith("media_picked", { surface: "book_cover", from: "upload", searched: false });
+  });
+
+  it("refuses a cover over 4 MB without sending it, and says so plainly when the request fails or is refused", async () => {
+    ownList();
+    setupCover();
+    await uploadOwn(new File([new Uint8Array(4 * 1024 * 1024 + 1)], "big.png", { type: "image/png" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("under 4 MB");
+    expect(calls.some((c) => c.init?.method === "POST")).toBe(false);
+    cleanup();
+
+    respond = (url, init) => (init?.method === "POST" ? Promise.reject(new TypeError("Failed to fetch")) : respond2(url));
+    setupCover();
+    await uploadOwn(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed, try again");
+    cleanup();
+
+    respond = (url, init) => (init?.method === "POST" ? json({ error: "Use a JPEG, PNG, WebP, GIF or AVIF image" }, 400) : respond2(url));
+    setupCover();
+    await uploadOwn(new File([new Uint8Array(10)], "b.png", { type: "image/png" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Use a JPEG");
+    expect(track).toHaveBeenCalledWith("media_uploaded", { surface: "book_cover", ok: false, converted: false, duplicate: false, large: false });
+  });
+
+  it("opens the trimmed editor after an upload the parent took", async () => {
+    function Harness() {
+      const [id, setId] = useState<string | null>(null);
+      return <MediaPicker own shape="cover" noun="cover" surface="book_cover" value={id} onChange={(next) => setId(next)} />;
+    }
+    ownList();
+    respond = (url, init) =>
+      url === "/api/bookshelf/cover" && init?.method === "POST"
+        ? json({ url: "x", assetId: COVER.id, width: 1200, height: 1800 })
+        : url === `/api/bookshelf/cover/${COVER.id}`
+          ? json({ asset: { ...COVER, tags: [], is_public: false, mime_type: "image/png", focal_x: null, focal_y: null, fits: {} }, usages: [] })
+          : respond2(url);
+    render(<Harness />);
+    await uploadOwn(new File([new Uint8Array(10)], "a.png", { type: "image/png" }));
+    expect(await screen.findByText(/Click the picture/)).toBeInTheDocument();
   });
 });
