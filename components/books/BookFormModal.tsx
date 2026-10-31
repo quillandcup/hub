@@ -12,7 +12,9 @@ import {
 } from "@/app/(member)/bookshelf/actions";
 import { publishProject } from "@/app/(member)/projects/actions";
 import type { PenNameOptions } from "@/lib/book-pen-name";
-import BookCoverField, { type CoverAsset } from "@/components/books/BookCoverField";
+import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
+import MediaPicker from "@/components/media/MediaPicker";
+import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface BookFormModalProps {
   isOpen: boolean;
@@ -225,14 +227,23 @@ export default function BookFormModal({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Cover image *
           </label>
-          <BookCoverField
-            url={coverUrl}
-            asset={coverAsset}
-            onUploaded={(cover) => {
-              setCoverUrl(cover.url);
-              setCoverAsset(cover.asset);
+          <MediaPicker
+            own
+            shape="cover"
+            noun="cover"
+            alt="Cover preview"
+            surface="book_cover"
+            preview="book_cover_shelf"
+            removable={false}
+            value={coverAssetIdOf(coverUrl)}
+            onChange={(id, picked) => {
+              if (!id || !picked) return;
+              setCoverUrl(bookCoverUrlFor(id));
+              setCoverAsset(picked);
             }}
-          />
+          >
+            <BookCoverDetails url={coverUrl} asset={coverAsset} />
+          </MediaPicker>
         </div>
 
         <div>

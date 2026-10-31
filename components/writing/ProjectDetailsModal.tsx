@@ -9,7 +9,9 @@ import {
   type WritingProjectRow,
 } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS, WRITING_MEASURES, type WritingMeasure } from "@/lib/writing-projects";
-import BookCoverField, { type CoverAsset } from "@/components/books/BookCoverField";
+import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
+import MediaPicker from "@/components/media/MediaPicker";
+import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface ProjectDetailsModalProps {
   isOpen: boolean;
@@ -99,17 +101,30 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Cover image <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
-          <BookCoverField
-            url={coverUrl}
-            asset={coverAsset}
-            hint="It's the cover your published book will use, so you won't have to upload it again at publish time."
-            onUploaded={async (cover) => {
-              const result = await updateProjectCover(project.id, cover.url);
+          <MediaPicker
+            own
+            shape="cover"
+            noun="cover"
+            alt="Cover preview"
+            surface="book_cover"
+            preview="book_cover_shelf"
+            removable={false}
+            value={coverAssetIdOf(coverUrl)}
+            onChange={async (id, picked) => {
+              if (!id || !picked) return;
+              const url = bookCoverUrlFor(id);
+              const result = await updateProjectCover(project.id, url);
               if ("error" in result) return result.error;
-              setCoverUrl(cover.url);
-              setCoverAsset(cover.asset);
+              setCoverUrl(url);
+              setCoverAsset(picked);
             }}
-          />
+          >
+            <BookCoverDetails
+              url={coverUrl}
+              asset={coverAsset}
+              hint="It's the cover your published book will use, so you won't have to upload it again at publish time."
+            />
+          </MediaPicker>
         </div>
 
         <div>
