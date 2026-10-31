@@ -27,8 +27,8 @@ export interface AccessCounts {
 export interface AdminCourseRow {
   /** Where the course lives: imported from Kajabi (read only here) or owned by the Hub (editable). */
   source: "kajabi" | "hub";
-  /** Kajabi's course id, or for a Hub-owned course its own id (what the admin page's address takes). */
-  kajabiId: string;
+  /** The course's Hub id (what the admin page's address takes); null until the Kajabi import has made its row. */
+  id: string | null;
   title: string;
   /** Null until the course is published in the Hub. */
   published: { slug: string; accessDuration: string | null; launchAt: string | null } | null;
@@ -55,7 +55,7 @@ const toLessons = (rows: any[]) =>
   rows.map((l) => ({ kajabiId: l.kajabi_id, moduleKajabiId: l.module_kajabi_id, position: l.position, title: l.title, publishingOption: l.publishing_option }));
 
 async function loadSilverCourses(supabase: SupabaseClient) {
-  return fetchAll(supabase, "courses", "id, slug, source_key, access_duration, launch_at", (q) => q.eq("source", "kajabi"));
+  return fetchAll(supabase, "courses", "id, slug, source_key, access_duration, launch_at, is_draft", (q) => q.eq("source", "kajabi"));
 }
 
 export async function loadAdminCourses(supabase: SupabaseClient, now = new Date()): Promise<AdminCourseRow[]> {
@@ -74,17 +74,18 @@ export async function loadAdminCourses(supabase: SupabaseClient, now = new Date(
   const imported: AdminCourseRow[] = bronze
     .map((c) => {
       const s = silverByKey.get(c.kajabi_id);
+      const live = s && !s.is_draft ? s : undefined;
       const explained = explainCourse(
         toModules(modules.filter((m) => m.course_kajabi_id === c.kajabi_id)),
         toLessons(lessons.filter((l) => l.course_kajabi_id === c.kajabi_id))
       );
       return {
         source: "kajabi" as const,
-        kajabiId: c.kajabi_id,
+        id: s?.id ?? null,
         title: c.title,
-        published: s ? { slug: s.slug, accessDuration: s.access_duration, launchAt: s.launch_at } : null,
+        published: live ? { slug: live.slug, accessDuration: live.access_duration, launchAt: live.launch_at } : null,
         slug: s?.slug ?? slugifyTitle(c.title),
-        access: s ? countAccess(access.filter((a) => a.course_id === s.id), now) : { current: 0, upcoming: 0, ended: 0 },
+        access: live ? countAccess(access.filter((a) => a.course_id === live.id), now) : { current: 0, upcoming: 0, ended: 0 },
         totals: explained.totals,
       };
     });
@@ -105,7 +106,7 @@ async function loadHubCourseRows(supabase: SupabaseClient, now: Date): Promise<A
     for (const l of lessons) if (l.course_id === c.id && l.state in totals) totals[l.state as Visibility]++;
     return {
       source: "hub" as const,
-      kajabiId: c.id,
+      id: c.id,
       title: c.title,
       published: { slug: c.slug, accessDuration: c.access_duration, launchAt: c.launch_at },
       slug: c.slug,
@@ -162,7 +163,17 @@ export interface AdminCourseDetail {
   lastImportedAt: string | null;
 }
 
-export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string, now = new Date()): Promise<AdminCourseDetail | null> {
+/** The Kajabi id behind a Hub course id, or null for an unknown id or a Hub-owned course. The Kajabi id never leaves the server. */
+export async function kajabiIdOfCourse(supabase: SupabaseClient, courseId: string): Promise<string | null> {
+  if (!isId(courseId, "crs")) return null;
+  const { data, error } = await supabase.from("courses").select("source_key").eq("id", courseId).eq("source", "kajabi").maybeSingle();
+  if (error) throw new Error(`courses read failed: ${error.message}`);
+  return data?.source_key ?? null;
+}
+
+export async function loadAdminCourse(supabase: SupabaseClient, courseId: string, now = new Date()): Promise<AdminCourseDetail | null> {
+  const kajabiId = await kajabiIdOfCourse(supabase, courseId);
+  if (!kajabiId) return null;
   const repo = createRepos(supabase).kajabiCourses;
   const bronze = await repo.liveCourse(kajabiId);
   if (!bronze) return null;
@@ -174,13 +185,13 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
     planCourseVideos(supabase, kajabiId, now),
     planCourseFiles(supabase, kajabiId, now),
   ]);
-  const course = rows.find((r) => r.kajabiId === kajabiId);
+  const course = rows.find((r) => r.id === courseId);
   if (!course) return null;
 
   let hubLessonIds: Record<string, string> = {};
   let details: AdminCourseDetail["details"] = { description: null, includesMembership: null };
   if (course.published) {
-    const { data: silver } = await supabase.from("courses").select("id, description, program_id").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
+    const { data: silver } = await supabase.from("courses").select("id, description, program_id").eq("id", courseId).maybeSingle();
     if (silver) {
       const hub = await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", silver.id).eq("source", "kajabi"));
       hubLessonIds = Object.fromEntries(hub.map((l) => [l.source_key, l.id]));
@@ -208,18 +219,16 @@ export async function loadAdminCourse(supabase: SupabaseClient, kajabiId: string
   };
 }
 
-/** A course's title for the browser tab, without loading the rest of the page. Null for a course Kajabi doesn't have. */
-export async function loadAdminCourseTitle(supabase: SupabaseClient, kajabiId: string): Promise<string | null> {
-  if (isId(kajabiId, "crs")) {
-    const { data, error } = await supabase.from("courses").select("title").eq("id", kajabiId).eq("source", "hub").maybeSingle();
-    if (error) throw new Error(`courses read failed: ${error.message}`);
-    return data?.title ?? null;
-  }
-  return (await createRepos(supabase).kajabiCourses.liveCourse(kajabiId))?.title ?? null;
+/** A course's title for the browser tab, without loading the rest of the page. Null for an unknown id. */
+export async function loadAdminCourseTitle(supabase: SupabaseClient, courseId: string): Promise<string | null> {
+  if (!isId(courseId, "crs")) return null;
+  const { data, error } = await supabase.from("courses").select("title").eq("id", courseId).maybeSingle();
+  if (error) throw new Error(`courses read failed: ${error.message}`);
+  return data?.title ?? null;
 }
 
 export interface AdminLessonDetail {
-  course: { kajabiId: string; title: string };
+  course: { id: string; title: string };
   lesson: {
     kajabiId: string;
     title: string;
@@ -247,7 +256,13 @@ export interface AdminLessonDetail {
 }
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
-export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: string, lessonKajabiId: string): Promise<AdminLessonDetail | null> {
+export async function loadAdminLesson(supabase: SupabaseClient, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
+  const courseKajabiId = await kajabiIdOfCourse(supabase, courseId);
+  if (!courseKajabiId || !isId(lessonId, "les")) return null;
+  const { data: hubLessonRow, error: lessonError } = await supabase.from("course_lessons").select("source_key").eq("id", lessonId).eq("course_id", courseId).eq("source", "kajabi").maybeSingle();
+  if (lessonError) throw new Error(`course_lessons read failed: ${lessonError.message}`);
+  const lessonKajabiId = hubLessonRow?.source_key;
+  if (!lessonKajabiId) return null;
   const repo = createRepos(supabase).kajabiCourses;
   const [course, l, modules, lessons, files] = await Promise.all([
     repo.liveCourse(courseKajabiId),
@@ -281,7 +296,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
   let hub: AdminLessonDetail["hub"] = null;
   let video: AdminLessonDetail["video"] = null;
   let thumbnailSrc = courseImageUrl(l.thumbnail_url);
-  const { data: silver } = await supabase.from("courses").select("id, slug").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
+  const { data: silver } = await supabase.from("courses").select("id, slug").eq("id", courseId).maybeSingle();
   if (silver) {
     const { data: hubLesson } = await supabase.from("course_lessons").select("id, thumbnail_asset_id, video_id").eq("course_id", silver.id).eq("source", "kajabi").eq("source_key", lessonKajabiId).maybeSingle();
     if (hubLesson) {
@@ -296,7 +311,7 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
   }
 
   return {
-    course: { kajabiId: course.kajabi_id, title: course.title },
+    course: { id: courseId, title: course.title },
     lesson: {
       kajabiId: l.kajabi_id,
       title: l.title,

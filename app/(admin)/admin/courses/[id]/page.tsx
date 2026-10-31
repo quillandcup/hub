@@ -28,11 +28,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function AdminCoursePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
   const { id } = await params;
-  // A course the Hub owns is edited here; one imported from Kajabi is shown read only.
-  if (isId(id, "crs")) return <HubCoursePage id={id} />;
+  if (!isId(id, "crs")) notFound();
   const supabase = await createClient();
+  // One imported from Kajabi is shown read only; a course the Hub owns is edited here.
   const detail = await loadAdminCourse(supabase, id);
-  if (!detail) notFound();
+  if (!detail) return <HubCoursePage id={id} />;
 
   const { course, explained, content, hubLessonIds, videos, files, details, lastImportedAt } = detail;
   const published = course.published;
@@ -53,10 +53,10 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         </p>
         {published && (
           <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            <Link href={`/admin/courses/${course.kajabiId}/stats`} data-track="admin-course-watch-stats" className="text-plum-700 underline dark:text-plum-300">
+            <Link href={`/admin/courses/${id}/stats`} data-track="admin-course-watch-stats" className="text-plum-700 underline dark:text-plum-300">
               Watch stats
             </Link>
-            <Link href={`/admin/courses/${course.kajabiId}/roster`} data-track="admin-course-roster" className="text-plum-700 underline dark:text-plum-300">
+            <Link href={`/admin/courses/${id}/roster`} data-track="admin-course-roster" className="text-plum-700 underline dark:text-plum-300">
               Who&apos;s where
             </Link>
           </p>
@@ -91,7 +91,7 @@ export default async function AdminCoursePage({ params }: { params: Promise<{ id
         <div className="mt-6">
           <CourseBuilderForm
             course={{
-              kajabiId: course.kajabiId,
+              id,
               title: course.title,
               slug: published?.slug ?? null,
               description: details.description,

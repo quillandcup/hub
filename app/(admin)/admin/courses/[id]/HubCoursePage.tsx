@@ -47,7 +47,7 @@ export default async function HubCoursePage({ id }: { id: string }) {
       <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
         <h2 className="mb-4 text-lg font-semibold">Outline</h2>
         {/* A Hub-owned lesson is its own Hub lesson, so its preview link takes its own id. */}
-        <BuilderOutline course={{ kajabiId: course.id, slug: course.slug, editable: true, ...outline, hubLessonIds: Object.fromEntries(Object.keys(outline.content).map((lessonId) => [lessonId, lessonId])) }} />
+        <BuilderOutline course={{ id: course.id, slug: course.slug, editable: true, ...outline, hubLessonIds: Object.fromEntries(Object.keys(outline.content).map((lessonId) => [lessonId, lessonId])) }} />
       </div>
     </div>
   );

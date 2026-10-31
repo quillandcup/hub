@@ -73,15 +73,20 @@ describe("loadCourseRoster", () => {
     expect(await loadCourseRoster(fakeSupabase({ courses: [] }), "nope", NOW)).toBeNull();
   });
 
+  it("is null for a draft course (imported, not published)", async () => {
+    const db = fakeSupabase({ courses: [{ id: "c1", title: "Course", source: "kajabi", source_key: "k1", is_draft: true }] });
+    expect(await loadCourseRoster(db, "c1", NOW)).toBeNull();
+  });
+
   it("pages past 1000 access and progress rows without a query per member", async () => {
     const members = Array.from({ length: 1500 }, (_, i) => `mbr_${i}`);
     const db = fakeSupabase({
-      courses: [{ id: "c1", title: "Course", source: "kajabi", source_key: "k1" }],
+      courses: [{ id: "c1", title: "Course", source: "kajabi", source_key: "k1", is_draft: false }],
       course_access: members.map((m) => ({ course_id: "c1", member_id: m, starts_at: "2026-01-01T00:00:00Z", ends_at: null, origin: "purchase" })),
       course_lessons: [{ course_id: "c1", id: "l1", title: "One", state: "open" }],
       lesson_progress: members.map((m) => ({ lesson_id: "l1", member_id: m, completed_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" })),
     });
-    const data = await loadCourseRoster(db, "k1", NOW);
+    const data = await loadCourseRoster(db, "c1", NOW);
     expect(data!.rows).toHaveLength(1500);
     expect(data!.rows.every((r) => r.completed === 1 && r.total === 1)).toBe(true);
     expect(db.ranges.course_access).toBe(2);

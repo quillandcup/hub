@@ -26,6 +26,35 @@ function chunks<T>(rows: T[], size = BATCH): T[][] {
   return out;
 }
 
+/**
+ * Gives every live Bronze course a `courses` row, so each has a Hub id for its admin address. One
+ * that isn't published is a draft (`is_draft`): no modules, lessons or access, hidden from members.
+ * Existing rows are left alone, and a title whose slug is empty or already taken is skipped (it
+ * gets its row when published, which reports the problem).
+ */
+export async function ensureDraftCourses(supabase: SupabaseClient): Promise<number> {
+  const bronze = await createRepos(supabase).kajabiCourses.liveCourses();
+  const rows = await fetchAll(supabase, "courses", "slug, source_key, source", (q) => q);
+  const have = new Set(rows.filter((r) => r.source === "kajabi").map((r) => r.source_key));
+  const slugs = new Set(rows.map((r) => r.slug));
+  const drafts: { slug: string; title: string; description: string | null; source: string; source_key: string; is_draft: boolean }[] = [];
+  for (const c of bronze) {
+    if (have.has(c.kajabi_id)) continue;
+    const slug = slugifyTitle(c.title);
+    if (!slug || slugs.has(slug)) {
+      console.warn(`Kajabi course ${c.kajabi_id} has no draft row: its slug is empty or already taken`);
+      continue;
+    }
+    slugs.add(slug);
+    drafts.push({ slug, title: c.title, description: (c.raw_payload as any)?.attributes?.description ?? null, source: "kajabi", source_key: c.kajabi_id, is_draft: true });
+  }
+  for (const batch of chunks(drafts)) {
+    const { error } = await supabase.from("courses").insert(batch);
+    if (error) throw new Error(`courses draft insert failed: ${error.message}`);
+  }
+  return drafts.length;
+}
+
 export interface ProcessCoursesOptions {
   /** Silver slug of the course to create or refresh; omit to refresh every Kajabi course already in Silver. */
   courseSlug?: string;
@@ -141,12 +170,13 @@ export async function processCourses(
   supabase: SupabaseClient,
   options: ProcessCoursesOptions = {}
 ): Promise<ProcessCoursesResult> {
+  await ensureDraftCourses(supabase);
   // Which Bronze courses to publish.
   const bronzeCourses = await createRepos(supabase).kajabiCourses.liveCourses();
   const existingSilver = await fetchAll(
     supabase,
     "courses",
-    "id, slug, source_key, access_duration, launch_at, program_id",
+    "id, slug, source_key, access_duration, launch_at, program_id, is_draft",
     (q) => q.eq("source", "kajabi")
   );
   const silverByKey = new Map(existingSilver.map((c) => [c.source_key, c]));
@@ -164,7 +194,7 @@ export async function processCourses(
     }
     if (targets.length > 1) throw new CourseProcessingError(`More than one Kajabi course matches "${wanted}"`);
   } else {
-    targets = bronzeCourses.filter((c) => silverByKey.has(c.kajabi_id));
+    targets = bronzeCourses.filter((c) => silverByKey.get(c.kajabi_id)?.is_draft === false);
   }
 
   const result: ProcessCoursesResult = { courses: [] };
@@ -177,7 +207,7 @@ export async function processCourses(
     // The banner behind the title: captured from the Kajabi admin, not in the API payload (null until courses:content has run).
     const heroUrl: string | null = bc.hero_image_url || null;
     let silver = silverByKey.get(kajabiId);
-    const created = !silver;
+    const created = !silver || silver.is_draft;
 
     if (!silver) {
       const slug = slugifyTitle(bc.title);
@@ -197,14 +227,18 @@ export async function processCourses(
           ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
           ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })
-        .select("id, slug, source_key, access_duration, launch_at, program_id")
+        .select("id, slug, source_key, access_duration, launch_at, program_id, is_draft")
         .single();
       if (error) throw new Error(`courses insert failed: ${error.message}`);
       silver = data;
     } else {
+      // Publishing a draft: it gets its program the way a new course does.
+      const programId = silver.is_draft ? await createRepos(supabase).programs.idBySlug(silver.slug) : silver.program_id;
       const { data, error } = await supabase
         .from("courses")
         .update({
+          is_draft: false,
+          program_id: programId,
           title: bc.title,
           description,
           thumbnail_url: thumbnailUrl,
@@ -213,7 +247,7 @@ export async function processCourses(
           ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
         })
         .eq("id", silver.id)
-        .select("id, slug, source_key, access_duration, launch_at, program_id")
+        .select("id, slug, source_key, access_duration, launch_at, program_id, is_draft")
         .single();
       if (error) throw new Error(`courses update failed: ${error.message}`);
       silver = data;

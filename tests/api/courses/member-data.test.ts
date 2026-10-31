@@ -94,6 +94,17 @@ describe('Course member data', () => {
       expect(staff[0].access.kind).toBe('admin')
     })
 
+    it('leaves a draft course (imported, not published) out, even for staff', async () => {
+      const draftSlug = `${SLUG}-draft`
+      const { data: draft } = await supabase.from('courses').insert({ slug: draftSlug, title: `Draft ${ts}`, source_key: draftSlug, is_draft: true }).select('id').single()
+      try {
+        expect((await loadCourseList(supabase, scope('staff', true))).filter((i) => i.course.slug === draftSlug)).toEqual([])
+        expect(await loadCourseView(supabase, draftSlug, scope('staff', true))).toBeNull()
+      } finally {
+        await supabase.from('courses').delete().eq('id', draft!.id)
+      }
+    })
+
     it("treats staff in sudo as the member they act as: only that member's courses", async () => {
       expect((await loadCourseList(supabase, scope('none', false))).filter((i) => i.course.slug === SLUG)).toEqual([])
     })

@@ -135,7 +135,7 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   let accessByCourse = new Map<string, AccessRowLike>();
 
   if (scope.isAdminActing) {
-    courseIds = (await fetchAll(supabase, "courses", "id", (q) => q)).map((c) => c.id);
+    courseIds = (await fetchAll(supabase, "courses", "id", (q) => q.eq("is_draft", false))).map((c) => c.id);
   } else {
     const { data, error } = await supabase.from("course_access").select("course_id, starts_at, ends_at").eq("member_id", scope.memberId);
     if (error) throw new Error(`course_access read failed: ${error.message}`);
@@ -241,7 +241,7 @@ export interface CourseView {
 
 /** One course by slug, or null when there is none. */
 export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_asset_id, hero_url, hero_asset_id").eq("slug", slug).maybeSingle();
+  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_asset_id, hero_url, hero_asset_id").eq("slug", slug).eq("is_draft", false).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!courseRow) return null;
   const course = withCourseImage(courseRow);

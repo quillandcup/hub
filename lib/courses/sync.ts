@@ -27,7 +27,7 @@ export async function syncKajabiCourses(supabase: SupabaseClient, kajabi: Kajabi
   try {
     result.imported = await importKajabiCourses(supabase, kajabi);
 
-    const { data: published, error } = await supabase.from("courses").select("source_key").eq("source", "kajabi");
+    const { data: published, error } = await supabase.from("courses").select("source_key").eq("source", "kajabi").eq("is_draft", false);
     if (error) throw new Error(`courses read failed: ${error.message}`);
     const publishedKeys = new Set((published ?? []).map((c) => c.source_key));
     result.unpublished = result.imported.courses

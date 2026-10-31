@@ -11,10 +11,10 @@ import { buildRoster, type RosterAccess, type RosterLesson, type RosterProgress,
  */
 export async function loadCourseRoster(
   supabase: SupabaseClient,
-  kajabiId: string,
+  courseId: string,
   now: Date = new Date()
 ): Promise<{ course: { id: string; title: string }; rows: RosterRow[] } | null> {
-  const { data: course, error } = await supabase.from("courses").select("id, title").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
+  const { data: course, error } = await supabase.from("courses").select("id, title").eq("id", courseId).eq("is_draft", false).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!course) return null;
 

@@ -42,7 +42,7 @@ const outline = buildHubOutline(
   ]
 );
 const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
-  kajabiId: COURSE,
+  id: COURSE,
   slug: "plot-lab",
   editable: true,
   ...outline,

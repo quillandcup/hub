@@ -11,8 +11,8 @@ import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem
 
 /** What the outline needs of a course. For an imported course the ids are Kajabi's; for a Hub-owned one they are its own. */
 export interface OutlineCourse {
-  /** Kajabi's course id (for the lesson builder links), or a Hub-owned course's own id. */
-  kajabiId: string;
+  /** The course's Hub id (for the lesson builder links). */
+  id: string;
   /** The Hub slug, or null until the course is published. */
   slug: string | null;
   /** A Hub-owned course: the outline can be changed. An imported one is shown read only. */
@@ -263,7 +263,8 @@ function LessonRow({ lesson, ancestors, indent, sibling }: { lesson: ExplainedLe
   const [confirming, setConfirming] = useState(false);
   const content = course.content[lesson.kajabiId];
   const hubId = course.slug ? course.hubLessonIds[lesson.kajabiId] : undefined;
-  const builder = `/admin/courses/${course.kajabiId}/lessons/${lesson.kajabiId}`;
+  // A lesson has a builder page once it is in the Hub (published), under its own Hub id.
+  const builder = hubId ? `/admin/courses/${course.id}/lessons/${hubId}` : null;
   const preview = hubId ? `/courses/${course.slug}/lessons/${hubId}` : null;
   return (
     <li
@@ -277,7 +278,7 @@ function LessonRow({ lesson, ancestors, indent, sibling }: { lesson: ExplainedLe
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
         <span className="min-w-0 flex-1">
-          {editor ? (
+          {editor || !builder ? (
             <span className="font-medium">{lesson.title}</span>
           ) : (
             <Link href={builder} className="font-medium hover:underline">
@@ -299,9 +300,11 @@ function LessonRow({ lesson, ancestors, indent, sibling }: { lesson: ExplainedLe
           </>
         ) : (
           <>
-            <Link href={builder} aria-label="Edit video" title="Edit video" className="rounded p-1.5 text-slate-600 dark:text-slate-300">
-              <Icon path={ICONS.edit} />
-            </Link>
+            {builder && (
+              <Link href={builder} aria-label="Edit video" title="Edit video" className="rounded p-1.5 text-slate-600 dark:text-slate-300">
+                <Icon path={ICONS.edit} />
+              </Link>
+            )}
             <Action label="Duplicate video" icon="copy" />
             <Action label="Open video comments" icon="comment" />
           </>
@@ -489,7 +492,7 @@ export default function BuilderOutline({ course }: { course: OutlineCourse }) {
 
   const editor: Editor | null = course.editable
     ? {
-        courseId: course.kajabiId,
+        courseId: course.id,
         busy,
         drag: { current: dragged, start: setDragged, end: () => setDragged(null) },
         run: async (action) => {

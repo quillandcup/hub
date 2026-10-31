@@ -39,6 +39,7 @@ describe('syncKajabiCourses', () => {
     state.fail = false
   })
 
+  let draftId = ''
   const mine = <T extends { slug?: string; id?: string }>(rows: T[] | undefined) => (rows ?? []).filter((r) => r.slug === SLUG || r.id === COURSE)
 
   it('imports a new course but leaves it unpublished, naming the slug publishing would use', async () => {
@@ -48,7 +49,11 @@ describe('syncKajabiCourses', () => {
     expect(result.imported?.courses.find((c) => c.id === COURSE)).toMatchObject({ title: TITLE, lessons: 1 })
     expect(result.unpublished?.find((c) => c.id === COURSE)).toEqual({ id: COURSE, title: TITLE, slug: SLUG })
     expect(mine(result.processed)).toEqual([])
-    expect((await supabase.from('courses').select('id').eq('source_key', COURSE)).data).toEqual([])
+    // It has a Hub row (so its admin address has a Hub id), but as a draft with no lessons.
+    const draft = (await supabase.from('courses').select('id, slug, is_draft').eq('source_key', COURSE)).data!
+    expect(draft).toEqual([{ id: expect.stringMatching(/^crs_/), slug: SLUG, is_draft: true }])
+    expect((await supabase.from('course_lessons').select('id').eq('course_id', draft[0].id)).data).toEqual([])
+    draftId = draft[0].id
   })
 
   it('refreshes a course once it is published, and stops listing it as unpublished', async () => {
@@ -58,7 +63,9 @@ describe('syncKajabiCourses', () => {
 
     expect(result.unpublished?.find((c) => c.id === COURSE)).toBeUndefined()
     expect(mine(result.processed)).toHaveLength(1)
-    const course = (await supabase.from('courses').select('id').eq('source_key', COURSE).single()).data!
+    const course = (await supabase.from('courses').select('id, is_draft').eq('source_key', COURSE).single()).data!
+    // Publishing keeps the draft's id and clears the flag.
+    expect(course).toEqual({ id: draftId, is_draft: false })
     const lessons = (await supabase.from('course_lessons').select('title').eq('course_id', course.id)).data
     expect(lessons).toEqual([{ title: 'One, renamed' }])
   })
