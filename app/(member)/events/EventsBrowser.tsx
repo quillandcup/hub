@@ -72,16 +72,18 @@ export default function EventsBrowser({
 
   return (
     <div>
-      {HIGHLIGHT_SECTIONS.map(({ tier, heading }) => {
+      {HIGHLIGHT_SECTIONS.map(({ tier, heading }, sectionIndex) => {
         const inTier = upcoming.filter((e) => eventTier(e.event) === tier);
         if (inTier.length === 0) return null;
+        // One column keeps alternating across sections; two columns restart in each section.
+        const before = HIGHLIGHT_SECTIONS.slice(0, sectionIndex).reduce((n, s) => n + upcoming.filter((e) => eventTier(e.event) === s.tier).length, 0);
         return (
           <section key={tier} aria-label={heading} className="mb-8">
             <SectionHeading>{heading}</SectionHeading>
             <div className="@container">
               <div className="grid grid-cols-1 @pair:grid-cols-2 gap-4">
                 {inTier.map(({ event, startDate, endDate, timed }, i) => (
-                  <EventCard key={event.id} event={event} startDate={startDate} endDate={endDate} timed={timed} timeZone={timeZone} artOnRight={i % 2 === 1} />
+                  <EventCard key={event.id} event={event} startDate={startDate} endDate={endDate} timed={timed} timeZone={timeZone} artOnRight={(before + i) % 2 === 1} artOnRightPaired={i % 2 === 1} />
                 ))}
               </div>
             </div>
@@ -124,6 +126,7 @@ function EventCard({
   timed,
   timeZone,
   artOnRight,
+  artOnRightPaired,
 }: {
   event: EventRow;
   startDate: string;
@@ -131,6 +134,7 @@ function EventCard({
   timed: boolean;
   timeZone: string;
   artOnRight: boolean;
+  artOnRightPaired: boolean;
 }) {
   const withSecondary = useWithSecondaryTime();
   const where = locationDisplay(event.location);
@@ -142,7 +146,7 @@ function EventCard({
   return (
     <Link data-track="events-event-location-event-focus"
       href={`/events/${event.slug}`}
-      className={`flex ${artOnRight ? "flex-row-reverse" : ""} bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow`}
+      className={`flex ${artOnRight ? "flex-row-reverse" : "flex-row"} ${artOnRightPaired ? "@pair:flex-row-reverse" : "@pair:flex-row"} bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow`}
     >
       <div className="w-28 flex-shrink-0 self-stretch overflow-hidden">
         <EventArt
