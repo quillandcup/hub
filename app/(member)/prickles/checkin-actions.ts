@@ -6,12 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import {
-  CHECKIN_COLUMNS,
-  checkinFromRow,
   EMPTY_CHECKIN,
   validateCheckin,
   withHalf,
-  writeCheckin,
   type CheckinInput,
 } from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
@@ -37,17 +34,14 @@ export async function getMyCheckin(prickleId: string): Promise<CheckinInput | nu
   if (!identity) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_checkins")
-    .select(CHECKIN_COLUMNS)
-    .eq("member_id", identity.memberId)
-    .eq("prickle_id", prickleId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  return data ? checkinFromRow(data) : null;
+  // A failed read shows as no check-in, like before; the page still renders.
+  return createRepos(supabase)
+    .prickleActivity.checkinOf(identity.memberId, prickleId)
+    .catch((error) => {
+      console.error("[prickle-checkins] Loading check-in failed", { prickleId, error });
+      return null;
+    });
 }
-
-const CHECKINS_BATCH = 1000;
 
 /** Every check-in the effective member has saved, by prickle id (paginated: it grows with every prickle). */
 export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
@@ -57,18 +51,13 @@ export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
   if (!identity) return {};
 
   const supabase = await createClient();
-  const result: Record<string, CheckinInput> = {};
-  for (let offset = 0; ; offset += CHECKINS_BATCH) {
-    const { data } = await supabase
-      .from("prickle_checkins")
-      .select(`id, prickle_id, ${CHECKIN_COLUMNS}`)
-      .eq("member_id", identity.memberId)
-      .is("deleted_at", null)
-      .order("id")
-      .range(offset, offset + CHECKINS_BATCH - 1);
-    for (const row of data ?? []) result[row.prickle_id] = checkinFromRow(row);
-    if ((data?.length ?? 0) < CHECKINS_BATCH) return result;
-  }
+  const checkins = await createRepos(supabase)
+    .prickleActivity.checkinsOf(identity.memberId)
+    .catch((error) => {
+      console.error("[prickle-checkins] Loading check-ins failed", error);
+      return new Map<string, CheckinInput>();
+    });
+  return Object.fromEntries(checkins);
 }
 
 /** One project the check-out asks "how much did you get done?" about. */
@@ -190,7 +179,9 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
   if (validationError) return { error: validationError };
 
   const supabase = await createClient();
-  const error = await writeCheckin(supabase, identity.memberId, prickleId, input);
+  const error = await createRepos(supabase)
+    .prickleActivity.saveCheckin(identity.memberId, prickleId, input, "web")
+    .then(() => null, (e: unknown) => e);
   if (error) {
     console.error("[prickle-checkins] Saving check-in failed", { member: identity.memberId, prickleId, error });
     return { error: "Couldn't save your check-in — please try again." };

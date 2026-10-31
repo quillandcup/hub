@@ -35,7 +35,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { CHECKIN_COLUMNS, checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
+import { checkoutAnswered } from "@/lib/prickle-checkins";
 import {
   formatPrickleLabel,
   localDateOf,
@@ -934,37 +934,23 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
   const repos = createRepos(supabase);
-  const [attendance, linked, { data: dismissed }, timeZone] = await Promise.all([
+  const [attendance, linked, dismissed, timeZone] = await Promise.all([
     repos.attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
       purpose: "writing",
       prickleStartedSince: since,
     }),
     repos.writing.prickleIdsLoggedSince(effectiveIdentity.memberId, since),
-    supabase
-      .from("prickle_checkout_dismissals")
-      .select("prickle_id")
-      .eq("member_id", effectiveIdentity.memberId)
-      .gte("dismissed_at", since),
+    repos.prickleActivity.dismissedSince("checkout", effectiveIdentity.memberId, since),
     viewerTimeZone(),
   ]);
 
   // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
   const attendedIds = attendance.map((a) => a.prickleId);
-  const { data: checkins } =
-    attendedIds.length === 0
-      ? { data: [] }
-      : await supabase
-          .from("prickle_checkins")
-          .select(`prickle_id, ${CHECKIN_COLUMNS}`)
-          .eq("member_id", effectiveIdentity.memberId)
-          .in("prickle_id", attendedIds)
-          .is("deleted_at", null);
-  const checkedOutIds = ((checkins ?? []) as (Parameters<typeof checkinFromRow>[0] & { prickle_id: string })[])
-    .filter((c) => checkoutAnswered(checkinFromRow(c)))
-    .map((c) => c.prickle_id);
+  const checkins = await repos.prickleActivity.checkinsAmong(effectiveIdentity.memberId, attendedIds);
+  const checkedOutIds = [...checkins].filter(([, c]) => checkoutAnswered(c)).map(([prickleId]) => prickleId);
   const linkedIds = new Set([
     ...linked,
-    ...(dismissed ?? []).map((e) => (e as { prickle_id: string }).prickle_id),
+    ...dismissed,
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();

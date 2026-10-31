@@ -8,12 +8,12 @@ import {
   prickleMatchesSlot,
   type Commitment,
   type CommitmentSlot,
-  type CommitmentStatus,
   type SlotPrickle,
 } from "@/lib/commitments";
 import { hostShortName } from "@/lib/formatters";
 import { formatUtc, type ICalEvent } from "@/lib/ical";
 import { createRepos } from "@/lib/data/repos";
+import { toPlainCommitment } from "@/lib/data/prickle-activity";
 import type { PrickleDetail } from "@/lib/data/prickles";
 import { APP_URL } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -262,13 +262,6 @@ export function buildCalendarFeedEvents({
   return [...events.values()].sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
-type NameRef = { name: string } | { name: string }[] | null;
-
-function nameOf(ref: NameRef): string | null {
-  const row = Array.isArray(ref) ? ref[0] : ref;
-  return row?.name ?? null;
-}
-
 export function toFeedPrickle(p: PrickleDetail): FeedPrickle {
   return {
     id: p.id,
@@ -279,21 +272,6 @@ export function toFeedPrickle(p: PrickleDetail): FeedPrickle {
     endTime: p.endTime,
     calendarEventId: p.calendarEventId,
   };
-}
-
-interface CommitmentRow {
-  id: string;
-  start_date: string;
-  weeks: number;
-  status: CommitmentStatus;
-  cancelled_at: string | null;
-  prickle_commitment_slots: {
-    type_id: string;
-    day_of_week: number;
-    start_time_local: string;
-    timezone: string;
-    prickle_types: NameRef;
-  }[];
 }
 
 /**
@@ -393,36 +371,13 @@ async function loadCalendarFeedSources(
   // Keep a rejection from going unhandled while the steps below run; it's rethrown at the await.
   addedPromise.catch(() => {});
 
-  const [hostedRows, { data: commitmentData, error: commitmentError }] = await Promise.all([
+  const [hostedRows, storedCommitments] = await Promise.all([
     createRepos(supabase).prickles.startingBetween({ from: since.toISOString(), hostId: memberId }),
-    supabase
-      .from("prickle_commitments")
-      .select(
-        "id, start_date, weeks, status, cancelled_at, prickle_commitment_slots(type_id, day_of_week, start_time_local, timezone, prickle_types(name))"
-      )
-      .eq("member_id", memberId)
-      .gte("end_date", since.toISOString().slice(0, 10)),
+    createRepos(supabase).prickleActivity.commitmentsOf(memberId, { endsOnOrAfter: since.toISOString().slice(0, 10) }),
   ]);
-  if (commitmentError) throw new Error(commitmentError.message);
 
-  const commitmentRows = ((commitmentData ?? []) as unknown as CommitmentRow[]).filter(
-    (r) => (r.prickle_commitment_slots ?? []).length > 0
-  );
-  const commitments: Commitment[] = commitmentRows.map((r) => ({
-    id: r.id,
-    startDate: r.start_date,
-    weeks: r.weeks,
-    status: r.status,
-    cancelledAt: r.cancelled_at,
-    slots: r.prickle_commitment_slots.map(
-      (s): CommitmentSlot => ({
-        typeId: s.type_id,
-        dayOfWeek: s.day_of_week,
-        startTimeLocal: s.start_time_local,
-        timezone: s.timezone,
-      })
-    ),
-  }));
+  const commitmentRows = storedCommitments.filter((r) => r.slots.length > 0);
+  const commitments: Commitment[] = commitmentRows.map(toPlainCommitment);
 
   const committed: CommittedOccurrence[] = [];
   const window = commitmentsFetchWindow(commitments);
@@ -440,7 +395,7 @@ async function loadCalendarFeedSources(
     }));
 
     commitments.forEach((c, i) => {
-      const slotNames = commitmentRows[i].prickle_commitment_slots.map((s) => nameOf(s.prickle_types) ?? "Prickle");
+      const slotNames = commitmentRows[i].slots.map((s) => s.typeName ?? "Prickle");
       const title = formatCommitmentTitle(c.slots.map((s, j) => ({ ...s, typeName: slotNames[j] })));
       // Attendance doesn't matter here (only which prickle each occurrence is), so no attended set.
       const { occurrences } = computeCommitmentProgress(c, slotPrickles, new Set(), now);

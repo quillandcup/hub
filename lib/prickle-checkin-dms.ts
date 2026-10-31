@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import type { CheckinHalfKind } from "@/lib/data/prickle-activity";
 import {
   PROGRESS_QUESTION_MEASURES,
   progressMeasureFor,
@@ -14,10 +15,8 @@ import type { ChannelId, OutboundMessage } from "@/lib/channels";
 import { loadPresenceByMember, presenceDue, type PresenceInterval } from "@/lib/zoom-presence";
 import {
   checkinAnswered,
-  checkinFromRow,
   checkinHref,
   checkoutAnswered,
-  CHECKIN_COLUMNS,
   coreFeelings,
   EMOTION_QUESTION,
   EMOTION_WHEEL,
@@ -32,7 +31,6 @@ import {
   PLEASANTNESS,
   PLEASANTNESS_QUESTION,
   validateCheckin,
-  writeCheckin,
   type CheckinInput,
   type ScalePoint,
 } from "@/lib/prickle-checkins";
@@ -444,13 +442,8 @@ export function buildCheckinBlocks(prickleId: string, typeName: string, saved: C
 
 export const DISMISS_ACTION_ID = "prickle_dismiss";
 
-/** The two halves of a prickle's check-in, each with its own dismissals table. */
-export type CheckinHalfKind = "checkin" | "checkout";
-
-const DISMISSALS_TABLE: Record<CheckinHalfKind, string> = {
-  checkin: "prickle_checkin_dismissals",
-  checkout: "prickle_checkout_dismissals",
-};
+/** The two halves of a prickle's check-in, each with its own dismissals table (PrickleActivityRepository). */
+export type { CheckinHalfKind };
 
 const HALF_LABEL: Record<CheckinHalfKind, string> = { checkin: "check-in", checkout: "check-out" };
 
@@ -477,10 +470,9 @@ export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: s
  * count go too. Returns an error message, or null.
  */
 export async function dismissCheckinHalf(supabase: any, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
-  const { error } = await supabase
-    .from(DISMISSALS_TABLE[half])
-    .upsert({ member_id: memberId, prickle_id: prickleId }, { onConflict: "member_id,prickle_id", ignoreDuplicates: true });
-  if (error) {
+  try {
+    await createRepos(supabase).prickleActivity.dismiss(half, memberId, prickleId);
+  } catch (error) {
     console.error(`dismiss ${half}: insert failed`, { memberId, prickleId, error });
     return `Couldn't dismiss that ${HALF_LABEL[half]}`;
   }
@@ -493,25 +485,20 @@ export const dismissCheckout = (supabase: any, memberId: string, prickleId: stri
 
 /** Which of these prickles the member dismissed this half for. */
 export async function loadDismissedIds(supabase: any, half: CheckinHalfKind, memberId: string, prickleIds: string[]): Promise<Set<string>> {
-  if (prickleIds.length === 0) return new Set();
-  const { data } = await supabase.from(DISMISSALS_TABLE[half]).select("prickle_id").eq("member_id", memberId).in("prickle_id", prickleIds);
-  return new Set(((data ?? []) as { prickle_id: string }[]).map((r) => r.prickle_id));
+  // A failed read hides nothing: the offer shows, like before.
+  return createRepos(supabase)
+    .prickleActivity.dismissedAmong(half, memberId, prickleIds)
+    .catch((error) => {
+      console.error(`loadDismissedIds ${half}: read failed`, { memberId, error });
+      return new Set<string>();
+    });
 }
 
 export const loadDismissedCheckinIds = (supabase: any, memberId: string, prickleIds: string[]) => loadDismissedIds(supabase, "checkin", memberId, prickleIds);
 
 /** `${memberId}:${prickleId}` for every dismissal of this half, for senders working through many members. */
 export async function loadDismissedPairs(supabase: any, half: CheckinHalfKind, prickleIds: string[]): Promise<Set<string>> {
-  if (prickleIds.length === 0) return new Set();
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from(DISMISSALS_TABLE[half])
-      .select("id, member_id, prickle_id")
-      .in("prickle_id", prickleIds)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
+  return createRepos(supabase).prickleActivity.dismissedPairs(half, prickleIds);
 }
 
 /** The check-out DM, after a prickle: got what they came for, mood, the feeling, then the progress quick-log. */
@@ -589,18 +576,7 @@ export async function loadCheckins(
 ): Promise<Map<string, CheckinInput>> {
   const result = new Map<string, CheckinInput>();
   if (memberIds.length === 0 || prickleIds.length === 0) return result;
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("prickle_checkins")
-      .select(`id, member_id, prickle_id, ${CHECKIN_COLUMNS}`)
-      .in("member_id", memberIds)
-      .in("prickle_id", prickleIds)
-      .is("deleted_at", null)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  for (const row of rows) result.set(`${row.member_id}:${row.prickle_id}`, checkinFromRow(row));
-  return result;
+  return createRepos(supabase).prickleActivity.checkinsOfMembers(memberIds, prickleIds);
 }
 
 /**
@@ -611,22 +587,24 @@ export async function loadCheckins(
  */
 export async function saveCheckinAnswer(supabase: any, memberId: string, answer: CheckinAnswer): Promise<string | null> {
   const { prickleId, field, values } = answer;
-  const { data: existing, error: readError } = await supabase
-    .from("prickle_checkins")
-    .select(CHECKIN_COLUMNS)
-    .eq("member_id", memberId)
-    .eq("prickle_id", prickleId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (readError) return `couldn't read check-in: ${readError.message}`;
+  const repo = createRepos(supabase).prickleActivity;
+  let existing: CheckinInput | null;
+  try {
+    existing = await repo.checkinOf(memberId, prickleId);
+  } catch (readError) {
+    return `couldn't read check-in: ${(readError as Error).message}`;
+  }
 
-  const next = applyCheckinAnswer(existing ? checkinFromRow(existing) : EMPTY_CHECKIN, field, values);
+  const next = applyCheckinAnswer(existing ?? EMPTY_CHECKIN, field, values);
   const invalid = validateCheckin(next);
   if (invalid) return invalid;
   if (isEmptyCheckin(next) && !existing) return null;
 
-  const error = await writeCheckin(supabase, memberId, prickleId, next, "slack");
-  if (error) return `couldn't save check-in: ${error.message}`;
+  try {
+    await repo.saveCheckin(memberId, prickleId, next, "slack");
+  } catch (error) {
+    return `couldn't save check-in: ${(error as Error).message}`;
+  }
   await resolveAnsweredCheckinNotifications(supabase, memberId, prickleId, next);
   return null;
 }

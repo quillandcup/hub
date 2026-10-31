@@ -8,6 +8,7 @@ import type { InAppNotificationRow, NotificationPreference } from "./notificatio
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
 import type { BookSeed } from "./books";
+import type { CheckinSeed, CommitmentSeed, DismissalSeed } from "./prickle-activity";
 import type { CalendarSourceEvent } from "./calendar-events";
 import type { SlackUserSeed } from "./slack-users";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
@@ -142,6 +143,14 @@ export class InMemoryDataset {
   memberJoinDateOverrides: JoinDateOverrideRow[];
   /** What members edited in their profile (`member_profile_overrides`). */
   memberProfileOverrides: ProfileOverrideStoredRow[];
+  // --- what members do around prickles (PrickleActivityRepository) ---
+  /** Commitments to weekly slots (`prickle_commitments`, with their slots). */
+  prickleCommitments: CommitmentSeed[];
+  /** Saved check-ins (`prickle_checkins`), cleared ones kept with `deletedAt`. */
+  prickleCheckins: CheckinSeed[];
+  /** Dismissed check-in offers (`prickle_checkin_dismissals`) and check-out offers (`prickle_checkout_dismissals`). */
+  checkinDismissals: DismissalSeed[];
+  checkoutDismissals: DismissalSeed[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -150,7 +159,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals">
 
     > = {},
   ) {
@@ -215,6 +224,10 @@ export class InMemoryDataset {
     this.memberStatusOverrides = (init.memberStatusOverrides ?? []).map((row) => ({ ...row }));
     this.memberJoinDateOverrides = (init.memberJoinDateOverrides ?? []).map((row) => ({ ...row }));
     this.memberProfileOverrides = (init.memberProfileOverrides ?? []).map((row) => ({ ...row }));
+    this.prickleCommitments = (init.prickleCommitments ?? []).map((row) => ({ ...row, slots: row.slots.map((slot) => ({ ...slot })) }));
+    this.prickleCheckins = (init.prickleCheckins ?? []).map((row) => ({ ...row, checkin: { ...row.checkin } }));
+    this.checkinDismissals = (init.checkinDismissals ?? []).map((row) => ({ ...row }));
+    this.checkoutDismissals = (init.checkoutDismissals ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

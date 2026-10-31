@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import type { SlotCommitment } from "@/lib/data/prickle-activity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { localDateFor, normalizeTime, SCHEDULE_TIMEZONE, slotTimeForInstant } from "@/lib/commitments";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -62,11 +63,6 @@ function chunks<T>(items: T[]): T[][] {
   return out;
 }
 
-interface CommitmentSlotRow {
-  start_time_local: string;
-  prickle_commitments: { member_id: string; status: string; start_date: string; end_date: string } | { member_id: string; status: string; start_date: string; end_date: string }[] | null;
-}
-
 export async function loadPrickleRoster(
   service: SupabaseClient,
   prickle: RosterPrickle,
@@ -81,17 +77,8 @@ export async function loadPrickleRoster(
 
   const [committedRows, onceRows, weeklyRows] = await Promise.all([
     typeId
-      ? fetchAll<CommitmentSlotRow>((from, to) =>
-          service
-            .from("prickle_commitment_slots")
-            .select("start_time_local, prickle_commitments!inner(member_id, status, start_date, end_date)")
-            .eq("type_id", typeId)
-            .eq("day_of_week", slot.dayOfWeek)
-            .eq("timezone", SCHEDULE_TIMEZONE)
-            .order("id")
-            .range(from, to)
-        )
-      : Promise.resolve([] as CommitmentSlotRow[]),
+      ? createRepos(service).prickleActivity.slotCommitments({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE })
+      : Promise.resolve([] as SlotCommitment[]),
     fetchAll<{ member_id: string }>((from, to) =>
       service
         .from("calendar_feed_items")
@@ -122,11 +109,10 @@ export async function loadPrickleRoster(
   }
   for (const row of onceRows) reasonByMember.set(row.member_id, "calendar");
   for (const row of committedRows) {
-    if (normalizeTime(row.start_time_local) !== startTimeLocal) continue;
-    const commitment = Array.isArray(row.prickle_commitments) ? row.prickle_commitments[0] : row.prickle_commitments;
-    if (!commitment || commitment.status !== "active") continue;
-    if (localDate < commitment.start_date || localDate > commitment.end_date) continue;
-    reasonByMember.set(commitment.member_id, "committed");
+    if (normalizeTime(row.startTimeLocal) !== startTimeLocal) continue;
+    if (row.status !== "active") continue;
+    if (localDate < row.startDate || localDate > row.endDate) continue;
+    reasonByMember.set(row.memberId, "committed");
   }
   if (prickle.host_id) reasonByMember.set(prickle.host_id, "host");
   if (reasonByMember.size === 0) return { entries: [], total: 0 };

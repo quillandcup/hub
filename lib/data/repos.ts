@@ -25,6 +25,7 @@ import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type Ka
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
 import { InMemoryMemberStatusRepository, SupabaseMemberStatusRepository, type MemberStatusRepository } from "./member-status-overrides";
 import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } from "./books";
+import { InMemoryPrickleActivityRepository, SupabasePrickleActivityRepository, type PrickleActivityRepository } from "./prickle-activity";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -57,6 +58,7 @@ export interface Repos {
   billing: BillingRepository;
   memberStatus: MemberStatusRepository;
   books: BookRepository;
+  prickleActivity: PrickleActivityRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -87,6 +89,7 @@ export function createRepos(db: Db): Repos {
     billing: new SupabaseBillingRepository(db),
     memberStatus: new SupabaseMemberStatusRepository(db),
     books: new SupabaseBookRepository(db),
+    prickleActivity: new SupabasePrickleActivityRepository(db),
   };
 }
 
@@ -118,5 +121,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     billing: new InMemoryBillingRepository(dataset),
     memberStatus: new InMemoryMemberStatusRepository(dataset),
     books: new InMemoryBookRepository(dataset),
+    prickleActivity: new InMemoryPrickleActivityRepository(dataset),
   };
 }
