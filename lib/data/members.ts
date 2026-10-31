@@ -106,6 +106,8 @@ export interface MemberRepository {
    * reports; use `identities` when only the name and email are needed.
    */
   list(options?: { status?: string; orderBy?: "id" | "name" }): Promise<Member[]>;
+  /** The Instagram URL of every member who has one (any status), ordered by id. For keeping people we already have out of prospecting. */
+  instagramUrls(): Promise<string[]>;
   /** How many members there are in total. */
   count(): Promise<number>;
   /** The members whose email is one of these (exact, as stored), in no particular order. */
@@ -257,6 +259,13 @@ export class SupabaseMemberRepository implements MemberRepository {
       return (orderBy === "name" ? query.order("name").order("id") : query.order("id")).range(from, to) as unknown as PromiseLike<Page<MemberRow>>;
     });
     return rows.map(toMember);
+  }
+
+  async instagramUrls(): Promise<string[]> {
+    const rows = await fetchAllRows<{ instagram_url: string | null }>((from, to) =>
+      this.db.from("members").select("instagram_url").not("instagram_url", "is", null).order("id").range(from, to) as unknown as PromiseLike<Page<{ instagram_url: string | null }>>,
+    );
+    return rows.flatMap((r) => (r.instagram_url ? [r.instagram_url] : []));
   }
 
   async count(): Promise<number> {
@@ -552,6 +561,12 @@ export class InMemoryMemberRepository implements MemberRepository {
     return this.all()
       .filter((m) => status === undefined || m.status === status)
       .sort((a, b) => (orderBy === "name" ? a.name.localeCompare(b.name) : 0) || a.id.localeCompare(b.id));
+  }
+
+  async instagramUrls() {
+    return [...this.data.members]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .flatMap((m) => (m.instagramUrl ? [m.instagramUrl] : []));
   }
 
   async count() {

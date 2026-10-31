@@ -131,6 +131,9 @@ export default async function OutreachPage() {
             Leads tagged &ldquo;{IDEAL_HEDGIE_TAG}&rdquo;. Mark hot when you have a call to action to
             schedule a trial prickle.
           </p>
+          <Link href="/admin/outreach/prospects" className="text-plum-600 dark:text-plum-400 hover:underline mt-2 inline-block text-sm">
+            Find new prospects →
+          </Link>
         </div>
       </header>
 
