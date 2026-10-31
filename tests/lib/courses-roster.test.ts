@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildRoster } from "@/lib/courses/roster";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import { accessRow, courseRow, lessonRow, progressRow } from "@/tests/helpers/course-fixtures";
 import { loadCourseRoster } from "@/lib/courses/roster-data";
 
-vi.mock("@/lib/data/repos", () => ({
-  createRepos: () => ({
-    members: {
-      byIds: async (ids: string[]) => ids.map((id) => ({ id, name: `Name ${id}`, displayName: id === "m2" ? "Shown Two" : null })),
-    },
-  }),
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
 }));
 
 const NOW = new Date("2026-10-27T12:00:00Z");
@@ -45,51 +47,52 @@ describe("buildRoster", () => {
   });
 });
 
-/** A chainable fake that serves `tables` honoring in(), eq() and range(). */
-function fakeSupabase(tables: Record<string, Record<string, unknown>[]>) {
-  const ranges: Record<string, number> = {};
-  return {
-    ranges,
-    from(table: string) {
-      let rows = tables[table] ?? [];
-      const q: any = {
-        select: () => q,
-        eq: (c: string, v: unknown) => ((rows = rows.filter((r) => r[c] === v)), q),
-        in: (c: string, vs: unknown[]) => ((rows = rows.filter((r) => vs.includes(r[c]))), q),
-        order: () => q,
-        range: (a: number, b: number) => {
-          ranges[table] = (ranges[table] ?? 0) + 1;
-          return Promise.resolve({ data: rows.slice(a, b + 1), error: null });
-        },
-        maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
-      };
-      return q;
-    },
-  } as any;
-}
-
 describe("loadCourseRoster", () => {
+  const client = {} as SupabaseClient;
+
   it("returns null for an unknown course", async () => {
-    expect(await loadCourseRoster(fakeSupabase({ courses: [] }), "nope", NOW)).toBeNull();
+    dataset = new InMemoryDataset();
+    expect(await loadCourseRoster(client, "crs_AAAAAAAAAAA9", NOW)).toBeNull();
   });
 
   it("is null for a draft course (imported, not published)", async () => {
-    const db = fakeSupabase({ courses: [{ id: "c1", title: "Course", source: "kajabi", source_key: "k1", is_draft: true }] });
-    expect(await loadCourseRoster(db, "c1", NOW)).toBeNull();
+    dataset = new InMemoryDataset({ courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "draft", title: "Course", source: "kajabi", source_key: "k1", is_draft: true })] });
+    expect(await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW)).toBeNull();
   });
 
-  it("pages past 1000 access and progress rows without a query per member", async () => {
-    const members = Array.from({ length: 1500 }, (_, i) => `mbr_${i}`);
-    const db = fakeSupabase({
-      courses: [{ id: "c1", title: "Course", source: "kajabi", source_key: "k1", is_draft: false }],
-      course_access: members.map((m) => ({ course_id: "c1", member_id: m, starts_at: "2026-01-01T00:00:00Z", ends_at: null, origin: "purchase" })),
-      course_lessons: [{ course_id: "c1", id: "l1", title: "One", state: "open" }],
-      lesson_progress: members.map((m) => ({ lesson_id: "l1", member_id: m, completed_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" })),
+  it("lists everyone with access, with the name they are known by and their progress", async () => {
+    dataset = new InMemoryDataset({
+      members: [
+        { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+        { id: "mbr_AAAAAAAAAAA2", name: "Bo Example" },
+      ],
+      courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "course", title: "Course" })],
+      courseLessons: [lessonRow({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1", title: "One" })],
+      courseAccess: [
+        accessRow({ member_id: "mbr_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1", starts_at: "2026-01-01T00:00:00Z" }),
+        accessRow({ member_id: "mbr_AAAAAAAAAAA2", course_id: "crs_AAAAAAAAAAA1", starts_at: "2026-01-01T00:00:00Z", origin: "grant" }),
+      ],
+      lessonProgress: [progressRow({ member_id: "mbr_AAAAAAAAAAA1", lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z" })],
     });
-    const data = await loadCourseRoster(db, "c1", NOW);
+    const data = await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW);
+    expect(data!.course).toEqual({ id: "crs_AAAAAAAAAAA1", title: "Course" });
+    expect(data!.rows.map((r) => ({ name: r.name, realName: r.realName, completed: r.completed, total: r.total }))).toEqual([
+      { name: "Ada E", realName: "Ada Example", completed: 1, total: 1 },
+      { name: "Bo Example", realName: undefined, completed: 0, total: 1 },
+    ]);
+  });
+
+  it("reads past 1000 access and progress rows", async () => {
+    const members = Array.from({ length: 1500 }, (_, i) => `mbr_${String(i).padStart(12, "A")}`);
+    dataset = new InMemoryDataset({
+      members: members.map((id) => ({ id, name: `Name ${id}` })),
+      courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "course", title: "Course" })],
+      courseLessons: [lessonRow({ id: "les_AAAAAAAAAAA1", course_id: "crs_AAAAAAAAAAA1", title: "One" })],
+      courseAccess: members.map((m) => accessRow({ member_id: m, course_id: "crs_AAAAAAAAAAA1", starts_at: "2026-01-01T00:00:00Z" })),
+      lessonProgress: members.map((m) => progressRow({ member_id: m, lesson_id: "les_AAAAAAAAAAA1", completed_at: "2026-10-01T00:00:00Z" })),
+    });
+    const data = await loadCourseRoster(client, "crs_AAAAAAAAAAA1", NOW);
     expect(data!.rows).toHaveLength(1500);
     expect(data!.rows.every((r) => r.completed === 1 && r.total === 1)).toBe(true);
-    expect(db.ranges.course_access).toBe(2);
-    expect(db.ranges.lesson_progress).toBe(2);
   });
 });

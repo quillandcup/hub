@@ -64,6 +64,16 @@ describe("the course repositories on a database error", () => {
     ["updateVideo", () => courses.updateVideo("v", { status: "ready" })],
     ["preparingVideos", () => courses.preparingVideos()],
     ["updateVideosByAsset", () => courses.updateVideosByAsset("asset", { status: "ready" })],
+    ["videosByIds", () => courses.videosByIds(["v"])],
+    ["progressOfLessons", () => progress.progressOfLessons(["les_x"])],
+    ["insertProgressIfAbsent", () => progress.insertProgressIfAbsent([{ member_id: "mbr_x", lesson_id: "les_x" }])],
+    ["setCompletion", () => progress.setCompletion("mbr_x", "les_x", null)],
+    ["savePosition", () => progress.savePosition("mbr_x", "les_x", 5)],
+    ["clearProgress", () => progress.clearProgress("mbr_x", "les_x")],
+    ["watchedSince", () => progress.watchedSince("mbr_x", "v", "2097-01-01T00:00:00Z")],
+    ["segmentsOfVideos", () => progress.segmentsOfVideos(["v"])],
+    ["saveSegments", () => progress.saveSegments([{ member_id: "mbr_x", video_id: "v", session_id: "s", start_seconds: 0, end_seconds: 1 }])],
+    ["clearSegments", () => progress.clearSegments("mbr_x", "v")],
   ])("%s throws the database's message", async (_name, call) => {
     await expect(call()).rejects.toThrow("database is down");
   });
