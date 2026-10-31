@@ -650,11 +650,15 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 ## Security & Access Control
 
 
-### Removal on request for records with a required member id _(Needs Decision)_
+### Removal on request for records with a required member id _(Approach decided 2026-10-31; not built)_
 
-`/privacy` promises that when a member asks us to remove something we "either delete it or take your name off it". Nothing implements that yet: removal on request is a manual job for staff. For usage events the design is a scrub that nulls the identity columns and keeps the row (`docs/EVENT_LOG.md`, "What a scrub does"), but records a member owns by a required id (writing goals, progress entries, books, awards, check-ins, commitments, notes) have `member_id NOT NULL` and can't be scrubbed that way. Per table, decide between deleting the rows, re-pointing them at a placeholder "former member" row (keeps content that may itself identify the person), or nulling the content and keeping the empty shape.
+`/privacy` promises that when a member asks us to remove something we "either delete it or take your name off it". Nothing implements that yet: removal on request is a manual job for staff. For usage events the design is a scrub that nulls the identity columns and keeps the row (`docs/EVENT_LOG.md`, "What a scrub does"). Records a member owns by a required id (writing goals, progress entries, books, awards, check-ins, commitments, notes) have `member_id NOT NULL` and can't be scrubbed that way.
 
-Also decide and write down the order of operations: a scrub is irreversible and untraceable (afterwards we can't find a person's rows to delete them later or to answer an access request), so a request for true deletion must happen before any anonymising. Where to start: pick the rule for each member-owned table next to its retention in the event catalog, then build one `remove_member_data(member_id, mode)` routine so staff don't hand-write SQL, and add a pgTAP test that nothing identifying remains. Related: "Soft-delete the rest of the member-written tables" (below, once #576 lands) and phase 0 of `docs/EVENT_LOG.md`.
+**Decided: re-point them at a placeholder "former member" row.** That keeps the record's shape and loses the person. The catch: the content itself can identify someone (a book title, a note in their own words), so a table whose content identifies gets its rows deleted instead; decide that per table when building, next to its retention in the event catalog.
+
+**Order of operations:** a scrub or re-point is irreversible and untraceable (afterwards we can't find a person's rows to delete them later or to answer an access request), so a request for true deletion must happen before any anonymising.
+
+**Still to build:** one `remove_member_data(member_id, mode)` routine so staff don't hand-write SQL, with the per-table choice (re-point or delete) in the catalog, and a pgTAP test that nothing identifying remains. Related: phase 0 of `docs/EVENT_LOG.md` (done) and the retention schedule.
 
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_
 
@@ -1489,15 +1493,15 @@ On payment failure, notify the member (a `payment_failed` notification kind via 
 Full roadmap: `docs/superpowers/specs/writing-projects-tracking.md`. Core single-author flow (log progress against a project/goal, prickle-linked nudges, streak/chart stats) is scoped there phase-by-phase.
 
 
-### Soft-delete the rest of the member-written tables _(Needs Decision)_
+### Soft-delete the rest of the member-written tables _(Decided 2026-10-31: independent records only)_
 
-Members' deletes of writing goals, progress entries, books and awards soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). Three member deletes are still row `DELETE`s, and each is closer to editing a setting than deleting a record, so converting them was held for a decision rather than done:
+Members' deletes of writing goals, progress entries, books and awards soft delete (`deleted_at`; see "Members' own business resources soft delete too" in `CLAUDE.md`). **Decided: the rule is independent records only**, with settings and in-place edits overwriting. So three member deletes stay row `DELETE`s on purpose:
 
-- **Private member notes** (`member_notes`, `app/(member)/members/[id]/noteActions.ts`): clearing a note deletes it. A note is private to its author (no admin access, not audited, hidden in sudo), saving overwrites the old text in place, and keeping a copy of a note someone cleared works against why it is private. If converted, a save must clear `deleted_at` again (the upsert is on author + subject) and the notes search in `app/(member)/members/page.tsx` must filter.
-- **Calendar-feed items added by hand** (`calendar_feed_items`, `removeMyCalendarItem` in `app/(member)/my-prickles/calendar-feed-actions.ts`): a selection of what appears in the member's calendar feed. The change is already in `audit_log`. Converting means the three partial unique indexes (`uq_calendar_feed_items_*`) become `WHERE deleted_at IS NULL` and every reader (`lib/calendar-feed.ts`, `lib/prickle-roster.ts`, `lib/upcoming-prickles.ts`, `lib/onboarding.server.ts`) filters.
+- **Private member notes** (`member_notes`): clearing a note deletes it. A note is private to its author (no admin access, not audited, hidden in sudo) and saving overwrites the old text, so keeping a copy of a cleared note would work against why it is private.
+- **Calendar-feed items added by hand** (`calendar_feed_items`, `removeMyCalendarItem`): a selection of what appears in the member's feed; the change is already in `audit_log`.
 - **Starting balances** (`replaceStartingBalances` in `lib/data/writing.ts`): clearing a measure removes a baseline number that an edit also overwrites.
 
-Decide whether the rule is "every record a member can delete" or "independent records, with settings and in-place edits overwriting". "Ask me about" topics are not a delete: the form saves the topics array (empty when cleared). Also decide whether a progress entry's `member_activities` row should come back if a restore path is ever added (the delete removes it today so a bogus entry doesn't inflate engagement).
+"Ask me about" topics were never a delete: the form saves the topics array (empty when cleared). Still open and small: if a restore path is ever built for progress entries, decide whether the entry's `member_activities` row should come back (the delete removes it so a bogus entry doesn't inflate engagement).
 
 ### Prickle Check-ins: Visibility Wording + Host Aggregates (Needs Scoping)
 `prickle_checkins` (mood before/after, named feeling, intention, got what they came for) is readable by the member and admins, never hosts or other members. The check-in card deliberately says nothing about who can see responses yet. Open questions:
