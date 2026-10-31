@@ -5,13 +5,9 @@ import { parseBatch } from "@/lib/analytics/receive";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 
-/** `optedOut`: the user ids whose profile says they left usage statistics. */
-function client(error: { message: string } | null = null, optedOut: string[] = []) {
+function client(error: { message: string } | null = null) {
   const insert = vi.fn().mockResolvedValue({ error });
-  const profiles = {
-    select: () => ({ in: (_column: string, ids: string[]) => ({ not: async () => ({ data: optedOut.filter((id) => ids.includes(id)).map((id) => ({ id })), error: null }) }) }),
-  };
-  return { insert, supabase: { from: vi.fn((table: string) => (table === "user_profiles" ? profiles : { insert })) } };
+  return { insert, supabase: { from: vi.fn().mockReturnValue({ insert }) } };
 }
 
 beforeEach(() => vi.spyOn(console, "error").mockImplementation(() => {}));
@@ -39,18 +35,16 @@ describe("recordSystemEvents", () => {
     expect(rows[0].message_id).not.toBe(rows[1].message_id);
   });
 
-  it("skips members who left usage statistics and records the rest", async () => {
+  it("records a send for a member who left usage statistics too: it is the app's record, not their usage", async () => {
     const OTHER = "22222222-2222-4222-8222-222222222222";
-    const { insert, supabase } = client(null, [USER]);
+    const { insert, supabase } = client();
     await recordSystemEvents(supabase, [
       { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
       { userId: OTHER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
     ]);
-    expect(insert.mock.calls[0][0].map((row: { user_id: string }) => row.user_id)).toEqual([OTHER]);
-
-    const everyone = client(null, [USER]);
-    await recordSystemEvents(everyone.supabase, [{ userId: USER, event: "notification_sent", properties: { kind: "k", channel: "email" } }]);
-    expect(everyone.insert).not.toHaveBeenCalled();
+    expect(insert.mock.calls[0][0].map((row: { user_id: string }) => row.user_id)).toEqual([USER, OTHER]);
+    // It never looks anyone's opt-out up.
+    expect(supabase.from).not.toHaveBeenCalledWith("user_profiles");
   });
 
   it("writes nothing for an empty list", async () => {
