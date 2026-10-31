@@ -4218,6 +4218,75 @@ export type Database = {
           },
         ]
       }
+      outreach_prospects: {
+        Row: {
+          ai_assessed_at: string | null
+          ai_assessment: Json | null
+          bio: string | null
+          created_at: string
+          created_by: string | null
+          external_url: string | null
+          fit_reasons: string[]
+          fit_score: number
+          follower_count: number | null
+          hashtags: string[]
+          id: string
+          instagram_handle: string
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scored_at: string
+          source: string
+          source_note: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_assessed_at?: string | null
+          ai_assessment?: Json | null
+          bio?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_url?: string | null
+          fit_reasons?: string[]
+          fit_score?: number
+          follower_count?: number | null
+          hashtags?: string[]
+          id?: string
+          instagram_handle: string
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scored_at?: string
+          source?: string
+          source_note?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_assessed_at?: string | null
+          ai_assessment?: Json | null
+          bio?: string | null
+          created_at?: string
+          created_by?: string | null
+          external_url?: string | null
+          fit_reasons?: string[]
+          fit_score?: number
+          follower_count?: number | null
+          hashtags?: string[]
+          id?: string
+          instagram_handle?: string
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scored_at?: string
+          source?: string
+          source_note?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       outreach_touches: {
         Row: {
           id: string

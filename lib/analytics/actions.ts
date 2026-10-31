@@ -57,6 +57,9 @@ export const OUTCOME_ACTIONS = [
   "name_alias_added",
   "email_alias_added",
   "slack_disconnected",
+  // Outreach
+  "prospects_imported",
+  "prospect_reviewed",
   // Onboarding
   "onboarding_started",
   "onboarding_dismissed",

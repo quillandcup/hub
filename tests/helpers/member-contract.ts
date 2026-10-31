@@ -39,6 +39,18 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
       ctx = setup();
     });
 
+    it("lists the Instagram URL of every member who has one", async () => {
+      await ctx.seed([
+        { name: "Insta One", instagramUrl: "https://instagram.com/contract.insta.one" },
+        { name: "No Insta" },
+        { name: "Insta Two", status: "cancelled", instagramUrl: "https://instagram.com/contract.insta.two" },
+      ]);
+
+      expect(await ctx.repo().instagramUrls()).toEqual(
+        expect.arrayContaining(["https://instagram.com/contract.insta.one", "https://instagram.com/contract.insta.two"]),
+      );
+    });
+
     it("lists members' identities in a stable order, optionally one status", async () => {
       const [ada, fern, gale] = await ctx.seed([
         { name: "Ada Example", displayName: "Penny Quill" },

@@ -28,6 +28,8 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   member_badges: [],
   push_subscriptions: [],
   member_reminder_log: [],
+  // Instagram prospects (ProspectRepository).
+  outreach_prospects: [],
   // Writing (WritingRepository): the dashboard, onboarding, check-in, Slack quick log and CSV export are
   // moved, and so are project, goal and entry editing and the Trackbear import.
   writing_projects: [],

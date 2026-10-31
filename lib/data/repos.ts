@@ -24,6 +24,7 @@ import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository 
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
 import { InMemoryMemberStatusRepository, SupabaseMemberStatusRepository, type MemberStatusRepository } from "./member-status-overrides";
+import { InMemoryProspectRepository, SupabaseProspectRepository, type ProspectRepository } from "./prospects";
 import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } from "./books";
 import { InMemoryPrickleActivityRepository, SupabasePrickleActivityRepository, type PrickleActivityRepository } from "./prickle-activity";
 import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type CalendarFeedRepository } from "./calendar-feed";
@@ -63,6 +64,7 @@ export interface Repos {
   prickleActivity: PrickleActivityRepository;
   calendarFeed: CalendarFeedRepository;
   calendarSyncState: CalendarSyncStateRepository;
+  prospects: ProspectRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -96,6 +98,7 @@ export function createRepos(db: Db): Repos {
     prickleActivity: new SupabasePrickleActivityRepository(db),
     calendarFeed: new SupabaseCalendarFeedRepository(db),
     calendarSyncState: new SupabaseCalendarSyncStateRepository(db),
+    prospects: new SupabaseProspectRepository(db),
   };
 }
 
@@ -130,5 +133,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     prickleActivity: new InMemoryPrickleActivityRepository(dataset),
     calendarFeed: new InMemoryCalendarFeedRepository(dataset),
     calendarSyncState: new InMemoryCalendarSyncStateRepository(dataset),
+    prospects: new InMemoryProspectRepository(dataset),
   };
 }

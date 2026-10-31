@@ -14,6 +14,9 @@ vi.mock("@/lib/analytics/server", () => ({
   actionOutcome: vi.fn(),
 }));
 
+// The admin actions check the caller before they report; here the caller is always an admin.
+vi.mock("@/lib/admin-auth", () => ({ requireAdminAction: vi.fn(async () => ({ ok: true, user: { id: "user-admin", email: "admin@example.test" }, supabase: {} })) }));
+
 const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]][] = [
   [() => import("@/app/(member)/prickles/checkin-actions"), "app/(member)/prickles/checkin-actions.ts", [["saveCheckin", "checkin_saved"], ["saveCheckinHalf", "checkin_half_saved"]]],
   [() => import("@/app/(member)/my-prickles/commitment-actions"), "app/(member)/my-prickles/commitment-actions.ts", [["createCommitment", "commitment_created"], ["cancelCommitment", "commitment_cancelled"]]],
@@ -34,6 +37,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
   [() => import("@/app/(member)/settings/identityActions"), "app/(member)/settings/identityActions.ts", [["updateRealName", "real_name_changed"], ["setDisplayName", "display_name_changed"], ["setCustomDisplayName", "display_name_changed"], ["updateBirthday", "birthday_saved"], ["addNameAlias", "name_alias_added"], ["addEmailAlias", "email_alias_added"]]],
   [() => import("@/app/(member)/settings/slackConnectActions"), "app/(member)/settings/slackConnectActions.ts", [["disconnectSlackAction", "slack_disconnected"]]],
   [() => import("@/app/actions/onboarding"), "app/actions/onboarding.ts", [["startOnboarding", "onboarding_started"], ["dismissOnboarding", "onboarding_dismissed"], ["completeOnboarding", "onboarding_completed"], ["markOnboardingStep", "onboarding_step_marked"]]],
+  [() => import("@/app/(admin)/admin/outreach/prospects/actions"), "app/(admin)/admin/outreach/prospects/actions.ts", [["importProspects", "prospects_imported"], ["reviewProspect", "prospect_reviewed"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 

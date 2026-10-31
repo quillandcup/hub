@@ -4,6 +4,7 @@ import type { BadgeLevel, BadgeType, MemberBadge } from "./badges";
 import type { EmailAliasRow, NameAliasRow } from "./aliases";
 import type { PushSubscriptionRow } from "./push-subscriptions";
 import type { ReminderLogRow } from "./reminder-log";
+import type { ProspectSeed } from "./prospects";
 import type { InAppNotificationRow, NotificationPreference } from "./notifications";
 import type { EventAttendeeRow, EventPhotoRow, EventRow } from "./events";
 import type { MediaAsset } from "./media";
@@ -74,6 +75,8 @@ export class InMemoryDataset {
   emailAliases: EmailAliasRow[];
   pushSubscriptions: PushSubscriptionRow[];
   reminderLog: ReminderLogRow[];
+  /** Instagram prospects found for outreach (`outreach_prospects`). */
+  prospects: ProspectSeed[];
   badgeTypes: BadgeType[];
   badgeLevels: BadgeLevel[];
   memberBadges: MemberBadge[];
@@ -167,7 +170,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
 
     > = {},
   ) {
@@ -181,6 +184,7 @@ export class InMemoryDataset {
     this.emailAliases = (init.emailAliases ?? []).map((row) => ({ ...row }));
     this.pushSubscriptions = (init.pushSubscriptions ?? []).map((row) => ({ ...row }));
     this.reminderLog = (init.reminderLog ?? []).map((row) => ({ ...row }));
+    this.prospects = (init.prospects ?? []).map((row) => ({ ...row }));
     this.badgeTypes = (init.badgeTypes ?? []).map((row) => ({ ...row }));
     this.badgeLevels = (init.badgeLevels ?? []).map((row) => ({ ...row }));
     this.memberBadges = (init.memberBadges ?? []).map((row) => ({ ...row }));
