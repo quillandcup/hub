@@ -11,12 +11,12 @@ INSERT INTO public.user_profiles (id, email, role) VALUES
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 SELECT lives_ok(
-  $$INSERT INTO public.outreach_prospects (instagram_handle) VALUES ('ada.example')$$,
+  $$INSERT INTO public.outreach_prospects (handle) VALUES ('ada.example')$$,
   'a prospect can be inserted with defaults'
 );
-SELECT matches((SELECT id FROM public.outreach_prospects WHERE instagram_handle = 'ada.example'), '^prsp_[1-9A-HJ-NP-Za-km-z]{12}$', 'ids use the prsp_ prefix');
+SELECT matches((SELECT id FROM public.outreach_prospects WHERE handle = 'ada.example'), '^prsp_[1-9A-HJ-NP-Za-km-z]{12}$', 'ids use the prsp_ prefix');
 SELECT throws_ok(
-  $$INSERT INTO public.outreach_prospects (instagram_handle) VALUES ('Not A Handle')$$,
+  $$INSERT INTO public.outreach_prospects (handle) VALUES ('Not A Handle')$$,
   '23514', NULL, 'a handle must be lowercase letters, digits, periods or underscores'
 );
 

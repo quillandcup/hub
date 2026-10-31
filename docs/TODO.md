@@ -1330,9 +1330,6 @@ Phase 1 follow-ups (activity/audit log):
 
 **Priority:** Phase 1 in progress; the rest is roadmap only.
 
-### Calendar check-in pills test depends on the real date
-`tests/components/MemberCalendarClientCheckins.test.tsx` ("adds the pills to the month view's day panel") builds its data from `new Date()` and fails on the last day of a month (seen 2026-10-31). Pin the date with `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime()`, per `dates-and-timezones.md`, and cover both sides of a month boundary.
-
 ### Member Profile Pages
 - **Attendance breakdown by Prickle kind and time slot**
   - Show attendance counts grouped by Prickle type (e.g. "Heads Down: 42", "Progress Prickle: 18")
