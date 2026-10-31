@@ -1,11 +1,11 @@
 import PageBanner from "@/components/PageBanner";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
-/** Shown above the course builder while it can't save: courses are imported from Kajabi by hand. */
+/** Shown above a course imported from Kajabi: it is rebuilt from Kajabi on every sync, so it can't be edited here. */
 export default function CourseBuilderBanner() {
   return (
     <PageBanner>
-      Building courses here isn&apos;t available yet. To add or change a course, contact support at{" "}
+      Courses imported from Kajabi can&apos;t be edited here yet. To add or change one, contact support at{" "}
       <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
         {SUPPORT_EMAIL}
       </a>{" "}

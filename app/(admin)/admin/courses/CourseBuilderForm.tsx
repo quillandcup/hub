@@ -32,9 +32,9 @@ export interface BuilderCourse {
  * Kajabi for now, so this shows the course as last imported, not an editor. Reading still works in
  * the outline: search, expand, and opening a lesson's builder page or its preview.
  */
-export default function CourseBuilderForm({ course }: { course?: BuilderCourse }) {
-  const outline: OutlineCourse = course ?? { kajabiId: "", slug: null, loose: [], modules: [], content: {}, hubLessonIds: {} };
-  const accessChoice = course?.accessDuration === undefined ? "" : accessLabel(course.accessDuration);
+export default function CourseBuilderForm({ course }: { course: BuilderCourse }) {
+  const outline: OutlineCourse = course;
+  const accessChoice = course.accessDuration === undefined ? "" : accessLabel(course.accessDuration);
   return (
     <form aria-label="Course builder" className="space-y-6">
       <div className="rounded-lg bg-white p-6 shadow dark:bg-slate-900">
@@ -42,15 +42,15 @@ export default function CourseBuilderForm({ course }: { course?: BuilderCourse }
         <div className="grid gap-4 @pair:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Title</span>
-            <input type="text" disabled defaultValue={course?.title} className={FIELD} placeholder="The Ready Writer" />
+            <input type="text" disabled defaultValue={course.title} className={FIELD} placeholder="The Ready Writer" />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Address</span>
-            <input type="text" disabled defaultValue={course?.slug ?? ""} className={FIELD} placeholder="the-ready-writer" />
+            <input type="text" disabled defaultValue={course.slug ?? ""} className={FIELD} placeholder="the-ready-writer" />
           </label>
           <label className="block text-sm @pair:col-span-2">
             <span className="mb-1 block font-medium">Description</span>
-            <textarea rows={3} disabled defaultValue={course?.description ?? ""} className={FIELD} />
+            <textarea rows={3} disabled defaultValue={course.description ?? ""} className={FIELD} />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Access length</span>
@@ -65,10 +65,10 @@ export default function CourseBuilderForm({ course }: { course?: BuilderCourse }
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Opens</span>
-            <input type="date" disabled defaultValue={course?.launchOn} className={FIELD} />
+            <input type="date" disabled defaultValue={course.launchOn} className={FIELD} />
           </label>
           <label className="flex items-center gap-2 text-sm @pair:col-span-2">
-            <input type="checkbox" disabled defaultChecked={course?.includesMembership ?? false} />
+            <input type="checkbox" disabled defaultChecked={course.includesMembership ?? false} />
             <span>Includes membership while the member has access</span>
           </label>
         </div>

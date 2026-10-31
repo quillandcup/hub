@@ -80,6 +80,22 @@ describe("/admin/courses", () => {
   });
 });
 
+describe("/admin/courses, Hub-owned courses", () => {
+  it("marks a course the Hub owns, and links it by its own id", async () => {
+    loadAdminCourses.mockResolvedValue([
+      row({ source: "kajabi" }),
+      row({ source: "hub", kajabiId: "crs_AAAAAAAAAAA1", title: "Plot Lab", published: { slug: "plot-lab", accessDuration: "1 year", launchAt: null }, totals: { open: 2, coming_soon: 1, hidden: 0 } }),
+    ]);
+    await renderServerPage(AdminCoursesPage, {});
+
+    const hub = screen.getByRole("row", { name: /Plot Lab/ });
+    expect(within(hub).getByText("Hub")).toBeInTheDocument();
+    expect(within(hub).getByRole("link", { name: "Plot Lab" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1");
+    expect(within(hub).getByText("2 / 1 / 0")).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /The Ready Writer/ })).queryByText("Hub")).not.toBeInTheDocument();
+  });
+});
+
 describe("/admin/courses/[id]", () => {
   const detail = (published: ReturnType<typeof row>["published"] | null = row().published, over = {}) => {
     const explained = explainCourse(
