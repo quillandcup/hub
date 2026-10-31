@@ -140,3 +140,13 @@ export function describeDomShape(pattern: string): string[] {
     .slice(0, 80)
     .map(([key, g]) => `${key} x${g.count} attrs: ${[...g.attrs].sort().join(", ") || "none"}${g.urls.size ? ` | urls: ${[...g.urls].sort().slice(0, 4).join(", ")}` : ""}`);
 }
+
+/**
+ * A hint for when the recording shows the page sending the browser to a login screen: Kajabi's member pages open
+ * only through a preview link from the admin, so the address typed in is not enough. Null when no login was seen.
+ */
+export function loginHint(requests: readonly ProbedRequest[]): string | null {
+  const sawLogin = requests.some((r) => /(^|\/)(login|sign_in)$/.test(r.path));
+  if (!sawLogin) return null;
+  return "The page sent the browser to a login screen, so what was recorded is the login, not the page. A member page opens through a preview link from the Kajabi admin: start the probe from the admin page that has the link, click it in the window (a new tab is recorded too), and open the part you want to see.";
+}
