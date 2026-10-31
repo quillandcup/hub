@@ -1,6 +1,10 @@
 import { createRepos } from "@/lib/data/repos";
 import { createApiAuth } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
+
+/** The widths a page may ask for with `?w=`: a grid thumbnail (2x of a ~240px cell) and the lightbox. Anything else is the original. */
+export const PHOTO_WIDTHS = [480, 1600] as const;
 
 // Authenticated image proxy, not a public/signed Storage URL -- event photos
 // aren't meant to be shareable off-site (unlike book-covers). Any logged-in
@@ -42,11 +46,30 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Imported originals are full camera size (several MB); pages ask for a sized copy.
+  const requested = Number(request.nextUrl.searchParams.get("w"));
+  const width = PHOTO_WIDTHS.find((w) => w === requested);
+  // Private (this viewer's browser only), never a shared/public/CDN cache. A photo's bytes never change
+  // (hiding it only changes who may ask), so the browser keeps its copy.
+  const cacheControl = "private, max-age=86400";
+
+  if (width) {
+    try {
+      const body = await sharp(Buffer.from(await file.arrayBuffer()))
+        .rotate()
+        .resize({ width, withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toBuffer();
+      return new NextResponse(new Uint8Array(body), { headers: { "Content-Type": "image/webp", "Cache-Control": cacheControl } });
+    } catch (error) {
+      console.error("Error resizing event photo, serving the original:", error);
+      return new NextResponse(await file.arrayBuffer(), {
+        headers: { "Content-Type": photo.mime_type || "application/octet-stream", "Cache-Control": "private, max-age=300" },
+      });
+    }
+  }
+
   return new NextResponse(await file.arrayBuffer(), {
-    headers: {
-      "Content-Type": photo.mime_type || "application/octet-stream",
-      // Private (this viewer's browser only), never a shared/public/CDN cache.
-      "Cache-Control": "private, max-age=300",
-    },
+    headers: { "Content-Type": photo.mime_type || "application/octet-stream", "Cache-Control": cacheControl },
   });
 }

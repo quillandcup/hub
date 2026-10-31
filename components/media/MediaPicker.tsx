@@ -266,7 +266,7 @@ export function MediaChooser({
               <li key={p.id}>
                 <button type="button" data-track="media-picker-event-photo" disabled={copying} onClick={() => void copyPhoto(p.id)} className="block w-full group disabled:opacity-50">
                   {/* eslint-disable-next-line @next/next/no-img-element -- the event's private photo proxy */}
-                  <img src={`/api/events/${eventPhotos.eventId}/photos/${p.id}`} alt="An event photo" loading="lazy" className="w-full aspect-video object-cover rounded border border-gray-200 dark:border-slate-700 group-hover:ring-2 group-hover:ring-plum-500" />
+                  <img src={`/api/events/${eventPhotos.eventId}/photos/${p.id}?w=480`} alt="An event photo" loading="lazy" className="w-full aspect-video object-cover rounded border border-gray-200 dark:border-slate-700 group-hover:ring-2 group-hover:ring-plum-500" />
                 </button>
               </li>
             ))}

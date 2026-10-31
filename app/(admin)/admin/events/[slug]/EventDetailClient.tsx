@@ -197,7 +197,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const hiddenPhotos = photos.filter((p) => p.hidden_at);
   const lightboxPhotos = [...visiblePhotos, ...hiddenPhotos].map((p) => ({
     id: p.id,
-    src: `/api/events/${eventId}/photos/${p.id}`,
+    src: `/api/events/${eventId}/photos/${p.id}?w=1600`,
   }));
 
   return (
@@ -307,7 +307,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <button onClick={() => setLightboxIndex(i)} className="w-full h-full">
                   {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}
                   <img
-                    src={`/api/events/${eventId}/photos/${photo.id}`}
+                    src={`/api/events/${eventId}/photos/${photo.id}?w=480`}
                     alt=""
                     className="w-full h-full object-cover rounded"
                   />
@@ -341,7 +341,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     <button onClick={() => setLightboxIndex(visiblePhotos.length + i)} className="w-full h-full">
                       {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}
                       <img
-                        src={`/api/events/${eventId}/photos/${photo.id}`}
+                        src={`/api/events/${eventId}/photos/${photo.id}?w=480`}
                         alt=""
                         className="w-full h-full object-cover rounded opacity-50"
                       />

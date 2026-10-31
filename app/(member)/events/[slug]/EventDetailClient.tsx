@@ -54,13 +54,13 @@ export default function EventDetailClient({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const audience = audienceSummary(event);
   const where = locationDisplay(event.location);
-  const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}` }));
+  const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}?w=1600` }));
 
   return (
     <div className="mt-4 space-y-6">
       {coverImage && (
         // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-        <img src={coverImage.src} alt={coverImage.alt} className="w-full aspect-video object-cover rounded-lg shadow" />
+        <img src={coverImage.src} alt={coverImage.alt} fetchPriority="high" className="w-full aspect-video object-cover rounded-lg shadow" />
       )}
       <div>
         <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
@@ -151,8 +151,10 @@ export default function EventDetailClient({
               <button data-track="event-open-photo" key={photo.id} onClick={() => setLightboxIndex(i)} className="aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}
                 <img
-                  src={`/api/events/${event.id}/photos/${photo.id}`}
+                  src={`/api/events/${event.id}/photos/${photo.id}?w=480`}
                   alt=""
+                  loading={i < 8 ? "eager" : "lazy"}
+                  decoding="async"
                   className="w-full h-full object-cover rounded"
                 />
               </button>

@@ -14,6 +14,9 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
+const sharpPipeline = { rotate: vi.fn(), resize: vi.fn(), webp: vi.fn(), toBuffer: vi.fn() };
+vi.mock("sharp", () => ({ default: () => sharpPipeline }));
+
 const uploadMock = vi.fn();
 const downloadMock = vi.fn();
 const supabase = {
@@ -164,6 +167,26 @@ describe("GET /api/events/[eventId]/photos/[photoId]", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/jpeg");
     expect(downloadMock).toHaveBeenCalledWith(`${EVENT}/a.jpg`);
+  });
+
+  it("serves a sized copy as webp when asked for an allowed width, and the original for any other", async () => {
+    for (const fn of [sharpPipeline.rotate, sharpPipeline.resize, sharpPipeline.webp]) fn.mockReturnValue(sharpPipeline);
+    sharpPipeline.toBuffer.mockResolvedValue(Buffer.from([1, 2]));
+    const sized = (w: string) => viewPhoto(new NextRequest(`http://localhost/api/x?w=${w}`), { params: Promise.resolve({ eventId: EVENT, photoId: "evph_1" }) });
+
+    const res = await sized("480");
+    expect(res.headers.get("Content-Type")).toBe("image/webp");
+    expect(sharpPipeline.resize).toHaveBeenCalledWith({ width: 480, withoutEnlargement: true });
+
+    expect((await sized("123")).headers.get("Content-Type")).toBe("image/jpeg");
+    expect(sharpPipeline.resize).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the original when resizing fails", async () => {
+    sharpPipeline.rotate.mockImplementation(() => { throw new Error("bad image"); });
+    const res = await viewPhoto(new NextRequest("http://localhost/api/x?w=1600"), { params: Promise.resolve({ eventId: EVENT, photoId: "evph_1" }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/jpeg");
   });
 
   it("is 401 signed out and 404 for a missing photo, a failed read or a failed download", async () => {
