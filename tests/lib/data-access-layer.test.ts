@@ -138,6 +138,18 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
+  // Segments (SegmentRepository), feature flags and user previews (FeatureFlagRepository), Slack sign-in
+  // bindings and credentials (SlackSignInRepository), usage events (AnalyticsEventRepository) and the
+  // Google Calendar push channels (CalendarSyncStateRepository): every query is moved.
+  segments: [],
+  segment_members: [],
+  feature_flags: [],
+  feature_flag_segments: [],
+  user_feature_previews: [],
+  slack_identities: [],
+  slack_sign_in_tokens: [],
+  analytics_events: [],
+  calendar_watch_channels: [],
 };
 
 /**
