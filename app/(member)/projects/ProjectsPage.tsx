@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getMyProjects } from "./actions";
+import { getMyProjects, getMyArchivedProjects } from "./actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
 import { getMyAwards } from "@/app/(member)/awards/actions";
 import ProjectsClient from "./ProjectsClient";
@@ -23,8 +23,8 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) redirect("/admin");
 
-  const [projects, books, awards] = await Promise.all([getMyProjects(), getMyBooks(), getMyAwards()]);
-  const projectTitles = Object.fromEntries(projects.map((p) => [p.id, p.title]));
+  const [projects, archivedProjects, books, awards] = await Promise.all([getMyProjects(), getMyArchivedProjects(), getMyBooks(), getMyAwards()]);
+  const projectTitles = Object.fromEntries([...projects, ...archivedProjects].map((p) => [p.id, p.title]));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -51,7 +51,7 @@ export default async function ProjectsPage({ tab }: { tab: MyWritingTabId }) {
             {
               id: "projects",
               label: MY_WRITING_TAB_LABELS.projects,
-              content: <ProjectsClient initialProjects={projects} />,
+              content: <ProjectsClient initialProjects={projects} archivedProjects={archivedProjects} />,
             },
             {
               id: "books",

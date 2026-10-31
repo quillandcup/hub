@@ -1602,7 +1602,9 @@ There used to be one narrow fix: changing a `measure='prickles'` goal's anchor a
 
 **Why deferred:** it's a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
 
-### Browse Past/Archived Projects (Deferred)
+### Browse Past/Archived Projects (Partly resolved)
+**Resolved:** members can archive and restore a project (detail page) and see their archived ones under "Archived" on My Writing (`app/(member)/projects/ArchivedProjects.tsx`), and delete one (soft delete, `writing_projects.deleted_at`, with its goals and entries). **Still open:** projects marked Complete or Abandoned that were never archived still show among the current ones (as before), with no filter or separate list for them; the paragraph below is the original note.
+
 `writing_projects` already has `phase IN ('complete', 'abandoned')` and `archived_at`, but there's no UI to list/browse projects in those states — `getMyProjects()` only returns `archived_at IS NULL` projects, so a completed or abandoned project effectively disappears from `/writing` once marked as such.
 
 **Why deferred:** the data model already supports this; it's purely a missing browsing surface, not a schema gap. Distinct from goal-level "Past goals" (`getArchivedGoals`, shipped alongside the `prickles` measure — see `app/(member)/writing/[id]/ProjectDetailClient.tsx`), which covers archived *goals* within a project, not archived *projects* themselves.

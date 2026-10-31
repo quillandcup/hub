@@ -29,9 +29,12 @@ import {
 } from "@/lib/writing-projects";
 import {
   archiveGoal,
+  archiveProject,
   createGoal,
   deleteEntry,
   deleteGoal,
+  deleteProject,
+  restoreProject,
   toggleGoalStar,
   toggleGoalVisibility,
   toggleProjectVisibility,
@@ -74,6 +77,8 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
   const [showEditBook, setShowEditBook] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
   const [removingBook, setRemovingBook] = useState(false);
+  const [projectActionPending, setProjectActionPending] = useState(false);
+  const archived = Boolean(project.archivedAt);
   const table = useDataTable<EntryRow, EntrySortColumn>({ rows: entries, getSortValue: entrySortValue, defaultSort: null });
   const { sortColumn, sortDirection, handleSort } = table;
 
@@ -109,6 +114,30 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
       return;
     }
     handleChanged();
+  }
+
+  async function handleArchiveToggle() {
+    setProjectActionPending(true);
+    const result = await (archived ? restoreProject(project.id) : archiveProject(project.id));
+    setProjectActionPending(false);
+    if ("error" in result) {
+      alert(result.error);
+      return;
+    }
+    handleChanged();
+  }
+
+  async function handleDeleteProject() {
+    const alsoRemoves = project.book ? " The book on your Book Shelf stays." : "";
+    if (!confirm(`Delete "${project.title}" with its goals and progress? You can't get it back.${alsoRemoves}`)) return;
+    setProjectActionPending(true);
+    const result = await deleteProject(project.id);
+    if ("error" in result) {
+      setProjectActionPending(false);
+      alert(result.error);
+      return;
+    }
+    window.location.href = "/projects";
   }
 
   async function handleToggleVisibility() {
@@ -185,12 +214,30 @@ export default function ProjectDetailClient({ project, entries, archivedGoals }:
             ✏️ Edit details
           </button>
         </div>
-        <a data-track="project-export-csv"
-          href={`/api/projects/export?projectId=${project.id}`}
-          className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
-        >
-          ⬇ Export CSV
-        </a>
+        <div className="flex items-center gap-4">
+          <a data-track="project-export-csv"
+            href={`/api/projects/export?projectId=${project.id}`}
+            className="text-plum-600 hover:text-plum-700 dark:text-plum-400"
+          >
+            ⬇ Export CSV
+          </a>
+          <button data-track="project-archive-toggle"
+            type="button"
+            onClick={handleArchiveToggle}
+            disabled={projectActionPending}
+            className="text-plum-600 hover:text-plum-700 dark:text-plum-400 disabled:opacity-50"
+          >
+            {archived ? "Restore" : "Archive"}
+          </button>
+          <button data-track="project-delete"
+            type="button"
+            onClick={handleDeleteProject}
+            disabled={projectActionPending}
+            className="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {project.book ? (

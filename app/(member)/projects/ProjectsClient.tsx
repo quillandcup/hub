@@ -5,6 +5,7 @@ import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
+import ArchivedProjects from "./ArchivedProjects";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
 import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
@@ -12,9 +13,10 @@ import type { WritingProjectRow } from "./actions";
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
+  archivedProjects?: WritingProjectRow[];
 }
 
-export default function ProjectsClient({ initialProjects }: ProjectsClientProps) {
+export default function ProjectsClient({ initialProjects, archivedProjects = [] }: ProjectsClientProps) {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
 
   if (initialProjects.length === 0 && !showNewProject) {
     return (
+      <>
       <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
         <p className="text-4xl mb-3">📝</p>
         <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">Track your first project</h2>
@@ -56,6 +59,8 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
         <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
       </div>
+      <ArchivedProjects projects={archivedProjects} />
+      </>
     );
   }
 
@@ -155,6 +160,8 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
           </div>
         ))}
       </div>
+
+      <ArchivedProjects projects={archivedProjects} />
 
       <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
       <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />

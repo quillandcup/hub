@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ReturnToTabLink } from "@/components/ReturnToTab";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getProject, getArchivedGoals } from "../actions";
+import PageBanner from "@/components/PageBanner";
 import ProjectDetailClient from "./ProjectDetailClient";
 
 export async function generateMetadata({
@@ -56,6 +57,8 @@ export default async function ProjectDetailPage({
           <h1 className="text-2xl font-bold mt-1">{result.project.title}</h1>
         </div>
       </header>
+
+      {result.project.archivedAt && <PageBanner>This project is archived. It&apos;s off your profile and your lists, and you can restore it any time.</PageBanner>}
 
       <main className="container mx-auto px-6 py-8">
         <ProjectDetailClient project={result.project} entries={result.entries} archivedGoals={archivedGoals} />
