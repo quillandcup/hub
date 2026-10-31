@@ -29,6 +29,12 @@ export const OUTCOME_ACTIONS = [
   "lesson_completion_saved",
   "course_created",
   "course_details_saved",
+  "course_module_added",
+  "course_lesson_added",
+  "course_item_renamed",
+  "course_item_deleted",
+  "course_item_duplicated",
+  "course_items_reordered",
   // Chat
   "chat_message_sent",
   "chat_reaction_toggled",

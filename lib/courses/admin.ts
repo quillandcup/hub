@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
+import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
 import { fetchAll } from "@/lib/courses/db";
 import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
@@ -317,4 +318,17 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseKajabiId: 
     hub,
     video,
   };
+}
+
+/** The modules and lessons of a Hub-owned course, as the builder's outline draws them. */
+export async function loadHubOutline(supabase: SupabaseClient, courseId: string): Promise<HubOutline> {
+  const [modules, lessons] = await Promise.all([
+    fetchAll(supabase, "course_modules", "id, parent_id, title, position, state", (q) => q.eq("course_id", courseId)),
+    // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
+    fetchAll(supabase, "course_lessons", "id, module_id, title, position, state, excerpt, video_id", (q) => q.eq("course_id", courseId)),
+  ]);
+  return buildHubOutline(
+    modules,
+    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
+  );
 }

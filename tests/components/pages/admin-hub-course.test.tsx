@@ -2,6 +2,7 @@
 /** The admin page of a Hub-owned course (an id like crs_…): its details, editable. A Kajabi course keeps the read-only builder. Loaders mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderServerRoute, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -9,10 +10,12 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 const requireAdminPage = vi.fn(async () => undefined);
 vi.mock("@/lib/admin-auth", () => ({ requireAdminPage: () => requireAdminPage() }));
 const loadHubCourse = vi.fn();
+const loadHubOutline = vi.fn();
 const loadAdminCourse = vi.fn();
 const loadAdminCourseTitle = vi.fn();
 vi.mock("@/lib/courses/admin", () => ({
   loadHubCourse: (...a: unknown[]) => loadHubCourse(...a),
+  loadHubOutline: (...a: unknown[]) => loadHubOutline(...a),
   loadAdminCourse: (...a: unknown[]) => loadAdminCourse(...a),
   loadAdminCourseTitle: (...a: unknown[]) => loadAdminCourseTitle(...a),
 }));
@@ -27,7 +30,16 @@ vi.mock("@/lib/data/repos", () => ({
   }),
 }));
 vi.mock("@/app/(admin)/admin/courses/actions", () => ({ createCourse: vi.fn(), updateCourseDetails: vi.fn() }));
+vi.mock("@/app/(admin)/admin/courses/outline-actions", () => ({
+  addCourseLesson: vi.fn(),
+  addCourseModule: vi.fn(),
+  deleteCourseItem: vi.fn(),
+  duplicateCourseItem: vi.fn(),
+  renameCourseItem: vi.fn(),
+  reorderCourseItems: vi.fn(),
+}));
 
+import { buildHubOutline } from "@/lib/courses/hub-outline";
 import AdminCoursePage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/page";
 
 const COURSE = "crs_AAAAAAAAAAA1";
@@ -49,6 +61,8 @@ beforeEach(() => {
   useFakeSupabase();
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
+  loadHubOutline.mockReset();
+  loadHubOutline.mockResolvedValue(buildHubOutline([], []));
   loadAdminCourse.mockReset();
   loadAdminCourseTitle.mockReset();
 });
@@ -81,11 +95,34 @@ describe("/admin/courses/[id] for a Hub-owned course", () => {
     expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
-  it("isn't the read-only Kajabi builder: no support notice, and says modules and lessons can't be added yet", async () => {
+  it("isn't the read-only Kajabi builder: no support notice, and the outline can be changed", async () => {
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
     expect(screen.queryByText(/contact support/)).not.toBeInTheDocument();
-    expect(screen.getByText("Modules and lessons can't be added here yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add module" })).toBeEnabled();
+  });
+
+  it("shows the course's own modules and lessons in the outline, previewed at its address", async () => {
+    loadHubCourse.mockResolvedValue(course());
+    loadHubOutline.mockResolvedValue(
+      buildHubOutline(
+        [{ id: "mod_AAAAAAAAAAA1", parent_id: null, title: "Module 1", position: 1, state: "hidden" }],
+        [{ id: "les_AAAAAAAAAAA1", module_id: "mod_AAAAAAAAAAA1", title: "Lesson one", position: 1, state: "hidden", hasText: false, hasVideo: false }]
+      )
+    );
+    await renderServerRoute(AdminCoursePage, params());
+
+    expect(loadHubOutline).toHaveBeenCalledWith(expect.anything(), COURSE);
+    expect(screen.getByText("1 Module")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Expand Module 1" }));
+    expect(screen.getByText("Lesson one")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open lesson preview" })).toHaveAttribute("href", "/courses/plot-lab/lessons/les_AAAAAAAAAAA1");
+  });
+
+  it("says there are no modules yet for a new course", async () => {
+    loadHubCourse.mockResolvedValue(course());
+    await renderServerRoute(AdminCoursePage, params());
+    expect(screen.getByText("No modules yet.")).toBeInTheDocument();
   });
 
   it("opens straight away with no day and no program set, and leaves access to be chosen when it isn't one of the options", async () => {
