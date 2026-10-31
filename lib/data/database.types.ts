@@ -2562,6 +2562,7 @@ export type Database = {
           hero_source: string | null
           hero_url: string | null
           id: string
+          is_draft: boolean
           kind: string
           launch_at: string | null
           program_id: string | null
@@ -2582,6 +2583,7 @@ export type Database = {
           hero_source?: string | null
           hero_url?: string | null
           id?: string
+          is_draft?: boolean
           kind?: string
           launch_at?: string | null
           program_id?: string | null
@@ -2602,6 +2604,7 @@ export type Database = {
           hero_source?: string | null
           hero_url?: string | null
           id?: string
+          is_draft?: boolean
           kind?: string
           launch_at?: string | null
           program_id?: string | null

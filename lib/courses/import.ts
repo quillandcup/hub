@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ensureDraftCourses } from "@/lib/courses/process";
 import type { KajabiCourseResource, KajabiCourseResponse } from "@/lib/kajabi/client";
 import { idsToSoftDelete, parseKajabiCourse, type ParsedCourse } from "@/lib/kajabi/courses";
 import type { Db } from "@/lib/data/db";
@@ -146,6 +147,9 @@ export async function importKajabiCourses(
     await repo.softDeleteCourses(goneCourses, fetchedAt);
     softDeleted.courses = goneCourses.length;
   }
+
+  // Every imported course gets a Hub row (a draft until published), so its admin address has a Hub id.
+  await ensureDraftCourses(supabase);
 
   return {
     courses: parsed.map((p) => ({

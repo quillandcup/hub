@@ -53,16 +53,16 @@ async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>
 }
 
 /**
- * The watch stats of a course's lessons (by the course's Kajabi id, like the admin course page),
+ * The watch stats of a course's lessons (by the course's Hub id, like the admin course page),
  * or of one lesson when `lessonId` is given. Null when the course isn't in the Hub (not published).
  * Staff viewing is left out unless `includeStaff`.
  */
 export async function loadCourseWatchStats(
   supabase: SupabaseClient,
-  kajabiId: string,
+  courseId: string,
   options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean; /** How many of the newest visits get a place (the page shows that many). */ sessionLimit?: number } = {}
 ): Promise<CourseWatchStats | null> {
-  const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
+  const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("id", courseId).eq("is_draft", false).maybeSingle();
   if (error) throw new Error(`courses read failed: ${error.message}`);
   if (!course) return null;
 

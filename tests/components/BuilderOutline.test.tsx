@@ -32,7 +32,7 @@ const explained = explainCourse(
 );
 
 const course = (over: Partial<OutlineCourse> = {}): OutlineCourse => ({
-  kajabiId: "k1",
+  id: "crs_AAAAAAAAAAA1",
   slug: "the-ready-writer",
   loose: explained.loose,
   modules: explained.modules,
@@ -73,9 +73,11 @@ describe("BuilderOutline", () => {
   it("shows lessons that sit in no module, and links each lesson to its builder page", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
-    expect(screen.getByRole("link", { name: "Welcome" })).toHaveAttribute("href", "/admin/courses/k1/lessons/l3");
+    // Welcome isn't in the Hub (not published), so it has no builder page to link to.
+    expect(screen.getByText("Welcome")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Welcome" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Expand Module 2" }));
-    expect(screen.getByRole("link", { name: "Reader expectations" })).toHaveAttribute("href", "/admin/courses/k1/lessons/l2");
+    expect(screen.getByRole("link", { name: "Reader expectations" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/lessons/les_AAAAAAAAAAA2");
     expect(screen.getByText("text ✓ · video –", { exact: false })).toBeInTheDocument();
   });
 
@@ -97,7 +99,7 @@ describe("BuilderOutline", () => {
     const row = screen.getByRole("link", { name: "Reader expectations" }).closest("li")!;
 
     expect(within(row).getByRole("img", { name: "Drag to reorder lesson" })).toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: "Edit video" })).toHaveAttribute("href", "/admin/courses/k1/lessons/l2");
+    expect(within(row).getByRole("link", { name: "Edit video" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/lessons/les_AAAAAAAAAAA2");
     expect(within(row).getByRole("link", { name: "Open video preview" })).toHaveAttribute("href", "/courses/the-ready-writer/lessons/les_AAAAAAAAAAA2");
     for (const name of ["Duplicate video", "Open video comments", "Delete video"]) expect(within(row).getByRole("button", { name })).toBeDisabled();
   });
@@ -106,8 +108,10 @@ describe("BuilderOutline", () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course({ hubLessonIds: {} })} />);
     await user.click(screen.getByRole("button", { name: "Expand Module 2" }));
-    const row = screen.getByRole("link", { name: "Reader expectations" }).closest("li")!;
-    expect(within(row).queryByRole("link", { name: "Open video preview" })).not.toBeInTheDocument();
+    // Not in the Hub: no builder page and no Kajabi id in a link either.
+    expect(screen.queryByRole("link", { name: "Reader expectations" })).not.toBeInTheDocument();
+    const row = screen.getByText("Reader expectations").closest("li")!;
+    expect(within(row).queryByRole("link")).not.toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Open video preview" })).toBeDisabled();
   });
 

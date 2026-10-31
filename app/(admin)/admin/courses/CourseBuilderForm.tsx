@@ -7,8 +7,8 @@ const FIELD =
 
 /** What the builder shows of an existing course. Without it the form is blank (a new course). */
 export interface BuilderCourse {
-  /** Kajabi's course id. */
-  kajabiId: string;
+  /** The course's Hub id. */
+  id: string;
   title: string;
   /** The Hub slug, or null until the course is published. */
   slug: string | null;
