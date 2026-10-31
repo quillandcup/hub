@@ -1,0 +1,25 @@
+# Squawk lints a migration only for changes that break the code still running while
+# a deploy rolls out. CI pushes migrations before the new code is live, so for a few
+# minutes the OLD code runs against the NEW schema. See CLAUDE.md, "Migrations: expand, then contract".
+# Everything else Squawk can flag is excluded: it is about locks on big tables, and our
+# migrations run on Supabase with its own timeouts.
+excluded_rules = [
+    "prefer-robust-stmts",
+    "require-statement-timeout",
+    "require-lock-timeout",
+    "require-concurrent-index-creation",
+    "require-concurrent-index-deletion",
+    "ban-drop-constraint",
+    "ban-drop-not-null",
+    "constraint-missing-not-valid",
+    "prefer-bigint-over-int",
+    "prefer-bigint-over-smallint",
+    "renaming-object",
+    "adding-foreign-key-constraint",
+    "ban-set-schema",
+    "disallowed-unique-constraint",
+    "adding-not-nullable-field",
+    "adding-field-with-default",
+    "adding-required-field",
+    "identifier-too-long",
+]
