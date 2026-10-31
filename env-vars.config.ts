@@ -434,7 +434,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "SENTRY_CONFIG_TOKEN",
     group: "Analytics & Monitoring",
     description:
-      "Sentry internal integration token (Organization: Read & Write) that `pnpm sentry:config:push` and CI's push-sentry-config job use to apply sentry-config.yml. Not SENTRY_AUTH_TOKEN, the build token, which can't read organization settings. GitHub only.",
+      "Token of the `hub-iac` Sentry internal integration (Organization: Read & Write) that `pnpm sentry:config:push` and CI's push-sentry-config job use to apply sentry-config.yml. Not SENTRY_AUTH_TOKEN, the build token, which can't read organization settings. GitHub only.",
     type: "secret",
     destinations: [{ kind: "github" }],
   },

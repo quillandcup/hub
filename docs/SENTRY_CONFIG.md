@@ -14,7 +14,7 @@ Read-only. It needs `SENTRY_CONFIG_TOKEN` in `.env.prod` or `.env.shared`.
 
 ## The token
 
-`SENTRY_CONFIG_TOKEN` is a Sentry **internal integration** token with *Organization: Read & Write* (Settings → Developer Settings → Custom Integrations in the Sentry organization). It is not `SENTRY_AUTH_TOKEN`, the build token for source maps, which gets 403 on organization settings. A GitHub secret only: `pnpm env:sync:github --only=SENTRY_CONFIG_TOKEN`. Sync it before merging the change that first needs it, or the push job fails.
+`SENTRY_CONFIG_TOKEN` is a token of the organization's `hub-iac` **internal integration** (Settings → Custom Integrations → `hub-iac`), whose Organization permission is Read & Write. It is not `SENTRY_AUTH_TOKEN`, the build token for source maps, which gets 403 on organization settings. A GitHub secret only: `pnpm env:sync:github --only=SENTRY_CONFIG_TOKEN`. Sync it before merging the change that first needs it, or the push job fails. The integration is organization-owned, so the token doesn't depend on any one person's account. Revoke or replace it from the integration's page.
 
 ## Not covered
 
