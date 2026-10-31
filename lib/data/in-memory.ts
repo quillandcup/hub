@@ -180,6 +180,18 @@ export class InMemoryDataset {
   calendarFeedItems: FeedItemSeed[];
   /** The Google calendar sync leases and watermarks (`calendar_sync_state`). */
   calendarSyncStates: Row<"calendar_sync_state">[];
+  // --- the Hub's courses (CourseRepository, CourseProgressRepository) ---
+  /** The Silver curriculum (`courses`, `course_modules`, `course_lessons`, `course_lesson_files`) and the Mux videos (`videos`). */
+  courses: Row<"courses">[];
+  courseModules: Row<"course_modules">[];
+  courseLessons: Row<"course_lessons">[];
+  courseLessonFiles: Row<"course_lesson_files">[];
+  videos: Row<"videos">[];
+  /** What members did and may open: `lesson_progress`, `course_access`, staff `course_access_grants`, `video_watch_segments`. */
+  lessonProgress: Row<"lesson_progress">[];
+  courseAccess: Row<"course_access">[];
+  courseAccessGrants: Row<"course_access_grants">[];
+  videoWatchSegments: Row<"video_watch_segments">[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -188,7 +200,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments">
 
     > = {},
   ) {
@@ -271,6 +283,15 @@ export class InMemoryDataset {
     this.calendarFeedTokens = (init.calendarFeedTokens ?? []).map((row) => ({ ...row }));
     this.calendarFeedItems = (init.calendarFeedItems ?? []).map((row) => ({ ...row }));
     this.calendarSyncStates = (init.calendarSyncStates ?? []).map((row) => ({ ...row }));
+    this.courses = (init.courses ?? []).map((row) => ({ ...row }));
+    this.courseModules = (init.courseModules ?? []).map((row) => ({ ...row }));
+    this.courseLessons = (init.courseLessons ?? []).map((row) => ({ ...row }));
+    this.courseLessonFiles = (init.courseLessonFiles ?? []).map((row) => ({ ...row }));
+    this.videos = (init.videos ?? []).map((row) => ({ ...row }));
+    this.lessonProgress = (init.lessonProgress ?? []).map((row) => ({ ...row }));
+    this.courseAccess = (init.courseAccess ?? []).map((row) => ({ ...row }));
+    this.courseAccessGrants = (init.courseAccessGrants ?? []).map((row) => ({ ...row }));
+    this.videoWatchSegments = (init.videoWatchSegments ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }
