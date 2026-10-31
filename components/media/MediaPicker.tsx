@@ -30,10 +30,19 @@ const BUTTON = "px-3 py-1.5 rounded text-sm";
 const SECONDARY = `${BUTTON} bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-slate-600 disabled:opacity-50`;
 const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded text-sm";
 
+/** What a picker's `onChange` may answer: nothing, or a message when the parent couldn't take the image (shown, and the editor is not opened). */
+type ChangeResult = Promise<string | null | void> | string | null | void;
+
 /**
- * Picks an image from the media library, or uploads a new one and uses it. Shows the current pick (at
- * `preview`'s crop, so you see what will be shown) with Choose / Change / Remove; Choose opens the library.
- * Staff only for now: the library routes it calls are.
+ * Picks an image from the media library, or uploads a new one and uses it, and adjusts its crop: the one image
+ * control for every place that has an image (an event's cover, a book's cover). Shows the current pick (at `preview`'s
+ * crop, so you see what will be shown) with Choose / Change, Adjust crop and Remove; Choose opens the chooser, and a
+ * new upload opens the editor straight away.
+ *
+ * `own` makes it a member's: their own images only, uploaded as covers, and the member's trimmed editor. Without it
+ * it is staff's, over the shared library. `shape="cover"` lays the preview out small and portrait with the buttons
+ * beside it, and `children` go under the buttons (a book's requirements and Amazon download). `legacyUrl` is shown
+ * while there is no library image (an older cover that is a link).
  */
 export default function MediaPicker({
   value,
@@ -42,35 +51,59 @@ export default function MediaPicker({
   preview = "event_card",
   disabled = false,
   eventPhotos,
+  own = false,
+  shape = "wide",
+  noun = "image",
+  alt = "The chosen image",
+  removable = true,
+  legacyUrl,
+  children,
 }: {
   value: string | null;
-  onChange: (assetId: string | null) => void;
+  onChange: (assetId: string | null, asset?: PickedAsset) => ChangeResult;
   surface: Surface;
   preview?: PresetName;
   disabled?: boolean;
   eventPhotos?: EventPhotos;
+  own?: boolean;
+  shape?: "wide" | "cover";
+  noun?: string;
+  alt?: string;
+  removable?: boolean;
+  legacyUrl?: string;
+  children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
   const [version, setVersion] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
-  function choose(id: string, from: PickSource, searched: boolean) {
+  async function choose(id: string, from: PickSource, searched: boolean, asset?: PickedAsset) {
     track("media_picked", { surface, from, searched });
-    onChange(id);
     setOpen(false);
+    if (own && !asset) return setError(`Couldn't use that ${noun}`);
+    const problem = await (asset ? onChange(id, asset) : onChange(id));
+    if (problem) return setError(problem);
+    setError(null);
     // A new upload opens the editor straight away, to set its focal point before it's used.
     setAdjusting(from === "upload");
   }
 
-  return (
+  const cover = shape === "cover";
+  const imageClass = cover
+    ? "w-16 h-24 object-cover rounded border border-slate-200 dark:border-slate-700 flex-shrink-0"
+    : "w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700";
+  const shown = value ? mediaSrc(value, preview, version) : legacyUrl;
+  const picture = shown ? (
+    // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset (or an older cover's own link)
+    <img src={shown} alt={alt} className={imageClass} />
+  ) : cover ? null : (
+    <p className="text-sm text-slate-600 dark:text-slate-400">No {noun} chosen.</p>
+  );
+
+  const controls = (
     <div>
-      {value ? (
-        // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
-        <img src={mediaSrc(value, preview, version)} alt="The chosen image" className="w-full max-w-xs aspect-video object-cover rounded border border-gray-200 dark:border-slate-700" />
-      ) : (
-        <p className="text-sm text-slate-600 dark:text-slate-400">No image chosen.</p>
-      )}
-      <div className="mt-2 flex gap-2">
+      <div className={`${cover ? "" : "mt-2 "}flex flex-wrap gap-2`}>
         <button
           type="button"
           data-track="media-picker-open"
@@ -81,21 +114,21 @@ export default function MediaPicker({
           }}
           className={SECONDARY}
         >
-          {value ? "Change image" : "Choose image"}
+          {value || legacyUrl ? `Change ${noun}` : `Choose ${noun}`}
         </button>
         {value && (
           <button type="button" data-track="media-picker-adjust" disabled={disabled} onClick={() => setAdjusting(true)} className={SECONDARY}>
             Adjust crop
           </button>
         )}
-        {value && (
+        {value && removable && (
           <button
             type="button"
             data-track="media-picker-clear"
             disabled={disabled}
             onClick={() => {
               track("media_cleared", { surface });
-              onChange(null);
+              void onChange(null);
             }}
             className={SECONDARY}
           >
@@ -103,10 +136,28 @@ export default function MediaPicker({
           </button>
         )}
       </div>
-      <Modal isOpen={open} onClose={() => setOpen(false)} title="Choose an image" maxWidth="2xl">
-        <MediaChooser surface={surface} onPick={choose} eventPhotos={eventPhotos} />
+      {children}
+      {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
+    </div>
+  );
+
+  return (
+    <div>
+      {cover ? (
+        <div className="flex items-start gap-3">
+          {picture}
+          <div className="flex-1 min-w-0">{controls}</div>
+        </div>
+      ) : (
+        <>
+          {picture}
+          {controls}
+        </>
+      )}
+      <Modal isOpen={open} onClose={() => setOpen(false)} title={`Choose ${own ? "a" : "an"} ${noun}`} maxWidth="2xl">
+        <MediaChooser surface={surface} onPick={(id, from, searched, asset) => void choose(id, from, searched, asset)} eventPhotos={eventPhotos} own={own} />
       </Modal>
-      {adjusting && value && <MediaEditor assetId={value} onClose={() => setAdjusting(false)} onChanged={() => setVersion(String(Date.now()))} />}
+      {adjusting && value && <MediaEditor own={own} assetId={value} onClose={() => setAdjusting(false)} onChanged={() => setVersion(String(Date.now()))} />}
     </div>
   );
 }

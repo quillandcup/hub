@@ -137,7 +137,7 @@ describe("BookCoverField", () => {
     expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "The original" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Amazon ebook cover/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Download for Amazon/ })).toHaveLength(2); // the field's and the editor's, the same component
   });
 
   it("does not open the editor when the parent can't take the cover", async () => {

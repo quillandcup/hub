@@ -121,7 +121,7 @@ describe("MediaEditor", () => {
     // The whole picture, in its own shape (1250 x 2000 -> 500 x 800), so a click maps to a point on it.
     expect(wholePicture()).toHaveAttribute("src", expect.stringContaining(`/custom?width=500&height=800&format=webp&fit=crop`));
     expect(screen.getByRole("link", { name: "The original" })).toHaveAttribute("href", `/api/media/${ID}/original?download=1`);
-    const amazon = screen.getByRole("link", { name: /Amazon ebook cover/ });
+    const amazon = screen.getByRole("link", { name: /Download for Amazon/ });
     expect(amazon).toHaveAttribute("href", `/api/media/${ID}/book_cover_kdp_ebook?download=1`);
     amazon.addEventListener("click", (e) => e.preventDefault());
     await userEvent.click(amazon);
@@ -131,7 +131,7 @@ describe("MediaEditor", () => {
   it("says why instead of linking to the Amazon cover when the image is too small for one", async () => {
     detail = asset({ width: 145, height: 215 });
     await open();
-    expect(screen.queryByRole("link", { name: /Amazon ebook cover/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Download for Amazon/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("amazon-unavailable")).toHaveTextContent("This image is 145 x 215 px; at least 625 x 1000 px is needed");
     expect(screen.getByRole("link", { name: "The original" })).toBeInTheDocument(); // the other downloads stay
   });
