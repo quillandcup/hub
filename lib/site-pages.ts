@@ -130,6 +130,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Work Queue", href: "/admin/work-queue", section: "Overview", nav: { icon: "✅" }, feature: "work_queue" }),
   admin({ title: "All Members", href: "/admin/members", section: "Community", nav: { icon: "👥" }, keywords: ["people"] }),
   admin({ title: "Outreach", href: "/admin/outreach", section: "Sales & Marketing", nav: { icon: "🎯" }, keywords: ["queue", "touches"] }),
+  admin({ title: "Prospects", href: "/admin/outreach/prospects", section: "Sales & Marketing", keywords: ["instagram", "find", "leads", "discover", "bot"] }),
   admin({ title: "Big Sisters", href: "/admin/mentorship", section: "Member Programs", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "trial", "onboarding", "conversion"], feature: "big_sisters" }),
   admin({ title: "Big Sister Volunteers", href: "/admin/mentorship/volunteers", section: "Member Programs", keywords: ["mentor", "available", "pool", "opt in"], feature: "big_sisters" }),
   admin({ title: "Big Sister Effectiveness", href: "/admin/mentorship/big-sisters", section: "Member Programs", keywords: ["mentor", "conversion", "trial", "trend", "quarter"], feature: "big_sisters" }),

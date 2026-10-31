@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "types:gen": "npx --yes supabase@2.117.0 gen types typescript --local --schema public --schema bronze > lib/data/database.types.ts.tmp && mv lib/data/database.types.ts.tmp lib/data/database.types.ts",
     "types:check": "pnpm types:gen && git diff --exit-code -- lib/data/database.types.ts",
+    "prospects:assess": "tsx scripts/assess-prospects.ts",
     "tunnel": "tsx --env-file-if-exists=.env.local scripts/tunnel.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
