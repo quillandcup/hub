@@ -1,4 +1,4 @@
--- pgTAP tests for the rename of events to community_events (20270314000000):
+-- pgTAP tests for the rename of events to community_events (20270316000100):
 --   * the table and the view carry the new names, the old ones are gone, the view is still security_invoker;
 --   * the functions whose bodies named the table work: the audit label of an event reads the view, and
 --     the reprocess keeps a prickle an event stands on.

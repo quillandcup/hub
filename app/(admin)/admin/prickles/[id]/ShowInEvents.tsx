@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 
 interface EventLink {
   id: string;
@@ -39,8 +40,14 @@ export default function ShowInEvents({ calendarEventId, initial }: { calendarEve
 
   const show = () =>
     run(async () => {
-      const data = await request("/api/admin/events/calendar", { calendarEventId });
-      setEvent({ id: data.event.id, slug: data.event.slug, hidden: !!data.event.hidden });
+      try {
+        const data = await request("/api/admin/events/calendar", { calendarEventId });
+        setEvent({ id: data.event.id, slug: data.event.slug, hidden: !!data.event.hidden });
+        track("event_created", { from: "calendar_item", ok: true });
+      } catch (err) {
+        track("event_created", { from: "calendar_item", ok: false });
+        throw err;
+      }
     });
 
   const setHidden = (hidden: boolean) =>

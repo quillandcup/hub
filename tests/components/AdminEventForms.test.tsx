@@ -8,6 +8,9 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+const track = vi.fn();
+vi.mock("@/lib/analytics/client", () => ({ track: (...args: unknown[]) => track(...args) }));
+
 import EventsClient from "@/app/(admin)/admin/events/EventsClient";
 import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
 
@@ -40,6 +43,7 @@ type Call = { url: string; method: string; body: Record<string, unknown> | undef
 let calls: Call[];
 
 beforeEach(() => {
+  track.mockClear();
   calls = [];
   vi.stubGlobal(
     "fetch",
@@ -83,6 +87,7 @@ describe("admin create event form", () => {
 
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     const post = calls.find((c) => c.method === "POST")!;
+    await waitFor(() => expect(track).toHaveBeenCalledWith("event_created", { from: "hub_form", ok: true }));
     expect(post.body).toMatchObject({
       title: "Craft Workshop",
       slug: "craft-workshop",
@@ -117,6 +122,7 @@ describe("admin event detail", () => {
 
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     expect(calls.find((c) => c.method === "PATCH")!.body).toMatchObject({ capacity: 9, registration: "application", guests_allowed: true });
+    expect(track).toHaveBeenCalledWith("event_edited", expect.objectContaining({ ok: true }));
     expect(await screen.findByText("Guests welcome · Application required · 9 places · The hosts choose · Announced publicly")).toBeInTheDocument();
   });
 
@@ -165,5 +171,21 @@ describe("admin event on a calendar prickle", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
     expect(container.querySelectorAll('input[type="date"]')).toHaveLength(2);
+  });
+
+  it("records the save of a calendar-backed event as a calendar edit", async () => {
+    serve(false);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(track).toHaveBeenCalledWith("event_edited", { source: "calendar", ok: true }));
+  });
+
+  it("records the save of an event made in the Hub as a Hub edit", async () => {
+    serve(true);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(track).toHaveBeenCalledWith("event_edited", { source: "hub", ok: true }));
   });
 });

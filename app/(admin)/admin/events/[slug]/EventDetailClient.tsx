@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 import PhotoLightbox from "@/components/PhotoLightbox";
 import MemberSearch from "@/components/MemberSearch";
 import EventDetailsCard, { type EventData, type EventForm, type EventOverrides } from "./EventDetailsCard";
@@ -142,8 +143,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       if (!response.ok) throw new Error(body.error || "Failed to save event");
       setEvent(body.event);
       setOverridden(body.overridden ?? NOTHING_OVERRIDDEN);
+      track("event_edited", { source: hubSession ? "hub" : "calendar", ok: true });
       return null;
     } catch (err: any) {
+      track("event_edited", { source: hubSession ? "hub" : "calendar", ok: false });
       return err.message as string;
     }
   };

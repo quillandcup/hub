@@ -8,6 +8,9 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
+const track = vi.fn();
+vi.mock("@/lib/analytics/client", () => ({ track: (...args: unknown[]) => track(...args) }));
+
 import ShowInEvents from "@/app/(admin)/admin/prickles/[id]/ShowInEvents";
 
 const CALENDAR_ID = "00000000-0000-4000-8000-00000000000a";
@@ -15,6 +18,7 @@ let calls: { url: string; body: unknown }[];
 let respond: (url: string) => { ok?: boolean; body: unknown };
 
 beforeEach(() => {
+  track.mockClear();
   calls = [];
   respond = () => ({ body: {} });
   vi.stubGlobal(
@@ -42,6 +46,7 @@ describe("ShowInEvents", () => {
 
     expect(await screen.findByText("Shown in Events.")).toBeInTheDocument();
     expect(calls[0]).toEqual({ url: "/api/admin/events/calendar", body: { calendarEventId: CALENDAR_ID } });
+    expect(track).toHaveBeenCalledWith("event_created", { from: "calendar_item", ok: true });
     expect(screen.getByRole("link", { name: "Edit the event" })).toHaveAttribute("href", "/admin/events/spring-retreat");
     expect(screen.getByRole("button", { name: "Remove from Events" })).toBeInTheDocument();
   });
@@ -70,6 +75,7 @@ describe("ShowInEvents", () => {
     render(<ShowInEvents calendarEventId={CALENDAR_ID} initial={null} />);
     await userEvent.click(screen.getByRole("button", { name: "Show in Events" }));
     expect(await screen.findByText("Calendar event not found")).toBeInTheDocument();
+    expect(track).toHaveBeenCalledWith("event_created", { from: "calendar_item", ok: false });
     cleanup();
 
     respond = () => ({ ok: false, body: {} });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
@@ -126,10 +127,12 @@ export default function EventsClient() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to create event");
+      track("event_created", { from: "hub_form", ok: true });
       setShowForm(false);
       setFormData(emptyForm);
       fetchEvents();
     } catch (err: any) {
+      track("event_created", { from: "hub_form", ok: false });
       setError(err.message);
     } finally {
       setSaving(false);
