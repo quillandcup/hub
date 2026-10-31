@@ -1,60 +1,71 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { getHostVibeTypes } from "@/lib/host-vibes";
 
-const type = (id: string) => ({ id, name: id });
-const prickle = (id: string, start_time: string, host = "new-host") => ({ id, type_id: id, prickle_types: type(id), start_time, host });
-const signup = (id: string, month: string, status = "confirmed", deleted_at: string | null = null, host_id = "new-host") =>
-  ({ id, type_id: id, prickle_types: [type(id)], month, status, deleted_at, host_id });
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
-function database(tables: Record<string, Record<string, any>[]>) {
-  return { from: (table: string) => {
-    let rows = tables[table] ?? [];
-    const query: any = {
-      select: () => query,
-      eq: (key: string, value: unknown) => { rows = rows.filter((r) => r[key] === value); return query; },
-      gte: (key: string, value: string) => { rows = rows.filter((r) => r[key] >= value); return query; },
-      in: (key: string, values: unknown[]) => { rows = rows.filter((r) => values.includes(r[key])); return query; },
-      is: (key: string, value: unknown) => { rows = rows.filter((r) => r[key] === value); return query; },
-      order: () => query,
-      range: (start: number, end: number) => Promise.resolve({ data: rows.slice(start, end + 1) }),
-    };
-    return query;
-  } } as never;
+const HOST = "mbr_AAAAAAAAAAA1";
+const OTHER = "mbr_AAAAAAAAAAA2";
+const typeId = (name: string) => `ptyp_${name.padEnd(12, "A").slice(0, 12)}`;
+const type = (name: string) => ({
+  id: typeId(name), name, normalizedName: name, purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false,
+});
+const prickle = (name: string, start: string, hostId = HOST) => ({
+  id: `prkl_${name.padEnd(12, "A").slice(0, 12)}`, typeId: typeId(name), hostId, title: null, startTime: start, endTime: start, source: "calendar", calendarEventId: null,
+});
+const signup = (name: string, month: string, status = "confirmed", deleted_at: string | null = null, host_id = HOST) =>
+  ({
+    id: `psch_${name.padEnd(12, "A").slice(0, 12)}`, host_id, type_id: typeId(name), month, status, deleted_at, recurrence_type: "weekly", start_time_local: "09:00", timezone: "America/New_York",
+    created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+  });
+
+function database(names: string[], prickles: object[], schedules: object[]) {
+  repos = createInMemoryRepos(
+    new InMemoryDataset({
+      members: [{ id: HOST, name: "Ada Example" }, { id: OTHER, name: "Bea Example" }],
+      prickleTypes: names.map(type),
+      prickles: prickles as never,
+      prickleSchedules: schedules as never,
+    })
+  );
+  return {} as never;
 }
 
 afterEach(() => vi.useRealTimers());
 
 describe("host vibe eligibility", () => {
   it("includes new hosts' current and future signups before any prickles exist", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
-    const db = database({ prickle_schedules: [
+    const db = database(["current", "proposed", "future", "past", "declined", "withdrawn", "other"], [], [
       signup("current", "2026-10-01"),
       signup("proposed", "2026-11-01", "proposed"),
       signup("future", "2027-01-01"),
       signup("past", "2026-09-01"),
       signup("declined", "2026-11-01", "declined"),
       signup("withdrawn", "2026-11-01", "confirmed", "2026-10-01"),
-      signup("other-member", "2026-11-01", "confirmed", null, "someone-else"),
-    ] });
-    expect([...await getHostVibeTypes(db, "new-host")]).toEqual([
-      ["current", "current"], ["proposed", "proposed"], ["future", "future"],
+      signup("other", "2026-11-01", "confirmed", null, OTHER),
     ]);
+    expect([...(await getHostVibeTypes(db, HOST)).values()]).toEqual(["current", "proposed", "future"]);
   });
 
   it("keeps recent and upcoming hosted types, deduplicated with signups", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
-    const db = database({
-      prickles: [prickle("recent", "2026-09-01"), prickle("upcoming", "2026-11-01"),
-        prickle("old", "2026-01-01"), prickle("other", "2026-11-01", "someone-else")],
-      prickle_schedules: [signup("upcoming", "2026-11-01")],
-    });
-    expect([...await getHostVibeTypes(db, "new-host")]).toEqual([["recent", "recent"], ["upcoming", "upcoming"]]);
+    const db = database(
+      ["recent", "upcoming", "old", "other"],
+      [prickle("recent", "2026-09-01T00:00:00Z"), prickle("upcoming", "2026-11-01T00:00:00Z"), prickle("old", "2026-01-01T00:00:00Z"), prickle("other", "2026-11-01T00:00:00Z", OTHER)],
+      [signup("upcoming", "2026-11-01")]
+    );
+    expect([...(await getHostVibeTypes(db, HOST)).values()]).toEqual(["recent", "upcoming"]);
   });
 
-  it("paginates beyond the database row limit", async () => {
-    const db = database({ prickle_schedules: Array.from({ length: 1001 }, (_, i) => signup(`type-${i}`, "2099-01-01")) });
-    expect((await getHostVibeTypes(db, "new-host")).size).toBe(1001);
+  it("is empty for a host with nothing", async () => {
+    expect((await getHostVibeTypes(database([], [], []), HOST)).size).toBe(0);
   });
 });

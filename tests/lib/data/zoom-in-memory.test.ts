@@ -17,6 +17,7 @@ defineZoomContract("InMemoryZoomRepository", () => {
       data.ignoredZoomAppearances = [];
       data.ambiguousZoomNames = [];
       data.zoomParticipantEvents = [];
+      data.joinSettings = [];
     },
     seedAmbiguousName: async ({ zoomName, zoomEmail, candidates, status = "unresolved", resolvedMemberId }) => {
       data.ambiguousZoomNames.push({

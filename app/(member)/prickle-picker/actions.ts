@@ -31,7 +31,6 @@ import { ORG_TIMEZONE } from "@/lib/config";
 import { EMPTY_CHECKIN, validateCheckin, type Emotion, type Need } from "@/lib/prickle-checkins";
 
 import { withAction } from "@/lib/analytics/server";
-const BATCH_SIZE = 1000;
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 const FALLBACK_WINDOW_DAYS = 14;
 
@@ -48,25 +47,6 @@ export interface WizardAnswers {
 }
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
 
 async function fetchAttendanceForPrickleIds(
   supabase: SupabaseClient,
@@ -148,12 +128,7 @@ export async function getWizardRecommendations(
     prickleRepo.startingBetween({ from: windowStart, to: fallbackWindowEnd, inclusiveEnd: true }).then(toCandidates),
     prickleRepo.startingBetween({ from: historyStart.toISOString(), to: windowStart }).then(toCandidates),
     // The vibe column is plain text with a check constraint; HostVibeRow narrows it to the Vibe union.
-    fetchAllPaginated<Omit<HostVibeRow, "vibe"> & { vibe: string }>((offset) =>
-      supabase
-        .from("prickle_host_vibes")
-        .select("type_id, host_id, vibe, notes")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ).then((rows) => rows as HostVibeRow[]),
+    createRepos(supabase).prickles.hostVibes().then((rows) => rows as HostVibeRow[]),
     fetchMyRatedCheckins(supabase, effectiveIdentity.memberId),
   ]);
 
@@ -220,13 +195,9 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
   const typeIds = [...typeNameById.keys()];
   if (typeIds.length === 0) return [];
 
-  const { data: vibes } = await supabase
-    .from("prickle_host_vibes")
-    .select("type_id, vibe, notes")
-    .eq("host_id", effectiveIdentity.memberId)
-    .in("type_id", typeIds);
+  const vibes = await createRepos(supabase).prickles.hostVibes({ hostId: effectiveIdentity.memberId, typeIds });
 
-  const vibeByTypeId = new Map((vibes ?? []).map((v) => [v.type_id, v]));
+  const vibeByTypeId = new Map(vibes.map((v) => [v.type_id, v]));
 
   return typeIds
     .map((typeId) => ({
@@ -262,19 +233,17 @@ async function saveHostVibeImpl(
     return { error: "You can only tag prickle types you host" };
   }
 
-  const { error } = await supabase.from("prickle_host_vibes").upsert(
-    {
-      type_id: typeId,
-      host_id: effectiveIdentity.memberId,
+  try {
+    await createRepos(supabase).prickles.saveHostVibe({
+      typeId,
+      hostId: effectiveIdentity.memberId,
       vibe,
       notes: notes.trim() || null,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "type_id,host_id" }
-  );
-
-  if (error) return { error: error.message };
+      updatedBy: user.id,
+    });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/settings", "layout");
   return { success: true };

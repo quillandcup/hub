@@ -13,6 +13,8 @@ export type PrickleContractContext = {
   seed: (prickles: PrickleSeed[]) => Promise<string[]>;
   /** Hand over prickles the repository created, so the context removes them with the rest. */
   adopt: (prickleIds: string[]) => void;
+  /** Removes the vibe tags of the context's two hosts. */
+  clearHostVibes: () => Promise<void>;
 };
 
 const HOUR = 3_600_000;
@@ -207,6 +209,53 @@ export function definePrickleContract(name: string, setup: () => PrickleContract
       expect(await ctx.repo().countHostedBy(ctx.hosts[1].id)).toBe(1);
       expect(await ctx.repo().countHostedBy(ctx.hosts[0].id, { since: at(1) })).toBe(1); // the one starting at(1), not at(0)
       expect(await ctx.repo().countBySource("calendar")).toBe(calendarBefore + 3);
+    });
+
+    it("lists the types a member hosted since an instant, each once", async () => {
+      await ctx.seed([
+        { type: 0, host: 0, start: at(0) },
+        { type: 0, host: 0, start: at(3) },
+        { type: 1, host: 0, start: at(4) },
+        { type: 1, host: 1, start: at(5) },
+        { host: 0, start: at(6) },
+      ]);
+
+      const sorted = (rows: { typeId: string; typeName: string }[]) => [...rows].sort((a, b) => a.typeName.localeCompare(b.typeName));
+      expect(sorted(await ctx.repo().hostedTypesSince(ctx.hosts[0].id, at(0)))).toEqual(
+        sorted([{ typeId: ctx.types[0].id, typeName: ctx.types[0].name }, { typeId: ctx.types[1].id, typeName: ctx.types[1].name }])
+      );
+      expect(await ctx.repo().hostedTypesSince(ctx.hosts[0].id, at(3.5))).toEqual([{ typeId: ctx.types[1].id, typeName: ctx.types[1].name }]);
+      expect(await ctx.repo().hostedTypesSince(ctx.hosts[1].id, at(6))).toEqual([]);
+    });
+
+    it("saves a host's vibe tag per type, changes it in place, and filters the tags by host and types", async () => {
+      await ctx.seed([]);
+      await ctx.clearHostVibes();
+      const [ada, fern] = ctx.hosts;
+      const [sprint, chat] = ctx.types;
+
+      expect(await ctx.repo().hostVibes()).toEqual(expect.not.arrayContaining([expect.objectContaining({ host_id: ada.id })]));
+      expect(await ctx.repo().hostVibeCount(ada.id)).toBe(0);
+
+      await ctx.repo().saveHostVibe({ typeId: sprint.id, hostId: ada.id, vibe: "focused", notes: "quiet", updatedBy: null });
+      await ctx.repo().saveHostVibe({ typeId: chat.id, hostId: ada.id, vibe: "chatty", notes: null, updatedBy: null });
+      await ctx.repo().saveHostVibe({ typeId: sprint.id, hostId: fern.id, vibe: "balanced", notes: null, updatedBy: null });
+      await ctx.repo().saveHostVibe({ typeId: sprint.id, hostId: ada.id, vibe: "chatty", notes: "livelier now", updatedBy: null });
+
+      const tag = (host: string, type: string, vibe: string, notes: string | null) => ({ host_id: host, type_id: type, vibe, notes });
+      const mine = (rows: { host_id: string; type_id: string; vibe: string; notes: string | null }[]) => rows.filter((r) => [ada.id, fern.id].includes(r.host_id));
+      const byKey = (a: { host_id: string; type_id: string }, b: { host_id: string; type_id: string }) => (a.host_id + a.type_id).localeCompare(b.host_id + b.type_id);
+
+      expect(mine(await ctx.repo().hostVibes()).sort(byKey)).toEqual(
+        [tag(ada.id, sprint.id, "chatty", "livelier now"), tag(ada.id, chat.id, "chatty", null), tag(fern.id, sprint.id, "balanced", null)].sort(byKey)
+      );
+      expect((await ctx.repo().hostVibes({ hostId: ada.id })).sort(byKey)).toEqual([tag(ada.id, sprint.id, "chatty", "livelier now"), tag(ada.id, chat.id, "chatty", null)].sort(byKey));
+      expect(await ctx.repo().hostVibes({ hostId: ada.id, typeIds: [chat.id] })).toEqual([tag(ada.id, chat.id, "chatty", null)]);
+      expect(mine(await ctx.repo().hostVibes({ typeIds: [sprint.id] }))).toHaveLength(2);
+      expect(await ctx.repo().hostVibes({ hostId: ada.id, typeIds: [] })).toEqual([]);
+      expect(await ctx.repo().hostVibeCount(ada.id)).toBe(2);
+      expect(await ctx.repo().hostVibeCount(fern.id)).toBe(1);
+      await ctx.clearHostVibes();
     });
 
     it("pages through more than a thousand prickles", async () => {

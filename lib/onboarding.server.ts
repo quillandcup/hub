@@ -131,7 +131,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     createRepos(supabase).prickles.countHostedBy(memberId),
     createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
     createRepos(supabase).prickleSchedules.latestMonthOf(memberId),
-    supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
+    createRepos(supabase).prickles.hostVibeCount(memberId),
     createRepos(supabase).calendarFeed.hasBeenFetched(memberId).catch((error) => {
       console.error("onboarding: failed to read the calendar feed", error);
       return false;
@@ -164,7 +164,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: hostedRecently > 0,
-      hasHostVibe: (hostVibes.count ?? 0) > 0,
+      hasHostVibe: hostVibes > 0,
       hasCalendarSynced: feedFetched,
       hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,

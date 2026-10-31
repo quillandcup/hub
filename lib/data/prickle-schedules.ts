@@ -7,6 +7,9 @@ import type { InMemoryDataset } from "./in-memory";
 /** A stored hosting schedule (a host's recurring or one-off slot for a month). */
 export type ScheduleRow = Omit<Row<"prickle_schedules">, "schedule_host">;
 
+/** Whether a month's hosting schedule is locked against changes by hosts (`prickle_schedule_locks`; a month with no row follows the default rule). */
+export type ScheduleLockRow = Row<"prickle_schedule_locks">;
+
 /** A schedule with the name of its prickle type, for a host's own list. */
 export type ScheduleWithTypeName = ScheduleRow & { typeName: string | null };
 
@@ -66,6 +69,16 @@ export interface PrickleScheduleRepository {
   confirmProposed(ids: string[], by: { confirmedBy: string | null; at: string }): Promise<void>;
   /** Hands every schedule of one host to another (a member merge): they would cascade away with the old host. */
   reassignHost(fromHostId: string, toHostId: string): Promise<void>;
+  /** The prickle types the host has live proposed or confirmed schedules for in this month (`YYYY-MM-DD`, the first) or later: id and name, each type once. */
+  scheduledTypesOf(hostId: string, fromMonth: string): Promise<{ typeId: string; typeName: string }[]>;
+
+  // --- month locks ---
+  /** The lock rows of these months (months with no row are absent). */
+  locksOf(months: string[]): Promise<Pick<ScheduleLockRow, "month" | "locked">[]>;
+  /** Every month's lock row, by month. */
+  allLocks(): Promise<ScheduleLockRow[]>;
+  /** Locks or unlocks a month (creating its row), stamped now, and returns the row. */
+  setLock(input: { month: string; locked: boolean; notes: string | null; lockedBy: string | null }): Promise<ScheduleLockRow>;
 }
 
 
@@ -200,6 +213,50 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
     const { error } = await this.db.from("prickle_schedules").update({ host_id: toHostId }).eq("host_id", fromHostId);
     if (error) throw new Error(error.message);
   }
+
+  async scheduledTypesOf(hostId: string, fromMonth: string) {
+    type Raw = { type_id: string; prickle_types: { id: string; name: string } | { id: string; name: string }[] | null };
+    const rows = await fetchAllRows<Raw>(
+      (from, to) =>
+        this.db
+          .from("prickle_schedules")
+          .select("type_id, prickle_types!inner(id, name)")
+          .eq("host_id", hostId)
+          .gte("month", fromMonth)
+          .in("status", ["proposed", "confirmed"])
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to) as unknown as PromiseLike<Page<Raw>>
+    );
+    const types = new Map<string, string>();
+    for (const row of rows) {
+      const type = Array.isArray(row.prickle_types) ? row.prickle_types[0] : row.prickle_types;
+      if (row.type_id && type) types.set(row.type_id, type.name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async locksOf(months: string[]) {
+    const { data, error } = await this.db.from("prickle_schedule_locks").select("month, locked").in("month", months);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async allLocks() {
+    const { data, error } = await this.db.from("prickle_schedule_locks").select("*").order("month");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async setLock({ month, locked, notes, lockedBy }: { month: string; locked: boolean; notes: string | null; lockedBy: string | null }) {
+    const { data, error } = await this.db
+      .from("prickle_schedule_locks")
+      .upsert({ month, locked, notes, locked_by: lockedBy, locked_at: new Date().toISOString() }, { onConflict: "month" })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
 }
 
 /** In-memory twin over an `InMemoryDataset`; ids and creation times are made up like the database's defaults. */
@@ -320,6 +377,32 @@ export class InMemoryPrickleScheduleRepository implements PrickleScheduleReposit
 
   async reassignHost(fromHostId: string, toHostId: string) {
     for (const row of this.data.prickleSchedules) if (row.host_id === fromHostId) row.host_id = toHostId;
+  }
+
+  async scheduledTypesOf(hostId: string, fromMonth: string) {
+    const types = new Map<string, string>();
+    for (const row of this.live()) {
+      if (row.host_id !== hostId || row.month < fromMonth || !["proposed", "confirmed"].includes(row.status)) continue;
+      const name = this.typeName(row.type_id);
+      if (name !== null) types.set(row.type_id, name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async locksOf(months: string[]) {
+    return this.data.scheduleLocks.filter((l) => months.includes(l.month)).map(({ month, locked }) => ({ month, locked }));
+  }
+
+  async allLocks() {
+    return [...this.data.scheduleLocks].sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0)).map((l) => ({ ...l }));
+  }
+
+  async setLock({ month, locked, notes, lockedBy }: { month: string; locked: boolean; notes: string | null; lockedBy: string | null }) {
+    const row: ScheduleLockRow = { month, locked, notes, locked_by: lockedBy, locked_at: new Date().toISOString() };
+    const at = this.data.scheduleLocks.findIndex((l) => l.month === month);
+    if (at >= 0) this.data.scheduleLocks[at] = row;
+    else this.data.scheduleLocks.push(row);
+    return { ...row };
   }
 
   /** Adds a row with the database's defaults; creation times rise strictly so "by creation" never ties. */

@@ -29,6 +29,8 @@ export type PrickleScheduleContractContext = {
   seed: (rows: SeedSchedule[]) => Promise<Record<string, string>>;
   /** The two members' stored schedules, deleted ones included. */
   stored: () => Promise<ScheduleRow[]>;
+  /** Removes the lock rows of the context's three months. */
+  clearLocks: () => Promise<void>;
 };
 
 /** Behavior every `PrickleScheduleRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
@@ -255,6 +257,48 @@ export function definePrickleScheduleContract(name: string, setup: () => Prickle
       await ctx.repo().reassignHost(ctx.memberIds[0], ctx.memberIds[1]);
 
       expect((await ctx.stored()).every((r) => r.host_id === ctx.memberIds[1])).toBe(true);
+    });
+
+    it("lists the types a host has live proposed or confirmed schedules for from a month on, each once", async () => {
+      await ctx.seed([
+        { key: "before", host: 0, type: 0, month: 0, status: "confirmed", created: 1 },
+        { key: "declined", host: 0, type: 1, month: 2, status: "declined", created: 2 },
+        { key: "deleted", host: 0, type: 1, month: 1, status: "confirmed", deleted: true, created: 3 },
+        { key: "other host", host: 1, type: 1, month: 1, status: "confirmed", created: 4 },
+        { key: "a", host: 0, type: 0, month: 1, status: "confirmed", created: 5 },
+        { key: "again", host: 0, type: 0, month: 2, status: "proposed", created: 6 },
+      ]);
+
+      const from = await ctx.repo().scheduledTypesOf(ctx.memberIds[0], ctx.months[1]);
+      expect(from).toEqual([{ typeId: ctx.typeIds[0], typeName: ctx.typeNames[0] }]);
+
+      const all = await ctx.repo().scheduledTypesOf(ctx.memberIds[0], ctx.months[0]);
+      expect(all).toEqual([{ typeId: ctx.typeIds[0], typeName: ctx.typeNames[0] }]);
+
+      expect(await ctx.repo().scheduledTypesOf(ctx.memberIds[1], ctx.months[2])).toEqual([]);
+      expect(await ctx.repo().scheduledTypesOf(ctx.memberIds[1], ctx.months[0])).toEqual([{ typeId: ctx.typeIds[1], typeName: ctx.typeNames[1] }]);
+    });
+
+    it("locks and unlocks months, creating a month's row the first time, and lists them by month", async () => {
+      await ctx.clearLocks();
+      const [first, second, third] = ctx.months;
+
+      const locked = await ctx.repo().setLock({ month: second, locked: true, notes: "holiday", lockedBy: null });
+      expect(locked).toMatchObject({ month: second, locked: true, notes: "holiday", locked_by: null });
+      expect(typeof locked.locked_at).toBe("string");
+      await ctx.repo().setLock({ month: first, locked: false, notes: null, lockedBy: null });
+
+      expect((await ctx.repo().locksOf([first, second, third])).sort((a, b) => a.month.localeCompare(b.month))).toEqual([
+        { month: first, locked: false },
+        { month: second, locked: true },
+      ]);
+      expect(await ctx.repo().locksOf([third])).toEqual([]);
+
+      const again = await ctx.repo().setLock({ month: second, locked: false, notes: null, lockedBy: null });
+      expect(again).toMatchObject({ month: second, locked: false, notes: null });
+      const mine = (await ctx.repo().allLocks()).filter((l) => ctx.months.includes(l.month));
+      expect(mine.map((l) => [l.month, l.locked])).toEqual([[first, false], [second, false]]);
+      await ctx.clearLocks();
     });
   });
 }

@@ -89,7 +89,15 @@ function explainByAlias(member: Member, words: string[], aliasFor: (word: string
 export type TaggedMember = { id: string; name: string; displayName: string | null; email: string; photoUrl: string | null; instagramUrl: string | null; status: string };
 
 /** A member with the tenure figures the work queue celebrates. */
-export type TenureMember = { id: string; name: string; displayName: string | null; firstJoinedAt: string | null; totalActiveMonths: number };
+export type TenureMember = {
+  id: string;
+  name: string;
+  displayName: string | null;
+  email: string;
+  firstJoinedAt: string | null;
+  mostRecentJoinedAt: string | null;
+  totalActiveMonths: number;
+};
 
 /** The columns a new member row needs; the rest take the database defaults. */
 export type NewMember = { name: string; email: string; joinedAt: string; status: string; source: "kajabi" | "staff" };
@@ -290,17 +298,33 @@ export class SupabaseMemberRepository implements MemberRepository {
   }
 
   async tenureOf(statuses: string[]): Promise<TenureMember[]> {
-    type Row = { id: string; name: string; display_name: string | null; first_joined_at: string | null; total_active_months: number };
+    type Row = {
+      id: string;
+      name: string;
+      display_name: string | null;
+      email: string;
+      first_joined_at: string | null;
+      most_recent_joined_at: string | null;
+      total_active_months: number;
+    };
     const rows = await fetchAllRows<Row>(
       (from, to) =>
         this.db
           .from("members")
-          .select("id, name, display_name, first_joined_at, total_active_months")
+          .select("id, name, display_name, email, first_joined_at, most_recent_joined_at, total_active_months")
           .in("status", statuses)
           .order("id")
           .range(from, to) as unknown as PromiseLike<Page<Row>>,
     );
-    return rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name, firstJoinedAt: r.first_joined_at, totalActiveMonths: r.total_active_months }));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      displayName: r.display_name,
+      email: r.email,
+      firstJoinedAt: r.first_joined_at,
+      mostRecentJoinedAt: r.most_recent_joined_at,
+      totalActiveMonths: r.total_active_months,
+    }));
   }
 
   async instagramUrls(): Promise<string[]> {
@@ -622,10 +646,19 @@ export class InMemoryMemberRepository implements MemberRepository {
   }
 
   async tenureOf(statuses: string[]) {
-    return this.data.members
-      .filter((m) => statuses.includes(m.status ?? "active"))
+    const seeds = new Map(this.data.members.map((m) => [m.id, m]));
+    return this.all()
+      .filter((m) => statuses.includes(m.status))
       .sort((a, b) => compareText(a.id, b.id))
-      .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName ?? null, firstJoinedAt: m.firstJoinedAt ?? null, totalActiveMonths: m.totalActiveMonths ?? 0 }));
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        displayName: m.displayName,
+        email: m.email,
+        firstJoinedAt: m.firstJoinedAt,
+        mostRecentJoinedAt: m.mostRecentJoinedAt,
+        totalActiveMonths: seeds.get(m.id)?.totalActiveMonths ?? 0,
+      }));
   }
 
   async instagramUrls() {

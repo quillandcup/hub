@@ -50,6 +50,10 @@ definePrickleScheduleContract("SupabasePrickleScheduleRepository", () => ({
     return [`Sprint A ${RUN}`, `Sprint B ${RUN}`] as const;
   },
   months,
+  clearLocks: async () => {
+    const { error } = await db.from("prickle_schedule_locks").delete().in("month", [...months]);
+    if (error) throw new Error(error.message);
+  },
   missingId: "00000000-0000-4000-8000-000000000000",
   repo: () => new SupabasePrickleScheduleRepository(db),
   stored: async () => {

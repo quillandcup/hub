@@ -1,9 +1,12 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Db } from "./db";
+import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Ids per `.in(...)` filter, so the request URL stays under the length limit even with long ids. */
 const ID_CHUNK_SIZE = 100;
+
+/** A host's tag for a prickle type they host (`prickle_host_vibes`): how it feels, and a note. `vibe` is plain text with a check constraint in the database. */
+export type HostVibeTag = Pick<Row<"prickle_host_vibes">, "type_id" | "host_id" | "vibe" | "notes">;
 
 /** A kind of prickle ("Sprint Writing", "Coworking"...). */
 export type PrickleType = {
@@ -154,6 +157,14 @@ export interface PrickleRepository {
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
   /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
+  /** The prickle types the member has hosted (assigned host) in prickles starting at or after `since` (ISO): id and name, each type once. */
+  hostedTypesSince(hostId: string, since: string): Promise<{ typeId: string; typeName: string }[]>;
+  /** Hosts' vibe tags, by type then host: all of them, or only one host's and/or only some types'. */
+  hostVibes(options?: { hostId?: string; typeIds?: string[] }): Promise<HostVibeTag[]>;
+  /** Sets (or changes) a host's vibe tag for a type. `updatedBy` is the signed-in user. */
+  saveHostVibe(input: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }): Promise<void>;
+  /** How many types the host has tagged. */
+  hostVibeCount(hostId: string): Promise<number>;
   /** Prickles matching every word (in the title, guest speaker, type name or a host's name; case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
   /** How many calendar prickles with a type have no host, by type id (types with none are absent). */
@@ -440,6 +451,50 @@ export class SupabasePrickleRepository implements PrickleRepository {
     let query = this.db.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId);
     if (since) query = query.gte("start_time", since);
     const { count, error } = await query;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
+  async hostedTypesSince(hostId: string, since: string) {
+    type Raw = { type_id: string | null; prickle_types: { id: string; name: string } | { id: string; name: string }[] | null };
+    const rows = await fetchAllRows<Raw>(
+      (from, to) =>
+        this.db.from("prickles").select("type_id, prickle_types!inner(id, name)").eq("host", hostId).gte("start_time", since).order("id").range(from, to) as unknown as PromiseLike<{
+          data: Raw[] | null;
+          error: { message: string } | null;
+        }>
+    );
+    const types = new Map<string, string>();
+    for (const row of rows) {
+      const type = Array.isArray(row.prickle_types) ? row.prickle_types[0] : row.prickle_types;
+      if (row.type_id && type) types.set(row.type_id, type.name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async hostVibes({ hostId, typeIds }: { hostId?: string; typeIds?: string[] } = {}) {
+    const read = (ids?: string[]) =>
+      fetchAllRows<HostVibeTag>((from, to) => {
+        let query = this.db.from("prickle_host_vibes").select("type_id, host_id, vibe, notes");
+        if (hostId !== undefined) query = query.eq("host_id", hostId);
+        if (ids) query = query.in("type_id", ids);
+        return query.order("id").range(from, to) as unknown as PromiseLike<{ data: HostVibeTag[] | null; error: { message: string } | null }>;
+      });
+    if (!typeIds) return read();
+    const found: HostVibeTag[] = [];
+    for (const part of chunk([...new Set(typeIds)], ID_CHUNK_SIZE)) found.push(...(await read(part)));
+    return found;
+  }
+
+  async saveHostVibe({ typeId, hostId, vibe, notes, updatedBy }: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }) {
+    const { error } = await this.db
+      .from("prickle_host_vibes")
+      .upsert({ type_id: typeId, host_id: hostId, vibe, notes, updated_by: updatedBy, updated_at: new Date().toISOString() }, { onConflict: "type_id,host_id" });
+    if (error) throw new Error(error.message);
+  }
+
+  async hostVibeCount(hostId: string) {
+    const { count, error } = await this.db.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", hostId);
     if (error) throw new Error(error.message);
     return count ?? 0;
   }
@@ -865,6 +920,35 @@ export class InMemoryPrickleRepository implements PrickleRepository {
   async countHostedBy(memberId: string, { since }: { since?: string } = {}) {
     const from = since ? new Date(since).getTime() : -Infinity;
     return this.data.prickles.filter((p) => p.hostId === memberId && new Date(p.startTime).getTime() >= from).length;
+  }
+
+  async hostedTypesSince(hostId: string, since: string) {
+    const from = new Date(since).getTime();
+    const types = new Map<string, string>();
+    for (const p of this.data.prickles) {
+      if (p.hostId !== hostId || p.typeId === null || new Date(p.startTime).getTime() < from) continue;
+      const type = this.data.prickleTypes.find((t) => t.id === p.typeId);
+      if (type) types.set(type.id, type.name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async hostVibes({ hostId, typeIds }: { hostId?: string; typeIds?: string[] } = {}) {
+    return this.data.hostVibes
+      .filter((v) => (hostId === undefined || v.host_id === hostId) && (!typeIds || typeIds.includes(v.type_id)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map(({ type_id, host_id, vibe, notes }) => ({ type_id, host_id, vibe, notes }));
+  }
+
+  async saveHostVibe({ typeId, hostId, vibe, notes, updatedBy }: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }) {
+    const existing = this.data.hostVibes.find((v) => v.type_id === typeId && v.host_id === hostId);
+    const updated_at = new Date().toISOString();
+    if (existing) Object.assign(existing, { vibe, notes, updated_by: updatedBy, updated_at });
+    else this.data.hostVibes.push({ id: crypto.randomUUID(), type_id: typeId, host_id: hostId, vibe, notes, updated_by: updatedBy, updated_at });
+  }
+
+  async hostVibeCount(hostId: string) {
+    return this.data.hostVibes.filter((v) => v.host_id === hostId).length;
   }
 
   async countBySource(source: string) {

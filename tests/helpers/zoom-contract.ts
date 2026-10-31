@@ -287,6 +287,24 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       await ctx.repo().reassignAmbiguousMember(bea, ada); // nothing left to move
     });
 
+    it("keeps the join settings newest first, a correction for the same instant ahead of what it corrects, and removes one", async () => {
+      const link = (label: string) => `https://zoom.example.test/j/${ctx.unique(label)}`;
+      const [old, corrected, correction, later] = [link("old"), link("corrected"), link("correction"), link("later")];
+      await ctx.repo().addJoinSetting({ joinUrl: old, meetingId: "111", passcode: "one", effectiveFrom: at(1), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: corrected, meetingId: null, passcode: null, effectiveFrom: at(5), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: correction, meetingId: "222", passcode: "two", effectiveFrom: at(5), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: later, meetingId: null, passcode: null, effectiveFrom: at(9), createdBy: null });
+
+      const mine = (await ctx.repo().joinSettings()).filter((j) => [old, corrected, correction, later].includes(j.join_url));
+      expect(mine.map((j) => j.join_url)).toEqual([later, correction, corrected, old]);
+      expect(mine[1]).toMatchObject({ meeting_id: "222", passcode: "two", id: expect.any(String), created_at: expect.any(String) });
+      expect(new Date(mine[1].effective_from).toISOString()).toBe(at(5));
+
+      expect(await ctx.repo().removeJoinSetting(mine[0].id)).toBe(true);
+      expect(await ctx.repo().removeJoinSetting(mine[0].id)).toBe(false);
+      expect((await ctx.repo().joinSettings()).some((j) => j.join_url === later)).toBe(false);
+    });
+
     it("records a live join or leave once, and lists the events since an instant in id order", async () => {
       const meeting = ctx.unique("live");
       const event = (key: string, kind: "joined" | "left", time: string) => ({

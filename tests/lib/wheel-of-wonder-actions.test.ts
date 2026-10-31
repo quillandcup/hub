@@ -8,9 +8,8 @@ const slack = vi.hoisted(() => ({
 }));
 const getCurrentUser = vi.hoisted(() => vi.fn());
 const getEffectiveIdentity = vi.hoisted(() => vi.fn());
-const insert = vi.hoisted(() => vi.fn());
 const matchSlackUsersToMembers = vi.hoisted(() => vi.fn());
-const tables = vi.hoisted(() => ({ data: {} as Record<string, unknown[]> }));
+const tables = vi.hoisted(() => ({ data: {} as Record<string, unknown[]>, dataset: null as import("@/lib/data/in-memory").InMemoryDataset | null }));
 
 vi.mock("@slack/web-api", () => ({ WebClient: vi.fn(function () { return slack; }) }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser }));
@@ -22,7 +21,7 @@ vi.mock("@/lib/analytics/server", () => ({
   actionOutcome: () => ({ ok: true }),
 }));
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({ from: () => ({ insert }) }),
+  createClient: async () => ({}),
 }));
 
 /** A chainable, awaitable query whose result is the rows registered for its table. */
@@ -49,13 +48,14 @@ vi.mock("@/lib/data/repos", async () => {
     ...actual,
     createRepos: () => {
       const rows = (tables.data.members ?? []) as { id: string; name: string; display_name?: string | null; photo_url: string | null }[];
-      return actual.createInMemoryRepos(
-        new InMemoryDataset({ members: rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name ?? null, email: `${r.id}@example.test`, photoUrl: r.photo_url })) }),
-      );
+      // One dataset per test, so the match a spin records can be read back.
+      tables.dataset ??= new InMemoryDataset({ members: rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name ?? null, email: `${r.id}@example.test`, photoUrl: r.photo_url })) });
+      return actual.createInMemoryRepos(tables.dataset);
     },
   };
 });
 
+import { InMemoryWheelOfWonderRepository } from "@/lib/data/wheel-of-wonder";
 import { introduceOnSlack, spinWheel } from "@/app/(member)/wheel-of-wonder/actions";
 
 describe("Wheel of Wonder actions", () => {
@@ -64,6 +64,7 @@ describe("Wheel of Wonder actions", () => {
     process.env.SLACK_BOT_TOKEN = "xoxb-test";
     getCurrentUser.mockResolvedValue({ id: "u1", email: "viewer@example.com" });
     getEffectiveIdentity.mockResolvedValue({ memberId: "mbr_viewer", memberName: "Ada Example" });
+    tables.dataset = null;
     tables.data = {
       members: [{ id: "mbr_winner", name: "Fern Example", photo_url: null }],
     };
@@ -77,7 +78,6 @@ describe("Wheel of Wonder actions", () => {
     slack.conversations.open.mockResolvedValue({ channel: { id: "C1" } });
     slack.chat.postMessage.mockResolvedValue({});
     slack.users.getPresence.mockResolvedValue({ presence: "active" });
-    insert.mockResolvedValue({ error: null });
   });
 
   describe("spinWheel", () => {
@@ -87,7 +87,7 @@ describe("Wheel of Wonder actions", () => {
       expect(result).toMatchObject({ winner: { memberId: "mbr_winner", memberName: "Fern Example" } });
       expect(slack.conversations.open).not.toHaveBeenCalled();
       expect(slack.chat.postMessage).not.toHaveBeenCalled();
-      expect(insert).not.toHaveBeenCalled();
+      expect(tables.dataset?.wheelMatches ?? []).toEqual([]);
     });
 
     it("names the match by display name", async () => {
@@ -119,13 +119,20 @@ describe("Wheel of Wonder actions", () => {
       expect(slack.chat.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({ channel: "C1", unfurl_links: false, unfurl_media: false })
       );
-      expect(insert).toHaveBeenCalledWith(
-        expect.objectContaining({ spinner_member_id: "mbr_viewer", matched_member_id: "mbr_winner", status: "proposed" })
-      );
+      expect(tables.dataset!.wheelMatches).toEqual([
+        expect.objectContaining({
+          spinner_member_id: "mbr_viewer",
+          matched_member_id: "mbr_winner",
+          slack_channel_id: "C1",
+          spinner_slack_user_id: "U_VIEWER",
+          matched_slack_user_id: "U_WINNER",
+          status: "proposed",
+        }),
+      ]);
     });
 
     it("still sends the member to the room when the tracking insert fails", async () => {
-      insert.mockResolvedValue({ error: new Error("db down") });
+      vi.spyOn(InMemoryWheelOfWonderRepository.prototype, "recordProposed").mockRejectedValueOnce(new Error("db down"));
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       expect(await introduceOnSlack("mbr_winner")).toMatchObject({ url: "slack://channel?team=T1&id=C1", roomCreated: true });

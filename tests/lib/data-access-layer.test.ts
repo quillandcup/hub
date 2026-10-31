@@ -77,6 +77,17 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   ambiguous_zoom_names: [],
   ignored_zoom_appearances: [],
   zoom_participant_events: [],
+  // How to join the prickle room (ZoomRepository): every query is moved.
+  prickle_join_settings: [],
+  // Hosts' vibe tags (PrickleRepository), the hosting schedule's month locks (PrickleScheduleRepository) and the
+  // check-in and check-out DM claims (PrickleActivityRepository): every query is moved.
+  prickle_host_vibes: [],
+  prickle_schedule_locks: [],
+  prickle_checkin_dm_log: [],
+  // The Wheel of Wonder's matches (WheelOfWonderRepository, lib/data/wheel-of-wonder.ts) and the page-view log
+  // (AccessEventRepository, lib/data/access-events.ts): every query is moved.
+  wheel_of_wonder_matches: [],
+  access_events: [],
   // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
   member_metrics: [],
   member_engagement: [],
@@ -170,21 +181,15 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
  * move it from here to REPOSITORY_TABLES.
  */
 const UNMIGRATED_TABLES = new Set([
-  "access_events",
   "analytics_events",
   "calendar_watch_channels",
   "feature_flag_segments",
   "feature_flags",
-  "prickle_checkin_dm_log",
-  "prickle_host_vibes",
-  "prickle_join_settings",
-  "prickle_schedule_locks",
   "segment_members",
   "segments",
   "slack_identities",
   "slack_sign_in_tokens",
   "user_feature_previews",
-  "wheel_of_wonder_matches",
 ]);
 
 /**
@@ -193,8 +198,6 @@ const UNMIGRATED_TABLES = new Set([
  */
 const VARIABLE_TABLE_FILES: Record<string, string> = {
   "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
-  "app/(admin)/admin/hedgieversaries/page.tsx": "local paging helper; moves with the leftovers repository",
-  "lib/host-vibes.ts": "reads one of two tables chosen by a variable; moves with the leftovers repository",
   "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 

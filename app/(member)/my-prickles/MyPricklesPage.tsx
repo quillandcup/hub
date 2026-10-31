@@ -83,7 +83,7 @@ export default async function MyPricklesPage({
     attendedPrickles,
     prickleTypes,
     schedules,
-    { data: lockRows },
+    lockRows,
     hostingStats,
     hostEligibility,
     members,
@@ -97,7 +97,7 @@ export default async function MyPricklesPage({
     createRepos(supabase).attendance.forMemberWithPrickles(memberId),
     createRepos(supabase).prickles.typesRequiringHost(),
     getMySchedules(),
-    supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
+    createRepos(supabase).prickleSchedules.locksOf([currentMonth, nextMonth]),
     getMyHostingStats(),
     getMyHostEligibility(),
     fetchOtherMembers(supabase, memberId),
@@ -107,7 +107,7 @@ export default async function MyPricklesPage({
     getMyCheckins(),
   ]);
 
-  const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
+  const overrides = lockRows.map((r) => ({ month: r.month, locked: r.locked }));
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
   const nextMonthLocked = isMonthLocked(getNextMonthStart(now), overrides, now);
 
