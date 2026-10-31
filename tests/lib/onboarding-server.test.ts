@@ -110,6 +110,19 @@ describe("getOnboardingState for everyone else", () => {
     expect(step(notYet, "calendar")?.done).toBe(false);
   });
 
+  it("reads a failed calendar lookup as nothing done, and the checklist still renders", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const state = await run({
+      calendar_feed_tokens: { data: null, error: { message: "database is down" } },
+      calendar_feed_items: { data: null, error: { message: "database is down" } },
+    });
+
+    expect(step(state, "calendar")?.done).toBe(false);
+    expect(log).toHaveBeenCalledWith("onboarding: failed to read the calendar feed", expect.any(Error));
+    expect(log).toHaveBeenCalledWith("onboarding: failed to count calendar items", expect.any(Error));
+    log.mockRestore();
+  });
+
   it("skips every other read once the tour is dismissed", async () => {
     const state = await run({ member_onboarding: { data: { ...RECORD, dismissed_at: "2026-10-01T00:00:00Z" } } });
 

@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { refresh, revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { Insert } from "@/lib/data/db";
+import type { NewFeedItem } from "@/lib/data/calendar-feed";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -49,33 +49,26 @@ async function viewerTimeZone(): Promise<string> {
 export async function getMyCalendarFeedUrls(): Promise<CalendarFeedUrls | null> {
   const memberId = await effectiveMemberId();
   if (!memberId) return null;
-  const supabase = await createClient();
+  const feed = createRepos(await createClient()).calendarFeed;
 
-  const { data: existing, error } = await supabase
-    .from("calendar_feed_tokens")
-    .select("token")
-    .eq("member_id", memberId)
-    .maybeSingle();
-  if (error) {
+  let existing: string | null;
+  try {
+    existing = await feed.tokenOf(memberId);
+  } catch (error) {
     console.error("getMyCalendarFeedUrls: failed to load token", error);
     return null;
   }
-  if (existing) return calendarFeedUrls(await requestOrigin(), existing.token);
+  if (existing) return calendarFeedUrls(await requestOrigin(), existing);
 
-  // First visit. ignoreDuplicates: if a concurrent request created one first, keep theirs.
-  const { error: insertError } = await supabase
-    .from("calendar_feed_tokens")
-    .upsert({ member_id: memberId, token: newToken() }, { onConflict: "member_id", ignoreDuplicates: true });
-  if (insertError) {
-    console.error("getMyCalendarFeedUrls: failed to create token", insertError);
+  // First visit. A concurrent request that created one first wins; keep theirs.
+  try {
+    await feed.createTokenIfMissing(memberId, newToken());
+  } catch (error) {
+    console.error("getMyCalendarFeedUrls: failed to create token", error);
     return null;
   }
-  const { data: created } = await supabase
-    .from("calendar_feed_tokens")
-    .select("token")
-    .eq("member_id", memberId)
-    .maybeSingle();
-  return created ? calendarFeedUrls(await requestOrigin(), created.token) : null;
+  const created = await feed.tokenOf(memberId).catch(() => null);
+  return created ? calendarFeedUrls(await requestOrigin(), created) : null;
 }
 
 /**
@@ -85,21 +78,16 @@ export async function getMyCalendarFeedUrls(): Promise<CalendarFeedUrls | null> 
 async function regenerateMyCalendarFeedTokenImpl(): Promise<{ urls: CalendarFeedUrls } | { error: string }> {
   const memberId = await effectiveMemberId();
   if (!memberId) return { error: "Not signed in" };
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("calendar_feed_tokens")
-    .upsert(
-      { member_id: memberId, token: newToken(), first_fetched_at: null, updated_at: new Date().toISOString() },
-      { onConflict: "member_id" }
-    );
-  if (error) {
+  const feed = createRepos(await createClient()).calendarFeed;
+  try {
+    await feed.replaceToken(memberId, newToken());
+  } catch (error) {
     console.error("regenerateMyCalendarFeedToken: failed", error);
     return { error: "Couldn't generate a new link. Please try again." };
   }
-  const { data } = await supabase.from("calendar_feed_tokens").select("token").eq("member_id", memberId).single();
-  if (!data) return { error: "Couldn't generate a new link. Please try again." };
-  return { urls: calendarFeedUrls(await requestOrigin(), data.token) };
+  const token = await feed.tokenOf(memberId).catch(() => null);
+  if (!token) return { error: "Couldn't generate a new link. Please try again." };
+  return { urls: calendarFeedUrls(await requestOrigin(), token) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -107,9 +95,6 @@ async function regenerateMyCalendarFeedTokenImpl(): Promise<{ urls: CalendarFeed
 // ---------------------------------------------------------------------------------------------
 
 type ItemResult = { ok: true } | { error: string };
-
-type NameRef = { name?: string; title?: string } | { name?: string; title?: string }[] | null;
-const first = (ref: NameRef) => (Array.isArray(ref) ? ref[0] : ref) ?? null;
 
 function formatWhen(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -136,33 +121,25 @@ function formatDateRange(start: string, end: string): string {
 export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
   const memberId = await effectiveMemberId();
   if (!memberId) return [];
-  const supabase = await createClient();
-  const [timeZone, { data, error }] = await Promise.all([
+  const feed = createRepos(await createClient()).calendarFeed;
+  const [timeZone, rows] = await Promise.all([
     viewerTimeZone(),
-    supabase
-      .from("calendar_feed_items")
-      .select(
-        "id, kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id, created_at, prickle_types(name), prickles(start_time, prickle_types(name)), events(title, starts_at, ends_at)"
-      )
-      .eq("member_id", memberId)
-      .order("created_at"),
+    feed.listedItemsOf(memberId).catch((error) => {
+      console.error("getMyCalendarItems: failed to load items", error);
+      return null;
+    }),
   ]);
-  if (error) {
-    console.error("getMyCalendarItems: failed to load items", error);
-    return [];
-  }
+  if (!rows) return [];
 
   const now = Date.now();
   const today = new Date().toISOString().slice(0, 10);
   const items: MyCalendarItem[] = [];
-  for (const row of data ?? []) {
-    const typeName = first(row.prickle_types as NameRef)?.name ?? "Prickle";
+  for (const row of rows) {
+    const typeName = row.type_name ?? "Prickle";
     if (row.kind === "prickle") {
-      const prickle = first(row.prickles as NameRef) as
-        | { start_time: string; prickle_types: NameRef }
-        | null;
+      const prickle = row.prickle;
       if (!prickle || !row.prickle_id || new Date(prickle.start_time).getTime() < now) continue;
-      const prickleTypeName = first(prickle.prickle_types)?.name ?? "Prickle";
+      const prickleTypeName = prickle.type_name ?? "Prickle";
       items.push({
         id: row.id,
         kind: "prickle",
@@ -179,7 +156,7 @@ export async function getMyCalendarItems(): Promise<MyCalendarItem[]> {
         slotKey: slotKey(slot),
       });
     } else {
-      const event = first(row.events as NameRef) as { title: string; starts_at: string; ends_at: string } | null;
+      const event = row.event;
       if (!event || !row.event_id || event.ends_at < today) continue;
       items.push({
         id: row.id,
@@ -203,15 +180,17 @@ function revalidateCalendarViews() {
 }
 
 /** Insert one item for the acting member; an item they already have counts as success. */
-async function addItem(row: Omit<Insert<"calendar_feed_items">, "member_id" | "created_by">): Promise<ItemResult> {
+async function addItem(row: NewFeedItem): Promise<ItemResult> {
   const user = await getCurrentUser();
   if (!user) return { error: "Not signed in" };
   const memberId = (await getEffectiveIdentity(user))?.memberId;
   if (!memberId) return { error: "Not signed in" };
   const supabase = await createClient();
 
-  const { error } = await supabase.from("calendar_feed_items").insert({ ...row, member_id: memberId, created_by: user.id });
-  if (error && error.code !== "23505") {
+  // An item they already have counts as success.
+  try {
+    await createRepos(supabase).calendarFeed.addItem(memberId, user.id, row);
+  } catch (error) {
     console.error("addItem: failed to add calendar item", { row, error });
     return { error: "Couldn't add that to your calendar. Please try again." };
   }
@@ -256,8 +235,9 @@ export async function removeMyCalendarItem(itemId: string): Promise<ItemResult> 
   const memberId = await effectiveMemberId();
   if (!memberId) return { error: "Not signed in" };
   const supabase = await createClient();
-  const { error } = await supabase.from("calendar_feed_items").delete().eq("id", itemId).eq("member_id", memberId);
-  if (error) {
+  try {
+    await createRepos(supabase).calendarFeed.removeItem(memberId, itemId);
+  } catch (error) {
     console.error("removeMyCalendarItem: failed", error);
     return { error: "Couldn't remove that. Please try again." };
   }

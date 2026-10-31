@@ -32,6 +32,7 @@ const onceItem = (prickleId: string): CalendarItemRow => ({
   day_of_week: null,
   start_time_local: null,
   timezone: null,
+  event_id: null,
 })
 
 // Tuesdays 7:00 PM ET.
@@ -42,6 +43,7 @@ const weeklyItem: CalendarItemRow = {
   day_of_week: 2,
   start_time_local: "19:00:00",
   timezone: TZ,
+  event_id: null,
 }
 
 describe("computeCalendarAdded", () => {

@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos"
+import type { FeedItemRow } from "@/lib/data/calendar-feed"
 import { toPlainCommitment } from "@/lib/data/prickle-activity"
 import type { PrickleDetail } from "@/lib/data/prickles"
 import type { createClient } from "@/lib/supabase/server"
@@ -45,7 +46,6 @@ import {
 // so a newer member sees a strong, varied set rather than just the next few
 // start times.
 
-const BATCH_SIZE = 1000
 // How far back to look for a sister-streak sister's last couple of
 // occurrences of a recurring series. Weekly cadence, so 60 days comfortably
 // covers "last 2 occurrences" even through a skipped week or two. Shared with
@@ -53,30 +53,6 @@ const BATCH_SIZE = 1000
 const SISTER_LOOKBACK_DAYS = RECOMMENDATION_LOOKBACK_DAYS
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>
-
-// `data` is typed `unknown` (rather than `T[] | null`) so this helper can
-// accept any Supabase query builder, regardless of how it infers embedded
-// relationship cardinality (Supabase's generated types don't always agree
-// with the shape we know we'll get back from a to-one embed).
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: unknown }>
-): Promise<T[]> {
-  let all: T[] = []
-  let offset = 0
-  let hasMore = true
-  while (hasMore) {
-    const { data } = await queryFn(offset)
-    const batch = (data as T[] | null) ?? []
-    if (batch.length > 0) {
-      all = all.concat(batch)
-      offset += batch.length
-      hasMore = batch.length === BATCH_SIZE
-    } else {
-      hasMore = false
-    }
-  }
-  return all
-}
 
 function getLocalDayAndHour(iso: string, timeZone: string): { dayOfWeek: string; startHour: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -186,27 +162,12 @@ async function fetchActiveCommitments(supabase: SupabaseClient, memberId: string
 /** How an upcoming prickle got into the member's calendar feed by hand (calendar_feed_items). */
 export type CalendarAddedMode = "once" | "weekly"
 
-export type CalendarItemRow = {
-  kind: "prickle" | "slot"
-  prickle_id: string | null
-  type_id: string | null
-  day_of_week: number | null
-  start_time_local: string | null
-  timezone: string | null
-}
+export type CalendarItemRow = FeedItemRow
 
 /** The member's hand-added calendar items (just this prickle, or a weekly slot). Events aren't
  * prickles, so they're skipped. A query error yields no rows, like the other fetches here. */
-async function fetchCalendarItems(supabase: SupabaseClient, memberId: string): Promise<CalendarItemRow[]> {
-  return fetchAllPaginated<CalendarItemRow>((offset) =>
-    supabase
-      .from("calendar_feed_items")
-      .select("kind, prickle_id, type_id, day_of_week, start_time_local, timezone")
-      .eq("member_id", memberId)
-      .in("kind", ["prickle", "slot"])
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  )
+export async function fetchCalendarItems(supabase: SupabaseClient, memberId: string): Promise<CalendarItemRow[]> {
+  return createRepos(supabase).calendarFeed.itemsOf(memberId).catch(() => [])
 }
 
 /** Upcoming prickle id -> how the member added it to their calendar. Weekly slots match the same
