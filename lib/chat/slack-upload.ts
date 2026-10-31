@@ -162,21 +162,17 @@ async function keepCopies(
       const path = slackFileStoragePath({ file_id: file.id, name: file.name });
       const { error } = await supabase.storage.from(SLACK_FILES_BUCKET).upload(path, buffer, { contentType: file.mimetype || "application/octet-stream", upsert: true });
       if (error) throw error;
-      const { error: rowError } = await supabase.schema("bronze").from("slack_files").upsert(
-        {
-          file_id: file.id,
-          channel_id: slackChannelId,
-          message_ts: ts,
-          name: file.name,
-          mimetype: file.mimetype,
-          size_bytes: file.size,
-          storage_path: path,
-          copied_at: new Date(clock.now()).toISOString(),
-          raw_payload: { id: file.id, name: file.name, mimetype: file.mimetype, size: file.size, source: "hub_upload" },
-        },
-        { onConflict: "file_id" }
-      );
-      if (rowError) throw rowError;
+      await createRepos(supabase).slackMessages.replaceFile({
+        file_id: file.id,
+        channel_id: slackChannelId,
+        message_ts: ts,
+        name: file.name,
+        mimetype: file.mimetype,
+        size_bytes: file.size,
+        storage_path: path,
+        copied_at: new Date(clock.now()).toISOString(),
+        raw_payload: { id: file.id, name: file.name, mimetype: file.mimetype, size: file.size, source: "hub_upload" },
+      });
     }
     await supabase.storage.from(SLACK_FILES_BUCKET).remove([...bytes.keys()]);
   } catch (error) {

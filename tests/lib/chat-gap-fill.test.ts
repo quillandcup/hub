@@ -13,6 +13,8 @@ import { catchUpChannel, fillMessageGap, fillThreadIfRootMissing } from "@/lib/c
 import { setClock, systemClock } from "@/lib/clock";
 import { InMemoryChatRepository, type GapFillOutcome } from "@/lib/data/chat";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { InMemorySlackMessageRepository, type NewSlackMessage, type NewSlackReaction } from "@/lib/data/slack-messages";
+import { InMemorySlackUserRepository } from "@/lib/data/slack-users";
 
 type Call = { method: string; args: unknown[] };
 type Query = { table: string; schema: string; calls: Call[] };
@@ -83,25 +85,38 @@ const chatRepo = () => {
   if (failing.has("messageIdBySlackTs")) repo.messageIdBySlackTs = async () => { throw new Error("message boom"); };
   return repo;
 };
+/** What the fill wrote to Bronze, as it passed it to the repository. */
+let written: { messages: NewSlackMessage[]; reactions: NewSlackReaction[] };
+/** The Bronze side: Slack users and what is already stored, read from `world`; writes are recorded in `written`. */
+const bronzeRepos = () => {
+  const stored = new Map<string, { channel_id: string; message_ts: string; user_id: string; occurred_at: string; thread_ts?: string }>();
+  for (const ts of world.bronzeMessages) stored.set(ts, { channel_id: "C1", message_ts: ts, user_id: "U_GALE", occurred_at: "2026-01-01T00:00:00Z" });
+  for (const r of world.bronzeReplies) stored.set(r.message_ts, { channel_id: "C1", message_ts: r.message_ts, user_id: "U_GALE", occurred_at: "2026-01-01T00:00:00Z", thread_ts: r.thread_ts });
+  const data = new InMemoryDataset({
+    slackUsers: [{ user_id: "U_GALE", email: "gale@example.test", real_name: "Gale", name: "gale" }],
+    slackMessages: [...stored.values()],
+    slackReactions: world.bronzeReactions.map((r) => ({ ...r, channel_id: "C1", occurred_at: "2026-01-01T00:00:00Z" })),
+  });
+  const messages = new InMemorySlackMessageRepository(data);
+  messages.newestTimestamp = async () => world.newestBronzeTs;
+  const upsertMessages = messages.upsertMessages.bind(messages);
+  messages.upsertMessages = async (rows) => {
+    written.messages.push(...rows);
+    return upsertMessages(rows);
+  };
+  const upsertReactions = messages.upsertReactions.bind(messages);
+  messages.upsertReactions = async (rows) => {
+    written.reactions.push(...rows);
+    return upsertReactions(rows);
+  };
+  return { slackMessages: messages, slackUsers: new InMemorySlackUserRepository(data) };
+};
 vi.mock("@/lib/data/repos", async () => {
   const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return { ...actual, createRepos: (db: never) => ({ ...actual.createRepos(db), chat: chatRepo() }) };
+  return { ...actual, createRepos: (db: never) => ({ ...actual.createRepos(db), chat: chatRepo(), ...bronzeRepos() }) };
 });
 
-const answer = (q: Query): unknown => {
-  if (q.schema === "bronze" && q.table === "slack_users") return { data: [{ user_id: "U_GALE", email: "gale@example.test", real_name: "Gale", name: "gale" }] };
-  if (q.schema === "bronze" && q.table === "slack_messages") {
-    if (has(q, "upsert")) return { error: null };
-    if (has(q, "order")) return { data: world.newestBronzeTs ? { message_ts: world.newestBronzeTs } : null };
-    if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_ts")) return { data: world.bronzeReplies };
-    return { data: world.bronzeMessages.map((message_ts) => ({ message_ts })) };
-  }
-  if (q.schema === "bronze" && q.table === "slack_reactions") {
-    if (has(q, "upsert")) return { error: null };
-    return { data: world.bronzeReactions };
-  }
-  return { data: null, error: null };
-};
+const answer = (): unknown => ({ data: null, error: null });
 
 const slackMessage = (ts: string, extra: Record<string, unknown> = {}) => ({ ts, user: "U_GALE", text: `message ${ts}`, ...extra });
 const reaction = (name: string, users: string[], count = users.length) => ({ name, users, count });
@@ -123,8 +138,10 @@ const claimCall = (service: ReturnType<typeof fakeService>) => service.rpc.mock.
 /** What the fill recorded as its outcome, by column name. */
 const finished = (_service: ReturnType<typeof fakeService>) =>
   finishedWith && { messages_recovered: finishedWith.messagesRecovered, reactions_recovered: finishedWith.reactionsRecovered, messages_seen: finishedWith.messagesSeen, error: finishedWith.error };
-const upserted = (service: ReturnType<typeof fakeService>, table: string) =>
-  service.queries.find((q) => q.schema === "bronze" && q.table === table && has(q, "upsert"))?.calls.find((c) => c.method === "upsert")?.args[0] as Record<string, unknown>[] | undefined;
+const upserted = (_service: ReturnType<typeof fakeService>, table: string) => {
+  const rows = table === "slack_messages" ? written.messages : written.reactions;
+  return rows.length > 0 ? (rows as unknown as Record<string, unknown>[]) : undefined;
+};
 
 beforeEach(() => {
   world = { channel: { ...CHANNEL }, chatHas: new Set(), bronzeMessages: [], bronzeReactions: [], newestBronzeTs: null, bronzeReplies: [] };
@@ -133,6 +150,7 @@ beforeEach(() => {
   projectChatMessage.mockClear();
   markRemoved.mockClear();
   finishedWith = undefined;
+  written = { messages: [], reactions: [] };
   failing.clear();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });

@@ -1,7 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { chunk } from "@/lib/supabase/paginate";
 import { asJson } from "./json";
-import { asPage, byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
+import { asPage, byKeyThenId, compareText, inChunks, must, sortByKey, upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -100,6 +100,8 @@ export interface SlackWorkspaceRepository {
   upsertEmoji(emoji: NewSlackEmoji[]): Promise<void>;
   /** The names of the emoji not marked removed, by name. */
   liveEmojiNames(): Promise<string[]>;
+  /** The live emoji with these names: image and alias target. Chunked. */
+  emojiByNames(names: string[]): Promise<{ name: string; image_url: string | null; alias_for: string | null }[]>;
   /** Marks emoji removed at `at` (those not already). Chunked. */
   markEmojiRemoved(names: string[], at: string): Promise<void>;
 
@@ -242,6 +244,13 @@ export class SupabaseSlackWorkspaceRepository implements SlackWorkspaceRepositor
     return rows.map((r) => r.name);
   }
 
+  async emojiByNames(names: string[]) {
+    const rows = await inChunks(names, NAME_CHUNK, async (part) =>
+      must(await this.emojiTable.select("name, image_url, alias_for").in("name", part).is("deleted_at", null)) ?? []
+    );
+    return sortByKey(rows, (r) => r.name);
+  }
+
   async markEmojiRemoved(names: string[], at: string) {
     for (const part of chunk(names, USER_CHUNK)) {
       must(await this.emojiTable.update({ deleted_at: at, imported_at: at }).in("name", part).is("deleted_at", null));
@@ -373,6 +382,14 @@ export class InMemorySlackWorkspaceRepository implements SlackWorkspaceRepositor
       .filter((e) => !e.deleted_at)
       .map((e) => e.name)
       .sort(compareText);
+  }
+
+  async emojiByNames(names: string[]) {
+    const wanted = new Set(names);
+    return this.data.slackCustomEmoji
+      .filter((e) => wanted.has(e.name) && !e.deleted_at)
+      .map((e) => ({ name: e.name, image_url: e.image_url ?? null, alias_for: e.alias_for ?? null }))
+      .sort((a, b) => compareText(a.name, b.name));
   }
 
   async markEmojiRemoved(names: string[], at: string) {

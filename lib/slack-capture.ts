@@ -1,8 +1,8 @@
 import type { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { createRepos } from "@/lib/data/repos";
+import type { SlackFile, SlackFileChange } from "@/lib/data/slack-messages";
 import type { SlackMemberEvent } from "@/lib/data/slack-workspace";
 
 /**
@@ -453,30 +453,14 @@ export async function copySlackFiles(
 
   const seen = slackFilesFromMessages(messages);
   result.seen = seen.length;
-  for (let i = 0; i < seen.length; i += WRITE_BATCH) {
-    // ignoreDuplicates: never overwrite a row that already has its storage_path.
-    const { error } = await storage
-      .schema("bronze")
-      .from("slack_files")
-      .upsert(seen.slice(i, i + WRITE_BATCH).map((f) => ({ ...f, imported_at: importTimestamp })), {
-        onConflict: "file_id",
-        ignoreDuplicates: true,
-      });
-    if (error) throw error;
-  }
+  const bronze = createRepos(storage).slackMessages;
+  // Never overwrites a row that already has its storage_path.
+  await bronze.recordFiles(seen.map((f) => ({ ...f, imported_at: importTimestamp })));
 
-  const pending: (SlackFileRow & { copy_error: string | null })[] = await fetchAllBronzeRows(
-    storage,
-    "slack_files",
-    "file_id, channel_id, message_ts, name, mimetype, size_bytes, copy_error, raw_payload",
-    (q) => q.is("storage_path", null).order("message_ts").order("file_id")
-  );
+  const pending = await bronze.filesWithoutCopy();
   const todo = pending.filter((f) => !f.copy_error?.startsWith("skipped:"));
 
-  const mark = async (fileId: string, fields: Record<string, unknown>) => {
-    const { error } = await storage.schema("bronze").from("slack_files").update(fields).eq("file_id", fileId);
-    if (error) throw error;
-  };
+  const mark = (fileId: string, fields: SlackFileChange) => bronze.updateFile(fileId, fields);
 
   let remaining = todo.length;
   for (const file of todo) {
@@ -538,10 +522,11 @@ export async function ensureSlackFileCopied(
   ref: { fileId: string; channelId: string; messageTs: string },
   download: typeof fetch = fetch
 ): Promise<EnsuredSlackFile> {
-  const bronze = () => storage.schema("bronze").from("slack_files");
-  const columns = "file_id, channel_id, message_ts, name, mimetype, size_bytes, storage_path, copy_error, deleted_at, raw_payload";
+  const files = createRepos(storage).slackMessages;
+  // The copy's bookkeeping is best effort here: a failed note must not turn a served file into an error.
+  const note = (fileId: string, change: SlackFileChange) => files.updateFile(fileId, change).catch(() => undefined);
 
-  let { data: row } = await bronze().select(columns).eq("file_id", ref.fileId).maybeSingle();
+  let row: (SlackFile & { copied_at?: string | null }) | null = await files.fileById(ref.fileId);
   if (row?.deleted_at) return { ok: false, reason: "skipped: deleted" };
   if (row?.storage_path) return { ok: true, path: row.storage_path, mimetype: row.mimetype };
 
@@ -552,15 +537,18 @@ export async function ensureSlackFileCopied(
     const json: any = info.ok ? await info.json().catch(() => null) : null;
     if (!json?.ok || !json.file) return { ok: false, reason: json?.error ?? `files.info failed with HTTP ${info.status}` };
     const [fresh] = slackFilesFromMessages([{ channel_id: ref.channelId, message_ts: ref.messageTs, files: [json.file] }]);
-    const { error } = await bronze().upsert({ ...fresh, imported_at: new Date(clock.now()).toISOString() }, { onConflict: "file_id", ignoreDuplicates: true });
-    if (error) return { ok: false, reason: error.message };
+    try {
+      await files.recordFiles([{ ...fresh, imported_at: new Date(clock.now()).toISOString() }]);
+    } catch (error) {
+      return { ok: false, reason: (error as Error).message };
+    }
     row = { ...fresh, storage_path: null, copy_error: null, deleted_at: null };
   }
 
   const file = row as SlackFileRow & { storage_path: string | null; copy_error: string | null };
   const skip = slackFileSkipReason(file);
   if (skip) {
-    await bronze().update({ copy_error: skip }).eq("file_id", file.file_id);
+    await note(file.file_id, { copy_error: skip });
     return { ok: false, reason: skip };
   }
 
@@ -575,7 +563,7 @@ export async function ensureSlackFileCopied(
     }
     const body = await response.arrayBuffer();
     if (body.byteLength > MAX_SLACK_FILE_BYTES) {
-      await bronze().update({ copy_error: "skipped: larger than 20 MB" }).eq("file_id", file.file_id);
+      await note(file.file_id, { copy_error: "skipped: larger than 20 MB" });
       return { ok: false, reason: "skipped: larger than 20 MB" };
     }
     const path = slackFileStoragePath(file);
@@ -583,11 +571,11 @@ export async function ensureSlackFileCopied(
       .from(SLACK_FILES_BUCKET)
       .upload(path, body, { contentType: file.mimetype || "application/octet-stream", upsert: true });
     if (uploadError) throw uploadError;
-    await bronze().update({ storage_path: path, copied_at: new Date(clock.now()).toISOString(), copy_error: null }).eq("file_id", file.file_id);
+    await note(file.file_id, { storage_path: path, copied_at: new Date(clock.now()).toISOString(), copy_error: null });
     return { ok: true, path, mimetype: file.mimetype };
   } catch (error: any) {
     const reason = String(error?.message ?? error).slice(0, 300);
-    await bronze().update({ copy_error: reason }).eq("file_id", file.file_id);
+    await note(file.file_id, { copy_error: reason });
     return { ok: false, reason };
   }
 }

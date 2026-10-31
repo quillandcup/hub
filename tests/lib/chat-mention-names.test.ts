@@ -10,7 +10,7 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
-import { slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos, withMentionNames } from "@/lib/chat/names";
+import { customEmojiFor, slackAuthorIdsByTs, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos, withMentionNames } from "@/lib/chat/names";
 
 const MEMBER_1 = "mbr_AAAAAAAAAAA1";
 const MEMBER_2 = "mbr_AAAAAAAAAAA2";
@@ -121,5 +121,41 @@ describe("slackUserNames, slackUserMemberIds and slackUserPhotos", () => {
     vi.spyOn(repos.chat, "memberIdsBySlackUser").mockRejectedValue(new Error("boom"));
     expect(await slackUserMemberIds(["U7"])).toEqual({});
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe("slackAuthorIdsByTs", () => {
+  it("names who wrote each message of one channel, for the messages we have", async () => {
+    repos = createInMemoryRepos(
+      dataset({
+        slackMessages: [
+          { channel_id: "C1", message_ts: "1.1", user_id: "U1", occurred_at: "2026-01-01T00:00:00Z" },
+          { channel_id: "C2", message_ts: "1.2", user_id: "U2", occurred_at: "2026-01-01T00:00:00Z" },
+        ],
+      }),
+    );
+    expect(await slackAuthorIdsByTs("C1", ["1.1", "1.2", "9.9"])).toEqual({ "1.1": "U1" });
+    expect(await slackAuthorIdsByTs("C1", [])).toEqual({});
+  });
+});
+
+describe("customEmojiFor", () => {
+  it("follows aliases to a custom image or a standard emoji, and leaves unknown names out", async () => {
+    repos = createInMemoryRepos(
+      dataset({
+        slackCustomEmoji: [
+          { name: "party-fake", image_url: "https://emoji.example.test/party.png" },
+          { name: "celebrate-fake", alias_for: "party-fake" },
+          { name: "grin-fake", alias_for: "grinning" },
+          { name: "removed-fake", image_url: "https://emoji.example.test/removed.png", deleted_at: "2026-01-01T00:00:00Z" },
+        ],
+      }),
+    );
+    const out = await customEmojiFor(["celebrate-fake", "party-fake", "grin-fake", "removed-fake", "nothing-fake"]);
+    expect(out["party-fake"]).toEqual({ url: "https://emoji.example.test/party.png" });
+    expect(out["celebrate-fake"]).toEqual({ url: "https://emoji.example.test/party.png" });
+    expect(out["grin-fake"]).toEqual({ text: expect.any(String) });
+    expect(out).not.toHaveProperty("removed-fake");
+    expect(out).not.toHaveProperty("nothing-fake");
   });
 });

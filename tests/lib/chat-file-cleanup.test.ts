@@ -3,51 +3,34 @@ import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { filesGoneFromSlack, removeChatFileBytes, sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
 
-// Which messages list a file is the chat repository's business: the in-memory twin stands in for it.
-let repos = createInMemoryRepos();
+// Which messages list a file is the chat repository's business and the files themselves are Bronze's (SlackMessageRepository):
+// the in-memory twins stand in for both.
+let dataset = new InMemoryDataset();
+let repos = createInMemoryRepos(dataset);
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
 /** Another message lists file F1 (a tombstone, in the ignoreReferences case). */
 const listedByAnotherMessage = () => {
-  repos = createInMemoryRepos(new InMemoryDataset({ chatMessageContents: [{ message_id: "msg_AAAAAAAAAAA2", files: [{ id: "F1" }] }] }));
+  dataset.chatMessageContents = [{ message_id: "msg_AAAAAAAAAAA2", files: [{ id: "F1" }] }];
 };
 
-type Err = { message: string } | null;
 const s = {
-  row: null as { storage_path: string | null; deleted_at: string | null } | null,
-  rowError: null as Err,
-  updateError: null as Err,
-  removeError: null as Err,
-  sweepRows: [] as { file_id: string; storage_path: string }[],
-  sweepError: null as Err,
-  updates: [] as Record<string, unknown>[],
+  removeError: null as { message: string } | null,
   removed: [] as string[][],
 };
-
-const bronze = () => {
-  const chain: Record<string, unknown> = {};
-  chain.select = () => chain;
-  chain.eq = () => chain;
-  chain.not = () => chain;
-  chain.order = () => chain;
-  chain.limit = async () => ({ data: s.sweepRows, error: s.sweepError });
-  chain.maybeSingle = async () => ({ data: s.row, error: s.rowError });
-  chain.update = (fields: Record<string, unknown>) => {
-    s.updates.push(fields);
-    return { eq: async () => ({ error: "storage_path" in fields ? s.updateError : null }) };
-  };
-  return chain;
-};
 const service = {
-  schema: () => ({ from: bronze }),
   storage: { from: () => ({ remove: async (paths: string[]) => (s.removed.push(paths), { error: s.removeError }) }) },
 } as never;
 
+const fileRow = (extra = {}) => ({ file_id: "F1", channel_id: "C1", message_ts: "1.1", storage_path: "F1/a.png" as string | null, deleted_at: null as string | null, ...extra });
+const stored = (id = "F1") => dataset.slackFiles.find((f) => f.file_id === id);
+
 beforeEach(() => {
-  Object.assign(s, { row: { storage_path: "F1/a.png", deleted_at: null }, rowError: null, updateError: null, removeError: null, sweepRows: [], sweepError: null, updates: [], removed: [] });
-  repos = createInMemoryRepos();
+  Object.assign(s, { removeError: null, removed: [] });
+  dataset = new InMemoryDataset({ slackFiles: [fileRow()] });
+  repos = createInMemoryRepos(dataset);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -55,39 +38,42 @@ describe("removeChatFileBytes", () => {
   it("soft-deletes the Bronze row, removes the bytes and clears the path", async () => {
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("removed");
     expect(s.removed).toEqual([["F1/a.png"]]);
-    expect(s.updates[0]).toMatchObject({ copy_error: "skipped: deleted" });
-    expect(s.updates[0].deleted_at).toBeTruthy();
-    expect(s.updates[1]).toEqual({ storage_path: null, copied_at: null });
+    expect(stored()).toMatchObject({ copy_error: "skipped: deleted", storage_path: null, copied_at: null });
+    expect(stored()?.deleted_at).toBeTruthy();
   });
 
   it("keeps everything while another message still lists the file", async () => {
     listedByAnotherMessage();
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("kept");
     expect(s.removed).toEqual([]);
-    expect(s.updates).toEqual([]);
+    expect(stored()).toMatchObject({ storage_path: "F1/a.png", deleted_at: null });
   });
 
   it("does nothing for a file Bronze never recorded", async () => {
-    s.row = null;
+    dataset.slackFiles = [];
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("nothing");
   });
 
   it("handles a row that is already soft-deleted or never copied", async () => {
-    s.row = { storage_path: null, deleted_at: "2026-01-01T00:00:00Z" };
+    dataset.slackFiles = [fileRow({ storage_path: null, deleted_at: "2026-01-01T00:00:00Z" })];
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("removed");
     expect(s.removed).toEqual([]);
-    expect(s.updates).toEqual([{ storage_path: null, copied_at: null }]);
+    expect(stored()).toMatchObject({ storage_path: null, deleted_at: "2026-01-01T00:00:00Z" });
   });
 
   it("leaves the path set (retriable by the sweep) when the storage delete fails", async () => {
     s.removeError = { message: "boom" };
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
-    expect(s.updates).toHaveLength(1);
-    expect(s.updates[0]).not.toHaveProperty("storage_path");
+    expect(stored()?.storage_path).toBe("F1/a.png");
+    expect(stored()?.deleted_at).toBeTruthy();
   });
 
   it("reports a failure to clear the path", async () => {
-    s.updateError = { message: "boom" };
+    const update = repos.slackMessages.updateFile.bind(repos.slackMessages);
+    vi.spyOn(repos.slackMessages, "updateFile").mockImplementation(async (id, change) => {
+      if ("storage_path" in change) throw new Error("boom");
+      return update(id, change);
+    });
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
   });
 
@@ -95,21 +81,25 @@ describe("removeChatFileBytes", () => {
     vi.spyOn(repos.chat, "fileIsListed").mockRejectedValue(new Error("boom"));
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
     vi.mocked(repos.chat.fileIsListed).mockRestore();
-    s.rowError = { message: "boom" };
+    vi.spyOn(repos.slackMessages, "fileById").mockRejectedValue(new Error("boom"));
     await expect(removeChatFileBytes(service, "F1")).resolves.toBe("failed");
   });
 });
 
 describe("sweepDeletedFileBytes", () => {
+  const deleted = (id: string) => fileRow({ file_id: id, storage_path: `${id}/x.png`, deleted_at: "2026-01-01T00:00:00Z" });
+
   it("retries removals and counts successes and failures", async () => {
-    s.sweepRows = [{ file_id: "F1", storage_path: "F1/a.png" }, { file_id: "F2", storage_path: "F2/b.png" }];
+    dataset.slackFiles = [deleted("F1"), deleted("F2")];
     await expect(sweepDeletedFileBytes(service)).resolves.toEqual({ removed: 2, failed: 0 });
+    expect(stored("F1")?.storage_path).toBeNull();
+    dataset.slackFiles = [deleted("F1"), deleted("F2")];
     s.removeError = { message: "boom" };
     await expect(sweepDeletedFileBytes(service)).resolves.toEqual({ removed: 0, failed: 2 });
   });
 
   it("reports a failed listing", async () => {
-    s.sweepError = { message: "boom" };
+    vi.spyOn(repos.slackMessages, "deletedFilesWithBytes").mockRejectedValue(new Error("boom"));
     await expect(sweepDeletedFileBytes(service)).resolves.toEqual({ removed: 0, failed: 1 });
   });
 

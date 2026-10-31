@@ -145,34 +145,15 @@ async function storeAndProject(
 
   // What was new to us (the count a recovery is judged by).
   const timestamps = uniqueMessages.map((m) => m.message_ts as string);
-  const [{ data: haveMessages }, { data: haveReactions }] = await Promise.all([
-    service.schema("bronze").from("slack_messages").select("message_ts").eq("channel_id", slackChannelId).in("message_ts", timestamps),
-    service
-      .schema("bronze")
-      .from("slack_reactions")
-      .select("message_ts, reaction, user_id")
-      .eq("channel_id", slackChannelId)
-      .in("message_ts", timestamps)
-      .is("deleted_at", null),
-  ]);
-  const knownMessages = new Set((haveMessages ?? []).map((m) => m.message_ts as string));
-  const knownReactions = new Set((haveReactions ?? []).map((r) => `${r.message_ts}|${r.reaction}|${r.user_id}`));
+  const bronze = createRepos(service).slackMessages;
+  const [knownMessages, haveReactions] = await Promise.all([bronze.storedTimestamps(slackChannelId, timestamps), bronze.liveReactionsOn(slackChannelId, timestamps)]);
+  const knownReactions = new Set(haveReactions.map((r) => `${r.message_ts}|${r.reaction}|${r.user_id}`));
   const newMessages = uniqueMessages.filter((m) => !knownMessages.has(m.message_ts)).length;
   const newReactions = uniqueReactions.filter((r) => !knownReactions.has(`${r.message_ts}|${r.reaction}|${r.user_id}`)).length;
 
   const importedAt = new Date(clock.now()).toISOString();
-  const { error: messageError } = await service
-    .schema("bronze")
-    .from("slack_messages")
-    .upsert(uniqueMessages.map((m) => ({ ...m, imported_at: importedAt })), { onConflict: "channel_id,message_ts" });
-  if (messageError) throw messageError;
-  if (uniqueReactions.length > 0) {
-    const { error: reactionError } = await service
-      .schema("bronze")
-      .from("slack_reactions")
-      .upsert(uniqueReactions.map((r) => ({ ...r, imported_at: importedAt })), { onConflict: "channel_id,message_ts,reaction,user_id" });
-    if (reactionError) throw reactionError;
-  }
+  await bronze.upsertMessages(uniqueMessages.map((m) => ({ ...m, imported_at: importedAt })));
+  await bronze.upsertReactions(uniqueReactions.map((r) => ({ ...r, imported_at: importedAt })));
 
   // Slack's list is the whole truth for a message it returned, so a stored reaction missing from it was
   // taken back. Only judged where Slack gave every reactor (a long list can be cut short).
@@ -227,16 +208,9 @@ async function fetchThread(slack: WebClient, slackChannelId: string, threadTs: s
 async function storedReplyCounts(service: SupabaseClient, slackChannelId: string, rootTs: string[]): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (rootTs.length === 0) return counts;
-  const { data } = await service
-    .schema("bronze")
-    .from("slack_messages")
-    .select("thread_ts, message_ts")
-    .eq("channel_id", slackChannelId)
-    .in("thread_ts", rootTs)
-    .is("deleted_at", null);
-  for (const row of data ?? []) {
+  for (const row of await createRepos(service).slackMessages.threadMessages(slackChannelId, rootTs)) {
     if (row.message_ts === row.thread_ts) continue; // the root itself
-    counts.set(row.thread_ts as string, (counts.get(row.thread_ts as string) ?? 0) + 1);
+    counts.set(row.thread_ts, (counts.get(row.thread_ts) ?? 0) + 1);
   }
   return counts;
 }
@@ -300,18 +274,11 @@ export async function catchUpChannel(
   if (!channel) return NOT_DONE;
   return run(service, claim(service, opts.source, "channel", opts.channelId, null), async () => {
     const slack = opts.slack ?? new WebClient(await getSlackBotToken());
-    const { data: newest } = await service
-      .schema("bronze")
-      .from("slack_messages")
-      .select("message_ts")
-      .eq("channel_id", opts.channelId)
-      .order("message_ts", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const newestTs = await createRepos(service).slackMessages.newestTimestamp(opts.channelId);
     const nowSeconds = Math.floor(clock.now() / 1000);
     // From the newest message we have, or the lookback window if that is further back (see CATCH_UP_LOOKBACK_SECONDS).
     const oldest = String(
-      newest?.message_ts ? Math.min(Number(newest.message_ts), nowSeconds - CATCH_UP_LOOKBACK_SECONDS) : nowSeconds - FIRST_CATCH_UP_WINDOW_SECONDS
+      newestTs ? Math.min(Number(newestTs), nowSeconds - CATCH_UP_LOOKBACK_SECONDS) : nowSeconds - FIRST_CATCH_UP_WINDOW_SECONDS
     );
 
     const result: any = await slack.conversations.history({ channel: opts.channelId, oldest, limit: MAX_CATCH_UP_MESSAGES });
