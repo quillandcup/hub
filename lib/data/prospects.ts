@@ -6,6 +6,16 @@ import { asJson } from "./json";
 
 const INSERT_CHUNK = 200;
 
+export const PROSPECT_PLATFORMS = ["instagram", "bluesky"] as const;
+export type ProspectPlatform = (typeof PROSPECT_PLATFORMS)[number];
+
+/** Identifies a prospect across platforms: the same handle can exist on two. */
+export const prospectKey = (platform: ProspectPlatform, handle: string) => `${platform}:${handle}`;
+
+/** Where to see the account on its own platform. */
+export const prospectProfileUrl = (platform: ProspectPlatform, handle: string) =>
+  platform === "bluesky" ? `https://bsky.app/profile/${handle}` : `https://www.instagram.com/${handle}/`;
+
 export const PROSPECT_STATUSES = ["new", "shortlisted", "rejected", "contacted"] as const;
 /** Tier 2 id (never in a URL or link), checked where an action receives one from our own client. */
 export const isProspectId = (value: string) => /^prsp_[1-9A-HJ-NP-Za-km-z]{12}$/.test(value);
@@ -15,6 +25,7 @@ export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
 /** An Instagram account that might be an ideal Hedgie, with the rules' score and where review stands. */
 export type Prospect = {
   id: string;
+  platform: ProspectPlatform;
   handle: string;
   source: string;
   sourceNote: string | null;
@@ -33,6 +44,7 @@ export type Prospect = {
 
 /** What a source hands over, already scored. */
 export type NewProspect = {
+  platform: ProspectPlatform;
   handle: string;
   source: string;
   sourceNote?: string | null;
@@ -50,7 +62,7 @@ export type NewProspect = {
  * reviewed prospect.
  */
 export interface ProspectRepository {
-  /** Adds the prospects whose handle is new; returns which handles were added and which already existed. */
+  /** Adds the prospects whose platform and handle are new; returns which (as `prospectKey`s) were added and which already existed. */
   addMany(prospects: NewProspect[], createdBy: string | null): Promise<{ added: string[]; existing: string[] }>;
   /** Everyone (optionally one status), best fit first, then by handle. */
   list(options?: { status?: ProspectStatus }): Promise<Prospect[]>;
@@ -70,7 +82,8 @@ const toAssessment = (value: unknown): ProspectAssessment | null =>
 
 const toProspect = (row: ProspectRow): Prospect => ({
   id: row.id,
-  handle: row.instagram_handle,
+  platform: row.platform as ProspectPlatform,
+  handle: row.handle,
   source: row.source,
   sourceNote: row.source_note,
   bio: row.bio,
@@ -98,7 +111,8 @@ export class SupabaseProspectRepository implements ProspectRepository {
         .from("outreach_prospects")
         .upsert(
           batch.map((p) => ({
-            instagram_handle: p.handle,
+            platform: p.platform,
+            handle: p.handle,
             source: p.source,
             source_note: p.sourceNote ?? null,
             bio: p.bio,
@@ -109,14 +123,14 @@ export class SupabaseProspectRepository implements ProspectRepository {
             fit_reasons: p.fitReasons,
             created_by: createdBy,
           })),
-          { onConflict: "instagram_handle", ignoreDuplicates: true },
+          { onConflict: "platform,handle", ignoreDuplicates: true },
         )
-        .select("instagram_handle");
+        .select("platform, handle");
       if (error) throw new Error(`Adding prospects failed: ${error.message}`);
-      added.push(...(data ?? []).map((r) => r.instagram_handle));
+      added.push(...(data ?? []).map((r) => prospectKey(r.platform as ProspectPlatform, r.handle)));
     }
     const addedSet = new Set(added);
-    return { added, existing: prospects.map((p) => p.handle).filter((h) => !addedSet.has(h)) };
+    return { added, existing: prospects.map((p) => prospectKey(p.platform, p.handle)).filter((k) => !addedSet.has(k)) };
   }
 
   async list(options: { status?: ProspectStatus } = {}) {
@@ -175,12 +189,14 @@ export class InMemoryProspectRepository implements ProspectRepository {
     const added: string[] = [];
     const existing: string[] = [];
     for (const p of prospects) {
-      if (this.data.prospects.some((row) => row.handle === p.handle)) {
-        existing.push(p.handle);
+      const key = prospectKey(p.platform, p.handle);
+      if (this.data.prospects.some((row) => prospectKey(row.platform, row.handle) === key)) {
+        existing.push(key);
         continue;
       }
       this.data.prospects.push({
         id: newProspectId(),
+        platform: p.platform,
         handle: p.handle,
         source: p.source,
         sourceNote: p.sourceNote ?? null,
@@ -197,7 +213,7 @@ export class InMemoryProspectRepository implements ProspectRepository {
         reviewedAt: null,
         createdAt: new Date().toISOString(),
       });
-      added.push(p.handle);
+      added.push(key);
     }
     return { added, existing };
   }

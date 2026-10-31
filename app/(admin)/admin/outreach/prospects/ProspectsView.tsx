@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Prospect, ProspectStatus } from "@/lib/data/prospects";
-import { importProspects, reviewProspect, type ImportResult } from "./actions";
+import { prospectProfileUrl, type Prospect, type ProspectStatus } from "@/lib/data/prospects";
+import { importProspects, reviewProspect, searchForProspects, type ImportResult } from "./actions";
 
 const TABS: { status: ProspectStatus; label: string }[] = [
   { status: "new", label: "To review" },
@@ -37,6 +37,18 @@ export default function ProspectsView({ prospects }: { prospects: Prospect[] }) 
       if (!("error" in result)) setText("");
     });
 
+  const runSearch = () =>
+    startTransition(async () => {
+      setMessage("Searching Bluesky…");
+      const result = await searchForProspects();
+      if ("error" in result) return setMessage(result.error);
+      setMessage(
+        result.summaries
+          .map((s) => `${s.source}: ${s.found} found, ${s.added} added${s.belowMinimum ? `, ${s.belowMinimum} didn't fit the rules` : ""}${s.alreadyProspects ? `, ${s.alreadyProspects} already on the list` : ""}${s.failedQueries.length ? `, ${s.failedQueries.length} searches failed` : ""}`)
+          .join(". ") + ".",
+      );
+    });
+
   const review = (id: string, status: ProspectStatus) =>
     startTransition(async () => {
       let reason: string | undefined;
@@ -48,7 +60,12 @@ export default function ProspectsView({ prospects }: { prospects: Prospect[] }) 
   return (
     <div className="space-y-6">
       <section className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="font-semibold mb-1">Add prospects</h2>
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-semibold mb-1">Add prospects</h2>
+          <button type="button" onClick={runSearch} disabled={pending} className="rounded border border-plum-600 px-3 py-1 text-sm text-plum-600 dark:text-plum-400 disabled:opacity-50">
+            Search Bluesky now
+          </button>
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
           One per line: the @handle or profile link, then anything from their profile (bio, &ldquo;2.3k followers&rdquo;, #hashtags, a link). People already in the Hub are skipped.
         </p>
@@ -90,11 +107,11 @@ export default function ProspectsView({ prospects }: { prospects: Prospect[] }) 
             <li key={p.id} className="bg-white dark:bg-slate-900 rounded-lg shadow p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <a href={`https://www.instagram.com/${p.handle}/`} target="_blank" rel="noopener noreferrer" className="font-semibold text-plum-600 dark:text-plum-400 hover:underline">
+                  <a href={prospectProfileUrl(p.platform, p.handle)} target="_blank" rel="noopener noreferrer" className="font-semibold text-plum-600 dark:text-plum-400 hover:underline">
                     @{p.handle}
                   </a>
                   <span className="ml-2 text-sm text-slate-600 dark:text-slate-400">
-                    fit {p.fitScore}
+                    {p.platform === "bluesky" ? "Bluesky" : "Instagram"} · fit {p.fitScore}
                     {p.followerCount !== null && ` · ${p.followerCount.toLocaleString("en-US")} followers`}
                   </span>
                   {p.bio && <p className="mt-1 text-sm text-slate-700 dark:text-slate-300 break-words">{p.bio}</p>}

@@ -4229,9 +4229,10 @@ export type Database = {
           fit_reasons: string[]
           fit_score: number
           follower_count: number | null
+          handle: string
           hashtags: string[]
           id: string
-          instagram_handle: string
+          platform: string
           reject_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -4251,9 +4252,10 @@ export type Database = {
           fit_reasons?: string[]
           fit_score?: number
           follower_count?: number | null
+          handle: string
           hashtags?: string[]
           id?: string
-          instagram_handle: string
+          platform?: string
           reject_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -4273,9 +4275,10 @@ export type Database = {
           fit_reasons?: string[]
           fit_score?: number
           follower_count?: number | null
+          handle?: string
           hashtags?: string[]
           id?: string
-          instagram_handle?: string
+          platform?: string
           reject_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null

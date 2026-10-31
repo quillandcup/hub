@@ -4,13 +4,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Prospect } from "@/lib/data/prospects";
 
-const actions = vi.hoisted(() => ({ importProspects: vi.fn(), reviewProspect: vi.fn() }));
+const actions = vi.hoisted(() => ({ importProspects: vi.fn(), reviewProspect: vi.fn(), searchForProspects: vi.fn() }));
 vi.mock("@/app/(admin)/admin/outreach/prospects/actions", () => actions);
 
 import ProspectsView from "@/app/(admin)/admin/outreach/prospects/ProspectsView";
 
 const prospect = (over: Partial<Prospect>): Prospect => ({
   id: "prsp_AAAAAAAAAAA1",
+  platform: "instagram",
   handle: "ada.example",
   source: "paste",
   sourceNote: null,
@@ -85,6 +86,23 @@ describe("ProspectsView", () => {
     expect(screen.getByText("Rejected: no")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(actions.reviewProspect).toHaveBeenCalledWith("prsp_AAAAAAAAAAA3", "new", undefined);
+  });
+
+  it("searches Bluesky and reports what it found", async () => {
+    actions.searchForProspects.mockResolvedValue({ summaries: [{ source: "bluesky-search", found: 40, added: 6, belowMinimum: 30, alreadyProspects: 4, alreadyMembers: 0, failedQueries: ["x"] }] });
+    render(<ProspectsView prospects={[prospect({ platform: "bluesky", handle: "ada.bsky.social" })]} />);
+
+    expect(screen.getByRole("link", { name: "@ada.bsky.social" })).toHaveAttribute("href", "https://bsky.app/profile/ada.bsky.social");
+    await userEvent.click(screen.getByRole("button", { name: "Search Bluesky now" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("bluesky-search: 40 found, 6 added, 30 didn't fit the rules, 4 already on the list, 1 searches failed.");
+  });
+
+  it("shows a search error", async () => {
+    actions.searchForProspects.mockResolvedValue({ error: "Not authorized" });
+    render(<ProspectsView prospects={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Search Bluesky now" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Not authorized");
   });
 
   it("shows a review error and an empty state", async () => {

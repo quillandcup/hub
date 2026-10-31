@@ -9,7 +9,7 @@ const RUN = `${Date.now()}`.slice(-8);
 const handles = [`prospect.a${RUN}`, `prospect.b${RUN}`, `prospect.c${RUN}`] as const;
 
 const clear = async () => {
-  const { error } = await db.from("outreach_prospects").delete().in("instagram_handle", [...handles]);
+  const { error } = await db.from("outreach_prospects").delete().in("handle", [...handles, ...handles.map((h) => `${h}.bsky.social`)]);
   if (error) throw new Error(error.message);
 };
 

@@ -31,7 +31,7 @@ export async function importPastedProspects(repos: Pick<Repos, "members" | "pros
   const { added, existing } = await repos.prospects.addMany(
     fresh.map((c) => {
       const { score, reasons } = scoreProspect(c);
-      return { ...c, source: "paste", fitScore: score, fitReasons: reasons };
+      return { ...c, platform: "instagram" as const, source: "paste", fitScore: score, fitReasons: reasons };
     }),
     userId,
   );
