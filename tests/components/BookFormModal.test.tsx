@@ -99,6 +99,41 @@ describe("BookFormModal", () => {
   });
 });
 
+describe("BookFormModal genre tags", () => {
+  const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genre: "Romance, Fantasy", format: "print" as const, penName: null, projectId: null, coverAsset: null };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("shows the saved genres as chips", () => {
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={BOOK} />);
+    expect(screen.getByRole("button", { name: "Remove Romance" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Fantasy" })).toBeInTheDocument();
+  });
+
+  it("saves added and removed genres as one comma-separated string", async () => {
+    vi.mocked(updateBook).mockResolvedValue({ success: true });
+    const onSaved = vi.fn();
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={onSaved} book={BOOK} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove Romance" }));
+    await userEvent.type(screen.getByLabelText("Genre"), "Cozy Mystery{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(updateBook).toHaveBeenCalledWith("book-1", expect.objectContaining({ genre: "Fantasy, Cozy Mystery" }));
+  });
+
+  it("saves an empty genre when none are left", async () => {
+    vi.mocked(updateBook).mockResolvedValue({ success: true });
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ ...BOOK, genre: null }} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateBook).toHaveBeenCalledWith("book-1", expect.objectContaining({ genre: "" })));
+  });
+});
+
 describe("BookFormModal cover", () => {
   const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genre: null, format: "print" as const, penName: null, projectId: null, coverAsset: null };
   const uploaded = { url: "/api/media/media_AAAAAAAAAAA1/book_cover_shelf", assetId: "media_AAAAAAAAAAA1", width: 1600, height: 2560 };
