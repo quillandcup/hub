@@ -46,8 +46,10 @@ Enforces what `/privacy` promises about raw network details (`lib/retention/netw
 - Parses every distinct user-agent string that has no stored device yet and stores the browser and device on its rows (`access_events`, `video_watch_segments`); in usage events the parsed fields replace the raw string
 - Removes the exact IP address and the user agent from rows older than 90 days, keeping the place and the device (a user agent only where the device is already stored)
 
+- Rolls the completed days, weeks and months of usage events up into anonymous totals (`analytics_rollups`: counts of events, visits and members per event, route, control, action, browser, OS, device type and viewport; no ids), then removes usage events older than 13 months whose totals are kept (`lib/retention/usage-events.ts`; the app's own `notification_sent` records are not removed)
+
 **Schedule:** Daily at 4:00am UTC
-**Timeout:** 300 seconds (5 minutes); stops starting new work after 240 s and picks up the rest the next night
+**Timeout:** 300 seconds (5 minutes), shared by both steps; stops starting new work after 240 s and picks up the rest the next night
 
 ### `/api/reconcile/zoom` (2:30am daily)
 
