@@ -25,6 +25,7 @@ const clear = async () => {
   ok(await db.from("ignored_zoom_names").delete().like("zoom_name", `${PREFIX}%`));
   ok(await db.from("ignored_zoom_appearances").delete().like("zoom_name", `${PREFIX}%`));
   ok(await db.from("ambiguous_zoom_names").delete().like("zoom_name", `${PREFIX}%`));
+  ok(await db.from("prickle_join_settings").delete().like("join_url", `%${PREFIX}%`));
 };
 
 beforeAll(async () => {

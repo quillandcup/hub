@@ -44,8 +44,7 @@ export interface MyScheduleRow {
 }
 
 async function getLockOverrides(supabase: Awaited<ReturnType<typeof createClient>>, months: string[]) {
-  const { data } = await supabase.from("prickle_schedule_locks").select("month, locked").in("month", months);
-  return data ?? [];
+  return createRepos(supabase).prickleSchedules.locksOf(months);
 }
 
 /**

@@ -70,6 +70,10 @@ definePrickleContract("SupabasePrickleRepository", () => ({
   adopt: (ids: string[]) => {
     created.push(...ids);
   },
+  clearHostVibes: async () => {
+    const { error } = await db.from("prickle_host_vibes").delete().in("host_id", hosts.map((h) => h.id));
+    if (error) throw new Error(error.message);
+  },
   seed: async (seeds: PrickleSeed[]) => {
     await clearPrickles();
     // A prickle made from a calendar event points at a Bronze row, so give those a row to point at.

@@ -6,7 +6,7 @@ import { SupabaseZoomRepository } from "@/lib/data/zoom";
 function failingDb(): Db {
   const answer = { data: null, error: { message: "database is down" }, count: null };
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lt", "gt", "not", "order", "range", "limit", "contains"]) chain[m] = () => chain;
+  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lt", "gt", "not", "order", "range", "limit", "contains", "select"]) chain[m] = () => chain;
   chain.maybeSingle = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);
   const client = { from: () => chain, schema: () => client };
@@ -49,6 +49,9 @@ describe("SupabaseZoomRepository on a database error", () => {
         repo.recordParticipantEvent({ meeting_uuid: "m1", participant_key: "p1", event: "joined", event_time: "2026-01-01T00:00:00Z", raw_payload: {} }),
     ],
     ["participantEventsSince", () => repo.participantEventsSince("2026-01-01T00:00:00Z")],
+    ["joinSettings", () => repo.joinSettings()],
+    ["addJoinSetting", () => repo.addJoinSetting({ joinUrl: "https://zoom.example.test/j/1", meetingId: null, passcode: null, effectiveFrom: "2026-01-01T00:00:00Z", createdBy: null })],
+    ["removeJoinSetting", () => repo.removeJoinSetting("id")],
   ])("%s throws the database's error", async (_name, run) => {
     await expect(run()).rejects.toThrow("database is down");
   });

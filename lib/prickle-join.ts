@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { localDateOf } from "@/lib/prickle-writing";
 
@@ -21,24 +22,20 @@ export interface PrickleJoinSetting extends PrickleJoin {
 
 /** Newest first. A handful of rows over the years, so no pagination. */
 export async function loadPrickleJoinSettings(supabase: SupabaseClient): Promise<PrickleJoinSetting[]> {
-  const { data, error } = await supabase
-    .from("prickle_join_settings")
-    .select("id, join_url, meeting_id, passcode, effective_from, created_at")
-    .order("effective_from", { ascending: false })
-    // Two rows for the same instant (a correction): the one saved last wins.
-    .order("created_at", { ascending: false });
-  if (error) {
+  try {
+    const rows = await createRepos(supabase as never).zoom.joinSettings();
+    return rows.map((r) => ({
+      id: r.id,
+      url: r.join_url,
+      meetingId: r.meeting_id,
+      passcode: r.passcode,
+      effectiveFrom: r.effective_from,
+      createdAt: r.created_at,
+    }));
+  } catch (error) {
     console.error("loadPrickleJoinSettings failed", error);
     return [];
   }
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    url: r.join_url,
-    meetingId: r.meeting_id,
-    passcode: r.passcode,
-    effectiveFrom: r.effective_from,
-    createdAt: r.created_at,
-  }));
 }
 
 /** The setting in effect at `at` (newest-first `settings`), or null when none is yet. */

@@ -25,6 +25,11 @@ export type AmbiguousZoomNameRow = Database["public"]["Tables"]["ambiguous_zoom_
 /** A Zoom name ignored for one prickle only (`ignored_zoom_appearances`). */
 export type IgnoredZoomAppearanceRow = Database["public"]["Tables"]["ignored_zoom_appearances"]["Row"];
 
+/** How to get into the prickle Zoom room from some moment on (`prickle_join_settings`, append-only). */
+export type PrickleJoinSettingRow = Database["public"]["Tables"]["prickle_join_settings"]["Row"];
+/** What an admin enters when the join link, meeting ID or passcode changes. */
+export type NewPrickleJoinSetting = { joinUrl: string; meetingId: string | null; passcode: string | null; effectiveFrom: string; createdBy: string | null };
+
 /** What name matching reads of an attendee row. */
 export type ZoomAttendeeRef = Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid" | "join_time" | "leave_time">;
 /** One appearance of a name, with enough to say when and where. */
@@ -108,6 +113,14 @@ export interface ZoomRepository {
   ignoreAmbiguousName(zoomName: string): Promise<void>;
   /** A member merge: entries resolved to `fromMemberId` now point at `toMemberId`, and `toMemberId` replaces `fromMemberId` among the candidates (once). */
   reassignAmbiguousMember(fromMemberId: string, toMemberId: string): Promise<void>;
+
+  // --- how to join the prickle room ---
+  /** The join settings, newest effective first; two for the same instant (a correction) with the one saved last first. A handful of rows, not paginated. */
+  joinSettings(): Promise<Pick<PrickleJoinSettingRow, "id" | "join_url" | "meeting_id" | "passcode" | "effective_from" | "created_at">[]>;
+  /** Adds a join setting. */
+  addJoinSetting(setting: NewPrickleJoinSetting): Promise<void>;
+  /** Removes a join setting; false when there was none to remove (or the database refuses: once a setting is in effect, a user's client can no longer remove it). */
+  removeJoinSetting(id: string): Promise<boolean>;
 
   // --- live presence ---
   /** Records a join or leave the webhook saw. Seeing the same one again (meeting, participant, event, time) changes nothing. */
@@ -339,6 +352,30 @@ export class SupabaseZoomRepository implements ZoomRepository {
     }
   }
 
+  async joinSettings() {
+    const { data, error } = await this.db
+      .from("prickle_join_settings")
+      .select("id, join_url, meeting_id, passcode, effective_from, created_at")
+      .order("effective_from", { ascending: false })
+      // Two rows for the same instant (a correction): the one saved last wins.
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async addJoinSetting({ joinUrl, meetingId, passcode, effectiveFrom, createdBy }: NewPrickleJoinSetting) {
+    const { error } = await this.db
+      .from("prickle_join_settings")
+      .insert({ join_url: joinUrl, meeting_id: meetingId, passcode, effective_from: effectiveFrom, created_by: createdBy });
+    if (error) throw new Error(error.message);
+  }
+
+  async removeJoinSetting(id: string) {
+    const { data, error } = await this.db.from("prickle_join_settings").delete().eq("id", id).select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  }
+
   async recordParticipantEvent(event: NewZoomParticipantEvent) {
     const { error } = await this.db
       .schema("bronze")
@@ -549,6 +586,31 @@ export class InMemoryZoomRepository implements ZoomRepository {
       if (r.resolved_member_id === fromMemberId) r.resolved_member_id = toMemberId;
       if (r.candidate_member_ids.includes(fromMemberId)) r.candidate_member_ids = replaceCandidate(r.candidate_member_ids, fromMemberId, toMemberId);
     }
+  }
+
+  async joinSettings() {
+    return [...this.data.joinSettings]
+      .sort((a, b) => (a.effective_from < b.effective_from ? 1 : a.effective_from > b.effective_from ? -1 : a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0))
+      .map(({ id, join_url, meeting_id, passcode, effective_from, created_at }) => ({ id, join_url, meeting_id, passcode, effective_from, created_at }));
+  }
+
+  async addJoinSetting({ joinUrl, meetingId, passcode, effectiveFrom, createdBy }: NewPrickleJoinSetting) {
+    this.data.joinSettings.push({
+      id: crypto.randomUUID(),
+      join_url: joinUrl,
+      meeting_id: meetingId,
+      passcode,
+      effective_from: effectiveFrom,
+      created_by: createdBy,
+      // Rising, like the database's now(), so two saved in a row keep their order.
+      created_at: new Date(Math.max(Date.now(), ...this.data.joinSettings.map((j) => Date.parse(j.created_at) + 1))).toISOString(),
+    });
+  }
+
+  async removeJoinSetting(id: string) {
+    const before = this.data.joinSettings.length;
+    this.data.joinSettings = this.data.joinSettings.filter((j) => j.id !== id);
+    return this.data.joinSettings.length < before;
   }
 
   async recordParticipantEvent(event: NewZoomParticipantEvent) {

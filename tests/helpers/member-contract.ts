@@ -457,7 +457,7 @@ export function defineMemberContract(name: string, setup: () => MemberContractCo
 
       const tenure = (await ctx.repo().tenureOf(["on_hiatus"])).filter((m) => m.id === eli);
       expect(tenure).toHaveLength(1);
-      expect(tenure[0]).toMatchObject({ id: eli, name: "Eli Example", displayName: null, totalActiveMonths: 9 });
+      expect(tenure[0]).toMatchObject({ id: eli, name: "Eli Example", displayName: null, email: ctx.emailOf(eli), mostRecentJoinedAt: null, totalActiveMonths: 9 });
       expect(tenure[0].firstJoinedAt).toMatch(/^2025-03-04/);
       const both = (await ctx.repo().tenureOf(["on_hiatus", "active"])).map((m) => m.id);
       expect(both).toEqual(expect.arrayContaining([eli, cy]));

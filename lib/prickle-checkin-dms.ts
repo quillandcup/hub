@@ -1,5 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
-import type { CheckinHalfKind } from "@/lib/data/prickle-activity";
+import type { CheckinDmKind, CheckinHalfKind } from "@/lib/data/prickle-activity";
 import {
   PROGRESS_QUESTION_MEASURES,
   progressMeasureFor,
@@ -42,27 +42,6 @@ import {
  * it, each such attendee gets a check-out DM (did they get what they came for, mood, the feeling,
  * plus a progress quick-log per goal). Each answer saves straight into their check-in.
  */
-
-const BATCH_SIZE = 1000;
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
 
 export interface GoalCandidate {
   memberId: string;
@@ -162,7 +141,7 @@ export function planCheckinDMs<P extends UpcomingPrickle>(
   return plan;
 }
 
-export type CheckinDMKind = "prickle_checkin" | "prickle_checkout";
+export type CheckinDMKind = CheckinDmKind;
 
 /**
  * Insert-attempt with ON CONFLICT DO NOTHING against prickle_checkin_dm_log's unique
@@ -176,19 +155,14 @@ export async function tryRecordCheckinDM(
   memberId: string,
   kind: CheckinDMKind
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("prickle_checkin_dm_log")
-    .insert({ prickle_id: prickleId, member_id: memberId, kind })
-    .select("id");
-
-  if (error) {
-    // Unique violation means another tick (or the other sender) already recorded this pair --
-    // not a real error, just "don't send."
-    if (error.code === "23505") return false;
+  try {
+    // The repository answers false for a unique violation (another tick, or the other sender, already
+    // recorded this pair): not a real error, just "don't send."
+    return await createRepos(supabase).prickleActivity.claimDm(prickleId, memberId, kind);
+  } catch (error) {
     console.error(`tryRecordCheckinDM failed for prickle=${prickleId} member=${memberId} kind=${kind}:`, error);
     return false;
   }
-  return (data?.length ?? 0) > 0;
 }
 
 /** Release an undelivered claim so a later cron tick can retry within the normal send window. */
@@ -198,13 +172,11 @@ export async function releaseCheckinDM(
   memberId: string,
   kind: CheckinDMKind
 ): Promise<void> {
-  const { error } = await supabase
-    .from("prickle_checkin_dm_log")
-    .delete()
-    .eq("prickle_id", prickleId)
-    .eq("member_id", memberId)
-    .eq("kind", kind);
-  if (error) throw new Error(`Releasing ${kind} notification claim failed: ${error.message}`);
+  try {
+    await createRepos(supabase).prickleActivity.releaseDm(prickleId, memberId, kind);
+  } catch (error) {
+    throw new Error(`Releasing ${kind} notification claim failed: ${(error as Error).message}`);
+  }
 }
 
 /** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
@@ -715,16 +687,7 @@ async function loadAttendees(supabase: any, prickleIds: string[]): Promise<Map<s
 
 /** `${memberId}:${prickleId}` for every check-out already sent for these prickles. */
 async function loadSentCheckouts(supabase: any, prickleIds: string[]): Promise<Set<string>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .from("prickle_checkin_dm_log")
-      .select("id, member_id, prickle_id")
-      .eq("kind", "prickle_checkout")
-      .in("prickle_id", prickleIds)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}`));
+  return createRepos(supabase).prickleActivity.claimedDmPairs("prickle_checkout", prickleIds);
 }
 
 /** `${memberId}:${prickleId}:${projectId}` for every project already logged against these prickles. */

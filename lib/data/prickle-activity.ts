@@ -11,6 +11,9 @@ const ID_CHUNK_SIZE = 100;
 /** The two halves of a prickle's check-in, each with its own table of dismissals. */
 export type CheckinHalfKind = "checkin" | "checkout";
 
+/** The two direct messages a prickle's check-in sends a member, each claimed once per (prickle, member) in `prickle_checkin_dm_log`. */
+export type CheckinDmKind = "prickle_checkin" | "prickle_checkout";
+
 /** A slot of a stored commitment, with the name of its prickle type (null when the type is gone). */
 export type StoredCommitmentSlot = CommitmentSlot & { typeName: string | null };
 
@@ -128,6 +131,18 @@ export interface PrickleActivityRepository {
   dismissedSince(half: CheckinHalfKind, memberId: string, since: string): Promise<Set<string>>;
   /** `${memberId}:${prickleId}` for every member's dismissal of this half for these prickles. Paginated. */
   dismissedPairs(half: CheckinHalfKind, prickleIds: string[]): Promise<Set<string>>;
+
+  // --- the check-in and check-out DM log (dedup: one claim per prickle, member and kind) ---
+  /**
+   * Claims the DM for this prickle and member: true only for the call that recorded it, false when it was
+   * already claimed (another cron tick, or the other sender). Callers send only on true. Throws on any other
+   * database error.
+   */
+  claimDm(prickleId: string, memberId: string, kind: CheckinDmKind): Promise<boolean>;
+  /** Gives a claim back when the DM was not delivered, so a later tick can retry. Releasing a claim that is not there is fine. */
+  releaseDm(prickleId: string, memberId: string, kind: CheckinDmKind): Promise<void>;
+  /** `${memberId}:${prickleId}` for every member already claimed for a DM of this kind on these prickles. Chunked and paginated. */
+  claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]): Promise<Set<string>>;
 }
 
 type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
@@ -399,6 +414,34 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
     }
     return pairs;
   }
+
+  async claimDm(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const { data, error } = await this.db.from("prickle_checkin_dm_log").insert({ prickle_id: prickleId, member_id: memberId, kind }).select("id");
+    // The unique (prickle, member, kind) constraint: already claimed, so not an error.
+    if (error?.code === "23505") return false;
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }
+
+  async releaseDm(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    const { error } = await this.db.from("prickle_checkin_dm_log").delete().eq("prickle_id", prickleId).eq("member_id", memberId).eq("kind", kind);
+    if (error) throw new Error(error.message);
+  }
+
+  async claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]) {
+    const pairs = new Set<string>();
+    for (const part of chunk([...new Set(prickleIds)], ID_CHUNK_SIZE)) {
+      const rows = await fetchAllRows<{ member_id: string; prickle_id: string }>(
+        (from, to) =>
+          this.db.from("prickle_checkin_dm_log").select("id, member_id, prickle_id").eq("kind", kind).in("prickle_id", part).order("id").range(from, to) as unknown as Page<{
+            member_id: string;
+            prickle_id: string;
+          }>
+      );
+      for (const r of rows) pairs.add(pairKey(r.member_id, r.prickle_id));
+    }
+    return pairs;
+  }
 }
 
 // --- in-memory twin ---
@@ -583,5 +626,19 @@ export class InMemoryPrickleActivityRepository implements PrickleActivityReposit
 
   async dismissedPairs(half: CheckinHalfKind, prickleIds: string[]) {
     return new Set(this.dismissals(half).filter((r) => prickleIds.includes(r.prickleId)).map((r) => pairKey(r.memberId, r.prickleId)));
+  }
+
+  async claimDm(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    if (this.data.checkinDmLog.some((r) => r.prickle_id === prickleId && r.member_id === memberId && r.kind === kind)) return false;
+    this.data.checkinDmLog.push({ id: crypto.randomUUID(), prickle_id: prickleId, member_id: memberId, kind, sent_at: new Date().toISOString() });
+    return true;
+  }
+
+  async releaseDm(prickleId: string, memberId: string, kind: CheckinDmKind) {
+    this.data.checkinDmLog = this.data.checkinDmLog.filter((r) => !(r.prickle_id === prickleId && r.member_id === memberId && r.kind === kind));
+  }
+
+  async claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]) {
+    return new Set(this.data.checkinDmLog.filter((r) => r.kind === kind && prickleIds.includes(r.prickle_id)).map((r) => pairKey(r.member_id, r.prickle_id)));
   }
 }

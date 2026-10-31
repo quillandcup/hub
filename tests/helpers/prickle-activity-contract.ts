@@ -221,5 +221,45 @@ export function definePrickleActivityContract(name: string, setup: () => Prickle
         expect(await repo.dismissedSince(half, m2, new Date(Date.now() - hour).toISOString())).toEqual(new Set());
       });
     });
+
+    describe("check-in and check-out DM claims", () => {
+      it("grants a claim to the first caller only, per prickle, member and kind", async () => {
+        const [p0, p1] = ctx.prickles;
+        const repo = ctx.repo();
+
+        expect(await repo.claimDm(p0.id, m1, "prickle_checkin")).toBe(true);
+        expect(await repo.claimDm(p0.id, m1, "prickle_checkin")).toBe(false);
+        expect(await repo.claimDm(p0.id, m1, "prickle_checkout")).toBe(true);
+        expect(await repo.claimDm(p0.id, m2, "prickle_checkin")).toBe(true);
+        expect(await repo.claimDm(p1.id, m1, "prickle_checkin")).toBe(true);
+      });
+
+      it("gives a claim back so it can be made again, and releasing one that isn't there is fine", async () => {
+        const [p0] = ctx.prickles;
+        const repo = ctx.repo();
+        await repo.claimDm(p0.id, m1, "prickle_checkin");
+        await repo.claimDm(p0.id, m1, "prickle_checkout");
+
+        await repo.releaseDm(p0.id, m1, "prickle_checkin");
+        await repo.releaseDm(p0.id, m2, "prickle_checkin");
+
+        expect(await repo.claimDm(p0.id, m1, "prickle_checkin")).toBe(true);
+        expect(await repo.claimDm(p0.id, m1, "prickle_checkout")).toBe(false); // the other kind was left alone
+      });
+
+      it("lists who was claimed for a kind on the given prickles", async () => {
+        const [p0, p1, p2] = ctx.prickles;
+        const repo = ctx.repo();
+        await repo.claimDm(p0.id, m1, "prickle_checkout");
+        await repo.claimDm(p0.id, m2, "prickle_checkout");
+        await repo.claimDm(p1.id, m1, "prickle_checkout");
+        await repo.claimDm(p0.id, m1, "prickle_checkin");
+        await repo.claimDm(p2.id, m2, "prickle_checkout");
+
+        expect(await repo.claimedDmPairs("prickle_checkout", [p0.id, p1.id])).toEqual(new Set([`${m1}:${p0.id}`, `${m2}:${p0.id}`, `${m1}:${p1.id}`]));
+        expect(await repo.claimedDmPairs("prickle_checkin", [p0.id, p1.id])).toEqual(new Set([`${m1}:${p0.id}`]));
+        expect(await repo.claimedDmPairs("prickle_checkout", [])).toEqual(new Set());
+      });
+    });
   });
 }

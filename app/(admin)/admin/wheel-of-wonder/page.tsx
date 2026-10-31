@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdminPage } from "@/lib/admin-auth";
 import Link from "next/link";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
@@ -8,50 +9,11 @@ export const metadata: Metadata = {
   title: "Wheel of Wonder",
 };
 
-interface MatchMember {
-  id: string;
-  name: string;
-}
-
-interface WheelMatchRow {
-  id: string;
-  status: "proposed" | "confirmed";
-  created_at: string;
-  confirmed_at: string | null;
-  spinner_message_count: number;
-  matched_message_count: number;
-  spinner: MatchMember | MatchMember[] | null;
-  matched: MatchMember | MatchMember[] | null;
-}
-
-// Supabase returns the embedded FK relation as an object for a to-one join,
-// but the generated type is looser (array-or-object) -- normalize here.
-function oneMember(value: MatchMember | MatchMember[] | null): MatchMember | null {
-  return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
 export default async function WheelOfWonderAdminPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const { data: matchesData } = await supabase
-    .from("wheel_of_wonder_matches")
-    .select(
-      `
-      id,
-      status,
-      created_at,
-      confirmed_at,
-      spinner_message_count,
-      matched_message_count,
-      spinner:members!spinner_member_id(id, name),
-      matched:members!matched_member_id(id, name)
-    `
-    )
-    .order("created_at", { ascending: false })
-    .limit(1000);
-
-  const matches = (matchesData ?? []) as unknown as WheelMatchRow[];
+  const matches = await createRepos(supabase).wheelOfWonder.recent(1000);
 
   const confirmedCount = matches.filter((m) => m.status === "confirmed").length;
   const proposedCount = matches.length - confirmedCount;
@@ -101,8 +63,7 @@ export default async function WheelOfWonderAdminPage() {
               <div className="p-12 text-center text-slate-600 dark:text-slate-400">No spins yet.</div>
             ) : (
               matches.map((match) => {
-                const spinner = oneMember(match.spinner);
-                const matched = oneMember(match.matched);
+                const { spinner, matched } = match;
                 return (
                   <div
                     key={match.id}

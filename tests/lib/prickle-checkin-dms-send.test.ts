@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { InMemoryPrickleActivityRepository } from "@/lib/data/prickle-activity";
 import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
 
 const checkinRow = (answers: Partial<CheckinInput>) => ({ id: "c1", member_id: "m1", prickle_id: "p1", ...checkinToRow({ ...EMPTY_CHECKIN, ...answers }) });
@@ -42,32 +43,6 @@ const goalRow = (id: string, memberId: string, projectId: string, measure: strin
   writing_projects: { title, archived_at: null },
 });
 
-/**
- * prickle_checkin_dm_log that behaves like its UNIQUE (prickle_id, member_id, kind) constraint;
- * a select returns the rows logged so far, filtered by `kind`.
- */
-function dmLog() {
-  const rows = new Map<string, { id: string; prickle_id: string; member_id: string; kind: string }>();
-  return (query: { calls: { method: string; args: unknown[] }[] }) => {
-    if (query.calls.some((c) => c.method === "delete")) {
-      for (const [key, row] of rows) {
-        if (query.calls.filter((c) => c.method === "eq").every((c) => row[c.args[0] as keyof typeof row] === c.args[1])) rows.delete(key);
-      }
-      return { data: [] };
-    }
-    const insert = query.calls.find((c) => c.method === "insert");
-    if (!insert) {
-      const kind = query.calls.find((c) => c.method === "eq" && c.args[0] === "kind")?.args[1];
-      return { data: [...rows.values()].filter((r) => !kind || r.kind === kind) };
-    }
-    const row = insert.args[0] as { prickle_id: string; member_id: string; kind: string };
-    const key = `${row.prickle_id}:${row.member_id}:${row.kind}`;
-    if (rows.has(key)) return { data: null, error: { code: "23505" } };
-    rows.set(key, { id: key, ...row });
-    return { data: [{ id: key }] };
-  };
-}
-
 // The prickles the route finds come from their repository, in memory here.
 const PROGRESS = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const PRICKLE = {
@@ -87,7 +62,16 @@ vi.mock("@/lib/data/repos", async () => {
     ...actual,
     createRepos: (db: Parameters<typeof actual.createRepos>[0]) => {
       const twins = actual.createInMemoryRepos(dataset);
-      return { ...actual.createRepos(db), prickles: twins.prickles, writing: twins.writing };
+      const real = actual.createRepos(db);
+      // Check-ins still come from the fake client; the DM log (claims and releases) is the twin's.
+      const prickleActivity = new Proxy(real.prickleActivity, {
+        get: (target, prop) => {
+          const source = prop === "claimDm" || prop === "releaseDm" || prop === "claimedDmPairs" ? twins.prickleActivity : target;
+          const value = Reflect.get(source, prop);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+      return { ...real, prickles: twins.prickles, writing: twins.writing, prickleActivity };
     },
   };
 });
@@ -148,7 +132,6 @@ describe("prickle check-in route", () => {
     fake = createFakeSupabase({
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
@@ -180,7 +163,7 @@ describe("prickle check-in route", () => {
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("skips a member who already answered every check-in question", async () => {
@@ -192,7 +175,7 @@ describe("prickle check-in route", () => {
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
     // Not logged as sent, so clearing an answer before the window closes still gets the DM.
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("asks the check-in questions, starting from answers already saved", async () => {
@@ -242,19 +225,16 @@ describe("prickle check-in route", () => {
   });
 
   it("surfaces a failed claim release and keeps the notification deduplicated", async () => {
-    const log = dmLog();
     setup([goalRow("g1", "m1", "proj1", "words")], {
       notification_preferences: { data: [
         { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: true },
         { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
       ] },
-      prickle_checkin_dm_log: (query) => query.calls.some((c) => c.method === "delete")
-        ? { error: { message: "database unavailable" } }
-        : log(query),
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(InMemoryPrickleActivityRepository.prototype, "releaseDm").mockRejectedValueOnce(new Error("database unavailable"));
 
     await expect(POST(cronRequest())).rejects.toThrow(
       "Releasing prickle_checkin notification claim failed: database unavailable"
@@ -285,7 +265,7 @@ describe("prickle check-in route", () => {
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     await expect(POST(cronRequest())).rejects.toThrow("preferences failed: unavailable");
     expect(sendSlackDM).not.toHaveBeenCalled();
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
@@ -354,7 +334,6 @@ describe("sendCheckoutDMs", () => {
       },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
@@ -413,7 +392,7 @@ describe("sendCheckoutDMs", () => {
     expect(await checkout()).toBe(0);
     expect(sendSlackDM).not.toHaveBeenCalled();
     // Turning them back on before the lookback ends still sends one.
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("still sends check-outs to a member who only turned check-ins off", async () => {
@@ -469,11 +448,25 @@ describe("sendCheckoutDMs", () => {
 
 describe("tryRecordCheckinDM", () => {
   it("is true only for the first record of a (prickle, member, kind)", async () => {
-    fake = createFakeSupabase({ prickle_checkin_dm_log: dmLog() });
+    fake = createFakeSupabase({});
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(true);
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(false);
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkout")).toBe(true);
     expect(await tryRecordCheckinDM(fake, "p1", "m2", "prickle_checkin")).toBe(true);
+    expect(dataset.checkinDmLog.map((r) => [r.prickle_id, r.member_id, r.kind])).toEqual([
+      ["p1", "m1", "prickle_checkin"],
+      ["p1", "m1", "prickle_checkout"],
+      ["p1", "m2", "prickle_checkin"],
+    ]);
+  });
+
+  it("is false, and logs, when the claim can't be recorded", async () => {
+    fake = createFakeSupabase({});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(InMemoryPrickleActivityRepository.prototype, "claimDm").mockRejectedValueOnce(new Error("database unavailable"));
+
+    expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(false);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("tryRecordCheckinDM failed for prickle=p1 member=m1"), expect.any(Error));
   });
 });
 
@@ -493,13 +486,11 @@ describe("sendTestCheckinDM", () => {
     seedGoals([goalRow("g1", "m1", "proj1", "words", "Novel"), goalRow("g2", "m2", "proj2", "scenes", "Memoir")]);
     fake = createFakeSupabase({
       members: { data: [{ id: "m1" }, { id: "m2" }] },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
 
-  const loggedAny = () =>
-    fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"));
+  const loggedAny = () => dataset.checkinDmLog.length > 0;
 
   it("sends the check-in marked as a test, even when already answered, without logging it", async () => {
     setup({ prickle_checkins: { data: [answered] } });

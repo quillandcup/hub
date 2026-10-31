@@ -13,43 +13,11 @@ import {
   type HiatusWindow,
 } from "@/lib/member-tenure";
 import HedgieversariesTable, { type HedgieversaryRow } from "./HedgieversariesTable";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: "Hedgieversaries",
 };
-
-// Same pagination pattern as app/api/process/members/route.ts — members and
-// member_status_overrides can each grow past Supabase's 1000-row cap.
-async function fetchAllRows(
-  supabase: SupabaseClient,
-  table: string,
-  columns: string,
-  filter?: (query: any) => any
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.from(table).select(columns);
-    if (filter) query = filter(query);
-    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
-}
 
 export default async function HedgieversariesPage() {
   await requireAdminPage();
@@ -64,15 +32,9 @@ export default async function HedgieversariesPage() {
   // Only current members (active or on_hiatus) with a real first join date —
   // cancelled former members and leads don't get a Hedgieversary to
   // celebrate here.
-  const [members, hiatusHistory] = await Promise.all([
-    fetchAllRows(
-      supabase,
-      "members",
-      "id, name, display_name, email, status, first_joined_at, most_recent_joined_at, total_active_months",
-      (q) => q.in("status", ["active", "on_hiatus"]).not("first_joined_at", "is", null)
-    ),
-    createRepos(supabase).memberStatus.allHiatuses(),
-  ]);
+  // (members and member_status_overrides can each grow past Supabase's 1000-row cap: both are paginated.)
+  const repos = createRepos(supabase);
+  const [members, hiatusHistory] = await Promise.all([repos.members.tenureOf(["active", "on_hiatus"]).then((rows) => rows.filter((m) => m.firstJoinedAt !== null)), repos.memberStatus.allHiatuses()]);
 
   const now = new Date();
 
@@ -87,13 +49,13 @@ export default async function HedgieversariesPage() {
     const windows = hiatusWindowsByMember.get(m.id) ?? [];
     const cumulativeHiatusMonths = computeCumulativeHiatusMonths(windows, now);
     const cumulativeInactiveMonths = computeCumulativeInactiveMonths(
-      m.first_joined_at,
-      m.total_active_months ?? 0,
+      m.firstJoinedAt!,
+      m.totalActiveMonths,
       cumulativeHiatusMonths,
       now
     );
     const { nextDate, milestoneMonths, recentDate, recentMilestoneMonths } = nextHedgieversaryDate(
-      m.first_joined_at,
+      m.firstJoinedAt!,
       cumulativeInactiveMonths,
       isCurrentlyOnHiatus(windows, now),
       now
@@ -101,12 +63,12 @@ export default async function HedgieversariesPage() {
 
     return {
       id: m.id,
-      name: getMemberDisplayName(m),
+      name: getMemberDisplayName({ name: m.name, display_name: m.displayName }),
       legalName: m.name,
       email: m.email,
-      firstJoinedAt: m.first_joined_at,
-      mostRecentJoinedAt: m.most_recent_joined_at,
-      totalActiveMonths: m.total_active_months ?? 0,
+      firstJoinedAt: m.firstJoinedAt!,
+      mostRecentJoinedAt: m.mostRecentJoinedAt,
+      totalActiveMonths: m.totalActiveMonths,
       nextDate,
       milestoneMonths,
       recentDate,

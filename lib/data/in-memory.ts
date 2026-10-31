@@ -17,7 +17,7 @@ import type { SlackUserSeed } from "./slack-users";
 import type { IgnoredSlackUserSeed, RestrictedChannelSeed, SlackChannelMembershipSeed, SlackChannelSeed, SlackEmojiSeed, SlackMemberEventSeed } from "./slack-workspace";
 import type { SlackFileSeed, SlackMessageSeed, SlackReactionSeed } from "./slack-messages";
 import type { NewKajabiMember, NewSubscriptionHistory, KajabiContactSeed, KajabiCustomerSeed, KajabiOfferSeed, KajabiPurchaseSeed, StripeCustomerSeed, StripeProductSeed, StripeSubscriptionSeed } from "./billing";
-import type { AmbiguousZoomNameRow, IgnoredZoomAppearanceRow, IgnoredZoomNameRow, ZoomAttendeeRow, ZoomMeetingRow, ZoomParticipantEventRow } from "./zoom";
+import type { AmbiguousZoomNameRow, IgnoredZoomAppearanceRow, IgnoredZoomNameRow, PrickleJoinSettingRow, ZoomAttendeeRow, ZoomMeetingRow, ZoomParticipantEventRow } from "./zoom";
 import type { UnmatchedEvent } from "./unmatched-events";
 import type { ChatChannelMemberSeed, ChatChannelSeed, ChatGapFillSeed, ChatMessageContentSeed, ChatMessageSeed, ChatReactionSeed, ChatSlackAuthorSeed } from "./chat";
 import type { UserProfileSeed } from "./profiles";
@@ -157,6 +157,8 @@ export class InMemoryDataset implements PeopleTables {
   ignoredZoomAppearances: IgnoredZoomAppearanceRow[];
   zoomParticipantEvents: ZoomParticipantEventRow[];
   ambiguousZoomNames: AmbiguousZoomNameRow[];
+  /** How to join the prickle room (ZoomRepository). */
+  joinSettings: PrickleJoinSettingRow[];
   /** Per-member stats recomputed from attendance (`member_metrics`, `member_engagement`); the repositories only drop a member's rows. */
   memberMetrics: { member_id: string }[];
   memberEngagement: { member_id: string }[];
@@ -234,6 +236,13 @@ export class InMemoryDataset implements PeopleTables {
   courseAccess: Row<"course_access">[];
   courseAccessGrants: Row<"course_access_grants">[];
   videoWatchSegments: Row<"video_watch_segments">[];
+  /** Hosting leftovers: hosts' vibe tags, month locks of the hosting schedule, the check-in DM claims (PrickleRepository, PrickleScheduleRepository, PrickleActivityRepository). */
+  hostVibes: Row<"prickle_host_vibes">[];
+  scheduleLocks: Row<"prickle_schedule_locks">[];
+  checkinDmLog: Row<"prickle_checkin_dm_log">[];
+  /** The Wheel of Wonder's matches (WheelOfWonderRepository) and the page-view log (AccessEventRepository). */
+  wheelMatches: Row<"wheel_of_wonder_matches">[];
+  accessEvents: Row<"access_events">[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -242,7 +251,7 @@ export class InMemoryDataset implements PeopleTables {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "hubSessions" | "pushSubscriptions" | "reminderLog" | "prospects" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "slackChannels" | "ignoredSlackUsers" | "restrictedSlackChannels" | "slackChannelMembers" | "slackMemberEvents" | "slackCustomEmoji" | "slackMessages" | "slackReactions" | "slackFiles" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides" | "prickleCommitments" | "prickleCheckins" | "checkinDismissals" | "checkoutDismissals" | "calendarFeedTokens" | "calendarFeedItems" | "calendarSyncStates" | "courses" | "courseModules" | "courseLessons" | "courseLessonFiles" | "videos" | "lessonProgress" | "courseAccess" | "courseAccessGrants" | "videoWatchSegments" | "ignoredZoomAppearances" | "zoomParticipantEvents" | "ambiguousZoomNames" | "memberMetrics" | "memberEngagement" | "hostVibes" | "scheduleLocks" | "checkinDmLog" | "wheelMatches" | "accessEvents" | "joinSettings">
 
     > &
       Partial<PeopleTables> = {},
@@ -302,6 +311,7 @@ export class InMemoryDataset implements PeopleTables {
     this.ignoredZoomAppearances = (init.ignoredZoomAppearances ?? []).map((row) => ({ ...row }));
     this.zoomParticipantEvents = (init.zoomParticipantEvents ?? []).map((row) => ({ ...row }));
     this.ambiguousZoomNames = (init.ambiguousZoomNames ?? []).map((row) => ({ ...row, candidate_member_ids: [...row.candidate_member_ids] }));
+    this.joinSettings = (init.joinSettings ?? []).map((row) => ({ ...row }));
     this.memberMetrics = (init.memberMetrics ?? []).map((row) => ({ ...row }));
     this.memberEngagement = (init.memberEngagement ?? []).map((row) => ({ ...row }));
     this.unmatchedEvents = (init.unmatchedEvents ?? []).map((row) => ({ ...row }));
@@ -354,6 +364,11 @@ export class InMemoryDataset implements PeopleTables {
     this.courseAccess = (init.courseAccess ?? []).map((row) => ({ ...row }));
     this.courseAccessGrants = (init.courseAccessGrants ?? []).map((row) => ({ ...row }));
     this.videoWatchSegments = (init.videoWatchSegments ?? []).map((row) => ({ ...row }));
+    this.hostVibes = (init.hostVibes ?? []).map((row) => ({ ...row }));
+    this.scheduleLocks = (init.scheduleLocks ?? []).map((row) => ({ ...row }));
+    this.checkinDmLog = (init.checkinDmLog ?? []).map((row) => ({ ...row }));
+    this.wheelMatches = (init.wheelMatches ?? []).map((row) => ({ ...row }));
+    this.accessEvents = (init.accessEvents ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

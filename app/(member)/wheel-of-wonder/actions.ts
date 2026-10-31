@@ -259,15 +259,13 @@ async function introduceOnSlackImpl(winnerMemberId: string): Promise<WheelIntroR
       url = `slack://channel?team=${teamId}&id=${channelId}`;
       roomCreated = true;
 
-      const { error: insertError } = await supabase.from("wheel_of_wonder_matches").insert({
-        spinner_member_id: effectiveIdentity.memberId,
-        matched_member_id: winner.memberId,
-        slack_channel_id: channelId,
-        spinner_slack_user_id: viewerSlackUserId,
-        matched_slack_user_id: winner.slackUserId,
-        status: "proposed",
+      await createRepos(supabase).wheelOfWonder.recordProposed({
+        spinnerMemberId: effectiveIdentity.memberId,
+        matchedMemberId: winner.memberId,
+        slackChannelId: channelId,
+        spinnerSlackUserId: viewerSlackUserId,
+        matchedSlackUserId: winner.slackUserId,
       });
-      if (insertError) throw insertError;
     } catch (error) {
       console.error(
         roomCreated

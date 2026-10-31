@@ -40,6 +40,8 @@ import { InMemoryMemberProfileRepository, SupabaseMemberProfileRepository, type 
 import { InMemoryAwardRepository, SupabaseAwardRepository, type AwardRepository } from "./awards";
 import { InMemoryOutreachRepository, SupabaseOutreachRepository, type OutreachRepository } from "./outreach";
 import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, type AdminWorkQueueRepository } from "./admin-work";
+import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type WheelOfWonderRepository } from "./wheel-of-wonder";
+import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -87,6 +89,8 @@ export interface Repos {
   awards: AwardRepository;
   outreach: OutreachRepository;
   adminWork: AdminWorkQueueRepository;
+  wheelOfWonder: WheelOfWonderRepository;
+  accessEvents: AccessEventRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -132,6 +136,8 @@ export function createRepos(db: Db): Repos {
     awards: new SupabaseAwardRepository(db),
     outreach: new SupabaseOutreachRepository(db),
     adminWork: new SupabaseAdminWorkQueueRepository(db),
+    wheelOfWonder: new SupabaseWheelOfWonderRepository(db),
+    accessEvents: new SupabaseAccessEventRepository(db),
   };
 }
 
@@ -178,5 +184,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     awards: new InMemoryAwardRepository(dataset),
     outreach: new InMemoryOutreachRepository(dataset),
     adminWork: new InMemoryAdminWorkQueueRepository(dataset),
+    wheelOfWonder: new InMemoryWheelOfWonderRepository(dataset),
+    accessEvents: new InMemoryAccessEventRepository(dataset),
   };
 }
