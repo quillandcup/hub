@@ -56,10 +56,10 @@ export async function publicLessonPreview(
     const byId = new Map((modules ?? []).map((m) => [m.id as string, m]));
     const seen = new Set<string>();
     for (let id: string | null = lesson.module_id; id; ) {
-      const module = byId.get(id);
-      if (!module || seen.has(id) || module.state !== "open") return { blocked: "not_open" };
+      const ancestor = byId.get(id);
+      if (!ancestor || seen.has(id) || ancestor.state !== "open") return { blocked: "not_open" };
       seen.add(id);
-      id = module.parent_id;
+      id = ancestor.parent_id;
     }
   }
 
