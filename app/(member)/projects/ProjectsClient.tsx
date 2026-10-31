@@ -5,7 +5,7 @@ import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
-import ArchivedProjects from "./ArchivedProjects";
+import PastProjects from "./PastProjects";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
 import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
@@ -13,10 +13,10 @@ import type { WritingProjectRow } from "./actions";
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
-  archivedProjects?: WritingProjectRow[];
+  pastProjects?: WritingProjectRow[];
 }
 
-export default function ProjectsClient({ initialProjects, archivedProjects = [] }: ProjectsClientProps) {
+export default function ProjectsClient({ initialProjects, pastProjects = [] }: ProjectsClientProps) {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export default function ProjectsClient({ initialProjects, archivedProjects = [] 
         <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
         <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
       </div>
-      <ArchivedProjects projects={archivedProjects} />
+      <PastProjects projects={pastProjects} />
       </>
     );
   }
@@ -161,7 +161,7 @@ export default function ProjectsClient({ initialProjects, archivedProjects = [] 
         ))}
       </div>
 
-      <ArchivedProjects projects={archivedProjects} />
+      <PastProjects projects={pastProjects} />
 
       <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
       <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />

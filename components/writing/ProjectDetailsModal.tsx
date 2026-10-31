@@ -6,6 +6,7 @@ import {
   updateProjectDetails,
   setStartingBalances,
   updateProjectCover,
+  deleteProject,
   type WritingProjectRow,
 } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS, WRITING_MEASURES, type WritingMeasure } from "@/lib/writing-projects";
@@ -37,6 +38,20 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
   );
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    const alsoRemains = project.book ? " The book on your Book Shelf stays." : "";
+    if (!confirm(`Delete "${project.title}" with its goals and progress? You can't get it back.${alsoRemains}`)) return;
+    setError(null);
+    setIsPending(true);
+    const result = await deleteProject(project.id);
+    if ("error" in result) {
+      setIsPending(false);
+      setError(result.error);
+      return;
+    }
+    window.location.href = "/projects";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,6 +188,17 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Saving..." : "Save changes"}
+          </button>
+        </div>
+
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+          <button data-track="project-delete"
+            type="button"
+            onClick={handleDelete}
+            disabled={isPending}
+            className="text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+          >
+            Delete project
           </button>
         </div>
       </form>
