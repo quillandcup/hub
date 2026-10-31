@@ -171,17 +171,16 @@ export default async function MemberDetailPage({
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
-  // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=); the other tabs
-  // only need the totals for the tab count and the overview tiles.
+  // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=). Loaded for every
+  // tab, like the Activity Log: tabs switch on the client without a server round trip, so a visit
+  // that opened on another tab has to arrive with the Slack data already in hand.
   const thirtyDaysAgo = new Date(clock.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const activities = createRepos(supabase).activities;
   const slackQuery = parseSlackPageQuery(searchParams);
   const [slackSummary, slackPage, slackChannels] = await Promise.all([
     traced("member page: slack summary", () => activities.slackSummary(id, thirtyDaysAgo), { memberId: id }),
-    tab === "slack"
-      ? traced("member page: slack page", () => activities.slackPage(id, slackQuery), { memberId: id })
-      : Promise.resolve({ rows: [], total: 0, page: 1 }),
-    tab === "slack" ? traced("member page: slack channels", () => activities.slackChannels(id), { memberId: id }) : Promise.resolve([]),
+    traced("member page: slack page", () => activities.slackPage(id, slackQuery), { memberId: id }),
+    traced("member page: slack channels", () => activities.slackChannels(id), { memberId: id }),
   ]);
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own

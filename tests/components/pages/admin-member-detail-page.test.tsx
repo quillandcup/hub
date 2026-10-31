@@ -96,6 +96,19 @@ describe("MemberDetailPage", () => {
     expect(items).toEqual(["@Fern thanks, see #hub-feedback"]);
   });
 
+  it("loads the Slack rows on every tab, since tabs switch on the client", async () => {
+    useFakeSupabase(
+      memberTables({
+        member_activities: (query) =>
+          query.calls.some((c) => c.method === "eq" && c.args[0] === "source")
+            ? { data: [{ id: "a1", source: "slack", description: "hello" }] }
+            : { data: [] },
+      })
+    );
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["hello"]);
+  });
+
   it("lists the member's email aliases by address", async () => {
     useFakeSupabase(
       memberTables({
