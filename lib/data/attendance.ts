@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { Page } from "./query";
 import type { Db } from "./db";
 import { InMemoryDataset } from "./in-memory";
 import { one, prickleDetail, prickleEmbed, toDetail, type DetailRow, type PrickleDetail } from "./prickles";
@@ -103,7 +104,6 @@ export interface AttendanceRepository {
   reassign(fromMemberId: string, toMemberId: string): Promise<void>;
 }
 
-type Page<T> = { data: T[] | null; error: { message: string } | null };
 type AttendedRow = {
   id: string;
   prickle_id: string;

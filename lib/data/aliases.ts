@@ -1,4 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import type { Page } from "./query";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -115,7 +116,6 @@ export interface AliasRepository {
   upsertEmail(memberId: string, email: string, source: string, active?: boolean): Promise<void>;
 }
 
-type Page<T> = { data: T[] | null; error: { message: string } | null };
 
 export class SupabaseAliasRepository implements AliasRepository {
   constructor(private readonly db: Db) {}

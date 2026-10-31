@@ -1,5 +1,6 @@
 import { SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
+import { upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -85,8 +86,8 @@ export class SupabaseSlackUserRepository implements SlackUserRepository {
 
   async upsert(users: NewSlackUser[]) {
     if (users.length === 0) return;
-    const { error } = await this.table.upsert(users, { onConflict: "user_id" });
-    if (error) throw new Error(error.message);
+    // Small chunks, two at a time: each upsert is one statement under the API role's 8s statement timeout.
+    await upsertInChunks(this.table, users, "user_id", 100, 2);
   }
 }
 
