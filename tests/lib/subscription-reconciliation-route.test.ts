@@ -7,7 +7,7 @@ import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page
 
 // The Kajabi/Stripe reconciliation: for each member, what their Stripe subscription says they
 // should have in Kajabi against what they have. Members come from their repository (in memory
-// here); the Bronze billing data comes from the in-memory dataset and the overrides are faked.
+// here); the Bronze billing data comes from the in-memory dataset and so are the overrides and hiatuses.
 
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
@@ -52,6 +52,8 @@ beforeEach(() => {
   signedIn = true;
   repos = createInMemoryRepos(new InMemoryDataset({
     members: MEMBERS,
+    memberStatusOverrides: [{ id: "ov-1", member_id: "m-gift", override_type: "gift", reason: "180 program", notes: null, starts_at: "2026-01-01", expires_at: null, created_at: "2026-01-01T00:00:00Z", created_by: null, updated_at: "2026-01-01T00:00:00Z" }],
+    memberHiatuses: [{ id: "h-1", member_id: "m-hiatus", start_date: "2020-01-01", end_date: null, reason: null, notes: null, created_at: null, created_by: null, updated_at: "2020-01-01T00:00:00Z" }],
     kajabiOffers: [{ kajabi_offer_id: "off-1", name: MEMBERSHIP_PRODUCT_NAMES[0] }],
     kajabiPurchases: [
       { kajabi_purchase_id: "p1", kajabi_customer_id: "kc-paying", kajabi_offer_id: "off-1", deactivated_at: "2026-09-01T00:00:00Z", imported_at: "2026-10-01T00:00:00Z" },
@@ -84,8 +86,6 @@ beforeEach(() => {
     ],
   }));
   tables = {
-    member_status_overrides: { data: [{ id: "ov-1", member_id: "m-gift", override_type: "gift", reason: "180 program", notes: null, starts_at: "2026-01-01", expires_at: null }] },
-    member_hiatus_history: { data: [{ member_id: "m-hiatus", start_date: "2020-01-01", end_date: null }] },
     member_email_aliases: { data: [{ canonical_email: "multi@example.test", alias_email: "multi.old@example.test" }] },
   };
 });

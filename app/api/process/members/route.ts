@@ -41,38 +41,6 @@ export const maxDuration = 300;
 // Bronze reads (billing, Slack users) page past Supabase's default 1000-row cap inside their
 // repositories in lib/data/. See CLAUDE.md "Database Query Limits".
 
-// Pagination for public-schema (Local/Silver) tables that can also grow past 1000 rows — used here for `members` and
-// `member_status_overrides`.
-async function fetchAllPublicRows(
-  supabase: SupabaseClient,
-  table: string,
-  columns: string = "*",
-  filter?: (query: any) => any
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.from(table).select(columns);
-    if (filter) query = filter(query);
-    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
-}
-
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -83,7 +51,7 @@ export async function POST(request: NextRequest) {
     // STEP 1: Load Bronze data + Local data.
     // kajabi_contacts, kajabi_customers, kajabi_purchases, kajabi_offers, and
     // stripe_customers can each exceed Supabase's default 1000-row cap, so
-    // they're paginated in parallel loops (the repositories and fetchAllPublicRows).
+    // they're paginated in parallel loops (inside the repositories).
     // staff is a small Local-layer table and is not expected to approach that limit;
     // the email aliases are paginated by their repository.
     const [
@@ -108,10 +76,10 @@ export async function POST(request: NextRequest) {
       supabase.from("staff").select("*"),
       createRepos(supabase).aliases.emailOwners(),
       createRepos(supabase).billing.stripeCustomers(),
-      fetchAllPublicRows(supabase, "members", "id, email, kajabi_id, name"),
-      fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
-      fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
-      fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, instagram_url, facebook_url, twitter_url"),
+      createRepos(supabase).members.list().then((rows) => rows.map((m) => ({ id: m.id, email: m.email, kajabi_id: m.kajabiId, name: m.name }))),
+      createRepos(supabase).memberStatus.allHiatuses(),
+      createRepos(supabase).memberStatus.joinDateOverrides(),
+      createRepos(supabase).memberStatus.profileOverrides(),
     ]);
 
     if (staffError) throw staffError;
@@ -533,7 +501,7 @@ export async function POST(request: NextRequest) {
     // resolveEmail() (staffByEmail, above) — this just persists the result
     // as a real FK so other code (e.g. the admin Users page) can join on an
     // id instead of re-deriving the relationship by email every time.
-    const freshMembers = await fetchAllPublicRows(supabase, "members", "id, email, name");
+    const freshMembers = (await createRepos(supabase).members.identities()).map(({ id, email, name }) => ({ id, email, name }));
     if (staffMembers && staffMembers.length > 0) {
       const memberIdByEmail = new Map(freshMembers.map((m: any) => [resolveEmail(m.email), m.id]));
       const staffUpdates: { id: string; member_id: string | null }[] = [];

@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -7,23 +8,13 @@ export async function GET(request: NextRequest) {
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
 
-  const { data: overrides, error } = await supabase
-    .from("member_status_overrides")
-    .select(`
-      *,
-      member:members(id, name, display_name, email)
-    `)
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  try {
+    const overrides = await createRepos(supabase).memberStatus.statusOverridesWithMember();
+    return NextResponse.json({ overrides });
+  } catch (error: any) {
     console.error("Error fetching member overrides:", error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  return NextResponse.json({ overrides });
 }
 
 export async function POST(request: NextRequest) {
@@ -52,30 +43,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: override, error } = await supabase
-      .from("member_status_overrides")
-      .insert({
-        member_id,
-        override_type,
-        reason,
-        notes,
-        starts_at,
-        expires_at,
-        created_by: user.id !== "service-role" ? user.id : null,
-      })
-      .select(`
-        *,
-        member:members(id, name, display_name, email)
-      `)
-      .single();
-
-    if (error) {
-      console.error("Error creating member override:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
+    const override = await createRepos(supabase).memberStatus.createStatusOverride({
+      member_id,
+      override_type,
+      reason,
+      notes,
+      starts_at,
+      expires_at,
+      created_by: user.id !== "service-role" ? user.id : null,
+    });
 
     return NextResponse.json({ override }, { status: 201 });
   } catch (error: any) {

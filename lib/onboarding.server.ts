@@ -110,7 +110,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
-    supabase.from("member_profile_overrides").select("member_id").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).memberStatus.profileOverrideOf(memberId),
     supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
     createRepos(supabase).writing.latestActiveProjectId(memberId),
     createRepos(supabase).writing.goalCount(memberId),
@@ -145,7 +145,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
 
   return buildOnboardingState(
     {
-      hasHubProfile: override.data !== null || topics.length > 0,
+      hasHubProfile: override !== null || topics.length > 0,
       latestProjectId: latestProject,
       hasGoal: goals > 0,
       hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,

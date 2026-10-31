@@ -17,6 +17,7 @@ import type { UserProfileSeed } from "./profiles";
 import type { ScheduleRow } from "./prickle-schedules";
 import type { Prickle, PrickleType } from "./prickles";
 import type { Program, ProgramCohort, ProgramEnrollment } from "./programs";
+import type { HiatusRow, JoinDateOverrideRow, ProfileOverrideStoredRow, StatusOverrideRow } from "./member-status-overrides";
 import type { KajabiCourse, KajabiCourseOffer, KajabiLesson, KajabiLessonFile, KajabiModule } from "./kajabi-courses";
 import type { Database } from "./database.types";
 import type { WritingBalanceRow, WritingEntryRow, WritingGoalRow, WritingProjectRow } from "./writing";
@@ -131,6 +132,15 @@ export class InMemoryDataset {
   /** The members export (`bronze.kajabi_members`, append only) and the subscription export (`bronze.subscription_history`), as the imports wrote them. */
   kajabiMembers: NewKajabiMember[];
   subscriptionHistory: NewSubscriptionHistory[];
+  // --- member status and profile overrides (MemberStatusRepository) ---
+  /** Hiatus windows (`member_hiatus_history`). */
+  memberHiatuses: HiatusRow[];
+  /** Admin grants of membership (`member_status_overrides`). */
+  memberStatusOverrides: StatusOverrideRow[];
+  /** Legacy join-date corrections (`member_join_date_overrides`). */
+  memberJoinDateOverrides: JoinDateOverrideRow[];
+  /** What members edited in their profile (`member_profile_overrides`). */
+  memberProfileOverrides: ProfileOverrideStoredRow[];
   // --- event photos ---
   eventPhotos: EventPhotoRow[];
   // --- calendar sync ---
@@ -139,7 +149,7 @@ export class InMemoryDataset {
 
   constructor(
     init: Partial<
-      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory">
+      Pick<InMemoryDataset, "members" | "prickleTypes" | "prickles" | "attendance" | "notificationPreferences" | "inAppNotifications" | "badgeTypes" | "badgeLevels" | "memberBadges" | "events" | "pushSubscriptions" | "reminderLog" | "nameAliases" | "emailAliases" | "writingProjects" | "writingGoals" | "writingEntries" | "writingBalances" | "eventPhotos" | "eventAttendees" | "prickleSchedules" | "activities" | "userProfiles" | "calendarEvents" | "slackUsers" | "zoomAttendees" | "zoomMeetings" | "ignoredZoomNames" | "unmatchedEvents" | "programs" | "programCohorts" | "programEnrollments" | "chatChannels" | "chatChannelMembers" | "chatMessages" | "chatMessageContents" | "chatReactions" | "chatSlackAuthors" | "chatGapFills" | "mediaAssets" | "memberBooks" | "courseImages" | "kajabiCourses" | "kajabiModules" | "kajabiLessons" | "kajabiLessonFiles" | "kajabiCourseOffers" | "kajabiProductProgress" | "kajabiLessonProgress" | "kajabiContacts" | "kajabiCustomers" | "kajabiPurchases" | "kajabiOffers" | "stripeCustomers" | "stripeProducts" | "stripeSubscriptions" | "kajabiMembers" | "subscriptionHistory" | "memberHiatuses" | "memberStatusOverrides" | "memberJoinDateOverrides" | "memberProfileOverrides">
 
     > = {},
   ) {
@@ -200,6 +210,10 @@ export class InMemoryDataset {
     this.stripeSubscriptions = (init.stripeSubscriptions ?? []).map((row) => ({ ...row }));
     this.kajabiMembers = (init.kajabiMembers ?? []).map((row) => ({ ...row }));
     this.subscriptionHistory = (init.subscriptionHistory ?? []).map((row) => ({ ...row }));
+    this.memberHiatuses = (init.memberHiatuses ?? []).map((row) => ({ ...row }));
+    this.memberStatusOverrides = (init.memberStatusOverrides ?? []).map((row) => ({ ...row }));
+    this.memberJoinDateOverrides = (init.memberJoinDateOverrides ?? []).map((row) => ({ ...row }));
+    this.memberProfileOverrides = (init.memberProfileOverrides ?? []).map((row) => ({ ...row }));
     this.eventPhotos = (init.eventPhotos ?? []).map((row) => ({ ...row }));
     this.eventAttendees = (init.eventAttendees ?? []).map((row) => ({ ...row }));
   }

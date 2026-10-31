@@ -151,14 +151,12 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
  */
 async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise<boolean> {
   const cutoff = dayMs(c.arrivedOn) - MS_PER_DAY;
-  const [aliasRows, { data: hiatusRows }, enrollments, { data: overrideRows }] = await Promise.all([
-    createRepos(supabase).aliases.emailsOf(c.memberId),
-    supabase.from("member_hiatus_history").select("id, start_date, end_date, reason, notes").eq("member_id", c.memberId),
-    createRepos(supabase).programs.enrollmentsOf(c.memberId),
-    supabase
-      .from("member_status_overrides")
-      .select("override_type, reason, starts_at, expires_at")
-      .eq("member_id", c.memberId),
+  const repos = createRepos(supabase);
+  const [aliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
+    repos.aliases.emailsOf(c.memberId),
+    repos.memberStatus.hiatusesOf(c.memberId),
+    repos.programs.enrollmentsOf(c.memberId),
+    repos.memberStatus.statusOverridesOf(c.memberId),
   ]);
 
   const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
@@ -171,11 +169,9 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
   const programs = enrollments
     .filter((e) => e.includesMembership && dayMs(e.startsAt) < cutoff)
     .map((e) => ({ starts_at: e.startsAt, expires_at: e.expiresAt, reason: e.programName }));
-  const overrides = ((overrideRows ?? []) as { override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[]).filter(
-    (o) => dayMs(o.starts_at) < cutoff
-  );
+  const overrides = overrideRows.filter((o) => dayMs(o.starts_at) < cutoff);
 
-  const segments = buildMembershipTimeline(stints, hiatusRows ?? [], programs, overrides);
+  const segments = buildMembershipTimeline(stints, hiatusRows, programs, overrides);
   return wasMemberAt(segments, cutoff);
 }
 

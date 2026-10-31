@@ -176,11 +176,11 @@ async function loadMember(ctx: Ctx) {
 
 /** Read through the caller's own session, so RLS scopes it to their row (or an admin's sudo target). */
 async function loadOverride(ctx: Ctx) {
-  return ctx.supabase
-    .from("member_profile_overrides")
-    .select("bio, instagram_url, facebook_url, twitter_url")
-    .eq("member_id", ctx.effectiveIdentity.memberId)
-    .maybeSingle();
+  try {
+    return { data: await createRepos(ctx.supabase).memberStatus.profileOverrideOf(ctx.effectiveIdentity.memberId), error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 async function loadAskMeAbout(ctx: Ctx) {
@@ -361,10 +361,9 @@ async function updateProfileDetailsImpl(input: ProfileDetailsInput): Promise<Upd
     return { success: true, syncPending: false };
   }
 
-  const { error } = await supabase
-    .from("member_profile_overrides")
-    .upsert({ member_id: effectiveIdentity.memberId, ...next, updated_by: user.id }, { onConflict: "member_id" });
-  if (error) {
+  try {
+    await createRepos(supabase).memberStatus.saveProfileOverride(effectiveIdentity.memberId, next, user.id);
+  } catch (error) {
     console.error("[profile] Saving profile overrides failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save your profile — please try again." };
   }
@@ -480,13 +479,9 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
   }
 
   if (overrideChanged) {
-    const { error: saveError } = await ctx.supabase
-      .from("member_profile_overrides")
-      .upsert(
-        { member_id: effectiveIdentity.memberId, instagram_url: nextOverride, updated_by: ctx.user.id },
-        { onConflict: "member_id" }
-      );
-    if (saveError) {
+    try {
+      await createRepos(ctx.supabase).memberStatus.saveProfileOverride(effectiveIdentity.memberId, { instagram_url: nextOverride }, ctx.user.id);
+    } catch (saveError) {
       console.error("[profile] Saving Instagram override failed for member", effectiveIdentity.memberId, saveError);
       return { error: "Couldn't save your Instagram — please try again." };
     }

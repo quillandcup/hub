@@ -34,19 +34,13 @@ export async function recomputeMemberStatus(
     // reprocess_members_atomic's staff_role handling).
     status = "active";
   } else {
-    const [emailAliasRows, { data: hiatusRows }, enrollments, { data: overrideRows }] =
-      await Promise.all([
-        createRepos(supabase).aliases.emailsOf(memberId),
-        supabase
-          .from("member_hiatus_history")
-          .select("id, start_date, end_date, reason, notes")
-          .eq("member_id", memberId),
-        createRepos(supabase).programs.enrollmentsOf(memberId),
-        supabase
-          .from("member_status_overrides")
-          .select("id, override_type, reason, starts_at, expires_at")
-          .eq("member_id", memberId),
-      ]);
+    const repos = createRepos(supabase);
+    const [emailAliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
+      repos.aliases.emailsOf(memberId),
+      repos.memberStatus.hiatusesOf(memberId),
+      repos.programs.enrollmentsOf(memberId),
+      repos.memberStatus.statusOverridesOf(memberId),
+    ]);
 
     const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
     const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(allEmails);
@@ -60,7 +54,7 @@ export async function recomputeMemberStatus(
       reason: e.programName,
     }));
 
-    const segments = buildMembershipTimeline(membershipHistory, hiatusRows ?? [], programOverrides, overrideRows ?? []);
+    const segments = buildMembershipTimeline(membershipHistory, hiatusRows, programOverrides, overrideRows);
     const now = Date.now();
     const current = segments.find(
       (s) => s.startDate.getTime() <= now && (s.endDate === null || s.endDate.getTime() > now)

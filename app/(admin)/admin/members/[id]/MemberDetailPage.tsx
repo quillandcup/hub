@@ -132,12 +132,7 @@ export default async function MemberDetailPage({
 
   // Fetch hiatus history — member_hiatus_history is the live source of
   // truth for hiatus tracking.
-  const { data: hiatusRows } = await supabase
-    .from("member_hiatus_history")
-    .select("id, start_date, end_date, reason, notes")
-    .eq("member_id", id)
-    .order("start_date", { ascending: false });
-  const hiatusHistory = hiatusRows || [];
+  const hiatusHistory = await createRepos(supabase).memberStatus.hiatusesOf(id);
 
   // Fetch program-cohort enrollments (180 Program, Self-Editing Academy, ...)
   // — a program-only member (no real Kajabi subscription, see
@@ -157,12 +152,7 @@ export default async function MemberDetailPage({
   // own, so without this the timeline shows a gap during an active gifted
   // membership (e.g. a lifetime membership granted in exchange for an
   // acquisition).
-  const { data: statusOverrideRows } = await supabase
-    .from("member_status_overrides")
-    .select("id, override_type, reason, starts_at, expires_at")
-    .eq("member_id", id)
-    .order("starts_at", { ascending: false });
-  const statusOverrides = statusOverrideRows || [];
+  const statusOverrides = await createRepos(supabase).memberStatus.statusOverridesOf(id);
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];

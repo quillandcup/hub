@@ -94,6 +94,11 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   stripe_products: [],
   stripe_subscriptions: [],
   subscription_history: [],
+  // Hiatus, status overrides, join-date corrections and the member-edited profile fields (MemberStatusRepository): every query is moved.
+  member_hiatus_history: [],
+  member_status_overrides: [],
+  member_join_date_overrides: [],
+  member_profile_overrides: [],
 };
 
 const root = path.resolve(__dirname, "../..");
@@ -114,7 +119,7 @@ const files = ["app", "lib", "components"]
 function filesQuerying(table: string): string[] {
   const direct = new RegExp(`\\.from\\(\\s*["'\`]${table}["'\`]\\s*\\)`);
   // The table name handed to a paginating helper that runs .from(table) inside it.
-  const viaHelper = new RegExp(`\\b(?:fetchAllBronzeRows|fetchAll)\\(\\s*[^,()]+,\\s*["'\`]${table}["'\`]`);
+  const viaHelper = new RegExp(`\\b(?:fetchAllBronzeRows|fetchAllPublicRows|fetchAll)\\(\\s*[^,()]+,\\s*["'\`]${table}["'\`]`);
   return files
     .filter((file) => {
       const source = fs.readFileSync(path.join(root, file), "utf8");

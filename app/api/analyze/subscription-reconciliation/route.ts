@@ -78,23 +78,13 @@ export async function GET(request: NextRequest) {
         })
       : allStripeSubscriptions;
 
-    const { data: overrides } = await supabase
-      .from("member_status_overrides")
-      .select("*");
+    const overrides = await createRepos(supabase).memberStatus.allStatusOverrides();
 
     // Hiatus is tracked separately (member_hiatus_history) — only active
     // windows matter here, purely for the "why is this member's expected
     // state inactive" display below (editing hiatus happens on the member
     // detail page, not this reconciliation view).
-    const { data: activeHiatuses } = await supabase
-      .from("member_hiatus_history")
-      .select("member_id, start_date, end_date")
-      .lte("start_date", new Date().toISOString().slice(0, 10));
-    const onHiatusMemberIds = new Set(
-      (activeHiatuses || [])
-        .filter((h) => !h.end_date || h.end_date >= new Date().toISOString().slice(0, 10))
-        .map((h) => h.member_id)
-    );
+    const onHiatusMemberIds = await createRepos(supabase).memberStatus.memberIdsOnHiatus(new Date().toISOString().slice(0, 10));
 
     // Load email aliases for cross-email member matching
     const emailAliases = await createRepos(supabase).aliases.emailAliases();
