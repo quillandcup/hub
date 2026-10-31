@@ -12,6 +12,8 @@ export default function LessonMediaPanel({
   posterUrl,
   statsHref,
   lessonUrl,
+  thumbnailLink,
+  thumbnailLinkBlocked,
 }: {
   title: string;
   playbackId: string;
@@ -19,6 +21,8 @@ export default function LessonMediaPanel({
   posterUrl: string | null;
   statsHref: string | null;
   lessonUrl: string | null;
+  thumbnailLink: { url: string; imageUrl: string; title: string } | null;
+  thumbnailLinkBlocked: string;
 }) {
   const [seconds, setSeconds] = useState(0);
   return (
@@ -26,7 +30,7 @@ export default function LessonMediaPanel({
       {/* No watch tracking: this is an admin looking at the lesson, not a viewing. */}
       <LessonPlayer title={title} playbackId={playbackId} tokens={tokens} posterUrl={posterUrl} onTime={setSeconds} />
       <div className="mt-3">
-        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} />
+        <VideoActions statsHref={statsHref} lessonUrl={lessonUrl} seconds={seconds} thumbnailLink={thumbnailLink} thumbnailLinkBlocked={thumbnailLinkBlocked} />
       </div>
     </div>
   );

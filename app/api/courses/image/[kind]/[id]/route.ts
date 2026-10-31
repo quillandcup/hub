@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createRepos } from "@/lib/data/repos";
 import { MEDIA_BUCKET } from "@/lib/media/library";
 import { isId } from "@/lib/ids";
+import { publicLessonPreview } from "@/lib/courses/public-preview";
 
 const PREFIXES = { course: "crs", hero: "crs", module: "mod", lesson: "les" } as const;
 
@@ -12,21 +13,26 @@ const PREFIXES = { course: "crs", hero: "crs", module: "mod", lesson: "les" } as
  * A course image (cover, hero banner, module poster or lesson thumbnail) copied from Kajabi into the media library. The
  * bucket is private, so images come through here: the caller must be able to use the courses feature, and a hidden
  * (draft) module or lesson's image is for staff acting as themselves only. Anything else is a plain 404.
+ *
+ * One exception, for shared links: a lesson thumbnail is public when the lesson itself is (lib/courses/public-preview.ts:
+ * open to members, in a live course, with the courses feature on for everyone), so a link pasted into Slack or a message
+ * can show it. Those are cached publicly; everything else stays private.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = await params;
   if (!(kind in PREFIXES) || !isId(id, PREFIXES[kind as CourseImageKind])) return new NextResponse("Not found", { status: 404 });
 
   const caller = await getCoursesCaller();
-  if (!caller) return new NextResponse("Not found", { status: 404 });
+  const supabase = createServiceRoleClient();
+  const isPublic = !caller && kind === "lesson" && "preview" in (await publicLessonPreview(supabase, id));
+  if (!caller && !isPublic) return new NextResponse("Not found", { status: 404 });
 
   const t = imageTable(kind as CourseImageKind);
-  const supabase = createServiceRoleClient();
   const columns = kind === "course" || kind === "hero" ? t.assetColumn : `${t.assetColumn}, state`;
   const { data: row } = await supabase.from(t.table).select(columns).eq("id", id).maybeSingle();
   const assetId = (row as any)?.[t.assetColumn] as string | null | undefined;
   if (!assetId) return new NextResponse("Not found", { status: 404 });
-  if (kind !== "course" && kind !== "hero" && (row as any).state === "hidden" && !caller.scope.isAdminActing) return new NextResponse("Not found", { status: 404 });
+  if (kind !== "course" && kind !== "hero" && (row as any).state === "hidden" && !caller?.scope.isAdminActing) return new NextResponse("Not found", { status: 404 });
 
   const asset = await createRepos(supabase).media.byId(assetId).catch(() => null);
   if (!asset || asset.deleted_at) return new NextResponse("Not found", { status: 404 });
@@ -36,6 +42,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return new NextResponse("Couldn't load the image", { status: 502 });
   }
   return new NextResponse(await blob.arrayBuffer(), {
-    headers: { "Content-Type": asset.mime_type, "Cache-Control": "private, max-age=3600" },
+    headers: { "Content-Type": asset.mime_type, "Cache-Control": `${isPublic ? "public" : "private"}, max-age=3600` },
   });
 }

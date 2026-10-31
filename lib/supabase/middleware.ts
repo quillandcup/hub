@@ -6,6 +6,7 @@ import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
+import { lessonPreviewRewrite } from '@/lib/courses/preview-path'
 import { requestLocation } from '@/lib/request-location'
 import { userAgentForStorage } from '@/lib/device-label'
 import { deviceForStorage } from '@/lib/device'
@@ -148,14 +149,24 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && !isPublic && !authCheckTimedOut) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.search = ''
-    const loginRedirect = NextResponse.redirect(url)
+    // A signed-out visitor to a lesson address is shown a public preview instead (title, picture and
+    // teaser, so a shared link looks good). The page behind the rewrite sends them to /login unless
+    // the lesson is public, so nothing is shown that wasn't before.
+    const previewPath = lessonPreviewRewrite(pathname)
+    let response: NextResponse
+    if (previewPath) {
+      url.pathname = previewPath
+      response = NextResponse.rewrite(url)
+    } else {
+      url.pathname = '/login'
+      url.search = ''
+      response = NextResponse.redirect(url)
+    }
     // Remember where they were headed so every sign-in path can bring them back (lib/safe-next.ts).
     // Skip router prefetches: they aren't somewhere the member asked to go.
     const nextPath = safeNextPath(`${pathname}${request.nextUrl.search}`)
     if (nextPath && !request.headers.get('next-router-prefetch')) {
-      loginRedirect.cookies.set(NEXT_PATH_COOKIE, nextPath, {
+      response.cookies.set(NEXT_PATH_COOKIE, nextPath, {
         httpOnly: true,
         sameSite: 'lax',
         secure: request.nextUrl.protocol === 'https:',
@@ -163,7 +174,7 @@ export async function updateSession(request: NextRequest) {
         maxAge: NEXT_PATH_COOKIE_MAX_AGE_SECONDS,
       })
     }
-    return loginRedirect
+    return response
   }
 
   // Admin area: optimistic role check so a signed-in non-admin is sent to

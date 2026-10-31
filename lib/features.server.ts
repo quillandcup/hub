@@ -130,3 +130,14 @@ export async function effectiveMemberHasFeature(
   if (!identity.isSudo) return ownFeatures.includes(key);
   return (await membersWithFeature(createServiceRoleClient(), key, [identity.memberId])).has(identity.memberId);
 }
+
+/**
+ * Whether `key` is switched on for everyone (the global switch only, not segments or previews), for
+ * what a signed-out visitor may see: nothing public may depend on a flag that only some members have.
+ * Pass a service-role client.
+ */
+export async function isFeatureOnForEveryone(supabase: any, key: FeatureKey): Promise<boolean> {
+  const { data, error } = await supabase.from('feature_flags').select('enabled_globally').eq('feature_key', key).maybeSingle();
+  if (error) throw new Error(`feature_flags read failed: ${error.message}`);
+  return data?.enabled_globally === true;
+}
