@@ -1,28 +1,28 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { FEATURE_PREVIEWS } from "@/lib/features";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  const repos = createRepos(auth.supabase);
 
-  const [{ data: flags, error }, { data: links }, { data: segments }] = await Promise.all([
-    supabase.from("feature_flags").select("feature_key, enabled_globally"),
-    supabase.from("feature_flag_segments").select("feature_key, segment_id"),
-    supabase.from("segments").select("id, name"),
-  ]);
+  let flags, links, segments;
+  try {
+    [flags, links, segments] = await Promise.all([repos.featureFlags.all(), repos.featureFlags.segmentLinks(), repos.segments.list()]);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load feature flags" }, { status: 500 });
+  }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const segmentNameById = new Map((segments ?? []).map((s) => [s.id, s.name]));
-  const flagByKey = new Map((flags ?? []).map((f) => [f.feature_key, f]));
+  const segmentNameById = new Map(segments.map((s) => [s.id, s.name]));
+  const flagByKey = new Map(flags.map((f) => [f.featureKey, f]));
   const segmentsByKey = new Map<string, { id: string; name: string }[]>();
-  for (const link of links ?? []) {
-    const list = segmentsByKey.get(link.feature_key) ?? [];
-    list.push({ id: link.segment_id, name: segmentNameById.get(link.segment_id) ?? "(deleted segment)" });
-    segmentsByKey.set(link.feature_key, list);
+  for (const link of links) {
+    const list = segmentsByKey.get(link.featureKey) ?? [];
+    list.push({ id: link.segmentId, name: segmentNameById.get(link.segmentId) ?? "(deleted segment)" });
+    segmentsByKey.set(link.featureKey, list);
   }
 
   const nameByKey = new Map<string, string>(FEATURE_PREVIEWS.map((f) => [f.key, f.name]));
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
   const result = Array.from(allKeys).map((key) => ({
     key,
     name: nameByKey.get(key) ?? key,
-    enabledGlobally: flagByKey.get(key)?.enabled_globally ?? false,
+    enabledGlobally: flagByKey.get(key)?.enabledGlobally ?? false,
     segments: segmentsByKey.get(key) ?? [],
   }));
 

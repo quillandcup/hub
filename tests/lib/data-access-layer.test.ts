@@ -138,6 +138,18 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   course_access: [],
   course_access_grants: [],
   video_watch_segments: [],
+  // Segments (SegmentRepository), feature flags and user previews (FeatureFlagRepository), Slack sign-in
+  // bindings and credentials (SlackSignInRepository), usage events (AnalyticsEventRepository) and the
+  // Google Calendar push channels (CalendarSyncStateRepository): every query is moved.
+  segments: [],
+  segment_members: [],
+  feature_flags: [],
+  feature_flag_segments: [],
+  user_feature_previews: [],
+  slack_identities: [],
+  slack_sign_in_tokens: [],
+  analytics_events: [],
+  calendar_watch_channels: [],
 };
 
 /**
@@ -150,12 +162,8 @@ const UNMIGRATED_TABLES = new Set([
   "access_events",
   "admin_work_queue_completions",
   "ambiguous_zoom_names",
-  "analytics_events",
   "big_sister_volunteers",
-  "calendar_watch_channels",
   "dismissed_duplicate_groups",
-  "feature_flag_segments",
-  "feature_flags",
   "feedback",
   "ignored_zoom_appearances",
   "member_ask_me_about",
@@ -173,12 +181,7 @@ const UNMIGRATED_TABLES = new Set([
   "prickle_host_vibes",
   "prickle_join_settings",
   "prickle_schedule_locks",
-  "segment_members",
-  "segments",
-  "slack_identities",
-  "slack_sign_in_tokens",
   "staff",
-  "user_feature_previews",
   "wheel_of_wonder_matches",
   "zoom_participant_events",
 ]);
@@ -193,7 +196,6 @@ const VARIABLE_TABLE_FILES: Record<string, string> = {
   "app/(admin)/admin/outreach/page.tsx": "local paging helper; moves with the outreach repository",
   "app/(admin)/admin/work-queue/page.tsx": "local paging helper; moves with the work-queue repository",
   "lib/host-vibes.ts": "reads one of two tables chosen by a variable; moves with the leftovers repository",
-  "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 
 const root = path.resolve(__dirname, "../..");

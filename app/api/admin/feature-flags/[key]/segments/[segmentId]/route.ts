@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function DELETE(
@@ -12,13 +13,11 @@ export async function DELETE(
 
   const { key, segmentId } = await params;
 
-  const { error } = await supabase
-    .from("feature_flag_segments")
-    .delete()
-    .eq("feature_key", key)
-    .eq("segment_id", segmentId);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await createRepos(supabase).featureFlags.unlinkSegment(key, segmentId);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not unlink the segment" }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }
