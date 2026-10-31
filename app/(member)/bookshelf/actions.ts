@@ -6,6 +6,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { cleanGenres } from "@/lib/book-genres";
 import { createRepos } from "@/lib/data/repos";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
@@ -21,7 +22,8 @@ export interface BookInput {
   purchaseUrl: string;
   publishedDate: string;
   price?: number | null;
-  genre?: string;
+  /** Genre tags, in the member's order (at most MAX_GENRES, see lib/book-genres.ts). */
+  genres?: string[];
   format: BookFormat;
   /** Name the book is published under: the member's display name or one of their aliases; blank = display name. */
   penName?: string | null;
@@ -35,7 +37,7 @@ export interface MyBookRow {
   purchaseUrl: string;
   publishedDate: string;
   price: number | null;
-  genre: string | null;
+  genres: string[];
   format: BookFormat;
   /** Null when the book follows the member's display name. */
   penName: string | null;
@@ -80,7 +82,7 @@ export async function getMyBooks(): Promise<MyBookRow[]> {
     purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
     price: row.price,
-    genre: row.genre,
+    genres: row.genres,
     format: row.format as BookFormat, // a check constraint limits the column to print and ebook
     penName: row.pen_name,
     projectId: row.project_id,
@@ -112,7 +114,7 @@ async function addBookImpl(input: BookInput): Promise<{ success: true } | { erro
       purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
       price: input.price ?? null,
-      genre: input.genre?.trim() || null,
+      genres: cleanGenres(input.genres),
       format: input.format,
       pen_name: pen.penName,
     });
@@ -166,7 +168,7 @@ export async function updateBook(
       purchase_url: safeUrl(input.purchaseUrl)!,
       published_date: input.publishedDate,
       price: input.price ?? null,
-      genre: input.genre?.trim() || null,
+      genres: cleanGenres(input.genres),
       format: input.format,
       pen_name: pen.penName,
     });

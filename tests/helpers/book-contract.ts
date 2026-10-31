@@ -40,7 +40,7 @@ export function defineBookContract(name: string, setup: () => BookContractContex
 
       expect(await ctx.repo().ofMember(m1.id)).toEqual([{ id, title, cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05" }]);
       expect(await ctx.repo().mine(m1.id)).toEqual([
-        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05", price: null, genre: null, format: "print", project_id: null, pen_name: null, cover_asset: null },
+        { id, title, description: "A tale.", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-05", price: null, genres: [], format: "print", project_id: null, pen_name: null, cover_asset: null },
       ]);
       const onShelf = (await ctx.repo().shelf()).find((b) => b.id === id);
       expect(onShelf).toEqual({
@@ -52,19 +52,19 @@ export function defineBookContract(name: string, setup: () => BookContractContex
         purchase_url: "https://example.com/buy",
         published_date: "2026-03-05",
         price: null,
-        genre: null,
+        genres: [],
         format: "print",
         pen_name: null,
         author: { name: m1.name, display_name: m1.displayName },
       });
     });
 
-    it("keeps the pen name, price, genre and format, and the library image behind the cover with its size", async () => {
+    it("keeps the pen name, price, genres and format, and the library image behind the cover with its size", async () => {
       const [m1] = await ctx.members();
       const asset = await ctx.coverAsset(1600, 2560);
-      const id = await ctx.repo().add(book(m1.id, ctx.unique("Full"), { pen_name: "A. E. Byron", price: 17.99, genre: "Fantasy", format: "ebook", cover_asset_id: asset }));
+      const id = await ctx.repo().add(book(m1.id, ctx.unique("Full"), { pen_name: "A. E. Byron", price: 17.99, genres: ["Fantasy", "Cozy Mystery"], format: "ebook", cover_asset_id: asset }));
       const mine = (await ctx.repo().mine(m1.id)).find((b) => b.id === id);
-      expect(mine).toMatchObject({ pen_name: "A. E. Byron", price: 17.99, genre: "Fantasy", format: "ebook", cover_asset: { id: asset, width: 1600, height: 2560 } });
+      expect(mine).toMatchObject({ pen_name: "A. E. Byron", price: 17.99, genres: ["Fantasy", "Cozy Mystery"], format: "ebook", cover_asset: { id: asset, width: 1600, height: 2560 } });
     });
 
     it("lists a member's books newest published first, the id breaking ties, and not another member's", async () => {
@@ -177,6 +177,18 @@ export function defineBookContract(name: string, setup: () => BookContractContex
         pen_name: "Pen",
         author: { id: m1.id, name: m1.name },
       });
+    });
+
+    it("finds a book by one of its genres, any case, along with its title and description words", async () => {
+      const [m1] = await ctx.members();
+      const tag = ctx.unique("zg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const tagged = await ctx.repo().add(book(m1.id, ctx.unique("Genre book"), { genres: ["Cozy Mystery", tag.toUpperCase()], published_date: "2026-01-01" }));
+      const plain = await ctx.repo().add(book(m1.id, `${tag} plain`, { published_date: "2026-02-01" }));
+      const search = (words: string[]) => ctx.repo().search({ words, authorIds: null, limit: 10, offset: 0 });
+
+      expect((await search([tag])).map((b) => b.id)).toEqual([plain, tagged]);
+      expect((await search([tag, "cozy"])).map((b) => b.id)).toEqual([tagged]);
+      expect((await search(["cozy mystery", tag])).map((b) => b.id)).toEqual([tagged]);
     });
 
     it("narrows a search by author and by publish date, and pages through it", async () => {

@@ -1,26 +1,33 @@
-import { MAX_TOPIC_LENGTH, splitTopicInput } from "@/lib/ask-me-about";
+import { cleanTopic } from "@/lib/ask-me-about";
 
 /**
- * A book's genres are tags in the form but one comma-separated string in member_books.genre
- * (what the bookshelf and project pages already show), so older free-text values like
- * "Romance, Fantasy" load as two tags and nothing needs migrating. Tags can't contain a comma.
+ * A book's genres are tags (member_books.genres), at most MAX_GENRES, each up to
+ * MAX_GENRE_LENGTH characters, no case-insensitive duplicates. Mirrors the CHECK
+ * public.valid_book_genres, so the form can reject bad input before the database does.
  */
 
 export const MAX_GENRES = 5;
-export const MAX_GENRE_LENGTH = MAX_TOPIC_LENGTH;
+export const MAX_GENRE_LENGTH = 40;
 
-/** Stored text -> tags, dropping blanks and case-insensitive duplicates. */
-export function parseGenres(stored: string | null | undefined): string[] {
+/** Trim each genre, drop blanks and case-insensitive duplicates (first spelling and the member's order win). */
+export function cleanGenres(genres: readonly string[] | null | undefined): string[] {
   const seen = new Set<string>();
-  return splitTopicInput(stored ?? "").filter((genre) => {
+  const result: string[] = [];
+  for (const raw of genres ?? []) {
+    const genre = cleanTopic(raw ?? "");
     const key = genre.toLowerCase();
-    if (seen.has(key)) return false;
+    if (!genre || seen.has(key)) continue;
     seen.add(key);
-    return true;
-  });
+    result.push(genre);
+  }
+  return result;
 }
 
-/** Tags -> stored text (empty string when there are none). */
-export function joinGenres(genres: readonly string[]): string {
-  return parseGenres(genres.join(",")).join(", ");
+/** Why a list can't be saved, or null. */
+export function genresError(genres: readonly string[] | null | undefined): string | null {
+  const cleaned = cleanGenres(genres);
+  const tooLong = cleaned.find((g) => g.length > MAX_GENRE_LENGTH);
+  if (tooLong) return `"${tooLong.slice(0, 20)}…" is too long — keep each genre under ${MAX_GENRE_LENGTH} characters`;
+  if (cleaned.length > MAX_GENRES) return `Pick at most ${MAX_GENRES} genres`;
+  return null;
 }

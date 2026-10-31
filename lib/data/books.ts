@@ -11,7 +11,7 @@ export type NewBook = Insert<"member_books">;
 export type BookPatch = Update<"member_books">;
 
 /** What the bookshelf page shows for a book: the book, and its author's names (null when the member is gone). */
-export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genre" | "format" | "pen_name"> & {
+export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genres" | "format" | "pen_name"> & {
   author: { name: string; display_name: string | null } | null;
 };
 
@@ -19,7 +19,7 @@ export type ShelfBook = Pick<BookRow, "id" | "member_id" | "title" | "descriptio
 export type ProfileBook = Pick<BookRow, "id" | "title" | "cover_url" | "purchase_url" | "published_date">;
 
 /** One of a member's own books with the library image behind its cover. */
-export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genre" | "format" | "project_id" | "pen_name"> & {
+export type MyBook = Pick<BookRow, "id" | "title" | "description" | "cover_url" | "purchase_url" | "published_date" | "price" | "genres" | "format" | "project_id" | "pen_name"> & {
   cover_asset: { id: string; width: number; height: number } | null;
 };
 
@@ -51,7 +51,7 @@ export class BookExistsError extends Error {
 /** A search word with the characters that mean something to LIKE or to a PostgREST filter neutralized. */
 const searchWord = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
 
-const SEARCH_FIELDS = ["title", "description"] as const;
+const SEARCH_FIELDS = ["title", "description", "genres_search"] as const;
 
 /** Newest published first, the id as tie-break so pages never repeat or skip a row. */
 const newestFirst = (a: { published_date: string; id: string }, b: { published_date: string; id: string }) =>
@@ -104,7 +104,7 @@ export class SupabaseBookRepository implements BookRepository {
       (from, to) =>
         this.db
           .from("member_books")
-          .select("id, member_id, title, description, cover_url, purchase_url, published_date, price, genre, format, pen_name, author:book_member(name, display_name)")
+          .select("id, member_id, title, description, cover_url, purchase_url, published_date, price, genres, format, pen_name, author:book_member(name, display_name)")
           .is("deleted_at", null)
           .order("published_date", { ascending: false })
           .order("id")
@@ -128,7 +128,7 @@ export class SupabaseBookRepository implements BookRepository {
   async mine(memberId: string) {
     const { data, error } = await this.db
       .from("member_books")
-      .select("id, title, description, cover_url, purchase_url, published_date, price, genre, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
+      .select("id, title, description, cover_url, purchase_url, published_date, price, genres, format, project_id, pen_name, cover_asset:media_assets(id, width, height)")
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("published_date", { ascending: false })
@@ -224,7 +224,8 @@ export function bookRow(seed: BookSeed): BookRow {
     cover_url: "",
     purchase_url: "",
     price: null,
-    genre: null,
+    genres: [],
+    genres_search: null,
     format: "print",
     project_id: null,
     pen_name: null,
@@ -260,7 +261,7 @@ export class InMemoryBookRepository implements BookRepository {
           purchase_url: b.purchase_url,
           published_date: b.published_date,
           price: b.price,
-          genre: b.genre,
+          genres: b.genres,
           format: b.format,
           pen_name: b.pen_name,
           author: m ? { name: m.name, display_name: m.displayName ?? null } : null,
@@ -289,7 +290,7 @@ export class InMemoryBookRepository implements BookRepository {
           purchase_url: b.purchase_url,
           published_date: b.published_date,
           price: b.price,
-          genre: b.genre,
+          genres: b.genres,
           format: b.format,
           project_id: b.project_id,
           pen_name: b.pen_name,
@@ -341,7 +342,7 @@ export class InMemoryBookRepository implements BookRepository {
         if (q.authorIds && !q.authorIds.includes(b.member_id)) return false;
         if (q.after && b.published_date < day(q.after)) return false;
         if (q.before && b.published_date >= day(q.before)) return false;
-        return words.every((w) => SEARCH_FIELDS.some((f) => (b[f] ?? "").toLowerCase().includes(w)));
+        return words.every((w) => SEARCH_FIELDS.some((f) => (f === "genres_search" ? b.genres.join(" ") : (b[f] ?? "")).toLowerCase().includes(w)));
       })
       .sort(newestFirst)
       .slice(q.offset, q.offset + q.limit)

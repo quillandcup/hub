@@ -23,7 +23,7 @@ export default async function BookshelfPage() {
     purchaseUrl: row.purchase_url,
     publishedDate: row.published_date,
     price: row.price,
-    genre: row.genre,
+    genres: row.genres,
     format: row.format as ShelfBook["format"],
   }));
 
