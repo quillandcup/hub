@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { startAutocapture } from "@/lib/analytics/autocapture";
 import { startImpressions } from "@/lib/analytics/impressions";
 import { flush, setTrackingEnabled, track, trackWhenEnabled } from "@/lib/analytics/client";
 import { readAttribution, stripAttribution } from "@/lib/notifications/attribution";
-import { CONSENT_CHANGE_EVENT, CONSENT_STORAGE_KEY, eventsAllowed } from "@/lib/analytics/consent";
+import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
 import { templateRoute } from "@/lib/analytics/route";
 
 /**
@@ -16,24 +16,7 @@ import { templateRoute } from "@/lib/analytics/route";
  */
 export function AnalyticsEvents({ needsConsent, optedOut = false }: { needsConsent: boolean; optedOut?: boolean }) {
   const pathname = usePathname();
-  const [allowed, setAllowed] = useState(false);
-
-  // Consent: re-read the banner's stored choice, and follow it when the visitor changes it.
-  useEffect(() => {
-    const read = () => {
-      let stored: string | null = null;
-      try {
-        stored = localStorage.getItem(CONSENT_STORAGE_KEY);
-      } catch {
-        // Blocked storage counts as no answer.
-      }
-      // "Leave me out of statistics" (lib/analytics/opt-out.ts) wins over any consent the banner stored.
-      setAllowed(!optedOut && eventsAllowed(needsConsent, stored));
-    };
-    read();
-    window.addEventListener(CONSENT_CHANGE_EVENT, read);
-    return () => window.removeEventListener(CONSENT_CHANGE_EVENT, read);
-  }, [needsConsent, optedOut]);
+  const allowed = useEventsAllowed(needsConsent, optedOut);
 
   useEffect(() => {
     setTrackingEnabled(allowed);

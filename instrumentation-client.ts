@@ -13,11 +13,11 @@ Sentry.init({
 
   enableLogs: true,
 
+  // Session Replay keeps the last moments in memory and uploads them only when an error happens
+  // (full repro context for the reports that matter). Recording ordinary sessions, a small sample,
+  // is started by components/SessionReplay.tsx and only where usage statistics are allowed.
   integrations: [Sentry.replayIntegration()],
-
-  // Session Replay: sample lightly in general, but always capture sessions
-  // that hit an error so we get full repro context for the reports that matter.
-  replaysSessionSampleRate: 0.05,
+  replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
 });
 

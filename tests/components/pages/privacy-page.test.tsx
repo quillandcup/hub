@@ -84,9 +84,7 @@ describe("/privacy page", () => {
       ["Cookies", "cookies"],
       ["Your choices", "choices"],
       ["Services we use", "services"],
-      ["Security and other sites", "security"],
-      ["Children", "children"],
-      ["Changes to this policy", "changes"],
+      ["Also good to know", "more"],
     ] as const) {
       expect(nav.getByRole("link", { name: label })).toHaveAttribute("href", `#${id}`);
       expect(document.getElementById(id)).not.toBeNull();
@@ -96,7 +94,7 @@ describe("/privacy page", () => {
   it("orders the sections so the one with the actions comes last, and the contents list follows the same order", async () => {
     await renderServerPage(PrivacyPage, {});
     const ids = [...document.querySelectorAll("section[id]")].map((el) => el.id);
-    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "security", "children", "changes", "choices"]);
+    expect(ids).toEqual(["collect", "who-sees", "chat", "keep", "cookies", "services", "more", "choices"]);
     const nav = [...screen.getByRole("navigation", { name: "On this page" }).querySelectorAll("a")].map((a) => a.getAttribute("href"));
     expect(nav).toEqual(ids.map((id) => `#${id}`));
   });
@@ -109,7 +107,7 @@ describe("/privacy page", () => {
     const keep = section("keep");
     expect(keep.getByText(new RegExp(`${RETENTION.usageMonths} months, then only anonymous totals`))).toBeInTheDocument();
     expect(keep.getByText(new RegExp(`${RETENTION.rawNetworkDays} days\\. After that we keep the approximate place`))).toBeInTheDocument();
-    expect(keep.getByText(/Canceling your membership or subscription does not remove it: it stays until you ask us to close your account and remove it\. If you cancel and come back years later/)).toBeInTheDocument();
+    expect(keep.getByText(/Until you ask us to remove it\. If you leave and come back years later/)).toBeInTheDocument();
     // Course viewing is kept like the rest of what you do in the Hub, so it has no row of its own.
     expect(keep.getByText(/What you do in the Hub: .*course viewing, chat messages and activity/)).toBeInTheDocument();
     expect(keep.queryByText(/As described under Chat and messages/)).not.toBeInTheDocument();
@@ -119,7 +117,7 @@ describe("/privacy page", () => {
     await renderServerPage(PrivacyPage, {});
     const collect = section("collect");
     expect(collect.getByText(/what kind of search you ran and how many results \(never the words\)/)).toBeInTheDocument();
-    expect(collect.getByRole("link", { name: "see below" })).toHaveAttribute("href", "#choices");
+    for (const link of collect.getAllByRole("link", { name: "see below" })) expect(link).toHaveAttribute("href", "#choices");
     expect(collect.getByText(/we record where you stopped|Where you stopped, which parts you watched/i)).toBeInTheDocument();
     expect(collect.getByText(/The IP address your connection comes from/)).toBeInTheDocument();
     // The pointer to the chat section sits in the Chat row itself.
@@ -250,16 +248,32 @@ describe("/privacy page", () => {
     expect(choices.queryByText(/whichever you/)).not.toBeInTheDocument();
   });
 
-  it("names Google Analytics, describes the other services by kind, and says where error reports are held", async () => {
+  it("lists each class of service, generic infrastructure first and named services after", async () => {
     await renderServerPage(PrivacyPage, {});
     const services = section("services");
-    for (const kind of ["database provider", "sign-in and auth\\s+provider", "hosting provider \\(which also counts visits and page speed\\)", "error-reporting provider", "video hosting provider", "email provider", "Google Analytics", "Slack"]) {
+    for (const kind of [
+      "database provider, our sign-in and auth provider, and our hosting provider \\(which also counts visits and page speed\\)",
+      "payment and course providers \\(Stripe and Kajabi\\)",
+      "Zoom, where live prickles happen",
+      "Slack, for chat and notifications",
+      "email provider, and your browser's push service",
+      "video hosting provider, for course videos",
+      "Google Calendar for the prickle schedule, and Google Photos only when you choose",
+      "Gravatar, which supplies a profile picture",
+      "monitoring providers, for errors and performance",
+      "Google Analytics, only where you allow it",
+    ]) {
       expect(services.getByText(new RegExp(kind))).toBeInTheDocument();
     }
-    expect(services.getByText(/our error-reporting provider \(held in the\s+EU\)/)).toBeInTheDocument();
+    const order = [...services.getAllByRole("listitem")].map((li) => li.textContent ?? "");
+    expect(order.findIndex((t) => t.includes("video hosting provider"))).toBeLessThan(order.findIndex((t) => t.startsWith("Zoom")));
+    expect(order.findIndex((t) => t.startsWith("Zoom"))).toBeLessThan(order.findIndex((t) => t.startsWith("Slack")));
+    expect(services.getByText(/scrambled form of your email address/)).toBeInTheDocument();
+    expect(services.getByText(/Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred\s+there/)).toBeInTheDocument();
+    expect(services.getByText(/certified under the EU-U\.S\. Data Privacy Framework \(and its UK extension\) or we rely on standard\s+contractual clauses with them/)).toBeInTheDocument();
     // Vercel's own aggregate counts can't be switched off per member, and the page says so next to the switch.
     expect(section("choices").getByText(/that count is not part of\s+this switch/)).toBeInTheDocument();
-    // Everything else stays generic.
+    // The infrastructure vendors stay generic.
     const text = document.body.textContent ?? "";
     for (const vendor of ["Supabase", "Mux", "Sentry", "Resend"]) expect(text).not.toContain(vendor);
   });
@@ -274,12 +288,32 @@ describe("/privacy policy sections", () => {
     await renderServerPage(PrivacyPage, {});
   });
 
-  it("carries over security, other sites, children and changes from the former policy", () => {
-    expect(section("security").getByText(/can't guarantee it/)).toBeInTheDocument();
-    expect(section("security").getByText(/not responsible\s+for their privacy practices/)).toBeInTheDocument();
-    expect(section("children").getByText(/not meant for children under 13/)).toBeInTheDocument();
-    expect(section("children").getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
-    expect(section("changes").getByText(/update the effective date at the top, and the new version applies immediately/)).toBeInTheDocument();
+  it("keeps the short notes from the former policy: sharing, security, children, other sites, changes", () => {
+    const more = section("more");
+    expect(more.getByText(/We don't share your information/)).toBeInTheDocument();
+    expect(more.getByText(/we take it seriously: connections are encrypted and staff access is limited by role/)).toBeInTheDocument();
+    expect(more.getByText(/the Hub isn't for children under 13/)).toBeInTheDocument();
+    expect(more.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute("href", `mailto:${SUPPORT_EMAIL}`);
+    expect(more.getByText(/have their own privacy practices/)).toBeInTheDocument();
+    expect(more.getByText(/we update the effective date above, and changes apply immediately/)).toBeInTheDocument();
+  });
+
+  it("says error recordings are kept even when usage statistics are off, and that ordinary recordings follow the switch", () => {
+    const row = within(section("collect").getByText("Errors and performance", { selector: "td" }).closest("tr")!);
+    expect(row.getByText(/a short recording of what was on screen around it, with text and form fields masked/)).toBeInTheDocument();
+    expect(row.getByText(/This is not part of usage statistics/)).toBeInTheDocument();
+    const choices = section("choices");
+    expect(choices.getByText(/we also record a small share of visits as screen recordings, with text and form fields masked/)).toBeInTheDocument();
+    expect(choices.getByText(/they continue if you leave statistics off/)).toBeInTheDocument();
+    expect(choices.getByText(/apart from the error recordings described below/)).toBeInTheDocument();
+  });
+
+  it("says who can see error recordings and how long recordings are kept", () => {
+    const who = within(section("who-sees").getByText("Our engineering team", { selector: "td" }).closest("tr")!);
+    expect(who.getByText(/the recordings of what was on screen around them, in our monitoring tool/)).toBeInTheDocument();
+    expect(who.getByText(/Other staff cannot see them/)).toBeInTheDocument();
+    const keep = within(section("keep").getByText(/Errors and screen recordings/, { selector: "td" }).closest("tr")!);
+    expect(keep.getByText("Up to 90 days, set by our monitoring provider")).toBeInTheDocument();
   });
 
   it("lists membership, billing and session data", () => {

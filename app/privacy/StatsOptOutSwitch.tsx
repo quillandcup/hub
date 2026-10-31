@@ -39,7 +39,7 @@ export function StatsOptOutSwitch({ initialOptedOut, readOnly }: { initialOptedO
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Leave me out of usage statistics</p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Stops our usage log and Google Analytics counting what you do, and removes what&apos;s recorded so far.
+            Stops our usage log, Google Analytics and screen recordings of ordinary visits, and removes the usage log recorded so far. Recordings of errors continue.
           </p>
         </div>
         <button

@@ -98,9 +98,7 @@ export default async function PrivacyPage() {
           <li><a href="#keep" className="underline">How long we keep things</a></li>
           <li><a href="#cookies" className="underline">Cookies</a></li>
           <li><a href="#services" className="underline">Services we use</a></li>
-          <li><a href="#security" className="underline">Security and other sites</a></li>
-          <li><a href="#children" className="underline">Children</a></li>
-          <li><a href="#changes" className="underline">Changes to this policy</a></li>
+          <li><a href="#more" className="underline">Also good to know</a></li>
           <li><a href="#choices" className="underline">Your choices</a></li>
         </ul>
       </nav>
@@ -142,6 +140,19 @@ export default async function PrivacyPage() {
               what="Where you connect from"
               detail="The IP address your connection comes from, the city, region and country it appears to be in, the page you opened and your browser."
               why="To know where our community writes from, and which device and place you came from."
+            />
+            <CollectRow
+              what="Errors and performance"
+              detail="When something breaks, the error and a short recording of what was on screen around it, with text and form fields masked. Also how fast pages load."
+              why={
+                <>
+                  To find and fix bugs. This is not part of usage statistics:{" "}
+                  <a href="#choices" className="underline">
+                    see below
+                  </a>
+                  .
+                </>
+              }
             />
             <CollectRow
               what="Course videos"
@@ -191,6 +202,10 @@ export default async function PrivacyPage() {
             <KeepRow
               what="Quill & Cup staff"
               keep="Your account and activity, your course viewing and where you connect from (by name), and usage statistics, mostly as totals, though the individual records are tied to your account while they are kept. Chat is covered in its own section below."
+            />
+            <KeepRow
+              what="Our engineering team"
+              keep="Errors and the recordings of what was on screen around them, in our monitoring tool. Other staff cannot see them."
             />
             <KeepRow what="The services that run the Hub" keep="Only what they need to do their job. They are listed at the bottom." />
           </tbody>
@@ -273,7 +288,7 @@ export default async function PrivacyPage() {
           <tbody className="align-top">
             <KeepRow
               what="What you do in the Hub: your projects, check-ins, commitments, course viewing, chat messages and activity, sign-ins, the notifications we sent you, and your history as a member"
-              keep="While you are a member. Canceling your membership or subscription does not remove it: it stays until you ask us to close your account and remove it. If you cancel and come back years later, your seat is still warm: your history is here."
+              keep="Until you ask us to remove it. If you leave and come back years later, your seat is still warm: your history is here."
             />
             <KeepRow
               what="Usage statistics: pages, buttons, search, and your device and screen"
@@ -282,6 +297,10 @@ export default async function PrivacyPage() {
             <KeepRow
               what="Your exact IP address and your browser's identification string"
               keep={`${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device`}
+            />
+            <KeepRow
+              what="Errors and screen recordings (of errors and of the sample of ordinary visits)"
+              keep="Up to 90 days, set by our monitoring provider"
             />
           </tbody>
         </table>
@@ -318,38 +337,49 @@ export default async function PrivacyPage() {
 
       <Section id="services" title="Services that help us run the Hub">
         <p>
-          Your information passes through the services the Hub is built on: our database provider, our sign-in and auth
-          provider, our hosting provider (which also counts visits and page speed), our error-reporting provider (held in the
-          EU), our video hosting provider, our email provider, Google Analytics (only where you allow it), and Slack. We use
-          them to run the Hub and not for anything else.
+          Your information passes through the services the Hub is built on. We use them to run the Hub and not for anything else.
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-sm">
+          <li>Our database provider, our sign-in and auth provider, and our hosting provider (which also counts visits and page speed).</li>
+          <li>Our monitoring providers, for errors and performance.</li>
+          <li>Our email provider, and your browser&apos;s push service if you turn on browser notifications.</li>
+          <li>Our video hosting provider, for course videos.</li>
+          <li>Our payment and course providers (Stripe and Kajabi), for your membership and billing.</li>
+          <li>Zoom, where live prickles happen, and how we know who joined and for how long.</li>
+          <li>Slack, for chat and notifications.</li>
+          <li>Google Calendar for the prickle schedule, and Google Photos only when you choose photos to add.</li>
+          <li>Google Analytics, only where you allow it.</li>
+          <li>Gravatar, which supplies a profile picture if you haven&apos;t set one; it is asked using a scrambled form of your email address.</li>
+        </ul>
+        <p>
+          Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred
+          there. Our providers are certified under the EU-U.S. Data Privacy Framework (and its UK extension) or we rely on standard
+          contractual clauses with them.
         </p>
       </Section>
 
-      <Section id="security" title="Security and other sites">
-        <p>
-          We protect your information with commercially reasonable means, such as encrypted connections and access limited by
-          role, but no method of storing or sending data is perfectly secure, so we can&apos;t guarantee it. We don&apos;t share
-          your information with anyone except as described on this page. The Hub links to other sites, and we are not responsible
-          for their privacy practices; read theirs when you leave.
-        </p>
-      </Section>
-
-      <Section id="children" title="Children">
-        <p>
-          The Hub is not meant for children under 13, and we don&apos;t knowingly collect their information. If we learn that a child
-          under 13 has given us personal information, we delete it. A parent or guardian who thinks that has happened can email{" "}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
-            {SUPPORT_EMAIL}
-          </a>
-          .
-        </p>
-      </Section>
-
-      <Section id="changes" title="Changes to this policy">
-        <p>
-          When this page changes we update the effective date at the top, and the new version applies immediately.
-          For a significant change we will also tell members in the Hub.
-        </p>
+      <Section id="more" title="Also good to know">
+        <ul className="list-disc pl-5 space-y-1 text-sm">
+          <li>
+            <strong>We don&apos;t share your information</strong> with anyone except the services above.
+          </li>
+          <li>
+            <strong>Security:</strong> we take it seriously: connections are encrypted and staff access is limited by role.
+          </li>
+          <li>
+            <strong>Children:</strong> the Hub isn&apos;t for children under 13. If one has joined, email{" "}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+              {SUPPORT_EMAIL}
+            </a>{" "}
+            and we&apos;ll delete their information.
+          </li>
+          <li>
+            <strong>Other sites</strong> that the Hub links to have their own privacy practices.
+          </li>
+          <li>
+            <strong>Changes:</strong> we update the effective date above, and changes apply immediately.
+          </li>
+        </ul>
       </Section>
 
       <Section id="choices" title="Your choices">
@@ -367,12 +397,12 @@ export default async function PrivacyPage() {
         )}
         <p>
           <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
-          if you decline we don&apos;t record any of this. Elsewhere it is on until you turn it off here.
+          if you decline we don&apos;t record any of this, apart from the error recordings described below. Elsewhere it is on until you turn it off here.
         </p>
         <Detail title="How usage statistics work">
           We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
           type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
-          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. Our host, Vercel,
+          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. If usage statistics are on, we also record a small share of visits as screen recordings, with text and form fields masked. Recordings made when something breaks are separate: they continue if you leave statistics off, because we can&apos;t fix a bug we can&apos;t see. Our host, Vercel,
           also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
           this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
           individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
