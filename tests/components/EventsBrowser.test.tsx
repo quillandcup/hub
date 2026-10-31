@@ -50,6 +50,16 @@ describe('EventsBrowser', () => {
     expect(screen.queryByRole('region', { name: 'Sessions' })).not.toBeInTheDocument()
   })
 
+  it('alternates the picture side across sections in one column, and restarts in each section in two', () => {
+    renderBrowser()
+    const card = (name: string) => screen.getByText(name).closest('a')!
+    // Special: three cards (left, right, left); Educational then continues with the right in one column.
+    expect(card('Event zoomy')).toHaveClass('flex-row', '@pair:flex-row')
+    expect(card('Event lake')).toHaveClass('flex-row-reverse', '@pair:flex-row-reverse')
+    expect(card('Event party')).toHaveClass('flex-row', '@pair:flex-row')
+    expect(card('Event webinar')).toHaveClass('flex-row-reverse', '@pair:flex-row')
+  })
+
   it('offers this month and the next two, on the first', () => {
     renderBrowser()
     const buttons = within(monthGroup()).getAllByRole('button')
