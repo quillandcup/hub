@@ -10,18 +10,18 @@ import { StatsOptOutSwitch } from "@/app/privacy/StatsOptOutSwitch";
 
 beforeEach(() => setAnalyticsOptOut.mockReset());
 
-const toggle = () => screen.getByRole("switch", { name: "Leave me out of usage statistics" });
+const toggle = () => screen.getByRole("switch", { name: "Share usage statistics" });
 
 describe("StatsOptOutSwitch", () => {
-  it("turns on, saying how the earlier statistics were removed", async () => {
+  it("turns off, saying how the earlier statistics were removed", async () => {
     setAnalyticsOptOut.mockResolvedValue({ success: true, removed: 12 });
     render(<StatsOptOutSwitch initialOptedOut={false} readOnly={false} />);
-    expect(toggle()).toHaveAttribute("aria-checked", "false");
+    expect(toggle()).toHaveAttribute("aria-checked", "true");
 
     await userEvent.click(toggle());
 
     expect(setAnalyticsOptOut).toHaveBeenCalledWith(true);
-    await waitFor(() => expect(toggle()).toHaveAttribute("aria-checked", "true"));
+    await waitFor(() => expect(toggle()).toHaveAttribute("aria-checked", "false"));
     expect(screen.getByRole("status")).toHaveTextContent("We removed the usage statistics recorded under your account");
   });
 
@@ -32,16 +32,16 @@ describe("StatsOptOutSwitch", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("We record no usage statistics for you"));
   });
 
-  it("turns back off", async () => {
+  it("turns back on", async () => {
     setAnalyticsOptOut.mockResolvedValue({ success: true, removed: 0 });
     render(<StatsOptOutSwitch initialOptedOut={true} readOnly={false} />);
-    expect(toggle()).toHaveAttribute("aria-checked", "true");
+    expect(toggle()).toHaveAttribute("aria-checked", "false");
 
     await userEvent.click(toggle());
 
     expect(setAnalyticsOptOut).toHaveBeenCalledWith(false);
-    await waitFor(() => expect(toggle()).toHaveAttribute("aria-checked", "false"));
-    expect(screen.getByRole("status")).toHaveTextContent("Usage statistics are on again");
+    await waitFor(() => expect(toggle()).toHaveAttribute("aria-checked", "true"));
+    expect(screen.getByRole("status")).toHaveTextContent("Usage statistics are on");
   });
 
   it("stays where it was and shows the error when saving fails", async () => {
@@ -49,7 +49,7 @@ describe("StatsOptOutSwitch", () => {
     render(<StatsOptOutSwitch initialOptedOut={false} readOnly={false} />);
     await userEvent.click(toggle());
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save that");
-    expect(toggle()).toHaveAttribute("aria-checked", "false");
+    expect(toggle()).toHaveAttribute("aria-checked", "true");
   });
 
   it("can't be changed while viewing as a member", async () => {

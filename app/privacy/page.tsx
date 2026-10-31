@@ -32,7 +32,7 @@ export const PRIVACY_EFFECTIVE = "2026-10-30";
  * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
  *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
  *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
- *   `lib/notifications/attribution.ts`), and the "leave me out" switch (`lib/analytics/opt-out.ts`: the browser,
+ *   `lib/notifications/attribution.ts`), and the "Share usage statistics" switch (off = left out) (`lib/analytics/opt-out.ts`: the browser,
  *   the receiver, the server-side recorders and Google Analytics all follow it, and turning it on deletes the
  *   account's stored usage events).
  * - Deletes: deleted things are kept until the member asks, as soft deletes or in the audit log.
