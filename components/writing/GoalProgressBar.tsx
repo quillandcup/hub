@@ -9,6 +9,12 @@ interface GoalProgressBarProps {
   onPace: boolean | null;
   status?: "active" | "achieved" | "ended";
   endDate?: string | null;
+  /** Set when the goal counts only a date window: the project's all-time total is shown beneath. */
+  projectTotal?: number | null;
+  /** Set when `current` includes the project's starting balance. */
+  includesStartingBalance?: boolean;
+  /** The goal's start date: with one, only progress logged since then counts. */
+  startDate?: string | null;
 }
 
 export default function GoalProgressBar({
@@ -20,6 +26,9 @@ export default function GoalProgressBar({
   onPace,
   status = "active",
   endDate = null,
+  projectTotal = null,
+  includesStartingBalance = false,
+  startDate = null,
 }: GoalProgressBarProps) {
   const clampedPercent = Math.min(100, Math.max(0, percent));
   // Pace only matters while the goal is running.
@@ -58,6 +67,19 @@ export default function GoalProgressBar({
             />
           )}
         </div>
+      )}
+      {includesStartingBalance && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Includes your starting balance.</p>
+      )}
+      {startDate && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Counts progress logged since {startDate}
+          {projectTotal !== null && projectTotal !== current && (
+            <>
+              . Project total: {projectTotal.toLocaleString()} {MEASURE_LABELS[measure].toLowerCase()}
+            </>
+          )}
+        </p>
       )}
       {status === "achieved" ? (
         <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">Achieved!</p>

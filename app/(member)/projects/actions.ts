@@ -106,6 +106,9 @@ export interface TargetGoalRow extends GoalRowBase {
   endDate: string | null;
   current: number;
   percent: number;
+  includesStartingBalance: boolean;
+  /** The project's all-time total for this measure (starting balance included); null for prickles. */
+  projectTotal: number | null;
   parTarget: number | null;
   onPace: boolean | null;
   status: "active" | "achieved" | "ended";
@@ -333,7 +336,8 @@ function buildGoalRow(
   g: RawGoal,
   projectEntries: RawEntry[],
   now: Date,
-  attendance: PrickleAttendanceRow[]
+  attendance: PrickleAttendanceRow[],
+  startingBalances: RawStartingBalance[] = []
 ): GoalRow {
   const measureEntries =
     g.measure === "prickles"
@@ -368,15 +372,23 @@ function buildGoalRow(
     };
   }
 
+  const startingBalance = startingBalances.find((b) => b.project_id === g.project_id && b.measure === g.measure)?.amount;
   const progress = computeGoalProgress({
     entries: measureEntries,
     targetAmount: g.target_amount ?? 0,
     startDate: g.start_date,
     endDate: g.end_date,
     now,
+    startingBalance,
   });
+  // All-time count for the project, shown beside a goal that only counts its own window.
+  const projectTotal =
+    g.measure === "prickles"
+      ? null
+      : applyStartingBalance(computeCumulativeTotal(measureEntries), startingBalance);
   return {
     ...base,
+    projectTotal,
     kind: "target",
     targetAmount: g.target_amount ?? 0,
     startDate: g.start_date,
@@ -421,7 +433,7 @@ function buildProjectRows(
 
     const projectGoals = goals
       .filter((g) => g.project_id === project.id)
-      .map((g) => buildGoalRow(g, projectEntries, now, attendance));
+      .map((g) => buildGoalRow(g, projectEntries, now, attendance, startingBalances));
 
     return {
       id: project.id,
@@ -1267,14 +1279,15 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [goalRows, entryRows, attendance] = await Promise.all([
+  const [goalRows, entryRows, attendance, startingBalances] = await Promise.all([
     createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
     createRepos(supabase).writing.entries(effectiveIdentity.memberId, { projectIds: [projectId] }),
     getMyPrickleAttendance(),
+    createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId, projectId),
   ]);
 
   const now = new Date();
-  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance));
+  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance, startingBalances));
 }
 
 export async function toggleGoalStar(
@@ -1326,18 +1339,19 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
   if (goals.length === 0) return [];
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
-  const [entries, attendance] = await Promise.all([
+  const [entries, attendance, startingBalances] = await Promise.all([
     createRepos(supabase).writing.entries(effectiveIdentity.memberId, {
       projectIds: projectIds.filter((id): id is string => id !== null),
     }),
     getMyPrickleAttendance(),
+    createRepos(supabase).writing.startingBalances(effectiveIdentity.memberId),
   ]);
 
   const now = new Date();
 
   return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
     const projectEntries = entries.filter((e) => e.project_id === g.project_id);
-    return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: g.project_title ?? "Untitled project" };
+    return { ...buildGoalRow(g, projectEntries, now, attendance, startingBalances), projectTitle: g.project_title ?? "Untitled project" };
   });
 }
 
@@ -1435,7 +1449,7 @@ export async function getProfileWriting(
   }
 
   const goals = payload.goals.map((g) => ({
-    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true }, entriesFor(g.project_id), now, attendance),
+    ...buildGoalRow({ ...g, is_starred: false, show_on_profile: true }, entriesFor(g.project_id), now, attendance, payload.starting_balances),
     projectTitle: g.project_title,
   }));
 

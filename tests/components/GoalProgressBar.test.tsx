@@ -27,4 +27,21 @@ describe("GoalProgressBar", () => {
     expect(screen.getByText("Achieved!")).toBeInTheDocument();
     expect(screen.queryByText("On pace")).not.toBeInTheDocument();
   });
+
+  it("says the starting balance is included", () => {
+    render(<GoalProgressBar {...BASE} includesStartingBalance />);
+    expect(screen.getByText("Includes your starting balance.")).toBeInTheDocument();
+  });
+
+  it("explains a windowed goal and shows the project total beside it", () => {
+    render(<GoalProgressBar {...BASE} startDate="2026-01-01" projectTotal={98681} />);
+    expect(screen.getByText(/Counts progress logged since 2026-01-01/)).toBeInTheDocument();
+    expect(screen.getByText(/Project total: 98,681 words/)).toBeInTheDocument();
+  });
+
+  it("adds no explanation for a plain goal", () => {
+    render(<GoalProgressBar {...BASE} />);
+    expect(screen.queryByText(/Counts progress/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/starting balance/)).not.toBeInTheDocument();
+  });
 });

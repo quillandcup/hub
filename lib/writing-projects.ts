@@ -143,8 +143,8 @@ export function computeCumulativeSeries(
  * Offsets a computed total (or chart point) by a project's starting balance for that measure --
  * how much a member already had before they started tracking here. Kept as its own tested
  * function so this rule lives in one place: it applies to displayed totals and the chart, but
- * deliberately NOT to goal progress (see computeGoalProgress/computeHabitGoalProgress), since a
- * goal measures progress made within its own date window, not a project's all-time total.
+ * to a goal only when the goal has no start date (see computeGoalProgress): a goal with a window
+ * measures progress made within it, not a project's all-time total. Habit goals never include it.
  */
 export function applyStartingBalance(total: number, startingBalance: number | undefined): number {
   return total + (startingBalance ?? 0);
@@ -161,12 +161,16 @@ export interface GoalProgressInput {
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD
   now: Date;
+  /** The project's starting balance for this measure; counts toward the goal only when it has no start date. */
+  startingBalance?: number;
 }
 
 export interface GoalProgress {
   current: number;
   target: number;
   percent: number; // 0-100+, current/target
+  /** True when `current` includes the project's starting balance (a goal with no start date). */
+  includesStartingBalance: boolean;
   /** Pace needed-to-date to finish on time, or null if the goal has no end date (nothing to pace against). */
   parTarget: number | null;
   /** True if current >= parTarget; null when parTarget is null. */
@@ -178,15 +182,19 @@ export interface GoalProgress {
 /**
  * Only counts entries within [startDate, endDate] (inclusive, either bound optional) -- a goal
  * measures progress made toward it, not a project's all-time total. parTarget is target_amount
- * scaled by elapsed/total days in the window, clamped to [0, target_amount].
+ * scaled by elapsed/total days in the window, clamped to [0, target_amount]. A goal with no start
+ * date covers the project's whole history, so the starting balance counts toward it.
  */
 export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
-  const { entries, targetAmount, startDate, endDate, now } = input;
+  const { entries, targetAmount, startDate, endDate, now, startingBalance } = input;
 
   const inWindow = entries.filter(
     (e) => (!startDate || e.entryDate >= startDate) && (!endDate || e.entryDate <= endDate)
   );
-  const current = computeCumulativeTotal(inWindow);
+  const includesStartingBalance = !startDate && !!startingBalance;
+  const current = includesStartingBalance
+    ? applyStartingBalance(computeCumulativeTotal(inWindow), startingBalance)
+    : computeCumulativeTotal(inWindow);
   const percent = targetAmount > 0 ? (current / targetAmount) * 100 : 0;
 
   let parTarget: number | null = null;
@@ -208,6 +216,7 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
     current,
     target: targetAmount,
     percent,
+    includesStartingBalance,
     parTarget,
     onPace: parTarget === null ? null : current >= parTarget,
     status,
