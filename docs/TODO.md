@@ -198,7 +198,7 @@ The past events page (`app/(member)/events/past/page.tsx`, `PAST_EVENTS_FROM`) h
 ## Infrastructure & Deployment
 
 ### Check that a Dropped Column Is No Longer Referenced
-Squawk (`.squawk.toml`, run in the `Check migration numbering` job) fails any new migration that drops or renames a column, table or function, so a drop needs a deliberate, approved `-- squawk-ignore`. It reads only SQL: it can't tell whether the code still uses the column, which is how `member_books.genre` was dropped in the same PR that stopped reading it and took `/projects` down while the deploy rolled out. Add a script (next to `scripts/check-migration-order.ts`) that, for a migration carrying `squawk-ignore ban-drop-column` (also table and function), extracts the dropped name and fails if the same PR's tree still references it (grep `app/`, `lib/`, `components/`; ignore `lib/data/database.types.ts`, which `pnpm types:gen` regenerates), and a stronger variant that checks the previous production deploy's code instead of the PR's. Deferred because the lint plus the approval rule already stops the accident; worth doing if approved ignores start slipping through.
+Squawk (`.squawk.toml`, run in the `Check migrations` job) fails any new migration that drops or renames a column, table or function, so a drop needs a deliberate, approved `-- squawk-ignore`. It reads only SQL: it can't tell whether the code still uses the column, which is how `member_books.genre` was dropped in the same PR that stopped reading it and took `/projects` down while the deploy rolled out. Add a script (next to `scripts/check-migration-order.ts`) that, for a migration carrying `squawk-ignore ban-drop-column` (also table and function), extracts the dropped name and fails if the same PR's tree still references it (grep `app/`, `lib/`, `components/`; ignore `lib/data/database.types.ts`, which `pnpm types:gen` regenerates), and a stronger variant that checks the previous production deploy's code instead of the PR's. Deferred because the lint plus the approval rule already stops the accident; worth doing if approved ignores start slipping through.
 
 ### Test Slack Integrations at the HTTP Level with MSW
 Slack tests currently replace the `@slack/web-api` `WebClient` class with a hand-written fake (e.g. `tests/api/slack-sign-in.test.ts`). That skips the real client's request encoding, retries and error handling, and only returns the happy responses each test remembers to stub. Intercept `https://slack.com/api/*` with MSW instead (the shared server is already set up in `tests/setup-msw.ts`):
@@ -589,7 +589,7 @@ Runs of `ci.yml` on `main` queue one behind another: `concurrency` at the top of
 - [ ] Take the run-level `concurrency` off `main` (keep `cancel-in-progress` for pull requests), so tests, build and coverage for different commits run in parallel.
 - [ ] Put a job-level `concurrency: { group: prod-deploy, cancel-in-progress: false }` on `push-migrations`, `deploy`, `push-slack-manifest` and the Vercel config push, so only one touches production at a time and none is cancelled mid-flight. GitHub keeps one pending job per group and replaces older pending ones, which is fine: the newest commit contains the older ones' migrations and code.
 - [ ] Guard against out-of-order deploys: with parallel tests an older commit can finish after a newer one. Each production job first checks that `$GITHUB_SHA` is still the tip of `main` (`git fetch origin main`, then compare with `git rev-parse origin/main`, or `git merge-base --is-ancestor`) and skips otherwise.
-- Check first: the Free plan caps runners at 20 concurrent jobs per account, so parallel runs compete with PR runs and CodeQL for slots and the gain shrinks when busy. `Check migration numbering` stays outside the deploy group, unchanged. Roll out in its own PR and watch the next two `main` runs (`ship-via-pr.md` step 7). Related and cheaper: run CodeQL only on `main` plus a weekly schedule instead of every PR and push.
+- Check first: the Free plan caps runners at 20 concurrent jobs per account, so parallel runs compete with PR runs and CodeQL for slots and the gain shrinks when busy. `Check migrations` stays outside the deploy group, unchanged. Roll out in its own PR and watch the next two `main` runs (`ship-via-pr.md` step 7). Related and cheaper: run CodeQL only on `main` plus a weekly schedule instead of every PR and push.
 
 
 ### Trim CodeQL Runs _(Needs Scheduling)_
@@ -1111,6 +1111,16 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 ---
 
 ## UI Enhancements
+
+
+### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
+
+There is no shared way to stop a double submit. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Correlation"): a very fast double click can send an action twice and, for analytics, overwrite the correlation cookie before the first request reads it. Counts when checked: 58 files render a `<form>`, 19 use `useTransition`, none use `useFormStatus`, and `components/` has no submit-button component, so each form handles pending state (or doesn't) on its own.
+
+Deferred because it touches many forms. Worth doing for its own sake (duplicate saves, duplicate notifications), not only for correlation. Start with a `SubmitButton` in `components/` built on `useFormStatus` (disabled and a pending label while the form action runs), convert the forms that create or send something first, and add a component test per the rules in `reuse-ui-components.md`. Enter-key submits and two different controls clicked quickly are not covered by disabling one button, so correlation stays best effort.
+
+### Convert Page Layouts to Container Queries _(Needs Scheduling)_
+Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Moving the sidebar to `lg` fixed the worst case, but each page still hard-codes a guess about the shell. Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has, with or without the sidebar. Check at widths just either side of each breakpoint.
 
 ### Event photo import: the Google Photos picker only lists the importer's own photos in a shared album _(Needs Scheduling)_
 A member who found a shared album in Google's picker saw only the photos they uploaded themselves, though the same album opened by its link shows everyone's. The picker is Google's own screen (Photos Picker API, `lib/google-photos-picker/client.ts`); Google removed the shared-album read scopes in April 2025, so the app cannot list the album's items itself, and I found no Google documentation of this behaviour, so it is unconfirmed whether it is a limit or a bug. Deferred because nothing on our side controls it. Options, simplest first:
