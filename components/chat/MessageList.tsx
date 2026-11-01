@@ -100,7 +100,11 @@ export default function MessageList({
         // The server's newest messages: its version of each wins, and the names it found are added.
         setById((prev) => {
           const next = new Map(prev);
-          for (const v of event.views) next.set(v.id, v);
+          // A message deleted in Slack with no replies is not shown at all, as on a page load.
+          for (const v of event.views) {
+            if (v.contentState === "deleted" && v.replyCount === 0) next.delete(v.id);
+            else next.set(v.id, v);
+          }
           return next;
         });
         setContext((prev) => mergeChatContext(prev, event.ctx));
