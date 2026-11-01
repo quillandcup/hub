@@ -87,7 +87,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
 
   const [offers, customers, aliasRows] = await Promise.all([
     billing.kajabiOffersByIds(offerIds),
-    billing.kajabiCustomersByIds(customerIds),
+    billing.kajabiCustomers({ customerIds }),
     createRepos(supabase).aliases.emailAliases(),
   ]);
 
@@ -160,7 +160,7 @@ async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise
   ]);
 
   const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
-  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(emails);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails });
   const customerIds = kajabiCustomers.map((k) => k.kajabi_customer_id).filter((id): id is string => !!id);
   const stints = (await fetchMembershipHistory(supabase, customerIds)).filter(
     (s) => Date.parse(s.created_at_kajabi) < cutoff
