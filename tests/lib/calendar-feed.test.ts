@@ -178,6 +178,17 @@ describe("buildCalendarFeedEvents", () => {
     expect(event.url).toBe(`${ORIGIN}/events/fall-retreat`);
     expect(event.uid).toBe(`event-e1.m1@${UID_DOMAIN}`);
   });
+
+  it("names an event in the feed without the calendar's label, category and Prickle: prefix", () => {
+    const [event] = buildCalendarFeedEvents({
+      memberId: "m1",
+      origin: ORIGIN,
+      hosted: [],
+      committed: [],
+      events: [{ id: "e2", slug: "query-letters", title: "Quill & Cup [Craft] Prickle: Query Letters with Sam Example", location: null, startsAt: "2026-10-09", endsAt: "2026-10-09" }],
+    });
+    expect(event.summary).toBe("Query Letters with Sam Example");
+  });
 });
 
 describe("prickleCalendarState", () => {

@@ -1,6 +1,7 @@
 import { joinAt, joinDescription, loadPrickleJoinSettings, type PrickleJoinSetting } from "@/lib/prickle-join";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { eventDisplayName } from "@/lib/event-name";
+import { cleanEventTitle } from "@/lib/events-agenda";
 import {
   commitmentsFetchWindow,
   computeCommitmentProgress,
@@ -252,7 +253,7 @@ export function buildCalendarFeedEvents({
       start: new Date(`${e.startsAt}T00:00:00Z`),
       end: new Date(new Date(`${e.endsAt}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000),
       allDay: true,
-      summary: e.title,
+      summary: cleanEventTitle(e.title),
       description: `Added from Hedgie Hub.\n\n${url}`,
       location: e.location ?? undefined,
       url,
