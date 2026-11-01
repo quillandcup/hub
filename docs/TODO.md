@@ -1109,6 +1109,13 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event photo import: the Google Photos picker only lists the importer's own photos in a shared album _(Needs Scheduling)_
+A member who found a shared album in Google's picker saw only the photos they uploaded themselves, though the same album opened by its link shows everyone's. The picker is Google's own screen (Photos Picker API, `lib/google-photos-picker/client.ts`); Google removed the shared-album read scopes in April 2025, so the app cannot list the album's items itself, and I found no Google documentation of this behaviour, so it is unconfirmed whether it is a limit or a bug. Deferred because nothing on our side controls it. Options, simplest first:
+- **Each contributor imports their own photos** from the same album; a re-import skips photos already imported (`planImportBatch`, `lib/google-photos-picker/import-batch.ts`). No code.
+- **Save the album's photos to the importer's library first** ("Save to library" in Google Photos) and pick them from the main Photos view. Not yet verified that the picker then lists them; try it on the next event.
+- **An upload fallback:** an admin downloads the album as a zip from Google and uploads the files on the import page (`app/(admin)/admin/events/[slug]/import-photos/`), through the same storage, `event_photos` rows and sized copies. The reliable route, and the most work.
+Update `ImportPhotosClient.tsx`'s shared-album note once one of these is confirmed.
+
 ### Event photos: store sized copies and serve them from a CDN _(Needs Scheduling)_
 The event photo route (`app/api/events/[eventId]/photos/[photoId]/route.ts`) resizes with sharp on every request (`?w=480` for grids, `?w=1600` for the lightbox) and relies on the browser's one-day private cache, so the first view of each photo is still slow and every request still pays for auth, a database lookup and a full-original download. Two follow-ups, deferred until the page is still slow after the resize change:
 - **Store the sized copies at import time** (the import commit route, `app/api/admin/events/[id]/photos/import/commit/route.ts`), the way `renditionOf` in `lib/media/library.ts` caches library renditions, and backfill the photos already imported. Removes the slow first view.
