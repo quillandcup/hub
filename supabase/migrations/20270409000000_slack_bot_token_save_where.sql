@@ -5,6 +5,8 @@
 -- superuser that the guard doesn't apply to, so it didn't show; tests/api/slack-bot-token-rpc.test.ts now calls
 -- it the way the app does. Same function, with the table's one row addressed explicitly.
 
+set lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION public.slack_bot_token_save(p_access_token TEXT, p_refresh_token TEXT, p_expires_at TIMESTAMPTZ) RETURNS VOID AS $$
 DECLARE
   t public.slack_bot_token%ROWTYPE;

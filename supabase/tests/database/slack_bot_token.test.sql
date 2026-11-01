@@ -55,7 +55,7 @@ SELECT is(
   'a refresh replaces the credential'
 );
 SELECT is(
-  (SELECT (SELECT count(*) FROM slack_bot_token) || '|' || (SELECT count(*) FROM vault.secrets WHERE description LIKE 'Slack bot %')),
+  (SELECT (SELECT count(*) FROM slack_bot_token) || '|' || (SELECT count(*) FROM vault.secrets WHERE id IN (SELECT access_secret_id FROM slack_bot_token UNION SELECT refresh_secret_id FROM slack_bot_token))),
   '1|2',
   'in place: still one row and two secrets'
 );
