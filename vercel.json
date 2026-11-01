@@ -3,7 +3,8 @@
   "regions": ["cle1"],
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": false,
+      "**": false
     }
   },
   "crons": [
