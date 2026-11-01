@@ -29,6 +29,8 @@ set lock_timeout = '5s';
 
 -- The auth user can't be deleted while a NOT NULL, no-action reference still points at it. Feedback is kept (it
 -- helps us), so its user reference becomes optional instead.
+-- Approved ban-drop-not-null ignore: the user approved this statement for #774; nothing writes a null user_id until the removal routine is wired up, and this change makes the admin feedback list accept null.
+-- squawk-ignore ban-drop-not-null
 ALTER TABLE public.feedback ALTER COLUMN user_id DROP NOT NULL;
 
 CREATE FUNCTION public.remove_member_data(p_member_id text, p_keep_public boolean DEFAULT false)
