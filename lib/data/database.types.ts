@@ -6078,7 +6078,6 @@ export type Database = {
       }
       writing_projects: {
         Row: {
-          archived_at: string | null
           cover_asset_id: string | null
           cover_url: string | null
           created_at: string
@@ -6092,7 +6091,6 @@ export type Database = {
           title: string
         }
         Insert: {
-          archived_at?: string | null
           cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
@@ -6106,7 +6104,6 @@ export type Database = {
           title: string
         }
         Update: {
-          archived_at?: string | null
           cover_asset_id?: string | null
           cover_url?: string | null
           created_at?: string
