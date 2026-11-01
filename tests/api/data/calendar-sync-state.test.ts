@@ -11,7 +11,10 @@ const calendars: string[] = [];
 let counter = 0;
 
 afterAll(async () => {
-  if (calendars.length) await db.from("calendar_sync_state").delete().in("calendar_id", calendars);
+  if (calendars.length) {
+    await db.from("calendar_sync_state").delete().in("calendar_id", calendars);
+    await db.from("calendar_watch_channels").delete().in("calendar_id", calendars);
+  }
 });
 
 defineCalendarSyncStateContract("SupabaseCalendarSyncStateRepository", () => ({
