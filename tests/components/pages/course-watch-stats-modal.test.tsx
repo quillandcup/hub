@@ -81,6 +81,21 @@ describe("lesson watch stats modal", () => {
     expect(screen.queryByText("of the video, per viewer")).not.toBeInTheDocument();
   });
 
+  it("centres the heatmap at a fixed width with the legend on one centred line, and keeps the full-width chart on the page", async () => {
+    await renderServerPage(LessonWatchStatsModal, props());
+    const chart = screen.getByRole("img", { name: /times watched, plays and people by moment/ });
+    expect(chart).toHaveClass("mx-auto", "max-w-xl");
+    expect(screen.getByText("Plays (visits)").closest("div")!.parentElement).toHaveClass("justify-center");
+  });
+
+  it("keeps the over-time total small and the chart narrower in the modal", async () => {
+    const user = userEvent.setup();
+    await renderServerPage(LessonWatchStatsModal, props());
+    await user.click(screen.getByRole("tab", { name: "Over time" }));
+    expect(screen.getByTestId("series-total")).toHaveClass("text-xl");
+    expect(screen.getByRole("img", { name: /Total plays by day/ }).closest(".max-w-3xl")).not.toBeNull();
+  });
+
   it("puts each how-it-was-watched number beside its label", async () => {
     await renderServerPage(LessonWatchStatsModal, props());
 

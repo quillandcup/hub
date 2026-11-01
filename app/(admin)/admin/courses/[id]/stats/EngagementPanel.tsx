@@ -56,6 +56,7 @@ export default function EngagementPanel({
   playbackId,
   frames,
   showFrames = true,
+  compact = false,
 }: {
   buckets: HeatBucket[];
   durationSeconds: number;
@@ -66,6 +67,8 @@ export default function EngagementPanel({
   frames: string[] | null;
   /** Set false in a view that never wants the frames behind the chart. */
   showFrames?: boolean;
+  /** In a modal: the legend centred on one line and the chart a fixed, smaller width, centred. */
+  compact?: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const [wantFrames, setWantFrames] = useState(true);
@@ -137,7 +140,7 @@ export default function EngagementPanel({
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-5 gap-y-2">
+      <div className={`mb-2 flex flex-wrap items-center gap-x-5 gap-y-2 ${compact ? "justify-center" : "justify-between"}`}>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
           {SERIES.map((s) => (
             <span key={s.key} className="inline-flex items-center gap-2">
@@ -169,7 +172,7 @@ export default function EngagementPanel({
         onPointerMove={(e) => setActive(nearest(e.clientX, e.currentTarget.getBoundingClientRect()))}
         onPointerLeave={() => setActive(null)}
         style={{ aspectRatio: `${W} / ${H}` }}
-        className="relative w-full touch-none overflow-hidden rounded-lg bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500"
+        className={`relative w-full touch-none overflow-hidden rounded-lg bg-slate-900 ${compact ? "mx-auto max-w-xl" : ""} focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500`}
       >
         {/* The frame lives only inside the plot, so the axes and labels around it sit on a solid background and stay readable. */}
         <div
