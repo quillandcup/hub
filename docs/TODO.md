@@ -1240,7 +1240,7 @@ Left out of the first outline editor (`docs/COURSES.md`, "Editing model") on pur
 - **Move across lists.** Dragging works within one list (a module's lessons, a course's modules, a module's submodules). Moving a lesson into another module, or a submodule into another module, is not built: it needs a database function like `reorder_course_children` that also changes `module_id` / `parent_id` (keeping the same-course and one-level rules, which the database already enforces) and renumbers both lists, then drop targets on module headers.
 - **Duplicating a lesson doesn't copy its downloads.** The files live in the private `course-files` bucket under the lesson's id (`course_lesson_files`); a copy needs the storage objects copied too, so a lesson doesn't share a file with its copy (deleting one would remove the other's).
 - **Lessons without a module.** The database allows a lesson in no module (imported courses have some), but the editor only adds lessons inside a module.
-- **Reorders aren't in the audit log** (a change of `position` alone is skipped on purpose, see `docs/ACTIVITY_AND_AUDIT_LOG.md`). If "who rearranged this" matters, add one audit row per reorder from `reorder_course_children` instead of per row.
+- ~~**Reorders aren't in the audit log.**~~ **Resolved (2026-10-31):** one entry per reorder, with the order before and after (`docs/ACTIVITY_AND_AUDIT_LOG.md`).
 - **Deleting a lesson members have progress in is refused** ("hide it instead"), which needs the status menu (next PR) to be a real way out.
 
 ### Course builder: the Video actions that are still disabled _(Needs Scheduling)_
