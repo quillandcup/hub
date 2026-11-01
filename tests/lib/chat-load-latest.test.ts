@@ -76,6 +76,7 @@ describe("loadLatestChat", () => {
       views: [{ id: "m1" }],
       ctx: { ctx: true },
       olderBefore: "2026-10-01T00:00:00Z",
+      removedIds: [],
     });
     expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, {});
     expect(m.loadChatChannels).not.toHaveBeenCalled();
@@ -91,6 +92,16 @@ describe("loadLatestChat", () => {
     // Only real ids, each once; and the one already in the newest page isn't built twice.
     expect(m.loadMessagesByIds).toHaveBeenCalledWith(REPOS, CHANNEL, [OLD]);
     expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern");
+  });
+
+  it("names the asked-for messages that are gone (deleted with no replies, or not readable), so the open list drops them", async () => {
+    const GONE = "msg_AAAAAAAAAAE2";
+    const KEPT = "msg_AAAAAAAAAAE3";
+    m.loadMessagesByIds.mockResolvedValue([{ id: KEPT }]);
+    m.buildMessageViews.mockResolvedValue({ views: [{ id: "m1" }, { id: KEPT }], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} });
+
+    const result = await loadLatestChat(CHANNEL, [GONE, KEPT]);
+    expect(result?.removedIds).toEqual([GONE]);
   });
 
   it("asks for no extra messages when none are named", async () => {
