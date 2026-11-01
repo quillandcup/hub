@@ -69,6 +69,12 @@ describe("ThreadList", () => {
     ]);
   });
 
+  it("takes away the replies the server says are gone, such as one deleted in Slack", () => {
+    mount([view("r1", "first reply", 1), view("r2", "second reply", 2)]);
+    act(() => emitListEvent({ kind: "merge-thread", channelId: "c1", threadRootId: "root", views: [view("root", "the root", 0), view("r2", "second reply", 2)], removedIds: ["r1"], ctx: CTX }));
+    expect(texts()).toEqual(["the root", "second reply"]);
+  });
+
   it("ignores another thread's, another conversation's and the conversation list's events", () => {
     mount();
     act(() => emitListEvent({ kind: "add", channelId: "c1", threadRootId: "other", view: optimisticView({ id: "pending-1", body: "elsewhere", viewer: VIEWER }) }));

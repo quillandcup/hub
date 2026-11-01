@@ -155,11 +155,26 @@ describe("loadThreadChat", () => {
   });
 
   it("returns the root first and then its replies, built together, without reading the channel list", async () => {
-    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toEqual({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], ctx: { ctx: true } });
+    await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toEqual({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], ctx: { ctx: true }, removedIds: [] });
     expect(m.loadMessage).toHaveBeenCalledWith(REPOS, CHANNEL, ROOT);
     expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, { threadRootId: ROOT });
     expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern");
     expect(m.loadChatChannels).not.toHaveBeenCalled();
+  });
+
+  it("names the changed messages that are gone (deleted, or missing) and not the ones that are only elsewhere", async () => {
+    const DELETED = "msg_AAAAAAAAAAE4";
+    const MISSING = "msg_AAAAAAAAAAE5";
+    const ELSEWHERE = "msg_AAAAAAAAAAE6";
+    m.loadMessage.mockImplementation(async (_repos: unknown, _channel: string, id: string) =>
+      id === DELETED ? { id, deleted_at: "2026-11-01T00:00:00Z" } : id === MISSING ? null : { id, deleted_at: null },
+    );
+
+    const result = await loadThreadChat(CHANNEL, ROOT, [DELETED, MISSING, ELSEWHERE, "r1", "not-an-id"]);
+    expect(result?.removedIds).toEqual([DELETED, MISSING]);
+    // The ones already in the thread, and bad ids, are not looked up.
+    expect(m.loadMessage).not.toHaveBeenCalledWith(REPOS, CHANNEL, "r1");
+    expect(m.loadMessage).not.toHaveBeenCalledWith(REPOS, CHANNEL, "not-an-id");
   });
 
   it("returns nothing for bad ids, no access, a restricted conversation in sudo or a root that is gone", async () => {
