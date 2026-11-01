@@ -3513,6 +3513,27 @@ export type Database = {
           },
         ]
       }
+      member_data_handling: {
+        Row: {
+          action: string
+          column_name: string
+          table_name: string
+          why: string
+        }
+        Insert: {
+          action: string
+          column_name: string
+          table_name: string
+          why: string
+        }
+        Update: {
+          action?: string
+          column_name?: string
+          table_name?: string
+          why?: string
+        }
+        Relationships: []
+      }
       member_directory: {
         Row: {
           bio: string | null
@@ -6749,6 +6770,16 @@ export type Database = {
           confidence: string
           match_type: string
           member_id: string
+        }[]
+      }
+      member_data_report: {
+        Args: { p_member_id: string }
+        Returns: {
+          action: string
+          column_name: string
+          row_count: number
+          table_name: string
+          why: string
         }[]
       }
       member_interaction_pairs: {
