@@ -7,12 +7,15 @@ import type { FeatureKey } from "@/lib/features";
 import Wordmark from "@/components/Wordmark";
 import { useOpenMobileNav } from "@/components/MobileMenuButton";
 import { navGroups, type SitePage } from "@/lib/site-pages";
+import { exitSudoToAdmin } from "@/app/actions/sudo";
 import { navTrackName } from "@/lib/analytics/names";
 import type { NavMode } from "@/lib/nav-mode";
 import { NavModeButton, useSidebarMode } from "@/components/useSidebarMode";
 
 interface MemberNavigationProps {
   isAdmin: boolean;
+  /** Sudo is active: the Admin Portal link ends it first. */
+  isSudo?: boolean;
   enabledFeatures: FeatureKey[];
   /** The member's saved sidebar mode; null until they choose, so the page's default applies (auto-hide on chat). */
   navMode?: NavMode | null;
@@ -20,6 +23,7 @@ interface MemberNavigationProps {
 
 interface NavLinksProps {
   isAdmin: boolean;
+  isSudo?: boolean;
   enabledFeatures: FeatureKey[];
   pathname: string;
   collapsed: boolean;
@@ -28,7 +32,7 @@ interface NavLinksProps {
   onNavigate?: () => void;
 }
 
-function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, onNavigate }: NavLinksProps) {
+function NavLinks({ isAdmin, isSudo = false, enabledFeatures, pathname, collapsed, keepLayout, onNavigate }: NavLinksProps) {
   // The links come from lib/site-pages.ts, which universal search reads too.
   const isActive = (page: SitePage) =>
     pathname === page.href || [page.href, ...(page.nav?.activeFor ?? [])].some((prefix) => pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`));
@@ -75,6 +79,20 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
       {/* Admin Portal — fixed at bottom, admin-only */}
       {isAdmin && (
         <div className="px-2 py-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+          {isSudo ? (
+            <form action={exitSudoToAdmin}>
+              <button
+                type="submit"
+                data-track="nav-admin-portal"
+                onClick={onNavigate}
+                className="flex items-center justify-center gap-2 px-2 py-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                title="Admin Portal"
+              >
+            <span className="text-base flex-shrink-0">⚙️</span>
+            {showLabels && <span className={`text-sm whitespace-nowrap ${labelFade}`}>Admin Portal →</span>}
+              </button>
+            </form>
+          ) : (
           <Link
             href="/admin"
             data-track="nav-admin-portal"
@@ -85,13 +103,14 @@ function NavLinks({ isAdmin, enabledFeatures, pathname, collapsed, keepLayout, o
             <span className="text-base flex-shrink-0">⚙️</span>
             {showLabels && <span className={`text-sm whitespace-nowrap ${labelFade}`}>Admin Portal →</span>}
           </Link>
+          )}
         </div>
       )}
     </>
   );
 }
 
-export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = null }: MemberNavigationProps) {
+export default function MemberNavigation({ isAdmin, isSudo = false, enabledFeatures, navMode = null }: MemberNavigationProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const { mode, autoHide, collapsed, railOpen, peekHandlers, cycleMode } = useSidebarMode(navMode);
@@ -138,6 +157,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = n
 
         <NavLinks
           isAdmin={isAdmin}
+          isSudo={isSudo}
           enabledFeatures={enabledFeatures}
           pathname={pathname}
           collapsed={false}
@@ -173,6 +193,7 @@ export default function MemberNavigation({ isAdmin, enabledFeatures, navMode = n
 
         <NavLinks
           isAdmin={isAdmin}
+          isSudo={isSudo}
           enabledFeatures={enabledFeatures}
           pathname={pathname}
           collapsed={autoHide ? !railOpen : collapsed}

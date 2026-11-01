@@ -100,6 +100,11 @@ export interface CourseRepository {
   addLesson(lesson: NewLesson): Promise<string>;
   /** Renames a Hub-owned module or lesson of the course. False when none matches. */
   renameItem(kind: OutlineKind, target: { id: string; courseId: string }, title: string): Promise<boolean>;
+  /**
+   * Sets the text of a Hub-owned lesson of the course (already sanitized; null clears it) and its one-line teaser.
+   * False when none matches. Throws a {@link CourseWriteError}.
+   */
+  setLessonText(target: { id: string; courseId: string }, text: { body_html: string | null; excerpt: string | null }): Promise<boolean>;
   /** The lessons of a module and its submodules, or the one lesson. */
   lessonIdsUnder(kind: OutlineKind, id: string): Promise<string[]>;
   /** Deletes a Hub-owned module or lesson of the course. False when none matches. */
@@ -302,6 +307,12 @@ export class SupabaseCourseRepository implements CourseRepository {
   async renameItem(kind: OutlineKind, target: { id: string; courseId: string }, title: string) {
     const table = kind === "module" ? "course_modules" : "course_lessons";
     const { data, error } = await this.db.from(table).update({ title }).eq("id", target.id).eq("course_id", target.courseId).eq("source", "hub").select("id");
+    if (error) throw writeError(error);
+    return (data ?? []).length > 0;
+  }
+
+  async setLessonText(target: { id: string; courseId: string }, text: { body_html: string | null; excerpt: string | null }) {
+    const { data, error } = await this.db.from("course_lessons").update(text).eq("id", target.id).eq("course_id", target.courseId).eq("source", "hub").select("id");
     if (error) throw writeError(error);
     return (data ?? []).length > 0;
   }
@@ -692,6 +703,15 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!item) return false;
     item.title = title;
     item.updated_at = now();
+    return true;
+  }
+
+  async setLessonText(target: { id: string; courseId: string }, text: { body_html: string | null; excerpt: string | null }) {
+    const lesson = this.data.courseLessons.find((l) => l.id === target.id && l.course_id === target.courseId && l.source === "hub");
+    if (!lesson) return false;
+    lesson.body_html = text.body_html;
+    lesson.excerpt = text.excerpt;
+    lesson.updated_at = now();
     return true;
   }
 

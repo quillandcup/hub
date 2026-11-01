@@ -118,6 +118,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_course_offers: [],
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
+  kajabi_lesson_comments: [],
   // Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
   kajabi_contacts: [],
   kajabi_customers: [],

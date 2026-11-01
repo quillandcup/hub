@@ -282,6 +282,42 @@ export type Database = {
         }
         Relationships: []
       }
+      kajabi_lesson_comments: {
+        Row: {
+          author_name: string
+          body: string
+          captured_at: string
+          comment_key: string
+          course_kajabi_id: string
+          deleted_at: string | null
+          lesson_kajabi_id: string
+          parent_comment_key: string | null
+          posted_at: string | null
+        }
+        Insert: {
+          author_name: string
+          body: string
+          captured_at?: string
+          comment_key: string
+          course_kajabi_id: string
+          deleted_at?: string | null
+          lesson_kajabi_id: string
+          parent_comment_key?: string | null
+          posted_at?: string | null
+        }
+        Update: {
+          author_name?: string
+          body?: string
+          captured_at?: string
+          comment_key?: string
+          course_kajabi_id?: string
+          deleted_at?: string | null
+          lesson_kajabi_id?: string
+          parent_comment_key?: string | null
+          posted_at?: string | null
+        }
+        Relationships: []
+      }
       kajabi_lesson_files: {
         Row: {
           content_type: string | null

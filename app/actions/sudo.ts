@@ -69,7 +69,7 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   redirect(sudoLandingPath(landingUrl))
 }
 
-export async function exitSudo() {
+async function endSudo(): Promise<string> {
   const cookieStore = await cookies()
   const returnTo = sudoExitPath(cookieStore.get('sudo_return_to')?.value)
 
@@ -82,6 +82,19 @@ export async function exitSudo() {
 
   cookieStore.delete('sudo_as')
   cookieStore.delete('sudo_return_to')
+  return returnTo
+}
 
-  redirect(returnTo)
+export async function exitSudo() {
+  redirect(await endSudo())
+}
+
+/**
+ * The member sidebar's "Admin Portal" link while sudo is active: ends sudo, then opens the admin
+ * portal. Going back to a member is a new, explicit sudo. Tied to this click, not to loading an
+ * admin page, so an admin page open in another tab doesn't end a sudo session in this one.
+ */
+export async function exitSudoToAdmin() {
+  await endSudo()
+  redirect('/admin')
 }
