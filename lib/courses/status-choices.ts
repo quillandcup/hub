@@ -1,12 +1,15 @@
 /**
  * The quick status change on each row of the course builder's outline (Draft, Publish, Schedule,
- * Drip, Lock), and which of them an item may take given the modules above it. Pure.
+ * Drip, Lock), and which of them the editor offers yet. Pure.
  *
  * Kajabi's `publishing_option` is `draft`, `published`, `locked` or `drip`; Schedule is offered by
  * Kajabi's menu too but isn't in what the import stores, so it is listed and never shown as current.
- * An item can't be published while a module above it is still a draft, so Publish names the module
- * to publish first. Locked, drip and scheduled modules don't block it: Kajabi allows a published
- * week inside a locked module (the lesson is then "coming soon" in the Hub, see `explain.ts`).
+ *
+ * Nothing is blocked by what is above an item: Publish can be chosen under a draft module, and the item
+ * then waits (its state is limited by the module) until the module is switched on. That is the point:
+ * prepare a whole section, mark every lesson in it Published, and open or close it with the section's own
+ * setting. Kajabi allows it too (a Published lesson inside a Draft module). Schedule and Drip need a date
+ * or a delay the Hub doesn't take yet (`docs/TODO.md`), so they are listed but not offered.
  */
 
 export interface StatusChoice {
@@ -27,12 +30,8 @@ export const STATUS_CHOICES: StatusChoice[] = [
 
 /** The pill's text for a stored publishing option; an unrecognised or missing one is shown as what it is. */
 export function statusLabel(option: string | null | undefined): string {
+  if (option === "inherit") return "Follows what is above";
   return STATUS_CHOICES.find((c) => c.value === option)?.label ?? (option ? option : "No setting");
-}
-
-export interface Ancestor {
-  title: string;
-  publishingOption: string | null;
 }
 
 export interface AvailableChoice extends StatusChoice {
@@ -40,12 +39,9 @@ export interface AvailableChoice extends StatusChoice {
   disabledReason?: string;
 }
 
-/**
- * The menu for an item whose modules above it are `ancestors` (outermost first). The item's
- * `current` status is never blocked: it is what the menu already says, and an item that is
- * already published under a draft module (Kajabi allows it) isn't "blocked" from being what it is.
- */
-export function statusChoices(ancestors: Ancestor[], current?: string | null): AvailableChoice[] {
-  const blocker = [...ancestors].reverse().find((a) => !a.publishingOption || a.publishingOption === "draft");
-  return STATUS_CHOICES.map((c) => (c.value === "published" && c.value !== current && blocker ? { ...c, disabledReason: `Publish “${blocker.title}” first` } : c));
+const NOT_YET = "Needs a date or a delay the Hub doesn't take yet";
+
+/** The menu for an item whose current setting is `current`: every choice, with Schedule and Drip marked as not offered yet. */
+export function statusChoices(current?: string | null): AvailableChoice[] {
+  return STATUS_CHOICES.map((c) => ((c.value === "scheduled" || c.value === "drip") && c.value !== current ? { ...c, disabledReason: NOT_YET } : c));
 }

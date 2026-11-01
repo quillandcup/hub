@@ -113,13 +113,14 @@ describe('Admin course data', () => {
     const HUB = `test-adm-hub-${ts}`
     let hubId: string
     beforeAll(async () => {
-      const { data } = await supabase.from('courses').insert({ slug: HUB, title: `Admin Hub ${ts}`, source: 'hub', description: 'Made in the Hub.', access_duration: '6 months', launch_at: days(5) }).select('id').single()
+      const { data } = await supabase.from('courses').insert({ slug: HUB, title: `Admin Hub ${ts}`, source: 'hub', is_draft: false, description: 'Made in the Hub.', access_duration: '6 months', launch_at: days(5) }).select('id').single()
       hubId = data!.id
       await supabase.from('course_lessons').insert([
-        { course_id: hubId, title: 'Open one', position: 1, state: 'open' },
-        { course_id: hubId, title: 'Open two', position: 2, state: 'open' },
-        { course_id: hubId, title: 'Soon', position: 3, state: 'coming_soon' },
-        { course_id: hubId, title: 'Draft', position: 4, state: 'hidden' },
+        // Their states follow from their settings and what is above them, whatever state is passed.
+        { course_id: hubId, title: 'Open one', position: 1, publishing_option: 'published', source: 'hub' },
+        { course_id: hubId, title: 'Open two', position: 2, publishing_option: 'inherit', source: 'hub' },
+        { course_id: hubId, title: 'Soon', position: 3, publishing_option: 'locked', source: 'hub' },
+        { course_id: hubId, title: 'Draft', position: 4, publishing_option: 'draft', source: 'hub' },
       ])
       const { data: member } = await supabase.from('members').insert({ name: 'Adm Hub', email: `adm-hub-${ts}@example.com`, joined_at: now.toISOString(), status: 'active' }).select('id').single()
       await supabase.from('course_access').insert({ member_id: member!.id, course_id: hubId, starts_at: days(-1), ends_at: days(100), origin: 'purchase' })
@@ -143,19 +144,22 @@ describe('Admin course data', () => {
     })
 
     it("give their outline: modules, submodules and lessons in position order, with what each has, and nothing of another course's", async () => {
-      const { data: m2 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'Second', position: 2, state: 'hidden', source: 'hub' }).select('id').single()
-      const { data: m1 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'First', position: 1, state: 'hidden', source: 'hub' }).select('id').single()
-      const { data: week } = await supabase.from('course_modules').insert({ course_id: hubId, parent_id: m1!.id, title: 'Week', position: 1, state: 'hidden', source: 'hub' }).select('id').single()
+      const { data: m2 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'Second', position: 2, publishing_option: 'inherit', source: 'hub' }).select('id').single()
+      const { data: m1 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'First', position: 1, publishing_option: 'inherit', source: 'hub' }).select('id').single()
+      const { data: week } = await supabase.from('course_modules').insert({ course_id: hubId, parent_id: m1!.id, title: 'Week', position: 1, publishing_option: 'inherit', source: 'hub' }).select('id').single()
       await supabase.from('course_lessons').insert([
-        { course_id: hubId, module_id: week!.id, title: 'With text', position: 2, state: 'hidden', excerpt: 'Hello', source: 'hub' },
-        { course_id: hubId, module_id: week!.id, title: 'Plain', position: 1, state: 'hidden', source: 'hub' },
-        { course_id: hubId, module_id: m2!.id, title: 'In second', position: 1, state: 'open', source: 'hub' },
+        { course_id: hubId, module_id: week!.id, title: 'With text', position: 2, publishing_option: 'inherit', excerpt: 'Hello', source: 'hub' },
+        { course_id: hubId, module_id: week!.id, title: 'Plain', position: 1, publishing_option: 'draft', source: 'hub' },
+        { course_id: hubId, module_id: m2!.id, title: 'In second', position: 1, publishing_option: 'published', source: 'hub' },
       ])
       const outline = await loadHubOutline(supabase, hubId)
       expect(outline.modules.map((m) => m.title)).toEqual(['First', 'Second'])
       expect(outline.modules[0].children.map((c) => c.title)).toEqual(['Week'])
       expect(outline.modules[0].children[0].lessons.map((l) => l.title)).toEqual(['Plain', 'With text'])
       expect(outline.modules[1].lessons[0]).toMatchObject({ title: 'In second', state: 'open', publishingOption: 'published' })
+      // What follows reads as following, and a draft is hidden; the states come from one rule for both owners.
+      expect(outline.modules[0]).toMatchObject({ publishingOption: 'inherit', state: 'open', reason: 'Follows the course' })
+      expect(outline.modules[0].children[0].lessons[0]).toMatchObject({ title: 'Plain', state: 'hidden', reason: 'Draft in the Hub' })
       const ids = Object.fromEntries(outline.modules[0].children[0].lessons.map((l) => [l.title, l.kajabiId]))
       expect(outline.content[ids['With text']]).toEqual({ hasText: true, hasVideo: false })
       expect(outline.content[ids['Plain']]).toEqual({ hasText: false, hasVideo: false })

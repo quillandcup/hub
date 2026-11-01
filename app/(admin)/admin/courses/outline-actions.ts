@@ -32,6 +32,7 @@ function describe(error: DbError, what: string): string {
   if (error.message === "stale_order") return "The outline changed since you opened it. Refresh the page and try again.";
   if (error.message === "not_editable") return NOT_EDITABLE;
   if (error.message === "not_found") return "That has been deleted. Refresh the page.";
+  if (error.message === "unsupported_status") return "That setting isn't available yet.";
   if (error.code === "23514" || error.code === "23503") return error.message.startsWith("A ") ? error.message : "That doesn't fit there.";
   console.error(`course outline: ${what} failed:`, error.message);
   return `Couldn't ${what}.`;
@@ -53,7 +54,8 @@ async function addModuleImpl(auth: Auth, courseId: string, parentModuleId: strin
   const courses = createRepos(auth.supabase).courses;
   try {
     const position = await courses.nextPosition("module", courseId, parentModuleId);
-    const id = await courses.addModule({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, state: "hidden", source: "hub" });
+    // A new item follows what is above it (the database works out its state from that).
+    const id = await courses.addModule({ course_id: courseId, parent_id: parentModuleId, title: name.title, position, publishing_option: "inherit", source: "hub" });
     revalidate(courseId);
     return { id };
   } catch (error) {
@@ -69,7 +71,7 @@ async function addLessonImpl(auth: Auth, courseId: string, moduleId: string, tit
   const courses = createRepos(auth.supabase).courses;
   try {
     const position = await courses.nextPosition("lesson", courseId, moduleId);
-    const id = await courses.addLesson({ course_id: courseId, module_id: moduleId, title: name.title, position, state: "hidden", source: "hub" });
+    const id = await courses.addLesson({ course_id: courseId, module_id: moduleId, title: name.title, position, publishing_option: "inherit", source: "hub" });
     revalidate(courseId);
     return { id };
   } catch (error) {
@@ -133,6 +135,17 @@ async function reorderItemsImpl(auth: Auth, courseId: string, kind: ItemKind, pa
   return { id: courseId };
 }
 
+async function setItemStatusImpl(auth: Auth, courseId: string, kind: ItemKind, id: string, option: string): Promise<OutlineResult> {
+  if (!isId(courseId, "crs") || !(kind in PREFIX) || !isId(id, PREFIX[kind])) return { error: "Not found." };
+  try {
+    await createRepos(auth.supabase).courses.setItemStatus(kind, id, option);
+  } catch (error) {
+    return { error: describe(asDbError(error), "change its setting") };
+  }
+  revalidate(courseId);
+  return { id };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function addCourseModule(courseId: string, parentModuleId: string | null, title: string): Promise<OutlineResult> {
   const auth = await requireAdminAction();
@@ -168,4 +181,11 @@ export async function reorderCourseItems(courseId: string, kind: ItemKind, paren
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("course_items_reordered", () => reorderItemsImpl(auth, courseId, kind, parentId, orderedIds));
+}
+
+/** A module's or lesson's own setting: inherit (follow what is above it), draft, published or locked. */
+export async function setCourseItemStatus(courseId: string, kind: ItemKind, id: string, option: string): Promise<OutlineResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("course_item_status_set", () => setItemStatusImpl(auth, courseId, kind, id, option));
 }

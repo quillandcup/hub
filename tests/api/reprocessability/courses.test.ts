@@ -173,6 +173,16 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
       [L('removed')]: 'open',
     })
     expect(lessons.find((l: any) => l.source_key === L('open'))!.module_id).toBe(week.id)
+
+    // Each item keeps its OWN setting as Kajabi gives it, beside the state that follows from it and what is above it:
+    // an imported course has the same columns as a Hub-owned one, and 'inherit' is only ever the Hub's.
+    const { data: bronzeModules } = await bronze.from('kajabi_course_modules').select('kajabi_id, publishing_option').in('kajabi_id', [M_MONTH, M_WEEK, M_DRAFT])
+    const { data: bronzeLessons } = await bronze.from('kajabi_course_lessons').select('kajabi_id, publishing_option').in('kajabi_id', ['open', 'soon', 'draft', 'indraftmod', 'removed'].map(L))
+    expect(Object.fromEntries(modules.map((m: any) => [m.source_key, m.publishing_option]))).toEqual(Object.fromEntries(bronzeModules!.map((m) => [m.kajabi_id, m.publishing_option])))
+    expect(Object.fromEntries(lessons.map((l: any) => [l.source_key, l.publishing_option]))).toEqual(Object.fromEntries(bronzeLessons!.map((l) => [l.kajabi_id, l.publishing_option])))
+    expect(lessons.find((l: any) => l.source_key === L('indraftmod'))).toMatchObject({ publishing_option: 'published', state: 'hidden' })
+    // A published, imported course: its own setting follows the draft flag, and limits nothing.
+    expect(course).toMatchObject({ is_draft: false })
   })
 
   it('sanitizes lesson text', async () => {
@@ -243,6 +253,9 @@ describe('Courses processing (Bronze -> Silver) reprocessability', () => {
     expect(lessons).toHaveLength(before.lessons)
     expect(modules.every((m: any) => m.state === 'hidden')).toBe(true)
     expect(lessons.every((l: any) => l.state === 'hidden')).toBe(true)
+    // The module's own setting is stored as Kajabi gives it; what is under it keeps its own and is hidden by it.
+    expect(modules.find((m: any) => m.source_key === M_MONTH)!.publishing_option).toBe('draft')
+    expect(lessons.some((l: any) => l.publishing_option === 'published' && l.state === 'hidden')).toBe(true)
     await bronze.from('kajabi_course_modules').update({ publishing_option: 'published' }).eq('kajabi_id', M_MONTH)
   })
 

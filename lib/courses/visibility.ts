@@ -54,9 +54,19 @@ export interface FullTree {
 }
 
 /**
+ * What an item's state is, given its own setting and the state of what is above it: its setting gives
+ * its visibility, never more than what is above it; `inherit` (a Hub-owned item that simply follows) is
+ * what is above it. The same rule as `course_item_state` in the database (migration 20270401000000).
+ */
+export function itemState(option: string | null | undefined, above: Visibility): Visibility {
+  return option === "inherit" ? above : lessVisible(visibilityFromPublishing(option), above);
+}
+
+/**
  * The effective state of every module and lesson, by the one rule: its own publishing option,
- * limited by every module above it. Hidden ones are in the result, marked `hidden`: they are stored
- * so staff can preview them, and never shown to members.
+ * limited by every module above it (the course's own availability is `is_draft`, a separate switch).
+ * Hidden ones are in the result, marked `hidden`: they are stored so staff can preview them,
+ * and never shown to members.
  */
 export function planFullTree(modules: ModuleIn[], lessons: LessonIn[]): FullTree {
   const byId = new Map(modules.map((m) => [m.kajabiId, m]));
@@ -68,8 +78,7 @@ export function planFullTree(modules: ModuleIn[], lessons: LessonIn[]): FullTree
     const m = byId.get(id);
     if (!m || seen.has(id)) return "hidden"; // unknown parent or a cycle: never show
     seen.add(id);
-    let v = visibilityFromPublishing(m.publishingOption);
-    if (m.parentKajabiId) v = lessVisible(v, moduleVisibility(m.parentKajabiId, seen));
+    const v = itemState(m.publishingOption, m.parentKajabiId ? moduleVisibility(m.parentKajabiId, seen) : "open");
     effective.set(id, v);
     return v;
   };
@@ -79,9 +88,7 @@ export function planFullTree(modules: ModuleIn[], lessons: LessonIn[]): FullTree
 
   const lessonStates = new Map<string, Visibility>();
   for (const l of lessons) {
-    let v = visibilityFromPublishing(l.publishingOption);
-    if (l.moduleKajabiId && byId.has(l.moduleKajabiId)) v = lessVisible(v, moduleVisibility(l.moduleKajabiId));
-    lessonStates.set(l.kajabiId, v);
+    lessonStates.set(l.kajabiId, itemState(l.publishingOption, l.moduleKajabiId && byId.has(l.moduleKajabiId) ? moduleVisibility(l.moduleKajabiId) : "open"));
   }
 
   return { modules: moduleStates, lessons: lessonStates };

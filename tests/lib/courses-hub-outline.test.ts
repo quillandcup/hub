@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildHubOutline, moduleContents, moveBefore, moveBy, type HubLessonRow, type HubModuleRow } from "@/lib/courses/hub-outline";
 
-const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, state: "hidden", ...over });
+const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, publishing_option: "inherit", ...over });
 const les = (id: string, position: number, module_id: string | null, over: Partial<HubLessonRow> = {}): HubLessonRow => ({
   id,
   module_id,
   title: id,
   position,
-  state: "hidden",
+  publishing_option: "inherit",
   hasText: false,
   hasVideo: false,
   ...over,
@@ -27,9 +27,9 @@ describe("buildHubOutline", () => {
     expect(outline.loose.map((l) => l.kajabiId)).toEqual(["loose"]);
   });
 
-  it("breaks a tie in position by title, then id, so the order never jumps", () => {
-    const tied = buildHubOutline([], [les("b", 1, null, { title: "Same" }), les("a", 1, null, { title: "Same" }), les("c", 1, null, { title: "Alpha" })]);
-    expect(tied.loose.map((l) => l.kajabiId)).toEqual(["c", "a", "b"]);
+  it("breaks a tie in position by title, so the order doesn't jump", () => {
+    const tied = buildHubOutline([], [les("b", 1, null, { title: "Same" }), les("a", 1, null, { title: "Alpha" })]);
+    expect(tied.loose.map((l) => l.kajabiId)).toEqual(["a", "b"]);
   });
 
   it("says what is in each lesson, by its id", () => {
@@ -41,21 +41,24 @@ describe("buildHubOutline", () => {
     });
   });
 
-  it("shows the state members get as the pill, and a reason in plain words", () => {
-    const states = buildHubOutline(
-      [mod("a", 1, null, { state: "open" }), mod("b", 2, null, { state: "coming_soon" }), mod("c", 3, null, { state: "hidden" })],
-      [les("x", 1, "a", { state: "open" })]
+  it("reads each item's state and reason the way an imported course's are read: from its own setting and what is above it", () => {
+    const built = buildHubOutline(
+      [mod("a", 1), mod("b", 2, null, { publishing_option: "locked" }), mod("c", 3, null, { publishing_option: "draft" })],
+      [les("x", 1, "a"), les("y", 1, "b"), les("z", 1, "c", { publishing_option: "published" })]
     );
-    expect(states.modules.map((m) => [m.publishingOption, m.state, m.reason])).toEqual([
-      ["published", "open", "Published"],
-      ["locked", "coming_soon", "Coming soon"],
-      ["draft", "hidden", "Draft: not published yet"],
+    expect(built.modules.map((m) => [m.publishingOption, m.state, m.reason])).toEqual([
+      ["inherit", "open", "Follows the course"],
+      ["locked", "coming_soon", "Locked in the Hub"],
+      ["draft", "hidden", "Draft in the Hub"],
     ]);
-    expect(states.modules[0].lessons[0]).toMatchObject({ publishingOption: "published", state: "open" });
+    expect(built.modules[0].lessons[0]).toMatchObject({ state: "open", reason: "Follows “a”" });
+    expect(built.modules[1].lessons[0]).toMatchObject({ state: "coming_soon", reason: "Follows “b”: coming soon" });
+    // Its own published setting can't open what a draft module holds.
+    expect(built.modules[2].lessons[0]).toMatchObject({ state: "hidden", reason: "Inside “c” (Draft)" });
   });
 
-  it("treats an unknown state as hidden, never as visible", () => {
-    expect(buildHubOutline([mod("a", 1, null, { state: "weird" })], []).modules[0]).toMatchObject({ state: "hidden", publishingOption: "draft" });
+  it("treats an unknown setting as hidden, never as visible", () => {
+    expect(buildHubOutline([mod("a", 1, null, { publishing_option: "weird" })], []).modules[0]).toMatchObject({ state: "hidden" });
   });
 
   it("shows a lesson whose module is missing as loose, and a module whose parent is missing at the top, instead of dropping them", () => {
