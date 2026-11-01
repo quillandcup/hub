@@ -144,9 +144,19 @@ describe('Kajabi lesson comments capture idempotency', () => {
     const before = [await rows(L1), await rows(L2)]
     pages.set(L1, new Error('the lesson page did not load'))
     pages.set(L2, ok([raw(0, 999, 'Zed', 'partial')], { capped: true }))
-    pages.set(L3, { kind: 'noList' })
+    pages.set(L3, { kind: 'noList', hasCommentBox: false })
     const summary = await run([L1, L2, L3])
     expect(summary).toMatchObject({ lessonsFailed: 1, lessonsCapped: 1, lessonsWithoutList: 1, lessonsCaptured: 0, rows: { written: 0, unchanged: 0, removed: 0 } })
+    expect([await rows(L1), await rows(L2)]).toEqual(before)
+  })
+
+  it('tells a lesson with no comments (the page has a comment box) from a page that is not a lesson (neither), and writes nothing for either', async () => {
+    const before = [await rows(L1), await rows(L2)]
+    pages.set(L1, { kind: 'noList', hasCommentBox: true })
+    pages.set(L2, { kind: 'noList', hasCommentBox: true })
+    pages.set(L3, { kind: 'noList', hasCommentBox: false })
+    const summary = await run([L1, L2, L3])
+    expect(summary).toMatchObject({ lessonsNoComments: 2, lessonsWithoutList: 1, lessonsFailed: 0, lessonsCaptured: 0, rows: { written: 0, unchanged: 0, removed: 0 } })
     expect([await rows(L1), await rows(L2)]).toEqual(before)
   })
 
