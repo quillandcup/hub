@@ -1,5 +1,6 @@
 import { formatMetricValue, GRANULARITIES, METRICS, RANGES, type RangePreset, type TimeSeries } from "@/lib/courses/watch-timeseries";
 import TimeSeriesChart from "./TimeSeriesChart";
+import SoftGetForm from "./SoftGetForm";
 
 const field = "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-950";
 
@@ -14,6 +15,7 @@ export default function TimeSeriesSection({
   preset,
   action,
   staff,
+  variant = "page",
 }: {
   series: TimeSeries;
   /** The range preset the form shows as chosen. */
@@ -22,14 +24,18 @@ export default function TimeSeriesSection({
   action: string;
   /** Keeps staff viewing included across Apply. */
   staff: boolean;
+  /** "modal" drops the card (the modal is the card) and applies without leaving the page. */
+  variant?: "page" | "modal";
 }) {
   const metric = METRICS.find((m) => m.value === series.metric) ?? METRICS[0];
   const granularity = GRANULARITIES.find((g) => g.value === series.granularity) ?? GRANULARITIES[0];
 
+  const modal = variant === "modal";
+  const Form = modal ? SoftGetForm : "form";
   return (
-    <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
+    <div className={modal ? "" : "mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900"}>
       <h2 className="text-lg font-semibold">Over time</h2>
-      <form method="get" action={action} className="mt-3 flex flex-wrap items-end gap-3">
+      <Form action={action} className="mt-3 flex flex-wrap items-end gap-3">
         {staff && <input type="hidden" name="staff" value="1" />}
         <label className="text-sm">
           <span className="mb-1 block text-slate-600 dark:text-slate-400">Metric</span>
@@ -72,7 +78,7 @@ export default function TimeSeriesSection({
         <button type="submit" data-track="admin-watch-stats-apply" className="rounded-lg bg-plum-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-plum-700">
           Apply
         </button>
-      </form>
+      </Form>
       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">The From and To dates are used when the range is &ldquo;Custom range&rdquo;.</p>
 
       <div className="mt-5">
