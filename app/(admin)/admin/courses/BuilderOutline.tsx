@@ -7,7 +7,7 @@ import Modal from "@/components/Modal";
 import type { ExplainedLesson, ExplainedModule } from "@/lib/courses/explain";
 import { moduleContents, moveBefore, moveBy } from "@/lib/courses/hub-outline";
 import { statusChoices, statusLabel } from "@/lib/courses/status-choices";
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, type ItemKind, type OutlineResult } from "./outline-actions";
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus, type ItemKind, type OutlineResult } from "./outline-actions";
 
 /** What the outline needs of a course. For an imported course the ids are Kajabi's; for a Hub-owned one they are its own. */
 export interface OutlineCourse {
@@ -34,6 +34,7 @@ const PILL: Record<string, string> = {
   locked: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   drip: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  inherit: "bg-white text-slate-600 ring-1 ring-inset ring-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-600",
 };
 
 function Icon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
@@ -82,18 +83,21 @@ interface OutlineContextValue {
 const OutlineContext = createContext<OutlineContextValue | null>(null);
 const useOutline = () => useContext(OutlineContext)!;
 
-function StatusPill({ title, option }: { title: string; option: string | null }) {
-  const { soon } = useOutline();
+/** A row's own setting. In a Hub-owned course it can be changed here; in an imported one it is Kajabi's, shown as it is. */
+function StatusPill({ title, option, kind, id }: { title: string; option: string | null; kind: ItemKind; id: string }) {
+  const { soon, editor } = useOutline();
+  const choices = statusChoices(option, !!editor);
   return (
     <select
       aria-label={`Status of ${title}`}
-      disabled
-      defaultValue={option ?? ""}
-      title={soon}
-      className={`shrink-0 cursor-not-allowed appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
+      disabled={!editor || editor.busy}
+      value={option ?? ""}
+      onChange={editor ? (e) => void editor.run(() => setCourseItemStatus(editor.courseId, kind, id, e.target.value)) : undefined}
+      title={editor ? undefined : soon}
+      className={`shrink-0 appearance-none rounded-full border-0 px-3 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-100 ${PILL[option ?? "draft"] ?? PILL.draft}`}
     >
-      {!statusChoices(option).some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
-      {statusChoices(option).map((c) => (
+      {!choices.some((c) => c.value === option) && <option value={option ?? ""}>{statusLabel(option)}</option>}
+      {choices.map((c) => (
         // The reason a choice is blocked is the tooltip, not option text: a select is as wide as its longest option.
         <option key={c.value} value={c.value} disabled={!!c.disabledReason} title={c.disabledReason}>
           {c.value === option ? c.label : c.action}
@@ -319,7 +323,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
         {editor ? <Action label="Delete lesson" icon="trash" onClick={() => setConfirming(true)} /> : <Action label="Delete video" icon="trash" />}
         <MoveButtons sibling={sibling} what="lesson" />
       </span>
-      <StatusPill title={lesson.title} option={lesson.publishingOption} />
+      <StatusPill title={lesson.title} option={lesson.publishingOption} kind="lesson" id={lesson.kajabiId} />
       {confirming && editor && (
         <DeleteDialog title={lesson.title} what="lesson" detail={null} onConfirm={() => editor.run(() => deleteCourseItem(editor.courseId, "lesson", lesson.kajabiId))} onClose={() => setConfirming(false)} />
       )}
@@ -422,7 +426,7 @@ function ModuleRow({
             </div>
           )}
         </span>
-        <StatusPill title={mod.title} option={mod.publishingOption} />
+        <StatusPill title={mod.title} option={mod.publishingOption} kind="module" id={mod.kajabiId} />
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={shown} aria-label={`${shown ? "Collapse" : "Expand"} ${mod.title}`} className="rounded p-1 text-slate-600 dark:text-slate-300">
           <Icon path={ICONS.chevron} className={`h-4 w-4 transition-transform ${shown ? "rotate-180" : ""}`} />
         </button>
