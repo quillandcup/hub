@@ -26,6 +26,7 @@
     "demo:build": "dotenv -e demo/.env.demo -v NEXT_DIST_DIR=.next-demo -- next build",
     "demo:serve": "dotenv -e demo/.env.demo -v NEXT_DIST_DIR=.next-demo -- next start -p 3100",
     "demo:seed": "tsx demo/seed.ts",
+    "seed:local": "tsx scripts/seed-local.ts",
     "demo:baseline": "tsx demo/baseline.ts",
     "demo:publish": "tsx demo/publish.ts",
     "demo:video": "playwright test --config demo/video/playwright.config.ts",
