@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Page } from "./query";
+import { escapeLike, type Page } from "./query";
 import type { Db, Insert } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -83,6 +83,8 @@ export interface AliasRepository {
   emailsOfMembers(memberIds: string[]): Promise<{ member_id: string; alias_email: string }[]>;
   /** The active aliases that resolve to this primary email. */
   activeEmailsFor(canonicalEmail: string): Promise<string[]>;
+  /** The member behind the one active alias with this address (any case); null when none or several match. */
+  uniqueActiveEmailOwner(email: string): Promise<string | null>;
   /** A member's email aliases, newest first. */
   emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]>;
   /** Adds an email alias (the database fills in the canonical email); false when that address is already an alias of anyone. */
@@ -236,6 +238,12 @@ export class SupabaseAliasRepository implements AliasRepository {
     const { data, error } = await this.db.from("member_email_aliases").select("alias_email").eq("canonical_email", canonicalEmail).eq("active", true);
     if (error) throw new Error(error.message);
     return (data ?? []).map((r) => r.alias_email);
+  }
+
+  async uniqueActiveEmailOwner(email: string) {
+    const { data, error } = await this.db.from("member_email_aliases").select("member_id").ilike("alias_email", escapeLike(email)).eq("active", true).limit(2);
+    if (error) throw new Error(error.message);
+    return data?.length === 1 ? data[0].member_id : null;
   }
 
   async emailsOf(memberId: string): Promise<MemberEmailAliasEntry[]> {
@@ -433,6 +441,11 @@ export class InMemoryAliasRepository implements AliasRepository {
 
   async activeEmailsFor(canonicalEmail: string) {
     return this.data.emailAliases.filter((a) => a.canonical_email === canonicalEmail && a.active).map((a) => a.alias_email);
+  }
+
+  async uniqueActiveEmailOwner(email: string) {
+    const matches = this.data.emailAliases.filter((a) => a.active && a.alias_email.toLowerCase() === email.toLowerCase());
+    return matches.length === 1 ? matches[0].memberId : null;
   }
 
   async emailsOf(memberId: string) {
