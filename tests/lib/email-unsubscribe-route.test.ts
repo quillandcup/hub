@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { signUnsubscribeToken } from "@/lib/email-unsubscribe";
 
-let fake: FakeSupabase;
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => fake }));
+// The choice is stored through the notification repository, in memory here.
+let repos: Repos;
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const route = await import("@/app/api/email/unsubscribe/route");
 
@@ -17,10 +23,9 @@ const post = (token: string | null) =>
       headers: { "content-type": "application/x-www-form-urlencoded" },
     })
   );
-const upserts = () => fake.queries.flatMap((q) => q.calls.filter((c) => c.method === "upsert"));
 
 beforeEach(() => {
-  fake = createFakeSupabase();
+  repos = createInMemoryRepos(new InMemoryDataset());
 });
 
 describe("POST /api/email/unsubscribe", () => {
@@ -28,20 +33,22 @@ describe("POST /api/email/unsubscribe", () => {
     const response = await post(signUnsubscribeToken(MEMBER, "prickle_checkout"));
 
     expect(response.status).toBe(200);
-    expect(upserts().map((c) => c.args[0])).toEqual([
-      { member_id: MEMBER, kind: "prickle_checkout", channel: "email", enabled: false },
+    expect(await repos.notifications.preferencesOf(MEMBER)).toEqual([
+      { memberId: MEMBER, kind: "prickle_checkout", channel: "email", enabled: false },
     ]);
   });
 
   it("changes nothing for a missing or forged token", async () => {
     expect((await post(null)).status).toBe(400);
     expect((await post(`${MEMBER}.prickle_checkout.forged`)).status).toBe(400);
-    expect(upserts()).toEqual([]);
+    expect(await repos.notifications.preferencesOf(MEMBER)).toEqual([]);
   });
 
   it("answers 500 when the choice can't be saved, so the mail client can retry", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
+    repos.notifications.setPreference = async () => {
+      throw new Error("boom");
+    };
 
     expect((await post(signUnsubscribeToken(MEMBER, "prickle_checkout"))).status).toBe(500);
   });

@@ -74,6 +74,12 @@ export const MEMBER_IDENTITY: EffectiveIdentity = {
 };
 export const ADMIN_USER: AuthUser = { id: "user-admin-bramble", email: "bramble.admin@example.test" };
 
+/** The profiles of ADMIN_USER and MEMBER_USER for an in-memory dataset (`userProfiles`), so the admin gate can tell them apart. */
+export const ROLE_PROFILES = [
+  { id: "user-admin-bramble", email: "bramble.admin@example.test", role: "admin" },
+  { id: "user-fern", email: "fern.quillsby@example.test", role: "member" },
+];
+
 /** Signs in `user` and resolves their effective (possibly sudo'd) member identity. Pass
  * `identity: null` for an admin with no member record. */
 export function signInAs(user: AuthUser | null, identity: EffectiveIdentity | null = null) {

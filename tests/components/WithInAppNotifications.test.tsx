@@ -2,12 +2,19 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import type { InAppNotificationRow } from "@/lib/data/notifications";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { InAppNotificationBanner, InAppNotificationBell } from "@/components/InAppNotifications";
 import WithInAppNotifications from "@/components/WithInAppNotifications";
 
-let fake: FakeSupabase;
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fake }));
+// The notifications come from the notification repository, in memory here.
+let repos: Repos;
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 vi.mock("@/app/actions/in-app-notifications", () => ({
   getMyBellState: vi.fn(async () => ({ latest: [], unreadCount: 0 })),
   markInAppNotificationsReadAction: vi.fn(),
@@ -22,27 +29,35 @@ const header = (
     <InAppNotificationBanner />
   </>
 );
+const note = (id: string, memberId: string): InAppNotificationRow => ({
+  id,
+  memberId,
+  kind: "prickle_checkin",
+  ref: null,
+  text: "Hi",
+  url: null,
+  bannerUntil: null,
+  readAt: null,
+  createdAt: "2026-10-05T10:40:00Z",
+});
 
 describe("WithInAppNotifications", () => {
   it("gives the bell the effective member's unread count", async () => {
-    fake = createFakeSupabase({
-      in_app_notifications: {
-        data: [{ id: "n1", kind: "prickle_checkin", text: "Hi", url: null, created_at: "2026-10-05T10:40:00Z", banner_until: null, read_at: null }],
-        count: 3,
-      },
-    });
+    repos = createInMemoryRepos(
+      new InMemoryDataset({ inAppNotifications: [note("n1", "member-1"), note("n2", "member-1"), note("n3", "member-1"), note("theirs", "member-2")] })
+    );
     render(await WithInAppNotifications({ identity: IDENTITY, children: header }));
 
     expect(screen.getByRole("button", { name: "Notifications, 3 unread" })).toBeInTheDocument();
-    for (const q of fake.queries) expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
   });
 
   it("shows no bell for an admin with no member record, and still renders the page", async () => {
-    fake = createFakeSupabase();
+    repos = createInMemoryRepos();
+    const unread = vi.spyOn(repos.notifications, "inAppCount");
     render(await WithInAppNotifications({ identity: null, children: <>{header}<p>the page</p></> }));
 
     expect(screen.queryByRole("button", { name: /Notifications/ })).not.toBeInTheDocument();
     expect(screen.getByText("the page")).toBeInTheDocument();
-    expect(fake.queries).toHaveLength(0);
+    expect(unread).not.toHaveBeenCalled();
   });
 });

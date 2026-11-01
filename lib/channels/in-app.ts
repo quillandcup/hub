@@ -1,12 +1,14 @@
 import { APP_URL } from "@/lib/config";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { createRepos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
 import type { InAppNotificationRow, NewInAppNotification } from "@/lib/data/notifications";
 import type { SortConfig } from "@/lib/hooks/useTableSort";
 import { isAllowedExternalUrl } from "@/lib/notification-links";
 import { pageBounds } from "@/lib/pagination";
 import type { InboxFilter, InboxFilterCounts, InboxSortColumn } from "@/lib/notifications/inbox";
 import type { ChannelAdapter, OutboundMessage, SendContext } from "./types";
+
+type InAppRepos = Pick<Repos, "notifications">;
 
 /**
  * "In the Hub", stored in in_app_notifications (migration 20261004000000) and shown by
@@ -91,13 +93,13 @@ function toNotification(row: InAppNotificationRow, now: Date): InAppNotification
 
 /** A member's latest `limit` notifications, newest first, as of `now` (the bell and banner). */
 export async function loadInAppNotifications(
-  supabase: any,
+  repos: InAppRepos,
   memberId: string,
   now: Date,
   { limit }: { limit: number }
 ): Promise<InAppNotification[]> {
   try {
-    return (await createRepos(supabase).notifications.inAppLatest(memberId, limit)).map((row) => toNotification(row, now));
+    return (await repos.notifications.inAppLatest(memberId, limit)).map((row) => toNotification(row, now));
   } catch (error) {
     console.error("[in-app] Loading notifications failed", { member: memberId, error });
     return [];
@@ -121,7 +123,7 @@ export interface InboxPage {
  * pager and tab counts agree with the rows; a page past the end serves the last one.
  */
 export async function loadInboxPage(
-  supabase: any,
+  repos: InAppRepos,
   memberId: string,
   now: Date,
   {
@@ -132,7 +134,7 @@ export async function loadInboxPage(
     pageSize,
   }: { filter: InboxFilter; kind: string | null; sort: SortConfig<InboxSortColumn>; page: number; pageSize: number }
 ): Promise<InboxPage> {
-  const notifications = createRepos(supabase).notifications;
+  const notifications = repos.notifications;
   const count = async (unreadOnly: boolean) => {
     try {
       return await notifications.inAppCount(memberId, { unreadOnly, kind });
@@ -171,12 +173,12 @@ export async function loadInboxPage(
 
 /** How many notifications the member has (all of them, not just a page's), or just the unread. */
 export async function countInAppNotifications(
-  supabase: any,
+  repos: InAppRepos,
   memberId: string,
   { unreadOnly = false }: { unreadOnly?: boolean } = {}
 ): Promise<number> {
   try {
-    return await createRepos(supabase).notifications.inAppCount(memberId, { unreadOnly });
+    return await repos.notifications.inAppCount(memberId, { unreadOnly });
   } catch (error) {
     console.error("[in-app] Counting notifications failed", { member: memberId, unreadOnly, error });
     return 0;
@@ -194,18 +196,18 @@ async function attempt(write: () => Promise<void>): Promise<{ error: Error | nul
 }
 
 /** Marks these of the member's notifications read (scoped to the member, whichever client). */
-export async function markInAppNotificationsRead(supabase: any, memberId: string, ids: string[]) {
-  return attempt(() => createRepos(supabase).notifications.markInAppRead(memberId, ids));
+export async function markInAppNotificationsRead(repos: InAppRepos, memberId: string, ids: string[]) {
+  return attempt(() => repos.notifications.markInAppRead(memberId, ids));
 }
 
 /** Puts these of the member's notifications back to unread (scoped to the member, whichever client). */
-export async function markInAppNotificationsUnread(supabase: any, memberId: string, ids: string[]) {
-  return attempt(() => createRepos(supabase).notifications.markInAppUnread(memberId, ids));
+export async function markInAppNotificationsUnread(repos: InAppRepos, memberId: string, ids: string[]) {
+  return attempt(() => repos.notifications.markInAppUnread(memberId, ids));
 }
 
 /** Marks every one of the member's notifications read. */
-export async function markAllInAppNotificationsRead(supabase: any, memberId: string) {
-  return attempt(() => createRepos(supabase).notifications.markAllInAppRead(memberId));
+export async function markAllInAppNotificationsRead(repos: InAppRepos, memberId: string) {
+  return attempt(() => repos.notifications.markAllInAppRead(memberId));
 }
 
 /**
@@ -215,7 +217,7 @@ export async function markAllInAppNotificationsRead(supabase: any, memberId: str
  * them mark their own) or the service role. Best effort: a failure is logged, never thrown, since
  * the answer itself is already saved.
  */
-export async function resolveInAppNotifications(supabase: any, memberId: string, kind: string, ref: string) {
-  const { error } = await attempt(() => createRepos(supabase).notifications.resolveInApp(memberId, kind, ref));
+export async function resolveInAppNotifications(repos: InAppRepos, memberId: string, kind: string, ref: string) {
+  const { error } = await attempt(() => repos.notifications.resolveInApp(memberId, kind, ref));
   if (error) console.error("[in-app] Resolving notifications failed", { member: memberId, kind, ref, error });
 }

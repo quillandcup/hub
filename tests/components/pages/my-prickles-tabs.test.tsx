@@ -14,13 +14,21 @@ import {
   renderServerRoute,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// What the page reads from the repositories comes from this dataset, in memory.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
 const hostingOn = vi.fn(async () => true);
 vi.mock("@/lib/features.server", () => ({
@@ -90,7 +98,7 @@ const renderTab = (Route: (props: never) => React.ReactNode) => renderServerRout
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase();
+  dataset = new InMemoryDataset();
   hostingOn.mockResolvedValue(true);
 });
 

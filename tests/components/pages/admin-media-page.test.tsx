@@ -2,7 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
+import { ADMIN_USER, MEMBER_USER, ROLE_PROFILES, expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -10,17 +12,18 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/app/(admin)/admin/media/MediaLibraryClient", () => ({ default: () => <div data-testid="library" /> }));
 
-import MediaPage from "@/app/(admin)/admin/media/page";
+// Roles and everything the page lists come from the repositories, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
+import MediaPage from "@/app/(admin)/admin/media/page";
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({ user_profiles: userProfiles });
+  dataset = new InMemoryDataset({ userProfiles: ROLE_PROFILES });
 });
 
 describe("admin media page", () => {

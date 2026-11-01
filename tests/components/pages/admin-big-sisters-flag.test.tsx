@@ -8,12 +8,20 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// Everything the page lists comes from the repositories, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
 let features: string[] = [];
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: async () => features }));
@@ -28,7 +36,7 @@ import MentorshipPage from "@/app/(admin)/admin/mentorship/MentorshipPage";
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER, null);
-  useFakeSupabase({ mentorships: { data: [] } });
+  dataset = new InMemoryDataset();
 });
 
 describe("admin Big Sisters page", () => {

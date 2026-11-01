@@ -3,12 +3,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
 import { computePlaySessions, computeVideoWatchStats } from "@/lib/courses/watch-stats";
-import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase, type FakeQuery } from "@/tests/helpers/server-page";
+import { ADMIN_USER, MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, ROLE_PROFILES } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// Roles come from the profile repository, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const signThumbnailTokens = vi.fn();
@@ -50,15 +59,10 @@ const data = (over: object = {}) => ({
   ...over,
 });
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({ user_profiles: userProfiles });
+  dataset = new InMemoryDataset({ userProfiles: ROLE_PROFILES });
   signInAs(ADMIN_USER, null);
   loadCourseWatchStats.mockReset();
   signThumbnailTokens.mockReset();

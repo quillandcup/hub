@@ -8,9 +8,10 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
-  type FakeQuery,
+  ROLE_PROFILES,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -18,13 +19,14 @@ vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 vi.mock("@/app/(admin)/admin/prickle-join/actions", () => ({ savePrickleJoin: vi.fn(), removeScheduledPrickleJoin: vi.fn() }));
 
-import PrickleJoinPage from "@/app/(admin)/admin/prickle-join/page";
+// Roles and the join settings come from the repositories, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
+import PrickleJoinPage from "@/app/(admin)/admin/prickle-join/page";
 
 const row = (id: string, effective_from: string, passcode: string) => ({
   id,
@@ -33,10 +35,12 @@ const row = (id: string, effective_from: string, passcode: string) => ({
   passcode,
   effective_from,
   created_at: effective_from,
+  created_by: null,
 });
 
 beforeEach(() => {
   resetServerPageMocks();
+  dataset = new InMemoryDataset({ userProfiles: ROLE_PROFILES });
   // Pins "now" so which rows are in effect doesn't depend on the day the suite runs.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-12-01T12:00:00Z"));
@@ -49,13 +53,8 @@ afterEach(() => {
 describe("/admin/prickle-join", () => {
   it("shows the current link, the history as ranges, and a Remove for a scheduled change only", async () => {
     signInAs(ADMIN_USER, null);
-    useFakeSupabase({
-      user_profiles: userProfiles,
-      prickle_join_settings: {
-        // Newest first, as the loader orders them: one scheduled far out, then two in effect.
-        data: [row("3", "2099-01-01T05:00:00Z", "future"), row("2", "2026-11-01T05:00:00Z", "november"), row("1", "2026-10-01T04:00:00Z", "october")],
-      },
-    });
+    // Newest first, as the loader orders them: one scheduled far out, then two in effect.
+    dataset.joinSettings = [row("3", "2099-01-01T05:00:00Z", "future"), row("2", "2026-11-01T05:00:00Z", "november"), row("1", "2026-10-01T04:00:00Z", "october")];
     await renderServerPage(PrickleJoinPage, {});
 
     expect(screen.getByRole("heading", { name: "Prickle Zoom Link" })).toBeInTheDocument();
@@ -70,7 +69,6 @@ describe("/admin/prickle-join", () => {
 
   it("shows an empty form before any link is saved", async () => {
     signInAs(ADMIN_USER, null);
-    useFakeSupabase({ user_profiles: userProfiles });
     await renderServerPage(PrickleJoinPage, {});
 
     expect(screen.getByLabelText("One-click join link")).toHaveValue("");
@@ -79,7 +77,6 @@ describe("/admin/prickle-join", () => {
 
   it("sends a member to /no-access", async () => {
     signInAs(MEMBER_USER, null);
-    useFakeSupabase({ user_profiles: userProfiles });
     await expectRedirect(PrickleJoinPage, {}, "/no-access");
   });
 });
