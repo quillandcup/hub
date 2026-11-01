@@ -236,7 +236,7 @@ export default function PrickleDetails({
           <div>
             <span className="text-slate-600 dark:text-slate-400">Source:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">
-              {prickle.source === "calendar" ? "Google Calendar" : "Pop-Up Prickle (Zoom)"}
+              {prickle.source === "calendar" ? "Google Calendar" : prickle.source === "hub" ? "Made in the Hub" : "Pop-Up Prickle (Zoom)"}
             </p>
           </div>
           <div>

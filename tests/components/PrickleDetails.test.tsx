@@ -177,6 +177,22 @@ describe("PrickleDetails summary", () => {
     expect(screen.getByText("Pop-Up Prickle (Zoom)")).toBeInTheDocument();
   });
 
+  it("says a prickle made for an event in the Hub was made in the Hub, not that it is a pop-up", () => {
+    render(
+      <PrickleDetails
+        prickle={{ ...prickle, source: "hub" }}
+        attendanceRecords={[]}
+        hostMissing={false}
+        hostLate={false}
+        userTimezonePreference="America/New_York"
+        memberBasePath="/members"
+        showMemberEmails={false}
+      />,
+    );
+    expect(screen.getByText("Made in the Hub")).toBeInTheDocument();
+    expect(screen.queryByText("Pop-Up Prickle (Zoom)")).not.toBeInTheDocument();
+  });
+
   describe("display names", () => {
     const named = { ...prickle, host: { id: "h1", name: "Laura May Best", displayName: "Bestie" } };
     const bestAttendee = { ...record, members: { id: "m1", name: "Laura May Best", display_name: "Bestie" } };

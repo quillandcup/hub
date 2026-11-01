@@ -7,6 +7,8 @@ import { createRepos } from "@/lib/data/repos";
 import { mediaSrc } from "@/lib/media/url";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
+import { getUserTimezonePreference } from "@/lib/timezone";
+import { ORG_TIMEZONE } from "@/lib/config";
 import { stripEventTag } from "@/lib/calendar-events";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
@@ -31,12 +33,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const event = await events.visibleBySlug(slug);
   if (!event) notFound();
 
-  const [visiblePhotos, effectiveIdentity, calendarItems, image] = await Promise.all([
+  const [visiblePhotos, effectiveIdentity, calendarItems, image, tzPref] = await Promise.all([
     events.visiblePhotos(event.id),
     getEffectiveIdentity(user),
     getMyCalendarItems(),
     event.image_id ? createRepos(supabase).media.byId(event.image_id).catch(() => null) : null,
+    getUserTimezonePreference(),
   ]);
+  // The member's own zone for the time of day ("browser" means not detected yet), as the Events list does.
+  const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 
   // Upcoming (or ongoing) events can go in the member's synced calendar -- retreats included,
   // whether or not they've signed up; it's their calendar.
@@ -54,6 +59,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
       <EventDetailClient
         event={{ ...event, description: stripEventTag(event.description) }}
         photos={visiblePhotos}
+        timeZone={timeZone}
         calendarControl={calendarControl}
         coverImage={image && !image.deleted_at ? { src: mediaSrc(image.id, "event_hero"), alt: image.alt_text ?? "" } : null}
       />

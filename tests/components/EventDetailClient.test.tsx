@@ -85,6 +85,35 @@ describe("EventDetailClient audience", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Meeting What Readers Want (at Book Events) with Fantasy Author Ada Example" })).toBeInTheDocument();
   });
 
+  describe("when it happens", () => {
+    // 14:30-19:30 UTC on 2097-07-06: 10:30 am - 3:30 pm in New York (EDT), 8:30 am - 1:30 pm in Costa Rica.
+    const timed = { ...EVENT, starts_at: "2097-07-06", ends_at: "2097-07-06", start_time: "2097-07-06T14:30:00Z", end_time: "2097-07-06T19:30:00Z" };
+
+    it("gives the day once, with the time of day in the member's zone", () => {
+      render(<EventDetailClient event={timed} photos={[]} timeZone="America/New_York" />);
+      const when = screen.getByText(/10:30 am – 3:30 pm EDT/);
+      expect(when).toHaveTextContent(/July 6, 2097 · 10:30 am – 3:30 pm EDT/);
+      expect(when).not.toHaveTextContent("July 6, 2097 – July 6, 2097");
+    });
+
+    it("reads the time in a member's own zone, and the day they are in", () => {
+      render(<EventDetailClient event={timed} photos={[]} timeZone="America/Costa_Rica" />);
+      expect(screen.getByText(/8:30 am – 1:30 pm CST/)).toBeInTheDocument();
+    });
+
+    it("says no time for an all-day event, and shows the span of a multi-day one", () => {
+      render(<EventDetailClient event={{ ...EVENT, starts_at: "2097-10-09", ends_at: "2097-10-11", start_time: "2097-10-09T04:00:00Z", end_time: "2097-10-12T04:00:00Z" }} photos={[]} timeZone="America/New_York" />);
+      const when = screen.getByText(/October 9, 2097/);
+      expect(when).toHaveTextContent("October 9, 2097 – October 11, 2097");
+      expect(when).not.toHaveTextContent(/ am| pm/);
+    });
+
+    it("shows just the dates for an event with no exact times", () => {
+      render(<EventDetailClient event={{ ...EVENT, starts_at: "2097-10-09", ends_at: "2097-10-11" }} photos={[]} timeZone="America/New_York" />);
+      expect(screen.getByText(/October 9, 2097/)).not.toHaveTextContent(/ am| pm/);
+    });
+  });
+
   it("names the host in the heading when there is no guest speaker, and the speaker when there is", () => {
     const { unmount } = render(<EventDetailClient event={{ ...EVENT, title: "Progress Prickle", host_name: "Jenn Parker" }} photos={[]} />);
     expect(screen.getByRole("heading", { level: 1, name: "Progress Prickle with Jenn P" })).toBeInTheDocument();
