@@ -34,6 +34,12 @@ export interface NotificationKindDef {
   description: string;
   /** Channels it goes to for a member who hasn't changed this kind's settings. */
   defaultChannels: readonly NotificationChannelId[];
+  /**
+   * Instead of `defaultChannels`, for a member in their first 90 days (`isNewcomer`) who hasn't
+   * chosen: a kind can start on for new members only. It is a default like any other (a stored
+   * choice wins), and it stops applying when the window ends.
+   */
+  newcomerDefaultChannels?: readonly NotificationChannelId[];
   /** A feature preview this kind belongs to: members without it don't see the kind in settings or search. */
   feature?: FeatureKey;
 }
@@ -67,8 +73,10 @@ export const NOTIFICATION_KINDS = [
     label: "Prickle reminders",
     description:
       "A reminder to put a prickle on your calendar when you don't have one coming up and haven't been to one in a while. It comes less often the longer you go without attending.",
-    // Off until members opt in; flipping it later is safe (see the note on defaultChannels above).
+    // Off until members opt in, except for new members, who get it from the start; widening that later
+    // is safe (see the note on defaultChannels above).
     defaultChannels: [],
+    newcomerDefaultChannels: ["slack", "in_app"],
   },
   {
     id: "big_sister_match",
@@ -98,15 +106,22 @@ export interface NotificationPreferenceRow {
   enabled: boolean;
 }
 
+export interface DefaultsContext {
+  /** The member is in their first 90 days (`isNewcomer`), so a kind's `newcomerDefaultChannels` apply. */
+  newcomer?: boolean;
+}
+
 /**
  * The channels a kind goes to for one member: the kind's defaults, with that member's stored
  * overrides applied. Overrides for unknown kinds/channels (e.g. a channel since removed) are ignored.
  */
 export function effectiveChannels(
   kind: NotificationKindId,
-  overrides: readonly NotificationPreferenceRow[]
+  overrides: readonly NotificationPreferenceRow[],
+  { newcomer = false }: DefaultsContext = {}
 ): NotificationChannelId[] {
-  const defaults = new Set<string>(notificationKind(kind).defaultChannels);
+  const def = notificationKind(kind);
+  const defaults = new Set<string>((newcomer && def.newcomerDefaultChannels) || def.defaultChannels);
   return NOTIFICATION_CHANNELS.map((c) => c.id).filter((channel) => {
     const override = overrides.find((o) => o.kind === kind && o.channel === channel);
     return override ? override.enabled : defaults.has(channel);
@@ -115,9 +130,10 @@ export function effectiveChannels(
 
 /** Every kind's effective channels for one member, as the settings grid shows them. */
 export function effectiveSettings(
-  overrides: readonly NotificationPreferenceRow[]
+  overrides: readonly NotificationPreferenceRow[],
+  context: DefaultsContext = {}
 ): Record<NotificationKindId, NotificationChannelId[]> {
-  return Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k.id, effectiveChannels(k.id, overrides)])) as Record<
+  return Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k.id, effectiveChannels(k.id, overrides, context)])) as Record<
     NotificationKindId,
     NotificationChannelId[]
   >;

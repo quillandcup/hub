@@ -1,3 +1,4 @@
+import { useFakeClock } from "../helpers/fake-clock";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
@@ -283,12 +284,26 @@ describe("intro reminders", () => {
 describe("prickle reminders", () => {
   const kind = "prickle_nudge";
   const NOW = sendTime("m1", kind);
+  // The new-member default reads the clock, so pin it to the send time.
+  useFakeClock(() => NOW.getTime());
 
   it("is off until a member opts in", async () => {
-    setup({ members: [member("m1", "2026-09-01")] });
+    setup({ members: [member("m1", "2025-01-01")] });
 
     expect((await sendMemberReminders(repos, NOW)).prickle).toBe(0);
     expect(dataset.reminderLog).toEqual([]);
+  });
+
+  it("is on by default for a new member, and off again once they opt out", async () => {
+    const joined = joinedDaysBefore(NOW, 10);
+    setup({ members: [member("m1", joined)] });
+    expect((await sendMemberReminders(repos, NOW)).prickle).toBe(1);
+
+    const optOut = ["slack", "in_app"].map((channel) => ({ memberId: "m1", kind, channel, enabled: false }));
+    setup({ members: [member("m1", joined)], notificationPreferences: optOut });
+    sendSlackDM.mockClear();
+    expect((await sendMemberReminders(repos, NOW)).prickle).toBe(0);
+    expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
   it("asks someone who has never been to schedule their first prickle", async () => {

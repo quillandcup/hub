@@ -10,6 +10,8 @@ import { membersWithFeature } from "@/lib/features.server";
 import type { FeatureKey } from "@/lib/features";
 import { WEB_PUSH_FEATURE, loadPushDevices, vapidKeys, webPushChannel } from "@/lib/channels/web-push";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
+import { clock } from "@/lib/clock";
+import { isNewcomer } from "@/lib/newcomer";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { describeDevice } from "@/lib/device-label";
 import {
@@ -63,6 +65,9 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   const visibleKinds = NOTIFICATION_KINDS.filter((k) => !("feature" in k) || featureOn.has(k.feature as FeatureKey)).map(
     (k) => k.id
   );
+  // The member's own join date decides the new-member default, same as the sender (lib/notifications/notify.ts).
+  const [memberRecord] = await createRepos(service).members.byIds([identity.memberId]);
+  const newcomer = isNewcomer(memberRecord?.firstJoinedAt, new Date(clock.now()));
   const webPushPublicKey = browserFlag.has(identity.memberId) ? (vapidKeys()?.publicKey ?? null) : null;
   const channels = NOTIFICATION_CHANNELS.map((c) => c.id).filter(
     (id) => id !== "web_push" || webPushPublicKey !== null
@@ -71,7 +76,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings | 
   return {
     channels,
     webPushPublicKey,
-    channelsByKind: effectiveSettings(stored),
+    channelsByKind: effectiveSettings(stored, { newcomer }),
     visibleKinds,
     readOnly: identity.isSudo,
   };

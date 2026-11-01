@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
+import { useFakeClock } from "../helpers/fake-clock";
 import { APP_URL } from "@/lib/config";
 
 const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
@@ -65,8 +66,69 @@ describe("effectiveChannels", () => {
     ]);
   });
 
+  it("starts prickle reminders on for new members only, and a stored choice beats either default", () => {
+    expect(effectiveChannels("prickle_nudge", [])).toEqual([]);
+    expect(effectiveChannels("prickle_nudge", [], { newcomer: true })).toEqual(["slack", "in_app"]);
+    const offByChoice = [{ kind: "prickle_nudge", channel: "slack", enabled: false }];
+    expect(effectiveChannels("prickle_nudge", offByChoice, { newcomer: true })).toEqual(["in_app"]);
+    const onByChoice = [{ kind: "prickle_nudge", channel: "email", enabled: true }];
+    expect(effectiveChannels("prickle_nudge", onByChoice)).toEqual(["email"]);
+    // Kinds without a new-member default are unaffected.
+    expect(effectiveChannels("prickle_checkin", [], { newcomer: true })).toEqual(effectiveChannels("prickle_checkin", []));
+    expect(effectiveSettings([], { newcomer: true }).prickle_nudge).toEqual(["slack", "in_app"]);
+    expect(effectiveSettings([]).prickle_nudge).toEqual([]);
+  });
+
   it("covers every kind in effectiveSettings", () => {
     expect(Object.keys(effectiveSettings([]))).toEqual(NOTIFICATION_KINDS.map((k) => k.id));
+  });
+});
+
+describe("createNotifier new-member default", () => {
+  const NOW = Date.UTC(2026, 10, 1);
+  useFakeClock(() => NOW);
+  const joinedDaysAgo = (days: number) => new Date(NOW - days * 86_400_000).toISOString().slice(0, 10);
+  const members = [
+    { id: "m1", name: "Ada Example", firstJoinedAt: joinedDaysAgo(10) },
+    { id: "m2", name: "Bea Example", firstJoinedAt: joinedDaysAgo(400) },
+    { id: "m3", name: "Cleo Example", firstJoinedAt: joinedDaysAgo(10) },
+  ];
+
+  it("reaches a new member by default but not a long-time one, unless they chose", async () => {
+    const optedIn = { memberId: "m2", kind: "prickle_nudge", channel: "in_app", enabled: true };
+    const notifier = await createNotifier(world({ members, notificationPreferences: [optedIn] }), "prickle_nudge", ["m1", "m2"]);
+    expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
+    expect(notifier.channelsFor("m2")).toEqual(["in_app"]);
+    const plain = await createNotifier(world({ members }), "prickle_nudge", ["m2"]);
+    expect(plain.canReach("m2")).toBe(false);
+  });
+
+  it("respects a new member's opt-out", async () => {
+    const off = [
+      { memberId: "m3", kind: "prickle_nudge", channel: "slack", enabled: false },
+      { memberId: "m3", kind: "prickle_nudge", channel: "in_app", enabled: false },
+    ];
+    const notifier = await createNotifier(world({ members, notificationPreferences: off }), "prickle_nudge", ["m3"]);
+    expect(notifier.canReach("m3")).toBe(false);
+  });
+
+  it("falls back to the plain default, and logs, when the join dates can't be read", async () => {
+    const broken = world({ members });
+    broken.members.byIds = async () => {
+      throw new Error("db down");
+    };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const notifier = await createNotifier(broken, "prickle_nudge", ["m1"]);
+    expect(notifier.canReach("m1")).toBe(false);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("doesn't look up members for a kind with no new-member default", async () => {
+    const r = world({ members });
+    const byIds = vi.spyOn(r.members, "byIds");
+    await createNotifier(r, "prickle_checkin", ["m1"]);
+    expect(byIds).not.toHaveBeenCalled();
   });
 });
 
