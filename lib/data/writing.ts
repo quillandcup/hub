@@ -1,6 +1,7 @@
 import { PAST_PHASES, isPastPhase } from "@/lib/writing-projects";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
+import { inChunks } from "./query";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Stored rows, as the database has them; the twin keeps these. */
@@ -305,7 +306,7 @@ export interface WritingRepository {
   importStartingBalances(rows: Insert<"writing_project_starting_balances">[]): Promise<void>;
   /** Inserts entries, skipping ones whose (member, external id) exists; returns how many were inserted. */
   importEntries(rows: Insert<"writing_progress_entries">[]): Promise<number>;
-  /** Overwrites the imported entries that carry these external ids (rows for ones that don't exist are ignored); returns how many changed. */
+  /** Overwrites the imported entries that carry these external ids (all of one member's; rows for ones that don't exist are ignored, not inserted); returns how many changed. */
   overwriteImportedEntries(rows: ImportedEntryPatch[]): Promise<number>;
   /** Inserts goals, skipping ones whose (member, external id) exists; returns how many were inserted. */
   importGoals(rows: Insert<"writing_goals">[]): Promise<number>;
@@ -843,10 +844,30 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   async overwriteImportedEntries(rows: ImportedEntryPatch[]) {
     if (rows.length === 0) return 0;
+    // An upsert would insert a row whose external id is missing, so look up which exist first.
+    const present = new Set(
+      (
+        await inChunks(
+          rows.map((r) => r.external_id!),
+          100,
+          async (ids) => {
+            const { data, error } = await this.db
+              .from("writing_progress_entries")
+              .select("external_id")
+              .eq("member_id", rows[0].member_id)
+              .in("external_id", ids);
+            if (error) throw new Error(error.message);
+            return data ?? [];
+          }
+        )
+      ).map((r) => r.external_id)
+    );
+    const existing = rows.filter((r) => present.has(r.external_id!));
+    if (existing.length === 0) return 0;
     // Only the listed columns are written on a conflict, so created_at, deleted_at and the like stay.
     const { data, error } = await this.db
       .from("writing_progress_entries")
-      .upsert(rows, { onConflict: "member_id,external_id" })
+      .upsert(existing, { onConflict: "member_id,external_id" })
       .select("id");
     if (error) throw new Error(error.message);
     return data?.length ?? 0;
