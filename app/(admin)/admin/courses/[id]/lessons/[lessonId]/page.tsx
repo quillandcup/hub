@@ -16,6 +16,7 @@ import LessonStaffTools from "../../LessonStaffTools";
 import LessonMediaPanel from "./LessonMediaPanel";
 import VideoActions from "./VideoActions";
 import LessonBuilderForm from "./LessonBuilderForm";
+import LessonVideoControls from "./LessonVideoControls";
 
 type Params = { params: Promise<{ id: string; lessonId: string }> };
 
@@ -58,7 +59,19 @@ async function thumbnailLinkFor(detail: AdminLessonDetail, lessonUrl: string | n
   return { link: { url: lessonUrl, imageUrl, title: preview.title }, blocked: "" };
 }
 
+/** What plays or says why not, and for a Hub-owned lesson the buttons that upload, replace or remove the video. */
 async function lessonMedia(detail: AdminLessonDetail) {
+  const media = await lessonPlayback(detail);
+  if (!detail.editable) return media;
+  return (
+    <>
+      {media}
+      <LessonVideoControls courseId={detail.course.id} lessonId={detail.lesson.kajabiId} status={detail.video?.status ?? null} />
+    </>
+  );
+}
+
+async function lessonPlayback(detail: AdminLessonDetail) {
   const { lesson, video, hub, course } = detail;
   const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;

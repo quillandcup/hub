@@ -105,6 +105,24 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.queryByText(/Last imported from Kajabi/)).not.toBeInTheDocument();
   });
 
+  it("gives a Hub-owned lesson the buttons to upload, replace and remove its video, and an imported one none", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Replace video" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove video" })).toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, video: null }, { hasVideo: false }));
+    const { unmount: second } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Upload video" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove video" })).not.toBeInTheDocument();
+    second();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.queryByRole("button", { name: /video$/ })).toBeNull();
+  });
+
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: true }, { bodyHtml: "<p>Hey Hedgies</p>" }));
     const { unmount } = await renderServerPage(AdminLessonPage, params);

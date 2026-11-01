@@ -146,6 +146,13 @@ export interface CourseRepository {
   preparingVideos(): Promise<{ id: string; mux_asset_id: string }[]>;
   /** Updates the video of a Mux asset and returns how many rows that was (0 = no video has that asset yet). */
   updateVideosByAsset(assetId: string, patch: VideoPatch): Promise<number>;
+  /**
+   * Points a Hub-owned lesson of the course at a video (null takes it off) and clears the lesson's length, which
+   * {@link syncLessonDurations} fills in once the video has one. False when no such lesson matches.
+   */
+  setLessonVideo(target: { id: string; courseId: string }, videoId: string | null): Promise<boolean>;
+  /** Copies the length of the video of this Mux asset onto the Hub-owned lessons that use it (whole seconds). */
+  syncLessonDurations(assetId: string): Promise<void>;
 }
 
 const IMAGE_COLUMNS = {
@@ -425,6 +432,25 @@ export class SupabaseCourseRepository implements CourseRepository {
     const { data, error } = await this.db.from("videos").update(patch).eq("mux_asset_id", assetId).select("id");
     if (error) throw new Error(error.message);
     return (data ?? []).length;
+  }
+
+  async setLessonVideo(target: { id: string; courseId: string }, videoId: string | null) {
+    const { data, error } = await this.db
+      .from("course_lessons")
+      .update({ video_id: videoId, duration_seconds: null })
+      .eq("id", target.id)
+      .eq("course_id", target.courseId)
+      .eq("source", "hub")
+      .select("id");
+    if (error) throw writeError(error);
+    return (data ?? []).length > 0;
+  }
+
+  async syncLessonDurations(assetId: string) {
+    const video = must(await this.db.from("videos").select("id, duration_seconds").eq("mux_asset_id", assetId).maybeSingle());
+    if (!video || video.duration_seconds === null) return;
+    const { error } = await this.db.from("course_lessons").update({ duration_seconds: Math.round(video.duration_seconds) }).eq("video_id", video.id).eq("source", "hub");
+    if (error) throw writeError(error);
   }
 }
 
@@ -907,5 +933,20 @@ export class InMemoryCourseRepository implements CourseRepository {
       video.updated_at = now();
     }
     return matching.length;
+  }
+
+  async setLessonVideo(target: { id: string; courseId: string }, videoId: string | null) {
+    const lesson = this.data.courseLessons.find((l) => l.id === target.id && l.course_id === target.courseId && l.source === "hub");
+    if (!lesson) return false;
+    lesson.video_id = videoId;
+    lesson.duration_seconds = null;
+    lesson.updated_at = now();
+    return true;
+  }
+
+  async syncLessonDurations(assetId: string) {
+    const video = this.data.videos.find((v) => v.mux_asset_id === assetId);
+    if (!video || video.duration_seconds === null) return;
+    for (const lesson of this.data.courseLessons.filter((l) => l.video_id === video.id && l.source === "hub")) lesson.duration_seconds = Math.round(video.duration_seconds);
   }
 }

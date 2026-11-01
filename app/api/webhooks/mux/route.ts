@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { assetUpdateFromEvent, createMuxClient, unwrapWebhook } from "@/lib/mux";
+import { assetUpdateFromEvent, createMuxClient, unwrapWebhook, uploadAssetFromEvent } from "@/lib/mux";
 
 export const maxDuration = 60;
 
@@ -24,10 +24,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  const supabase = createServiceRoleClient();
+
+  // A browser upload is complete: Mux made the asset, and the video row of that upload (made when the upload
+  // was started) learns which one. Every later event of the asset then finds the row by it.
+  const uploaded = uploadAssetFromEvent(event);
+  if (uploaded) {
+    try {
+      const courses = createRepos(supabase).courses;
+      const [video] = await courses.videosBySourceKeys("upload", [uploaded.uploadId]);
+      // An upload nobody here started (another environment's) is not ours to record.
+      if (!video) return NextResponse.json({ received: true, processed: false });
+      await courses.updateVideo(video.id, { mux_asset_id: uploaded.assetId });
+    } catch (error) {
+      console.error("Failed to record Mux upload:", error);
+      return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true, processed: true });
+  }
+
   const update = assetUpdateFromEvent(event);
   if (!update) return NextResponse.json({ received: true, processed: false });
 
-  const supabase = createServiceRoleClient();
   let updated: number;
   try {
     updated = await createRepos(supabase).courses.updateVideosByAsset(update.muxAssetId, {
@@ -35,6 +53,8 @@ export async function POST(request: NextRequest) {
       ...(update.playbackId ? { mux_playback_id: update.playbackId } : {}),
       ...(update.durationSeconds !== undefined ? { duration_seconds: update.durationSeconds } : {}),
     });
+    // A lesson made in the Hub shows its video's length; an imported one has Kajabi's.
+    if (updated > 0 && update.durationSeconds !== undefined) await createRepos(supabase).courses.syncLessonDurations(update.muxAssetId);
   } catch (error) {
     console.error("Failed to record Mux asset update:", error);
     // A 5xx makes Mux retry.

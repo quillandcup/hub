@@ -41,6 +41,43 @@ export async function createVideoAsset(
   return { assetId: asset.id };
 }
 
+/**
+ * A direct upload: a one-use address the browser sends the file to, so the video never passes through
+ * our server. Mux makes the asset when the upload completes (same signed playback and size cap as
+ * {@link createVideoAsset}); `corsOrigin` is the page the upload starts from.
+ */
+export async function createDirectUpload(
+  mux: Mux,
+  opts: { corsOrigin: string; quality: MuxVideoQuality },
+): Promise<{ uploadId: string; url: string }> {
+  const upload = await mux.video.uploads.create({
+    cors_origin: opts.corsOrigin,
+    new_asset_settings: { playback_policies: ["signed"], video_quality: opts.quality, max_resolution_tier: "1080p" },
+  });
+  if (!upload.url) throw new Error("Mux created an upload with no address");
+  return { uploadId: upload.id, url: upload.url };
+}
+
+export interface MuxUploadStatus {
+  status: "waiting" | "asset_created" | "failed";
+  /** The asset Mux made from the file, once the upload is complete. */
+  assetId?: string;
+}
+
+/** A direct upload's current state, read from Mux (what the webhook would have said). */
+export async function getUploadStatus(mux: Mux, uploadId: string): Promise<MuxUploadStatus> {
+  const upload = await mux.video.uploads.retrieve(uploadId);
+  if (upload.status === "asset_created" && upload.asset_id) return { status: "asset_created", assetId: upload.asset_id };
+  return { status: upload.status === "waiting" ? "waiting" : "failed" };
+}
+
+/** The upload and asset a `video.upload.asset_created` webhook links, or null for any other event. */
+export function uploadAssetFromEvent(event: { type: string; data?: unknown }): { uploadId: string; assetId: string } | null {
+  if (event.type !== "video.upload.asset_created") return null;
+  const data = event.data as { id?: string; asset_id?: string } | undefined;
+  return data?.id && data.asset_id ? { uploadId: data.id, assetId: data.asset_id } : null;
+}
+
 export interface MuxAssetStatus {
   status: "preparing" | "ready" | "errored";
   durationSeconds?: number;
