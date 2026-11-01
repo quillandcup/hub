@@ -144,6 +144,13 @@ describe("describeRow", () => {
     expect(changedFields(r.data).map(([k]) => k)).toEqual(["status", "name"]);
   });
 
+  it("reads a course reorder as one sentence: how many, of what, and in which module or course", () => {
+    const order = { order: { old: ["a", "b", "c", "d"], new: ["d", "c", "b", "a"] } };
+    expect(describeRow(row({ entity_type: "course_lesson_order", description: "Week 1", data: order }))).toBe("reordered the 4 lessons in “Week 1”");
+    expect(describeRow(row({ entity_type: "course_module_order", description: "The Ready Writer", data: order }))).toBe("reordered the 4 modules in “The Ready Writer”");
+    expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
+  });
+
   it("uses verbs for insert and delete and caps long field lists", () => {
     expect(describeRow(row({ event_type: "insert", data: { a: { old: null, new: 1 } } }))).toBe("added prickle type");
     expect(describeRow(row({ event_type: "delete" }))).toBe("removed prickle type");

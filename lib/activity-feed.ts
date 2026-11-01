@@ -363,6 +363,13 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     if (fields.token) return "generated a new calendar link";
   }
   if (row.entity_type === "wheel_of_wonder_match" && row.event_type === "insert") return "spun the Wheel of Wonder";
+  // One entry per reorder of a course's modules or a module's lessons (the migration says why not one per row).
+  if (row.entity_type === "course_lesson_order" || row.entity_type === "course_module_order") {
+    const order = fields.order?.new;
+    const count = Array.isArray(order) ? ` ${order.length}` : "";
+    const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
+    return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;
