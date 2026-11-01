@@ -38,7 +38,7 @@ describe('Course outline actions', () => {
     ids.course = await mk('hub', 'hub')
     ids.other = await mk('other', 'hub')
     ids.kajabi = await mk('kajabi', 'kajabi')
-    const { data: kajabiModule } = await supabase.from('course_modules').insert({ course_id: ids.kajabi, title: 'Imported', source: 'kajabi', source_key: `${PREFIX}-m` }).select('id').single()
+    const { data: kajabiModule } = await supabase.from('course_modules').insert({ course_id: ids.kajabi, title: 'Imported', publishing_option: 'published', source: 'kajabi', source_key: `${PREFIX}-m` }).select('id').single()
     ids.kajabiModule = kajabiModule!.id
     const { data: otherModule } = await supabase.from('course_modules').insert({ course_id: ids.other, title: 'Other', source: 'hub', state: 'hidden' }).select('id').single()
     ids.otherModule = otherModule!.id
@@ -279,10 +279,11 @@ describe('Course outline actions', () => {
       await setCourseItemStatus(course, 'module', top, 'published')
     })
 
-    it("doesn't offer scheduled or drip yet, for an item", async () => {
+    it("doesn't offer scheduled, drip or following what is above, for an item", async () => {
       const unavailable = { error: "That setting isn't available yet." }
       expect(await setCourseItemStatus(course, 'lesson', lesson, 'drip')).toEqual(unavailable)
       expect(await setCourseItemStatus(course, 'lesson', lesson, 'scheduled')).toEqual(unavailable)
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'inherit')).toEqual(unavailable)
     })
 
     it('says so for an item that is gone, and refuses ids that are not ids', async () => {
@@ -293,7 +294,7 @@ describe('Course outline actions', () => {
 
     it("won't change what is in a course imported from Kajabi", async () => {
       expect((await setCourseItemStatus(ids.kajabi, 'module', ids.kajabiModule, 'draft')).error).toMatch(/can't be edited here/)
-      expect((await supabase.from('course_modules').select('publishing_option').eq('id', ids.kajabiModule).single()).data!.publishing_option).not.toBe('draft')
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', ids.kajabiModule).single()).data!.publishing_option).toBe('published')
     })
 
     it("does nothing for someone who isn't an admin", async () => {
