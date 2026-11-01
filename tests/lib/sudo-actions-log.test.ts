@@ -45,7 +45,7 @@ vi.mock("@/lib/data/repos", async () => {
   };
 });
 
-import { startSudo, exitSudo } from "@/app/actions/sudo";
+import { startSudo, exitSudo, exitSudoToAdmin } from "@/app/actions/sudo";
 import { signSudoCookie } from "@/lib/sudo-cookie";
 
 beforeEach(() => {
@@ -92,5 +92,14 @@ describe("sudo activity events", () => {
     cookieJar.set("sudo_as", signSudoCookie(ADMIN_ID, MEMBER_ID));
     await expect(exitSudo()).rejects.toThrow("REDIRECT:");
     expect(cookieJar.has("sudo_as")).toBe(false);
+  });
+
+  it("ends sudo and opens the admin portal from the sidebar link", async () => {
+    cookieJar.set("sudo_as", signSudoCookie(ADMIN_ID, MEMBER_ID));
+    cookieJar.set("sudo_return_to", "/dashboard");
+    await expect(exitSudoToAdmin()).rejects.toThrow("REDIRECT:/admin");
+    expect(cookieJar.has("sudo_as")).toBe(false);
+    expect(cookieJar.has("sudo_return_to")).toBe(false);
+    expect(dataset.activities).toEqual([expect.objectContaining({ activity_type: "sudo_ended" })]);
   });
 });
