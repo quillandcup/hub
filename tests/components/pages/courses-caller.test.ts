@@ -6,13 +6,25 @@ import {
   expectRedirect,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
-vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
+
+// The caller's profile (role) comes from the profile repository, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
+/** Gives the signed-in user a profile with this role. */
+const withRole = (user: { id: string; email?: string }, role: "admin" | "member") => {
+  dataset = new InMemoryDataset({ userProfiles: [{ id: user.id, email: user.email ?? "", role }] });
+};
 
 let flagOn = true;
 const effectiveMemberHasFeature = vi.fn(async (..._args: unknown[]) => flagOn);
@@ -27,6 +39,7 @@ beforeEach(() => {
   resetServerPageMocks();
   effectiveMemberHasFeature.mockClear();
   flagOn = true;
+  dataset = new InMemoryDataset();
 });
 
 /** requireCoursesPage returns the caller, not JSX; expectRedirect only cares that it redirects. */
@@ -41,7 +54,7 @@ describe("getCoursesCaller", () => {
     expect(await getCoursesCaller()).toBeNull();
 
     signInAs(MEMBER_USER, null);
-    useFakeSupabase({ user_profiles: { data: { role: "member" } } });
+    withRole(MEMBER_USER, "member");
     expect(await getCoursesCaller()).toBeNull();
 
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
@@ -51,13 +64,13 @@ describe("getCoursesCaller", () => {
 
   it("scopes a member to their own access", async () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    useFakeSupabase({ user_profiles: { data: { role: "member" } } });
+    withRole(MEMBER_USER, "member");
     expect(await getCoursesCaller()).toMatchObject({ scope: { memberId: MEMBER_IDENTITY.memberId, isAdminActing: false } });
     expect(effectiveMemberHasFeature).toHaveBeenCalledWith("courses", MEMBER_IDENTITY, []);
   });
 
   it("lets staff open every course, but only as themselves, not in sudo", async () => {
-    useFakeSupabase({ user_profiles: { data: { role: "admin" } } });
+    withRole(ADMIN_USER, "admin");
     signInAs(ADMIN_USER, { ...MEMBER_IDENTITY, isSudo: false });
     expect((await getCoursesCaller())?.scope.isAdminActing).toBe(true);
 
@@ -75,14 +88,14 @@ describe("requireCoursesPage", () => {
     await expectRedirect(requireAndDiscard, undefined, "/admin");
 
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    useFakeSupabase({ user_profiles: { data: { role: "member" } } });
+    withRole(MEMBER_USER, "member");
     flagOn = false;
     await expectRedirect(requireAndDiscard, undefined, "/dashboard");
   });
 
   it("returns the caller when everything checks out", async () => {
     signInAs(MEMBER_USER, MEMBER_IDENTITY);
-    useFakeSupabase({ user_profiles: { data: { role: "member" } } });
+    withRole(MEMBER_USER, "member");
     expect(await requireCoursesPage()).toMatchObject({ identity: MEMBER_IDENTITY });
   });
 });

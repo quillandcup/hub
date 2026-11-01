@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -57,7 +57,6 @@ beforeEach(() => {
     row("a2", "mbr_AAAAAAAAAAA3", PRICKLES[0].id),
     row("a3", "mbr_AAAAAAAAAAA2", PRICKLES[1].id),
   ]);
-  useFakeSupabase({});
 });
 
 describe("prickle insights page", () => {

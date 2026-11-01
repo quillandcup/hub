@@ -9,9 +9,7 @@ import {
   signInAs,
   sudoModule,
   resetServerPageMocks,
-  useFakeSupabase,
   supabaseServerModule,
-  type FakeQuery,
 } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => authModule);
@@ -61,7 +59,6 @@ const added = () => repos.calendarFeed.itemsOf(MEMBER_IDENTITY.memberId);
 
 describe("addPrickleToMyCalendar", () => {
   it("adds just this prickle by id", async () => {
-    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "once")).toEqual({ ok: true });
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "once")).toEqual({ ok: true }); // already there counts as added
@@ -70,7 +67,6 @@ describe("addPrickleToMyCalendar", () => {
   });
 
   it("adds its weekly slot: the type, and the weekday and start time in the schedule's timezone", async () => {
-    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA1", "weekly")).toEqual({ ok: true });
 
@@ -78,7 +74,6 @@ describe("addPrickleToMyCalendar", () => {
   });
 
   it("refuses a prickle that is gone, one without a type, and an unknown mode", async () => {
-    useFakeSupabase({});
 
     expect(await addPrickleToMyCalendar("prkl_ZZZZZZZZZZZZ", "once")).toEqual({ error: "That prickle isn't on the schedule anymore." });
     expect(await addPrickleToMyCalendar("prkl_AAAAAAAAAAA2", "once")).toEqual({ error: "That prickle can't be added to your calendar." });
@@ -87,7 +82,6 @@ describe("addPrickleToMyCalendar", () => {
   });
 
   it("answers with the error message and adds nothing when the database refuses", async () => {
-    useFakeSupabase({});
     vi.spyOn(repos.calendarFeed, "addItem").mockRejectedValueOnce(new Error("database is down"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -107,7 +101,6 @@ describe("addEventToMyCalendar", () => {
         ]),
       }),
     );
-    useFakeSupabase({});
 
     expect(await addEventToMyCalendar("evnt_AAAAAAAAAAA1")).toEqual({ ok: true });
     expect(await added()).toEqual([expect.objectContaining({ kind: "event", event_id: "evnt_AAAAAAAAAAA1" })]);
@@ -120,7 +113,6 @@ describe("addEventToMyCalendar", () => {
 
 describe("getCheckModalData", () => {
   it("names the prickle the way the page does and says whether it has started", async () => {
-    useFakeSupabase({});
 
     const data = await getCheckModalData("prkl_AAAAAAAAAAA1");
 
@@ -128,7 +120,6 @@ describe("getCheckModalData", () => {
   });
 
   it("is null for a prickle that doesn't exist", async () => {
-    useFakeSupabase({});
 
     expect(await getCheckModalData("prkl_ZZZZZZZZZZZZ")).toBeNull();
   });

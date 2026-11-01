@@ -7,7 +7,6 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -58,7 +57,6 @@ beforeEach(() => {
   resetServerPageMocks();
   previews.mockResolvedValue(["events"]);
   signInAs(MEMBER_USER);
-  useFakeSupabase({});
   seed([RETREAT]);
 });
 

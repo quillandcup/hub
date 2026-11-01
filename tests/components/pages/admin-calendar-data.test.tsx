@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
@@ -29,7 +29,6 @@ const join = (id: string, memberId: string, prickleId: string, joinTime: string)
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({});
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-24T16:00:00Z")); // the week of Oct 18 is over for these prickles
 });

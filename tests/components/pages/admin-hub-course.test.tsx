@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderServerRoute, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerRoute, resetServerPageMocks } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -59,7 +59,6 @@ const course = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase();
   requireAdminPage.mockClear();
   loadHubCourse.mockReset();
   loadHubOutline.mockReset();

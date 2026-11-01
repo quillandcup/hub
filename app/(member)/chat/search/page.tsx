@@ -12,6 +12,7 @@ import MessageItem from "@/components/chat/MessageItem";
 import SearchHitLink from "@/components/search/SearchHitLink";
 import SearchRan from "@/components/search/SearchRan";
 import { searchShape } from "@/lib/analytics/search";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Search · Chat",
@@ -49,7 +50,7 @@ export default async function ChatSearchPage({
   const pageNumber = Math.min(Math.max(Number.parseInt(firstParam(sp.page) ?? "0", 10) || 0, 0), 500);
 
   const supabase = await createClient();
-  const all = await loadChatChannels(supabase, identity.memberId, identity.isSudo);
+  const all = await loadChatChannels(createRepos(supabase), identity.memberId, identity.isSudo);
   const searchable = all.filter((c) => !(identity.isSudo && c.restricted));
   let scope = isId(channelParam, "chn") ? searchable.filter((c) => c.id === channelParam) : searchable;
   if (parsed.inChannel) {
@@ -60,7 +61,7 @@ export default async function ChatSearchPage({
 
   const page =
     q && hasFilters
-      ? await searchChat(supabase, identity.memberId, {
+      ? await searchChat(createRepos(supabase), identity.memberId, {
           tsquery: parsed.tsquery,
           channels: scope,
           author,

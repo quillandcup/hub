@@ -16,6 +16,8 @@ vi.mock("@/lib/chat/names", () => ({
 }));
 
 import { buildMessageViews, type MessageRow } from "@/lib/chat/load";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 const row = (id: string, extra: Partial<MessageRow> = {}): MessageRow => ({
   id,
@@ -31,23 +33,26 @@ const row = (id: string, extra: Partial<MessageRow> = {}): MessageRow => ({
   ...extra,
 });
 
-function fake(tables: Record<string, unknown[]>) {
-  return {
-    from: (table: string) => {
-      log.events.push(`q:${table}`);
-      const chain: Record<string, unknown> = {};
-      for (const f of ["select", "in", "is", "eq", "order", "range"]) chain[f] = () => chain;
-      chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: tables[table] ?? [], error: null });
-      return chain;
-    },
-  } as never;
+type Seed = NonNullable<ConstructorParameters<typeof InMemoryDataset>[0]>;
+
+/** The twin repositories; reading the directory or the reactions logs "q:member_directory" / "q:chat_reactions". */
+function fake(over: Seed) {
+  const repos = createInMemoryRepos(new InMemoryDataset({ members: dir, ...over }));
+  const byIds = repos.directory.byIds.bind(repos.directory);
+  repos.directory.byIds = async (ids) => (log.events.push("q:member_directory"), byIds(ids));
+  const reactionRows = repos.chat.reactionRows.bind(repos.chat);
+  repos.chat.reactionRows = async (ids) => (log.events.push("q:chat_reactions"), reactionRows(ids));
+  return repos;
 }
 
 const dir = [
-  { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", display_name: null, photo_url: null },
-  { id: "mbr_BBBBBBBBBBB2", name: "Bea Example", display_name: "Bea", photo_url: null },
-  { id: "mbr_CCCCCCCCCCC3", name: "Cy Example", display_name: null, photo_url: null },
+  { id: "mbr_AAAAAAAAAAA1", name: "Ada Example" },
+  { id: "mbr_BBBBBBBBBBB2", name: "Bea Example", displayName: "Bea" },
+  { id: "mbr_CCCCCCCCCCC3", name: "Cy Example" },
 ];
+const CH = "chn_AAAAAAAAAAA1";
+const reply = (id: string, root: string, author: string | null, ts: string) => ({ id, channel_id: CH, thread_root_id: root, author_member_id: author, slack_ts: ts, created_at: "2026-10-01T00:00:01Z" });
+const reaction = (id: string, member_id: string | null, slack_user_id: string | null) => ({ id, message_id: "msg_1", emoji: "tada", member_id, slack_user_id });
 
 beforeEach(() => {
   log.events.length = 0;
@@ -56,17 +61,9 @@ beforeEach(() => {
 
 describe("buildMessageViews lookups", () => {
   it("resolves unmatched authors, repliers with and without a member, and member and Slack reactors", async () => {
-    const tables = {
-      member_directory: dir,
-      chat_messages: [
-        { thread_root_id: "msg_1", author_member_id: "mbr_BBBBBBBBBBB2", slack_ts: "5.1" },
-        { thread_root_id: "msg_1", author_member_id: null, slack_ts: "6.2" },
-      ],
-      chat_reactions: [
-        { message_id: "msg_1", emoji: "tada", member_id: "mbr_CCCCCCCCCCC3", slack_user_id: null },
-        { message_id: "msg_1", emoji: "tada", member_id: null, slack_user_id: "U_R" },
-        { message_id: "msg_1", emoji: "tada", member_id: "mbr_AAAAAAAAAAA1", slack_user_id: null },
-      ],
+    const tables: Seed = {
+      chatMessages: [reply("msg_r1", "msg_1", "mbr_BBBBBBBBBBB2", "5.1"), reply("msg_r2", "msg_1", null, "6.2")],
+      chatReactions: [reaction("rct_AAAAAAAAAAA1", "mbr_CCCCCCCCCCC3", null), reaction("rct_AAAAAAAAAAA2", null, "U_R"), reaction("rct_AAAAAAAAAAA3", "mbr_AAAAAAAAAAA1", null)],
     };
     const out = await buildMessageViews(
       fake(tables),
@@ -86,10 +83,9 @@ describe("buildMessageViews lookups", () => {
   });
 
   it("looks up profiles for authors, repliers and reactors in two directory queries, not three", async () => {
-    const tables = {
-      member_directory: dir,
-      chat_messages: [{ thread_root_id: "msg_1", author_member_id: "mbr_BBBBBBBBBBB2", slack_ts: "5.1" }],
-      chat_reactions: [{ message_id: "msg_1", emoji: "tada", member_id: "mbr_CCCCCCCCCCC3", slack_user_id: null }],
+    const tables: Seed = {
+      chatMessages: [reply("msg_r1", "msg_1", "mbr_BBBBBBBBBBB2", "5.1")],
+      chatReactions: [reaction("rct_AAAAAAAAAAA1", "mbr_CCCCCCCCCCC3", null)],
     };
     await buildMessageViews(fake(tables), { slackChannelId: null }, [row("msg_1", { reply_count: 1 })], "mbr_AAAAAAAAAAA1");
     expect(log.events.filter((e) => e === "q:member_directory")).toHaveLength(2);
@@ -98,10 +94,7 @@ describe("buildMessageViews lookups", () => {
   it("starts independent lookups before slower ones finish", async () => {
     let release!: () => void;
     log.gate = new Promise<void>((r) => (release = r));
-    const tables = {
-      member_directory: dir,
-      chat_messages: [{ thread_root_id: "msg_1", author_member_id: null, slack_ts: "6.2" }],
-    };
+    const tables: Seed = { chatMessages: [reply("msg_r1", "msg_1", null, "6.2")] };
     const done = buildMessageViews(
       fake(tables),
       { slackChannelId: "C1" },

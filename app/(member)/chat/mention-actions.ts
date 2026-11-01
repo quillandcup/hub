@@ -36,11 +36,11 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
   const caller = await postingCaller();
   if (!caller) return [];
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, channelId, caller.identity.memberId, caller.identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, caller.identity.memberId, caller.identity.isSudo);
   if (!channel) return [];
 
   if (trigger === "#") {
-    const channels = await loadChatChannels(supabase, caller.identity.memberId, caller.identity.isSudo);
+    const channels = await loadChatChannels(createRepos(supabase), caller.identity.memberId, caller.identity.isSudo);
     return channels
       .filter((c) => c.kind === "channel" && !c.archived && c.slackChannelId && c.label.slice(1).toLowerCase().includes(text))
       .map((c) => ({ label: c.label, token: `<#${c.slackChannelId}>`, photoUrl: null }))
@@ -49,7 +49,7 @@ export async function suggestMentions(channelId: string, trigger: "@" | "#", que
   }
 
   const service = createServiceRoleClient();
-  const inConversation = await loadChannelMembers(supabase, channelId);
+  const inConversation = await loadChannelMembers(createRepos(supabase), channelId);
   const here = new Set(inConversation.map((p) => p.memberId));
   const found = new Map<string, { memberId: string; name: string; photoUrl: string | null }>(
     inConversation.filter((p) => p.name.toLowerCase().includes(text)).map((p) => [p.memberId, p])

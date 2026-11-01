@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { MEMBER_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { eventSeed, type EventSpec } from "@/tests/helpers/event-fixtures";
@@ -41,7 +41,6 @@ beforeEach(() => {
   resetServerPageMocks();
   previews.mockResolvedValue(["events"]);
   signInAs(MEMBER_USER);
-  useFakeSupabase({});
   dataset = new InMemoryDataset({
     ...eventSeed([
       event("1", "Old Retreat", "2026-03-01", "2026-03-03"),

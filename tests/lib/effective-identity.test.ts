@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 // getEffectiveIdentity decides whose data a member page shows: the sudo'd member for an admin
 // with sudo active, otherwise the signed-in user's own member record. Members come from their
@@ -10,7 +9,7 @@ import { createFakeSupabase } from "@/tests/helpers/server-page";
 let cookieValue: string | undefined;
 let role: string | null = "admin";
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => (name === "sudo_as" && cookieValue ? { value: cookieValue } : undefined) }) }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => createFakeSupabase({}) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 let repos = createInMemoryRepos();
 vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),

@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     // where the push notifications' incremental syncs pick up. An arbitrary admin range doesn't.
     if (coversSyncWindow(fromDate, toDate, now)) {
       try {
-        await saveSyncedThrough(supabase, calendarId, now);
+        await saveSyncedThrough(createRepos(supabase), calendarId, now);
       } catch (watermarkError) {
         console.error("Failed to save the calendar sync watermark:", watermarkError);
       }
