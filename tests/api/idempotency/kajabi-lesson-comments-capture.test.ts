@@ -160,6 +160,16 @@ describe('Kajabi lesson comments capture idempotency', () => {
     expect([await rows(L1), await rows(L2)]).toEqual(before)
   })
 
+  it('counts a lesson whose page says the post is locked on its own, not as one with no comments or one to look at, and writes nothing for it', async () => {
+    const before = [await rows(L1), await rows(L2)]
+    pages.set(L1, { kind: 'noList', hasCommentBox: false, locked: true })
+    pages.set(L2, { kind: 'noList', hasCommentBox: true })
+    pages.set(L3, { kind: 'noList', hasCommentBox: false })
+    const summary = await run([L1, L2, L3])
+    expect(summary).toMatchObject({ lessonsLocked: 1, lessonsNoComments: 1, lessonsWithoutList: 1, lessonsFailed: 0, lessonsCaptured: 0, rows: { written: 0, unchanged: 0, removed: 0 } })
+    expect([await rows(L1), await rows(L2)]).toEqual(before)
+  })
+
   it('does not remove comments when the page shows more than was read, and reports the mismatch', async () => {
     pages.set(L1, ok([raw(0, 111, 'Ada Example', 'First, edited!')], { total: 3 }))
     const summary = await run([L1])
