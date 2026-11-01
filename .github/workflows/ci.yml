@@ -301,7 +301,7 @@ jobs:
         # /tmp/supabase-start.exit when it finishes, so the wait step below can
         # tell "still starting" apart from "done" and "failed".
         run: |
-          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector -x realtime; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
           disown
 
       # Also serves as the production build check that used to be a separate

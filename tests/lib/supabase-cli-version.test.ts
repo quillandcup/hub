@@ -27,7 +27,7 @@ describe("Supabase CLI version for generated types", () => {
     const ci = read(".github/workflows/ci.yml");
 
     const up = ci.indexOf("- name: Wait for local Supabase");
-    const check = ci.indexOf("run: pnpm types:check");
+    const check = ci.indexOf("pnpm types:check");
     expect(up).toBeGreaterThan(-1);
     expect(check).toBeGreaterThan(up);
   });
