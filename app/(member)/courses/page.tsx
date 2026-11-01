@@ -49,6 +49,9 @@ export default async function CoursesPage() {
                       {course.title}
                     </span>
                   )}
+                  {course.is_draft && (
+                    <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">Draft: only staff see this</span>
+                  )}
                   {ended && (
                     <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
                       Access ended {formatCourseDate(access.endsAt)}

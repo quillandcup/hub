@@ -48,16 +48,16 @@ describe('syncKajabiCourses', () => {
     expect(result.error).toBeUndefined()
     expect(result.imported?.courses.find((c) => c.id === COURSE)).toMatchObject({ title: TITLE, lessons: 1 })
     expect(result.unpublished?.find((c) => c.id === COURSE)).toEqual({ id: COURSE, title: TITLE, slug: SLUG })
-    expect(mine(result.processed)).toEqual([])
-    // It has a Hub row (so its admin address has a Hub id), but as a draft with no lessons.
+    // Its content is synced too, so staff can build and preview it, but it is a draft with no access.
+    expect(mine(result.processed)).toMatchObject([{ slug: SLUG, lessons: 1, access: { members: 0, removed: 0 } }])
     const draft = (await supabase.from('courses').select('id, slug, is_draft').eq('source_key', COURSE)).data!
     expect(draft).toEqual([{ id: expect.stringMatching(/^crs_/), slug: SLUG, is_draft: true }])
-    expect((await supabase.from('course_lessons').select('id').eq('course_id', draft[0].id)).data).toEqual([])
+    expect((await supabase.from('course_lessons').select('title').eq('course_id', draft[0].id)).data).toEqual([{ title: 'One' }])
     draftId = draft[0].id
   })
 
   it('refreshes a course once it is published, and stops listing it as unpublished', async () => {
-    await processCourses(supabase, { courseSlug: SLUG, accessDuration: '1 year' })
+    await processCourses(supabase, { courseSlug: SLUG, publish: true, accessDuration: '1 year' })
     state.lessonTitle = 'One, renamed'
     const result = await syncKajabiCourses(supabase, kajabi)
 

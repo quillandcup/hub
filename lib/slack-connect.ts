@@ -129,33 +129,29 @@ export async function linkSlackAccount(service: SupabaseClient, grant: SlackGran
   const team = process.env.SLACK_TEAM_ID;
   if (team && grant.teamId !== team) return { ok: false, reason: "wrong_workspace" };
 
-  const [held, { data: bySlack }, { data: byUser }] = await Promise.all([
+  const signIn = createRepos(service).slackSignIn;
+  const [held, bySlack, byUser] = await Promise.all([
     createRepos(service).memberProfile.slackUserConnectedByOther(grant.slackUserId, memberId),
-    service.from("slack_identities").select("user_id, linked_via").eq("slack_user_id", grant.slackUserId).maybeSingle(),
-    service.from("slack_identities").select("slack_user_id, linked_via").eq("user_id", authUserId).maybeSingle(),
+    signIn.identityBySlackUser(grant.slackUserId),
+    signIn.identityByUser(authUserId),
   ]);
-  if (held || (bySlack && bySlack.user_id !== authUserId && bySlack.linked_via === "slack_connect")) {
+  if (held || (bySlack && bySlack.userId !== authUserId && bySlack.linkedVia === "slack_connect")) {
     return { ok: false, reason: "taken" };
   }
-  if (byUser && byUser.slack_user_id !== grant.slackUserId && byUser.linked_via === "slack_connect") {
+  if (byUser && byUser.slackUserId !== grant.slackUserId && byUser.linkedVia === "slack_connect") {
     return { ok: false, reason: "other_account" };
   }
 
   const replaced: string[] = [];
-  if (bySlack && bySlack.user_id !== authUserId) {
-    const { error } = await service.from("slack_identities").delete().eq("slack_user_id", grant.slackUserId);
-    if (error) throw error;
-    replaced.push(`${bySlack.linked_via} (another account)`);
+  if (bySlack && bySlack.userId !== authUserId) {
+    await signIn.unbind({ slackUserId: grant.slackUserId });
+    replaced.push(`${bySlack.linkedVia} (another account)`);
   }
-  if (byUser && byUser.slack_user_id !== grant.slackUserId) {
-    const { error } = await service.from("slack_identities").delete().eq("user_id", authUserId);
-    if (error) throw error;
-    replaced.push(`${byUser.linked_via} (another Slack user)`);
+  if (byUser && byUser.slackUserId !== grant.slackUserId) {
+    await signIn.unbind({ userId: authUserId });
+    replaced.push(`${byUser.linkedVia} (another Slack user)`);
   }
-  const { error } = await service
-    .from("slack_identities")
-    .upsert({ slack_user_id: grant.slackUserId, user_id: authUserId, linked_via: "slack_connect" }, { onConflict: "slack_user_id" });
-  if (error) throw error;
+  await signIn.connect(grant.slackUserId, authUserId);
   if (replaced.length > 0) console.error("slack-connect: a verified link replaced %s for member %s", replaced.join(", "), memberId);
   return { ok: true, replaced };
 }

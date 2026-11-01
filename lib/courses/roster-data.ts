@@ -15,7 +15,7 @@ export async function loadCourseRoster(
 ): Promise<{ course: { id: string; title: string }; rows: RosterRow[] } | null> {
   const repos = createRepos(supabase);
   const course = await repos.courses.courseById(courseId);
-  if (!course || course.is_draft) return null;
+  if (!course) return null;
 
   const [accessRows, lessonRows] = await Promise.all([repos.courseProgress.accessOfCourses([course.id]), repos.courses.lessonsOf([course.id], { includeHidden: true })]);
   const lessons: RosterLesson[] = lessonRows.map((l) => ({ id: l.id, title: l.title, state: l.state }));

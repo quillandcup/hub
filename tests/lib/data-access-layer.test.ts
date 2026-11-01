@@ -172,6 +172,18 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   outreach_leads: [],
   outreach_touches: [],
   staff: [],
+  // Segments (SegmentRepository), feature flags and user previews (FeatureFlagRepository), Slack sign-in
+  // bindings and credentials (SlackSignInRepository), usage events (AnalyticsEventRepository) and the
+  // Google Calendar push channels (CalendarSyncStateRepository): every query is moved.
+  segments: [],
+  segment_members: [],
+  feature_flags: [],
+  feature_flag_segments: [],
+  user_feature_previews: [],
+  slack_identities: [],
+  slack_sign_in_tokens: [],
+  analytics_events: [],
+  calendar_watch_channels: [],
 };
 
 /**
@@ -180,16 +192,7 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
  * a repository, and fails on a stale entry here, so the list only shrinks. When a table gets a repository,
  * move it from here to REPOSITORY_TABLES.
  */
-const UNMIGRATED_TABLES = new Set([
-  "analytics_events",
-  "calendar_watch_channels",
-  "feature_flag_segments",
-  "feature_flags",
-  "segment_members",
-  "segments",
-  "slack_identities",
-  "slack_sign_in_tokens",
-  "user_feature_previews",
+const UNMIGRATED_TABLES = new Set<string>([
 ]);
 
 /**
@@ -198,7 +201,6 @@ const UNMIGRATED_TABLES = new Set([
  */
 const VARIABLE_TABLE_FILES: Record<string, string> = {
   "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
-  "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 
 const root = path.resolve(__dirname, "../..");

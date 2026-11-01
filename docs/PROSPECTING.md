@@ -38,7 +38,9 @@ Phase 5 of the CRM roadmap in `docs/TODO.md`, started as a small, deterministic 
 Checked against Meta's docs on 2026-10-31:
 - **Hashtag search** needs an Instagram Business or Creator account, a Meta app, and App Review for "Instagram Public Content Access" plus `instagram_basic`. Limit: 30 unique hashtags per account per rolling 7 days. The docs do not list the author's username on the returned media, so it may yield posts (captions, permalinks) rather than people. Confirm in the app's Graph API Explorer before building on it.
 - **Business discovery** returns another account's public profile and counts, but only for Business/Creator accounts, and you must already know the username. Most individual writers have personal accounts, so it will not cover them.
-- Net: the official API can enrich handles Ania finds and may surface hashtag posts, but it will not list "everyone who writes about novels". That is why Instagram stays paste-in for now and other platforms (Bluesky first) carry automated discovery.
+- Audience note: Twitter skewed male, and Bluesky's writing crowd came partly from it, so its yield for a women-only community is unknown. Compare each source's shortlist rate by `source` after a few weeks of reviews and keep the ones that earn it.
+
+Net: the official API can enrich handles Ania finds and may surface hashtag posts, but it will not list "everyone who writes about novels". That is why Instagram stays paste-in for now and other platforms (Bluesky first) carry automated discovery.
 
 To start the Meta route: create a Meta developer app, link it to the Instagram professional account and a Facebook Page, and submit Public Content Access for review (this takes days to weeks). Then add an `instagram-hashtags` source behind `ProspectSource`, with the app credentials as env vars (`new-env-var.md`).
 
@@ -55,6 +57,7 @@ To start the Meta route: create a Meta developer app, link it to the Instagram p
 Answers go into `lib/prospecting/rules.ts` (the first guess there is mine, not hers). Short answers or examples are fine; screenshots of three great fits and three bad ones would be better than any description.
 
 **Who is an ideal Hedgie?**
+0. Quill & Cup is women only and says so publicly. Which cues do you use to tell that a writer is a woman (pronouns, "mom of", "women writers", a name, photos, the accounts she follows), and which would you trust enough to count? The rules use only what she says about herself in her bio, as a small boost, never a filter and never a name or photo.
 1. In a sentence, who is the best member we have ever had, and how did they describe themselves on Instagram when they found us?
 2. What signals in a profile make you say "yes" in the first five seconds? (words in the bio, hashtags, what they post, the way they write)
 3. What makes you skip someone immediately? (coaches, editors, ghostwriters, promo accounts, huge accounts, inactive accounts, anything else)

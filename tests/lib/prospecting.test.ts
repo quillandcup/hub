@@ -79,6 +79,16 @@ describe("scoreProspect", () => {
     expect(scoreProspect(loud, [{ id: "x", label: "x", weight: 500, hashtags: ["amwriting"] }]).score).toBe(100);
   });
 
+  it("gives a small boost to bios that describe the writer as a woman, and never penalizes the lack of it", () => {
+    const base = { hashtags: [] as string[], followerCount: 1000 };
+    for (const bio of ["writer. she/her", "Women's fiction author", "mom of two, novelist", "poet she / they"]) {
+      expect(scoreProspect({ ...base, bio }).reasons.some((r) => r.includes("woman or uses she/her"))).toBe(true);
+    }
+    expect(scoreProspect({ ...base, bio: "novelist. he/him" }).reasons.some((r) => r.includes("she/her"))).toBe(false);
+    expect(scoreProspect({ ...base, bio: "novelist" }).score).toBe(15);
+    expect(scoreProspect({ ...base, bio: "novelist, she/her" }).score).toBe(25);
+  });
+
   it("penalizes follower counts outside the range", () => {
     const base = { bio: "writer", hashtags: [] as string[] };
     expect(scoreProspect({ ...base, followerCount: 5_000 }).score).toBe(15);

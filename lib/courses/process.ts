@@ -17,10 +17,10 @@ import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
  */
 
 /**
- * Gives every live Bronze course a `courses` row, so each has a Hub id for its admin address. One
- * that isn't published is a draft (`is_draft`): no modules, lessons or access, hidden from members.
- * Existing rows are left alone, and a title whose slug is empty or already taken is skipped (it
- * gets its row when published, which reports the problem).
+ * Gives every live Bronze course a `courses` row, so each has a Hub id for its admin address. A new
+ * row starts as a draft (`is_draft`: hidden from members; availability is separate from where the
+ * course is authored). Existing rows are left alone, and a title whose slug is empty or already
+ * taken is skipped (processing it by slug reports the problem).
  */
 export async function ensureDraftCourses(supabase: SupabaseClient): Promise<number> {
   const repos = createRepos(supabase);
@@ -44,8 +44,10 @@ export async function ensureDraftCourses(supabase: SupabaseClient): Promise<numb
 }
 
 export interface ProcessCoursesOptions {
-  /** Silver slug of the course to create or refresh; omit to refresh every Kajabi course already in Silver. */
+  /** Silver slug of the course to refresh (a new course gets the slug of its Kajabi title); omit to refresh every Kajabi course that has a row. */
   courseSlug?: string;
+  /** Make the course available to members (clears `is_draft`) as part of this run. Processing never publishes on its own. */
+  publish?: boolean;
   /** Access length as an interval ("1 year", "P1Y"); set on the course when given, otherwise left as is (null = lifetime). */
   accessDuration?: string | null;
   /** When the course opens, as an instant; set when given (null clears it), otherwise left as is. Early buyers' access starts then. */
@@ -55,7 +57,6 @@ export interface ProcessCoursesOptions {
 export interface ProcessCoursesResult {
   courses: {
     slug: string;
-    created: boolean;
     modules: number;
     lessons: number;
     comingSoon: number;
@@ -139,7 +140,7 @@ export async function processCourses(
   options: ProcessCoursesOptions = {}
 ): Promise<ProcessCoursesResult> {
   await ensureDraftCourses(supabase);
-  // Which Bronze courses to publish.
+  // Which Bronze courses to sync.
   const repos = createRepos(supabase);
   const bronzeCourses = await repos.kajabiCourses.liveCourses();
   const existingSilver = await repos.courses.courses({ source: "kajabi" });
@@ -158,11 +159,12 @@ export async function processCourses(
     }
     if (targets.length > 1) throw new CourseProcessingError(`More than one Kajabi course matches "${wanted}"`);
   } else {
-    targets = bronzeCourses.filter((c) => silverByKey.get(c.kajabi_id)?.is_draft === false);
+    // Drafts too: their content syncs so staff can build and preview it. Only access follows availability.
+    targets = bronzeCourses.filter((c) => silverByKey.has(c.kajabi_id));
   }
 
   const result: ProcessCoursesResult = { courses: [] };
-  const accessCourses: { id: string; kajabi_id: string; access_duration: string | null; launch_at: string | null }[] = [];
+  const accessCourses: { id: string; kajabi_id: string; access_duration: string | null; launch_at: string | null; index: number }[] = [];
 
   for (const bc of targets) {
     const kajabiId: string = bc.kajabi_id;
@@ -171,7 +173,6 @@ export async function processCourses(
     // The banner behind the title: captured from the Kajabi admin, not in the API payload (null until courses:content has run).
     const heroUrl: string | null = bc.hero_image_url || null;
     let silver = silverByKey.get(kajabiId);
-    const created = !silver || silver.is_draft;
 
     if (!silver) {
       const slug = slugifyTitle(bc.title);
@@ -186,14 +187,15 @@ export async function processCourses(
         source: "kajabi",
         source_key: kajabiId,
         program_id: programId,
+        is_draft: !options.publish,
         ...(options.accessDuration !== undefined ? { access_duration: options.accessDuration } : {}),
         ...(options.launchAt !== undefined ? { launch_at: options.launchAt } : {}),
       });
     } else {
-      // Publishing a draft: it gets its program the way a new course does.
-      const programId = silver.is_draft ? await repos.programs.idBySlug(silver.slug) : silver.program_id;
+      // A course made as a draft gets its program the way a new course does.
+      const programId = silver.program_id ?? (await repos.programs.idBySlug(silver.slug));
       const updated = await repos.courses.updateCourse(silver.id, {
-        is_draft: false,
+        ...(options.publish ? { is_draft: false } : {}),
         program_id: programId,
         title: bc.title,
         description,
@@ -275,10 +277,10 @@ export async function processCourses(
     const staleModules = silverModules.filter((r) => !tree.modules.has(r.source_key as string)).map((r) => r.id);
     await repos.courses.deleteModules(staleModules);
 
-    accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at });
+    // Members get access only to a course that is available to them.
+    if (!silver!.is_draft) accessCourses.push({ id: courseId, kajabi_id: kajabiId, access_duration: silver!.access_duration, launch_at: silver!.launch_at, index: result.courses.length });
     result.courses.push({
       slug: silver!.slug,
-      created,
       modules: modules.length - countOf(tree.modules, "hidden"),
       lessons: lessons.length - countOf(tree.lessons, "hidden"),
       comingSoon: countOf(tree.lessons, "coming_soon"),
@@ -289,8 +291,8 @@ export async function processCourses(
   }
 
   const access = await rebuildCourseAccess(supabase, accessCourses);
-  for (const [i, c] of accessCourses.entries()) {
-    result.courses[i].access = {
+  for (const c of accessCourses) {
+    result.courses[c.index].access = {
       members: access.rows.filter((r) => r.course_id === c.id).length,
       removed: access.removed.get(c.id) ?? 0,
     };
