@@ -8,6 +8,10 @@ vi.mock("@slack/web-api", () => ({
   }),
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => db.client }));
+const alerts = vi.hoisted(() => ({ send: vi.fn(), sentry: vi.fn() }));
+vi.mock("@/lib/data/repos", () => ({ createRepos: (client: unknown) => ({ over: client }) }));
+vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: alerts.send }));
+vi.mock("@sentry/nextjs", () => ({ captureException: alerts.sentry }));
 
 import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled, seedBotToken } from "@/lib/slack-bot-token";
 
@@ -68,6 +72,9 @@ beforeEach(() => {
   db.state.calls = [];
   slack.access.mockReset();
   slack.exchange.mockReset();
+  alerts.send.mockReset();
+  alerts.send.mockResolvedValue(undefined);
+  alerts.sentry.mockReset();
   vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-from-env");
   vi.stubEnv("SLACK_BOT_TOKEN_ROTATION", "on");
   vi.stubEnv("SLACK_CLIENT_ID", "client-1");
@@ -218,6 +225,56 @@ describe("getSlackBotToken", () => {
     store("xoxb-never-expires", null, null);
     await expect(getSlackBotToken(db.client)).resolves.toBe("xoxb-never-expires");
     expect(slack.access).not.toHaveBeenCalled();
+  });
+});
+
+describe("telling staff when the bot token is in trouble", () => {
+  useFakeClock(() => NOW);
+
+  it("alerts, outside Slack, when a refreshed token can't be stored, and still uses the new one", async () => {
+    store("xoxe.xoxb-old", 30 * 60_000);
+    slack.access.mockResolvedValue(refreshed());
+    db.state.saveFailures = 10;
+    await getSlackBotToken(db.client);
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "not_stored", detail: "write failed" });
+    expect(alerts.sentry).toHaveBeenCalledWith(expect.anything(), { tags: { slack_bot_token: "not_stored" } });
+  });
+
+  it("alerts when a refresh fails and the token is close to running out, but not for a failure an hour ahead (the next call retries)", async () => {
+    slack.access.mockRejectedValue(new Error("slack is down"));
+    store("xoxe.xoxb-old", 50 * 60_000);
+    await getSlackBotToken(db.client);
+    expect(alerts.send).not.toHaveBeenCalled();
+
+    forgetSlackBotToken();
+    store("xoxe.xoxb-old", 10 * 60_000);
+    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-old");
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "refresh_failed", detail: "slack is down" });
+  });
+
+  it("alerts once, then throws, when the token has expired and could not be refreshed", async () => {
+    store("xoxe.xoxb-old", -1000);
+    slack.access.mockRejectedValue(new Error("invalid_refresh_token"));
+    await expect(getSlackBotToken(db.client)).rejects.toThrow("expired and could not be refreshed");
+    expect(alerts.send).toHaveBeenCalledTimes(1);
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "expired", detail: "invalid_refresh_token" });
+  });
+
+  it("doesn't loop when the alert itself needs the bot token (which is what is broken)", async () => {
+    store("xoxe.xoxb-old", -1000);
+    slack.access.mockRejectedValue(new Error("invalid_refresh_token"));
+    alerts.send.mockImplementation(async () => {
+      await getSlackBotToken(db.client).catch(() => undefined); // like sendOperationsAlert posting to Slack
+    });
+    await expect(getSlackBotToken(db.client)).rejects.toThrow("expired");
+    expect(alerts.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("never lets a problem sending the alert change what the caller gets", async () => {
+    store("xoxe.xoxb-old", -1000);
+    slack.access.mockRejectedValue(new Error("invalid_refresh_token"));
+    alerts.send.mockRejectedValue(new Error("email is down too"));
+    await expect(getSlackBotToken(db.client)).rejects.toThrow("expired and could not be refreshed");
   });
 });
 

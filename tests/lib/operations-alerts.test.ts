@@ -69,6 +69,30 @@ describe("production operations alerts", () => {
     error.mockRestore();
   });
 
+  it("says what is wrong with the bot token and how to recover, with the detail trimmed and escaped", async () => {
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem: "expired", detail: "<script>  bad &  \n thing " + "x".repeat(400) });
+    const text = postMessage.mock.calls[0][0].text as string;
+    expect(text).toContain("has expired and could not be refreshed");
+    expect(text).toContain("docs/SECRET_ROTATION.md");
+    expect(text).toContain("&lt;script&gt; bad &amp; thing");
+    expect(text.length).toBeLessThan(700);
+  });
+
+  it.each([
+    ["refresh_failed", "could not be refreshed and is close to expiring"],
+    ["not_stored", "could not be stored"],
+  ] as const)("words a %s bot token problem", async (problem, words) => {
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem });
+    expect(postMessage.mock.calls[0][0].text).toContain(words);
+  });
+
+  it("emails the alert when the bot token is what is broken, which is the point of it", async () => {
+    postMessage.mockRejectedValueOnce(new Error("invalid_auth"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem: "expired" });
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ops@example.com", subject: "[Hub alert] Slack bot token expired" }));
+  });
+
   it("batches ambiguous matches into one alert", async () => {
     await sendOperationsAlert(allowing().repos, {
       type: "ambiguous_slack_member_match",

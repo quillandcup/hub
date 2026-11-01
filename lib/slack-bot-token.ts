@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 import { clock } from "@/lib/clock";
 import { withRefreshLease } from "@/lib/slack-token-refresh";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -30,6 +31,30 @@ interface Stored {
 }
 
 let cached: { token: string; refreshAt: number } | null = null;
+
+let reporting = false;
+
+/**
+ * Tell staff the bot token is in trouble, by a route that doesn't need the bot: Sentry always, and the operations
+ * alert, which posts to #hub-alerts when the bot works and emails ALERTS_EMAIL when it doesn't (rate-limited, so a
+ * run of failures is one message per ten minutes). This once went unnoticed for a day because the only alert
+ * path was the bot itself. Never throws, and never recurses: the alert itself asks for the bot token.
+ */
+async function reportProblem(service: SupabaseClient, problem: "refresh_failed" | "not_stored" | "expired", error: unknown): Promise<void> {
+  if (reporting) return;
+  reporting = true;
+  try {
+    const detail = error instanceof Error ? error.message : typeof error === "object" && error ? String((error as { message?: unknown }).message ?? "") : String(error ?? "");
+    Sentry.captureException(error instanceof Error ? error : new Error(`Slack bot token ${problem}: ${detail}`), { tags: { slack_bot_token: problem } });
+    const { sendOperationsAlert } = await import("@/lib/operations-alerts");
+    const { createRepos } = await import("@/lib/data/repos");
+    await sendOperationsAlert(createRepos(service as never), { type: "slack_bot_token_failed", problem, detail });
+  } catch (reportError) {
+    console.error("Reporting a Slack bot token problem failed:", reportError);
+  } finally {
+    reporting = false;
+  }
+}
 
 /** Forget what this server instance holds, so the next call reads it again (tests; a token Slack rejected). */
 export function forgetSlackBotToken(): void {
@@ -75,6 +100,7 @@ async function refreshAndSave(service: SupabaseClient, current: Stored): Promise
   // for its 12 hours even though it isn't stored: far better than failing every bot call. Others still read the
   // old one, and the next refresh uses the old refresh token if Slack still accepts it. Loud, because it needs fixing.
   console.error("CRITICAL: refreshed the Slack bot token but could not store it; the new token is used by this instance only:", lastError);
+  await reportProblem(service, "not_stored", lastError);
   return stored;
 }
 
@@ -96,6 +122,7 @@ export async function getSlackBotToken(service?: SupabaseClient): Promise<string
   }
 
   let result: Stored | null;
+  let failure: unknown = null;
   try {
     result = await withRefreshLease<Stored>(db, "bot", {
       fallback: usable(stored) ? stored : null,
@@ -115,8 +142,16 @@ export async function getSlackBotToken(service?: SupabaseClient): Promise<string
     // A failed refresh isn't fatal while the token still works; the next call tries again.
     console.error("Refreshing the Slack bot token failed:", error);
     result = usable(stored) ? stored : null;
+    // Worth a message once it is close to running out (a transient failure an hour ahead will have retried by then),
+    // and always once it has.
+    failure = error;
+    if (result && stored.expiresAt !== null && stored.expiresAt - clock.now() < 20 * 60_000) await reportProblem(db, "refresh_failed", error);
   }
-  if (!result) throw new Error("The Slack bot token has expired and could not be refreshed");
+  if (!result) {
+    // Expired and nothing refreshed it: the refresh failed, or the lease holder never finished.
+    await reportProblem(db, "expired", failure ?? new Error("no usable token after waiting for the refresh"));
+    throw new Error("The Slack bot token has expired and could not be refreshed");
+  }
   cached = fresh(result) ? { token: result.accessToken, refreshAt: (result.expiresAt as number) - REFRESH_WITHIN_MS } : null;
   return result.accessToken;
 }
