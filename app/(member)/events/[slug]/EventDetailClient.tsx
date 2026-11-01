@@ -7,6 +7,8 @@ import { audienceSummary } from "@/lib/event-audience";
 import { locationDisplay } from "@/lib/location-display";
 import { eventDisplayName } from "@/lib/event-name";
 import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
+import { eventDays, formatTimeSpan } from "@/lib/events-agenda";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 
 interface EventData {
   guests_allowed: boolean;
@@ -21,6 +23,9 @@ interface EventData {
   location: string | null;
   starts_at: string;
   ends_at: string;
+  /** The exact start and end, when the event has a time of day. */
+  start_time?: string | null;
+  end_time?: string | null;
   focus: string | null;
   description: string | null;
   agenda: string | null;
@@ -43,15 +48,22 @@ export default function EventDetailClient({
   photos,
   calendarControl,
   coverImage = null,
+  timeZone = "UTC",
 }: {
   event: EventData;
   photos: Photo[];
+  /** The member's own time zone: the time of day is read in it. */
+  timeZone?: string;
   /** "Add to my calendar", rendered by the page for upcoming events. */
   calendarControl?: ReactNode;
   /** The picture picked from the media library, shown above the title. */
   coverImage?: { src: string; alt: string } | null;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const withSecondary = useWithSecondaryTime();
+  // The days and time of day as this member reads them, as the Events list does; nothing for an event with no time.
+  const { startDate, endDate, timed } = eventDays(event, timeZone);
+  const timeText = timed && event.start_time ? withSecondary(formatTimeSpan(event.start_time, event.end_time, timeZone), event.start_time, timeZone) : "";
   const audience = audienceSummary(event);
   const where = locationDisplay(event.location);
   const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}?w=1600` }));
@@ -68,7 +80,8 @@ export default function EventDetailClient({
         </p>
         <h1 className="text-2xl font-bold mt-0.5">{eventDisplayName(event.title, event.speakers, event.host_name)}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
-          {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
+          {startDate === endDate ? fmtDate(startDate) : `${fmtDate(startDate)} – ${fmtDate(endDate)}`}
+          {timeText && ` · ${timeText}`}
           {where && " · "}
           {where?.href ? (
             <a href={where.href} target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 hover:underline">

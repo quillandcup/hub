@@ -13,6 +13,7 @@ import {
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { eventSeed } from "@/tests/helpers/event-fixtures";
+import { ORG_TIMEZONE } from "@/lib/config";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { photoRow } from "@/tests/helpers/event-contract";
 
@@ -28,6 +29,8 @@ vi.mock("@/lib/data/repos", async () => ({
 }));
 
 const previews = vi.fn(async (_userId: string): Promise<string[]> => ["events"]);
+const tz = vi.hoisted(() => ({ value: "browser" }));
+vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => tz.value }));
 vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: (id: string) => previews(id) }));
 vi.mock("@/app/(member)/my-prickles/calendar-feed-actions", () => ({
   getMyCalendarItems: vi.fn(async () => [{ id: "cfi_AAAAAAAAAAA1", kind: "event", eventId: "evnt_AAAAAAAAAAA1" }]),
@@ -36,8 +39,9 @@ vi.mock("@/app/(member)/my-prickles/AddToCalendar", () => ({
   AddEventToCalendar: ({ eventId, itemId }: { eventId: string; itemId: string | null }) => <div data-testid="calendar">{eventId}|{itemId}</div>,
 }));
 vi.mock("@/app/(member)/events/[slug]/EventDetailClient", () => ({
-  default: ({ event, photos, calendarControl, coverImage }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode; coverImage: { src: string; alt: string } | null }) => (
+  default: ({ event, photos, calendarControl, coverImage, timeZone }: { event: { title: string }; photos: { id: string }[]; calendarControl: React.ReactNode; coverImage: { src: string; alt: string } | null; timeZone: string }) => (
     <div>
+      <div data-testid="zone">{timeZone}</div>
       <div data-testid="detail">{event.title}|{photos.map((p) => p.id).join(",")}</div>
       <div data-testid="cover">{coverImage ? `${coverImage.src}|${coverImage.alt}` : "none"}</div>
       {calendarControl}
@@ -52,6 +56,7 @@ const params = (slug: string) => ({ params: Promise.resolve({ slug }) });
 beforeEach(() => {
   resetServerPageMocks();
   previews.mockResolvedValue(["events"]);
+  tz.value = "browser";
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase({});
   dataset = new InMemoryDataset({
@@ -73,6 +78,17 @@ describe("member event detail page", () => {
 
     expect(screen.getByTestId("detail")).toHaveTextContent("Spring Retreat|evph_AAAAAAAAAAA2,evph_AAAAAAAAAAA1");
     expect(screen.getByTestId("calendar")).toHaveTextContent("evnt_AAAAAAAAAAA1|cfi_AAAAAAAAAAA1");
+  });
+
+  it("reads the time of day in the member's own zone, or the organization's when theirs isn't known yet", async () => {
+    tz.value = "America/Costa_Rica";
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("zone")).toHaveTextContent("America/Costa_Rica");
+    cleanup();
+
+    tz.value = "browser";
+    await renderServerPage(EventDetailPage, params("spring-retreat"));
+    expect(screen.getByTestId("zone")).toHaveTextContent(ORG_TIMEZONE);
   });
 
   it("shows the cover image picked from the media library at the hero size, with its alt text, unless it was deleted", async () => {
