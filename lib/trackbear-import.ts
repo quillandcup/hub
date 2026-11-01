@@ -96,7 +96,7 @@ export const TRACKBEAR_PHASE_MAP: Record<string, ProjectPhase> = {
   revising: "revising",
   "on hold": "on_hold",
   finished: "complete",
-  abandoned: "abandoned",
+  abandoned: "hibernating",
 };
 
 const HABIT_UNIT_MAP: Record<string, HabitPeriod> = { day: "day", week: "week", month: "month" };

@@ -257,7 +257,7 @@ export interface WritingRepository {
 
   // --- projects and starting balances ---
 
-  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show; with `past`, those in a past phase (complete, published, abandoned) instead. */
+  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show; with `past`, those in a past phase (hibernating) instead. */
   projectSummaries(memberId: string, options?: { past?: boolean }): Promise<ProjectSummary[]>;
   /** One of the member's projects (archived or not), or null when it isn't theirs, is deleted or doesn't exist. */
   projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;

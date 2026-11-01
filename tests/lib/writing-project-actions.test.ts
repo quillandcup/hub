@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
-// Abandoned projects and deleting a project (app/(member)/projects/actions.ts), over the in-memory
+// Hibernating projects and deleting a project (app/(member)/projects/actions.ts), over the in-memory
 // writing repository. The Supabase fake answers only the lookups the identity check and the
 // attendance and bookshelf reads make.
 
@@ -55,7 +55,7 @@ function fakeSupabase() {
 beforeEach(() => {
   vi.clearAllMocks();
   dataset = new InMemoryDataset({
-    writingProjects: [project("wprj_1", ME, "Novel"), project("wprj_2", ME, "Essays", "complete"), project("wprj_3", ME, "Dropped", "abandoned"), project("wprj_other", OTHER, "Theirs")],
+    writingProjects: [project("wprj_1", ME, "Novel"), project("wprj_2", ME, "Essays", "complete"), project("wprj_3", ME, "Dropped", "hibernating"), project("wprj_other", OTHER, "Theirs")],
     writingGoals: [goal("wgol_1", "wprj_1")],
     writingEntries: [entry("went_1", "wprj_1")],
   });
@@ -64,20 +64,20 @@ beforeEach(() => {
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY);
 });
 
-describe("abandoned projects", () => {
-  it("lists abandoned projects apart from the others, all still openable; complete ones stay with the rest", async () => {
+describe("hibernating projects", () => {
+  it("lists hibernating projects apart from the others, all still openable; complete ones stay with the rest", async () => {
     expect((await getMyProjects()).map((p) => p.title).sort()).toEqual(["Essays", "Novel"]);
     const past = await getMyPastProjects();
     expect(past.map((p) => p.title)).toEqual(["Dropped"]);
     const opened = await getProject("wprj_3");
-    expect("project" in opened && opened.project.phase).toBe("abandoned");
+    expect("project" in opened && opened.project.phase).toBe("hibernating");
   });
 
-  it("moves a project to the abandoned list when its status changes, and back", async () => {
+  it("moves a project to the hibernating list when its status changes, and back", async () => {
     expect(await updateProjectPhase("wprj_1", "complete")).toEqual({ success: true });
     expect((await getMyProjects()).map((p) => p.title)).toContain("Novel");
 
-    expect(await updateProjectPhase("wprj_1", "abandoned")).toEqual({ success: true });
+    expect(await updateProjectPhase("wprj_1", "hibernating")).toEqual({ success: true });
     expect((await getMyProjects()).map((p) => p.title)).not.toContain("Novel");
     expect((await getMyPastProjects()).map((p) => p.title)).toContain("Novel");
 
@@ -106,7 +106,7 @@ describe("deleteProject", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
-  it("deletes an abandoned project too", async () => {
+  it("deletes a hibernating project too", async () => {
     expect(await deleteProject("wprj_3")).toEqual({ success: true });
     expect(await getMyPastProjects()).toEqual([]);
   });
