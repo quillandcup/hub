@@ -173,6 +173,8 @@ export interface LatestChat extends OlderChat {
 }
 
 export interface ThreadChat {
+  /** Messages asked about by id that are gone (deleted, or not readable): the open thread drops them. */
+  removedIds?: string[];
   /** The thread's root message first, then its replies, oldest first. */
   views: ChatMessageView[];
   ctx: ChatTextContext;
@@ -183,7 +185,7 @@ export interface ThreadChat {
  * (see `loadLatestChat`). Same access rules as the page. Null when the thread can't be loaded (no
  * access, or the root is gone), and the caller refreshes the page.
  */
-export async function loadThreadChat(channelId: string, threadRootId: string): Promise<ThreadChat | null> {
+export async function loadThreadChat(channelId: string, threadRootId: string, alsoMessageIds: string[] = []): Promise<ThreadChat | null> {
   if (!isId(channelId, "chn") || !isId(threadRootId, "msg")) return null;
   const caller = await chatCaller();
   if (!caller) return null;
@@ -199,7 +201,13 @@ export async function loadThreadChat(channelId: string, threadRootId: string): P
   ]);
   if (!root) return null;
   const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId);
-  return { views, ctx: chatTextContext(rendered, []) };
+  // Messages that changed and aren't in what came back: a reply deleted in Slack is left out of the views, but one
+  // beyond the page, or in another view of the conversation, is merely not shown here. Look each up to tell which is gone.
+  const shown = new Set(views.map((v) => v.id));
+  const candidates = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg") && !shown.has(m)))].slice(0, 50);
+  const rows = await Promise.all(candidates.map((id) => loadMessage(createRepos(supabase), channel.id, id)));
+  const removedIds = candidates.filter((_, i) => !rows[i] || rows[i]?.deleted_at);
+  return { views, ctx: chatTextContext(rendered, []), removedIds };
 }
 
 export type SendChatResult = { ok: true; id: string } | { ok: false; error: string };

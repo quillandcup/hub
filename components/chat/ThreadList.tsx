@@ -64,6 +64,8 @@ export default function ThreadList({
         setById((prev) => {
           const next = new Map(prev);
           for (const v of event.views.slice(1)) next.set(v.id, v);
+          // A reply deleted in Slack is left out of what the server sends: it says which are gone.
+          for (const id of event.removedIds ?? []) next.delete(id);
           return next;
         });
         setContext((prev) => mergeChatContext(prev, event.ctx));

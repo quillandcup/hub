@@ -31,7 +31,7 @@ export type ListEvent =
   /** Where the unread line belongs now (a page from the client cache had it where it was when cached). */
   | { kind: "unread"; channelId: string; firstUnreadId: string | null }
   /** An open thread as the server has it now: the root first, then its replies (newer data wins, by id). */
-  | { kind: "merge-thread"; channelId: string; threadRootId: string; views: ChatMessageView[]; ctx: ChatTextContext };
+  | { kind: "merge-thread"; channelId: string; threadRootId: string; views: ChatMessageView[]; ctx: ChatTextContext; removedIds?: string[] };
 
 type Listener = (event: ListEvent) => void;
 const listeners = new Set<Listener>();

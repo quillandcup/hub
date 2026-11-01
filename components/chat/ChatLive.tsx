@@ -111,11 +111,11 @@ export default function ChatLive({
     changedIds.current.clear();
     const result =
       view === "thread"
-        ? await loadThreadChat(channelId, threadRootId ?? "").catch(() => null)
+        ? await loadThreadChat(channelId, threadRootId ?? "", changed).catch(() => null)
         : await (fromCache ? loadLatestChat(channelId, changed, true) : loadLatestChat(channelId, changed)).catch(() => null);
     if (!result) return router.refresh();
     if (view === "thread") {
-      emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
+      emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx, removedIds: (result as { removedIds?: string[] }).removedIds });
     } else {
       emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx, removedIds: (result as { removedIds?: string[] }).removedIds });
       // The unread line the cached page drew is where the marker was then; the reader has moved it since.

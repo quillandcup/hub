@@ -460,10 +460,20 @@ describe("ChatLive", () => {
         act(() => handlers.chat_messages(insert("m1")));
         await act(async () => vi.advanceTimersByTime(1000));
 
-        expect(loadThreadChat).toHaveBeenCalledWith("c1", "m1");
+        expect(loadThreadChat).toHaveBeenCalledWith("c1", "m1", []);
         expect(loadLatestChat).not.toHaveBeenCalled();
         expect(events).toEqual([expect.objectContaining({ kind: "merge-thread", channelId: "c1", threadRootId: "m1" })]);
         expect(refresh).not.toHaveBeenCalled();
+      });
+
+      it("asks for the changed messages too and passes on the ones the server says are gone", async () => {
+        loadThreadChat.mockResolvedValue({ ...thread("m1", "r2"), removedIds: ["r1"] });
+        await mount("thread", { threadRootId: "m1" });
+        act(() => handlers.chat_messages({ eventType: "UPDATE", new: { id: "r1", thread_root_id: "m1" }, old: {} }));
+        await act(async () => vi.advanceTimersByTime(1000));
+
+        expect(loadThreadChat).toHaveBeenCalledWith("c1", "m1", ["r1"]);
+        expect(events).toEqual([expect.objectContaining({ kind: "merge-thread", removedIds: ["r1"] })]);
       });
 
       it("falls back to refreshing the page when the thread can't be fetched", async () => {
