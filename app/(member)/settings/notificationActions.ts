@@ -281,7 +281,7 @@ export async function sendTestPushNotification(): Promise<{ success: true } | { 
   if (identity.isSudo) return { error: "Test notifications can't be sent in sudo mode." };
 
   const service = createServiceRoleClient();
-  const reachable = await webPushChannel.resolveAddresses(service, [identity.memberId]);
+  const reachable = await webPushChannel.resolveAddresses(createRepos(service), [identity.memberId]);
   if (!reachable.has(identity.memberId)) return { error: "No device has Browser notifications turned on." };
 
   try {

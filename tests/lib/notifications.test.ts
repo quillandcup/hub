@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 
 const sendSlackDM = vi.fn(async (_params: { slackUserId: string; text: string; blocks?: any[] }) => {});
@@ -18,21 +19,31 @@ vi.mock("@/lib/slack-member-ids", () => ({
   resolveSlackUserIds: (s: unknown, ids: string[]) => resolveSlackUserIds(s, ids),
 }));
 
-// Mock service role client for in-app notifications
-let serviceFake: any;
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
+// Everything reads and writes through one set of in-memory repositories (the in-app channel
+// writes with its own service-role repositories, which are the same ones here).
+let dataset: InMemoryDataset;
+let repos: Repos;
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 const { effectiveChannels, effectiveSettings, NOTIFICATION_KINDS } = await import("@/lib/notifications/registry");
 const { createNotifier } = await import("@/lib/notifications/notify");
 const { slackBlocks } = await import("@/lib/channels/slack");
-const slackReady = (tables: FakeTables = {}) => createFakeSupabase(tables);
+const world = (seed: ConstructorParameters<typeof InMemoryDataset>[0] = {}) => {
+  dataset = new InMemoryDataset(seed);
+  repos = createInMemoryRepos(dataset);
+  return repos;
+};
 
 beforeEach(() => {
   sendSlackDM.mockReset();
   resolveSlackUserIds.mockClear();
   captureException.mockClear();
   sendOperationsAlert.mockClear();
-  serviceFake = createFakeSupabase();
+  world();
 });
 
 describe("effectiveChannels", () => {
@@ -60,11 +71,10 @@ describe("effectiveChannels", () => {
 });
 
 describe("createNotifier", () => {
-  const optedOut = { member_id: "m2", kind: "prickle_checkin", channel: "slack", enabled: false };
+  const optedOut = { memberId: "m2", kind: "prickle_checkin", channel: "slack", enabled: false };
 
   it("offers Slack to matched members without requiring a Hub account", async () => {
-    const fake = createFakeSupabase();
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1", "m2"]);
 
     expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
     expect(notifier.channelsFor("m2")).toEqual(["slack", "in_app"]);
@@ -72,8 +82,7 @@ describe("createNotifier", () => {
   });
 
   it("reaches members on their channels, skipping opt-outs and members with no address", async () => {
-    const fake = slackReady({ notification_preferences: { data: [optedOut] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1", "m2", "m3", "m1"]);
+    const notifier = await createNotifier(world({ notificationPreferences: [optedOut] }), "prickle_checkin", ["m1", "m2", "m3", "m1"]);
 
     expect(notifier.channelsFor("m1")).toEqual(["slack", "in_app"]);
     expect(notifier.canReach("m2")).toBe(true);
@@ -85,15 +94,15 @@ describe("createNotifier", () => {
   });
 
   it("sends to the member's Slack and reports the delivered channels", async () => {
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
 
     expect(await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` })).toEqual(["slack", "in_app"]);
     expect(sendSlackDM).toHaveBeenCalledWith(expect.objectContaining({ slackUserId: "U-m1", text: "Hello" }));
+    expect(dataset.inAppNotifications).toEqual([expect.objectContaining({ memberId: "m1", kind: "prickle_checkin", url: "/prickles/p1" })]);
   });
 
   it("still sends in-app to a member who opted out of Slack only", async () => {
-    const fake = slackReady({ notification_preferences: { data: [optedOut] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m2"]);
+    const notifier = await createNotifier(world({ notificationPreferences: [optedOut] }), "prickle_checkin", ["m2"]);
 
     expect(await notifier.send("m2", { text: "Hello" })).toEqual(["in_app"]);
     expect(sendSlackDM).not.toHaveBeenCalled();
@@ -102,7 +111,7 @@ describe("createNotifier", () => {
   it("logs a failed channel and still sends on other channels", async () => {
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
 
     expect(await notifier.send("m1", { text: "Hello" })).toEqual(["in_app"]);
     expect(error).toHaveBeenCalled();
@@ -111,26 +120,29 @@ describe("createNotifier", () => {
     error.mockRestore();
   });
 
-  it("aborts before resolving addresses or sending when preferences can't be loaded", async () => {
-    const fake = createFakeSupabase({ notification_preferences: { error: { message: "boom" } } });
-    await expect(createNotifier(fake, "prickle_checkin", ["m1"])).rejects.toThrow("preferences failed: boom");
-    expect(resolveSlackUserIds).not.toHaveBeenCalled();
-    expect(sendSlackDM).not.toHaveBeenCalled();
+  it("reports nothing delivered on a channel whose write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = world();
+    r.notifications.addInApp = async () => {
+      throw new Error("boom");
+    };
+    const notifier = await createNotifier(r, "prickle_checkin", ["m1"]);
+    expect(await notifier.send("m1", { text: "Hello" })).toEqual(["slack"]);
+    vi.restoreAllMocks();
   });
 
-  it("doesn't use partial preferences when a later batch fails", async () => {
-    let batch = 0;
-    const fake = createFakeSupabase({ notification_preferences: () =>
-      ++batch === 1 ? { data: [] } : { error: { message: "unavailable" } },
-    });
-    await expect(createNotifier(fake, "prickle_checkin", Array.from({ length: 201 }, (_, i) => `m${i}`)))
-      .rejects.toThrow("preferences failed: unavailable");
+  it("aborts before resolving addresses or sending when preferences can't be loaded", async () => {
+    const r = world();
+    r.notifications.preferencesForKind = async () => {
+      throw new Error("boom");
+    };
+    await expect(createNotifier(r, "prickle_checkin", ["m1"])).rejects.toThrow("preferences failed: boom");
     expect(resolveSlackUserIds).not.toHaveBeenCalled();
     expect(sendSlackDM).not.toHaveBeenCalled();
   });
 
   it("adds a notification settings link to every message", async () => {
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
 
     const blocks = sendSlackDM.mock.calls[0][0].blocks!;
@@ -138,20 +150,12 @@ describe("createNotifier", () => {
   });
 
   it("sends on forced channels regardless of preferences, without loading them", async () => {
-    const fake = createFakeSupabase({ notification_preferences: { data: [optedOut] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m2"], { channels: ["slack"] });
+    const r = world({ notificationPreferences: [optedOut] });
+    const preferences = vi.spyOn(r.notifications, "preferencesForKind");
+    const notifier = await createNotifier(r, "prickle_checkin", ["m2"], { channels: ["slack"] });
 
     expect(await notifier.send("m2", { text: "Test" })).toEqual(["slack"]);
-    expect(fake.queries.some((q) => q.table === "notification_preferences")).toBe(false);
-    expect(fake.queries.some((q) => q.table === "feature_flags")).toBe(false);
-  });
-
-  it("loads preferences in chunks for large batches", async () => {
-    const fake = slackReady();
-    const ids = Array.from({ length: 450 }, (_, i) => `x${i}`);
-    await createNotifier(fake, "prickle_checkin", ids);
-
-    expect(fake.queries.filter((q) => q.table === "notification_preferences")).toHaveLength(3);
+    expect(preferences).not.toHaveBeenCalled();
   });
 });
 
@@ -182,12 +186,13 @@ describe("slackBlocks (shared Slack channel)", () => {
 });
 
 describe("createNotifier: usage analytics", () => {
-  const members = { members: { data: [{ id: "m1", user_id: "u-1" }, { id: "m2", user_id: "u-2" }] } };
-  const inserted = (fake: ReturnType<typeof createFakeSupabase>, table: string) =>
-    fake.queries.filter((q) => q.table === table).flatMap((q) => q.calls.filter((c) => c.method === "insert").map((c) => c.args[0]));
+  const members = [
+    { id: "m1", name: "Ada Example", userId: "u-1" },
+    { id: "m2", name: "Bea Example", userId: "u-2" },
+  ];
 
   it("tags the Hub links in what goes out on Slack with the kind and channel", async () => {
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` });
 
     const first = sendSlackDM.mock.calls[0][0].blocks![0].text.text as string;
@@ -197,7 +202,7 @@ describe("createNotifier: usage analytics", () => {
   });
 
   it("tags links a feature put in its own Slack blocks", async () => {
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", {
       text: "Hello",
       slackBlocks: [{ type: "actions", elements: [{ type: "button", url: `${APP_URL}/streaks` }] }],
@@ -206,21 +211,18 @@ describe("createNotifier: usage analytics", () => {
   });
 
   it("does not tag in-app notifications: the click is recorded in the Hub", async () => {
-    const notifier = await createNotifier(slackReady(), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello", url: `${APP_URL}/prickles/p1` });
-    const rows = inserted(serviceFake, "in_app_notifications").flat();
-    expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(JSON.stringify(row)).not.toContain("nk=");
+    expect(dataset.inAppNotifications.length).toBeGreaterThan(0);
+    for (const row of dataset.inAppNotifications) expect(JSON.stringify(row)).not.toContain("nk=");
   });
 
   it("records a notification_sent for each channel it reached, against the member's user", async () => {
-    const fake = slackReady(members);
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world({ members }), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
 
-    const [rows] = inserted(fake, "analytics_events");
-    expect(rows).toHaveLength(2);
-    expect(rows).toEqual([
+    expect(dataset.analyticsEvents).toHaveLength(2);
+    expect(dataset.analyticsEvents).toEqual([
       expect.objectContaining({ user_id: "u-1", source: "system", session_id: null, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } }),
       expect.objectContaining({ user_id: "u-1", event: "notification_sent", properties: { kind: "prickle_checkin", channel: "in_app" } }),
     ]);
@@ -229,32 +231,37 @@ describe("createNotifier: usage analytics", () => {
   it("records only the channels that delivered", async () => {
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const fake = slackReady(members);
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world({ members }), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
-    expect((inserted(fake, "analytics_events")[0] as any[]).map((r) => r.properties.channel)).toEqual(["in_app"]);
+    expect(dataset.analyticsEvents.map((r) => (r.properties as { channel: string }).channel)).toEqual(["in_app"]);
     vi.restoreAllMocks();
   });
 
   it("records nothing for a send the member asked for (forced channels), and doesn't even look up users", async () => {
-    const fake = slackReady(members);
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"], { channels: ["slack"] });
+    const r = world({ members });
+    const lookup = vi.spyOn(r.members, "userIdsByMemberId");
+    const notifier = await createNotifier(r, "prickle_checkin", ["m1"], { channels: ["slack"] });
     await notifier.send("m1", { text: "Test" });
-    expect(inserted(fake, "analytics_events")).toEqual([]);
-    expect(fake.queries.some((q) => q.table === "members")).toBe(false);
+    expect(dataset.analyticsEvents).toEqual([]);
+    expect(lookup).not.toHaveBeenCalled();
   });
 
   it("records nothing for a member with no Hub account", async () => {
-    const fake = slackReady({ members: { data: [{ id: "m1", user_id: null }] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world({ members: [{ id: "m1", name: "Ada Example", userId: null }] }), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
-    expect(inserted(fake, "analytics_events")).toEqual([]);
+    expect(dataset.analyticsEvents).toEqual([]);
   });
 
   it("still sends when the usage log can't be reached", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const fake = slackReady({ members: { error: { message: "down" } }, analytics_events: { error: { message: "down" } } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const r = world({ members });
+    r.members.userIdsByMemberId = async () => {
+      throw new Error("down");
+    };
+    r.analyticsEvents.record = async () => {
+      throw new Error("down");
+    };
+    const notifier = await createNotifier(r, "prickle_checkin", ["m1"]);
     expect(await notifier.send("m1", { text: "Hello" })).toEqual(["slack", "in_app"]);
     vi.restoreAllMocks();
   });

@@ -3,6 +3,7 @@ import { DbQueryError, throwIfDbError } from "@/lib/db-error";
 import { clock } from "@/lib/clock";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 
 /** A section slower than this is logged even when it succeeds, so a slow query shows up before it times out. */
 export const SLOW_SECTION_MS = 2000;
@@ -24,7 +25,7 @@ export async function traced<T>(section: string, run: () => Promise<T>, details:
     const ms = clock.now() - started;
     console.error(`[section failed] ${section} after ${ms}ms`, details, error);
     // To #hub-alerts (rate-limited per section, never throws), so a failure is seen without watching Sentry.
-    await sendOperationsAlert(createServiceRoleClient(), { type: "section_failed", section, code: (error as { code?: string } | null)?.code, ms });
+    await sendOperationsAlert(createRepos(createServiceRoleClient()), { type: "section_failed", section, code: (error as { code?: string } | null)?.code, ms });
     throw error;
   } finally {
     const ms = clock.now() - started;

@@ -82,7 +82,7 @@ async function openCheckins(supabase: Searcher["ctx"]["supabase"], memberId: str
   ]);
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
   const upcoming = await getCheckinPrickles(createRepos(supabase), memberId, timeZone, now).catch(() => []);
-  const dismissed = await loadDismissedCheckinIds(supabase, memberId, upcoming.map((r) => r.prickle.id)).catch(() => new Set<string>());
+  const dismissed = await loadDismissedCheckinIds(createRepos(supabase), memberId, upcoming.map((r) => r.prickle.id)).catch(() => new Set<string>());
   const ins: Suggestion[] = upcoming
     .filter((r) => !dismissed.has(r.prickle.id))
     .filter((r) => !checkinAnswered((checkins as Record<string, never>)[r.prickle.id] ?? null))
@@ -195,14 +195,14 @@ export async function markSuggestionsRead(ids: string[]): Promise<number> {
       // A check-in or check-out names a prickle; a notification names an in_app_notifications row (still a uuid).
       if (kind === "notification" ? !UUID.test(ref ?? "") : !isId(ref, "prkl")) return false;
       try {
-        if (kind === "checkout") return (await dismissCheckout(supabase, viewerMemberId, ref)) === null;
-        if (kind === "checkin") return (await dismissCheckin(supabase, viewerMemberId, ref)) === null;
+        if (kind === "checkout") return (await dismissCheckout(createRepos(supabase), viewerMemberId, ref)) === null;
+        if (kind === "checkin") return (await dismissCheckin(createRepos(supabase), viewerMemberId, ref)) === null;
         if (kind === "notification") {
           // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
           const note = await createRepos(supabase).notifications.inAppById(viewerMemberId, ref);
           if (note && isId(note.ref, "prkl")) {
-            if (note.kind === "prickle_checkin") return (await dismissCheckin(supabase, viewerMemberId, note.ref)) === null;
-            if (note.kind === "prickle_checkout") return (await dismissCheckout(supabase, viewerMemberId, note.ref)) === null;
+            if (note.kind === "prickle_checkin") return (await dismissCheckin(createRepos(supabase), viewerMemberId, note.ref)) === null;
+            if (note.kind === "prickle_checkout") return (await dismissCheckout(createRepos(supabase), viewerMemberId, note.ref)) === null;
           }
           await createRepos(supabase).notifications.markInAppRead(viewerMemberId, [ref]);
           return true;

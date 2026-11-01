@@ -6,6 +6,7 @@ import { sampleMessages } from "@/lib/notification-test";
 import { NOTIFICATION_SETTINGS_PATH } from "@/lib/notifications/notify";
 import { APP_URL } from "@/lib/config";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * What members receive when the Hub reaches out, on each channel: the Slack message, the email and the browser
@@ -22,7 +23,7 @@ test("every notification kind, as members receive it", async ({ page }, testInfo
 
   for (const kind of NOTIFICATION_KINDS) {
     // As a member receives them (not the admin test send's "[Test]" version), with the settings link a real send carries.
-    const messages = (await sampleMessages(supabase, kind.id, new Date(), { test: false })).map((m) => ({
+    const messages = (await sampleMessages(createRepos(supabase), kind.id, new Date(), { test: false })).map((m) => ({
       ...m,
       footerLinks: [{ label: "Notification settings", url: `${APP_URL}${NOTIFICATION_SETTINGS_PATH}` }],
     }));

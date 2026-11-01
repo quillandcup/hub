@@ -7,6 +7,7 @@ import { sendTestNotification as sendTest } from "@/lib/notification-test";
 import { isNotificationKind } from "@/lib/notifications/registry";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 
 /** Real pushes for the click diagnostics; each differs from the one before by one field. */
 const DIAGNOSTIC_PUSHES = {
@@ -31,7 +32,7 @@ export async function sendDiagnosticPush(variant: string) {
 
   try {
     const sent = await sendPush(
-      createServiceRoleClient(),
+      createRepos(createServiceRoleClient()),
       identity.memberId,
       { title: `[Test] ${variant} server push`, body: "Click to test whether the browser delivers this server push to the Hub.", url: "/admin/notifications", tag },
       { urgency, ttlSeconds }
@@ -59,6 +60,6 @@ export async function sendTestNotification(kind: string, channel: string) {
 
   // Service role, as the real sends use (the channel adapters read contact details across
   // members); every lookup is for the admin's own member id.
-  const result = await sendTest(createServiceRoleClient(), identity.memberId, kind, channel);
+  const result = await sendTest(createRepos(createServiceRoleClient()), identity.memberId, kind, channel);
   return result.ok ? { success: true as const, sent: result.sent } : { error: result.error };
 }

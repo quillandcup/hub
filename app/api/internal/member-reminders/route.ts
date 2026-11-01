@@ -30,7 +30,7 @@ async function runMemberReminders(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = createServiceRoleClient();
-  const result = await sendMemberReminders(supabase, new Date(), {
+  const result = await sendMemberReminders(createRepos(supabase), new Date(), {
     liveFor: (kind, memberIds) => membersWithFeatureForOutreach(createRepos(supabase), FLAG_FOR_KIND[kind], memberIds),
   });
   return NextResponse.json(result);

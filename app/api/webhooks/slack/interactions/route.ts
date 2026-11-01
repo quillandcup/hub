@@ -127,13 +127,13 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   if (!slackUserId) return;
 
   const supabase = createServiceRoleClient();
-  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
   if (!memberId) {
     console.error("prickle_checkin_answer: no member matched for Slack user", slackUserId);
     return;
   }
 
-  const error = await saveCheckinAnswer(supabase, memberId, answer);
+  const error = await saveCheckinAnswer(createRepos(supabase), memberId, answer);
   if (error) {
     console.error("prickle_checkin_answer: not saved", { memberId, prickleId: answer.prickleId, field: answer.field, error });
     return;
@@ -153,12 +153,12 @@ async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: str
   const slackUserId = payload.user?.id as string | undefined;
   if (!slackUserId) return;
   const supabase = createServiceRoleClient();
-  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
   if (!memberId) {
     console.error("prickle_dismiss: no member matched for Slack user", slackUserId);
     return;
   }
-  const error = await dismissCheckinHalf(supabase, half, memberId, prickleId);
+  const error = await dismissCheckinHalf(createRepos(supabase), half, memberId, prickleId);
   if (error) return;
 
   const channelId = payload.channel?.id as string | undefined;
@@ -182,7 +182,7 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
 
   const supabase = createServiceRoleClient();
 
-  const memberId = await resolveMemberIdForSlackUser(supabase, slackUserId);
+  const memberId = await resolveMemberIdForSlackUser(createRepos(supabase), slackUserId);
   if (!memberId) {
     console.error("writing_quick_log: no member matched for Slack user", slackUserId);
     return;

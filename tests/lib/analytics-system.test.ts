@@ -1,27 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { recordSystemEvents } from "@/lib/analytics/system";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { SERVER_ONLY_EVENTS } from "@/lib/analytics/events";
 import { parseBatch } from "@/lib/analytics/receive";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 
-function client(error: { message: string } | null = null) {
-  const insert = vi.fn().mockResolvedValue({ error });
-  return { insert, supabase: { from: vi.fn().mockReturnValue({ insert }) } };
+const stored = (data: InMemoryDataset) => data.analyticsEvents;
+function world() {
+  const data = new InMemoryDataset();
+  return { data, repos: createInMemoryRepos(data) };
 }
 
 beforeEach(() => vi.spyOn(console, "error").mockImplementation(() => {}));
 
 describe("recordSystemEvents", () => {
-  it("records what the app did as system events with no visit, in one insert", async () => {
-    const { insert, supabase } = client();
-    await recordSystemEvents(supabase, [
+  it("records what the app did as system events with no visit, in one write", async () => {
+    const { data, repos } = world();
+    const record = vi.spyOn(repos.analyticsEvents, "record");
+    await recordSystemEvents(repos, [
       { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
       { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "email" } },
     ]);
-    expect(supabase.from).toHaveBeenCalledWith("analytics_events");
-    expect(insert).toHaveBeenCalledTimes(1);
-    const rows = insert.mock.calls[0][0];
+    expect(record).toHaveBeenCalledTimes(1);
+    const rows = stored(data);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       user_id: USER,
@@ -37,38 +40,39 @@ describe("recordSystemEvents", () => {
 
   it("records a send for a member who left usage statistics too: it is the app's record, not their usage", async () => {
     const OTHER = "22222222-2222-4222-8222-222222222222";
-    const { insert, supabase } = client();
-    await recordSystemEvents(supabase, [
+    const { data, repos } = world();
+    await recordSystemEvents(repos, [
       { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
       { userId: OTHER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
     ]);
-    expect(insert.mock.calls[0][0].map((row: { user_id: string }) => row.user_id)).toEqual([USER, OTHER]);
-    // It never looks anyone's opt-out up.
-    expect(supabase.from).not.toHaveBeenCalledWith("user_profiles");
+    // It never looks anyone's opt-out up: both are stored.
+    expect(stored(data).map((row) => row.user_id)).toEqual([USER, OTHER]);
   });
 
   it("writes nothing for an empty list", async () => {
-    const { insert, supabase } = client();
-    await recordSystemEvents(supabase, []);
-    expect(insert).not.toHaveBeenCalled();
+    const { data, repos } = world();
+    const record = vi.spyOn(repos.analyticsEvents, "record");
+    await recordSystemEvents(repos, []);
+    expect(record).not.toHaveBeenCalled();
+    expect(stored(data)).toEqual([]);
   });
 
   it("refuses events that are not the system's to record, and ones the plan rejects", async () => {
-    const { insert, supabase } = client();
-    await recordSystemEvents(supabase, [
+    const { data, repos } = world();
+    await recordSystemEvents(repos, [
       { userId: USER, event: "page_viewed" as never, properties: { route: "/" } as never },
       { userId: USER, event: "notification_sent", properties: { kind: "x".repeat(60), channel: "slack" } },
     ]);
-    expect(insert).not.toHaveBeenCalled();
+    expect(stored(data)).toEqual([]);
   });
 
   it("never throws, whatever the database does", async () => {
+    const { repos } = world();
+    repos.analyticsEvents.record = async () => {
+      throw new Error("down");
+    };
     await expect(
-      recordSystemEvents(client({ message: "boom" }).supabase, [{ userId: USER, event: "notification_sent", properties: { kind: "k", channel: "slack" } }])
-    ).resolves.toBeUndefined();
-    const throwing = { from: () => ({ insert: () => Promise.reject(new Error("down")) }) };
-    await expect(
-      recordSystemEvents(throwing, [{ userId: USER, event: "notification_sent", properties: { kind: "k", channel: "slack" } }])
+      recordSystemEvents(repos, [{ userId: USER, event: "notification_sent", properties: { kind: "k", channel: "slack" } }])
     ).resolves.toBeUndefined();
   });
 });

@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
 import { APP_URL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { InAppNotificationRow } from "@/lib/data/notifications";
-import { createInMemoryRepos } from "@/lib/data/repos";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
-// The adapter writes with its own service-role client; point it at a fake to inspect the insert.
-let serviceFake: FakeSupabase;
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
+// The adapter writes with its own service-role repositories: the in-memory ones of the test using it.
+let channelRepos: Repos;
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => channelRepos,
+}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/slack-member-ids", () => ({ resolveSlackUserIds: async () => new Map() }));
 vi.mock("@/lib/slack", () => ({ sendSlackDM: vi.fn() }));
 
@@ -26,10 +29,8 @@ const {
 const { createNotifier } = await import("@/lib/notifications/notify");
 
 
-const callsOf = (fake: FakeSupabase, table: string) => fake.queries.filter((q) => q.table === table).flatMap((q) => q.calls);
-
 beforeEach(() => {
-  serviceFake = createFakeSupabase();
+  channelRepos = createInMemoryRepos();
 });
 
 describe("hubPath", () => {
@@ -85,24 +86,22 @@ describe("inAppRow", () => {
 
 describe("in_app channel through createNotifier", () => {
   it("reaches members and stores the banner", async () => {
-    const fake = createFakeSupabase({
-      members: { data: [{ id: "m1", user_id: "u1" }] },
-    });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const dataset = new InMemoryDataset();
+    channelRepos = createInMemoryRepos(dataset);
+    const notifier = await createNotifier(channelRepos, "prickle_checkin", ["m1"]);
     expect(notifier.channelsFor("m1")).toEqual(["in_app"]);
 
     expect(await notifier.send("m1", { text: "Check in?", url: `${APP_URL}/prickles/p1`, ref: "p1" })).toEqual(["in_app"]);
-    const insert = callsOf(serviceFake, "in_app_notifications").find((c) => c.method === "insert")!;
-    expect(insert.args[0]).toMatchObject({ member_id: "m1", kind: "prickle_checkin", ref: "p1", url: "/prickles/p1" });
+    expect(dataset.inAppNotifications).toEqual([expect.objectContaining({ memberId: "m1", kind: "prickle_checkin", ref: "p1", url: "/prickles/p1" })]);
   });
 
   it("reports nothing delivered when the insert fails", async () => {
-    serviceFake = createFakeSupabase({ in_app_notifications: { error: { message: "boom" } } });
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const fake = createFakeSupabase({
-      members: { data: [{ id: "m1", user_id: "u1" }] },
-    });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    channelRepos = createInMemoryRepos();
+    channelRepos.notifications.addInApp = async () => {
+      throw new Error("boom");
+    };
+    const notifier = await createNotifier(channelRepos, "prickle_checkin", ["m1"]);
     expect(await notifier.send("m1", { text: "Check in?" })).toEqual([]);
   });
 });

@@ -86,7 +86,7 @@ export default async function DashboardPage() {
       : []
   const upcoming = ranked.map((r) => r.prickle)
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
-  const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id))
+  const dismissedCheckins = await loadDismissedCheckinIds(createRepos(supabase), memberId, displayedUpcoming.map((r) => r.prickle.id))
 
   const firstName = (effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName)?.split(" ")[0]
 

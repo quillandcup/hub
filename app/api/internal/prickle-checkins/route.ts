@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { joinAt, loadPrickleJoinSettings } from "@/lib/prickle-join";
 import { createNotifier } from "@/lib/notifications/notify";
 import { withCronHeartbeat } from "@/lib/cron-heartbeats";
 import { prickleTitle } from "@/lib/domain/prickle";
-import { createRepos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
 import type { PrickleDetail, PrickleType } from "@/lib/data/prickles";
 import {
   checkinAnswered,
@@ -23,6 +22,8 @@ import {
   type RecentPrickle,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
+
+type RouteRepos = Repos;
 
 // Triggered every 5 minutes by the Supabase pg_cron job `send-prickle-checkins`
 // (supabase/migrations/20261003130000_rename_nudges_to_prickle_checkins.sql).
@@ -51,22 +52,22 @@ async function runPrickleCheckins(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
 
-  const candidates = await getActiveGoalCandidates(supabase);
+  const candidates = await getActiveGoalCandidates(repos);
   if (candidates.length === 0) {
     return NextResponse.json({ checkins: 0, checkouts: 0, reason: "no active writing goals" });
   }
 
   const now = Date.now();
-  const checkins = await sendCheckins(supabase, candidates, now);
-  const checkouts = await sendCheckoutDMs(supabase, await loadRecentPrickles(supabase, now), candidates, now);
+  const checkins = await sendCheckins(repos, candidates, now);
+  const checkouts = await sendCheckoutDMs(repos, await loadRecentPrickles(repos, now), candidates, now);
   return NextResponse.json({ checkins, checkouts });
 }
 
 /** Writing prickles that have started and ended within CHECKOUT_LOOKBACK_MS (or not yet ended). */
-async function loadRecentPrickles(supabase: SupabaseClient, now: number): Promise<RecentPrickle[]> {
-  const active = await createRepos(supabase).prickles.activeBetween({
+async function loadRecentPrickles(repos: RouteRepos, now: number): Promise<RecentPrickle[]> {
+  const active = await repos.prickles.activeBetween({
     from: new Date(now - CHECKOUT_LOOKBACK_MS).toISOString(),
     to: new Date(now).toISOString(),
   });
@@ -84,11 +85,11 @@ function writingPrickles(prickles: PrickleDetail[]) {
   return prickles.filter((p): p is PrickleDetail & { type: PrickleType } => p.type?.purpose === "writing");
 }
 
-async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[], now: number): Promise<number> {
+async function sendCheckins(repos: RouteRepos, candidates: GoalCandidate[], now: number): Promise<number> {
   const windowStart = new Date(now + 15 * 60 * 1000).toISOString();
   const windowEnd = new Date(now + 30 * 60 * 1000).toISOString();
 
-  const starting = await createRepos(supabase).prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true });
+  const starting = await repos.prickles.startingBetween({ from: windowStart, to: windowEnd, inclusiveEnd: true });
   const upcomingPrickles: UpcomingPrickle[] = writingPrickles(starting).map((p) => ({
     id: p.id,
     typeName: p.type.name,
@@ -101,7 +102,7 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
 
   const memberIds = [...new Set(candidates.map((c) => c.memberId))];
   const calendarPrickleIdsByMember = await loadCalendarPrickleIdsByMember(
-    supabase,
+    repos,
     memberIds,
     new Date(windowStart),
     new Date(now)
@@ -111,14 +112,14 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
   if (plan.length === 0) return 0;
   const plannedMemberIds = [...new Set(plan.map((p) => p.memberId))];
   const [notifier, checkins, dismissed] = await Promise.all([
-    createNotifier(supabase, "prickle_checkin", plannedMemberIds),
+    createNotifier(repos, "prickle_checkin", plannedMemberIds),
     // Answers already saved (e.g. from the prickle page) show as the DM's starting picks.
-    loadCheckins(supabase, plannedMemberIds, [...new Set(plan.map((p) => p.prickle.id))]),
+    loadCheckins(repos, plannedMemberIds, [...new Set(plan.map((p) => p.prickle.id))]),
     // Check-ins the member dismissed (a Slack button, the palette's x) never go out.
-    loadDismissedPairs(supabase, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
+    loadDismissedPairs(repos, "checkin", [...new Set(plan.map((p) => p.prickle.id))]),
   ]);
 
-  const joinSettings = await loadPrickleJoinSettings(createRepos(supabase));
+  const joinSettings = await loadPrickleJoinSettings(repos);
   let sent = 0;
   for (const { memberId, prickle } of plan) {
     // Opted out on every channel, or unreachable on the ones they kept. Not logged, so turning
@@ -132,12 +133,12 @@ async function sendCheckins(supabase: SupabaseClient, candidates: GoalCandidate[
 
     // Across ticks (and overlapping runs), the unique (prickle, member, kind) log row is what
     // keeps this to one DM; planCheckinDMs keeps it to one within a tick.
-    const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
+    const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
     if (!shouldSend) continue;
 
     const delivered = await notifier.send(memberId, checkinMessage(prickle, saved, { join: joinAt(joinSettings, prickle.startTime) }));
     if (delivered.length > 0) sent++;
-    else await releaseCheckinDM(supabase, prickle.id, memberId, "prickle_checkin");
+    else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkin");
   }
   return sent;
 }

@@ -30,7 +30,7 @@ export const BELL_LIMIT = 10;
 
 export const inAppChannel: ChannelAdapter = {
   id: "in_app",
-  async resolveAddresses(supabase, memberIds) {
+  async resolveAddresses(_repos, memberIds) {
     return new Map(memberIds.map((memberId) => [memberId, memberId]));
   },
   async send(memberId, message, context) {

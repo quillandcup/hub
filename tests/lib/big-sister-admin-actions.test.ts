@@ -74,7 +74,7 @@ describe("Big Sister staff actions", () => {
     expect(await matches()).toEqual([
       expect.objectContaining({ mentor_member_id: mentor, new_member_id: member, started_on: arrival.arrivedOn, trial_ends_on: arrival.trialEndsOn, kind: "trial", status: "matched" }),
     ]);
-    expect(mocks.introduce).toHaveBeenCalledWith({ service: true }, { ...input, startedOn: arrival.arrivedOn }, expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    expect(mocks.introduce).toHaveBeenCalledWith(repos, { ...input, startedOn: arrival.arrivedOn }, expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
     expect(mocks.revalidate).toHaveBeenCalledWith("/admin/mentorship", "layout");
   });
 
