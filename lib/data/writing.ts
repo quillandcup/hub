@@ -274,7 +274,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_projects")
       .select("id, title")
       .eq("member_id", memberId)
-      .is("archived_at", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
@@ -287,7 +286,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_projects")
       .select("id")
       .eq("member_id", memberId)
-      .is("archived_at", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
@@ -445,10 +443,9 @@ export class SupabaseWritingRepository implements WritingRepository {
     for (let offset = 0; ; offset += GOAL_PAGE) {
       const { data, error } = await this.db
         .from("writing_goals")
-        .select("id, member_id, project_id, measure, writing_projects!inner(title, archived_at)")
+        .select("id, member_id, project_id, measure, writing_projects!inner(title)")
         .is("archived_at", null)
         .is("deleted_at", null)
-        .is("writing_projects.archived_at", null)
         .order("id")
         .range(offset, offset + GOAL_PAGE - 1);
       if (error) throw new Error(error.message);
@@ -578,7 +575,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_projects")
       .select(SUMMARY_COLUMNS)
       .eq("member_id", memberId)
-      .is("archived_at", null)
       .not("phase", "in", `(${PAST_PHASES.join(",")})`)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -592,7 +588,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       .from("writing_projects")
       .select(SUMMARY_COLUMNS)
       .eq("member_id", memberId)
-      .is("archived_at", null)
       .in("phase", [...PAST_PHASES])
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -811,7 +806,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async activeProjects(memberId: string) {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !p.deleted_at)).map(({ id, title }) => ({ id, title }));
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.deleted_at)).map(({ id, title }) => ({ id, title }));
   }
 
   async latestActiveProjectId(memberId: string) {
@@ -944,7 +939,7 @@ export class InMemoryWritingRepository implements WritingRepository {
     for (const g of [...this.liveGoals()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
       if (g.archived_at) continue;
       const project = this.data.writingProjects.find((p) => p.id === g.project_id);
-      if (!project || project.archived_at) continue;
+      if (!project) continue;
       out.push({ goal_id: g.id, member_id: g.member_id, project_id: project.id, project_title: project.title, measure: g.measure });
     }
     return out;
@@ -1020,11 +1015,11 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
   }
 
   async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
   }
 
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
@@ -1105,7 +1100,6 @@ export class InMemoryWritingRepository implements WritingRepository {
       cover_url: null,
       external_id: null,
       show_on_profile: false,
-      archived_at: null,
       deleted_at: null,
       created_at: new Date().toISOString(),
     });
@@ -1189,7 +1183,6 @@ export class InMemoryWritingRepository implements WritingRepository {
         cover_url: r.cover_url ?? null,
         external_id: r.external_id ?? null,
         show_on_profile: r.show_on_profile ?? false,
-        archived_at: null,
         created_at: r.created_at ?? new Date().toISOString(),
       });
       if (r.external_id) created.push({ id, external_id: r.external_id });
