@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient } from '../../helpers/supabase'
-import { loadCourseList, loadCourseView, loadLessonView } from '@/lib/courses/member'
+import { loadCourseList, loadCourseView, loadLessonView, loadMemberCourseAccess } from '@/lib/courses/member'
 
 /**
  * What the member course pages read, against the real local database: access (current, ended,
@@ -94,12 +94,25 @@ describe('Course member data', () => {
       expect(staff[0].access.kind).toBe('admin')
     })
 
-    it('leaves a draft course (imported, not published) out, even for staff', async () => {
+    it('lists a draft course for staff acting as themselves, marked as a draft, and for no one else', async () => {
       const draftSlug = `${SLUG}-draft`
       const { data: draft } = await supabase.from('courses').insert({ slug: draftSlug, title: `Draft ${ts}`, source_key: draftSlug, is_draft: true }).select('id').single()
+      // Access rows can exist for a draft (a course taken back to a draft keeps them); they open nothing.
+      await supabase.from('course_access').insert({ member_id: ids.current, course_id: draft!.id, starts_at: daysAgo(10), ends_at: daysAhead(300), origin: 'purchase' })
       try {
-        expect((await loadCourseList(supabase, scope('staff', true))).filter((i) => i.course.slug === draftSlug)).toEqual([])
-        expect(await loadCourseView(supabase, draftSlug, scope('staff', true))).toBeNull()
+        const staff = (await loadCourseList(supabase, scope('staff', true))).filter((i) => i.course.slug === draftSlug)
+        expect(staff).toHaveLength(1)
+        expect(staff[0].course.is_draft).toBe(true)
+        expect((await loadCourseList(supabase, scope('current'))).filter((i) => i.course.slug === draftSlug)).toEqual([])
+        expect((await loadCourseList(supabase, scope('staff', false))).filter((i) => i.course.slug === draftSlug)).toEqual([])
+        expect(await loadMemberCourseAccess(supabase, scope('current'), draft!.id)).toEqual({ kind: 'none' })
+        expect((await loadMemberCourseAccess(supabase, scope('staff', true), draft!.id)).kind).toBe('admin')
+        expect(await loadCourseView(supabase, draftSlug, scope('current'))).toBeNull()
+        expect(await loadCourseView(supabase, draftSlug, scope('staff', false))).toBeNull()
+        expect((await loadCourseView(supabase, draftSlug, scope('staff', true)))!.course.is_draft).toBe(true)
+        // Publishing it opens it to the member who has access.
+        await supabase.from('courses').update({ is_draft: false }).eq('id', draft!.id)
+        expect((await loadCourseView(supabase, draftSlug, scope('current')))!.access.kind).toBe('open')
       } finally {
         await supabase.from('courses').delete().eq('id', draft!.id)
       }

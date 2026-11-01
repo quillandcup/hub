@@ -10,9 +10,10 @@ export const maxDuration = 300;
 /**
  * Bronze (Kajabi) -> Silver courses, modules, lessons and `course_access` (docs/COURSES.md, step C).
  *
- * Body: `{ "course": "the-ready-writer", "accessDuration": "1 year", "launchOn": "2026-11-02" }`. `course` is the Silver
+ * Body: `{ "course": "the-ready-writer", "publish": true, "accessDuration": "1 year", "launchOn": "2026-11-02" }`. `course` is the Silver
  * slug (a new course gets the slug of its Kajabi title); omit it to refresh every Kajabi course
- * already in Silver. `accessDuration` (an interval; `null` for lifetime) is set on the course
+ * that has a row, drafts included. Syncing never makes a course available to members: `publish: true`
+ * (with `course`) does that, and a course's page can also publish and unpublish it. `accessDuration` (an interval; `null` for lifetime) is set on the course
  * when given and left alone otherwise. `launchOn` (a YYYY-MM-DD day in the organisation's timezone;
  * `null` clears it) is when the course opens: pre-order buyers' access starts then, not at purchase.
  *
@@ -31,6 +32,8 @@ export async function POST(request: NextRequest) {
   if (body === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
 
   const courseSlug = typeof body?.course === "string" && body.course ? body.course : undefined;
+  const publish = body?.publish === true;
+  if (publish && !courseSlug) return NextResponse.json({ error: '"publish" needs a "course"' }, { status: 400 });
   const accessDuration =
     body && "accessDuration" in body && (body.accessDuration === null || typeof body.accessDuration === "string")
       ? (body.accessDuration as string | null)
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await processCourses(createServiceRoleClient(), { courseSlug, accessDuration, launchAt });
+    const result = await processCourses(createServiceRoleClient(), { courseSlug, publish, accessDuration, launchAt });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseProcessingError) {

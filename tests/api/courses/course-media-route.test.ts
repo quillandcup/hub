@@ -108,7 +108,7 @@ describe('/api/process/course-media', () => {
     const publish = await apiFetch(`${getTestApiBaseUrl()}/api/process/courses`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ course: SLUG }),
+      body: JSON.stringify({ course: SLUG, publish: true }),
     })
     expect(publish.status).toBe(200)
 

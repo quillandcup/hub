@@ -5,6 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import PageBanner from "@/components/PageBanner";
 import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
 import { courseImageUrl } from "@/lib/courses/image-urls";
@@ -67,6 +68,7 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
 
   return (
     <div>
+      {course.is_draft && <PageBanner>This course is a draft: only staff can see it. Publish it from its admin page when it is ready for members.</PageBanner>}
       <header className="relative isolate overflow-hidden bg-plum-700 px-6 py-12 text-center text-white">
         {hero && (
           <>
