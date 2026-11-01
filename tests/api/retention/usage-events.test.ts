@@ -42,9 +42,12 @@ describe("rollUpAndPruneUsageEvents (local database)", () => {
   let bob = "";
 
   // Recent and completed (past the two-day grace), too old to keep, and still inside the grace period.
-  const recentAt = NOW - 5 * DAY;
+  // Anchored at 17:00 UTC (noon to 1 pm Eastern) so the few hours of events after it stay on one Eastern day
+  // whatever time of day the test runs; offsets from the raw clock straddled midnight Eastern in the evening.
+  const midday = (ms: number) => Math.floor(ms / DAY) * DAY + 17 * 3_600_000;
+  const recentAt = midday(NOW - 5 * DAY);
   const recentDay = localDate(recentAt);
-  const oldAt = monthsBefore(NOW, RETENTION.usageMonths + 1).getTime();
+  const oldAt = midday(monthsBefore(NOW, RETENTION.usageMonths + 1).getTime());
   const oldDay = localDate(oldAt);
   const todayAt = NOW - 12 * 3_600_000;
 
