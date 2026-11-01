@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildHubOutline, moduleContents, moveBefore, moveBy, type HubLessonRow, type HubModuleRow } from "@/lib/courses/hub-outline";
 
-const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, publishing_option: "inherit", ...over });
+const mod = (id: string, position: number, parent_id: string | null = null, over: Partial<HubModuleRow> = {}): HubModuleRow => ({ id, parent_id, title: id, position, publishing_option: "published", ...over });
 const les = (id: string, position: number, module_id: string | null, over: Partial<HubLessonRow> = {}): HubLessonRow => ({
   id,
   module_id,
   title: id,
   position,
-  publishing_option: "inherit",
+  publishing_option: "published",
   hasText: false,
   hasVideo: false,
   ...over,
@@ -47,12 +47,12 @@ describe("buildHubOutline", () => {
       [les("x", 1, "a"), les("y", 1, "b"), les("z", 1, "c", { publishing_option: "published" })]
     );
     expect(built.modules.map((m) => [m.publishingOption, m.state, m.reason])).toEqual([
-      ["inherit", "open", "Follows the course"],
+      ["published", "open", "Published"],
       ["locked", "coming_soon", "Locked in the Hub"],
       ["draft", "hidden", "Draft in the Hub"],
     ]);
-    expect(built.modules[0].lessons[0]).toMatchObject({ state: "open", reason: "Follows “a”" });
-    expect(built.modules[1].lessons[0]).toMatchObject({ state: "coming_soon", reason: "Follows “b”: coming soon" });
+    expect(built.modules[0].lessons[0]).toMatchObject({ state: "open", reason: "Published" });
+    expect(built.modules[1].lessons[0]).toMatchObject({ state: "coming_soon", reason: "Inside “b” (Locked)" });
     // Its own published setting can't open what a draft module holds.
     expect(built.modules[2].lessons[0]).toMatchObject({ state: "hidden", reason: "Inside “c” (Draft)" });
   });

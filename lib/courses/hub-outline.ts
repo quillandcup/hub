@@ -14,7 +14,7 @@ export interface HubModuleRow {
   parent_id: string | null;
   title: string;
   position: number;
-  /** The module's own setting: inherit, draft, published, locked ... */
+  /** The module's own setting: draft, published, locked ... */
   publishing_option: string | null;
 }
 

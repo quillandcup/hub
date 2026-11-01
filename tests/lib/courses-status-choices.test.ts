@@ -9,21 +9,12 @@ describe("statusLabel", () => {
     expect(statusLabel("weird")).toBe("weird");
     expect(statusLabel(null)).toBe("No setting");
   });
-
-  it("says an item that follows what is above it follows it", () => {
-    expect(statusLabel("inherit")).toBe("Follows what is above");
-  });
 });
 
 describe("statusChoices", () => {
   it("offers Draft, Publish, Schedule, Drip and Lock", () => {
     expect(STATUS_CHOICES.map((c) => c.action)).toEqual(["Draft", "Publish", "Schedule", "Drip", "Lock"]);
     expect(statusChoices().map((c) => c.action)).toEqual(["Draft", "Publish", "Schedule", "Drip", "Lock"]);
-  });
-
-  it("adds following what is above for an item in a Hub-owned course, first", () => {
-    expect(statusChoices("inherit", true).map((c) => c.action)).toEqual(["Follow what is above", "Draft", "Publish", "Schedule", "Drip", "Lock"]);
-    expect(statusChoices("inherit").map((c) => c.value)).not.toContain("inherit");
   });
 
   it("never blocks Publish, whatever is above: a published lesson can wait in a draft module until the module is switched on", () => {

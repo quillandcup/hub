@@ -95,13 +95,13 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
   });
 
   it("shows a Hub-owned lesson with its title and status ready to change, and no line about a Kajabi import", async () => {
-    loadAdminLesson.mockResolvedValue(detail({ editable: true }, { publishingOption: "inherit" }));
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }, { publishingOption: "draft" }));
     await renderServerPage(AdminLessonPage, params);
 
     const form = screen.getByRole("form", { name: "Lesson builder" });
     expect(within(form).getByRole("textbox", { name: "Title" })).toBeEnabled();
-    expect(within(form).getByRole("radio", { name: "Follows what is above" })).toBeChecked();
-    expect(within(form).getByRole("radio", { name: "Draft" })).toBeEnabled();
+    expect(within(form).getByRole("radio", { name: "Draft" })).toBeChecked();
+    expect(within(form).getByRole("radio", { name: "Published" })).toBeEnabled();
     expect(screen.queryByText(/Last imported from Kajabi/)).not.toBeInTheDocument();
   });
 

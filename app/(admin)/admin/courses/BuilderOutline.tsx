@@ -34,7 +34,6 @@ const PILL: Record<string, string> = {
   locked: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   drip: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  inherit: "bg-white text-slate-600 ring-1 ring-inset ring-slate-300 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-600",
 };
 
 function Icon({ path, className = "h-4 w-4" }: { path: string; className?: string }) {
@@ -86,7 +85,7 @@ const useOutline = () => useContext(OutlineContext)!;
 /** A row's own setting. In a Hub-owned course it can be changed here; in an imported one it is Kajabi's, shown as it is. */
 function StatusPill({ title, option, kind, id }: { title: string; option: string | null; kind: ItemKind; id: string }) {
   const { soon, editor } = useOutline();
-  const choices = statusChoices(option, !!editor);
+  const choices = statusChoices(option);
   return (
     <select
       aria-label={`Status of ${title}`}

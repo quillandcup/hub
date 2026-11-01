@@ -118,7 +118,7 @@ describe('Admin course data', () => {
       await supabase.from('course_lessons').insert([
         // Their states follow from their settings and what is above them, whatever state is passed.
         { course_id: hubId, title: 'Open one', position: 1, publishing_option: 'published', source: 'hub' },
-        { course_id: hubId, title: 'Open two', position: 2, publishing_option: 'inherit', source: 'hub' },
+        { course_id: hubId, title: 'Open two', position: 2, publishing_option: 'published', source: 'hub' },
         { course_id: hubId, title: 'Soon', position: 3, publishing_option: 'locked', source: 'hub' },
         { course_id: hubId, title: 'Draft', position: 4, publishing_option: 'draft', source: 'hub' },
       ])
@@ -144,11 +144,11 @@ describe('Admin course data', () => {
     })
 
     it("give their outline: modules, submodules and lessons in position order, with what each has, and nothing of another course's", async () => {
-      const { data: m2 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'Second', position: 2, publishing_option: 'inherit', source: 'hub' }).select('id').single()
-      const { data: m1 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'First', position: 1, publishing_option: 'inherit', source: 'hub' }).select('id').single()
-      const { data: week } = await supabase.from('course_modules').insert({ course_id: hubId, parent_id: m1!.id, title: 'Week', position: 1, publishing_option: 'inherit', source: 'hub' }).select('id').single()
+      const { data: m2 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'Second', position: 2, publishing_option: 'published', source: 'hub' }).select('id').single()
+      const { data: m1 } = await supabase.from('course_modules').insert({ course_id: hubId, title: 'First', position: 1, publishing_option: 'published', source: 'hub' }).select('id').single()
+      const { data: week } = await supabase.from('course_modules').insert({ course_id: hubId, parent_id: m1!.id, title: 'Week', position: 1, publishing_option: 'published', source: 'hub' }).select('id').single()
       await supabase.from('course_lessons').insert([
-        { course_id: hubId, module_id: week!.id, title: 'With text', position: 2, publishing_option: 'inherit', excerpt: 'Hello', source: 'hub' },
+        { course_id: hubId, module_id: week!.id, title: 'With text', position: 2, publishing_option: 'published', excerpt: 'Hello', source: 'hub' },
         { course_id: hubId, module_id: week!.id, title: 'Plain', position: 1, publishing_option: 'draft', source: 'hub' },
         { course_id: hubId, module_id: m2!.id, title: 'In second', position: 1, publishing_option: 'published', source: 'hub' },
       ])
@@ -158,7 +158,7 @@ describe('Admin course data', () => {
       expect(outline.modules[0].children[0].lessons.map((l) => l.title)).toEqual(['Plain', 'With text'])
       expect(outline.modules[1].lessons[0]).toMatchObject({ title: 'In second', state: 'open', publishingOption: 'published' })
       // What follows reads as following, and a draft is hidden; the states come from one rule for both owners.
-      expect(outline.modules[0]).toMatchObject({ publishingOption: 'inherit', state: 'open', reason: 'Follows the course' })
+      expect(outline.modules[0]).toMatchObject({ publishingOption: 'published', state: 'open', reason: 'Published' })
       expect(outline.modules[0].children[0].lessons[0]).toMatchObject({ title: 'Plain', state: 'hidden', reason: 'Draft in the Hub' })
       const ids = Object.fromEntries(outline.modules[0].children[0].lessons.map((l) => [l.title, l.kajabiId]))
       expect(outline.content[ids['With text']]).toEqual({ hasText: true, hasVideo: false })
@@ -177,7 +177,7 @@ describe('Admin course data', () => {
       expect(detail).toMatchObject({
         editable: true,
         course: { id: hubId, title: `Admin Hub ${ts}` },
-        lesson: { kajabiId: withText.id, title: 'With text', publishingOption: 'inherit', state: 'open', hasVideo: false, contentFetchedAt: null },
+        lesson: { kajabiId: withText.id, title: 'With text', publishingOption: 'published', state: 'open', hasVideo: false, contentFetchedAt: null },
         hub: { slug: HUB, lessonId: withText.id },
         video: null,
         files: [],

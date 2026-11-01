@@ -50,7 +50,7 @@ export interface ExplainedCourse {
   totals: Record<Visibility, number>;
 }
 
-const OPTION_LABEL: Record<string, string> = { published: "Published", locked: "Locked", drip: "Drip", draft: "Draft", scheduled: "Scheduled", inherit: "Follows what is above" };
+const OPTION_LABEL: Record<string, string> = { published: "Published", locked: "Locked", drip: "Drip", draft: "Draft", scheduled: "Scheduled" };
 const label = (option: string | null) => (option ? OPTION_LABEL[option] ?? option : "no setting");
 
 const byPosition = <T extends { position: number | null; title: string }>(a: T, b: T) =>
@@ -70,11 +70,6 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
   const tree = planFullTree(moduleIns, lessonIns);
 
   const reasonFor = (state: Visibility, own: string | null, parentId: string | null): string => {
-    const above = parentId ? byId.get(parentId) : null;
-    if (own === "inherit") {
-      const follows = above ? `“${above.title}”` : "the course";
-      return state === "open" ? `Follows ${follows}` : state === "coming_soon" ? `Follows ${follows}: coming soon` : `Follows ${follows}: not published yet`;
-    }
     const ownVisibility = visibilityFromPublishing(own);
     if (state === "open") return "Published";
     if (state === ownVisibility) return `${label(own)} in ${place}`;
@@ -84,7 +79,7 @@ export function explainCourse(modules: ExplainModuleIn[], lessons: ExplainLesson
       seen.add(id);
       const m = byId.get(id);
       if (!m) return place === "Kajabi" ? "Its module is missing from Kajabi's response" : "Its module can't be found";
-      if (m.publishingOption !== "inherit" && tree.modules.get(id) === state && visibilityFromPublishing(m.publishingOption) === state) return `Inside “${m.title}” (${label(m.publishingOption)})`;
+      if (tree.modules.get(id) === state && visibilityFromPublishing(m.publishingOption) === state) return `Inside “${m.title}” (${label(m.publishingOption)})`;
       id = m.parentKajabiId;
     }
     return "Its module can't be resolved";

@@ -55,11 +55,11 @@ describe('Course outline actions', () => {
   })
 
   describe('addCourseModule and addCourseLesson', () => {
-    it('adds modules at the end, as Hub-owned ones that follow what is above, and refreshes the pages', async () => {
+    it('adds modules at the end, as Hub-owned drafts, and refreshes the pages', async () => {
       const first = await addCourseModule(ids.course, null, '  Module 1  ')
       const second = await addCourseModule(ids.course, null, 'Module 2')
       expect(first.id).toMatch(/^mod_/)
-      expect(await moduleRow(first.id!)).toMatchObject({ title: 'Module 1', position: 1, state: 'open', publishing_option: 'inherit', source: 'hub', source_key: null, parent_id: null, course_id: ids.course })
+      expect(await moduleRow(first.id!)).toMatchObject({ title: 'Module 1', position: 1, state: 'hidden', publishing_option: 'draft', source: 'hub', source_key: null, parent_id: null, course_id: ids.course })
       expect(await moduleRow(second.id!)).toMatchObject({ position: 2 })
       expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
       expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
@@ -70,18 +70,18 @@ describe('Course outline actions', () => {
     it('adds a submodule inside a module, numbered among its own siblings, and refuses a third level', async () => {
       const week1 = await addCourseModule(ids.course, ids.m1, 'Week 1')
       const week2 = await addCourseModule(ids.course, ids.m1, 'Week 2')
-      expect(await moduleRow(week1.id!)).toMatchObject({ parent_id: ids.m1, position: 1, state: 'open' })
+      expect(await moduleRow(week1.id!)).toMatchObject({ parent_id: ids.m1, position: 1, state: 'hidden' })
       expect(await moduleRow(week2.id!)).toMatchObject({ position: 2 })
       expect(await addCourseModule(ids.course, week1.id!, 'Too deep')).toEqual({ error: "A submodule can't have submodules" })
       ids.week1 = week1.id!
       ids.week2 = week2.id!
     })
 
-    it('adds lessons at the end of a module, as Hub-owned lessons that follow their module', async () => {
+    it('adds lessons at the end of a module, as Hub-owned draft lessons', async () => {
       const a = await addCourseLesson(ids.course, ids.week1, 'Lesson A')
       const b = await addCourseLesson(ids.course, ids.week1, 'Lesson B')
       expect(a.id).toMatch(/^les_/)
-      expect(await lesson(a.id!)).toMatchObject({ title: 'Lesson A', position: 1, state: 'open', source: 'hub', module_id: ids.week1, course_id: ids.course })
+      expect(await lesson(a.id!)).toMatchObject({ title: 'Lesson A', position: 1, state: 'hidden', source: 'hub', module_id: ids.week1, course_id: ids.course })
       expect(await lesson(b.id!)).toMatchObject({ position: 2 })
       ids.a = a.id!
       ids.b = b.id!
@@ -253,16 +253,18 @@ describe('Course outline actions', () => {
       lesson = (await addCourseLesson(course, week, 'Lesson')).id!
     })
 
-    it('starts with everything following the top, which follows nothing: open', async () => {
-      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+    it('starts everything as a draft, hidden', async () => {
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
     })
 
-    it("sets one item's own setting, and what is under it follows", async () => {
+    it("sets one item's own setting, and what is under it is limited by it", async () => {
+      await setCourseItemStatus(course, 'module', week, 'published')
+      await setCourseItemStatus(course, 'lesson', lesson, 'published')
+      expect(await setCourseItemStatus(course, 'module', top, 'published')).toEqual({ id: top })
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+      expect((await supabase.from('course_modules').select('publishing_option').eq('id', top).single()).data!.publishing_option).toBe('published')
       expect(await setCourseItemStatus(course, 'module', top, 'draft')).toEqual({ id: top })
       expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
-      expect((await supabase.from('course_modules').select('publishing_option').eq('id', top).single()).data!.publishing_option).toBe('draft')
-      expect(await setCourseItemStatus(course, 'module', top, 'inherit')).toEqual({ id: top })
-      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
     })
 
     it("lets everything in a section be marked published while the section is a draft, then switches it all on with the section's own setting", async () => {
@@ -274,9 +276,7 @@ describe('Course outline actions', () => {
       expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
       await setCourseItemStatus(course, 'module', top, 'draft')
       expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
-      await setCourseItemStatus(course, 'module', week, 'inherit')
-      await setCourseItemStatus(course, 'lesson', lesson, 'inherit')
-      await setCourseItemStatus(course, 'module', top, 'inherit')
+      await setCourseItemStatus(course, 'module', top, 'published')
     })
 
     it("doesn't offer scheduled or drip yet, for an item", async () => {

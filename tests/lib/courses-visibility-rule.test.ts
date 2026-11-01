@@ -20,36 +20,37 @@ describe("visibilityFromPublishing", () => {
 });
 
 describe("itemState", () => {
-  it("follows what is above when told to, and is never more visible than it", () => {
-    expect(itemState("inherit", "coming_soon")).toBe("coming_soon");
+  it("gives an item the visibility of its own setting, and never more than what is above it", () => {
     expect(itemState("published", "coming_soon")).toBe("coming_soon");
     expect(itemState("locked", "open")).toBe("coming_soon");
     expect(itemState("draft", "open")).toBe("hidden");
     expect(itemState("published", "hidden")).toBe("hidden");
-    expect(itemState("inherit", "open")).toBe("open");
+    expect(itemState("published", "open")).toBe("open");
+    // There is no setting that follows what is above: an item with none is hidden.
+    expect(itemState("inherit", "open")).toBe("hidden");
   });
 });
 
 describe("planFullTree with a course's own setting", () => {
-  // The database test's course: module A (follows) holding submodule A1 (follows) with a lesson that follows and
-  // a lesson with its own published setting; module B (locked) with a lesson that follows; a lesson in no module.
-  const modules = (a = "inherit") => [
+  // The database test's course: module A (published) holding submodule A1 (published) with a published lesson
+  // and another published lesson; module B (locked) with a published lesson; a published lesson in no module.
+  const modules = (a = "published") => [
     { kajabiId: "A", parentKajabiId: null, publishingOption: a },
     { kajabiId: "B", parentKajabiId: null, publishingOption: "locked" },
-    { kajabiId: "A1", parentKajabiId: "A", publishingOption: "inherit" },
+    { kajabiId: "A1", parentKajabiId: "A", publishingOption: "published" },
   ];
-  const lessons = (bLesson = "inherit") => [
-    { kajabiId: "A1L", moduleKajabiId: "A1", publishingOption: "inherit" },
+  const lessons = (bLesson = "published") => [
+    { kajabiId: "A1L", moduleKajabiId: "A1", publishingOption: "published" },
     { kajabiId: "AOwn", moduleKajabiId: "A", publishingOption: "published" },
     { kajabiId: "BL", moduleKajabiId: "B", publishingOption: bLesson },
-    { kajabiId: "Loose", moduleKajabiId: null, publishingOption: "inherit" },
+    { kajabiId: "Loose", moduleKajabiId: null, publishingOption: "published" },
   ];
   const states = (a?: string, bLesson?: string) => {
     const tree = planFullTree(modules(a), lessons(bLesson));
     return Object.fromEntries([...tree.modules, ...tree.lessons]);
   };
 
-  it("opens what follows nothing above it, and a locked module is coming soon", () => {
+  it("opens what is published with nothing above it, and a locked module is coming soon", () => {
     expect(states()).toEqual({ A: "open", B: "coming_soon", A1: "open", A1L: "open", AOwn: "open", BL: "coming_soon", Loose: "open" });
   });
 
@@ -58,7 +59,7 @@ describe("planFullTree with a course's own setting", () => {
   });
 
   it("allows a lesson published in a locked module, and shows it as coming soon", () => {
-    expect(states("inherit", "published").BL).toBe("coming_soon");
+    expect(states("published", "published").BL).toBe("coming_soon");
   });
 
   it("limits nothing by an imported course, which is published", () => {
