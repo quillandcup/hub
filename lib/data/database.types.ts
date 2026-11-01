@@ -282,42 +282,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kajabi_lesson_files: {
-        Row: {
-          content_type: string | null
-          deleted_at: string | null
-          fetched_at: string
-          filename: string
-          kajabi_id: string
-          lesson_kajabi_id: string
-          raw_payload: Json
-          size_bytes: number | null
-          source_url: string | null
-        }
-        Insert: {
-          content_type?: string | null
-          deleted_at?: string | null
-          fetched_at?: string
-          filename: string
-          kajabi_id: string
-          lesson_kajabi_id: string
-          raw_payload?: Json
-          size_bytes?: number | null
-          source_url?: string | null
-        }
-        Update: {
-          content_type?: string | null
-          deleted_at?: string | null
-          fetched_at?: string
-          filename?: string
-          kajabi_id?: string
-          lesson_kajabi_id?: string
-          raw_payload?: Json
-          size_bytes?: number | null
-          source_url?: string | null
-        }
-        Relationships: []
-      }
       kajabi_lesson_comments: {
         Row: {
           author_name: string
@@ -351,6 +315,42 @@ export type Database = {
           lesson_kajabi_id?: string
           parent_comment_key?: string | null
           posted_at?: string | null
+        }
+        Relationships: []
+      }
+      kajabi_lesson_files: {
+        Row: {
+          content_type: string | null
+          deleted_at: string | null
+          fetched_at: string
+          filename: string
+          kajabi_id: string
+          lesson_kajabi_id: string
+          raw_payload: Json
+          size_bytes: number | null
+          source_url: string | null
+        }
+        Insert: {
+          content_type?: string | null
+          deleted_at?: string | null
+          fetched_at?: string
+          filename: string
+          kajabi_id: string
+          lesson_kajabi_id: string
+          raw_payload?: Json
+          size_bytes?: number | null
+          source_url?: string | null
+        }
+        Update: {
+          content_type?: string | null
+          deleted_at?: string | null
+          fetched_at?: string
+          filename?: string
+          kajabi_id?: string
+          lesson_kajabi_id?: string
+          raw_payload?: Json
+          size_bytes?: number | null
+          source_url?: string | null
         }
         Relationships: []
       }
