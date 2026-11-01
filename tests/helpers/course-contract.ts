@@ -443,6 +443,7 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await repo.setItemStatus("module", m, "published");
       await expect(repo.setItemStatus("lesson", l, "drip")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", l, "scheduled")).rejects.toThrow("unsupported_status");
+      await expect(repo.setItemStatus("lesson", l, "inherit")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", newCourseId("les"), "draft")).rejects.toThrow("not_found");
     });
 
