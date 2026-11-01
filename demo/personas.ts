@@ -18,11 +18,11 @@ export interface Persona {
 // The cast is the community profile (lib/data/profiles/community.ts); this file keeps the demo's names for it.
 export const PERSONAS: Persona[] = COMMUNITY.people
   .filter((p) => p.signsIn)
-  .map(({ key, name, email, role, joinedDaysAgo }) => ({ key, name, email, role, joinedDaysAgo }));
+  .map(({ key, name, email, role, joinedDaysAgo }) => ({ key, name, email, role: role ?? "member", joinedDaysAgo }));
 
 /** How often someone comes to a prickle they could attend (0 to 1): what makes streaks, "~4 Hedgies" and show-up rates look lived in. */
 export const ATTENDANCE_RATE: Record<string, number> = Object.fromEntries(
-  COMMUNITY.people.filter((p) => p.signsIn && p.joinedDaysAgo !== null).map((p) => [p.email, p.rate]),
+  COMMUNITY.people.filter((p) => p.signsIn && p.joinedDaysAgo !== null).map((p) => [p.email, p.rate ?? 0.5]),
 );
 
 /**
@@ -38,7 +38,7 @@ export interface FillerMember {
 
 export const FILLER_MEMBERS: FillerMember[] = COMMUNITY.people
   .filter((p) => !p.signsIn)
-  .map((p) => ({ name: p.name, email: p.email, joinedDaysAgo: p.joinedDaysAgo as number, rate: p.rate }));
+  .map((p) => ({ name: p.name, email: p.email, joinedDaysAgo: p.joinedDaysAgo as number, rate: p.rate ?? 0.5 }));
 
 /** Each member's short bio, by name, so the member directory and profiles read like a community. */
 export const BIOS: Record<string, string> = Object.fromEntries(COMMUNITY.people.flatMap((p) => (p.bio ? [[p.name, p.bio]] : [])));
