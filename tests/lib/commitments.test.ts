@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import {
   assignOccurrencePrickles,
   buildAttendedSet,
@@ -401,6 +401,13 @@ describe("slots", () => {
 
 describe("secondary time zone in labels", () => {
   const NOW = new Date("2026-09-26T15:00:00Z");
+  // The primary label's zone abbreviation (CDT or CST) comes from today's date, so pin it: after the November
+  // change the label reads CST, which is not what these cases are about.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => vi.useRealTimers());
   // 6:30 PM Central on Sunday is 7:30 PM Eastern.
   const sunCentral = { typeId: "t1", dayOfWeek: 0, startTimeLocal: "18:30", timezone: "America/Chicago" };
   const named = (s: CommitmentSlot, typeName: string) => ({ ...s, typeName });
