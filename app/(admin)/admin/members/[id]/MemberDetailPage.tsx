@@ -156,7 +156,7 @@ export default async function MemberDetailPage({
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
-  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(allEmails);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
 
   const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
   const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
