@@ -107,7 +107,7 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
     repos.writing.activeProjects(memberId),
     repos.writing.activeGoalMeasures(memberId),
     repos.writing.recentEntryMeasures(memberId, RECENT_ENTRIES),
-    repos.writing.entriesForPrickle(memberId, prickleId),
+    repos.writing.prickleEntries(memberId, prickleId),
     getUserTimezonePreference(),
   ]);
   if (!prickle) return null;
