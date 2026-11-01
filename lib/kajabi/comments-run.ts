@@ -71,10 +71,14 @@ export async function saveLessonComments(
   return { written: toWrite.length, unchanged: comments.length - toWrite.length, removed: gone.length };
 }
 
-/** What reading one lesson's page gave. `noList`: the page loaded but has no comments list at all. */
+/**
+ * What reading one lesson's page gave. `noList`: the page loaded but has no comments list. With `hasCommentBox` the
+ * page does have the box to write a comment (so the lesson has none); without it the page may not be a lesson page
+ * at all (a redirect, comments off, a page that did not finish rendering), which is worth a look.
+ */
 export type LessonRead =
   | { kind: "ok"; page: PageComments; capped: boolean }
-  | { kind: "noList" };
+  | { kind: "noList"; hasCommentBox: boolean };
 
 export interface CommentsRunOptions {
   db: Db;
@@ -103,7 +107,9 @@ export interface CommentsSummary {
   rows: CommentsSave;
   keySources: Record<KeySource, number>;
   duplicateKeys: number;
-  /** Lessons whose page has no comments list (nothing written for them). */
+  /** Lessons whose page loaded with a comment box but no comments: none to capture (nothing written for them). */
+  lessonsNoComments: number;
+  /** Lessons whose page has neither a comments list nor a comment box: not read, worth a look (nothing written for them). */
   lessonsWithoutList: number;
   /** Lessons cut off at the Show More limit (nothing written for them). */
   lessonsCapped: number;
@@ -131,6 +137,7 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
     rows: { written: 0, unchanged: 0, removed: 0 },
     keySources: { "reply-link": 0, "reply-container": 0, "data-comment": 0, hash: 0 },
     duplicateKeys: 0,
+    lessonsNoComments: 0,
     lessonsWithoutList: 0,
     lessonsCapped: 0,
     lessonsMismatched: 0,
@@ -168,7 +175,8 @@ export async function runCommentsCapture(options: CommentsRunOptions): Promise<C
         summary.lessonsFailed++;
         failureKinds.set(result.reason, (failureKinds.get(result.reason) ?? 0) + 1);
       } else if (result.read.kind === "noList") {
-        summary.lessonsWithoutList++;
+        if (result.read.hasCommentBox) summary.lessonsNoComments++;
+        else summary.lessonsWithoutList++;
       } else if (result.read.capped) {
         summary.lessonsCapped++;
         log(`lesson ${lesson.lessonKajabiId}: stopped at the Show More limit, nothing written for it`);

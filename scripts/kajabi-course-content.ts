@@ -474,7 +474,11 @@ async function readCommentsPage(context: BrowserContext, lesson: PostLink): Prom
       .waitForSelector("[data-comments-list]", { state: "attached", timeout: COMMENTS_LIST_TIMEOUT_MS })
       .then(() => true)
       .catch(() => false);
-    if (!hasList) return { kind: "noList" };
+    if (!hasList) {
+      // A lesson with no comments still has the box to write one; a page without either is not one we understand.
+      const hasCommentBox = (await page.locator("form.new_comment").count()) > 0;
+      return { kind: "noList", hasCommentBox };
+    }
 
     const more = page.locator("a.btn--more");
     let presses = 0;
@@ -563,7 +567,7 @@ async function captureComments(courseId: string): Promise<void> {
         `${summary.rows.written} rows written, ${summary.rows.unchanged} unchanged, ${summary.rows.removed} removed\n` +
         `comment ids: ${k["reply-link"] + k["reply-container"] + k["data-comment"]} from the page (${k["reply-link"]} reply link, ${k["reply-container"]} reply container, ${k["data-comment"]} data-comment), ${k.hash} hashed, ${summary.duplicateKeys} repeated within a lesson\n` +
         `lessons: ${summary.lessonsCapped} cut off at the Show More limit, ${summary.lessonsMismatched} with a different total on the page, ` +
-        `${summary.lessonsWithoutList} without a comments list, ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
+        `${summary.lessonsNoComments} with no comments (the page has a comment box), ${summary.lessonsWithoutList} with neither comments nor a comment box (look at these), ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
     );
     if (summary.lessonsFailed > 0 || summary.lessonsCapped > 0) process.exitCode = 1;
   } finally {
