@@ -79,7 +79,7 @@ export default async function MemberLayout({
   return (
     <div className="flex h-dvh overflow-hidden bg-canvas dark:bg-slate-950">
       <BrowserPushAccountGuard memberId={effectiveIdentity.memberId} isSudo={effectiveIdentity.isSudo} publicKey={showInstallPrompt ? (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null) : null} />
-      <MemberNavigation isAdmin={isAdmin} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
+      <MemberNavigation isAdmin={isAdmin} isSudo={effectiveIdentity.isSudo} enabledFeatures={enabledFeatures} navMode={isNavMode(profile?.nav_mode) ? profile.nav_mode : null} />
       <div className="flex flex-col flex-1 min-w-0">
         {/* Bars above the header, stacked by priority (components/announcements/AnnouncementStack.tsx). */}
         <AnnouncementStack

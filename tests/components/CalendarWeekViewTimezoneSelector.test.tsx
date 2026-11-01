@@ -37,6 +37,6 @@ describe('CalendarWeekView timezone selector', () => {
     // first preset option (Eastern) because "Europe/London" had no matching
     // <option>, even though the underlying calendar math used it correctly.
     expect(select.value).toBe('Europe/London')
-    expect(screen.getByRole('option', { name: 'Europe/London' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'London' })).toBeInTheDocument()
   })
 })

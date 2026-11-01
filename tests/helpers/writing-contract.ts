@@ -18,6 +18,11 @@ export type WritingContractContext = {
 };
 
 /** Behavior every `WritingRepository` must have; run against the in-memory twin (unit) and Supabase (db). */
+/** What a member logged against a prickle, as the four fields the check-in form reads, oldest first. */
+async function loggedAgainst(repo: WritingRepository, memberId: string, prickleId: string) {
+  return (await repo.prickleEntries(memberId, prickleId)).map(({ project_id, measure, mode, amount }) => ({ project_id, measure, mode, amount }));
+}
+
 export function defineWritingContract(name: string, setup: () => WritingContractContext) {
   describe(`${name} (WritingRepository contract)`, () => {
     let ctx: WritingContractContext;
@@ -108,11 +113,11 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         ],
       });
 
-      expect(await ctx.repo().entriesForPrickle(a, ctx.prickleId)).toEqual([
+      expect(await loggedAgainst(ctx.repo(), a, ctx.prickleId)).toEqual([
         { project_id: ids.p, measure: "words", mode: "set_total", amount: 900 },
         { project_id: ids.p, measure: "pages", mode: "delta", amount: 2 },
       ]);
-      expect((await ctx.repo().entriesForPrickle(b, ctx.prickleId)).map((e) => e.amount)).toEqual([7]);
+      expect((await loggedAgainst(ctx.repo(), b, ctx.prickleId)).map((e) => e.amount)).toEqual([7]);
     });
 
     it("exports a member's entries by date with their project's title, optionally one project's", async () => {
@@ -139,7 +144,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const id = await ctx.repo().addEntry({ memberId: a, projectId: ids.p, entryDate: "2026-02-05", measure: "words", mode: "delta", amount: 250, prickleId: ctx.prickleId });
 
       expect(id).toEqual(expect.any(String));
-      expect(await ctx.repo().entriesForPrickle(a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 250 }]);
+      expect(await loggedAgainst(ctx.repo(), a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 250 }]);
       expect(await ctx.repo().exportEntries(a)).toEqual([{ entry_date: "2026-02-05", project_title: "P", measure: "words", mode: "delta", amount: 250, note: null, tags: [] }]);
     });
 
@@ -456,7 +461,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await repo.entries(a)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.projectGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
       expect(await repo.goalCount(a)).toBe(1);
-      expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([]);
+      expect(await loggedAgainst(repo, a, ctx.prickleId)).toEqual([]);
       expect((await repo.exportEntries(a)).map((e) => e.project_title)).toEqual(["Keep"]);
 
       // A deleted project can't be edited back to life, nor listed as a past one.
@@ -589,7 +594,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
 
       expect(await repo.recentEntryMeasures(a, 10)).toEqual([{ project_id: ids.p, measure: "words" }]);
       expect((await repo.recentEntryMeasures(a, 10, { projectId: ids.p })).map((e) => e.measure)).toEqual(["words"]);
-      expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 5 }]);
+      expect(await loggedAgainst(repo, a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 5 }]);
       expect((await repo.prickleEntries(a, ctx.prickleId)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.exportEntries(a)).map((e) => e.measure)).toEqual(["words"]);
       expect((await repo.entries(a, { projectIds: [ids.p] })).map((e) => e.id)).toEqual([keepEntry]);

@@ -68,7 +68,7 @@ describe("lesson watch stats modal", () => {
     expect(loadCourseWatchStats).toHaveBeenCalledWith(expect.anything(), KAJABI, { includeStaff: false, lessonId: L1, withSessions: true, sessionLimit: 20 });
     // Seven numbers, each carrying what it means (on hover, and for a screen reader).
     for (const label of ["Engagement", "Total plays", "Play rate", "Viewers", "Average watched", "Watched 90%+", "Rewatched"]) {
-      const tileEl = within(dialog).getAllByText(label).find((el) => el.nextElementSibling?.className.includes("text-2xl"))!.parentElement!;
+      const tileEl = within(dialog).getAllByText(label).find((el) => el.nextElementSibling?.className.includes("text-lg"))!.parentElement!;
       expect(tileEl).toHaveAttribute("title");
     }
     expect(within(dialog).getByText("Viewers").nextElementSibling).toHaveTextContent("2");
@@ -76,6 +76,19 @@ describe("lesson watch stats modal", () => {
     expect(screen.getByRole("img", { name: /times watched, plays and people by moment/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "How it was watched" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Over time" })).not.toBeInTheDocument();
+    // The small tile keeps a short hint only where the number needs one; the long hints are in the hover text.
+    expect(screen.getByText("2 of 3 visits")).toBeInTheDocument();
+    expect(screen.queryByText("of the video, per viewer")).not.toBeInTheDocument();
+  });
+
+  it("puts each how-it-was-watched number beside its label", async () => {
+    await renderServerPage(LessonWatchStatsModal, props());
+
+    const speed = screen.getByText("1x").closest("li")!;
+    expect(speed).toHaveTextContent("1x");
+    expect(speed).toHaveTextContent("100%");
+    expect(screen.getByText("With captions on").closest("div")).toHaveTextContent("0%");
+    expect(screen.getByText("With the tab in the background").closest("div")).toHaveTextContent("0%");
   });
 
   it("switches to the chart, whose Apply replaces the URL and keeps the staff choice", async () => {

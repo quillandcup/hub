@@ -224,3 +224,17 @@ describe("PrickleDetails summary", () => {
     });
   });
 });
+
+describe("PrickleDetails timezone selector", () => {
+  it("shows the member's own zone when it isn't a preset", () => {
+    renderDetails({ userTimezonePreference: "America/Costa_Rica" });
+    expect(screen.getByRole("combobox")).toHaveValue("America/Costa_Rica");
+    expect(screen.getByRole("option", { name: "Costa Rica" })).toBeInTheDocument();
+  });
+
+  it("adds no extra option for a preset zone", () => {
+    renderDetails({ userTimezonePreference: "America/Chicago" });
+    expect(screen.getByRole("combobox")).toHaveValue("America/Chicago");
+    expect(screen.getAllByRole("option")).toHaveLength(5);
+  });
+});
