@@ -126,7 +126,7 @@ describe("BuilderOutline", () => {
     expect(screen.getAllByRole("button", { name: "Add content" })).toHaveLength(3);
   });
 
-  it("shows each row's status in a menu that can't change yet, with Publish blocked under a draft module", async () => {
+  it("shows each row's status in a menu that can't change yet, with Publish allowed anywhere (what is above only limits what members see)", async () => {
     const user = userEvent.setup();
     render(<BuilderOutline course={course()} />);
     await user.click(screen.getByRole("button", { name: "Expand all" }));
@@ -136,16 +136,17 @@ describe("BuilderOutline", () => {
     expect(module2).toHaveValue("locked");
     expect(within(module2).getAllByRole("option").map((o) => o.textContent)).toEqual(["Draft", "Publish", "Schedule", "Drip", "Locked"]);
 
-    // A lesson in a draft week, in a draft module: Publish names the nearest draft.
+    // A lesson in a draft week, in a draft module: it can still be published, and will wait until they are.
     const draftLesson = screen.getByRole("combobox", { name: "Status of Sharpen your quill" });
     expect(draftLesson).toHaveValue("draft");
     // The whole menu is disabled for now, so compare the options' own attribute.
-    expect(within(draftLesson).getByRole("option", { name: "Publish" })).toHaveAttribute("disabled");
-    // The reason is the option's tooltip, not its text.
-    expect(within(draftLesson).getByRole("option", { name: "Publish" })).toHaveAttribute("title", "Publish “Week 1” first");
+    expect(within(draftLesson).getByRole("option", { name: "Publish" })).not.toHaveAttribute("disabled");
     expect(within(draftLesson).getByRole("option", { name: "Draft" })).not.toHaveAttribute("disabled");
+    // What isn't offered yet is marked, with the reason as a tooltip rather than option text.
+    expect(within(draftLesson).getByRole("option", { name: "Schedule" })).toHaveAttribute("disabled");
+    expect(within(draftLesson).getByRole("option", { name: "Schedule" })).toHaveAttribute("title", expect.stringMatching(/date or a delay/));
 
-    // Under a locked module, Publish is fine.
+    // Under a locked module, Publish is fine too.
     expect(within(screen.getByRole("combobox", { name: "Status of Reader expectations" })).getByRole("option", { name: "Published" })).not.toHaveAttribute("disabled");
   });
 
@@ -155,7 +156,7 @@ describe("BuilderOutline", () => {
     expect(screen.getByText("No modules yet.")).toBeInTheDocument();
   });
 
-  it("shows an already published lesson under a draft module as plain Published, without the blocked note", async () => {
+  it("shows a published lesson under a draft module as plain Published, with why members can't see it in its reason", async () => {
     const user = userEvent.setup();
     const odd = explainCourse(
       [{ kajabiId: "m1", parentKajabiId: null, position: 1, title: "Welcome to the Quill & Cup 180!", publishingOption: "draft" }],
@@ -168,9 +169,11 @@ describe("BuilderOutline", () => {
     expect(select).toHaveValue("published");
     expect(within(select).getByRole("option", { name: "Published" })).toHaveTextContent(/^Published$/);
     expect(within(select).getByRole("option", { name: "Published" })).not.toHaveAttribute("disabled");
+    // Published, but waiting: the row says what is holding it.
+    expect(screen.getByText("Inside “Welcome to the Quill & Cup 180!” (Draft)")).toBeInTheDocument();
   });
 
-  it("keeps a blocked Publish's reason out of every option's text, so a long module title can't widen the menu", async () => {
+  it("keeps every option's text short, so a long module title can't widen the menu", async () => {
     const user = userEvent.setup();
     const long = explainCourse(
       [{ kajabiId: "m1", parentKajabiId: null, position: 1, title: "Week 1: Start Strong! The Story You Need to Tell & The Character Who Drives It", publishingOption: "draft" }],
@@ -179,6 +182,6 @@ describe("BuilderOutline", () => {
     render(<BuilderOutline course={course({ loose: [], modules: long.modules, content: {}, hubLessonIds: {} })} />);
     await user.click(screen.getByRole("button", { name: "Expand all" }));
 
-    for (const option of screen.getAllByRole("option")) expect(option.textContent, option.outerHTML).not.toMatch(/first/);
+    for (const option of screen.getAllByRole("option")) expect(option.textContent!.length, option.outerHTML).toBeLessThan(15);
   });
 });

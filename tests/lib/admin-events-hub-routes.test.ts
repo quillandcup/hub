@@ -45,6 +45,22 @@ describe("POST /api/admin/events", () => {
     expect(event).toMatchObject({ slug: "open-house", prickle_id: prickle.id, title: "Open House", host_name: "Fern Example", starts_at: "2097-05-01", ends_at: "2097-05-02" });
   });
 
+  it("hosts the event by a member when one is picked, and by a named guest otherwise", async () => {
+    data = new InMemoryDataset({ prickleTypes: [EVENT_TYPE], members: [{ id: "mbr_FERNAAAAAAA1", name: "Fern Example" }] });
+    repos = createInMemoryRepos(data);
+    expect((await post({ ...BASE, slug: "a", host_id: "mbr_FERNAAAAAAA1", host_name: "Ignored Text" })).status).toBe(201);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_FERNAAAAAAA1", hostName: null });
+
+    expect((await post({ ...BASE, slug: "b", host_id: null, host_name: "Guest Host" })).status).toBe(201);
+    expect(data.hubSessions[1]).toMatchObject({ hostId: null, hostName: "Guest Host" });
+  });
+
+  it("refuses a host id that is not a member's", async () => {
+    const res = await post({ ...BASE, host_id: "not-an-id" });
+    expect(res.status).toBe(400);
+    expect(data.hubSessions).toHaveLength(0);
+  });
+
   it("takes clock times in Eastern time", async () => {
     await post({ ...BASE, ends_at: "2097-05-01", start_clock: "10:00", end_clock: "11:30" });
 
@@ -83,22 +99,28 @@ describe("PATCH /api/admin/events/[id]", () => {
   });
 
   it("hosts an event made in the Hub by a member or by someone who isn't one, and keeps only one of the two", async () => {
-    data = new InMemoryDataset({ prickleTypes: [EVENT_TYPE], members: [{ id: "mbr_HOST00000001", name: "Fern Example" }] });
+    data = new InMemoryDataset({ prickleTypes: [EVENT_TYPE], members: [{ id: "mbr_FERNAAAAAAA1", name: "Fern Example" }] });
     repos = createInMemoryRepos(data);
     const made = await (await post({ ...BASE, host_name: "Bo Example" })).json();
     const edit = (body: unknown) => update(new NextRequest("http://localhost/x", { method: "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id: made.event.id }) });
 
     // Picking a member makes them the host and drops the free-text one.
-    expect((await edit({ host_id: "mbr_HOST00000001", host_name: "Fern Example" })).status).toBe(200);
-    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_HOST00000001", hostName: null });
+    expect((await edit({ host_id: "mbr_FERNAAAAAAA1", host_name: "Fern Example" })).status).toBe(200);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_FERNAAAAAAA1", hostName: null });
 
     // Saving again without changing the host leaves it alone.
-    expect((await edit({ host_id: "mbr_HOST00000001", host_name: "Fern Example", title: "Open Day" })).status).toBe(200);
-    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_HOST00000001", hostName: null, title: "Open Day" });
+    expect((await edit({ host_id: "mbr_FERNAAAAAAA1", host_name: "Fern Example", title: "Open Day" })).status).toBe(200);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_FERNAAAAAAA1", hostName: null, title: "Open Day" });
 
     // Clearing the member and typing a name makes a guest host.
     expect((await edit({ host_id: null, host_name: "Guest Host" })).status).toBe(200);
     expect(data.hubSessions[0]).toMatchObject({ hostId: null, hostName: "Guest Host" });
+  });
+
+  it("refuses a host id that is not a member's", async () => {
+    const made = await (await post(BASE)).json();
+    const res = await update(new NextRequest("http://localhost/x", { method: "PATCH", body: JSON.stringify({ host_id: "not-an-id" }) }), { params: Promise.resolve({ id: made.event.id }) });
+    expect(res.status).toBe(400);
   });
 
   it("refuses an end before the start", async () => {

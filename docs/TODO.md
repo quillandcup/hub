@@ -162,8 +162,12 @@ Let a member see in the Hub which videos from the library they have watched, and
 
 The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
 projects, all progress, starting balances, covers, tags-on-entries, and single-project goals (with their
-titles, descriptions and show-on-profile; re-importing fills these in on goals imported before Hub had them). It lists
-everything else per import instead of silently dropping it. Closing these gaps needs Hub features first:
+titles, descriptions and show-on-profile). Importing again **overwrites** what is already in Hub with the
+export's values (project title, description, phase and visibility, starting balances, entry date, amount,
+note and tags, a goal's target, dates and details), matched by the id each record was imported under, and
+the summary says how many of each changed. Left alone: covers, a goal's dashboard pin, anything made only in
+Hub, a starting balance in a measure the export doesn't list, and anything the member deleted in Hub. It lists
+everything it can't bring over per import instead of silently dropping it. Closing these gaps needs Hub features first:
 
 - **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is already nullable, but nothing displays or computes a goal with no project, or with several.
 - **Tag-filtered goals** ("only count entries tagged X"): no tag filter on `writing_goals`.
@@ -672,7 +676,9 @@ Statement timeouts (57014) kept hitting unrelated queries in production: the adm
 
 **Order of operations:** a scrub or re-point is irreversible and untraceable (afterwards we can't find a person's rows to delete them later or to answer an access request), so a request for true deletion must happen before any anonymising.
 
-**Still to build:** one `remove_member_data(member_id, mode)` routine so staff don't hand-write SQL, with the per-table choice (re-point or delete) in the catalog, and a pgTAP test that nothing identifying remains. Related: phase 0 of `docs/EVENT_LOG.md` (done) and the retention schedule.
+**Built (2026-10-31): the catalog, a coverage guard and a read-only report.** `member_data_handling` records, for each of the 66 columns that point at a member, whether a removal request re-points the row, deletes it, nulls the reference, keeps it, or asks (a public book or award: staff ask the member whether to keep it listed; if so the byline they chose is written into the row and it is re-pointed at the placeholder, otherwise it is deleted; a testimonial table, if one is ever added, goes in the same category), with the reason (migration `20270331000000`). `supabase/tests/database/member_data_handling.test.sql` fails when a table that points at a member has no row, or a row names a column that no longer exists, so a new member-owned table can't be added without a decision. `select * from member_data_report('<member id>')` (service role) counts the rows each choice would touch for one member: a dry run, and the answer to "show me what you hold about me". The choices in the catalog are proposals for the owner to review.
+
+**Still to build, after that review:** the routine that carries the choices out (replace the member row itself with the former-member placeholder, then re-point, delete and null per the catalog in one transaction, and scrub the member's name from `audit_log` values), with a pgTAP test that nothing identifying remains, and a way for staff to run it (a script or an admin action) so nobody hand-writes SQL.
 
 ### Scrub private data from the public repo and its history _(Needs Scheduling)_
 
@@ -1110,6 +1116,16 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+
+### Shared `SubmitButton` that disables itself while its action is pending _(Needs Scheduling)_
+
+There is no shared way to stop a double submit. Found while reviewing the event-log design (`docs/EVENT_LOG.md`, "Correlation"): a very fast double click can send an action twice and, for analytics, overwrite the correlation cookie before the first request reads it. Counts when checked: 58 files render a `<form>`, 19 use `useTransition`, none use `useFormStatus`, and `components/` has no submit-button component, so each form handles pending state (or doesn't) on its own.
+
+Deferred because it touches many forms. Worth doing for its own sake (duplicate saves, duplicate notifications), not only for correlation. Start with a `SubmitButton` in `components/` built on `useFormStatus` (disabled and a pending label while the form action runs), convert the forms that create or send something first, and add a component test per the rules in `reuse-ui-components.md`. Enter-key submits and two different controls clicked quickly are not covered by disabling one button, so correlation stays best effort.
+
+### Convert Page Layouts to Container Queries _(Needs Scheduling)_
+Pages choose their layout with viewport breakpoints (`lg:`, `md:`) but really depend on the content area's width, which is the window minus the sidebar (see "Responsive Layout" in CLAUDE.md). Moving the sidebar to `lg` fixed the worst case, but each page still hard-codes a guess about the shell. Mark each page's wrapper `@container` and switch to `@md:`/`@lg:`/`@max-md:` so it adapts to the room it has, with or without the sidebar. Check at widths just either side of each breakpoint.
+
 ### Event photo import: the Google Photos picker only lists the importer's own photos in a shared album _(Needs Scheduling)_
 A member who found a shared album in Google's picker saw only the photos they uploaded themselves, though the same album opened by its link shows everyone's. The picker is Google's own screen (Photos Picker API, `lib/google-photos-picker/client.ts`); Google removed the shared-album read scopes in April 2025, so the app cannot list the album's items itself, and I found no Google documentation of this behaviour, so it is unconfirmed whether it is a limit or a bug. Deferred because nothing on our side controls it. Options, simplest first:
 - **Each contributor imports their own photos** from the same album; a re-import skips photos already imported (`planImportBatch`, `lib/google-photos-picker/import-batch.ts`). No code.
@@ -1254,6 +1270,12 @@ The Hub never stores the course videos itself. `lib/courses/media.ts` gives Mux 
 
 ### Launch day: check a shared lesson link as a signed-out visitor _(Low priority)_
 The public lesson preview (`docs/COURSES.md`, "Public lesson preview") is only covered by unit and database tests, and it can't show anything in production until the `courses` flag is on **for everyone** and at least one lesson is open (checked 2026-10-31: 53 lessons in The Ready Writer, 8 coming soon, 45 hidden, none open). Once launched: (1) open an open lesson's address in a private window and confirm the card (course, title, excerpt, thumbnail, "Sign in to watch"), and that signing in lands on the lesson; (2) paste it into Slack and a message to see the real unfurl (Open Graph large image); (3) in the builder, "Copy link with thumbnail" on that lesson and paste into an email or doc; (4) open a coming-soon or draft lesson's address signed out and confirm it still goes to the login page with no title or image. If the unfurl shows no picture, check that the thumbnail's address (`/api/courses/image/lesson/<id>`) loads signed out.
+
+### Course editor: lock a whole course _(Needs Scheduling)_
+A module or lesson can be Locked (members see it as coming soon), but a whole course can only be made available or not (`courses.is_draft`, Publish / Unpublish). A course-wide Lock (everything visible but not open, for example before a cohort starts) was dropped when course availability stayed `is_draft` and the two were not combined. **Where to start:** decide whether it is a third course state or just "set the top-level modules to Locked", and where it shows (the course card, `lib/courses/member.ts`); a course-level setting would also sit above the item rule in `course_item_state` and `planFullTree`, which today treat the top as always open.
+
+### Course editor: Schedule and Drip statuses _(Needs Scheduling)_
+Kajabi's status menu has five choices; the Hub offers three (Draft, Publish, Lock; plus following what is above). **Schedule** needs a date (and an unlock job or a read-time check, since members' access is by `state`, which row-level security reads), and **Drip** needs a delay from the purchase date (per member, so it can't be a single stored `state` at all: it is computed per member from `course_access.starts_at`). Today `scheduled` and `drip` rows are kept as imported: drip reads as coming soon (as in `visibilityFromPublishing`), scheduled as hidden (an unknown value), and `set_course_item_status` refuses both (`unsupported_status`). **Where to start:** a `scheduled_at` on `course_modules`/`course_lessons`, a rule for what a scheduled item is before its date (coming soon is the likely one, matching Kajabi), and either a nightly recompute or a view; for drip, a delay column and a per-member check where lessons are opened (`lib/courses/member.ts`). Check what the Kajabi import gives for scheduled and drip items first (`bronze.kajabi_course_*.publishing_option` is only ever draft, published or locked in production today, checked 2026-10-31).
 
 ### Course editor: outline follow-ups _(Needs Scheduling)_
 Left out of the first outline editor (`docs/COURSES.md`, "Editing model") on purpose; each is small on its own.

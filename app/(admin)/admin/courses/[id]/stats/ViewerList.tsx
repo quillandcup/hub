@@ -22,6 +22,7 @@ export default function ViewerList({
   durationSeconds,
   shown,
   more,
+  replace = false,
 }: {
   sessions: ViewSession[];
   durationSeconds: number;
@@ -29,6 +30,8 @@ export default function ViewerList({
   shown: number;
   /** Where "Load more" goes, or null when there is nothing more to show. */
   more: string | null;
+  /** Replace the history entry on Load more (in the stats modal, so closing it still goes back to the page below). */
+  replace?: boolean;
 }) {
   if (sessions.length === 0) return <p className="text-sm text-slate-600 dark:text-slate-300">Nobody has opened this lesson&apos;s video yet.</p>;
   const rows = sessions.slice(0, shown);
@@ -80,7 +83,7 @@ export default function ViewerList({
       </ul>
       {more && (
         <p className="mt-4">
-          <Link href={more} data-track="admin-watch-stats-load-more" className="text-plum-700 underline dark:text-plum-300">
+          <Link href={more} replace={replace} data-track="admin-watch-stats-load-more" className="text-plum-700 underline dark:text-plum-300">
             Load more
           </Link>
           <span className="ml-3 text-sm text-slate-600 dark:text-slate-400">

@@ -40,7 +40,7 @@ import {
   type SaveOutcome,
 } from "../lib/kajabi/lesson-content";
 import { findCourseHero, imageFieldNames, saveCourseHero } from "../lib/kajabi/course-hero";
-import { describeDomShape, describeJson, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
+import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint, normalizeRequestPath, queryNames, type ProbedRequest } from "../lib/kajabi/probe";
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
@@ -271,6 +271,8 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
   };
   try {
     await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
+    // tsx compiles functions with a `__name` helper that does not exist in the page, which silently broke the page-structure function: define it.
+    await context.addInitScript("window.__name = window.__name || function (fn) { return fn; };");
     await ensureLoggedIn(context);
     // On the whole browser context, so a link that opens a new tab is recorded too (the admin's preview links do).
     context.on("response", (r) => {
@@ -278,15 +280,26 @@ async function probe(target: { url: string; seconds: number }): Promise<void> {
       const isJson = contentType.includes("json");
       // A page can also load its data as an HTML fragment or a script (Kajabi's member pages do): list those too, by type and path only.
       if (!isJson && !["xhr", "fetch", "document"].includes(r.request().resourceType())) return;
+      const type = r.request().resourceType();
+      const isMarkup = /^(text\/(html|javascript)|application\/(x-)?javascript)$/.test(contentType) && !/\.(m3u8|ts)$/.test(r.url().split("?")[0]);
       pending.push(
         (async () => {
-          const json = isJson ? await r.json().catch(() => undefined) : undefined;
+          let fields: string[] = [];
+          if (isJson) {
+            const json = await r.json().catch(() => undefined);
+            fields = json === undefined ? [] : describeJson(json);
+          } else if (isMarkup) {
+            // Data that arrives as markup (a script that appends an HTML string, a fragment, a page): its element and attribute names, never text.
+            // A whole page is narrowed to the parts that look like comments, a fragment or script is described in full.
+            const body = await r.text().catch(() => "");
+            fields = body.length > 3_000_000 ? [] : describeMarkup(body, { pattern: type === "document" ? /comment|reply|author|avatar|member|user/i : undefined, maxLines: 40 });
+          }
           seen.push({
             method: r.request().method(),
             status: r.status(),
             path: normalizeRequestPath(r.url()),
             query: queryNames(r.url()),
-            fields: json === undefined ? [] : describeJson(json),
+            fields,
             ...(isJson ? {} : { contentType: contentType || "no content type" }),
           });
         })()

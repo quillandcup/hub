@@ -621,8 +621,12 @@ export function defineWritingContract(name: string, setup: () => WritingContract
 
       expect(await repo.importEntries([row])).toBe(0);
       expect(await repo.entries(a, { projectIds: [project.id] })).toEqual([]);
-      expect(await repo.importedEntryExternalIds(a)).toEqual([tag("e")]);
-      expect((await repo.importedGoals(a)).map((g) => g.external_id)).toEqual([tag("g")]);
+      // Deleted rows still show as imported, flagged, so a re-import neither brings them back nor tries to.
+      expect((await repo.importedEntries(a)).map((e) => [e.external_id, e.deleted])).toEqual([[tag("e"), true]]);
+      expect((await repo.importedGoals(a)).map((g) => [g.external_id, g.deleted])).toEqual([[tag("g"), true]]);
+      expect(await repo.overwriteImportedEntries([{ ...row, amount: 50 }])).toBe(1);
+      expect(await repo.entries(a, { projectIds: [project.id] })).toEqual([]);
+      expect(await repo.overwriteImportedGoal(a, tag("g"), { target_amount: 50 })).toBe(0);
     });
 
     it("imports projects, balances, entries and goals once, skipping what is already there", async () => {
@@ -651,21 +655,30 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const entry = (externalId: string) => ({ member_id: a, project_id: p1, external_id: externalId, entry_date: "2025-02-01", measure: "words", mode: "delta", amount: 5, note: null, tags: ["t"], created_at: "2025-02-01T10:00:00Z" });
       expect(await repo.importEntries([entry(tag("e1")), entry(tag("e2"))])).toBe(2);
       expect(await repo.importEntries([entry(tag("e1")), entry(tag("e3"))])).toBe(1);
-      expect((await repo.importedEntryExternalIds(a)).sort()).toEqual([tag("e1"), tag("e2"), tag("e3")]);
-      expect(await repo.importedEntryExternalIds(b)).toEqual([]);
+      expect((await repo.importedEntries(a)).map((e) => e.external_id).sort()).toEqual([tag("e1"), tag("e2"), tag("e3")]);
+      expect(await repo.importedEntries(b)).toEqual([]);
 
       const goal = (externalId: string) => ({ member_id: a, project_id: p1, external_id: externalId, goal_type: "target", measure: "words", target_amount: 1000, created_at: "2025-02-01T10:00:00Z" });
       expect(await repo.importGoals([goal(tag("g1")), goal(tag("g2"))])).toBe(2);
       expect(await repo.importGoals([goal(tag("g1"))])).toBe(0);
-      expect((await repo.importedGoals(a)).map((g) => ({ ...g })).sort((x, y) => (x.external_id < y.external_id ? -1 : 1))).toEqual([
-        { external_id: tag("g1"), title: null, description: null },
-        { external_id: tag("g2"), title: null, description: null },
-      ]);
+      expect((await repo.importedGoals(a)).map((g) => g.external_id).sort()).toEqual([tag("g1"), tag("g2")]);
 
-      expect(await repo.backfillGoalDetails(a, tag("g1"), { title: "Named", description: null, show_on_profile: true })).toBe(1);
-      expect(await repo.backfillGoalDetails(a, tag("g1"), { title: "Renamed", description: null, show_on_profile: true })).toBe(0);
-      expect(await repo.backfillGoalDetails(a, tag("nope"), { title: "X", description: null, show_on_profile: true })).toBe(0);
-      expect((await repo.importedGoals(a)).find((g) => g.external_id === tag("g1"))?.title).toBe("Named");
+      // Overwriting changes what the export decides and leaves the rest (created_at, the dashboard pin).
+      expect(await repo.overwriteImportedGoal(a, tag("g1"), { title: "Named", target_amount: 2000, end_date: "2025-12-31", show_on_profile: true })).toBe(1);
+      expect(await repo.overwriteImportedGoal(a, tag("nope"), { title: "X" })).toBe(0);
+      const g1 = (await repo.importedGoals(a)).find((g) => g.external_id === tag("g1"))!;
+      expect(g1).toMatchObject({ title: "Named", target_amount: 2000, end_date: "2025-12-31", show_on_profile: true, goal_type: "target", deleted: false });
+      expect((await repo.importedGoals(a)).find((g) => g.external_id === tag("g2"))?.title).toBeNull();
+
+      expect(
+        await repo.overwriteImportedEntries([
+          { ...entry(tag("e1")), amount: 9, note: "edited", tags: ["x", "y"], entry_date: "2025-03-01" },
+          { ...entry(tag("missing")), amount: 1 },
+        ])
+      ).toBe(1);
+      expect((await repo.importedEntries(a)).find((e) => e.external_id === tag("e1"))).toMatchObject({ amount: 9, note: "edited", tags: ["x", "y"], entry_date: "2025-03-01", deleted: false });
+      expect((await repo.importedEntries(a)).find((e) => e.external_id === tag("e2"))?.amount).toBe(5);
+      expect(await repo.overwriteImportedEntries([])).toBe(0);
     });
 
     it("lists the projects whose cover is a link rather than a library image, and has no library cover for them", async () => {

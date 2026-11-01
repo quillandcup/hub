@@ -6,6 +6,7 @@ import {
   TrackbearImportError,
   extractTrackbearExport,
   type ExistingImports,
+  type ExistingProjectDetails,
 } from "@/lib/trackbear-import";
 import { makeTrackbearData } from "../fixtures/trackbear/data";
 
@@ -174,23 +175,116 @@ describe("planTrackbearImport", () => {
     expect(p.newEntries.map((e) => e.projectExternalId)).toEqual([P2]);
     expect(p.newGoals).toEqual([]);
     expect(p.alreadyImported).toEqual({ projects: 2, entries: 3, goals: 2 });
-    expect(p.goalDetailBackfills).toEqual([]);
+    expect(p.projectUpdates).toEqual([]);
+    expect(p.goalUpdates).toEqual([]);
+    expect(p.entryUpdates).toEqual([]);
   });
 
-  it("backfills title, description and profile flag onto goals imported before Hub goals had them", () => {
+  describe("overwriting what is already in Hub", () => {
     const data = makeTrackbearData();
+    const tally = data.tallies[0];
+    const entryId = trackbearExternalId(tally.uuid);
     const target = trackbearExternalId(data.targets[0].uuid);
-    const habit = trackbearExternalId(data.habits[0].uuid);
-    const p = planTrackbearImport(data, {
-      projectIdsByExternalId: new Map([[P1, "hub-p1"], [P2, "hub-p2"]]),
-      entryExternalIds: new Set(),
-      goalExternalIds: new Set([target, habit]),
-      // The habit has no details in TrackBear either, so there's nothing to backfill for it.
-      goalExternalIdsMissingDetails: new Set([target, habit]),
+    const matchingProject: ExistingProjectDetails = { title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "on_hold", showOnProfile: true, deleted: false };
+    const matchingEntry = { projectId: "hub-p1", entryDate: "2025-01-05", measure: "words", mode: "delta", amount: 1500, note: "Great session", tags: ["drafting", "sprint"], deleted: false };
+
+    function existingWith(overrides: Partial<ExistingImports>): ExistingImports {
+      return {
+        projectIdsByExternalId: new Map([[P1, "hub-p1"], [P2, "hub-p2"]]),
+        entryExternalIds: new Set(),
+        goalExternalIds: new Set(),
+        ...overrides,
+      };
+    }
+
+    it("plans nothing when Hub already matches the export", () => {
+      const p = planTrackbearImport(
+        data,
+        existingWith({
+          projectDetails: new Map([[P1, matchingProject], [P2, { title: "Poems", description: null, phase: "complete", showOnProfile: false, deleted: false }]]),
+          entryExternalIds: new Set([entryId]),
+          entryDetails: new Map([[entryId, matchingEntry]]),
+          startingBalances: new Map([[P1, new Map([["words", 12000], ["time_minutes", 90]])]]),
+        })
+      );
+      expect(p.projectUpdates).toEqual([]);
+      expect(p.entryUpdates).toEqual([]);
+      expect(p.startingBalanceUpdates).toEqual([]);
     });
-    expect(p.newGoals).toEqual([]);
-    expect(p.goalDetailBackfills).toEqual([
-      { externalId: target, title: "Finish draft", description: "80k by summer", showOnProfile: true },
-    ]);
+
+    it("plans the export's project fields and starting balances over Hub's", () => {
+      const p = planTrackbearImport(
+        data,
+        existingWith({
+          projectDetails: new Map([[P1, { ...matchingProject, title: "Renamed", description: null, phase: "drafting", showOnProfile: false }]]),
+          startingBalances: new Map([[P1, new Map([["words", 24657]])]]),
+        })
+      );
+      expect(p.projectUpdates).toEqual([
+        { externalId: P1, title: "The Hedgehog's Journey", description: "A cozy fantasy.", phase: "on_hold", showOnProfile: true },
+      ]);
+      expect(p.startingBalanceUpdates).toEqual([
+        { projectExternalId: P1, measure: "words", amount: 12000 },
+        { projectExternalId: P1, measure: "time_minutes", amount: 90 },
+      ]);
+    });
+
+    it("keeps Hub's phase when TrackBear's is one Hub doesn't know", () => {
+      const odd = makeTrackbearData();
+      odd.projects[0].phase = "limbo";
+      const p = planTrackbearImport(odd, existingWith({ projectDetails: new Map([[P1, { ...matchingProject, title: "Renamed" }]]) }));
+      expect(p.projectUpdates[0]).toMatchObject({ externalId: P1, phase: "on_hold" });
+      expect(p.issues.filter((i) => i.kind === "project" && /phase/.test(i.detail))).toEqual([]);
+    });
+
+    it("plans an entry whose amount, date, note, tags or project differ, and says nothing about ones that match", () => {
+      for (const change of [{ amount: 1 }, { entryDate: "2025-01-01" }, { note: null }, { tags: ["drafting"] }, { projectId: "hub-p2" }]) {
+        const p = planTrackbearImport(
+          data,
+          existingWith({ entryExternalIds: new Set([entryId]), entryDetails: new Map([[entryId, { ...matchingEntry, ...change }]]) })
+        );
+        expect(p.entryUpdates.map((e) => e.externalId)).toEqual([entryId]);
+        expect(p.newEntries.map((e) => e.externalId)).not.toContain(entryId);
+      }
+    });
+
+    it("plans the export's goal fields over Hub's", () => {
+      const goalBefore = { projectId: "hub-p1", goalType: "target", measure: "words", targetAmount: 1, startDate: null, endDate: "2026-03-13", habitPeriod: null, habitThreshold: null, title: "Finish draft", description: "80k by summer", showOnProfile: true, deleted: false };
+      const p = planTrackbearImport(data, existingWith({ goalExternalIds: new Set([target]), goalDetails: new Map([[target, goalBefore]]) }));
+      expect(p.goalUpdates).toHaveLength(1);
+      expect(p.goalUpdates[0]).toMatchObject({ externalId: target, targetAmount: data.targets[0].parameters?.threshold?.count });
+      expect(p.newGoals.map((g) => g.externalId)).not.toContain(target);
+    });
+
+    it("leaves what the member deleted in Hub alone", () => {
+      const p = planTrackbearImport(
+        data,
+        existingWith({
+          projectDetails: new Map([[P1, { ...matchingProject, title: "Renamed", deleted: true }]]),
+          entryExternalIds: new Set([entryId]),
+          entryDetails: new Map([[entryId, { ...matchingEntry, amount: 1, deleted: true }]]),
+          goalExternalIds: new Set([target]),
+          goalDetails: new Map([[target, { projectId: "hub-p1", goalType: "target", measure: "words", targetAmount: 1, startDate: null, endDate: null, habitPeriod: null, habitThreshold: null, title: null, description: null, showOnProfile: false, deleted: true }]]),
+          startingBalances: new Map(),
+        })
+      );
+      expect(p.projectUpdates).toEqual([]);
+      expect(p.startingBalanceUpdates.filter((u) => u.projectExternalId === P1)).toEqual([]);
+      expect(p.entryUpdates).toEqual([]);
+      expect(p.goalUpdates).toEqual([]);
+    });
+
+    it("does not report problems again for a record that was reported when it was first imported", () => {
+      const odd = makeTrackbearData();
+      odd.projects[0].startingBalance = { word: 5, bogus: 3 };
+      odd.tallies[0].measure = "bogus";
+      const p = planTrackbearImport(
+        odd,
+        existingWith({ entryExternalIds: new Set([entryId]), projectDetails: new Map([[P1, matchingProject]]), startingBalances: new Map() })
+      );
+      expect(p.issues.filter((i) => i.kind === "entry" && /bogus/.test(i.detail))).toEqual([]);
+      expect(p.issues.filter((i) => /bogus/.test(i.detail))).toEqual([]);
+      expect(p.startingBalanceUpdates).toEqual([{ projectExternalId: P1, measure: "words", amount: 5 }]);
+    });
   });
 });

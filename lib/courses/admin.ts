@@ -333,8 +333,8 @@ export async function loadHubOutline(supabase: SupabaseClient, courseId: string)
   const courses = createRepos(supabase).courses;
   const [modules, lessons] = await Promise.all([courses.modulesOf([courseId], { includeHidden: true }), courses.lessonsOf([courseId], { includeHidden: true })]);
   return buildHubOutline(
-    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
+    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, publishing_option: m.publishing_option })),
     // `excerpt` stands in for "has text": the full text is large, and the excerpt is set whenever there is some.
-    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
+    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, publishing_option: l.publishing_option, hasText: l.excerpt !== null, hasVideo: l.video_id !== null }))
   );
 }
