@@ -117,7 +117,7 @@ export default function ChatLive({
     if (view === "thread") {
       emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
     } else {
-      emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+      emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx, removedIds: (result as { removedIds?: string[] }).removedIds });
       // The unread line the cached page drew is where the marker was then; the reader has moved it since.
       const readMarker = (result as { readMarker?: string | null }).readMarker;
       if (readMarker !== undefined) {

@@ -366,6 +366,16 @@ describe("ChatLive", () => {
       expect(screen.queryByText(/New messages/)).toBeNull();
     });
 
+    it("tells the list which messages the server says are gone, so a delete made in Slack leaves it", async () => {
+      loadLatestChat.mockResolvedValue({ ...(fetched("m1") as object), removedIds: ["gone-1"] });
+      await mount();
+      act(() => handlers.chat_messages({ eventType: "UPDATE", new: { id: "gone-1", thread_root_id: null }, old: {} }));
+      await act(async () => vi.advanceTimersByTime(1000));
+
+      expect(loadLatestChat).toHaveBeenCalledWith("c1", ["gone-1"]);
+      expect(events).toEqual([expect.objectContaining({ kind: "merge", removedIds: ["gone-1"] })]);
+    });
+
     it("still holds a new message behind the pill when scrolled up, and fetches when it is clicked", async () => {
       scrolledTo("top");
       await mount();

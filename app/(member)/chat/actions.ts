@@ -158,10 +158,16 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
     Math.round(afterMessages - afterChannel),
     Math.round(done - afterMessages)
   );
-  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker };
+  // Asked for but not shown: deleted (a delete made in Slack leaves a message with no replies out of the views) or no
+  // longer readable. The open list takes them away.
+  const shown = new Set(views.map((v) => v.id));
+  const removedIds = wanted.filter((id) => !shown.has(id));
+  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker, removedIds };
 }
 
 export interface LatestChat extends OlderChat {
+  /** Messages asked about by id that are gone now (deleted, or not readable): the open list drops them. */
+  removedIds?: string[];
   /** Where the member has read up to (null: nowhere, or sudo). Only when asked for. */
   readMarker?: string | null;
 }

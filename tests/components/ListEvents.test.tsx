@@ -199,13 +199,14 @@ describe("MessageList: shows what is being sent", () => {
     ]);
   });
 
-  it("takes away a message the server says was deleted, unless replies keep it as a tombstone", () => {
+  it("takes away the messages the server says are gone, and keeps a tombstone it still sends", () => {
     render(list([serverView(1), serverView(2), serverView(3)]));
     act(() =>
       emitListEvent({
         kind: "merge",
         channelId: "c1",
-        views: [serverView(1, { contentState: "deleted", body: null, replyCount: 0 }), serverView(2, { contentState: "deleted", body: null, replyCount: 2 })],
+        views: [serverView(2, { contentState: "deleted", body: null, replyCount: 2 })],
+        removedIds: [serverView(1).id],
         ctx: CTX,
       }),
     );
