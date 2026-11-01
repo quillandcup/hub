@@ -409,11 +409,9 @@ this suite is gating CI on every PR.
 Don't just flip `fileParallelism` back to `true` without one of the above -- that's what
 caused the pollution/flakiness in the first place.
 
-### Set the Checkly heartbeat URL for the retention job _(Needs Action)_
+### Set the Checkly heartbeat URL for the retention job
 
-`/api/reconcile/retention` (the nightly job that keeps the device and removes raw IPs and browser strings after 90 days) is deployed with a heartbeat registered in `lib/cron-heartbeats.ts` (`reconcile-retention`), but `pingCronHeartbeat` does nothing until its env var is set, so a failed or missed night alerts nobody. Adding the monitor needs more uptime monitors than the Checkly plan allows (10, all in use), and the upgrade goes from $0 to $24/month (2026-10-31), so it is held. Every `checkly deploy` since the job landed was refused for that reason, and the job still showed green until the pipefail fix. To make room without paying, the separate SSL certificate monitor was removed: the alert channels' SSL-expiry alert (`sslExpiry` in `__checks__/alert-channels.ts`, 30 days ahead) already watches the app's certificate through the Mux API checks, which request the app host. Once that deploys, the retention monitor is created and the steps at the end of this entry apply.
-
-If the plan stays as it is, cheaper partial cover for the failure case (not for a night that never runs): report the route's caught error to Sentry (`Sentry.captureException` in the `catch` of `app/api/reconcile/retention/route.ts`, with an alert rule), and glance at the route's `[Reconciliation] Retention complete` log line in Vercel after a deploy. When upgrading: deploy the checks (`__checks__/cron-heartbeats.check.ts` builds one monitor per entry), copy the new monitor's ping URL into `.env.prod` as `CHECKLY_HEARTBEAT_RECONCILE_RETENTION`, and run `pnpm env:sync` (see the header of `lib/cron-heartbeats.ts`). The date that matters is 2027-01-16, when the first raw value is old enough to be removed.
+**Resolved 2026-11-01:** the `reconcile-retention` monitor exists in Checkly (the separate SSL certificate monitor was removed to stay within the plan; the alert channels' SSL-expiry alert on the Mux API checks watches the app's certificate) and its ping URL is set, so a missed or failed night now alerts. Verified the morning after: the monitor shows its first ping (the 04:00 UTC run), and the route's log line reports the first rollup (10 days and 1 week rolled up, nothing yet old enough to prune or to remove raw network details). The date that matters is still 2027-01-16, when the first raw value is old enough to be removed.
 
 ### Point the old marketing site's privacy-policy link at `/privacy` _(Needs Action)_
 
