@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { CHANNELS } from "@/lib/channels/catalog";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
 import fs from "node:fs";
@@ -44,13 +44,7 @@ const prickle = {
 
 // The sample prickle comes from its repository, in memory here.
 let dataset = new InMemoryDataset();
-vi.mock("@/lib/data/repos", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return {
-    ...actual,
-    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), prickles: actual.createInMemoryRepos(dataset).prickles }),
-  };
-});
+const repos = () => createInMemoryRepos(dataset);
 
 beforeEach(() => {
   dataset = new InMemoryDataset({ prickleTypes: [POMODORO], prickles: [prickle] });
@@ -64,14 +58,14 @@ beforeEach(() => {
 
 describe("sampleMessages", () => {
   it.each(NOTIFICATION_KINDS.map((k) => k.id))("builds a sample for %s that's marked as a test", async (kind) => {
-    const messages = await sampleMessages(createFakeSupabase(), kind, NOW);
+    const messages = await sampleMessages(repos(), kind, NOW);
 
     expect(messages.length).toBeGreaterThan(0);
     for (const message of messages) expect(message.text.startsWith("[Test] ")).toBe(true);
   });
 
   it.each(NOTIFICATION_KINDS.map((k) => k.id))("builds %s as a member receives it with { test: false }: no test marker anywhere", async (kind) => {
-    const messages = await sampleMessages(createFakeSupabase(), kind, NOW, { test: false });
+    const messages = await sampleMessages(repos(), kind, NOW, { test: false });
 
     expect(messages.length).toBeGreaterThan(0);
     for (const message of messages) {
@@ -81,7 +75,7 @@ describe("sampleMessages", () => {
   });
 
   it("builds both Big Sister versions: to the new member and to the Big Sister", async () => {
-    const messages = await sampleMessages(createFakeSupabase(), "big_sister_match", NOW);
+    const messages = await sampleMessages(repos(), "big_sister_match", NOW);
 
     expect(messages.map((m) => m.title)).toEqual([
       "[Test] Meet your new Big Sister in the Hedgie House!",
@@ -90,13 +84,13 @@ describe("sampleMessages", () => {
   });
 
   it("links the intro reminder to the #start-here channel", async () => {
-    const [message] = await sampleMessages(createFakeSupabase(), "intro_nudge", NOW);
+    const [message] = await sampleMessages(repos(), "intro_nudge", NOW);
 
     expect(message.url).toContain("channel=CSTART");
   });
 
   it("uses the next prickle for a check-in, so its link and text are real", async () => {
-    const [message] = await sampleMessages(createFakeSupabase(), "prickle_checkin", NOW);
+    const [message] = await sampleMessages(repos(), "prickle_checkin", NOW);
 
     expect(message.text).toContain("Pomodoro");
     expect(message.url).toContain("p1");
@@ -104,7 +98,7 @@ describe("sampleMessages", () => {
 
   it("falls back to a stand-in prickle when there are none", async () => {
     dataset = new InMemoryDataset();
-    const [message] = await sampleMessages(createFakeSupabase(), "prickle_checkout", NOW);
+    const [message] = await sampleMessages(repos(), "prickle_checkout", NOW);
 
     expect(message.text).toContain("Sprint Prickle");
   });
@@ -112,7 +106,7 @@ describe("sampleMessages", () => {
 
 describe("sendTestNotification", () => {
   it("wires the actual Browser check-in sample to the worker's click handler and diagnostic entry", async () => {
-    await sendTestNotification(createFakeSupabase(), "m1", "prickle_checkin", "web_push", NOW);
+    await sendTestNotification(repos(), "m1", "prickle_checkin", "web_push", NOW);
     const [, message, context] = mocks.send.mock.calls[0];
     expect(message.text).toMatch(/^\[Test\]/);
     const payload = JSON.parse(JSON.stringify(pushPayload(message, context, NOW.getTime())));
@@ -152,7 +146,7 @@ describe("sendTestNotification", () => {
   });
 
   it("sends the sample on the chosen channel only, as that kind, to the member's address", async () => {
-    const result = await sendTestNotification(createFakeSupabase(), "m1", "prickle_nudge", "email", NOW);
+    const result = await sendTestNotification(repos(), "m1", "prickle_nudge", "email", NOW);
 
     expect(result).toEqual({ ok: true, sent: 1 });
     expect(mocks.send).toHaveBeenCalledTimes(1);
@@ -164,13 +158,13 @@ describe("sendTestNotification", () => {
   });
 
   it("sends every message of a kind that has more than one", async () => {
-    expect(await sendTestNotification(createFakeSupabase(), "m1", "big_sister_match", "in_app", NOW)).toEqual({ ok: true, sent: 2 });
+    expect(await sendTestNotification(repos(), "m1", "big_sister_match", "in_app", NOW)).toEqual({ ok: true, sent: 2 });
   });
 
   it.each(CHANNELS.map((c) => c.id))("says why %s can't reach the member, and sends nothing", async (channel) => {
     mocks.addresses.delete(channel);
 
-    const result = await sendTestNotification(createFakeSupabase(), "m1", "intro_nudge", channel, NOW);
+    const result = await sendTestNotification(repos(), "m1", "intro_nudge", channel, NOW);
 
     expect(result).toEqual({ ok: false, error: UNREACHABLE_REASON[channel] });
     expect(mocks.send).not.toHaveBeenCalled();
@@ -179,7 +173,7 @@ describe("sendTestNotification", () => {
   it("reports the channel's own failure instead of swallowing it", async () => {
     mocks.send.mockRejectedValueOnce(new Error("Resend responded 403"));
 
-    const result = await sendTestNotification(createFakeSupabase(), "m1", "intro_nudge", "email", NOW);
+    const result = await sendTestNotification(repos(), "m1", "intro_nudge", "email", NOW);
 
     expect(result).toEqual({ ok: false, error: "Email failed: Resend responded 403" });
   });

@@ -9,10 +9,11 @@ vi.mock("@slack/web-api", () => ({
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => db.client }));
 const alerts = vi.hoisted(() => ({ send: vi.fn(), sentry: vi.fn() }));
+vi.mock("@/lib/data/repos", () => ({ createRepos: (client: unknown) => ({ over: client }) }));
 vi.mock("@/lib/operations-alerts", () => ({ sendOperationsAlert: alerts.send }));
 vi.mock("@sentry/nextjs", () => ({ captureException: alerts.sentry }));
 
-import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled } from "@/lib/slack-bot-token";
+import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled, seedBotToken } from "@/lib/slack-bot-token";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const HOUR = 3600_000;
@@ -235,7 +236,7 @@ describe("telling staff when the bot token is in trouble", () => {
     slack.access.mockResolvedValue(refreshed());
     db.state.saveFailures = 10;
     await getSlackBotToken(db.client);
-    expect(alerts.send).toHaveBeenCalledWith(db.client, { type: "slack_bot_token_failed", problem: "not_stored", detail: "write failed" });
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "not_stored", detail: "write failed" });
     expect(alerts.sentry).toHaveBeenCalledWith(expect.anything(), { tags: { slack_bot_token: "not_stored" } });
   });
 
@@ -248,7 +249,7 @@ describe("telling staff when the bot token is in trouble", () => {
     forgetSlackBotToken();
     store("xoxe.xoxb-old", 10 * 60_000);
     await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-old");
-    expect(alerts.send).toHaveBeenCalledWith(db.client, { type: "slack_bot_token_failed", problem: "refresh_failed", detail: "slack is down" });
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "refresh_failed", detail: "slack is down" });
   });
 
   it("alerts once, then throws, when the token has expired and could not be refreshed", async () => {
@@ -256,7 +257,7 @@ describe("telling staff when the bot token is in trouble", () => {
     slack.access.mockRejectedValue(new Error("invalid_refresh_token"));
     await expect(getSlackBotToken(db.client)).rejects.toThrow("expired and could not be refreshed");
     expect(alerts.send).toHaveBeenCalledTimes(1);
-    expect(alerts.send).toHaveBeenCalledWith(db.client, { type: "slack_bot_token_failed", problem: "expired", detail: "invalid_refresh_token" });
+    expect(alerts.send).toHaveBeenCalledWith({ over: db.client }, { type: "slack_bot_token_failed", problem: "expired", detail: "invalid_refresh_token" });
   });
 
   it("doesn't loop when the alert itself needs the bot token (which is what is broken)", async () => {
@@ -274,6 +275,26 @@ describe("telling staff when the bot token is in trouble", () => {
     slack.access.mockRejectedValue(new Error("invalid_refresh_token"));
     alerts.send.mockRejectedValue(new Error("email is down too"));
     await expect(getSlackBotToken(db.client)).rejects.toThrow("expired and could not be refreshed");
+  });
+});
+
+describe("seedBotToken (recovery after a reinstall)", () => {
+  useFakeClock(() => NOW);
+
+  it("stores the pair as already expired, so the first use refreshes it and the app stores what it gets back", async () => {
+    store("xoxe.xoxb-dead", -1000, "xoxe-dead-refresh");
+    await seedBotToken(db.client, "xoxe.xoxb-seed", "xoxe-seed-refresh");
+    expect(db.state.row).toMatchObject({ access: "xoxe.xoxb-seed", refresh: "xoxe-seed-refresh", expires: NOW });
+
+    slack.access.mockResolvedValue(refreshed("9"));
+    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-9");
+    expect(slack.access).toHaveBeenCalledWith(expect.objectContaining({ refresh_token: "xoxe-seed-refresh" }));
+    expect(db.state.row).toMatchObject({ access: "xoxe.xoxb-9", refresh: "xoxe-refresh-9" });
+  });
+
+  it("says so when it can't store them", async () => {
+    db.state.saveFailures = 1;
+    await expect(seedBotToken(db.client, "a", "r")).rejects.toThrow("Could not store the tokens");
   });
 });
 

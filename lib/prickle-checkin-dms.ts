@@ -1,4 +1,4 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import type { CheckinDmKind, CheckinHalfKind } from "@/lib/data/prickle-activity";
 import {
   PROGRESS_QUESTION_MEASURES,
@@ -35,6 +35,8 @@ import {
   type ScalePoint,
 } from "@/lib/prickle-checkins";
 
+type DmRepos = Repos;
+
 /**
  * Prickle check-in and check-out DMs: Slack's way into the same check-in as the prickle page
  * (lib/prickle-checkins.ts, prickle_checkins). ~20 min before a prickle on their calendar, a
@@ -57,8 +59,8 @@ export interface GoalCandidate {
  * tracking words, chapters, scenes etc. wants them as much as one counting prickles; the measure
  * only decides what the check-out's progress quick-log asks about.
  */
-export async function getActiveGoalCandidates(supabase: any): Promise<GoalCandidate[]> {
-  const rows = await createRepos(supabase).writing.activeGoalCandidates();
+export async function getActiveGoalCandidates(repos: DmRepos): Promise<GoalCandidate[]> {
+  const rows = await repos.writing.activeGoalCandidates();
 
   return rows.map((g) => ({
     memberId: g.member_id,
@@ -90,7 +92,7 @@ const CALENDAR_LOAD_CONCURRENCY = 10;
  * the calendar shows. A member whose calendar fails to load is logged and gets no check-ins this tick.
  */
 export async function loadCalendarPrickleIdsByMember(
-  supabase: any,
+  repos: DmRepos,
   memberIds: string[],
   since: Date,
   now: Date = new Date()
@@ -100,7 +102,7 @@ export async function loadCalendarPrickleIdsByMember(
     await Promise.all(
       memberIds.slice(i, i + CALENDAR_LOAD_CONCURRENCY).map(async (memberId) => {
         try {
-          result.set(memberId, await loadCalendarFeedPrickleIds(createRepos(supabase), memberId, since, now));
+          result.set(memberId, await loadCalendarFeedPrickleIds(repos, memberId, since, now));
         } catch (error) {
           console.error(`loadCalendarPrickleIdsByMember: calendar failed to load for member=${memberId}:`, error);
           result.set(memberId, new Set());
@@ -150,7 +152,7 @@ export type CheckinDMKind = CheckinDmKind;
  * must only send the Slack message when this returns true.
  */
 export async function tryRecordCheckinDM(
-  supabase: any,
+  repos: DmRepos,
   prickleId: string,
   memberId: string,
   kind: CheckinDMKind
@@ -158,7 +160,7 @@ export async function tryRecordCheckinDM(
   try {
     // The repository answers false for a unique violation (another tick, or the other sender, already
     // recorded this pair): not a real error, just "don't send."
-    return await createRepos(supabase).prickleActivity.claimDm(prickleId, memberId, kind);
+    return await repos.prickleActivity.claimDm(prickleId, memberId, kind);
   } catch (error) {
     console.error(`tryRecordCheckinDM failed for prickle=${prickleId} member=${memberId} kind=${kind}:`, error);
     return false;
@@ -167,21 +169,21 @@ export async function tryRecordCheckinDM(
 
 /** Release an undelivered claim so a later cron tick can retry within the normal send window. */
 export async function releaseCheckinDM(
-  supabase: any,
+  repos: DmRepos,
   prickleId: string,
   memberId: string,
   kind: CheckinDMKind
 ): Promise<void> {
   try {
-    await createRepos(supabase).prickleActivity.releaseDm(prickleId, memberId, kind);
+    await repos.prickleActivity.releaseDm(prickleId, memberId, kind);
   } catch (error) {
     throw new Error(`Releasing ${kind} notification claim failed: ${(error as Error).message}`);
   }
 }
 
 /** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
-async function recentMeasures(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure[]> {
-  const recent = await createRepos(supabase).writing.recentEntryMeasures(memberId, 50, { projectId });
+async function recentMeasures(repos: DmRepos, projectId: string, memberId: string): Promise<WritingMeasure[]> {
+  const recent = await repos.writing.recentEntryMeasures(memberId, 50, { projectId });
   return [...new Set(recent.map((e) => e.measure) as WritingMeasure[])];
 }
 
@@ -441,24 +443,24 @@ export function parseDismiss(action: any): { half: CheckinHalfKind; prickleId: s
  * Slack DM all stop asking, and the in-app notification is marked read so its banner and the bell
  * count go too. Returns an error message, or null.
  */
-export async function dismissCheckinHalf(supabase: any, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
+export async function dismissCheckinHalf(repos: DmRepos, half: CheckinHalfKind, memberId: string, prickleId: string): Promise<string | null> {
   try {
-    await createRepos(supabase).prickleActivity.dismiss(half, memberId, prickleId);
+    await repos.prickleActivity.dismiss(half, memberId, prickleId);
   } catch (error) {
     console.error(`dismiss ${half}: insert failed`, { memberId, prickleId, error });
     return `Couldn't dismiss that ${HALF_LABEL[half]}`;
   }
-  await resolveInAppNotifications(supabase, memberId, `prickle_${half}`, prickleId);
+  await resolveInAppNotifications(repos, memberId, `prickle_${half}`, prickleId);
   return null;
 }
 
-export const dismissCheckin = (supabase: any, memberId: string, prickleId: string) => dismissCheckinHalf(supabase, "checkin", memberId, prickleId);
-export const dismissCheckout = (supabase: any, memberId: string, prickleId: string) => dismissCheckinHalf(supabase, "checkout", memberId, prickleId);
+export const dismissCheckin = (repos: DmRepos, memberId: string, prickleId: string) => dismissCheckinHalf(repos, "checkin", memberId, prickleId);
+export const dismissCheckout = (repos: DmRepos, memberId: string, prickleId: string) => dismissCheckinHalf(repos, "checkout", memberId, prickleId);
 
 /** Which of these prickles the member dismissed this half for. */
-export async function loadDismissedIds(supabase: any, half: CheckinHalfKind, memberId: string, prickleIds: string[]): Promise<Set<string>> {
+export async function loadDismissedIds(repos: DmRepos, half: CheckinHalfKind, memberId: string, prickleIds: string[]): Promise<Set<string>> {
   // A failed read hides nothing: the offer shows, like before.
-  return createRepos(supabase)
+  return repos
     .prickleActivity.dismissedAmong(half, memberId, prickleIds)
     .catch((error) => {
       console.error(`loadDismissedIds ${half}: read failed`, { memberId, error });
@@ -466,11 +468,11 @@ export async function loadDismissedIds(supabase: any, half: CheckinHalfKind, mem
     });
 }
 
-export const loadDismissedCheckinIds = (supabase: any, memberId: string, prickleIds: string[]) => loadDismissedIds(supabase, "checkin", memberId, prickleIds);
+export const loadDismissedCheckinIds = (repos: DmRepos, memberId: string, prickleIds: string[]) => loadDismissedIds(repos, "checkin", memberId, prickleIds);
 
 /** `${memberId}:${prickleId}` for every dismissal of this half, for senders working through many members. */
-export async function loadDismissedPairs(supabase: any, half: CheckinHalfKind, prickleIds: string[]): Promise<Set<string>> {
-  return createRepos(supabase).prickleActivity.dismissedPairs(half, prickleIds);
+export async function loadDismissedPairs(repos: DmRepos, half: CheckinHalfKind, prickleIds: string[]): Promise<Set<string>> {
+  return repos.prickleActivity.dismissedPairs(half, prickleIds);
 }
 
 /** The check-out DM, after a prickle: got what they came for, mood, the feeling, then the progress quick-log. */
@@ -542,13 +544,13 @@ export function withSavedAnswer(blocks: any[] | undefined, answer: CheckinAnswer
 
 /** Saved check-ins for these members and prickles, keyed `${memberId}:${prickleId}`. */
 export async function loadCheckins(
-  supabase: any,
+  repos: DmRepos,
   memberIds: string[],
   prickleIds: string[]
 ): Promise<Map<string, CheckinInput>> {
   const result = new Map<string, CheckinInput>();
   if (memberIds.length === 0 || prickleIds.length === 0) return result;
-  return createRepos(supabase).prickleActivity.checkinsOfMembers(memberIds, prickleIds);
+  return repos.prickleActivity.checkinsOfMembers(memberIds, prickleIds);
 }
 
 /**
@@ -557,9 +559,9 @@ export async function loadCheckins(
  * clearing it leaves nothing (writeCheckin). A service-role write, so the caller must already have matched the Slack user to
  * `memberId`. Returns an error message, or null when saved.
  */
-export async function saveCheckinAnswer(supabase: any, memberId: string, answer: CheckinAnswer): Promise<string | null> {
+export async function saveCheckinAnswer(repos: DmRepos, memberId: string, answer: CheckinAnswer): Promise<string | null> {
   const { prickleId, field, values } = answer;
-  const repo = createRepos(supabase).prickleActivity;
+  const repo = repos.prickleActivity;
   let existing: CheckinInput | null;
   try {
     existing = await repo.checkinOf(memberId, prickleId);
@@ -577,7 +579,7 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
   } catch (error) {
     return `couldn't save check-in: ${(error as Error).message}`;
   }
-  await resolveAnsweredCheckinNotifications(supabase, memberId, prickleId, next);
+  await resolveAnsweredCheckinNotifications(repos, memberId, prickleId, next);
   return null;
 }
 
@@ -587,14 +589,14 @@ export async function saveCheckinAnswer(supabase: any, memberId: string, answer:
  * and the bell stops counting them.
  */
 export async function resolveAnsweredCheckinNotifications(
-  supabase: any,
+  repos: DmRepos,
   memberId: string,
   prickleId: string,
   checkin: CheckinInput
 ): Promise<void> {
   await Promise.all([
-    checkinAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkin", prickleId) : null,
-    checkoutAnswered(checkin) ? resolveInAppNotifications(supabase, memberId, "prickle_checkout", prickleId) : null,
+    checkinAnswered(checkin) ? resolveInAppNotifications(repos, memberId, "prickle_checkin", prickleId) : null,
+    checkoutAnswered(checkin) ? resolveInAppNotifications(repos, memberId, "prickle_checkout", prickleId) : null,
   ]);
 }
 
@@ -674,8 +676,8 @@ export function planCheckoutDMs<P extends RecentPrickle>(
 }
 
 /** prickleId -> member ids with attendance for it. */
-async function loadAttendees(supabase: any, prickleIds: string[]): Promise<Map<string, Set<string>>> {
-  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
+async function loadAttendees(repos: DmRepos, prickleIds: string[]): Promise<Map<string, Set<string>>> {
+  const links = await repos.attendance.forPrickles(prickleIds);
   const result = new Map<string, Set<string>>();
   for (const link of links) {
     const set = result.get(link.prickleId) ?? new Set<string>();
@@ -686,13 +688,13 @@ async function loadAttendees(supabase: any, prickleIds: string[]): Promise<Map<s
 }
 
 /** `${memberId}:${prickleId}` for every check-out already sent for these prickles. */
-async function loadSentCheckouts(supabase: any, prickleIds: string[]): Promise<Set<string>> {
-  return createRepos(supabase).prickleActivity.claimedDmPairs("prickle_checkout", prickleIds);
+async function loadSentCheckouts(repos: DmRepos, prickleIds: string[]): Promise<Set<string>> {
+  return repos.prickleActivity.claimedDmPairs("prickle_checkout", prickleIds);
 }
 
 /** `${memberId}:${prickleId}:${projectId}` for every project already logged against these prickles. */
-async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds: string[]): Promise<Set<string>> {
-  const rows = await createRepos(supabase).writing.loggedAgainstPrickles(memberIds, prickleIds);
+async function loadLoggedProjects(repos: DmRepos, memberIds: string[], prickleIds: string[]): Promise<Set<string>> {
+  const rows = await repos.writing.loggedAgainstPrickles(memberIds, prickleIds);
   return new Set(rows.map((r) => `${r.member_id}:${r.prickle_id}:${r.project_id}`));
 }
 
@@ -706,7 +708,7 @@ async function loadLoggedProjects(supabase: any, memberIds: string[], prickleIds
  * check-out answered too (checkoutAnswered), no DM. Returns the number of DMs sent.
  */
 export async function sendCheckoutDMs(
-  supabase: any,
+  repos: DmRepos,
   prickles: RecentPrickle[],
   candidates: GoalCandidate[],
   now: number
@@ -718,10 +720,10 @@ export async function sendCheckoutDMs(
     ? earliestStart - PRESENCE_LOOKBEHIND_MS
     : now - CHECKOUT_LOOKBACK_MS - PRESENCE_LOOKBEHIND_MS;
   const [attendeesByPrickle, alreadySent, skipped, presenceByMember] = await Promise.all([
-    loadAttendees(supabase, prickleIds),
-    loadSentCheckouts(supabase, prickleIds),
-    loadDismissedPairs(supabase, "checkout", prickleIds),
-    loadPresenceByMember(createRepos(supabase), new Date(presenceSince), new Date(now)),
+    loadAttendees(repos, prickleIds),
+    loadSentCheckouts(repos, prickleIds),
+    loadDismissedPairs(repos, "checkout", prickleIds),
+    loadPresenceByMember(repos, new Date(presenceSince), new Date(now)),
   ]);
   const dueByPrickle = dueCheckoutMembers(prickles, attendeesByPrickle, presenceByMember, now);
   // A dismissed check-out is as good as a sent one: nothing more goes out for the pair.
@@ -731,9 +733,9 @@ export async function sendCheckoutDMs(
   const memberIds = [...new Set(plan.map((p) => p.memberId))];
   const plannedPrickleIds = [...new Set(plan.map((p) => p.prickle.id))];
   const [notifier, checkins, loggedProjects] = await Promise.all([
-    createNotifier(supabase, "prickle_checkout", memberIds),
-    loadCheckins(supabase, memberIds, plannedPrickleIds),
-    loadLoggedProjects(supabase, memberIds, plannedPrickleIds),
+    createNotifier(repos, "prickle_checkout", memberIds),
+    loadCheckins(repos, memberIds, plannedPrickleIds),
+    loadLoggedProjects(repos, memberIds, plannedPrickleIds),
   ]);
   const goalsByMember = groupByMember(candidates);
 
@@ -751,13 +753,13 @@ export async function sendCheckoutDMs(
     if (checkoutAnswered(saved) && unlogged.length === 0) continue;
 
     // Build before claiming: a failed progress lookup mustn't consume the notification.
-    const message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, unlogged));
-    const shouldSend = await tryRecordCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
+    const message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, unlogged));
+    const shouldSend = await tryRecordCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
     if (!shouldSend) continue;
 
     const delivered = await notifier.send(memberId, message);
     if (delivered.length > 0) sent++;
-    else await releaseCheckinDM(supabase, prickle.id, memberId, "prickle_checkout");
+    else await releaseCheckinDM(repos, prickle.id, memberId, "prickle_checkout");
   }
   return sent;
 }
@@ -767,7 +769,7 @@ export async function sendCheckoutDMs(
  * its goals track (or, for a prickles-only goal, what they last logged, else minutes), the same
  * rule the web check-out follows (progressMeasureFor).
  */
-async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<QuickLogPrompt[]> {
+async function quickLogPrompts(repos: DmRepos, goals: GoalCandidate[]): Promise<QuickLogPrompt[]> {
   const byProject = new Map<string, { goal: GoalCandidate; measures: WritingMeasure[] }>();
   for (const goal of goals) {
     const entry = byProject.get(goal.projectId) ?? { goal, measures: [] };
@@ -776,7 +778,7 @@ async function quickLogPrompts(supabase: any, goals: GoalCandidate[]): Promise<Q
   }
   const prompts: QuickLogPrompt[] = [];
   for (const { goal, measures } of byProject.values()) {
-    const measure = progressMeasureFor(measures, await recentMeasures(supabase, goal.projectId, goal.memberId));
+    const measure = progressMeasureFor(measures, await recentMeasures(repos, goal.projectId, goal.memberId));
     prompts.push({ projectId: goal.projectId, projectTitle: goal.projectTitle, measure });
   }
   return prompts;
@@ -848,26 +850,26 @@ export function checkoutMessage(
  * Returns an error message, or the channels it went out on.
  */
 export async function sendTestCheckinDM(
-  supabase: any,
+  repos: DmRepos,
   memberId: string,
   prickle: DMPrickle,
   kind: CheckinDMKind
 ): Promise<{ error: string } | { delivered: ChannelId[] }> {
-  const notifier = await createNotifier(supabase, kind, [memberId], { channels: ["slack", "email"] });
+  const notifier = await createNotifier(repos, kind, [memberId], { channels: ["slack", "email"] });
   if (!notifier.canReach(memberId)) {
     return { error: "Neither a Slack account nor an email address is matched to your member record." };
   }
 
-  const saved = (await loadCheckins(supabase, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
+  const saved = (await loadCheckins(repos, [memberId], [prickle.id])).get(`${memberId}:${prickle.id}`) ?? null;
   let message: OutboundMessage;
   if (kind === "prickle_checkin") {
     message = checkinMessage(prickle, saved, {
       test: true,
-      join: joinAt(await loadPrickleJoinSettings(createRepos(supabase)), prickle.startTime),
+      join: joinAt(await loadPrickleJoinSettings(repos), prickle.startTime),
     });
   } else {
-    const goals = (await getActiveGoalCandidates(supabase)).filter((g) => g.memberId === memberId);
-    message = checkoutMessage(prickle, saved, await quickLogPrompts(supabase, goals), { test: true });
+    const goals = (await getActiveGoalCandidates(repos)).filter((g) => g.memberId === memberId);
+    message = checkoutMessage(prickle, saved, await quickLogPrompts(repos, goals), { test: true });
   }
   const delivered = await notifier.send(memberId, message);
   return delivered.length > 0 ? { delivered } : { error: "Nothing went out; check the server logs." };

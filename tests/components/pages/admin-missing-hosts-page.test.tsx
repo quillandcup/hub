@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { HOSTING_HEAVY } from "@/lib/data/profiles/index";
 import { buildDataset } from "@/lib/data/seed-profile";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -23,7 +23,6 @@ import MissingHostsPage from "@/app/(admin)/admin/data-health/missing-hosts/page
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({});
   requireAdminPage.mockClear();
 });
 

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, expectRedirect, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -33,7 +33,6 @@ const params = (slug: string) => ({ params: Promise.resolve({ slug }), searchPar
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER);
-  useFakeSupabase({});
   dataset = new InMemoryDataset(eventSeed([
     { id: ID, slug: "spring-retreat", title: "Spring Retreat" },
     { id: "evt_AAAAAAAAAAA2", slug: "quiet-one", title: "Quiet One", deleted_at: "2097-01-01T00:00:00Z" },

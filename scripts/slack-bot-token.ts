@@ -3,6 +3,9 @@
 //   pnpm slack:bot-token status               when the stored credential expires (never prints a token)
 //   pnpm slack:bot-token exchange --confirm   the one-time exchange of the long-lived SLACK_BOT_TOKEN for a
 //                                             rotating one, stored in Vault
+//   pnpm slack:bot-token seed --confirm       recovery: replace the stored credential with an access and refresh token
+//                                             you paste at the prompts (after a reinstall, when the stored refresh
+//                                             token is gone). Checks the access token with Slack first.
 //
 // Runs against whatever Supabase project and Slack app the loaded env files point at (the package script
 // loads .env.prod and .env.shared). The exchange is for after the Slack app has opted into token rotation
@@ -11,7 +14,9 @@
 // token can be exchanged only once, so this refuses to run twice and asks for --confirm.
 
 import { createClient } from "@supabase/supabase-js";
-import { botTokenStatus, exchangeBotToken } from "../lib/slack-bot-token";
+import { WebClient } from "@slack/web-api";
+import { createInterface } from "node:readline/promises";
+import { botTokenStatus, exchangeBotToken, seedBotToken } from "../lib/slack-bot-token";
 
 const [command, ...flags] = process.argv.slice(2);
 
@@ -54,7 +59,28 @@ async function main() {
     return;
   }
 
-  console.error("Usage: slack-bot-token.ts status | exchange --confirm");
+  if (command === "seed") {
+    if (!flags.includes("--confirm")) {
+      console.error("This replaces the stored bot credential with tokens you paste, for recovery after a reinstall. Re-run with --confirm.");
+      process.exit(1);
+    }
+    // Asked for here, not taken from the command line, so they don't end up in shell history.
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const accessToken = (await rl.question("Access token (xoxe.xoxb-...): ")).trim();
+    const refreshToken = (await rl.question("Refresh token (xoxe-1-...): ")).trim();
+    rl.close();
+    if (!accessToken.startsWith("xoxe.xoxb-") || !refreshToken.startsWith("xoxe-")) {
+      console.error("✗ Those don't look like a rotating bot token pair (xoxe.xoxb-... and xoxe-...). Nothing stored.");
+      process.exit(1);
+    }
+    const check = await new WebClient(accessToken).auth.test();
+    if (!check.ok) throw new Error("Slack rejected that access token. Nothing stored.");
+    await seedBotToken(service, accessToken, refreshToken);
+    console.log(`✓ Stored. Slack says it is ${check.user} in ${check.team}; the first use will refresh it, so the next token is stored by the app itself.`);
+    return;
+  }
+
+  console.error("Usage: slack-bot-token.ts status | exchange --confirm | seed --confirm");
   process.exit(1);
 }
 

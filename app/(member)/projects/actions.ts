@@ -1023,7 +1023,7 @@ async function dismissUnloggedPrickleImpl(prickleId: string): Promise<{ success:
   if (typeof prickleId !== "string" || !prickleId) return { error: "Invalid prickle" };
 
   // Also closes the in-app check-out notification and stops the Slack check-out DM (dismissCheckout).
-  if (await dismissCheckout(supabase, effectiveIdentity.memberId, prickleId)) {
+  if (await dismissCheckout(createRepos(supabase), effectiveIdentity.memberId, prickleId)) {
     return { error: "Couldn't dismiss that prickle — please try again." };
   }
 

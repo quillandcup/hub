@@ -59,7 +59,7 @@ export async function createMentorship(input: {
   }
 
   await sendMatchIntroductions(
-    createServiceRoleClient(),
+    createRepos(createServiceRoleClient()),
     { mentorMemberId, newMemberId, startedOn: arrival.arrivedOn },
     today
   );

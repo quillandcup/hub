@@ -186,7 +186,7 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
     console.error("[prickle-checkins] Saving check-in failed", { member: identity.memberId, prickleId, error });
     return { error: "Couldn't save your check-in — please try again." };
   }
-  await resolveAnsweredCheckinNotifications(supabase, identity.memberId, prickleId, input);
+  await resolveAnsweredCheckinNotifications(createRepos(supabase), identity.memberId, prickleId, input);
 
   revalidateCheckinPages(prickleId);
   return { success: true };

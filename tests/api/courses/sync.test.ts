@@ -44,7 +44,7 @@ describe('syncKajabiCourses', () => {
   const mine = <T extends { slug?: string; id?: string }>(rows: T[] | undefined) => (rows ?? []).filter((r) => r.slug === SLUG || r.id === COURSE)
 
   it('imports a new course but leaves it unpublished, naming the slug publishing would use', async () => {
-    const result = await syncKajabiCourses(supabase, kajabi)
+    const result = await syncKajabiCourses(createRepos(supabase), kajabi)
 
     expect(result.error).toBeUndefined()
     expect(result.imported?.courses.find((c) => c.id === COURSE)).toMatchObject({ title: TITLE, lessons: 1 })
@@ -60,7 +60,7 @@ describe('syncKajabiCourses', () => {
   it('refreshes a course once it is published, and stops listing it as unpublished', async () => {
     await processCourses(createRepos(supabase), { courseSlug: SLUG, publish: true, accessDuration: '1 year' })
     state.lessonTitle = 'One, renamed'
-    const result = await syncKajabiCourses(supabase, kajabi)
+    const result = await syncKajabiCourses(createRepos(supabase), kajabi)
 
     expect(result.unpublished?.find((c) => c.id === COURSE)).toBeUndefined()
     expect(mine(result.processed)).toHaveLength(1)
@@ -73,7 +73,7 @@ describe('syncKajabiCourses', () => {
 
   it('reports a failure instead of throwing, so it cannot fail the member sync it rides on', async () => {
     state.fail = true
-    const result = await syncKajabiCourses(supabase, kajabi)
+    const result = await syncKajabiCourses(createRepos(supabase), kajabi)
 
     expect(result.error).toBe('Kajabi API error (500)')
     expect(result.imported).toBeUndefined()

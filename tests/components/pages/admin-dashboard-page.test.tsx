@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryAttendanceRepository } from "@/lib/data/attendance";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -58,7 +58,6 @@ beforeEach(() => {
     record("a3", MEMBERS[0].id, 2),
     record("a4", MEMBERS[1].id, 20),
   ]);
-  useFakeSupabase({ members: { data: MEMBERS } });
 });
 
 describe("admin dashboard page", () => {

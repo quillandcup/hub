@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
+import type { ProcessRepos } from "@/lib/courses/process";
 import { importKajabiCourses, type CoursesImportResult, type KajabiCoursesApi } from "@/lib/courses/import";
 import { processCourses, type ProcessCoursesResult } from "@/lib/courses/process";
 import { slugifyTitle } from "@/lib/courses/visibility";
@@ -23,18 +22,18 @@ export interface CoursesSyncResult {
   error?: string;
 }
 
-export async function syncKajabiCourses(supabase: SupabaseClient, kajabi: KajabiCoursesApi): Promise<CoursesSyncResult> {
+export async function syncKajabiCourses(repos: ProcessRepos, kajabi: KajabiCoursesApi): Promise<CoursesSyncResult> {
   const result: CoursesSyncResult = {};
   try {
-    result.imported = await importKajabiCourses(supabase, kajabi);
+    result.imported = await importKajabiCourses(repos, kajabi);
 
-    const published = await createRepos(supabase).courses.courses({ source: "kajabi", isDraft: false });
+    const published = await repos.courses.courses({ source: "kajabi", isDraft: false });
     const publishedKeys = new Set(published.map((c) => c.source_key));
     result.unpublished = result.imported.courses
       .filter((c) => !publishedKeys.has(c.id))
       .map((c) => ({ id: c.id, title: c.title, slug: slugifyTitle(c.title) }));
 
-    result.processed = (await processCourses(createRepos(supabase))).courses;
+    result.processed = (await processCourses(repos)).courses;
   } catch (error: any) {
     console.error("Kajabi courses sync failed:", error);
     result.error = error?.message || "Courses sync failed";

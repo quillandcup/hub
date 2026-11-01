@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 import { APP_URL, SUPPORT_EMAIL } from "@/lib/config";
 import { oneClickUnsubscribeUrl, signUnsubscribeToken, unsubscribePageUrl } from "@/lib/email-unsubscribe";
 
@@ -8,6 +9,13 @@ const sendEmail = vi.fn(
 );
 vi.mock("@/lib/email", () => ({ sendEmail: (p: any) => sendEmail(p) }));
 
+// The in-app channel writes with its own service-role repositories: the same in-memory ones here.
+let repos: Repos;
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/slack", () => ({ sendSlackDM: vi.fn() }));
 vi.mock("@/lib/slack-member-ids", () => ({ resolveSlackUserIds: vi.fn(async () => new Map()) }));
 
@@ -17,7 +25,15 @@ const { renderNotificationEmail } = await import("@/emails/notifications");
 
 const url = `${APP_URL}/prickles/p1/checkin`;
 const settingsUrl = `${APP_URL}${NOTIFICATION_SETTINGS_PATH}`;
-const members = { members: { data: [{ id: "m1", email: "alice@example.com" }, { id: "m2", email: null }] } };
+const world = (preferences: { memberId: string; kind: string; channel: string; enabled: boolean }[] = []) => {
+  repos = createInMemoryRepos(
+    new InMemoryDataset({
+      members: [{ id: "m1", name: "Alice Example", email: "alice@example.com" }, { id: "m2", name: "Bea Example", email: null }],
+      notificationPreferences: preferences,
+    })
+  );
+  return repos;
+};
 
 beforeEach(() => sendEmail.mockClear());
 
@@ -71,22 +87,21 @@ describe("notification email templates", () => {
 });
 
 describe("email channel", () => {
-  const optIn = (memberId: string) => ({ member_id: memberId, kind: "prickle_checkin", channel: "email", enabled: true });
+  const optIn = (memberId: string) => ({ memberId, kind: "prickle_checkin", channel: "email", enabled: true });
 
   it("is off by default: no kind sends it until the member opts in", () => {
     for (const kind of NOTIFICATION_KINDS) expect(effectiveChannels(kind.id, [])).not.toContain("email");
   });
 
   it("doesn't email a member who never chose", async () => {
-    const notifier = await createNotifier(createFakeSupabase(members), "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world(), "prickle_checkin", ["m1"]);
     await notifier.send("m1", { text: "Hello" });
 
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("emails a member who opted in, at the address on their record", async () => {
-    const fake = createFakeSupabase({ ...members, notification_preferences: { data: [optIn("m1")] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m1"]);
+    const notifier = await createNotifier(world([optIn("m1")]), "prickle_checkin", ["m1"]);
 
     expect(notifier.channelsFor("m1")).toContain("email");
     const delivered = await notifier.send("m1", { text: "Ready for Morning Writing?", url });
@@ -109,8 +124,7 @@ describe("email channel", () => {
   });
 
   it("can't reach an opted-in member with no email address", async () => {
-    const fake = createFakeSupabase({ ...members, notification_preferences: { data: [optIn("m2")] } });
-    const notifier = await createNotifier(fake, "prickle_checkin", ["m2"]);
+    const notifier = await createNotifier(world([optIn("m2")]), "prickle_checkin", ["m2"]);
 
     expect(notifier.channelsFor("m2")).not.toContain("email");
   });

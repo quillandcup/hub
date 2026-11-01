@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { consumeSlackSignIn, slackCodeRateLimits } from "@/lib/slack-sign-in";
 import { clientIpFrom, hitRateLimits } from "@/lib/rate-limit";
 import { actionOrigin, finishSlackSignIn, refreshHomeForDeadToken } from "./finish";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * "Continue to Hedgie Hub" on /auth/slack/continue: the fallback for button clicks that didn't
@@ -41,7 +42,7 @@ export async function signInWithSlackCode(_prev: SlackCodeState | null, formData
 
   // Wrong codes never reach Supabase Auth (we check them against our own table), so its per-IP
   // verification limit doesn't apply here -- this is ours.
-  if (!(await hitRateLimits(service, slackCodeRateLimits(clientIpFrom(await headers()))))) {
+  if (!(await hitRateLimits(createRepos(service), slackCodeRateLimits(clientIpFrom(await headers()))))) {
     return {
       error:
         "Too many sign-in attempts. Wait a few minutes, or use the Open Hedgie Hub button in Slack or sign in by email.",

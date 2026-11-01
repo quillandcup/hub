@@ -1,4 +1,5 @@
 import { createRepos } from "@/lib/data/repos";
+import { resolveCourseParam } from "@/lib/courses/course-param";
 import type { DeviceInfo } from "@/lib/device-label";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -58,11 +59,11 @@ async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>
  */
 export async function loadCourseWatchStats(
   supabase: SupabaseClient,
-  courseId: string,
+  courseParam: string,
   options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean; /** How many of the newest visits get a place (the page shows that many). */ sessionLimit?: number } = {}
 ): Promise<CourseWatchStats | null> {
   const repos = createRepos(supabase);
-  const course = await repos.courses.courseById(courseId);
+  const course = await repos.courses.courseById(await resolveCourseParam(repos, courseParam));
   if (!course) return null;
 
   const [moduleRows, lessonRows] = await Promise.all([repos.courses.modulesOf([course.id], { includeHidden: true }), repos.courses.lessonsOf([course.id], { includeHidden: true })]);

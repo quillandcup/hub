@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
   }
   const { rows, total } = result;
 
-  const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
+  // A removed member's feedback stays without a user (docs/TODO.md, "Removal on request").
+  const userIds = Array.from(new Set(rows.flatMap((row) => (row.user_id ? [row.user_id] : []))));
   const profiles = await createRepos(supabase).profiles.byIds(userIds);
   const emailById = new Map(profiles.map((p) => [p.id, p.email]));
 
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       }
       return {
         ...row,
-        submitter_email: emailById.get(row.user_id) ?? null,
+        submitter_email: row.user_id ? (emailById.get(row.user_id) ?? null) : null,
         screenshot_url: screenshotUrl,
       };
     })

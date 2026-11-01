@@ -7,6 +7,7 @@ import { firstParam } from "@/lib/chat/format";
 import { isId } from "@/lib/ids";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { loadChannelForMember } from "@/lib/chat/load";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Chat",
@@ -23,7 +24,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const { list } = await searchParams;
   const last = (await cookies()).get(LAST_CHAT_COOKIE)?.value;
   if (!firstParam(list) && isId(last, "chn")) {
-    const channel = await loadChannelForMember(await createClient(), last, identity.memberId, identity.isSudo);
+    const channel = await loadChannelForMember(createRepos(await createClient()), last, identity.memberId, identity.isSudo);
     if (channel) redirect(`/chat/${channel.id}`);
   }
   return (

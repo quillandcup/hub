@@ -12,7 +12,6 @@ import {
   MEMBER_USER,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -49,7 +48,6 @@ const ADMIN_IDENTITY = { memberId: "member-bramble", memberName: "Bramble", memb
 beforeEach(() => {
   resetServerPageMocks();
   sendTestCheckinDM.mockClear();
-  useFakeSupabase({});
 });
 
 describe("sendTestPrickleDM", () => {
@@ -57,7 +55,7 @@ describe("sendTestPrickleDM", () => {
     signInAs(ADMIN_USER, ADMIN_IDENTITY);
     await expect(sendTestPrickleDM("p1", "prickle_checkout")).resolves.toEqual({ success: true, delivered: ["slack", "email"] });
     expect(sendTestCheckinDM).toHaveBeenCalledWith(
-      "service-client",
+      repos,
       "member-bramble",
       { id: "p1", typeName: "Progress Prickle", title: "Monday Progress Prickle with Jenn P" },
       "prickle_checkout"

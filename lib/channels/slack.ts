@@ -8,7 +8,7 @@ import type { ChannelAdapter, OutboundMessage } from "./types";
  */
 export const slackChannel: ChannelAdapter = {
   id: "slack",
-  resolveAddresses: (supabase, memberIds) => resolveSlackUserIds(supabase, memberIds),
+  resolveAddresses: (repos, memberIds) => resolveSlackUserIds(repos, memberIds),
   async send(slackUserId, message) {
     await sendSlackDM({ slackUserId, text: message.text, blocks: slackBlocks(message) });
   },

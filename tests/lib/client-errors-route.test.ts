@@ -21,7 +21,7 @@ describe("POST /api/client-errors", () => {
   it("alerts with the route as a template, never the ids in the path", async () => {
     const response = await post({ path: "/admin/events/evt_esQojgSTH2XD?x=1", message: "Error: boom" });
     expect(response.status).toBe(204);
-    expect(sendOperationsAlert).toHaveBeenCalledWith({}, { type: "client_crash", route: "/admin/events/[id]", message: "Error: boom" });
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), { type: "client_crash", route: "/admin/events/[id]", message: "Error: boom" });
   });
 
   it("refuses anyone not signed in", async () => {

@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 const effectiveMemberHasFeature = vi.hoisted(() => vi.fn());
 const identity = vi.hoisted(() => ({ memberId: "m1", memberName: "Member", memberEmail: "m@example.test", isSudo: false }));
 const syncBrowserPush = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/browser-push", () => ({ syncBrowserPush }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => createFakeSupabase() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: async () => ({ id: "u1" }) }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: async () => identity }));
 const previews = vi.hoisted(() => ({ list: [] as string[] }));

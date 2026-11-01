@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
@@ -43,7 +43,6 @@ const attended = (id: string, memberId: string, days: number) => ({
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER);
-  useFakeSupabase({});
 });
 
 describe("at-risk page", () => {

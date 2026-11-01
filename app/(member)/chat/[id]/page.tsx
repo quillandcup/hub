@@ -38,7 +38,7 @@ import ProfileCard from "@/components/chat/ProfileCard";
 
 // generateMetadata and the page both need the channel; keyed on plain values (not the client) so one request reads it once.
 const channelFor = cache(async (id: string, memberId: string, isSudo: boolean) =>
-  loadChannelForMember(await createClient(), id, memberId, isSudo)
+  loadChannelForMember(createRepos(await createClient()), id, memberId, isSudo)
 );
 
 // The tab is titled with the conversation (channel, group or DM), most specific first.
@@ -118,9 +118,9 @@ export default async function ChatChannelPage({
   const messagesQuery = async () => {
     if (sudoHidden) return { page: null, root: null, threadPage: null };
     const [page, thread] = await Promise.all([
-      loadMessages(supabase, channel.id, { before: parseBefore(before) }),
+      loadMessages(createRepos(supabase), channel.id, { before: parseBefore(before) }),
       threadId
-        ? Promise.all([loadMessage(supabase, channel.id, threadId), loadMessages(supabase, channel.id, { threadRootId: threadId })])
+        ? Promise.all([loadMessage(createRepos(supabase), channel.id, threadId), loadMessages(createRepos(supabase), channel.id, { threadRootId: threadId })])
         : Promise.resolve(null),
     ]);
     if (thread && !thread[0]) notFound();
@@ -130,17 +130,17 @@ export default async function ChatChannelPage({
     timer.time("messages", messagesQuery()),
     // Times are in the reader's zone; "browser" means not detected yet, so the organization's.
     timer.time("timezone", getUserTimezonePreference()),
-    sudoHidden ? Promise.resolve([]) : timer.time("members", loadChannelMembers(supabase, channel.id)),
+    sudoHidden ? Promise.resolve([]) : timer.time("members", loadChannelMembers(createRepos(supabase), channel.id)),
     timer.time("readMarker", readMarkerQuery()),
     timer.time("channels", loadChatChannelsForRender(identity.memberId, identity.isSudo)),
-    profileId && !threadId && !sudoHidden ? loadMemberCard(supabase, profileId) : Promise.resolve(null),
+    profileId && !threadId && !sudoHidden ? loadMemberCard(createRepos(supabase), profileId) : Promise.resolve(null),
     timer.time("posting", postingQuery()),
   ]);
   timer.mark("parallel");
   const timeZone = isValidTimeZone(preferredZone) ? preferredZone : ORG_TIMEZONE;
   const mainRows = page?.messages ?? [];
   const threadRows = root ? [root, ...(threadPage?.messages ?? [])] : [];
-  const { views, ...rendered } = await buildMessageViews(supabase, channel, [...mainRows, ...threadRows], identity.memberId, timer);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [...mainRows, ...threadRows], identity.memberId, timer);
   const ctx = chatTextContext(rendered, channels);
   timer.log(channel.kind === "channel" ? "channel" : "group");
   const messageViews = views.slice(0, mainRows.length);

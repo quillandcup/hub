@@ -1,6 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/data/database.types";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { clock } from "@/lib/clock";
 import type { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { isTimedEvent, toBronzeEvent } from "@/lib/google-calendar/events";
@@ -55,14 +53,14 @@ export type CalendarSyncResult =
  * The nightly reconcile stays the guaranteed path (it also catches events moved out of the window).
  */
 export async function syncCalendarChanges(deps: {
-  supabase: SupabaseClient<Database>;
+  repos: Pick<Repos, "calendarEvents" | "calendarSyncState">;
   client: SyncClient;
   calendarId: string;
   fullSync: () => Promise<unknown>;
   reprocess: (range: { from: Date; to: Date }) => Promise<unknown>;
 }): Promise<CalendarSyncResult> {
-  const { supabase, client, calendarId } = deps;
-  const claim = await claimCalendarSync(supabase, calendarId, new Date(clock.now()));
+  const { repos, client, calendarId } = deps;
+  const claim = await claimCalendarSync(repos, calendarId, new Date(clock.now()));
   if (!claim.claimed) return { status: "queued" };
 
   const runs: Extract<CalendarSyncResult, { status: "done" }>["runs"] = [];
@@ -76,27 +74,27 @@ export async function syncCalendarChanges(deps: {
         await deps.fullSync();
         runs.push({ mode: "full" });
       }
-      await saveSyncedThrough(supabase, calendarId, startedAt);
+      await saveSyncedThrough(repos, calendarId, startedAt);
       since = startedAt;
-      if (await releaseCalendarSync(supabase, calendarId, new Date(clock.now()))) break;
+      if (await releaseCalendarSync(repos, calendarId, new Date(clock.now()))) break;
     }
   } catch (error) {
-    await abandonCalendarSync(supabase, calendarId);
+    await abandonCalendarSync(repos, calendarId);
     throw error;
   }
   return { status: "done", runs };
 }
 
 async function applyChanges(params: {
-  supabase: SupabaseClient<Database>;
+  repos: Pick<Repos, "calendarEvents" | "calendarSyncState">;
   client: SyncClient;
   calendarId: string;
   reprocess: (range: { from: Date; to: Date }) => Promise<unknown>;
   since: Date;
   startedAt: Date;
 }) {
-  const { supabase, client, calendarId, since, startedAt } = params;
-  const repo = createRepos(supabase).calendarEvents;
+  const { repos, client, calendarId, since, startedAt } = params;
+  const repo = repos.calendarEvents;
 
   const updatedMin = new Date(since.getTime() - OVERLAP_MS).toISOString();
   // Updates are only kept inside the watched window, but a deletion can be of any event (a past
@@ -147,7 +145,7 @@ async function applyChanges(params: {
  * otherwise leave a prickle behind for good.
  */
 export async function sweepCancelledEvents(params: {
-  supabase: SupabaseClient<Database>;
+  repos: Pick<Repos, "calendarEvents" | "calendarSyncState">;
   client: Pick<GoogleCalendarClient, "listCancelledEvents">;
   calendarId: string;
   sinceDays: number;
@@ -156,7 +154,7 @@ export async function sweepCancelledEvents(params: {
   const since = new Date(clock.now() - params.sinceDays * DAY_MS);
   const cancelled = await params.client.listCancelledEvents(params.calendarId, since.toISOString());
   const ids = cancelled.map((e) => e.id as string).filter(Boolean);
-  const removed = await createRepos(params.supabase).calendarEvents.deleteByGoogleIds(ids);
+  const removed = await params.repos.calendarEvents.deleteByGoogleIds(ids);
   if (removed.length === 0) return { cancelled: ids.length, deleted: 0, range: null };
 
   const times = removed.flatMap((e) => [e.start_time, e.end_time]).map((t) => new Date(t).getTime());

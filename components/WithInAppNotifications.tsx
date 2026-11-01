@@ -2,6 +2,7 @@ import { InAppNotificationsProvider } from "@/components/InAppNotifications";
 import { createClient } from "@/lib/supabase/server";
 import type { EffectiveIdentity } from "@/lib/sudo";
 import { BELL_LIMIT, countInAppNotifications, loadInAppNotifications } from "@/lib/channels/in-app";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Loads the effective member's in-app notifications (app/actions/in-app-notifications.ts) and
@@ -19,8 +20,8 @@ export default async function WithInAppNotifications({
   if (!identity) return <>{children}</>;
   const supabase = await createClient();
   const [latest, unreadCount] = await Promise.all([
-    loadInAppNotifications(supabase, identity.memberId, new Date(), { limit: BELL_LIMIT }),
-    countInAppNotifications(supabase, identity.memberId, { unreadOnly: true }),
+    loadInAppNotifications(createRepos(supabase), identity.memberId, new Date(), { limit: BELL_LIMIT }),
+    countInAppNotifications(createRepos(supabase), identity.memberId, { unreadOnly: true }),
   ]);
   return <InAppNotificationsProvider initial={{ latest, unreadCount }}>{children}</InAppNotificationsProvider>;
 }

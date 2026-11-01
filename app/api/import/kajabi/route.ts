@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         processing: processingResults.processed,
       };
 
-      results.courses = await syncKajabiCourses(createServiceRoleClient(), kajabi);
+      results.courses = await syncKajabiCourses(createRepos(createServiceRoleClient()), kajabi);
 
     return NextResponse.json({
       success: true,

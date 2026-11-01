@@ -1,10 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureDraftCourses } from "@/lib/courses/process";
 import type { KajabiCourseResource, KajabiCourseResponse } from "@/lib/kajabi/client";
 import { idsToSoftDelete, parseKajabiCourse, type ParsedCourse } from "@/lib/kajabi/courses";
-import type { Db } from "@/lib/data/db";
 import { asJson } from "@/lib/data/json";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 
 /**
  * Kajabi courses -> Bronze (docs/COURSES.md, step A of the migration).
@@ -49,7 +47,7 @@ export interface CoursesImportResult {
 }
 
 export async function importKajabiCourses(
-  supabase: SupabaseClient,
+  repos: Pick<Repos, "courses" | "kajabiCourses">,
   kajabi: KajabiCoursesApi,
   options: { courseIds?: string[] } = {}
 ): Promise<CoursesImportResult> {
@@ -68,7 +66,7 @@ export async function importKajabiCourses(
   for (const id of targetIds) parsed.push(parseKajabiCourse(await kajabi.fetchCourse(id)));
 
   const fetchedAt = new Date().toISOString();
-  const repo = createRepos(supabase as Db).kajabiCourses;
+  const repo = repos.kajabiCourses;
 
   await repo.upsertCourses(
     parsed.map((p) => ({
@@ -149,7 +147,7 @@ export async function importKajabiCourses(
   }
 
   // Every imported course gets a Hub row (a draft until published), so its admin address has a Hub id.
-  await ensureDraftCourses(createRepos(supabase));
+  await ensureDraftCourses(repos);
 
   return {
     courses: parsed.map((p) => ({

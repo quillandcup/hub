@@ -12,10 +12,6 @@ const state = vi.hoisted(() => ({
 }));
 
 let dataset: InMemoryDataset;
-vi.mock("@/lib/data/repos", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/data/repos")>()),
-  createRepos: () => createInMemoryRepos(dataset),
-}));
 vi.mock("@/lib/google-calendar/sync-state", () => ({
   claimCalendarSync: vi.fn(async () =>
     state.claims.shift() === false ? { claimed: false } : { claimed: true, syncedThrough: state.syncedThrough }
@@ -41,7 +37,7 @@ function setup(changed: unknown[] = [], cancelled: unknown[] = []) {
   const fullSync = vi.fn(async () => ({}));
   const reprocess = vi.fn(async () => ({}));
   const run = () =>
-    syncCalendarChanges({ supabase: {} as never, client, calendarId: "cal@example.test", fullSync, reprocess });
+    syncCalendarChanges({ repos: createInMemoryRepos(dataset), client, calendarId: "cal@example.test", fullSync, reprocess });
   return { client, fullSync, reprocess, run };
 }
 
@@ -198,7 +194,7 @@ describe("sweepCancelledEvents", () => {
   const sweep = (cancelled: unknown[], sinceDays = 8) => {
     const client = { listCancelledEvents: vi.fn(async () => cancelled) };
     const reprocess = vi.fn(async () => ({}));
-    const run = () => sweepCancelledEvents({ supabase: {} as never, client, calendarId: "cal@example.test", sinceDays, reprocess });
+    const run = () => sweepCancelledEvents({ repos: createInMemoryRepos(dataset), client, calendarId: "cal@example.test", sinceDays, reprocess });
     return { client, reprocess, run };
   };
 

@@ -270,7 +270,7 @@ async function searchChatKind(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   const channels = q.inChannel
     ? allChannels.filter((c) => c.label.replace(/^#/, "").toLowerCase().includes(q.inChannel!.toLowerCase()))
     : allChannels;
-  const result = await searchChat(ctx.supabase, ctx.viewerMemberId, {
+  const result = await searchChat(createRepos(ctx.supabase), ctx.viewerMemberId, {
     tsquery: q.tsquery,
     channels,
     author: q.from && q.from.toLowerCase() !== "me" ? q.from : undefined,

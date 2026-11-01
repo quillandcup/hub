@@ -1,4 +1,4 @@
-import { createRepos } from "@/lib/data/repos";
+import { createRepos, type Repos } from "@/lib/data/repos";
 import webpush, { WebPushError } from "web-push";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoint";
 import { SUPPORT_EMAIL } from "@/lib/config";
@@ -43,12 +43,12 @@ export function vapidKeys(): { publicKey: string; privateKey: string } | null {
 
 export const webPushChannel: ChannelAdapter = {
   id: "web_push",
-  async resolveAddresses(supabase, memberIds) {
+  async resolveAddresses(repos, memberIds) {
     const reachable = new Map<string, string>();
     if (!vapidKeys() || memberIds.length === 0) return reachable;
 
-    const flagged = await membersWithFeature(createRepos(supabase), WEB_PUSH_FEATURE, memberIds);
-    for (const memberId of await createRepos(supabase).pushSubscriptions.membersWithLive([...flagged])) reachable.set(memberId, memberId);
+    const flagged = await membersWithFeature(repos, WEB_PUSH_FEATURE, memberIds);
+    for (const memberId of await repos.pushSubscriptions.membersWithLive([...flagged])) reachable.set(memberId, memberId);
     return reachable;
   },
   async send(memberId, message, context) {
@@ -114,14 +114,14 @@ export const webPushChannel: ChannelAdapter = {
  * against what a check-in sends. Skips preferences, the feature flag and subscription bookkeeping.
  */
 export async function sendDiagnosticPush(
-  supabase: any,
+  repos: Pick<Repos, "pushSubscriptions">,
   memberId: string,
   payload: PushPayload,
   delivery: { urgency: "normal" | "high"; ttlSeconds: number }
 ): Promise<number> {
   const keys = vapidKeys();
   if (!keys) throw new Error("Web Push isn't configured (VAPID keys missing)");
-  const subscriptions = await createRepos(supabase).pushSubscriptions.live(memberId);
+  const subscriptions = await repos.pushSubscriptions.live(memberId);
   if (!subscriptions.length) throw new Error("No live push subscriptions");
 
   const options = {

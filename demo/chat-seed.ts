@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { COMMUNITY } from "@/lib/data/profiles/community";
 
 /**
  * The demo community's chat: four channels with a few days of friendly, fictional conversation, threads and
@@ -8,6 +9,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * the demo, and the demo member has a (token-less) Slack connection, so the composer works: a post is saved as the
  * member and, with no Slack to send it to, stays pending until the recording marks it sent (slack-stand-in.ts).
  */
+
+/** A member's name, from the community profile (lib/data/profiles/community.ts) by the key its people go by ("member", "host"), so renaming someone there renames them in the chat. */
+export function who(key: string): string {
+  const person = COMMUNITY.people.find((p) => p.key === key);
+  if (!person) throw new Error(`The community profile has no person "${key}"`);
+  return person.name;
+}
 
 /** Slack ids of the demo are made up and start with this, so a re-run can tell its own channels from real ones. */
 export const DEMO_SLACK_PREFIX = "CDEMO";
@@ -41,23 +49,23 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     readHoursAgo: 1,
     messages: [
       {
-        by: "Hazel Hosting",
+        by: who("host"),
         hoursAgo: 22,
         body: "📣 Chat is live in the Hub! Same conversations as Slack, searchable forever, and you can post right from here. Say hi in #start-here 💬",
         reactions: [
-          { emoji: "tada", by: ["Maya Example", "Julia Sample", "Rosa Demo", "Willa Placeholder"] },
-          { emoji: "heart", by: ["Sadie Sample", "Aria Fictional"] },
+          { emoji: "tada", by: [who("member"), who("regular1"), who("regular2"), who("willa")] },
+          { emoji: "heart", by: [who("sadie"), who("aria")] },
         ],
         replies: [
-          { by: "Maya Example", minutesAfter: 12, body: "yesss, one less app to juggle between sprints 🙌" },
-          { by: "Julia Sample", minutesAfter: 31, body: "the search is going to save me. I lose every good tip I've ever been given 😅" },
+          { by: who("member"), minutesAfter: 12, body: "yesss, one less app to juggle between sprints 🙌" },
+          { by: who("regular1"), minutesAfter: 31, body: "the search is going to save me. I lose every good tip I've ever been given 😅" },
         ],
       },
       {
-        by: "Hazel Hosting",
+        by: who("host"),
         hoursAgo: 2,
         body: "🌙 Tonight's Sprint Prickle is at 7pm ET. Bring a snack, a tiny goal, and your best \"one more sentence\" energy.",
-        reactions: [{ emoji: "crescent_moon", by: ["Maya Example", "Rosa Demo", "Thea Mockup"] }],
+        reactions: [{ emoji: "crescent_moon", by: [who("member"), who("regular2"), who("thea")] }],
       },
     ],
   },
@@ -67,17 +75,17 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     readHoursAgo: 1,
     messages: [
       {
-        by: "Hazel Hosting",
+        by: who("host"),
         hoursAgo: 70,
         body: "welcome to the burrow, friend! 🦔 tell us what you're working on and your current word count (or just your vibe). no project is too small",
         reactions: [
-          { emoji: "wave", by: ["Maya Example", "Julia Sample", "Rosa Demo"] },
-          { emoji: "heart", by: ["Willa Placeholder", "Sadie Sample"] },
+          { emoji: "wave", by: [who("member"), who("regular1"), who("regular2")] },
+          { emoji: "heart", by: [who("willa"), who("sadie")] },
         ],
         replies: [
-          { by: "Maya Example", minutesAfter: 25, body: "hiii! drafting a cozy mystery set in a lighthouse bakery 🧁 three weeks in and obsessed with the Prickles" },
-          { by: "Rosa Demo", minutesAfter: 80, body: "plotting my very first novel 📓 Plot or Plan Prickles are my favorite hour of the week" },
-          { by: "Hazel Hosting", minutesAfter: 95, body: "a lighthouse bakery is EXACTLY the kind of place a body turns up 😏 welcome, both of you!" },
+          { by: who("member"), minutesAfter: 25, body: "hiii! drafting a cozy mystery set in a lighthouse bakery 🧁 three weeks in and obsessed with the Prickles" },
+          { by: who("regular2"), minutesAfter: 80, body: "plotting my very first novel 📓 Plot or Plan Prickles are my favorite hour of the week" },
+          { by: who("host"), minutesAfter: 95, body: "a lighthouse bakery is EXACTLY the kind of place a body turns up 😏 welcome, both of you!" },
         ],
       },
     ],
@@ -88,30 +96,30 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     readHoursAgo: 30,
     messages: [
       {
-        by: "Julia Sample",
+        by: who("regular1"),
         hoursAgo: 26,
         body: "finished a sonnet during this morning's Sprint Prickle ✨ fourteen lines, only two of them terrible",
-        reactions: [{ emoji: "tada", by: ["Maya Example", "Hazel Hosting", "Aria Fictional", "Willa Placeholder"] }],
+        reactions: [{ emoji: "tada", by: [who("member"), who("host"), who("aria"), who("willa")] }],
         replies: [
-          { by: "Aria Fictional", minutesAfter: 12, body: "two out of fourteen is a GREAT ratio. revision will sort the rest 💛" },
-          { by: "Julia Sample", minutesAfter: 40, body: "revision is tomorrow's problem. today I'm just enjoying it 🌷" },
+          { by: who("aria"), minutesAfter: 12, body: "two out of fourteen is a GREAT ratio. revision will sort the rest 💛" },
+          { by: who("regular1"), minutesAfter: 40, body: "revision is tomorrow's problem. today I'm just enjoying it 🌷" },
         ],
       },
       {
-        by: "Willa Placeholder",
+        by: who("willa"),
         hoursAgo: 20,
         body: "1,200 words before breakfast?? the 9am Progress Prickle is doing more for me than coffee ☕",
         reactions: [
-          { emoji: "raised_hands", by: ["Maya Example", "Julia Sample"] },
-          { emoji: "coffee", by: ["Sadie Sample"] },
+          { emoji: "raised_hands", by: [who("member"), who("regular1")] },
+          { emoji: "coffee", by: [who("sadie")] },
         ],
       },
       {
-        by: "Hazel Hosting",
+        by: who("host"),
         hoursAgo: 5,
         body: "chapter 12 revised and sent to my critique partner 😬 please hold my hand while I wait for her reply",
-        reactions: [{ emoji: "hugging_face", by: ["Maya Example", "Rosa Demo", "Clover Sketch"] }],
-        replies: [{ by: "Rosa Demo", minutesAfter: 18, body: "holding it!! Sprint Prickle tonight if you want company while you wait? 🫶" }],
+        reactions: [{ emoji: "hugging_face", by: [who("member"), who("regular2"), who("clover")] }],
+        replies: [{ by: who("regular2"), minutesAfter: 18, body: "holding it!! Sprint Prickle tonight if you want company while you wait? 🫶" }],
       },
     ],
   },
@@ -121,22 +129,22 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     readHoursAgo: 48,
     messages: [
       {
-        by: "Rosa Demo",
+        by: who("regular2"),
         hoursAgo: 40,
         body: "ok writers: how do you keep the middle of a mystery from sagging?? mine is just people drinking tea and explaining things 😭",
-        reactions: [{ emoji: "thinking_face", by: ["Willa Placeholder", "Fern Imaginary"] }],
+        reactions: [{ emoji: "thinking_face", by: [who("willa"), who("fern")] }],
         replies: [
-          { by: "Hazel Hosting", minutesAfter: 30, body: "give every scene a question the reader wants answered, and don't answer it until the next scene starts a bigger one" },
-          { by: "Willa Placeholder", minutesAfter: 55, body: "also: someone should want something and be stopped from getting it, even if they're only making toast 🍞" },
-          { by: "Maya Example", minutesAfter: 120, body: "saving this thread. the toast one is going on a sticky note 📌" },
+          { by: who("host"), minutesAfter: 30, body: "give every scene a question the reader wants answered, and don't answer it until the next scene starts a bigger one" },
+          { by: who("willa"), minutesAfter: 55, body: "also: someone should want something and be stopped from getting it, even if they're only making toast 🍞" },
+          { by: who("member"), minutesAfter: 120, body: "saving this thread. the toast one is going on a sticky note 📌" },
         ],
       },
       {
-        by: "Briony Demo",
+        by: who("briony"),
         hoursAgo: 9,
         body: "does anyone else read their draft out loud? I caught three clunky sentences in ten minutes today 🎧",
-        reactions: [{ emoji: "ear", by: ["Julia Sample", "Mabel Pretend"] }],
-        replies: [{ by: "Julia Sample", minutesAfter: 22, body: "every single time (poet problems). your ear catches what your eyes forgive 💫" }],
+        reactions: [{ emoji: "ear", by: [who("regular1"), who("mabel")] }],
+        replies: [{ by: who("regular1"), minutesAfter: 22, body: "every single time (poet problems). your ear catches what your eyes forgive 💫" }],
       },
     ],
   },
@@ -146,20 +154,20 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     readHoursAgo: 12,
     messages: [
       {
-        by: "Thea Mockup",
+        by: who("thea"),
         hoursAgo: 8,
         body: "anyone joining the 7pm Sprint Prickle tonight? I need accountability and a witness 👀",
-        reactions: [{ emoji: "raised_hand", by: ["Hazel Hosting", "Rosa Demo", "Maya Example"] }],
+        reactions: [{ emoji: "raised_hand", by: [who("host"), who("regular2"), who("member")] }],
         replies: [
-          { by: "Hazel Hosting", minutesAfter: 6, body: "hosting it! bring a drink and a goal 🍵" },
-          { by: "Rosa Demo", minutesAfter: 15, body: "in. my goal is 500 words and NOT reorganizing my notes again 🙈" },
+          { by: who("host"), minutesAfter: 6, body: "hosting it! bring a drink and a goal 🍵" },
+          { by: who("regular2"), minutesAfter: 15, body: "in. my goal is 500 words and NOT reorganizing my notes again 🙈" },
         ],
       },
       {
-        by: "Hazel Hosting",
+        by: who("host"),
         hoursAgo: 3,
         body: "reminder: Progress Prickle tomorrow at 9 ☀️ new faces especially welcome!",
-        reactions: [{ emoji: "sunrise", by: ["Maya Example", "Willa Placeholder"] }],
+        reactions: [{ emoji: "sunrise", by: [who("member"), who("willa")] }],
       },
     ],
   },
@@ -190,7 +198,7 @@ export async function seedChat(admin: SupabaseClient, now: Date) {
     .or(`slack_channel_id.is.null,slack_channel_id.like.${DEMO_SLACK_PREFIX}%`);
   if (wipeError) throw new Error(`chat_channels clear: ${wipeError.message}`);
 
-  const demoMember = id("Maya Example");
+  const demoMember = id(who("member"));
   const everyone = [...byName.values()];
 
   // Posting needs the member to have connected Slack. The demo has no Slack, so this is a connection record with no

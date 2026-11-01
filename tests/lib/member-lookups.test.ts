@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 // Lookups that read members through their repository (in memory here): the email channel's
 // addresses, Slack DM links, and badge recipients.
@@ -11,8 +10,7 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-let service = createFakeSupabase();
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => service }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 
 import { emailChannel } from "@/lib/channels/email";
 import { getBadgeRecipients, type BadgeType } from "@/lib/badges";
@@ -28,7 +26,7 @@ beforeEach(() => {
 
 describe("email channel addresses", () => {
   it("resolves each member's email, leaving out members that don't exist", async () => {
-    const found = await emailChannel.resolveAddresses({} as never, [ADA.id, GALE.id, "mbr_ZZZZZZZZZZZZ"]);
+    const found = await emailChannel.resolveAddresses(repos, [ADA.id, GALE.id, "mbr_ZZZZZZZZZZZZ"]);
 
     expect(found).toEqual(new Map([[ADA.id, ADA.email], [GALE.id, GALE.email]]));
   });
@@ -37,7 +35,7 @@ describe("email channel addresses", () => {
     vi.spyOn(repos.members, "byIds").mockRejectedValue(new Error("boom"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(await emailChannel.resolveAddresses({} as never, [ADA.id])).toEqual(new Map());
+    expect(await emailChannel.resolveAddresses(repos, [ADA.id])).toEqual(new Map());
     expect(log).toHaveBeenCalledWith("[email] Loading member addresses failed", expect.any(Error));
   });
 });
@@ -58,7 +56,6 @@ describe("Slack DM links", () => {
         ],
       })
     );
-    service = createFakeSupabase({});
 
     const links = await getSlackDmLinksForMembers([ADA.id, FERN.id, GALE.id]);
 
@@ -86,7 +83,6 @@ describe("badge recipients", () => {
   };
 
   it("lists the members who were awarded a manual badge, by name", async () => {
-    service = createFakeSupabase();
     repos = createInMemoryRepos(
       new InMemoryDataset({
         members: [ADA, FERN, GALE],

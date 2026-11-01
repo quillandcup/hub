@@ -1,4 +1,4 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/channels";
 import { APP_URL } from "@/lib/config";
 import * as Sentry from "@sentry/nextjs";
@@ -6,6 +6,8 @@ import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { attributeMessage } from "./attribution";
 import { recordSystemEvents } from "@/lib/analytics/system";
 import { effectiveChannels, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
+
+type NotifierRepos = Repos;
 
 /**
  * The one way server code notifies members. Notifications sit on the shared channel adapters
@@ -49,12 +51,12 @@ export interface NotifierOptions {
 }
 
 export async function loadNotificationPreferences(
-  supabase: any,
+  repos: NotifierRepos,
   kind: NotificationKindId,
   memberIds: string[]
 ): Promise<Map<string, NotificationPreferenceRow[]>> {
   try {
-    return await createRepos(supabase).notifications.preferencesForKind(kind, memberIds);
+    return await repos.notifications.preferencesForKind(kind, memberIds);
   } catch (error) {
     // A missing row means "use defaults"; a failed lookup tells us nothing about opt-outs.
     // Abort before callers claim dedup records so the next scheduled run can try again.
@@ -63,7 +65,7 @@ export async function loadNotificationPreferences(
 }
 
 export async function createNotifier(
-  supabase: any,
+  repos: NotifierRepos,
   kind: NotificationKindId,
   memberIds: string[],
   options: NotifierOptions = {}
@@ -73,7 +75,7 @@ export async function createNotifier(
   if (options.channels) {
     for (const memberId of unique) wanted.set(memberId, options.channels);
   } else {
-    const preferences = await loadNotificationPreferences(supabase, kind, unique);
+    const preferences = await loadNotificationPreferences(repos, kind, unique);
     for (const memberId of unique) wanted.set(memberId, effectiveChannels(kind, preferences.get(memberId) ?? []));
   }
 
@@ -82,13 +84,13 @@ export async function createNotifier(
     await Promise.all(
       usedChannels.map(async (channel) => {
         const members = unique.filter((m) => wanted.get(m)!.includes(channel));
-        return [channel, await CHANNEL_ADAPTERS[channel].resolveAddresses(supabase, members)] as const;
+        return [channel, await CHANNEL_ADAPTERS[channel].resolveAddresses(repos, members)] as const;
       })
     )
   );
 
   // A send the member asked for just now (an admin's test button) isn't the app reaching out: leave it out of the usage log.
-  const userIds = options.channels ? new Map<string, string>() : await loadUserIds(supabase, unique);
+  const userIds = options.channels ? new Map<string, string>() : await loadUserIds(repos, unique);
 
   const channelsFor = (memberId: string) =>
     (wanted.get(memberId) ?? []).filter((channel) => addresses.get(channel)?.has(memberId));
@@ -116,14 +118,14 @@ export async function createNotifier(
           console.error(`[notifications] ${kind} via ${channel} to member ${memberId} failed`, error);
           if (channel === "slack") {
             Sentry.captureException(error, { tags: { notification_kind: kind, notification_channel: channel }, extra: { memberId } });
-            await sendOperationsAlert(supabase, { type: "slack_dm_failed", notificationKind: kind, memberId });
+            await sendOperationsAlert(repos, { type: "slack_dm_failed", notificationKind: kind, memberId });
           }
         }
       }
       const userId = userIds.get(memberId);
       if (userId && delivered.length > 0) {
         await recordSystemEvents(
-          supabase,
+          repos,
           delivered.map((channel) => ({ userId, event: "notification_sent" as const, properties: { kind, channel } }))
         );
       }
@@ -136,10 +138,10 @@ export async function createNotifier(
  * memberId -> auth user id, for the usage log (a notification sent is recorded against the user it
  * went to). Best effort: a failed lookup just means those sends aren't counted.
  */
-async function loadUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
+async function loadUserIds(repos: NotifierRepos, memberIds: string[]): Promise<Map<string, string>> {
   const userIds = new Map<string, string>();
   try {
-    for (const [memberId, userId] of await createRepos(supabase).members.userIdsByMemberId(memberIds)) {
+    for (const [memberId, userId] of await repos.members.userIdsByMemberId(memberIds)) {
       if (userId) userIds.set(memberId, userId);
     }
   } catch (error) {

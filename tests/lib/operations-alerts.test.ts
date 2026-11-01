@@ -10,7 +10,15 @@ vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 import appConfig from "../../app.config";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { sendOperationsAlert, sentrySectionSearchUrl } from "@/lib/operations-alerts";
+
+/** Repositories whose rate limiter lets every alert through, with the call to check. */
+function allowing() {
+  const repos = createInMemoryRepos();
+  const hit = vi.spyOn(repos.rateLimit, "hit").mockResolvedValue(true);
+  return { repos, hit };
+}
 
 const failedDm = { type: "slack_dm_failed" as const, notificationKind: "prickle_checkin", memberId: "m1" };
 
@@ -24,25 +32,37 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("production operations alerts", () => {
-  it("posts a failed DM alert to the configured staff channel without member content", async () => {
-    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
-    await sendOperationsAlert(service, failedDm);
+  it("still alerts when the rate limiter itself fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const repos = createInMemoryRepos();
+    repos.rateLimit.hit = async () => {
+      throw new Error("database is down");
+    };
+    await sendOperationsAlert(repos, failedDm);
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
 
-    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_max_hits: 1 }));
+  it("posts a failed DM alert to the configured staff channel without member content", async () => {
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, failedDm);
+
+    expect(hit).toHaveBeenCalledWith(expect.any(String), 600, 1);
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ channel: "C0CA91G8LGH", text: expect.stringContaining("member ID: m1") }));
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("suppresses another alert in the same rate-limit window", async () => {
-    const service = { rpc: vi.fn(async () => ({ data: false, error: null })) };
-    await sendOperationsAlert(service, failedDm);
-    expect(postMessage).not.toHaveBeenCalled();
+    const repos = createInMemoryRepos();
+    await sendOperationsAlert(repos, failedDm);
+    await sendOperationsAlert(repos, failedDm);
+    expect(postMessage).toHaveBeenCalledTimes(1);
   });
 
   it("emails operations when the Slack bot cannot post", async () => {
     postMessage.mockRejectedValueOnce(new Error("channel_not_found"));
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, failedDm);
+    await sendOperationsAlert(allowing().repos, failedDm);
 
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ops@example.com", subject: "[Hub alert] Slack notification DM failed" }));
     expect(captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ tags: { operations_alert: "slack_dm_failed", alert_channel: "slack" } }));
@@ -50,7 +70,7 @@ describe("production operations alerts", () => {
   });
 
   it("says what is wrong with the bot token and how to recover, with the detail trimmed and escaped", async () => {
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, { type: "slack_bot_token_failed", problem: "expired", detail: "<script>  bad &  \n thing " + "x".repeat(400) });
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem: "expired", detail: "<script>  bad &  \n thing " + "x".repeat(400) });
     const text = postMessage.mock.calls[0][0].text as string;
     expect(text).toContain("has expired and could not be refreshed");
     expect(text).toContain("docs/SECRET_ROTATION.md");
@@ -62,19 +82,19 @@ describe("production operations alerts", () => {
     ["refresh_failed", "could not be refreshed and is close to expiring"],
     ["not_stored", "could not be stored"],
   ] as const)("words a %s bot token problem", async (problem, words) => {
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, { type: "slack_bot_token_failed", problem });
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem });
     expect(postMessage.mock.calls[0][0].text).toContain(words);
   });
 
   it("emails the alert when the bot token is what is broken, which is the point of it", async () => {
     postMessage.mockRejectedValueOnce(new Error("invalid_auth"));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, { type: "slack_bot_token_failed", problem: "expired" });
+    await sendOperationsAlert(allowing().repos, { type: "slack_bot_token_failed", problem: "expired" });
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ops@example.com", subject: "[Hub alert] Slack bot token expired" }));
   });
 
   it("batches ambiguous matches into one alert", async () => {
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, {
+    await sendOperationsAlert(allowing().repos, {
       type: "ambiguous_slack_member_match",
       collisions: [{ reason: "multiple_slack_users", slackUserIds: ["U1", "U2"], memberIds: ["m1"] }],
     });
@@ -83,7 +103,7 @@ describe("production operations alerts", () => {
   });
 
   it("names the job and lists each problem for a scheduled job that did not finish cleanly", async () => {
-    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, {
+    await sendOperationsAlert(allowing().repos, {
       type: "cron_partial_failure",
       job: "reconcile-slack",
       problems: ["Silver step chat failed: statement timeout", "capture: channel members: boom"],
@@ -95,10 +115,10 @@ describe("production operations alerts", () => {
   });
 
   it("names the section and calls a statement timeout one, with no member content", async () => {
-    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
-    await sendOperationsAlert(service, { type: "section_failed", section: "member page: activity feed", code: "57014", ms: 8012 });
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "section_failed", section: "member page: activity feed", code: "57014", ms: 8012 });
 
-    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:section_failed:member page: activity feed" }));
+    expect(hit).toHaveBeenCalledWith("operations_alert:section_failed:member page: activity feed", 600, 1);
     const text = postMessage.mock.calls[0][0].text;
     expect(text).toContain("timed out in the database");
     expect(text).toContain("member page: activity feed");
@@ -109,19 +129,19 @@ describe("production operations alerts", () => {
   });
 
   it("words a section failure by its code, or without one", async () => {
-    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
-    await sendOperationsAlert(service, { type: "section_failed", section: "a", code: "42501", ms: 5 });
-    await sendOperationsAlert(service, { type: "section_failed", section: "b", ms: 5 });
+    const { repos } = allowing();
+    await sendOperationsAlert(repos, { type: "section_failed", section: "a", code: "42501", ms: 5 });
+    await sendOperationsAlert(repos, { type: "section_failed", section: "b", ms: 5 });
 
     expect(postMessage.mock.calls[0][0].text).toContain('"a" failed (42501) after 5 ms');
     expect(postMessage.mock.calls[1][0].text).toContain('"b" failed after 5 ms');
   });
 
   it("alerts a browser crash by route, with the untrusted message trimmed and escaped", async () => {
-    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
-    await sendOperationsAlert(service, { type: "client_crash", route: "/admin/events/[id]", message: `Error: <b>a & b</b>\n${"x".repeat(500)}` });
+    const { repos, hit } = allowing();
+    await sendOperationsAlert(repos, { type: "client_crash", route: "/admin/events/[id]", message: `Error: <b>a & b</b>\n${"x".repeat(500)}` });
 
-    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:client_crash:/admin/events/[id]" }));
+    expect(hit).toHaveBeenCalledWith("operations_alert:client_crash:/admin/events/[id]", 600, 1);
     const text = postMessage.mock.calls[0][0].text;
     expect(text).toContain("/admin/events/[id] crashed in a member's or admin's browser");
     expect(text).toContain("&lt;b&gt;a &amp; b&lt;/b&gt; xxx");

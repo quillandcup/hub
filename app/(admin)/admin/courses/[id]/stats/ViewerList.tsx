@@ -38,13 +38,13 @@ export default function ViewerList({
 
   return (
     <div>
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {rows.map((s) => (
           <li key={s.sessionId} className="rounded-lg border border-slate-200 dark:border-slate-800">
             <details className="@container group">
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 @pair:flex-nowrap">
-                <span className="w-44 shrink-0 text-sm text-slate-600 dark:text-slate-300">{s.startedAt ? formatCourseDateTime(s.startedAt) : "Unknown time"}</span>
-                <span className="w-40 shrink-0 text-sm font-medium">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 @pair:flex-nowrap">
+                <span className="w-56 shrink-0 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">{s.startedAt ? formatCourseDateTime(s.startedAt) : "Unknown time"}</span>
+                <span className="w-36 shrink-0 truncate text-sm font-medium">
                   <Link href={`/admin/members/${s.memberId}`} className="text-plum-700 underline dark:text-plum-300">
                     {s.memberName}
                   </Link>
@@ -52,7 +52,7 @@ export default function ViewerList({
                 <span
                   role="img"
                   aria-label={`Covered ${percent(s.coveredFraction)} of the video: ${describeCoverage(s.intervals, durationSeconds)}`}
-                  className="relative h-8 min-w-40 flex-1 overflow-hidden rounded border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950"
+                  className="relative h-6 min-w-40 flex-1 overflow-hidden rounded border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950"
                 >
                   {s.intervals.map(([a, b]) => (
                     <span key={a} className="absolute inset-y-0 bg-plum-400/70 dark:bg-plum-400/60" style={{ left: `${a * 100}%`, width: `${Math.max((b - a) * 100, 0.5)}%` }} />

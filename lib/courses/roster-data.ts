@@ -1,5 +1,6 @@
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { Repos } from "@/lib/data/repos";
+import { resolveCourseParam } from "@/lib/courses/course-param";
 import { buildRoster, type RosterAccess, type RosterLesson, type RosterProgress, type RosterRow } from "@/lib/courses/roster";
 
 type RosterDataRepos = Pick<Repos, "courseProgress" | "courses" | "members">;
@@ -11,10 +12,10 @@ type RosterDataRepos = Pick<Repos, "courseProgress" | "courses" | "members">;
  */
 export async function loadCourseRoster(
   repos: RosterDataRepos,
-  courseId: string,
+  courseParam: string,
   now: Date = new Date()
 ): Promise<{ course: { id: string; title: string }; rows: RosterRow[] } | null> {
-  const course = await repos.courses.courseById(courseId);
+  const course = await repos.courses.courseById(await resolveCourseParam(repos, courseParam));
   if (!course) return null;
 
   const [accessRows, lessonRows] = await Promise.all([repos.courseProgress.accessOfCourses([course.id]), repos.courses.lessonsOf([course.id], { includeHidden: true })]);

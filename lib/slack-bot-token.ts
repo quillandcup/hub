@@ -47,7 +47,8 @@ async function reportProblem(service: SupabaseClient, problem: "refresh_failed" 
     const detail = error instanceof Error ? error.message : typeof error === "object" && error ? String((error as { message?: unknown }).message ?? "") : String(error ?? "");
     Sentry.captureException(error instanceof Error ? error : new Error(`Slack bot token ${problem}: ${detail}`), { tags: { slack_bot_token: problem } });
     const { sendOperationsAlert } = await import("@/lib/operations-alerts");
-    await sendOperationsAlert(service as never, { type: "slack_bot_token_failed", problem, detail });
+    const { createRepos } = await import("@/lib/data/repos");
+    await sendOperationsAlert(createRepos(service as never), { type: "slack_bot_token_failed", problem, detail });
   } catch (reportError) {
     console.error("Reporting a Slack bot token problem failed:", reportError);
   } finally {
@@ -175,6 +176,20 @@ export async function exchangeBotToken(service: SupabaseClient, botToken: string
   });
   if (error) throw new Error(`Slack returned a rotating token but it could not be stored (${error.message}). The exchange can't be repeated for this token.`);
   return { expiresAt };
+}
+
+/**
+ * Recovery: store a credential you got another way (a reinstall's tokens), replacing whatever is stored. It is stored as
+ * already expired, so the first use refreshes it with the refresh token and the app stores the pair it gets back.
+ */
+export async function seedBotToken(service: SupabaseClient, accessToken: string, refreshToken: string): Promise<void> {
+  const { error } = await service.rpc("slack_bot_token_save", {
+    p_access_token: accessToken,
+    p_refresh_token: refreshToken,
+    p_expires_at: new Date(clock.now()).toISOString(),
+  });
+  if (error) throw new Error(`Could not store the tokens: ${error.message}`);
+  forgetSlackBotToken();
 }
 
 /** When the stored credential expires, for the script's status command; null when nothing is stored. */

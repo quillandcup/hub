@@ -10,6 +10,7 @@ import { localDateOf } from "@/lib/prickle-writing";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { tabTitle } from "@/lib/tab-routes";
 import { isId } from "@/lib/ids";
+import { resolveCourseParam } from "@/lib/courses/course-param";
 import HubCoursePage from "./HubCoursePage";
 import CourseBuilderBanner from "../CourseBuilderBanner";
 import CourseBuilderForm from "../CourseBuilderForm";
@@ -29,9 +30,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 /** The admin page for one course: the course builder (read only until it can save), filled from the latest Kajabi import. */
 export default async function AdminCoursePage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdminPage();
-  const { id } = await params;
-  if (!isId(id, "crs")) notFound();
   const supabase = await createClient();
+  // The id or the course's slug (a member's /courses/<slug> address with /admin in front).
+  const id = await resolveCourseParam(createRepos(supabase), (await params).id);
+  if (!isId(id, "crs")) notFound();
   // One imported from Kajabi is shown read only; a course the Hub owns is edited here.
   const detail = await loadAdminCourse(createRepos(supabase), id);
   if (!detail) return <HubCoursePage id={id} />;

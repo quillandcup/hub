@@ -30,8 +30,8 @@ name: CI
 # deploy --prebuilt --prod`, not a remote build triggered by a deploy hook --
 # so code that needs a new table/column can never go live before that table/
 # column exists, and a failed build/deploy fails the workflow instead of
-# reporting green. PR/branch preview deploys are unaffected -- they still go
-# through Vercel's git integration as before.
+# reporting green. PR/branch preview deploys are off too (`"**": false`) because
+# preview builds were most of the Vercel bill; remove that line to turn them back on.
 on:
   pull_request:
   push:

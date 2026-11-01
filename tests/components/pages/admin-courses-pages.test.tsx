@@ -2,7 +2,7 @@
 /** The admin Courses pages: the list, and one course with every lesson explained. Loaders mocked; markup is real. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { explainCourse } from "@/lib/courses/explain";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -51,7 +51,6 @@ const row = (over = {}) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase();
   requireAdminPage.mockClear();
   loadAdminCourses.mockReset();
   loadAdminCourse.mockReset();

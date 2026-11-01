@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!isId(id, "chn")) return { title: "Members · Chat" };
   const { identity } = await requireChat();
-  const channel = await loadChannelForMember(await createClient(), id, identity.memberId, identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(await createClient()), id, identity.memberId, identity.isSudo);
   return { title: channel ? `Members · ${channel.label} · Chat` : "Members · Chat" };
 }
 
@@ -29,10 +29,10 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
   if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(supabase), id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
   const [people, features, profile, bridge] = await Promise.all([
-    loadChannelMembers(supabase, channel.id),
+    loadChannelMembers(createRepos(supabase), channel.id),
     getUserFeaturePreviews(user.id),
     createRepos(supabase).profiles.isAdmin(user.id),
     createRepos(supabase).chat.bridgeState(channel.id),

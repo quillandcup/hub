@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/service";
 import { createKajabiClient } from "@/lib/kajabi/client";
 import { CourseImportError, importKajabiCourses } from "@/lib/courses/import";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 
 export const maxDuration = 300;
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   const courseIds: string[] | undefined = Array.isArray(body?.courseIds) ? body.courseIds.map(String) : undefined;
 
   try {
-    const result = await importKajabiCourses(createServiceRoleClient(), createKajabiClient(), { courseIds });
+    const result = await importKajabiCourses(createRepos(createServiceRoleClient()), createKajabiClient(), { courseIds });
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     if (error instanceof CourseImportError) return NextResponse.json({ error: error.message }, { status: error.status });

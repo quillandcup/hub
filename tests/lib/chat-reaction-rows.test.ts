@@ -11,6 +11,9 @@ vi.mock("@/lib/chat/names", () => ({
 }));
 
 import { buildMessageViews, loadReactionRows, type MessageRow } from "@/lib/chat/load";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { SupabaseChatRepository } from "@/lib/data/chat";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 type Reaction = { id: string; message_id: string; emoji: string; member_id: string | null; slack_user_id: string | null };
 
@@ -51,7 +54,8 @@ const make = (n: number, messageOf: (i: number) => string): Reaction[] =>
     slack_user_id: `U${i}`,
   }));
 
-describe("loadReactionRows", () => {
+describe("reactionRows on the Supabase repository (the 1000-row cap)", () => {
+  const loadReactionRows = (client: never, ids: string[]) => new SupabaseChatRepository(client).reactionRows(ids);
   it("makes no request when there are no messages", async () => {
     const { client, calls } = apiWith([]);
     expect(await loadReactionRows(client, [])).toEqual([]);
@@ -86,7 +90,7 @@ describe("loadReactionRows", () => {
   });
 });
 
-describe("buildMessageViews with a busy page", () => {
+describe("loadReactionRows and buildMessageViews over the repositories", () => {
   const row = (id: string): MessageRow => ({
     id,
     author_member_id: null,
@@ -99,20 +103,28 @@ describe("buildMessageViews with a busy page", () => {
     has_files: false,
     chat_message_contents: { body: "hi" },
   });
+  const seed = (reactions: Reaction[]) =>
+    createInMemoryRepos(new InMemoryDataset({ chatReactions: reactions.map((r) => ({ id: r.id, message_id: r.message_id, emoji: r.emoji, member_id: r.member_id, slack_user_id: r.slack_user_id })) }));
 
-  it("shows the reactions of a message whose rows sit past the first 1000", async () => {
-    // 1200 reactions on the first message, then 3 on the second: the old single request returned only
-    // the first 1000 and the second message showed none.
+  it("reads the reactions of the messages asked about", async () => {
+    const repos = seed(make(40, (i) => (i < 30 ? "msg_1" : "msg_2")));
+    expect(await loadReactionRows(repos, ["msg_1"])).toHaveLength(30);
+    expect(await loadReactionRows(repos, [])).toEqual([]);
+  });
+
+  it("shows the reactions of every message on a busy page", async () => {
     const all = [...make(1200, () => "msg_1"), ...make(3, () => "msg_2").map((r, i) => ({ ...r, id: `rct_z${i}` }))];
-    const { client } = apiWith(all);
-    const out = await buildMessageViews(client, { slackChannelId: null }, [row("msg_1"), row("msg_2")], "mbr_AAAAAAAAAAA1");
+    const out = await buildMessageViews(seed(all), { slackChannelId: null }, [row("msg_1"), row("msg_2")], "mbr_AAAAAAAAAAA1");
     const counts = (id: string) => out.views.find((v) => v.id === id)!.reactions.reduce((n, r) => n + r.count, 0);
     expect(counts("msg_1")).toBe(1200);
     expect(counts("msg_2")).toBe(3);
   });
 
   it("fails the build rather than showing a message with no reactions", async () => {
-    const { client } = apiWith(make(3, () => "msg_1"), { error: "boom" });
-    await expect(buildMessageViews(client, { slackChannelId: null }, [row("msg_1")], "mbr_AAAAAAAAAAA1")).rejects.toThrow(/chat_reactions/);
+    const repos = seed(make(3, () => "msg_1"));
+    repos.chat.reactionRows = async () => {
+      throw new Error("chat_reactions read failed: boom");
+    };
+    await expect(buildMessageViews(repos, { slackChannelId: null }, [row("msg_1")], "mbr_AAAAAAAAAAA1")).rejects.toThrow(/chat_reactions/);
   });
 });

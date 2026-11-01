@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/data/database.types";
 import type { GoogleCalendarClient } from "@/lib/google-calendar/client";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Ask Google for a week; it may grant less, so the row stores the expiry it returns.
@@ -22,17 +20,17 @@ export type WatchResult =
  * since Google drops it at expiry anyway.
  */
 export async function ensureCalendarWatchChannel(params: {
-  supabase: SupabaseClient<Database>;
+  repos: Pick<Repos, "calendarSyncState">;
   client: Pick<GoogleCalendarClient, "watchEvents" | "stopChannel">;
   calendarId: string;
   address: string;
   token: string;
   now?: Date;
 }): Promise<WatchResult> {
-  const { supabase, client, calendarId, address, token } = params;
+  const { repos, client, calendarId, address, token } = params;
   const now = params.now ?? new Date();
 
-  const state = createRepos(supabase).calendarSyncState;
+  const state = repos.calendarSyncState;
   const active = await state.activeWatchChannels(calendarId).catch((error: Error) => {
     throw new Error(`Failed to read calendar watch channels: ${error.message}`);
   });

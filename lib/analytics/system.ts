@@ -1,5 +1,7 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { SERVER_ONLY_EVENTS, validateProperties, type EventName, type EventProps } from "@/lib/analytics/events";
+
+type SystemEventRepos = Pick<Repos, "analyticsEvents">;
 
 /** What the app records on its own, outside any visit. */
 export type SystemEventName = Extract<EventName, "notification_sent">;
@@ -16,7 +18,7 @@ export interface SystemEvent<N extends SystemEventName = SystemEventName> {
  * no visit, so `session_id` is null. Pass a service-role client: there is no signed-in request to
  * write as. Best effort, never throws: a failure is logged and the caller carries on.
  */
-export async function recordSystemEvents(supabase: any, events: SystemEvent[]): Promise<void> {
+export async function recordSystemEvents(repos: SystemEventRepos, events: SystemEvent[]): Promise<void> {
   try {
     const now = new Date().toISOString();
     // Deliberately not filtered by "leave me out of statistics" (lib/analytics/opt-out.ts): a send is something the
@@ -41,7 +43,7 @@ export async function recordSystemEvents(supabase: any, events: SystemEvent[]): 
       ];
     });
     if (rows.length === 0) return;
-    await createRepos(supabase).analyticsEvents.record(rows);
+    await repos.analyticsEvents.record(rows);
   } catch (error) {
     console.error("[analytics] Recording system events failed:", error instanceof Error ? error.message : error);
   }

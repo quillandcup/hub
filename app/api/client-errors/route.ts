@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { templateRoute } from "@/lib/analytics/route";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * A page crashed in the browser (components/RouteError.tsx). A server error is alerted from the server,
@@ -18,6 +19,6 @@ export async function POST(request: NextRequest) {
   const route = templateRoute(body?.path);
   if (!route || typeof body?.message !== "string") return NextResponse.json({ error: "Invalid report" }, { status: 400 });
 
-  await sendOperationsAlert(createServiceRoleClient(), { type: "client_crash", route, message: body.message });
+  await sendOperationsAlert(createRepos(createServiceRoleClient()), { type: "client_crash", route, message: body.message });
   return new NextResponse(null, { status: 204 });
 }

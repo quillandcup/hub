@@ -3,14 +3,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { createFakeSupabase, type FakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import type { InAppNotificationRow } from "@/lib/data/notifications";
+import { createInMemoryRepos, type Repos } from "@/lib/data/repos";
 
-let fake: FakeSupabase;
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => fake }));
+// The member's own session and the service role (used for an admin in sudo) are told apart by the
+// client the actions pass to createRepos; each has its own in-memory repositories.
+const SESSION = { role: "session" };
+const SERVICE = { role: "service" };
+let session: Repos;
+let service: Repos;
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => SESSION }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => SERVICE }));
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: (db: unknown) => (db === SERVICE ? service : session),
+}));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
-let serviceFake: FakeSupabase;
-vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => serviceFake }));
 
 const { getCurrentUser } = await import("@/lib/auth");
 const { getEffectiveIdentity } = await import("@/lib/sudo");
@@ -44,7 +54,23 @@ const CHECKOUT: InAppNotification = {
 };
 const OLD: InAppNotification = { ...CHECKOUT, id: "n3", text: "An old one", read: true };
 
-const updates = () => fake.queries.filter((q) => q.calls.some((c) => c.method === "update"));
+const ME = "member-1";
+const stored = (id: string, over: Partial<InAppNotificationRow> = {}): InAppNotificationRow => ({
+  id,
+  memberId: ME,
+  kind: "prickle_checkin",
+  ref: null,
+  text: "Hi",
+  url: null,
+  bannerUntil: null,
+  readAt: null,
+  createdAt: "2026-10-05T10:40:00Z",
+  ...over,
+});
+const world = (rows: InAppNotificationRow[]) => createInMemoryRepos(new InMemoryDataset({ inAppNotifications: rows }));
+/** Which of these notifications are read, by id. */
+const readIds = async (repos: Repos, ...ids: string[]) =>
+  (await Promise.all(ids.map(async (id) => [id, (await repos.notifications.inAppById(ME, id))?.readAt != null] as const))).filter(([, read]) => read).map(([id]) => id);
 
 function renderInApp(latest: InAppNotification[], unreadCount = latest.filter((n) => !n.read).length) {
   return render(
@@ -57,7 +83,8 @@ function renderInApp(latest: InAppNotification[], unreadCount = latest.filter((n
 
 beforeEach(() => {
   track.mockClear();
-  fake = createFakeSupabase();
+  session = world([]);
+  service = world([]);
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "m1@example.com" } as never);
   vi.mocked(getEffectiveIdentity).mockResolvedValue(IDENTITY as never);
 });
@@ -68,64 +95,63 @@ afterEach(() => {
 });
 
 describe("in-app notification actions", () => {
-  it("reads the member's latest and their unread count", async () => {
-    fake = createFakeSupabase({
-      in_app_notifications: {
-        data: [{ id: "n1", kind: "prickle_checkin", text: "Hi", url: null, created_at: "2026-10-05T10:40:00Z", banner_until: null, read_at: null }],
-        count: 7,
-      },
-    });
+  it("reads the member's latest and their unread count, and nobody else's", async () => {
+    session = world([
+      stored("n1"),
+      stored("n2", { readAt: "2026-10-05T10:41:00Z", createdAt: "2026-10-05T10:30:00Z" }),
+      stored("theirs", { memberId: "member-2" }),
+    ]);
     expect(await actions.getMyBellState()).toEqual({
-      latest: [{ id: "n1", kind: "prickle_checkin", text: "Hi", url: null, createdAt: "2026-10-05T10:40:00Z", read: false, banner: false }],
-      unreadCount: 7,
+      latest: [
+        { id: "n1", kind: "prickle_checkin", text: "Hi", url: null, createdAt: "2026-10-05T10:40:00Z", read: false, banner: false },
+        { id: "n2", kind: "prickle_checkin", text: "Hi", url: null, createdAt: "2026-10-05T10:30:00Z", read: true, banner: false },
+      ],
+      unreadCount: 1,
     });
-    for (const q of fake.queries) expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
   });
 
   it("works as the sudo'd member: reads with the admin's session, marks read with the service role", async () => {
     vi.mocked(getEffectiveIdentity).mockResolvedValue({ ...IDENTITY, isSudo: true } as never);
-    serviceFake = createFakeSupabase({ in_app_notifications: { data: [] } });
-    await actions.getMyBellState();
-    for (const q of fake.queries) expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
+    session = world([stored("n1")]);
+    service = world([stored("n1"), stored("n2")]);
+    expect((await actions.getMyBellState()).unreadCount).toBe(1);
 
     expect(await actions.markInAppNotificationsReadAction(["n1"])).toEqual({ success: true });
+    expect(await readIds(service, "n1", "n2")).toEqual(["n1"]);
     expect(await actions.markAllInAppNotificationsReadAction()).toEqual({ success: true });
-    expect(serviceFake.queries).toHaveLength(2);
-    for (const q of serviceFake.queries) {
-      expect(q.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
-    }
-    expect(updates()).toHaveLength(0);
+    expect(await readIds(service, "n1", "n2")).toEqual(["n1", "n2"]);
+    // The admin's own session is never used to write.
+    expect(await readIds(session, "n1")).toEqual([]);
   });
 
   it("marks only the member's own read", async () => {
-    expect(await actions.markInAppNotificationsReadAction(["n1", "n2"])).toEqual({ success: true });
-    const [update] = updates();
-    expect(update.calls).toContainEqual({ method: "update", args: [{ read_at: expect.any(String) }] });
-    expect(update.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
-    expect(update.calls).toContainEqual({ method: "in", args: ["id", ["n1", "n2"]] });
+    session = world([stored("n1"), stored("n2"), stored("n3"), stored("theirs", { memberId: "member-2" })]);
+    expect(await actions.markInAppNotificationsReadAction(["n1", "n2", "theirs"])).toEqual({ success: true });
+    expect(await readIds(session, "n1", "n2", "n3")).toEqual(["n1", "n2"]);
+    expect(await session.notifications.inAppCount("member-2", { unreadOnly: true })).toBe(1);
   });
 
   it("marks all of the member's own read", async () => {
+    session = world([stored("n1"), stored("n2"), stored("theirs", { memberId: "member-2" })]);
     expect(await actions.markAllInAppNotificationsReadAction()).toEqual({ success: true });
-    const [update] = updates();
-    expect(update.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
-    expect(update.calls).toContainEqual({ method: "is", args: ["read_at", null] });
-    expect(update.calls.some((c) => c.method === "in")).toBe(false);
+    expect(await readIds(session, "n1", "n2")).toEqual(["n1", "n2"]);
+    expect(await session.notifications.inAppCount("member-2", { unreadOnly: true })).toBe(1);
   });
 
   it("marks only the member's own unread", async () => {
-    expect(await actions.markInAppNotificationsUnreadAction(["n1", "n2"])).toEqual({ success: true });
-    const [update] = updates();
-    expect(update.calls).toContainEqual({ method: "update", args: [{ read_at: null }] });
-    expect(update.calls).toContainEqual({ method: "eq", args: ["member_id", "member-1"] });
-    expect(update.calls).toContainEqual({ method: "in", args: ["id", ["n1", "n2"]] });
+    const readAt = "2026-10-05T10:41:00Z";
+    session = world([stored("n1", { readAt }), stored("n2", { readAt }), stored("n3", { readAt }), stored("theirs", { memberId: "member-2", readAt })]);
+    expect(await actions.markInAppNotificationsUnreadAction(["n1", "n2", "theirs"])).toEqual({ success: true });
+    expect(await readIds(session, "n1", "n2", "n3")).toEqual(["n3"]);
+    expect(await session.notifications.inAppCount("member-2", { unreadOnly: true })).toBe(0);
   });
 
   it("rejects a bad id list", async () => {
+    session = world([stored("n1")]);
     expect(await actions.markInAppNotificationsUnreadAction([])).toHaveProperty("error");
     expect(await actions.markInAppNotificationsReadAction([])).toHaveProperty("error");
     expect(await actions.markInAppNotificationsReadAction([""])).toHaveProperty("error");
-    expect(fake.queries).toHaveLength(0);
+    expect(await readIds(session, "n1")).toEqual([]);
   });
 });
 
@@ -176,17 +202,19 @@ describe("InAppNotificationBanner", () => {
 
   it("dismissing marks it read, so the bell stops counting it", async () => {
     const user = userEvent.setup();
+    session = world([stored("n1"), stored("n2")]);
     renderInApp([CHECKIN, CHECKOUT]);
     expect(screen.getByRole("button", { name: "Notifications, 2 unread" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: `Dismiss: ${CHECKIN.text}` }));
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
-    await waitFor(() => expect(updates()).toHaveLength(1));
-    expect(updates()[0].calls).toContainEqual({ method: "in", args: ["id", ["n1"]] });
+    await waitFor(async () => expect(await readIds(session, "n1", "n2")).toEqual(["n1"]));
   });
 
   it("puts it back and says so when that fails", async () => {
-    fake = createFakeSupabase({ in_app_notifications: { error: { message: "boom" } } });
+    session.notifications.markInAppRead = async () => {
+      throw new Error("boom");
+    };
     vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();
     renderInApp([CHECKIN]);
@@ -203,6 +231,7 @@ describe("InAppNotificationBell", () => {
   });
 
   it("lists the latest without marking them read, and links to the inbox", async () => {
+    session = world([stored("n1"), stored("n2"), stored("n3", { readAt: "2026-10-05T10:41:00Z" })]);
     const user = userEvent.setup();
     renderInApp([CHECKIN, CHECKOUT, OLD]);
     await user.click(screen.getByRole("button", { name: "Notifications, 2 unread" }));
@@ -216,27 +245,27 @@ describe("InAppNotificationBell", () => {
     expect(items[0]).toHaveTextContent("(unread)");
     expect(items[2]).not.toHaveTextContent("(unread)");
     expect(screen.getByRole("link", { name: "See all notifications →" })).toHaveAttribute("href", INBOX_PATH);
-    expect(updates()).toEqual([]);
+    expect(await readIds(session, "n1", "n2")).toEqual([]);
   });
 
   it("opening one marks it read", async () => {
+    session = world([stored("n1"), stored("n2")]);
     const user = userEvent.setup();
     renderInApp([CHECKIN, CHECKOUT]);
     await user.click(screen.getByRole("button", { name: "Notifications, 2 unread" }));
     await user.click(screen.getByRole("link", { name: new RegExp(CHECKOUT.text.replace("?", "\\?")) }));
-    await waitFor(() => expect(updates()).toHaveLength(1));
-    expect(updates()[0].calls).toContainEqual({ method: "in", args: ["id", ["n2"]] });
+    await waitFor(async () => expect(await readIds(session, "n1", "n2")).toEqual(["n2"]));
   });
 
   it("marks all as read", async () => {
+    session = world([stored("n1"), stored("n2")]);
     const user = userEvent.setup();
     renderInApp([CHECKIN, CHECKOUT]);
     await user.click(screen.getByRole("button", { name: "Notifications, 2 unread" }));
     await user.click(screen.getByRole("button", { name: "Mark all as read" }));
 
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
-    await waitFor(() => expect(updates()).toHaveLength(1));
-    expect(updates()[0].calls.some((c) => c.method === "in")).toBe(false);
+    await waitFor(async () => expect(await readIds(session, "n1", "n2")).toEqual(["n1", "n2"]));
   });
 
   it("has nothing to mark when everything's read", async () => {
@@ -263,11 +292,11 @@ describe("InAppNotificationBell", () => {
 });
 
 describe("InAppNotificationsProvider polling", () => {
-  const row = { id: "n2", kind: "prickle_checkout", text: CHECKOUT.text, url: CHECKOUT.url, created_at: CHECKOUT.createdAt, banner_until: null, read_at: null };
+  const row = stored("n2", { kind: "prickle_checkout", text: CHECKOUT.text, url: CHECKOUT.url, createdAt: CHECKOUT.createdAt });
 
   it("picks up new notifications while the tab is visible", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-    fake = createFakeSupabase({ in_app_notifications: { data: [row], count: 1 } });
+    session = world([row]);
     renderInApp([]);
     expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
 
@@ -278,7 +307,7 @@ describe("InAppNotificationsProvider polling", () => {
   });
 
   it("checks again when the tab comes back", async () => {
-    fake = createFakeSupabase({ in_app_notifications: { data: [row], count: 1 } });
+    session = world([row]);
     renderInApp([]);
     await act(async () => {
       document.dispatchEvent(new Event("visibilitychange"));

@@ -117,7 +117,7 @@ export default async function MyPricklesPage({
   // of everything happening org-wide in the window.
   const personalCount = ranked.filter((r) => r.priority < PRIORITY.none).length;
   const displayedUpcoming = ranked.slice(0, Math.max(personalCount, MAX_UPCOMING_DISPLAY));
-  const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id));
+  const dismissedCheckins = await loadDismissedCheckinIds(createRepos(supabase), memberId, displayedUpcoming.map((r) => r.prickle.id));
 
   // The "Add to my calendar" control on each upcoming row: what's already in their feed, and the
   // weekly slot an "every week" add would cover. Prickles with no type can't be added.

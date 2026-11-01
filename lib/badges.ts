@@ -7,7 +7,7 @@ import type { Repos } from "@/lib/data/repos";
 export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 import type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 
-type BadgeRepos = Pick<Repos, "attendance" | "badges" | "books" | "members" | "mentorship" | "prickles" | "programs">;
+export type BadgeRepos = Pick<Repos, "attendance" | "badges" | "books" | "members" | "mentorship" | "prickles" | "programs">;
 
 export interface EarnedBadge {
   badgeType: BadgeType;

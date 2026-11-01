@@ -24,8 +24,9 @@ import {
   type GoalCandidate,
   type UpcomingPrickle,
 } from "@/lib/prickle-checkin-dms";
-import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 const TYPE = "type-progress";
 const OTHER_TYPE = "type-other";
@@ -382,86 +383,82 @@ describe("withSavedAnswer", () => {
 });
 
 describe("saveCheckinAnswer", () => {
-  const writes = (fake: ReturnType<typeof createFakeSupabase>) =>
-    fake.queries
-      .filter((q) => q.table === "prickle_checkins")
-      .flatMap((q) => q.calls.filter((c) => ["upsert", "update", "delete"].includes(c.method)));
+  const world = (checkin?: CheckinInput) => {
+    const data = new InMemoryDataset();
+    if (checkin) data.prickleCheckins.push({ memberId: "m1", prickleId: "p1", checkin });
+    return { data, repos: createInMemoryRepos(data) };
+  };
 
   it("reads only the live check-in", async () => {
-    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] });
-    const read = fake.queries.find((q) => q.calls.some((c) => c.method === "maybeSingle"))!;
-    expect(read.calls).toContainEqual({ method: "is", args: ["deleted_at", null] });
+    const { data, repos } = world({ ...EMPTY, need: "company" });
+    data.prickleCheckins[0].deletedAt = "2026-10-01T00:00:00Z";
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "energy_before", values: ["4"] })).toBeNull();
+    // The cleared check-in's answers are not merged in: it starts from nothing.
+    expect(await repos.prickleActivity.checkinOf("m1", "p1")).toEqual({ ...EMPTY, energyBefore: 4 });
   });
 
   it("merges the answer into the saved check-in", async () => {
-    const fake = createFakeSupabase({
-      prickle_checkins: { data: [checkinToRow({ ...EMPTY, pleasantBefore: 2, need: "company" })] },
-    });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "energy_before", values: ["4"] })).toBeNull();
-    const [upsert] = writes(fake);
-    expect(upsert.args).toEqual([
-      {
-        member_id: "m1",
-        prickle_id: "p1",
-        ...checkinToRow({ ...EMPTY, pleasantBefore: 2, energyBefore: 4, need: "company" }),
-        saved_via: "slack",
-        deleted_at: null,
-      },
-      { onConflict: "member_id,prickle_id" },
-    ]);
+    const { repos } = world({ ...EMPTY, pleasantBefore: 2, need: "company" });
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "energy_before", values: ["4"] })).toBeNull();
+    expect(await repos.prickleActivity.checkinOf("m1", "p1")).toEqual({ ...EMPTY, pleasantBefore: 2, energyBefore: 4, need: "company" });
   });
 
   it("soft-deletes the check-in when clearing leaves nothing", async () => {
-    const fake = createFakeSupabase({
-      prickle_checkins: { data: [checkinToRow({ ...EMPTY, emotionBefore: "sleepy" })] },
-    });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "emotion_before", values: [] })).toBeNull();
-    const [update] = writes(fake);
-    expect(update.method).toBe("update");
-    expect(update.args[0]).toEqual({ deleted_at: expect.any(String), saved_via: "slack" });
+    const { data, repos } = world({ ...EMPTY, emotionBefore: "sleepy" });
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "emotion_before", values: [] })).toBeNull();
+    expect(await repos.prickleActivity.checkinOf("m1", "p1")).toBeNull();
+    expect(data.prickleCheckins[0].deletedAt).toEqual(expect.any(String));
   });
 
   it("writes nothing for a cleared answer with no check-in yet", async () => {
-    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "emotion_after", values: [] })).toBeNull();
-    expect(writes(fake)).toEqual([]);
+    const { data, repos } = world();
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "emotion_after", values: [] })).toBeNull();
+    expect(data.prickleCheckins).toEqual([]);
   });
 
   it("rejects an unknown option without writing", async () => {
-    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid intention");
-    expect(writes(fake)).toEqual([]);
+    const { data, repos } = world();
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "need", values: ["nap"] })).toBe("Invalid intention");
+    expect(data.prickleCheckins).toEqual([]);
   });
 });
 
 describe("in-app notifications", () => {
-  const cleared = (fake: ReturnType<typeof createFakeSupabase>) =>
-    fake.queries
-      .filter((q) => q.table === "in_app_notifications")
-      .map((q) => Object.fromEntries(q.calls.filter((c) => c.method === "eq").map((c) => c.args)));
+  const note = (kind: string, ref: string) => ({
+    id: `n-${kind}`,
+    memberId: "m1",
+    kind,
+    ref,
+    text: "t",
+    url: null,
+    bannerUntil: null,
+    readAt: null as string | null,
+    createdAt: "2026-10-05T10:00:00Z",
+  });
+  const world = (checkin?: CheckinInput) => {
+    const data = new InMemoryDataset({ inAppNotifications: [note("prickle_checkin", "p1"), note("prickle_checkout", "p1")] });
+    if (checkin) data.prickleCheckins.push({ memberId: "m1", prickleId: "p1", checkin });
+    return { data, repos: createInMemoryRepos(data) };
+  };
+  const read = (data: InMemoryDataset) => data.inAppNotifications.filter((n) => n.readAt).map((n) => n.kind);
 
   it("resolves the in-app check-in once a DM answer completes it", async () => {
-    const fake = createFakeSupabase({
-      prickle_checkins: { data: [checkinToRow({ ...EMPTY, pleasantBefore: 2, energyBefore: 3 })] },
-    });
-    expect(await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] })).toBeNull();
-    expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkin", ref: "p1" }]);
+    const { data, repos } = world({ ...EMPTY, pleasantBefore: 2, energyBefore: 3 });
+    expect(await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "need", values: ["company"] })).toBeNull();
+    expect(read(data)).toEqual(["prickle_checkin"]);
   });
 
   it("leaves both unresolved while the answers are partial", async () => {
-    const fake = createFakeSupabase({ prickle_checkins: { data: [] } });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "need", values: ["company"] });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "intention_met", values: ["4"] });
-    expect(cleared(fake)).toEqual([]);
+    const { data, repos } = world();
+    await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "need", values: ["company"] });
+    await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "intention_met", values: ["4"] });
+    expect(read(data)).toEqual([]);
   });
 
   it("resolves the in-app check-out once got-what-you-came-for and mood are in", async () => {
-    const fake = createFakeSupabase({
-      prickle_checkins: { data: [checkinToRow({ ...EMPTY, intentionMet: 4, pleasantAfter: 4 })] },
-    });
-    await saveCheckinAnswer(fake, "m1", { prickleId: "p1", field: "energy_after", values: ["3"] });
-    expect(cleared(fake)).toEqual([{ member_id: "m1", kind: "prickle_checkout", ref: "p1" }]);
+    const { data, repos } = world({ ...EMPTY, intentionMet: 4, pleasantAfter: 4 });
+    await saveCheckinAnswer(repos, "m1", { prickleId: "p1", field: "energy_after", values: ["3"] });
+    expect(read(data)).toEqual(["prickle_checkout"]);
   });
 
   it("ties the messages to the prickle, time-sensitive on its timing", () => {
@@ -496,19 +493,15 @@ describe("dismissing a check-in or check-out", () => {
   });
 
   it.each([
-    ["checkout", dismissCheckout, "prickle_checkout_dismissals"],
-    ["checkin", dismissCheckin, "prickle_checkin_dismissals"],
-  ] as const)("records the %s dismissal and marks its in-app notification read", async (_half, dismiss, table) => {
-    const calls: [string, unknown][] = [];
-    const chain: any = { eq: () => chain, is: () => Promise.resolve({ error: null }) };
-    const supabase = {
-      from: (t: string) => ({
-        upsert: (row: unknown) => (calls.push([t, row]), Promise.resolve({ error: null })),
-        update: (row: unknown) => (calls.push([t, row]), chain),
-      }),
-    };
-    expect(await dismiss(supabase, "m1", "p1")).toBeNull();
-    expect(calls[0]).toEqual([table, { member_id: "m1", prickle_id: "p1" }]);
-    expect(calls[1][0]).toBe("in_app_notifications");
+    ["checkout", dismissCheckout],
+    ["checkin", dismissCheckin],
+  ] as const)("records the %s dismissal and marks its in-app notification read", async (half, dismiss) => {
+    const note = (kind: string) => ({ id: `n-${kind}`, memberId: "m1", kind, ref: "p1", text: "t", url: null, bannerUntil: null, readAt: null as string | null, createdAt: "2026-10-05T10:00:00Z" });
+    const data = new InMemoryDataset({ inAppNotifications: [note("prickle_checkin"), note("prickle_checkout")] });
+    const repos = createInMemoryRepos(data);
+    const read = () => data.inAppNotifications.filter((n) => n.readAt).map((n) => n.kind);
+    expect(await dismiss(repos, "m1", "p1")).toBeNull();
+    expect(await repos.prickleActivity.dismissedAmong(half, "m1", ["p1"])).toEqual(new Set(["p1"]));
+    expect(read()).toEqual([`prickle_${half}`]);
   });
 });

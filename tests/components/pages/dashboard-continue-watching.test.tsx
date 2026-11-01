@@ -1,12 +1,21 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// What the page reads from the repositories comes from this dataset, in memory.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({}) }));
 vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: async () => "browser" }));
 vi.mock("@/app/(member)/projects/actions", () => ({ getStarredGoals: async () => [], getUnloggedRecentPrickles: async () => [] }));
@@ -42,7 +51,7 @@ beforeEach(() => {
   getCoursesCaller.mockReset();
   loadContinueWatching.mockReset();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase();
+  dataset = new InMemoryDataset();
 });
 
 describe("dashboard Continue watching", () => {

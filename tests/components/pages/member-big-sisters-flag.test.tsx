@@ -10,13 +10,21 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+
+// Everything the page lists comes from the repositories, in memory here.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => createInMemoryRepos(dataset),
+}));
 
 let flagOn = false;
 const effectiveMemberHasFeature = vi.fn(async () => flagOn);
@@ -34,9 +42,8 @@ beforeEach(() => {
   resetServerPageMocks();
   effectiveMemberHasFeature.mockClear();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase({
-    big_sister_volunteers: { data: null },
-    members: { data: { first_joined_at: "2024-01-01", most_recent_joined_at: "2024-01-01" } },
+  dataset = new InMemoryDataset({
+    members: [{ id: MEMBER_IDENTITY.memberId, name: MEMBER_IDENTITY.memberName, firstJoinedAt: "2024-01-01", mostRecentJoinedAt: "2024-01-01" }],
   });
 });
 

@@ -13,9 +13,13 @@ import { createClient } from "@supabase/supabase-js";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { ORG_TIMEZONE } from "@/lib/config";
+import type { Db } from "@/lib/data/db";
+import { COMMUNITY } from "@/lib/data/profiles/community";
+import { loadProfile } from "@/lib/data/seed-loader";
+import { buildDataset } from "@/lib/data/seed-profile";
 import { zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { loadDemoEnv } from "./env";
-import { ATTENDANCE_RATE, BIOS, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
+import { ATTENDANCE_RATE, DEMO_JOIN, DEMO_PASSWORD, FILLER_MEMBERS, PERSONAS, demoEvents } from "./personas";
 import { DEMO_TOPIC_PREFIX, attendanceRows } from "./attendance";
 import { seedChat } from "./chat-seed";
 import { seedCourses } from "./courses-seed";
@@ -47,46 +51,33 @@ export async function seed(now: Date = new Date()) {
     if (profileError) throw new Error(`user_profiles ${p.key}: ${profileError.message}`);
   }
 
-  // Members: active, linked to their account. Staff are members too: the admin has a record, so the member pages open for them.
-  const joinedAt = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000);
-  const members = [
-    ...PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({
-      name: p.name,
-      email: p.email,
-      status: "active",
-      source: "kajabi",
-      user_id: userIdByEmail.get(p.email),
-      joined_at: joinedAt(p.joinedDaysAgo ?? 0).toISOString(),
-    })),
-    // Members who fill the room but never sign in (no account).
-    ...FILLER_MEMBERS.map((f) => ({ name: f.name, email: f.email, status: "active", source: "kajabi", user_id: null, joined_at: joinedAt(f.joinedDaysAgo).toISOString() })),
-  ];
-  const { error: membersError } = await admin.from("members").upsert(members, { onConflict: "email" });
-  if (membersError) throw new Error(`members: ${membersError.message}`);
+  // The community comes from the typed profile (lib/data/profiles/community.ts) through the same loader `pnpm seed:local` uses:
+  // its members (staff are members too, so the member pages open for the admin; bios, join dates, accounts linked), badges,
+  // notifications and Big Sister matches. Prickles and attendance are left out on purpose: the demo derives them from the Bronze
+  // calendar and Zoom rows below with the app's own processing, the way production does.
+  const dataset = buildDataset(COMMUNITY, now, { timeZone: ORG_TIMEZONE });
+  const db = admin as unknown as Db;
 
-  // A cast that was renamed leaves its old members behind: remove demo members (example.com) who are no longer in it.
-  const { data: demoMembers } = await admin.from("members").select("id, email").like("email", "%@example.com");
-  const current = new Set(members.map((m) => m.email));
-  const staleMembers = (demoMembers ?? []).filter((m) => !current.has(m.email as string)).map((m) => m.id as string);
-  if (staleMembers.length > 0) {
-    const { error } = await admin.from("members").delete().in("id", staleMembers);
+  // Members an older seed wrote by hand (example.com, no profile marker) are replaced by the profile's: remove them first,
+  // along with any leftovers of a cast that was renamed. Everything hanging off them is seeded again below.
+  const { data: demoMembers, error: demoMembersError } = await admin.from("members").select("id, raw_payload").like("email", "%@example.com");
+  if (demoMembersError) throw new Error(`members: ${demoMembersError.message}`);
+  const unmarked = (demoMembers ?? []).filter((m) => typeof (m.raw_payload as { seed_profile?: unknown } | null)?.seed_profile !== "string").map((m) => m.id as string);
+  if (unmarked.length > 0) {
+    const { error } = await admin.from("members").delete().in("id", unmarked);
     if (error) throw new Error(`members cleanup: ${error.message}`);
   }
+  const loaded = await loadProfile(db, dataset, { profile: COMMUNITY.name, userIdByEmail, include: ["badges", "notifications", "mentorships"] });
+  console.log("Community:", loaded);
 
   // The Getting started tour is for new members; the demo members have put it away so it doesn't cover the page.
-  const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", members.map((m) => m.email));
+  const { data: seeded, error: seededError } = await admin.from("members").select("id").in("email", dataset.members.map((m) => m.email as string));
   if (seededError) throw new Error(`members: ${seededError.message}`);
   const dismissedAt = now.toISOString();
   const { error: onboardingError } = await admin
     .from("member_onboarding")
     .upsert((seeded ?? []).map((m) => ({ member_id: m.id, dismissed_at: dismissedAt })), { onConflict: "member_id" });
   if (onboardingError) throw new Error(`member_onboarding: ${onboardingError.message}`);
-
-  // Short bios, so the member directory and profiles read like a community, not a list of names.
-  for (const [name, bio] of Object.entries(BIOS)) {
-    const { error } = await admin.from("members").update({ bio }).eq("name", name);
-    if (error) throw new Error(`member bio ${name}: ${error.message}`);
-  }
 
   // What the member writes: the demo member's projects and a few weeks of progress, so My Writing and the streaks
   // read as lived-in. Replaced on every run (external ids start with "demo-").
@@ -196,6 +187,7 @@ export async function seed(now: Date = new Date()) {
 
   // Who came to the prickles that have ended: Zoom's record (Bronze), replaced on every run, then the real
   // attendance processing. The prickles must exist first, so this runs after the calendar is processed.
+  const joinedAt = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000);
   const people = [
     ...PERSONAS.filter((p) => p.joinedDaysAgo !== null).map((p) => ({ name: p.name, email: p.email, joinedAt: joinedAt(p.joinedDaysAgo ?? 0), rate: ATTENDANCE_RATE[p.email] ?? 0.5 })),
     ...FILLER_MEMBERS.map((f) => ({ name: f.name, email: f.email, joinedAt: joinedAt(f.joinedDaysAgo), rate: f.rate })),

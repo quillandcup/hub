@@ -128,7 +128,7 @@ describe("sendMatchIntroductions", () => {
   // Names come from the members repository (in memory here); the client is only handed through.
   const service = (members: { id: string; name: string; displayName: string | null }[]) => {
     repos = createInMemoryRepos(new InMemoryDataset({ members }));
-    return {} as never;
+    return repos;
   };
   const members = [
     { id: "mentor", name: "Ada Quill", displayName: null },
