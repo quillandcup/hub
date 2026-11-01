@@ -18,6 +18,7 @@ beforeEach(() => {
       data: [
         { id: "f1", user_id: "u1", screenshot_path: null, member: { name: "Zed Legal", display_name: "Ada E", email: "ada@example.test" } },
         { id: "f2", user_id: "u2", screenshot_path: null, member: { name: "Bea Plain", display_name: null, email: "bea@example.test" } },
+        { id: "f3", user_id: null, screenshot_path: null, member: null },
       ],
     },
     user_profiles: { data: [{ id: "u1", email: "ada@example.test" }] },
@@ -40,5 +41,10 @@ describe("GET /api/admin/feedback", () => {
     expect(items[0].member).toMatchObject({ name: "Zed Legal", display_name: "Ada E" });
     expect(items[1].member).toMatchObject({ name: "Bea Plain", display_name: null });
     expect(items[0].submitter_email).toBe("ada@example.test");
+  });
+
+  it("lists feedback from a removed member, who has no user any more, without a submitter", async () => {
+    const { items } = await (await GET(new NextRequest("http://localhost/api/admin/feedback"))).json();
+    expect(items.find((i: { id: string }) => i.id === "f3")).toMatchObject({ user_id: null, submitter_email: null });
   });
 });

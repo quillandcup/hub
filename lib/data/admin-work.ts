@@ -197,6 +197,7 @@ export class InMemoryAdminWorkQueueRepository implements AdminWorkQueueRepositor
       member_id: null,
       screenshot_path: null,
       user_agent: null,
+      user_id: null,
       ...feedback,
     };
     this.data.feedback.push(row);
