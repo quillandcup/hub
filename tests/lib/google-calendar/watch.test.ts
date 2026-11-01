@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { InMemoryCalendarSyncStateRepository } from "@/lib/data/calendar-sync-state";
 import { ensureCalendarWatchChannel } from "@/lib/google-calendar/watch";
 
 // The channels live in an in-memory dataset instead of a database.
 let dataset: InMemoryDataset;
-vi.mock("@/lib/data/repos", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@/lib/data/repos")>();
-  return { ...original, createRepos: () => original.createInMemoryRepos(dataset) };
-});
 
 type Row = InMemoryDataset["calendarWatchChannels"][number];
 
@@ -39,7 +36,7 @@ function setup(rows: Row[], opts: { stopFails?: boolean } = {}) {
   };
   const run = () =>
     ensureCalendarWatchChannel({
-      supabase: {} as never,
+      repos: createInMemoryRepos(dataset),
       client,
       calendarId: "cal@example.test",
       address: "https://app.example.test/api/webhooks/calendar",

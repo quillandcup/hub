@@ -44,7 +44,16 @@ export interface LoadOptions {
   profile: string;
   /** Supabase Auth user per member email, for the people who sign in (members' `user_id`). */
   userIdByEmail?: Map<string, string>;
+  /**
+   * What to write besides the members, who are always written. All of it when not given. The demo stack
+   * leaves out the prickles and attendance because it derives those from its Bronze calendar and Zoom rows
+   * with the app's own processing, the way production does.
+   */
+  include?: LoadPart[];
 }
+
+export type LoadPart = "prickles" | "attendance" | "badges" | "notifications" | "mentorships";
+export const LOAD_PARTS: readonly LoadPart[] = ["prickles", "attendance", "badges", "notifications", "mentorships"];
 
 export interface LoadResult {
   members: number;
@@ -72,7 +81,10 @@ export async function clearProfile(db: Db, profile: string): Promise<void> {
 const seedMarker = (profile: string) => `seed:${profile}`;
 
 /** Loads `dataset` (from `buildDataset`) into `db`, replacing an earlier load of the same profile. */
-export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, userIdByEmail }: LoadOptions): Promise<LoadResult> {
+export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, userIdByEmail, include = [...LOAD_PARTS] }: LoadOptions): Promise<LoadResult> {
+  const parts = new Set(include);
+  if (parts.has("attendance") && !parts.has("prickles")) throw new Error("seed: attendance needs the prickles it was at: include both or neither.");
+  const pick = <T>(part: LoadPart, rows: T[]): T[] => (parts.has(part) ? rows : []);
   await clearProfile(db, profile);
 
   // The same address held by another seed profile's person: that profile is replaced (one at a time).
@@ -99,7 +111,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   check("prickle_types lookup", typesError);
   const typeByName = new Map((existingTypes ?? []).flatMap((t) => [[t.normalized_name, t.id] as const, [t.name, t.id] as const]));
   const newTypes: Insert<"prickle_types">[] = [];
-  for (const t of dataset.prickleTypes) {
+  for (const t of pick("prickles", dataset.prickleTypes)) {
     const existing = typeByName.get(t.normalizedName) ?? typeByName.get(t.name);
     typeIds.set(t.id, existing ?? t.id);
     if (!existing) {
@@ -113,7 +125,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   check("badge_types lookup", badgesError);
   const badgeByKey = new Map((existingBadges ?? []).map((b) => [b.key, b.id]));
   const newBadges: Insert<"badge_types">[] = [];
-  for (const b of dataset.badgeTypes) {
+  for (const b of pick("badges", dataset.badgeTypes)) {
     const existing = badgeByKey.get(b.key);
     badgeIds.set(b.id, existing ?? b.id);
     if (!existing) newBadges.push({ id: b.id, key: b.key, name: b.name, icon: b.icon, category: b.category, has_levels: b.has_levels, is_automatic: b.is_automatic });
@@ -135,7 +147,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   }));
   await insertChunked(members, (rows) => db.from("members").insert(rows), "members");
 
-  const prickles: Insert<"prickles">[] = dataset.prickles.map((p) => ({
+  const prickles: Insert<"prickles">[] = pick("prickles", dataset.prickles).map((p) => ({
     id: p.id,
     type_id: p.typeId ? (typeIds.get(p.typeId) ?? p.typeId) : null,
     host: p.hostId,
@@ -147,7 +159,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   }));
   await insertChunked(prickles, (rows) => db.from("prickles").insert(rows), "prickles");
 
-  const attendance: Insert<"prickle_attendance">[] = dataset.attendance.map((a) => ({
+  const attendance: Insert<"prickle_attendance">[] = pick("attendance", dataset.attendance).map((a) => ({
     member_id: a.memberId,
     prickle_id: a.prickleId,
     join_time: a.joinTime,
@@ -156,7 +168,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   }));
   await insertChunked(attendance, (rows) => db.from("prickle_attendance").insert(rows), "prickle_attendance");
 
-  const memberBadges: Insert<"member_badges">[] = dataset.memberBadges.map((b) => ({
+  const memberBadges: Insert<"member_badges">[] = pick("badges", dataset.memberBadges).map((b) => ({
     member_id: b.memberId,
     badge_type_id: badgeIds.get(b.badgeTypeId) ?? b.badgeTypeId,
     occurred_at: b.occurredAt,
@@ -164,7 +176,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   }));
   await insertChunked(memberBadges, (rows) => db.from("member_badges").insert(rows), "member_badges");
 
-  const notifications: Insert<"in_app_notifications">[] = dataset.inAppNotifications.map((n) => ({
+  const notifications: Insert<"in_app_notifications">[] = pick("notifications", dataset.inAppNotifications).map((n) => ({
     member_id: n.memberId,
     kind: n.kind,
     ref: n.ref,
@@ -177,7 +189,7 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
   await insertChunked(notifications, (rows) => db.from("in_app_notifications").insert(rows), "in_app_notifications");
 
   // Attendance, member badges, notifications and matches still have uuid ids (phase 2 of docs/SHORT_IDS_PLAN.md): the database picks them.
-  const matches: Insert<"mentorships">[] = dataset.mentorships.map(({ id: _id, ...match }) => match);
+  const matches: Insert<"mentorships">[] = pick("mentorships", dataset.mentorships).map(({ id: _id, ...match }) => match);
   await insertChunked(matches, (rows) => db.from("mentorships").insert(rows), "mentorships");
 
   return {
@@ -186,6 +198,6 @@ export async function loadProfile(db: Db, dataset: InMemoryDataset, { profile, u
     attendance: attendance.length,
     badges: memberBadges.length,
     notifications: notifications.length,
-    mentorships: dataset.mentorships.length,
+    mentorships: matches.length,
   };
 }

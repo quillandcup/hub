@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
@@ -31,7 +31,6 @@ const alias = (id: string, member: string, text: string) => ({ id, member_id: me
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({});
 });
 
 describe("name aliases page", () => {

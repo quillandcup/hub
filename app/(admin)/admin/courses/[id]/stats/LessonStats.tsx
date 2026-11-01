@@ -267,9 +267,7 @@ export default async function renderLessonStats({
                   content: (
                     <>
                       <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">{engagementIntro}</p>
-                      <div className="max-w-xl">
-                        <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} />
-                      </div>
+                      <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} compact />
                       <h2 className="mt-6 text-lg font-semibold">How it was watched</h2>
                       <HowWatched stats={stats} />
                     </>

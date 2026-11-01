@@ -97,13 +97,13 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
   const { identity } = caller;
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, channelId, identity.memberId, identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
 
-  const page = await loadMessages(supabase, channel.id, { before });
+  const page = await loadMessages(createRepos(supabase), channel.id, { before });
   const [{ views, ...rendered }, channels] = await Promise.all([
-    buildMessageViews(supabase, channel, page.messages, identity.memberId),
-    loadChatChannels(supabase, identity.memberId, identity.isSudo),
+    buildMessageViews(createRepos(supabase), channel, page.messages, identity.memberId),
+    loadChatChannels(createRepos(supabase), identity.memberId, identity.isSudo),
   ]);
   return { views, ctx: chatTextContext(rendered, channels), olderBefore: page.olderBefore };
 }
@@ -127,7 +127,7 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   const afterAuth = performance.now();
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, channelId, identity.memberId, identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
@@ -139,15 +139,15 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   };
   const wanted = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg")))].slice(0, 50);
   const [page, extra, readMarker] = await Promise.all([
-    loadMessages(supabase, channel.id, {}),
-    loadMessagesByIds(supabase, channel.id, wanted),
+    loadMessages(createRepos(supabase), channel.id, {}),
+    loadMessagesByIds(createRepos(supabase), channel.id, wanted),
     markerQuery(),
   ]);
   const afterMessages = performance.now();
   // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
   const inPage = new Set(page.messages.map((m) => m.id));
   const messages = [...page.messages, ...extra.filter((m) => !inPage.has(m.id))];
-  const { views, ...rendered } = await buildMessageViews(supabase, channel, messages, identity.memberId);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, messages, identity.memberId);
   const done = performance.now();
   // Where the time goes, for tuning: this runs on every live change in an open conversation.
   console.info(
@@ -184,15 +184,15 @@ export async function loadThreadChat(channelId: string, threadRootId: string): P
   const { identity } = caller;
 
   const supabase = await createClient();
-  const channel = await loadChannelForMember(supabase, channelId, identity.memberId, identity.isSudo);
+  const channel = await loadChannelForMember(createRepos(supabase), channelId, identity.memberId, identity.isSudo);
   if (!channel || (identity.isSudo && channel.restricted)) return null;
 
   const [root, replies] = await Promise.all([
-    loadMessage(supabase, channel.id, threadRootId),
-    loadMessages(supabase, channel.id, { threadRootId }),
+    loadMessage(createRepos(supabase), channel.id, threadRootId),
+    loadMessages(createRepos(supabase), channel.id, { threadRootId }),
   ]);
   if (!root) return null;
-  const { views, ...rendered } = await buildMessageViews(supabase, channel, [root, ...replies.messages], identity.memberId);
+  const { views, ...rendered } = await buildMessageViews(createRepos(supabase), channel, [root, ...replies.messages], identity.memberId);
   return { views, ctx: chatTextContext(rendered, []) };
 }
 

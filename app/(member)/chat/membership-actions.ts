@@ -41,7 +41,7 @@ interface ManagedChannel {
 /** The conversation, if its membership can be changed from the Hub at all, or why not. */
 async function manageableChannel(caller: ChatCaller, channelId: string): Promise<{ ok: true; channel: ManagedChannel } | { ok: false; error: string }> {
   const supabase = await createClient();
-  const summary = await loadChannelForMember(supabase, channelId, caller.identity.memberId, false);
+  const summary = await loadChannelForMember(createRepos(supabase), channelId, caller.identity.memberId, false);
   if (!summary) return { ok: false, error: "That conversation isn't available." };
 
   // A failed read counts as "not available", as it always has.

@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { MEMBER_IDENTITY, MEMBER_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
@@ -57,9 +57,6 @@ beforeEach(() => {
       attendance: [{ id: "att-1", memberId: MEMBER_IDENTITY.memberId, prickleId: "prickle-1", joinTime: "2026-11-02T15:00:00Z", leaveTime: "2026-11-02T16:00:00Z" }],
   });
   repos = createInMemoryRepos(dataset);
-  useFakeSupabase({
-    members: { data: { photo_url: null } },
-  });
 });
 
 describe("Streaks: a sister streak's shared prickles", () => {

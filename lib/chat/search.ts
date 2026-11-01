@@ -1,6 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createRepos } from "@/lib/data/repos";
-import { buildMessageViews, ignoringErrors, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
+import { buildMessageViews, ignoringErrors, type ChatLoadRepos, type MessageRow, type ChannelSummary, type ChatMessages, type ChatMessageView } from "@/lib/chat/load";
+
+type ChatSearchRepos = ChatLoadRepos;
 
 export const SEARCH_PAGE_SIZE = 20;
 export const MAX_QUERY_LENGTH = 200;
@@ -41,8 +41,8 @@ export interface SearchPage {
 const EMPTY: SearchPage = { results: [], hasMore: false, render: { userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} } };
 
 /** Members whose name contains what was typed (LIKE wildcards escaped), for the "From" filter. */
-async function authorIds(supabase: SupabaseClient, typed: string): Promise<string[]> {
-  return createRepos(supabase).directory.idsMatching(typed, 50);
+async function authorIds(repos: ChatSearchRepos, typed: string): Promise<string[]> {
+  return repos.directory.idsMatching(typed, 50);
 }
 
 /**
@@ -50,17 +50,17 @@ async function authorIds(supabase: SupabaseClient, typed: string): Promise<strin
  * (`search_chat_messages`), so RLS drops deleted messages and content they can't read; `channels`
  * is the further scope of the member's own chat.
  */
-export async function searchChat(supabase: SupabaseClient, viewerMemberId: string, f: SearchFilters): Promise<SearchPage> {
+export async function searchChat(repos: ChatSearchRepos, viewerMemberId: string, f: SearchFilters): Promise<SearchPage> {
   if (f.channels.length === 0) return EMPTY;
 
   let authors: string[] | null = f.authorMemberId ? [f.authorMemberId] : null;
   if (!authors && f.author?.trim()) {
-    authors = await authorIds(supabase, f.author);
+    authors = await authorIds(repos, f.author);
     if (authors.length === 0) return EMPTY;
   }
 
   const page = Math.max(0, f.page ?? 0);
-  const { chat } = createRepos(supabase);
+  const { chat } = repos;
   let ids: string[];
   try {
     ids = await chat.searchMessageIds({
@@ -98,7 +98,7 @@ export async function searchChat(supabase: SupabaseClient, viewerMemberId: strin
     [...byChannel].map(async ([channelId, channelRows]) => {
       const channel = channelById.get(channelId);
       if (!channel) return;
-      const built = await buildMessageViews(supabase, channel, channelRows as MessageRow[], viewerMemberId);
+      const built = await buildMessageViews(repos, channel, channelRows as MessageRow[], viewerMemberId);
       channelRows.forEach((r, i) => viewById.set(r.id, built.views[i]));
       Object.assign(render.userNames, built.userNames);
       Object.assign(render.userMembers, built.userMembers);

@@ -39,7 +39,7 @@ export async function getSearcher(): Promise<Searcher | null> {
   // Loaded only if chat is searched (see SearchContext.chatChannels), once per search.
   let channels: Promise<ChannelSummary[]> | undefined;
   const chatChannels = () =>
-    (channels ??= loadChatChannels(supabase, identity!.memberId, isSudo).then((all) => all.filter((c) => !(isSudo && c.restricted))));
+    (channels ??= loadChatChannels(createRepos(supabase), identity!.memberId, isSudo).then((all) => all.filter((c) => !(isSudo && c.restricted))));
 
   return {
     ctx: {

@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
 // Admin routes that look members up through their repository (in memory here); the Bronze
 // billing data they join to is in the same dataset.
@@ -14,10 +13,9 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-let tables: FakeTables = {};
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: createFakeSupabase(tables) } : { user: null }),
+  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 
 import { GET as externalStatus } from "@/app/api/admin/members/external-status/route";
@@ -30,7 +28,6 @@ const FERN = { id: "mbr_AAAAAAAAAAA2", name: "Fern Example", email: "Fern@Exampl
 
 beforeEach(() => {
   signedIn = true;
-  tables = {};
   dataset = new InMemoryDataset({ members: [ADA, FERN] });
   repos = createInMemoryRepos(dataset);
 });
@@ -49,7 +46,6 @@ describe("GET /api/admin/members/external-status", () => {
   });
 
   it("reports each member's Kajabi, Stripe and Slack standing", async () => {
-    tables = { member_email_aliases: { data: [] } };
     dataset.kajabiCustomers = [{ kajabi_customer_id: "kc-1", email: ADA.email }];
     dataset.kajabiPurchases = [{ kajabi_purchase_id: "p-1", kajabi_customer_id: "kc-1", status: "active" }];
     dataset.stripeSubscriptions = [{ stripe_subscription_id: "sub_ada", stripe_customer_id: "cus_ada", status: "active" }];

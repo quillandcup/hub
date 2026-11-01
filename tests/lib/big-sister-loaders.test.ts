@@ -1,31 +1,41 @@
-import { describe, expect, it } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { describe, expect, it, vi } from "vitest";
 import { fetchTrialWindows } from "@/lib/trial-window";
 import { getVolunteers } from "@/lib/big-sister-volunteers";
 import { getMentorships } from "@/lib/mentorship";
 import { getMyMentorships } from "@/lib/my-mentorship";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createRepos } from "@/lib/data/repos";
-const client = (db: ReturnType<typeof createFakeSupabase>) => db as unknown as SupabaseClient;
 describe("Big Sister query boundaries", () => {
   it("finds multiple Stripe trials through canonical emails and aliases without mixing members", async () => {
     const trial = { trial_start: Date.parse("2026-10-01") / 1000, trial_end: Date.parse("2026-10-08") / 1000 };
-    const db = createFakeSupabase({
-      member_email_aliases: { data: [{ member_id: "ada", alias_email: "OLD@EXAMPLE.TEST" }] },
-      "bronze.stripe_customers": { data: [{ stripe_customer_id: "a", email: "old@example.test" }, { stripe_customer_id: "b", email: "bea@example.test" }, { stripe_customer_id: "none", email: null }, { stripe_customer_id: "unknown", email: "other@example.test" }] },
-      "bronze.stripe_subscriptions": { data: [{ stripe_customer_id: "a", data: trial }, { stripe_customer_id: "a", data: trial }, { stripe_customer_id: "b", data: null }, { stripe_customer_id: "unknown", data: trial }] },
-    });
-    const result = await fetchTrialWindows(createRepos(client(db)), [{ id: "ada", email: "ADA@example.test" }, { id: "bea", email: "bea@example.test" }]);
+    const repos = createInMemoryRepos(
+      new InMemoryDataset({
+        emailAliases: [{ id: "mea_AAAAAAAAAAA1", memberId: "ada", active: true, alias_email: "OLD@EXAMPLE.TEST", canonical_email: "ada@example.test" }],
+        stripeCustomers: [
+          { stripe_customer_id: "a", email: "old@example.test" },
+          { stripe_customer_id: "b", email: "bea@example.test" },
+          { stripe_customer_id: "none", email: null },
+          { stripe_customer_id: "unknown", email: "other@example.test" },
+        ],
+        stripeSubscriptions: [
+          { stripe_subscription_id: "sub_1", stripe_customer_id: "a", data: trial },
+          { stripe_subscription_id: "sub_2", stripe_customer_id: "a", data: trial },
+          { stripe_subscription_id: "sub_3", stripe_customer_id: "b", data: null },
+          { stripe_subscription_id: "sub_4", stripe_customer_id: "unknown", data: trial },
+        ],
+      })
+    );
+    const result = await fetchTrialWindows(repos, [{ id: "ada", email: "ADA@example.test" }, { id: "bea", email: "bea@example.test" }]);
     expect(result.get("ada")).toEqual([{ start: "2026-10-01", end: "2026-10-08" }, { start: "2026-10-01", end: "2026-10-08" }]);
     expect(result.has("bea")).toBe(false); expect(result.has("unknown")).toBe(false);
   });
   it("avoids Stripe requests when there are no members or matching customers", async () => {
-    const db = createFakeSupabase();
-    expect(await fetchTrialWindows(createRepos(client(db)), [])).toEqual(new Map()); expect(db.queries).toHaveLength(0);
-    expect(await fetchTrialWindows(createRepos(client(db)), [{ id: "a", email: "a@example.test" }])).toEqual(new Map());
-    expect(db.queries.some(q => q.table === "bronze.stripe_subscriptions")).toBe(false);
+    const repos = createInMemoryRepos();
+    const customers = vi.spyOn(repos.billing, "stripeCustomers");
+    const subscriptions = vi.spyOn(repos.billing, "stripeSubscriptionsByCustomers");
+    expect(await fetchTrialWindows(repos, [])).toEqual(new Map()); expect(customers).not.toHaveBeenCalled();
+    expect(await fetchTrialWindows(repos, [{ id: "a", email: "a@example.test" }])).toEqual(new Map());
+    expect(subscriptions).not.toHaveBeenCalled();
   });
   it("names volunteers, normalizes member embeds and leaves out withdrawn rows", async () => {
     const mentorships = createInMemoryRepos(

@@ -1,4 +1,4 @@
-import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getServiceRepos } from "@/lib/data/server";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { SYNC_WINDOW_DAYS, syncCalendarChanges } from "@/lib/google-calendar/incremental-sync";
 import { NextRequest, NextResponse, after } from "next/server";
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     after(async () => {
       try {
         const result = await syncCalendarChanges({
-          supabase: createServiceRoleClient(),
+          repos: getServiceRepos(),
           client: new GoogleCalendarClient(),
           calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
           fullSync: () => triggerCalendarSync({ daysBack: SYNC_WINDOW_DAYS.back, daysForward: SYNC_WINDOW_DAYS.forward }),

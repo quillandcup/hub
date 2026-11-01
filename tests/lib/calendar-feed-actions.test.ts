@@ -2,7 +2,7 @@ import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { MEMBER_IDENTITY, MEMBER_USER, authModule, resetServerPageMocks, signInAs, sudoModule, supabaseServerModule, useFakeSupabase } from "@/tests/helpers/server-page";
+import { MEMBER_IDENTITY, MEMBER_USER, authModule, resetServerPageMocks, signInAs, sudoModule, supabaseServerModule } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => authModule);
 vi.mock("@/lib/sudo", () => sudoModule);
@@ -33,7 +33,6 @@ const seededEvents = eventSeed([
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase({});
   vi.mocked(refresh).mockClear();
   repos = createInMemoryRepos(
     new InMemoryDataset({
