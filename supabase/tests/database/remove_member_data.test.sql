@@ -1,4 +1,4 @@
--- pgTAP tests for 20270406000000_remove_member_data.sql: what remove_member_data does for a member's removal request.
+-- pgTAP tests for 20270407000000_remove_member_data.sql: what remove_member_data does for a member's removal request.
 --   * the member row becomes the "former member" placeholder (no name, email, user or links left);
 --   * rows marked delete go, rows marked repoint keep their shape, free text on them is cleared;
 --   * a book and award the member wants kept stay (signed with their byline); anything else of theirs goes,
