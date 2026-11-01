@@ -162,8 +162,12 @@ Let a member see in the Hub which videos from the library they have watched, and
 
 The TrackBear importer (Projects → "Import from TrackBear"; `lib/trackbear-import.ts`) brings over
 projects, all progress, starting balances, covers, tags-on-entries, and single-project goals (with their
-titles, descriptions and show-on-profile; re-importing fills these in on goals imported before Hub had them). It lists
-everything else per import instead of silently dropping it. Closing these gaps needs Hub features first:
+titles, descriptions and show-on-profile). Importing again **overwrites** what is already in Hub with the
+export's values (project title, description, phase and visibility, starting balances, entry date, amount,
+note and tags, a goal's target, dates and details), matched by the id each record was imported under, and
+the summary says how many of each changed. Left alone: covers, a goal's dashboard pin, anything made only in
+Hub, a starting balance in a measure the export doesn't list, and anything the member deleted in Hub. It lists
+everything it can't bring over per import instead of silently dropping it. Closing these gaps needs Hub features first:
 
 - **Cross-project goals** (a TrackBear goal counting all projects or several): `writing_goals.project_id` is already nullable, but nothing displays or computes a goal with no project, or with several.
 - **Tag-filtered goals** ("only count entries tagged X"): no tag filter on `writing_goals`.

@@ -103,8 +103,9 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
               changed or deleted.
             </p>
             <p>
-              Still logging in TrackBear for a while? Export and import again anytime. Anything already imported is
-              skipped, so only new progress is added.
+              Still logging in TrackBear for a while? Export and import again anytime. New progress is added, and
+              anything you already imported is set back to what TrackBear says, including changes you made to it
+              here. Things you only made in Hub are left alone.
             </p>
             <p>
               Download unzipped itself (Safari does this)? Pick <strong>trackbear-progress-data.json</strong> from
@@ -147,6 +148,13 @@ export default function TrackbearImportModal({ isOpen, onClose, onImported }: Tr
 function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDone: () => void }) {
   const { created, alreadyImported, issues } = result;
   const alreadyTotal = alreadyImported.projects + alreadyImported.entries + alreadyImported.goals;
+  const { updated } = result;
+  const updatedParts = [
+    updated.projects > 0 && plural(updated.projects, "project"),
+    updated.entries > 0 && plural(updated.entries, "progress entry", "progress entries"),
+    updated.goals > 0 && plural(updated.goals, "goal"),
+    updated.startingBalances > 0 && plural(updated.startingBalances, "starting balance"),
+  ].filter((part): part is string => !!part);
   const bySeverity = (["skipped", "dropped", "changed"] as const)
     .map((severity) => ({ severity, items: issues.filter((i) => i.severity === severity) }))
     .filter((group) => group.items.length > 0);
@@ -164,15 +172,19 @@ function ImportResult({ result, onDone }: { result: TrackbearImportResult; onDon
         </ul>
         {alreadyTotal > 0 && (
           <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Skipped as already imported: {plural(alreadyImported.projects, "project")},{" "}
+            Already in Hub, so not created again: {plural(alreadyImported.projects, "project")},{" "}
             {plural(alreadyImported.entries, "progress entry", "progress entries")},{" "}
             {plural(alreadyImported.goals, "goal")}.
           </p>
         )}
-        {result.updated.goalDetails > 0 && (
+        {updatedParts.length > 0 ? (
           <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Added TrackBear titles and descriptions to {plural(result.updated.goalDetails, "previously imported goal")}.
+            Changed in Hub to match TrackBear: {updatedParts.join(", ")}.
           </p>
+        ) : (
+          alreadyTotal > 0 && (
+            <p className="mt-2 text-slate-600 dark:text-slate-400">Everything already in Hub matched TrackBear.</p>
+          )
         )}
       </div>
 
