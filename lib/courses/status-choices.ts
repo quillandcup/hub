@@ -13,7 +13,7 @@
  */
 
 export interface StatusChoice {
-  value: "draft" | "published" | "scheduled" | "drip" | "locked";
+  value: "inherit" | "draft" | "published" | "scheduled" | "drip" | "locked";
   /** The action in the menu ("Publish"). */
   action: string;
   /** What the pill says once it is the current status ("Published"). */
@@ -28,6 +28,9 @@ export const STATUS_CHOICES: StatusChoice[] = [
   { value: "locked", action: "Lock", label: "Locked" },
 ];
 
+/** A Hub-owned item can also follow what is above it (what a new one starts as); an imported one never does. */
+export const FOLLOW_CHOICE: StatusChoice = { value: "inherit", action: "Follow what is above", label: "Follows what is above" };
+
 /** The pill's text for a stored publishing option; an unrecognised or missing one is shown as what it is. */
 export function statusLabel(option: string | null | undefined): string {
   if (option === "inherit") return "Follows what is above";
@@ -41,7 +44,10 @@ export interface AvailableChoice extends StatusChoice {
 
 const NOT_YET = "Needs a date or a delay the Hub doesn't take yet";
 
-/** The menu for an item whose current setting is `current`: every choice, with Schedule and Drip marked as not offered yet. */
-export function statusChoices(current?: string | null): AvailableChoice[] {
-  return STATUS_CHOICES.map((c) => ((c.value === "scheduled" || c.value === "drip") && c.value !== current ? { ...c, disabledReason: NOT_YET } : c));
+/**
+ * The menu for an item whose current setting is `current`: every choice, with Schedule and Drip marked as not offered yet.
+ * `hub`: the item is in a Hub-owned course, so it can also follow what is above it.
+ */
+export function statusChoices(current?: string | null, hub = false): AvailableChoice[] {
+  return [...(hub ? [FOLLOW_CHOICE] : []), ...STATUS_CHOICES].map((c) => ((c.value === "scheduled" || c.value === "drip") && c.value !== current ? { ...c, disabledReason: NOT_YET } : c));
 }

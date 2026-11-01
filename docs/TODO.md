@@ -1283,7 +1283,7 @@ Left out of the first outline editor (`docs/COURSES.md`, "Editing model") on pur
 - **Duplicating a lesson doesn't copy its downloads.** The files live in the private `course-files` bucket under the lesson's id (`course_lesson_files`); a copy needs the storage objects copied too, so a lesson doesn't share a file with its copy (deleting one would remove the other's).
 - **Lessons without a module.** The database allows a lesson in no module (imported courses have some), but the editor only adds lessons inside a module.
 - ~~**Reorders aren't in the audit log.**~~ **Resolved (2026-10-31):** one entry per reorder, with the order before and after (`docs/ACTIVITY_AND_AUDIT_LOG.md`).
-- **Deleting a lesson members have progress in is refused** ("hide it instead"), which needs the status menu (next PR) to be a real way out.
+- **Deleting a lesson members have progress in is refused** ("hide it instead"), and the status menu on each row of a Hub-owned course's outline is that way out (Draft or Lock it).
 
 ### Course builder: the Video actions that are still disabled _(Needs Scheduling)_
 The lesson builder's Video actions menu (`app/(admin)/admin/courses/[id]/lessons/[lessonId]/VideoActions.tsx`) copies Kajabi's. **Working now:** Video stats (links to the lesson's watch stats) and Copy timestamp URL (the lesson's member address with `?t=<seconds>`, which the member lesson page honours, `startSeconds` in `lib/courses/watch.ts`). **Disabled, and why:**
