@@ -578,6 +578,45 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect((await repo.preparingVideos()).some((v) => v.id === id1)).toBe(false);
     });
 
+    it("points a Hub-owned lesson at a video, copies the video's length onto it, and takes the video off again", async () => {
+      const repo = ctx.courses();
+      const hub = newCourse("lesson-video");
+      const imported = newCourse("lesson-video-kajabi", { source: "kajabi", source_key: ctx.unique("kj") });
+      await ctx.seed.courses([hub, imported]);
+      const lesson = await repo.addLesson({ course_id: hub.id, title: "L", position: 1, publishing_option: "draft", source: "hub" });
+      const importedLesson = lessonRow({ id: newCourseId("les"), course_id: imported.id, title: "Imported", source: "kajabi", source_key: ctx.unique("kl") });
+      await ctx.seed.lessons([importedLesson]);
+      const videoId = await repo.createVideo({ source_kind: "upload", source_key: ctx.unique("upload") });
+      await ctx.seed.forget({ videos: [videoId] });
+
+      expect(await repo.setLessonVideo({ id: lesson, courseId: hub.id }, videoId)).toBe(true);
+      expect((await repo.lessonById(lesson))?.video_id).toBe(videoId);
+
+      // The length arrives with the asset, rounded to whole seconds, and only for lessons made in the Hub.
+      const asset = ctx.unique("asset");
+      await repo.updateVideo(videoId, { mux_asset_id: asset });
+      await repo.syncLessonDurations(asset);
+      expect((await repo.lessonById(lesson))?.duration_seconds).toBeNull();
+      await repo.updateVideosByAsset(asset, { status: "ready", duration_seconds: 61.6 });
+      await repo.syncLessonDurations(asset);
+      expect((await repo.lessonById(lesson))?.duration_seconds).toBe(62);
+      await repo.syncLessonDurations(ctx.unique("unknown-asset"));
+
+      // A new video starts without the old one's length; taking the video off clears both.
+      const other = await repo.createVideo({ source_kind: "upload", source_key: ctx.unique("upload") });
+      await ctx.seed.forget({ videos: [other] });
+      expect(await repo.setLessonVideo({ id: lesson, courseId: hub.id }, other)).toBe(true);
+      expect((await repo.lessonById(lesson))?.duration_seconds).toBeNull();
+      expect(await repo.setLessonVideo({ id: lesson, courseId: hub.id }, null)).toBe(true);
+      expect((await repo.lessonById(lesson))?.video_id).toBeNull();
+
+      // Not another course's lesson, an imported lesson, or a missing one.
+      expect(await repo.setLessonVideo({ id: lesson, courseId: imported.id }, videoId)).toBe(false);
+      expect(await repo.setLessonVideo({ id: importedLesson.id, courseId: imported.id }, videoId)).toBe(false);
+      expect(await repo.setLessonVideo({ id: newCourseId("les"), courseId: hub.id }, videoId)).toBe(false);
+      expect((await repo.lessonById(importedLesson.id))?.video_id).toBeNull();
+    });
+
     it("writes a member's progress without disturbing what is already there", async () => {
       const [m1, m2] = await ctx.members();
       const course = newCourse("progress-writes");

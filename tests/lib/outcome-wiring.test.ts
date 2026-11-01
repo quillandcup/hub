@@ -44,6 +44,11 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     "app/(admin)/admin/courses/outline-actions.ts",
     [["addCourseModule", "course_module_added"], ["addCourseLesson", "course_lesson_added"], ["renameCourseItem", "course_item_renamed"], ["deleteCourseItem", "course_item_deleted"], ["duplicateCourseItem", "course_item_duplicated"], ["reorderCourseItems", "course_items_reordered"], ["setCourseItemStatus", "course_item_status_set"], ["saveLessonText", "course_lesson_text_saved"]],
   ],
+  [
+    () => import("@/app/(admin)/admin/courses/lesson-video-actions"),
+    "app/(admin)/admin/courses/lesson-video-actions.ts",
+    [["startLessonVideoUpload", "course_lesson_video_upload_started"], ["refreshLessonVideo", "course_lesson_video_refreshed"], ["removeLessonVideo", "course_lesson_video_removed"]],
+  ],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 

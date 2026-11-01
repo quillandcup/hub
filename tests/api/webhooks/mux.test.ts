@@ -11,7 +11,9 @@ const SECRET = 'test-mux-webhook-secret'
 const select = vi.fn(async () => ({ data: [{ id: 'video-1' }] as { id: string }[] | null, error: null as unknown }))
 const eq = vi.fn((_col: string, _val: string) => ({ select }))
 const update = vi.fn((_values: Record<string, unknown>) => ({ eq }))
-const from = vi.fn((_table: string) => ({ update }))
+// After an update the route also looks for lessons to give the length to: no video with that asset to read here.
+const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
+const from = vi.fn((_table: string) => ({ update, select: () => ({ eq: () => ({ maybeSingle }) }) }))
 vi.mock('@/lib/supabase/service', () => ({ createServiceRoleClient: () => ({ from }) }))
 
 /** A request signed the way Mux signs it: `t=<unix seconds>,v1=<hmac sha256 of "<t>.<body>">`. */
