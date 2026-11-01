@@ -93,14 +93,14 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       expect(await repo.liveCourse(c)).toBeNull();
       expect(await repo.liveCourse(other)).not.toBeNull();
       expect(await repo.liveModules(c)).toEqual([]);
-      expect(await repo.liveLessonIds(c)).toEqual([]);
+      expect((await repo.liveLessonOutlines(c)).map((l) => l.kajabi_id)).toEqual([]);
       expect(await repo.liveOffers([c])).toEqual([]);
-      expect(await repo.liveLessonIds(other)).toHaveLength(1);
+      expect((await repo.liveLessonOutlines(other)).map((l) => l.kajabi_id)).toHaveLength(1);
 
       await repo.upsertCourses([course(c)]);
       expect(await repo.liveCourse(c)).not.toBeNull();
       // Children stay deleted until their own import brings them back.
-      expect(await repo.liveLessonIds(c)).toEqual([]);
+      expect((await repo.liveLessonOutlines(c)).map((l) => l.kajabi_id)).toEqual([]);
     });
 
     it("reads modules of one course or of all, and soft-deletes some of them", async () => {
@@ -113,12 +113,12 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       expect((await repo.liveModules(c)).map((m) => m.kajabi_id).sort()).toEqual([m1, m2].sort());
       expect(await repo.liveModules(c)).toContainEqual(expect.objectContaining({ kajabi_id: m2, parent_kajabi_id: m1, position: 2, publishing_option: "published" }));
       expect((await repo.liveModules()).filter((m) => m.course_kajabi_id === c)).toHaveLength(2);
-      expect((await repo.liveModuleIds(c)).sort()).toEqual([m1, m2].sort());
+      expect(((await repo.liveModules(c)).map((m) => m.kajabi_id)).sort()).toEqual([m1, m2].sort());
 
       await repo.softDeleteModules([m1], T2);
-      expect(await repo.liveModuleIds(c)).toEqual([m2]);
+      expect((await repo.liveModules(c)).map((m) => m.kajabi_id)).toEqual([m2]);
       await repo.upsertModules([mod(m1, c)]);
-      expect(await repo.liveModuleIds(c)).toHaveLength(2);
+      expect((await repo.liveModules(c)).map((m) => m.kajabi_id)).toHaveLength(2);
     });
 
     it("keeps a lesson's captured content when its structure is imported again, and reads it back in every shape", async () => {
@@ -192,7 +192,7 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       const rows = Array.from({ length: 1105 }, (_, i) => lesson(`${c}-${String(i).padStart(4, "0")}`, c));
       await repo.upsertLessons(rows);
 
-      const ids = await repo.liveLessonIds(c);
+      const ids = (await repo.liveLessonOutlines(c)).map((l) => l.kajabi_id);
       expect(ids).toHaveLength(1105);
       expect(new Set(ids).size).toBe(1105);
       expect(await repo.liveLessonOutlines(c)).toHaveLength(1105);
@@ -212,15 +212,15 @@ export function defineKajabiCoursesContract(name: string, setup: () => KajabiCou
       expect((await repo.liveFiles([l1])).map((f) => f.filename)).toEqual(["a.pdf", "b.pdf"]);
       expect((await repo.liveFiles([l1, l2, l1])).map((f) => f.filename)).toEqual(["a.pdf", "b.pdf", "c.pdf"]);
       expect(await repo.liveFiles([])).toEqual([]);
-      expect((await repo.liveFileIds(l1)).sort()).toEqual([f1, f2].sort());
+      expect(((await repo.liveFiles([l1])).map((f) => f.kajabi_id)).sort()).toEqual([f1, f2].sort());
 
       await repo.setFileSourceUrl(f1, "https://example.com/fresh");
       expect((await repo.liveFiles([l1])).find((f) => f.kajabi_id === f1)?.source_url).toBe("https://example.com/fresh");
 
       await repo.softDeleteFiles([f1], T2);
-      expect(await repo.liveFileIds(l1)).toEqual([f2]);
+      expect((await repo.liveFiles([l1])).map((f) => f.kajabi_id)).toEqual([f2]);
       await repo.upsertFiles([file(f1, l1, "b.pdf")]);
-      expect(await repo.liveFileIds(l1)).toHaveLength(2);
+      expect((await repo.liveFiles([l1])).map((f) => f.kajabi_id)).toHaveLength(2);
     });
 
     it("stores the offers that grant a course and soft-deletes some of them", async () => {
