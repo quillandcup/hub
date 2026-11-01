@@ -115,6 +115,13 @@ describe("loadChannelForMember", () => {
     await expect(loadChannelForMember(repos(), GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton" });
   });
 
+  it("lists only the people in a group message, never Billie Bot, which is in every group and isn't a member", async () => {
+    memberships.push({ channel_id: GROUP, member_id: HAZEL });
+    const label = (await loadChannelForMember(repos(), GROUP, FERN, false))!.label;
+    expect(label).toBe("Gale Prickleton, Hazel Burrows");
+    expect(label).not.toMatch(/bot/i);
+  });
+
   it("treats a channel or membership it can't read as not there", async () => {
     failing = ["channelRecord"];
     await expect(loadChannelForMember(repos(), GENERAL, FERN, false)).resolves.toBeNull();

@@ -48,7 +48,7 @@ function inviteProblem(code: string | undefined): string {
     case "users_list_not_supplied":
       return "Slack doesn't know one of those people.";
     case "missing_scope":
-      return "Billie Bot needs a new permission in Slack to do that. Ask an admin to reinstall it.";
+      return "Billie Bot needs a new permission in Slack to do that. Ask an admin to approve its permissions again.";
     default:
       return "Slack didn't add them. Try again in a moment.";
   }
@@ -66,7 +66,7 @@ function removeProblem(code: string | undefined): string {
     case "channel_not_found":
       return "Slack can't find this conversation.";
     case "missing_scope":
-      return "Billie Bot needs a new permission in Slack to do that. Ask an admin to reinstall it.";
+      return "Billie Bot needs a new permission in Slack to do that. Ask an admin to approve its permissions again.";
     default:
       return "Slack didn't remove them. Try again in a moment.";
   }
