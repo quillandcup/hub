@@ -5,6 +5,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 // importing lib/sudo.ts, which itself imports the server client.
 
 export const SUDO_COOKIE_NAME = 'sudo_as'
+export const SUDO_RETURN_COOKIE_NAME = 'sudo_return_to'
 
 export function signSudoCookie(adminId: string, memberId: string): string {
   const secret = process.env.SUDO_SECRET

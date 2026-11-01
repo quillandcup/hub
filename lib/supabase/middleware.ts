@@ -4,7 +4,7 @@ import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
-import { SUDO_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
+import { SUDO_COOKIE_NAME, SUDO_RETURN_COOKIE_NAME, actingAsHeaderValue } from '@/lib/sudo-cookie'
 import { PAGE_VIEW_PATH } from '@/lib/page-views'
 import { NEXT_PATH_COOKIE, NEXT_PATH_COOKIE_MAX_AGE_SECONDS, safeNextPath } from '@/lib/safe-next'
 import { lessonPreviewRewrite } from '@/lib/courses/preview-path'
@@ -200,6 +200,17 @@ export async function updateSession(request: NextRequest) {
       // Keep any session cookies getUser() just refreshed.
       supabaseResponse.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
       return redirectResponse
+    }
+    // Going back to the admin portal ends sudo; viewing as a member again is a
+    // new, explicit choice. Prefetches don't count: a member page links here.
+    if (!isPrefetch && request.cookies.has(SUDO_COOKIE_NAME)) {
+      request.cookies.delete(SUDO_COOKIE_NAME)
+      request.cookies.delete(SUDO_RETURN_COOKIE_NAME)
+      const refreshed = supabaseResponse.cookies.getAll()
+      supabaseResponse = NextResponse.next({ request })
+      refreshed.forEach((cookie) => supabaseResponse.cookies.set(cookie))
+      supabaseResponse.cookies.delete(SUDO_COOKIE_NAME)
+      supabaseResponse.cookies.delete(SUDO_RETURN_COOKIE_NAME)
     }
   }
 

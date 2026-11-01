@@ -209,4 +209,27 @@ describe("isAdminPath", () => {
   ])("%s → %s", (path, expected) => {
     expect(isAdminPath(path)).toBe(expected);
   });
+
+  describe("sudo", () => {
+    const sudoCookies = { sudo_as: "a:m:sig", sudo_return_to: "/dashboard" };
+
+    it("drops the sudo cookies when an admin opens the admin portal", async () => {
+      signIn(ADMIN, "admin");
+      const res = await proxy(request("/admin/members", sudoCookies));
+      expect(res.cookies.get("sudo_as")?.value).toBe("");
+      expect(res.cookies.get("sudo_return_to")?.value).toBe("");
+      // The same request no longer sees sudo either.
+      expect(res.headers.get("x-middleware-request-cookie") ?? "").not.toContain("sudo_as");
+    });
+
+    it("keeps sudo on member pages and on prefetches of admin pages", async () => {
+      signIn(ADMIN, "admin");
+      expect(
+        (await proxy(request("/dashboard", sudoCookies))).cookies.get("sudo_as"),
+      ).toBeUndefined();
+      const prefetch = new NextRequest("http://localhost:3000/admin", { headers: { "next-router-prefetch": "1" } });
+      for (const [k, v] of Object.entries(sudoCookies)) prefetch.cookies.set(k, v);
+      expect((await proxy(prefetch)).cookies.get("sudo_as")).toBeUndefined();
+    });
+  });
 });
