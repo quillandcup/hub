@@ -49,6 +49,7 @@ const TABLE: [() => Promise<Record<string, unknown>>, string, [string, string][]
     "app/(admin)/admin/courses/lesson-video-actions.ts",
     [["startLessonVideoUpload", "course_lesson_video_upload_started"], ["refreshLessonVideo", "course_lesson_video_refreshed"], ["removeLessonVideo", "course_lesson_video_removed"]],
   ],
+  [() => import("@/app/(admin)/admin/members/[id]/removal-actions"), "app/(admin)/admin/members/[id]/removal-actions.ts", [["removeMember", "member_removed"]]],
   [() => import("@/app/(member)/wheel-of-wonder/actions"), "app/(member)/wheel-of-wonder/actions.ts", [["spinWheel", "wheel_spun"], ["introduceOnSlack", "wheel_introduced"]]],
 ];
 
