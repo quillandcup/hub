@@ -2865,7 +2865,7 @@ export type Database = {
           screenshot_path: string | null
           status: string
           user_agent: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           admin_notes?: string | null
@@ -2879,7 +2879,7 @@ export type Database = {
           screenshot_path?: string | null
           status?: string
           user_agent?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           admin_notes?: string | null
@@ -2893,7 +2893,7 @@ export type Database = {
           screenshot_path?: string | null
           status?: string
           user_agent?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -6928,6 +6928,10 @@ export type Database = {
       remove_event_attendee: {
         Args: { p_event_id: string; p_member_id: string }
         Returns: undefined
+      }
+      remove_member_data: {
+        Args: { p_keep_public?: boolean; p_member_id: string }
+        Returns: Json
       }
       reorder_course_children: {
         Args: {
