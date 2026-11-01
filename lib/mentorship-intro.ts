@@ -1,11 +1,12 @@
-import { createRepos } from "@/lib/data/repos";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createNotifier } from "@/lib/notifications/notify";
 import type { OutboundMessage } from "@/lib/channels";
 import { isMentorshipActive } from "@/lib/mentorship";
 import { membersWithFeature } from "@/lib/features.server";
+
+type IntroRepos = Repos;
 
 /** What the new member hears about their big sister. */
 export function bigSisterMessageForNewMember(mentorName: string, ref?: string): OutboundMessage {
@@ -33,17 +34,17 @@ export function bigSisterMessageForMentor(mentorName: string, newMemberName: str
  * apply). A match whose 30 days are already up is a record, not news, so it sends nothing. Never
  * throws: the match is saved either way.
  *
- * `service` is a service-role client (the channel adapters read other members' contact details).
+ * `repos` run over a service-role client (the channel adapters read other members' contact details).
  */
 export async function sendMatchIntroductions(
-  service: SupabaseClient,
+  repos: IntroRepos,
   match: { mentorMemberId: string; newMemberId: string; startedOn: string },
   today: string
 ): Promise<void> {
   try {
     if (!isMentorshipActive(match.startedOn, today)) return;
 
-    const rows = await createRepos(service).members.byIds([match.mentorMemberId, match.newMemberId]);
+    const rows = await repos.members.byIds([match.mentorMemberId, match.newMemberId]);
     const names = new Map(rows.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
     const mentorName = names.get(match.mentorMemberId);
     const newMemberName = names.get(match.newMemberId);
@@ -52,11 +53,11 @@ export async function sendMatchIntroductions(
     // Only members who have the big_sisters preview hear about it: the page the message points to
     // is behind it.
     const people = [match.newMemberId, match.mentorMemberId];
-    const enabled = await membersWithFeature(createRepos(service), "big_sisters", people);
+    const enabled = await membersWithFeature(repos, "big_sisters", people);
     const recipients = people.filter((id) => enabled.has(id));
     if (recipients.length === 0) return;
 
-    const notifier = await createNotifier(service, "big_sister_match", recipients);
+    const notifier = await createNotifier(repos, "big_sister_match", recipients);
     const ref = `big-sister:${match.newMemberId}`;
     await Promise.all([
       enabled.has(match.newMemberId) &&

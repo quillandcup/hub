@@ -58,34 +58,34 @@ describe("check-in reads for a page", () => {
 describe("dismissed check-in and check-out offers", () => {
   it("are read per half, for one member or for the sender's batch", async () => {
     await repos.prickleActivity.dismiss("checkin", M, P);
-    expect(await loadDismissedIds({}, "checkin", M, [P])).toEqual(new Set([P]));
-    expect(await loadDismissedIds({}, "checkout", M, [P])).toEqual(new Set());
-    expect(await loadDismissedPairs({}, "checkin", [P])).toEqual(new Set([`${M}:${P}`]));
-    expect(await loadDismissedPairs({}, "checkin", [])).toEqual(new Set());
+    expect(await loadDismissedIds(repos, "checkin", M, [P])).toEqual(new Set([P]));
+    expect(await loadDismissedIds(repos, "checkout", M, [P])).toEqual(new Set());
+    expect(await loadDismissedPairs(repos, "checkin", [P])).toEqual(new Set([`${M}:${P}`]));
+    expect(await loadDismissedPairs(repos, "checkin", [])).toEqual(new Set());
   });
 
   it("hide nothing, and log, when the page's read fails; a sender's read fails instead of guessing", async () => {
     vi.spyOn(repos.prickleActivity, "dismissedAmong").mockRejectedValue(new Error("down"));
     vi.spyOn(repos.prickleActivity, "dismissedPairs").mockRejectedValue(new Error("down"));
-    expect(await loadDismissedIds({}, "checkout", M, [P])).toEqual(new Set());
+    expect(await loadDismissedIds(repos, "checkout", M, [P])).toEqual(new Set());
     expect(console.error).toHaveBeenCalled();
-    await expect(loadDismissedPairs({}, "checkout", [P])).rejects.toThrow("down");
+    await expect(loadDismissedPairs(repos, "checkout", [P])).rejects.toThrow("down");
   });
 
   it("are saved for either half and report a failed save", async () => {
-    expect(await dismissCheckinHalf({}, "checkout", M, P)).toBeNull();
+    expect(await dismissCheckinHalf(repos, "checkout", M, P)).toBeNull();
     expect(await repos.prickleActivity.dismissedAmong("checkout", M, [P])).toEqual(new Set([P]));
     vi.spyOn(repos.prickleActivity, "dismiss").mockRejectedValue(new Error("down"));
-    expect(await dismissCheckinHalf({}, "checkin", M, P)).toBe("Couldn't dismiss that check-in");
-    expect(await dismissCheckinHalf({}, "checkout", M, P)).toBe("Couldn't dismiss that check-out");
+    expect(await dismissCheckinHalf(repos, "checkin", M, P)).toBe("Couldn't dismiss that check-in");
+    expect(await dismissCheckinHalf(repos, "checkout", M, P)).toBe("Couldn't dismiss that check-out");
   });
 });
 
 describe("check-ins the senders read", () => {
   it("come back keyed by member and prickle, and none when there is nobody to ask about", async () => {
     await repos.prickleActivity.saveCheckin(M, P, BEFORE, "slack");
-    expect(await loadCheckins({}, [M], [P])).toEqual(new Map([[`${M}:${P}`, BEFORE]]));
-    expect(await loadCheckins({}, [], [P])).toEqual(new Map());
+    expect(await loadCheckins(repos, [M], [P])).toEqual(new Map([[`${M}:${P}`, BEFORE]]));
+    expect(await loadCheckins(repos, [], [P])).toEqual(new Map());
   });
 });
 
@@ -93,15 +93,15 @@ describe("saveCheckinAnswer", () => {
   const answer = { prickleId: P, field: "need" as const, values: ["company"] };
 
   it("saves an answer into the member's check-in", async () => {
-    expect(await saveCheckinAnswer({}, M, answer)).toBeNull();
+    expect(await saveCheckinAnswer(repos, M, answer)).toBeNull();
     expect(await repos.prickleActivity.checkinOf(M, P)).toEqual({ ...EMPTY_CHECKIN, need: "company" });
   });
 
   it("reports a failed read, and a failed save, as a message", async () => {
     vi.spyOn(repos.prickleActivity, "checkinOf").mockRejectedValueOnce(new Error("down"));
-    expect(await saveCheckinAnswer({}, M, answer)).toBe("couldn't read check-in: down");
+    expect(await saveCheckinAnswer(repos, M, answer)).toBe("couldn't read check-in: down");
     vi.spyOn(repos.prickleActivity, "saveCheckin").mockRejectedValue(new Error("nope"));
-    expect(await saveCheckinAnswer({}, M, answer)).toBe("couldn't save check-in: nope");
+    expect(await saveCheckinAnswer(repos, M, answer)).toBe("couldn't save check-in: nope");
   });
 });
 

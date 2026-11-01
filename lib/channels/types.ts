@@ -1,3 +1,4 @@
+import type { Repos } from "@/lib/data/repos";
 import type { ChannelId } from "./catalog";
 
 /** One outbound message, with whatever each channel needs to render it. */
@@ -46,6 +47,6 @@ export interface SendContext {
 export interface ChannelAdapter {
   id: ChannelId;
   /** memberId -> this channel's address (e.g. Slack user id). Members missing from the map can't be reached on it. */
-  resolveAddresses(supabase: any, memberIds: string[]): Promise<Map<string, string>>;
+  resolveAddresses(repos: Repos, memberIds: string[]): Promise<Map<string, string>>;
   send(address: string, message: OutboundMessage, context: SendContext): Promise<void>;
 }

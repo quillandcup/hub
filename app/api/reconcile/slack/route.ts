@@ -4,6 +4,7 @@ import { pingCronHeartbeat } from "@/lib/cron-heartbeats";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 
 // Extend timeout for reconciliation jobs
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     ];
     if (problems.length > 0) {
       console.warn(`[Reconciliation] Slack reconciliation did not finish cleanly:`, problems);
-      await sendOperationsAlert(createServiceRoleClient(), { type: "cron_partial_failure", job: "reconcile-slack", problems });
+      await sendOperationsAlert(createRepos(createServiceRoleClient()), { type: "cron_partial_failure", job: "reconcile-slack", problems });
     } else {
       console.log(`[Reconciliation] Slack reconciliation complete`);
       await pingCronHeartbeat("reconcile-slack");
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("[Reconciliation] Error in Slack reconciliation:", error);
-    await sendOperationsAlert(createServiceRoleClient(), {
+    await sendOperationsAlert(createRepos(createServiceRoleClient()), {
       type: "cron_partial_failure",
       job: "reconcile-slack",
       problems: [`failed outright: ${error.message || "unknown error"}`],

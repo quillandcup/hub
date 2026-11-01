@@ -1,16 +1,17 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { APP_URL, ATTENDANCE_DATA_STARTS_ON, ORG_TIMEZONE, SLACK_INTRO_CHANNEL, SLACK_WORKSPACE_URL } from "@/lib/config";
 import { createNotifier } from "@/lib/notifications/notify";
 import type { NotificationKindId } from "@/lib/notifications/registry";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import { daysSinceJoined, isNewcomer } from "@/lib/newcomer";
 import { resolveSlackUserIds } from "@/lib/slack-member-ids";
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { loadIntroChannelId, loadIntroducedMemberIds, loadLastAttendanceByMember } from "@/lib/newcomer-signals";
 import { loadCalendarPrickleIdsByMember } from "@/lib/prickle-checkin-dms";
 import type { OutboundMessage } from "@/lib/channels";
 import { calendarDaysBetween, currentHour, jitteredGapDays, sendHourFor } from "@/lib/nudge-jitter";
 import { isValidTimeZone } from "@/lib/time-zone";
+
+type ReminderRepos = Repos;
 
 /**
  * Two kinds of reminder, sent by the hourly /api/internal/member-reminders:
@@ -121,8 +122,8 @@ interface MemberRow {
   user_id: string | null;
 }
 
-async function loadActiveMembers(supabase: SupabaseClient): Promise<MemberRow[]> {
-  const members = await createRepos(supabase).members.list({ status: "active" });
+async function loadActiveMembers(repos: ReminderRepos): Promise<MemberRow[]> {
+  const members = await repos.members.list({ status: "active" });
   return members.map((m) => ({ id: m.id, first_joined_at: m.firstJoinedAt, user_id: m.userId }));
 }
 
@@ -136,10 +137,10 @@ const isSendHour = (memberId: string, kind: MemberReminderKind, sent: number, no
  * without an account yet, are left out and get the org timezone. Kajabi's API has no timezone for
  * a contact (only a mostly-empty address), so there's nothing to fall back on there.
  */
-async function loadMemberTimeZones(supabase: SupabaseClient, members: MemberRow[]): Promise<Map<string, string>> {
+async function loadMemberTimeZones(repos: ReminderRepos, members: MemberRow[]): Promise<Map<string, string>> {
   const zones = new Map<string, string>();
   const withAccount = members.filter((m) => m.user_id);
-  const profiles = await createRepos(supabase).profiles.byIds(withAccount.map((m) => m.user_id as string));
+  const profiles = await repos.profiles.byIds(withAccount.map((m) => m.user_id as string));
   const zoneByUser = new Map(profiles.map((p) => [p.id, p.timezone_preference]));
   for (const m of withAccount) {
     const zone = zoneByUser.get(m.user_id as string);
@@ -149,13 +150,13 @@ async function loadMemberTimeZones(supabase: SupabaseClient, members: MemberRow[
 }
 
 /** `${memberId}:${kind}` -> when each reminder went out. */
-async function loadNudgeLog(supabase: SupabaseClient, memberIds: string[]): Promise<Map<string, Date[]>> {
-  return createRepos(supabase).reminderLog.sentTimes(memberIds);
+async function loadNudgeLog(repos: ReminderRepos, memberIds: string[]): Promise<Map<string, Date[]>> {
+  return repos.reminderLog.sentTimes(memberIds);
 }
 
 /** Claims today's reminder for the member; false when another run already did (unique member, kind, day). */
-async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: MemberReminderKind, now: Date) {
-  return createRepos(supabase).reminderLog.claim(memberId, kind, now);
+async function tryRecordNudge(repos: ReminderRepos, memberId: string, kind: MemberReminderKind, now: Date) {
+  return repos.reminderLog.claim(memberId, kind, now);
 }
 
 export interface MemberReminderResult {
@@ -182,11 +183,11 @@ export interface MemberReminderOptions {
  * since done the thing.
  */
 export async function sendMemberReminders(
-  supabase: SupabaseClient,
+  repos: ReminderRepos,
   now: Date = new Date(),
   { liveFor = async (_kind, ids) => new Set(ids) }: MemberReminderOptions = {}
 ): Promise<MemberReminderResult> {
-  const members = await loadActiveMembers(supabase);
+  const members = await loadActiveMembers(repos);
   if (members.length === 0) return { intro: 0, prickle: 0, dryRun: { intro: 0, prickle: 0 } };
   const memberIds = members.map((m) => m.id);
   // Each kind has its own switch, so intro reminders can go out for real before prickle reminders do.
@@ -194,11 +195,11 @@ export async function sendMemberReminders(
   const newcomers = members.filter((m) => isNewcomer(m.first_joined_at, now));
 
   const [introduced, lastAttendance, log, channelId, zones] = await Promise.all([
-    loadIntroducedMemberIds(createRepos(supabase), newcomers.map((m) => m.id)),
-    loadLastAttendanceByMember(createRepos(supabase).attendance, memberIds),
-    loadNudgeLog(supabase, memberIds),
-    loadIntroChannelId(createRepos(supabase)),
-    loadMemberTimeZones(supabase, members),
+    loadIntroducedMemberIds(repos, newcomers.map((m) => m.id)),
+    loadLastAttendanceByMember(repos.attendance, memberIds),
+    loadNudgeLog(repos, memberIds),
+    loadIntroChannelId(repos),
+    loadMemberTimeZones(repos, members),
   ]);
   const zoneOf = (memberId: string) => zones.get(memberId) ?? ORG_TIMEZONE;
   const sentFor = (memberId: string, kind: MemberReminderKind) => log.get(`${memberId}:${kind}`) ?? [];
@@ -212,12 +213,12 @@ export async function sendMemberReminders(
   // Only for members this is live for: a dry run leaves everything as it was.
   for (const m of newcomers.filter((m) => introLive.has(m.id))) {
     if (introduced.has(m.id) && sentFor(m.id, "intro_nudge").length > 0) {
-      await resolveInAppNotifications(createRepos(supabase), m.id, "intro_nudge", NUDGE_REF.intro_nudge);
+      await resolveInAppNotifications(repos, m.id, "intro_nudge", NUDGE_REF.intro_nudge);
     }
   }
   for (const m of members.filter((m) => prickleLive.has(m.id))) {
     if (attendedRecently(m.id) && sentFor(m.id, "prickle_nudge").length > 0) {
-      await resolveInAppNotifications(createRepos(supabase), m.id, "prickle_nudge", NUDGE_REF.prickle_nudge);
+      await resolveInAppNotifications(repos, m.id, "prickle_nudge", NUDGE_REF.prickle_nudge);
     }
   }
 
@@ -237,9 +238,9 @@ export async function sendMemberReminders(
   });
 
   // We can't tell whether someone we haven't matched to a Slack user has posted, so leave them be.
-  const inSlack = introDue.length > 0 ? await resolveSlackUserIds(supabase, introDue.map((m) => m.id)) : new Map();
+  const inSlack = introDue.length > 0 ? await resolveSlackUserIds(repos, introDue.map((m) => m.id)) : new Map();
   const intro = await sendKind(
-    supabase,
+    repos,
     "intro_nudge",
     introDue.filter((m) => inSlack.has(m.id)),
     now,
@@ -256,7 +257,7 @@ export async function sendMemberReminders(
     })
   );
   const prickle = await sendKind(
-    supabase,
+    repos,
     "prickle_nudge",
     prickleDue,
     now,
@@ -264,7 +265,7 @@ export async function sendMemberReminders(
     async (candidates) => {
       // Someone with a prickle coming up has what we'd ask for. Checked last: each calendar is a
       // handful of queries.
-      const upcoming = await loadCalendarPrickleIdsByMember(supabase, candidates.map((m) => m.id), now, now);
+      const upcoming = await loadCalendarPrickleIdsByMember(repos, candidates.map((m) => m.id), now, now);
       return candidates.filter((m) => (upcoming.get(m.id)?.size ?? 0) === 0);
     },
     prickleLive,
@@ -290,7 +291,7 @@ export async function sendMemberReminders(
 }
 
 async function sendKind(
-  supabase: SupabaseClient,
+  repos: ReminderRepos,
   kind: MemberReminderKind,
   due: MemberRow[],
   now: Date,
@@ -300,7 +301,7 @@ async function sendKind(
   why: (member: MemberRow) => Record<string, unknown>
 ): Promise<{ sent: number; dryRun: number }> {
   if (due.length === 0) return { sent: 0, dryRun: 0 };
-  const notifier = await createNotifier(supabase, kind, due.map((m) => m.id));
+  const notifier = await createNotifier(repos, kind, due.map((m) => m.id));
 
   // Members this isn't live for are only logged, whether or not they'd be reachable, so the log
   // shows who a real run would skip (not opted in, or opted out) as well as who it would remind.
@@ -327,12 +328,12 @@ async function sendKind(
   let sent = 0;
   for (const member of reachable) {
     const message = messageFor(member);
-    if (!(await tryRecordNudge(supabase, member.id, kind, now))) continue;
+    if (!(await tryRecordNudge(repos, member.id, kind, now))) continue;
     const delivered = await notifier.send(member.id, message);
     if (delivered.length > 0) sent++;
     else {
       // Keep partial successes deduplicated; only a completely undelivered reminder can retry.
-      await createRepos(supabase).reminderLog.release(member.id, kind, now);
+      await repos.reminderLog.release(member.id, kind, now);
     }
   }
   return { sent, dryRun };

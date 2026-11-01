@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import appConfig from "../app.config";
 import { isProduction, SLACK_ALERTS_CHANNEL_ID } from "@/lib/config";
 import { sendEmail } from "@/lib/email";
+import type { Repos } from "@/lib/data/repos";
 import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 /** Alerts about the member-notification path, delivered outside that path. */
@@ -14,10 +15,6 @@ export type OperationsAlert =
   | { type: "ambiguous_slack_member_match"; collisions: ReadonlyArray<{ reason: string; slackUserIds: string[]; memberIds: string[] }> };
 
 const ALERT_WINDOW_SECONDS = 10 * 60;
-type RateLimitClient = {
-  rpc: (name: "rate_limit_hit", args: { p_bucket: string; p_window_seconds: number; p_max_hits: number }) =>
-    PromiseLike<{ data: boolean | null; error: unknown }>;
-};
 
 /** Sentry issue search for events tagged with this section, last 24 hours, newest first. */
 export function sentrySectionSearchUrl(section: string): string {
@@ -76,20 +73,11 @@ function alertDetails(alert: OperationsAlert): { bucket: string; title: string; 
  * If the bot itself is broken, email ALERTS_EMAIL through Resend so that failure is still visible.
  * Never throws into the member notification or identity-resolution path.
  */
-export async function sendOperationsAlert(service: RateLimitClient, alert: OperationsAlert): Promise<void> {
+export async function sendOperationsAlert(repos: Pick<Repos, "rateLimit">, alert: OperationsAlert): Promise<void> {
   if (!isProduction) return;
   const { bucket, title, text } = alertDetails(alert);
   try {
-    const { data, error } = await service.rpc("rate_limit_hit", {
-      p_bucket: bucket,
-      p_window_seconds: ALERT_WINDOW_SECONDS,
-      p_max_hits: 1,
-    });
-    if (error) {
-      console.error("[operations-alerts] rate limit lookup failed", error);
-    } else if (data !== true) {
-      return;
-    }
+    if (!(await repos.rateLimit.hit(bucket, ALERT_WINDOW_SECONDS, 1))) return;
   } catch (error) {
     console.error("[operations-alerts] rate limit lookup threw", error);
   }

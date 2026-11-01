@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 
 /**
  * Fixed-window rate limiting backed by public.rate_limit_hit() (see its migration). Every call
@@ -17,19 +17,15 @@ export interface RateLimit {
  * (allows, and logs) if the database call itself fails: callers use this to slow abuse of
  * credentials that are already infeasible to guess, not as their only protection.
  */
-export async function hitRateLimits(service: SupabaseClient, limits: RateLimit[]): Promise<boolean> {
+export async function hitRateLimits(repos: Pick<Repos, "rateLimit">, limits: RateLimit[]): Promise<boolean> {
   const results = await Promise.all(
     limits.map(async ({ bucket, windowSeconds, maxHits }) => {
-      const { data, error } = await service.rpc("rate_limit_hit", {
-        p_bucket: bucket,
-        p_window_seconds: windowSeconds,
-        p_max_hits: maxHits,
-      });
-      if (error) {
+      try {
+        return await repos.rateLimit.hit(bucket, windowSeconds, maxHits);
+      } catch (error) {
         console.error("rate-limit: rate_limit_hit failed for %s:", bucket, error);
         return true;
       }
-      return data === true;
     })
   );
   return results.every(Boolean);

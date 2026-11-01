@@ -1,8 +1,10 @@
-import { createRepos } from "@/lib/data/repos";
+import type { Repos } from "@/lib/data/repos";
 import { matchSlackUsersToMembers, type SlackUser } from "@/lib/slack-matching";
 import { normalizeName, type Member } from "@/lib/member-matching";
 import * as Sentry from "@sentry/nextjs";
 import { sendOperationsAlert, type OperationsAlert } from "@/lib/operations-alerts";
+
+type SlackIdRepos = Pick<Repos, "aliases" | "members" | "rateLimit" | "slackUsers">;
 
 /**
  * Member <-> Slack user resolution for server code that DMs members (notifications) or handles
@@ -12,13 +14,13 @@ import { sendOperationsAlert, type OperationsAlert } from "@/lib/operations-aler
 
 /** Full slackUserId -> memberId map, same 3-tier matching (alias > email > normalized name) Wheel of Wonder uses. */
 async function buildSlackUserIdToMemberIdMap(
-  supabase: any,
+  repos: SlackIdRepos,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
   const [allMembers, aliases, slackUsers] = await Promise.all([
-    createRepos(supabase).members.identities(),
-    createRepos(supabase).aliases.nameAliases(),
-    createRepos(supabase).slackUsers.list(),
+    repos.members.identities(),
+    repos.aliases.nameAliases(),
+    repos.slackUsers.list(),
   ]);
 
   const members: Member[] = allMembers;
@@ -79,18 +81,18 @@ async function buildSlackUserIdToMemberIdMap(
     for (const id of slackUserIds) safe.delete(id);
   }
   if (collisions.length > 0) {
-    await sendOperationsAlert(supabase, { type: "ambiguous_slack_member_match", collisions });
+    await sendOperationsAlert(repos, { type: "ambiguous_slack_member_match", collisions });
   }
   return safe;
 }
 
 /** memberId -> slackUserId, for a specific set of members. */
-export async function resolveSlackUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
+export async function resolveSlackUserIds(repos: SlackIdRepos, memberIds: string[]): Promise<Map<string, string>> {
   const slackUserIdByMember = new Map<string, string>();
   if (memberIds.length === 0) return slackUserIdByMember;
 
   const memberIdSet = new Set(memberIds);
-  const slackUserToMemberId = await buildSlackUserIdToMemberIdMap(supabase, { memberIds });
+  const slackUserToMemberId = await buildSlackUserIdToMemberIdMap(repos, { memberIds });
   for (const [slackUserId, memberId] of slackUserToMemberId) {
     if (memberIdSet.has(memberId)) slackUserIdByMember.set(memberId, slackUserId);
   }
@@ -98,7 +100,7 @@ export async function resolveSlackUserIds(supabase: any, memberIds: string[]): P
 }
 
 /** Reverse lookup for an inbound Slack interaction: the Slack user id we're handed, resolved to a member id. */
-export async function resolveMemberIdForSlackUser(supabase: any, slackUserId: string): Promise<string | null> {
-  const map = await buildSlackUserIdToMemberIdMap(supabase, { slackUserId });
+export async function resolveMemberIdForSlackUser(repos: SlackIdRepos, slackUserId: string): Promise<string | null> {
+  const map = await buildSlackUserIdToMemberIdMap(repos, { slackUserId });
   return map.get(slackUserId) ?? null;
 }

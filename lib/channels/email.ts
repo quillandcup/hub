@@ -18,10 +18,10 @@ import type { ChannelAdapter } from "./types";
  */
 export const emailChannel: ChannelAdapter = {
   id: "email",
-  async resolveAddresses(supabase, memberIds) {
+  async resolveAddresses(repos, memberIds) {
     const addresses = new Map<string, string>();
     try {
-      for (const member of await createRepos(supabase).members.byIds(memberIds)) {
+      for (const member of await repos.members.byIds(memberIds)) {
         if (member.email) addresses.set(member.id, member.email);
       }
     } catch (error) {

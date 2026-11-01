@@ -30,7 +30,7 @@ beforeEach(() => {
 describe("sendTestNotification action", () => {
   it("sends to the admin's own member record", async () => {
     expect(await sendTestNotification("intro_nudge", "slack")).toEqual({ success: true, sent: 1 });
-    expect(mocks.send).toHaveBeenCalledWith({ service: true }, "m-admin", "intro_nudge", "slack");
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), "m-admin", "intro_nudge", "slack");
   });
 
   it("refuses a non-admin before doing anything", async () => {
@@ -68,7 +68,7 @@ describe("sendDiagnosticPush action", () => {
   it("pushes to the admin's own devices, with a tag and high urgency only for the variants that ask", async () => {
     expect(await sendDiagnosticPush("tagged_urgent")).toEqual({ success: true, sent: 2 });
     expect(mocks.push).toHaveBeenCalledWith(
-      { service: true },
+      expect.objectContaining({ pushSubscriptions: expect.anything() }),
       "m-admin",
       expect.objectContaining({ url: "/admin/notifications", tag: "prickle_checkin:diagnostic" }),
       { urgency: "high", ttlSeconds: 15 * 60 }
@@ -76,7 +76,7 @@ describe("sendDiagnosticPush action", () => {
 
     await sendDiagnosticPush("standard");
     expect(mocks.push).toHaveBeenLastCalledWith(
-      { service: true },
+      expect.objectContaining({ pushSubscriptions: expect.anything() }),
       "m-admin",
       expect.objectContaining({ tag: undefined }),
       { urgency: "normal", ttlSeconds: 24 * 60 * 60 }

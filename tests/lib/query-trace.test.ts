@@ -76,18 +76,18 @@ describe("traced", () => {
         { memberId: "mbr_AAAAAAAAAAA1" }
       )
     ).rejects.toBe(error);
-    expect(sendOperationsAlert).toHaveBeenCalledWith(service, { type: "section_failed", section: "broken", code: undefined, ms: 50 });
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), { type: "section_failed", section: "broken", code: undefined, ms: 50 });
     expect(setTag).toHaveBeenCalledWith("section", "broken");
     expect(setContext).toHaveBeenCalledWith("section", { name: "broken", ms: 50, memberId: "mbr_AAAAAAAAAAA1" });
   });
 
   it("alerts with the Postgres code, so a statement timeout reads as one", async () => {
     await expect(traced("slowdb", async () => { throw new DbQueryError("slowdb", { code: "57014", message: "t" }); })).rejects.toBeInstanceOf(DbQueryError);
-    expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "slowdb", code: "57014" }));
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), expect.objectContaining({ section: "slowdb", code: "57014" }));
   });
 
   it("alerts for a thrown value that is not an object", async () => {
     await expect(traced("odd", async () => { throw null; })).rejects.toBeNull();
-    expect(sendOperationsAlert).toHaveBeenCalledWith(service, expect.objectContaining({ section: "odd", code: undefined }));
+    expect(sendOperationsAlert).toHaveBeenCalledWith(expect.objectContaining({ rateLimit: expect.anything() }), expect.objectContaining({ section: "odd", code: undefined }));
   });
 });

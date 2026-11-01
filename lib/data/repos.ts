@@ -46,6 +46,7 @@ import { InMemorySegmentRepository, SupabaseSegmentRepository, type SegmentRepos
 import { InMemoryFeatureFlagRepository, SupabaseFeatureFlagRepository, type FeatureFlagRepository } from "./feature-flags";
 import { InMemorySlackSignInRepository, SupabaseSlackSignInRepository, type SlackSignInRepository } from "./slack-sign-in";
 import { InMemoryAnalyticsEventRepository, SupabaseAnalyticsEventRepository, type AnalyticsEventRepository } from "./analytics-events";
+import { InMemoryRateLimitRepository, SupabaseRateLimitRepository, type RateLimitRepository } from "./rate-limit";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -99,6 +100,7 @@ export interface Repos {
   featureFlags: FeatureFlagRepository;
   slackSignIn: SlackSignInRepository;
   analyticsEvents: AnalyticsEventRepository;
+  rateLimit: RateLimitRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -150,6 +152,7 @@ export function createRepos(db: Db): Repos {
     featureFlags: new SupabaseFeatureFlagRepository(db),
     slackSignIn: new SupabaseSlackSignInRepository(db),
     analyticsEvents: new SupabaseAnalyticsEventRepository(db),
+    rateLimit: new SupabaseRateLimitRepository(db),
   };
 }
 
@@ -202,5 +205,6 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     featureFlags: new InMemoryFeatureFlagRepository(dataset),
     slackSignIn: new InMemorySlackSignInRepository(dataset),
     analyticsEvents: new InMemoryAnalyticsEventRepository(dataset),
+    rateLimit: new InMemoryRateLimitRepository(dataset),
   };
 }

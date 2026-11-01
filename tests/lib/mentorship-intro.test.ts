@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { APP_URL } from "@/lib/config";
 const mocks = vi.hoisted(() => ({ features: vi.fn(), notifier: vi.fn(), reach: vi.fn(), send: vi.fn() }));
 vi.mock("@/lib/features.server", () => ({ membersWithFeature: mocks.features }));
 vi.mock("@/lib/notifications/notify", () => ({ createNotifier: mocks.notifier }));
 import { sendMatchIntroductions } from "@/lib/mentorship-intro";
+import { createInMemoryRepos } from "@/lib/data/repos";
 const match = { mentorMemberId: "mentor", newMemberId: "new", startedOn: "2026-10-01" };
 const today = "2026-10-15";
-const members = [{ id: "mentor", name: "Marlow Finch", display_name: "Marlow" }, { id: "new", name: "Linden Park", display_name: null }];
-const database = (data: unknown = members) => createFakeSupabase({ members: { data } }) as unknown as SupabaseClient;
+const members = [{ id: "mentor", name: "Marlow Finch", displayName: "Marlow" }, { id: "new", name: "Linden Park" }];
+const database = (data: typeof members | null = members) => createInMemoryRepos(new InMemoryDataset({ members: data ?? [] }));
 beforeEach(() => { vi.clearAllMocks(); mocks.features.mockResolvedValue(new Set(["mentor", "new"])); mocks.reach.mockReturnValue(true); mocks.notifier.mockResolvedValue({ canReach: mocks.reach, send: mocks.send }); });
 describe("match introductions", () => {
   it("sends the correct recipient-specific message, display name, destination, and notification reference", async () => {

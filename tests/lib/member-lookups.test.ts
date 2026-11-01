@@ -26,7 +26,7 @@ beforeEach(() => {
 
 describe("email channel addresses", () => {
   it("resolves each member's email, leaving out members that don't exist", async () => {
-    const found = await emailChannel.resolveAddresses({} as never, [ADA.id, GALE.id, "mbr_ZZZZZZZZZZZZ"]);
+    const found = await emailChannel.resolveAddresses(repos, [ADA.id, GALE.id, "mbr_ZZZZZZZZZZZZ"]);
 
     expect(found).toEqual(new Map([[ADA.id, ADA.email], [GALE.id, GALE.email]]));
   });
@@ -35,7 +35,7 @@ describe("email channel addresses", () => {
     vi.spyOn(repos.members, "byIds").mockRejectedValue(new Error("boom"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(await emailChannel.resolveAddresses({} as never, [ADA.id])).toEqual(new Map());
+    expect(await emailChannel.resolveAddresses(repos, [ADA.id])).toEqual(new Map());
     expect(log).toHaveBeenCalledWith("[email] Loading member addresses failed", expect.any(Error));
   });
 });

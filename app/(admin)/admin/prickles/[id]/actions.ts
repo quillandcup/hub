@@ -30,7 +30,7 @@ export async function sendTestPrickleDM(prickleId: string, kind: CheckinDMKind) 
   // Service role for the Slack user match (bronze.slack_users), as the cron does; every query is
   // scoped to the admin's own member id.
   const result = await sendTestCheckinDM(
-    createServiceRoleClient(),
+    createRepos(createServiceRoleClient()),
     identity.memberId,
     { id: prickle.id, typeName: type.name, title: prickleTitle(prickle) },
     kind

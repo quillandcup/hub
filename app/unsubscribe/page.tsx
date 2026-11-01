@@ -6,6 +6,7 @@ import { loadNotificationPreferences, NOTIFICATION_SETTINGS_PATH } from "@/lib/n
 import { effectiveChannels, notificationKind } from "@/lib/notifications/registry";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import { setEmailFromToken } from "./actions";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = { title: "Email notifications" };
 
@@ -34,7 +35,7 @@ export default async function UnsubscribePage({ searchParams }: { searchParams: 
   }
 
   const kind = notificationKind(parsed.kind);
-  const preferences = await loadNotificationPreferences(createServiceRoleClient(), parsed.kind, [parsed.memberId]);
+  const preferences = await loadNotificationPreferences(createRepos(createServiceRoleClient()), parsed.kind, [parsed.memberId]);
   const subscribed = effectiveChannels(parsed.kind, preferences.get(parsed.memberId) ?? []).includes("email");
 
   return (
