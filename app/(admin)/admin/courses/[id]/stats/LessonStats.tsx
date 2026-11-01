@@ -32,6 +32,8 @@ interface TileData {
   value: string;
   definition: string;
   hint?: string;
+  /** What the modal's small tile shows under the value (the rest is in the hover text). */
+  compactHint?: string;
 }
 
 /** A stat tile that opens to say what the number means. */
@@ -53,13 +55,13 @@ function Tile({ label, value, definition, hint }: TileData) {
   );
 }
 
-/** The modal's tile: a dense number with its meaning on hover (and for a screen reader), so nothing expands and shifts the page. */
-function CompactTile({ label, value, definition, hint }: TileData) {
+/** The modal's tile: a small number with its meaning on hover (and for a screen reader), so nothing expands and shifts the page. */
+function CompactTile({ label, value, definition, compactHint }: TileData) {
   return (
-    <div title={definition} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-      <p className="text-xs text-slate-600 dark:text-slate-400">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">{hint}</p>}
+    <div title={definition} className="rounded-md border border-slate-200 px-3 py-2 dark:border-slate-800">
+      <p className="truncate text-xs text-slate-600 dark:text-slate-400">{label}</p>
+      <p className="text-lg font-semibold leading-tight tabular-nums">{value}</p>
+      {compactHint && <p className="truncate text-xs text-slate-600 dark:text-slate-400">{compactHint}</p>}
       <p className="sr-only">{definition}</p>
     </div>
   );
@@ -67,34 +69,43 @@ function CompactTile({ label, value, definition, hint }: TileData) {
 
 type Stats = NonNullable<LessonWatchStats["stats"]>;
 
+/** Speed, captions and background play as rows with the number beside its label, under one heading each. */
 function HowWatched({ stats }: { stats: Stats }) {
+  const row = "flex items-center justify-between gap-4 py-1.5";
   return (
-    <div className="@container">
-      <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @pair:grid-cols-2">
-        <div>
-          <dt className="text-slate-600 dark:text-slate-400">Playback speed (share of time played)</dt>
-          <dd className="mt-1">
-            <ul>
-              {stats.speeds.map((s) => (
-                <li key={s.rate} className="flex justify-between gap-4 tabular-nums">
-                  <span>{s.rate}x</span>
-                  <span>{percent(s.seconds / stats.watchedSeconds)}</span>
+    <div className="@container mt-3">
+      <div className="grid gap-x-10 gap-y-5 @pair:grid-cols-2">
+        <div className="max-w-sm">
+          <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Playback speed (share of time played)</h3>
+          <ul className="mt-1 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            {stats.speeds.map((s) => {
+              const share = stats.watchedSeconds > 0 ? s.seconds / stats.watchedSeconds : 0;
+              return (
+                <li key={s.rate} className="flex items-center gap-3 py-1.5 tabular-nums">
+                  <span className="w-10 shrink-0">{s.rate}x</span>
+                  <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <span className="block h-full rounded-full bg-plum-400" style={{ width: `${Math.round(share * 100)}%` }} />
+                  </span>
+                  <span className="w-10 shrink-0 text-right">{percent(share)}</span>
                 </li>
-              ))}
-            </ul>
-          </dd>
+              );
+            })}
+          </ul>
         </div>
-        <div className="space-y-3">
-          <div>
-            <dt className="text-slate-600 dark:text-slate-400">Captions on</dt>
-            <dd className="mt-1 tabular-nums">{percent(stats.captionsShare)} of the time played</dd>
-          </div>
-          <div>
-            <dt className="text-slate-600 dark:text-slate-400">Played with the tab in the background</dt>
-            <dd className="mt-1 tabular-nums">{percent(stats.backgroundShare)} of the time played</dd>
-          </div>
+        <div className="max-w-sm">
+          <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400">Share of time played</h3>
+          <dl className="mt-1 divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            <div className={row}>
+              <dt>With captions on</dt>
+              <dd className="tabular-nums">{percent(stats.captionsShare)}</dd>
+            </div>
+            <div className={row}>
+              <dt>With the tab in the background</dt>
+              <dd className="tabular-nums">{percent(stats.backgroundShare)}</dd>
+            </div>
+          </dl>
         </div>
-      </dl>
+      </div>
     </div>
   );
 }
@@ -183,6 +194,7 @@ export default async function renderLessonStats({
           label: "Play rate",
           value: percent(stats.playRate),
           hint: `${stats.plays} of ${stats.views} ${stats.views === 1 ? "visit" : "visits"}`,
+          compactHint: `${stats.plays} of ${stats.views} ${stats.views === 1 ? "visit" : "visits"}`,
           definition: "The percentage of visits to the lesson, where the video appeared, in which it was played.",
         },
         { label: "Viewers", value: String(stats.viewers), definition: "Different members who watched any of the video." },
@@ -202,6 +214,7 @@ export default async function renderLessonStats({
           label: "Rewatched",
           value: formatClock(Math.max(0, stats.watchedSeconds - stats.uniqueWatchedSeconds)),
           hint: `of ${formatClock(stats.watchedSeconds)} played`,
+          compactHint: `of ${formatClock(stats.watchedSeconds)} played`,
           definition: "Video time viewers replayed after already watching it: the time played minus the time covered. It leaves out two different members watching the same part.",
         },
       ]
@@ -239,7 +252,7 @@ export default async function renderLessonStats({
         ) : (
           <>
             <div className="@container">
-              <div className="mt-4 grid grid-cols-2 gap-3 @pair:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-2 @pair:grid-cols-4 @columns:grid-cols-7">
                 {tiles.map((t) => (
                   <CompactTile key={t.label} {...t} />
                 ))}
@@ -254,7 +267,9 @@ export default async function renderLessonStats({
                   content: (
                     <>
                       <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">{engagementIntro}</p>
-                      <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} />
+                      <div className="max-w-xl">
+                        <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} />
+                      </div>
                       <h2 className="mt-6 text-lg font-semibold">How it was watched</h2>
                       <HowWatched stats={stats} />
                     </>
