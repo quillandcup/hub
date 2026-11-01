@@ -5,7 +5,7 @@ import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 import { lessonExcerpt } from "@/lib/courses/excerpt";
 import { planFullTree, slugifyTitle } from "@/lib/courses/visibility";
 
-type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs">;
+export type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "courses" | "kajabiCourses" | "members" | "programs">;
 
 /**
  * Bronze (Kajabi) + Local -> Silver courses (docs/COURSES.md, step C).
@@ -23,7 +23,7 @@ type ProcessRepos = Pick<Repos, "aliases" | "billing" | "courseProgress" | "cour
  * course is authored). Existing rows are left alone, and a title whose slug is empty or already
  * taken is skipped (processing it by slug reports the problem).
  */
-export async function ensureDraftCourses(repos: ProcessRepos): Promise<number> {
+export async function ensureDraftCourses(repos: Pick<Repos, "courses" | "kajabiCourses">): Promise<number> {
   const bronze = await repos.kajabiCourses.liveCourses();
   const rows = await repos.courses.courses();
   const have = new Set(rows.filter((r) => r.source === "kajabi").map((r) => r.source_key));

@@ -2,7 +2,7 @@
 /** The new-course page: a form for a course the Hub owns, with the programs to choose from. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { ACCESS_OPTIONS } from "@/lib/courses/access-options";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -17,7 +17,6 @@ import NewCoursePage from "@/app/(admin)/admin/courses/new/page";
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase();
   requireAdminPage.mockClear();
   names.mockReset();
   names.mockResolvedValue([

@@ -6,7 +6,7 @@ import { APP_URL, isProduction } from "@/lib/config";
 import { GoogleCalendarClient } from "@/lib/google-calendar/client";
 import { ensureCalendarWatchChannel, type WatchResult } from "@/lib/google-calendar/watch";
 import { sweepCancelledEvents } from "@/lib/google-calendar/incremental-sync";
-import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getServiceRepos } from "@/lib/data/server";
 
 // Extend timeout for reconciliation jobs
 export const maxDuration = 300; // 5 minutes (max for Hobby tier)
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   } else {
     try {
       watch = await ensureCalendarWatchChannel({
-        supabase: createServiceRoleClient(),
+        repos: getServiceRepos(),
         client: new GoogleCalendarClient(),
         calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
         address: `${APP_URL}/api/webhooks/calendar`,
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     const result = await triggerCalendarSync({ daysBack: 90, daysForward: 90 });
     // The import above only sees the watched window; a deletion of any other event is found here.
     const cancelled = await sweepCancelledEvents({
-      supabase: createServiceRoleClient(),
+      repos: getServiceRepos(),
       client: new GoogleCalendarClient(),
       calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
       sinceDays: cancelledSinceDays(request),

@@ -9,7 +9,6 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { eventSeed } from "@/tests/helpers/event-fixtures";
@@ -58,7 +57,6 @@ beforeEach(() => {
   previews.mockResolvedValue(["events"]);
   tz.value = "browser";
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase({});
   dataset = new InMemoryDataset({
     ...eventSeed([
       { id: "evnt_AAAAAAAAAAA1", slug: "spring-retreat", title: "Spring Retreat", starts_at: "2097-04-01", ends_at: "2097-04-03" },

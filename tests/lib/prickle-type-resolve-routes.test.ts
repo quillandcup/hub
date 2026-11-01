@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
 // Resolving unmatched calendar events creates prickles (and, for a new name, the prickle type)
-// through the prickle repository, in memory here; the other tables go through a fake client.
+// through the prickle repository, in memory here; nothing else is read.
 
 let dataset = new InMemoryDataset();
 // When set, marking the unmatched events fails (the prickles are already made, so the route still answers 200).
@@ -22,11 +21,9 @@ vi.mock("@/lib/data/repos", async () => {
   };
 });
 
-let tables: FakeTables = {};
-let fake = createFakeSupabase();
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: fake } : { user: null }),
+  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 
 import { POST as resolveOne } from "@/app/api/prickle-types/resolve/route";
@@ -54,8 +51,6 @@ const calendarItem = (id: string, start: string, end: string, description: strin
 
 beforeEach(() => {
   signedIn = true;
-  tables = { member_name_aliases: { data: [] } };
-  fake = createFakeSupabase(tables);
   markingFails = false;
   dataset = new InMemoryDataset({ members: [ADA], prickleTypes: [SPRINT], unmatchedEvents: [queued("u1"), queued("u2")] });
 });

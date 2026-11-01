@@ -9,7 +9,6 @@ import {
   renderServerPage,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
@@ -80,7 +79,6 @@ const memberProps = { params: Promise.resolve({ id: "prkl_AAAAAAAAAAA1" }) };
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
-  useFakeSupabase({ user_profiles: { data: { role: "member" } } });
   repos = dataset([prickle()]);
 });
 
@@ -167,7 +165,6 @@ describe("admin prickle page", () => {
     });
 
     it("offers to show a calendar prickle in Events when it has no event yet", async () => {
-      useFakeSupabase({ events: { data: null } });
 
       await renderServerPage(AdminPrickleDetailPage, memberProps);
 
@@ -226,15 +223,9 @@ describe("unmatched Zoom names", () => {
       ignoredZoomAppearances: [{ id: "igza-1", prickle_id: "prkl_AAAAAAAAAAA1", zoom_name: "iPhone", reason: "a guest", ignored_by: null, ignored_at: "2097-03-03T00:00:00Z" }],
     });
   };
-  const fakeTables = (role: string) => ({
-    user_profiles: { data: { role } },
-    staff: { data: [] },
-  });
-
   it("member page: an admin sees names not ignored here or everywhere, scoped to this prickle", async () => {
     signInAs(ADMIN_USER, MEMBER_IDENTITY);
     withZoom();
-    useFakeSupabase(fakeTables("admin"));
 
     await renderServerPage(MemberPrickleDetailPage, memberProps);
 
@@ -243,8 +234,6 @@ describe("unmatched Zoom names", () => {
   });
 
   it("member page: a member never sees the form", async () => {
-    useFakeSupabase(fakeTables("member"));
-
     await renderServerPage(MemberPrickleDetailPage, memberProps);
 
     expect(screen.queryByTestId("alias-form")).not.toBeInTheDocument();
@@ -254,7 +243,6 @@ describe("unmatched Zoom names", () => {
   it("admin page: the same two ignores apply", async () => {
     signInAs(ADMIN_USER);
     withZoom();
-    useFakeSupabase(fakeTables("admin"));
 
     await renderServerPage(AdminPrickleDetailPage, memberProps);
 

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { ambiguousZoomName, zoomAttendee } from "@/tests/helpers/zoom-fixtures";
@@ -48,7 +48,6 @@ beforeEach(() => {
 
 describe("segments page", () => {
   it("hands the picker every member by name and display name, with only the fields it shows", async () => {
-    useFakeSupabase({});
 
     await renderServerPage(SegmentsPage, {});
 
@@ -77,7 +76,6 @@ describe("ambiguous Zoom names page", () => {
       { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", meeting_uuid: "m2", meeting_id: "2" },
       { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z", meeting_uuid: "m3", meeting_id: "3" },
     ]);
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -104,7 +102,6 @@ describe("ambiguous Zoom names page", () => {
         { name: SAM_FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
       ]
     );
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -126,7 +123,6 @@ describe("ambiguous Zoom names page", () => {
       { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
       { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Link", meeting_uuid: "m2", meeting_id: "2" },
     ]);
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -146,7 +142,6 @@ describe("ambiguous Zoom names page", () => {
         { name: "Sam", email: null, join_time: "2026-10-30T23:05:00Z", topic: "Other", meeting_uuid: "m3", meeting_id: "3" },
       ]
     );
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -163,7 +158,6 @@ describe("ambiguous Zoom names page", () => {
     repos.zoom.unresolvedAmbiguousNames = async () => {
       throw new Error("boom");
     };
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -174,7 +168,6 @@ describe("ambiguous Zoom names page", () => {
     withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }], [], [
       { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
     ]);
-    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -215,7 +208,6 @@ describe("missing member data page", () => {
         ],
       }),
     );
-    useFakeSupabase({});
 
     await renderServerPage(MissingMemberDataPage, {});
 

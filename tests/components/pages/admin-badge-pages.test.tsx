@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -41,7 +41,6 @@ const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({ programs: { data: [] } });
   dataset = new InMemoryDataset({
     members: [ADA, FERN],
     ...eventSeed([

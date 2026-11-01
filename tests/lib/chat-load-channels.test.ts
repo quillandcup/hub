@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { ChatChannelMemberSeed, ChatChannelSeed } from "@/lib/data/chat";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -10,27 +10,21 @@ let channels: ChatChannelSeed[];
 let memberships: ChatChannelMemberSeed[];
 let failing: string[];
 
-vi.mock("@/lib/data/repos", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
-  return {
-    ...actual,
-    createRepos: () => {
-      const repos = createInMemoryRepos(
-        new InMemoryDataset({
-          members: [
-            { id: FERN, name: "Fern Quillsby", displayName: "Fern", email: "fern@example.test", status: "active" },
-            { id: GALE, name: "Gale Prickleton", email: "gale@example.test", status: "active" },
-            { id: HAZEL, name: "Hazel Burrows", email: "hazel@example.test", status: "active" },
-          ],
-          chatChannels: channels,
-          chatChannelMembers: memberships,
-        })
-      );
-      for (const method of failing) (repos.chat as unknown as Record<string, unknown>)[method] = async () => { throw new Error(`${method} failed`); };
-      return repos;
-    },
-  };
-});
+function repos() {
+  const twins = createInMemoryRepos(
+    new InMemoryDataset({
+      members: [
+        { id: FERN, name: "Fern Quillsby", displayName: "Fern", email: "fern@example.test", status: "active" },
+        { id: GALE, name: "Gale Prickleton", email: "gale@example.test", status: "active" },
+        { id: HAZEL, name: "Hazel Burrows", email: "hazel@example.test", status: "active" },
+      ],
+      chatChannels: channels,
+      chatChannelMembers: memberships,
+    })
+  );
+  for (const method of failing) (twins.chat as unknown as Record<string, unknown>)[method] = async () => { throw new Error(`${method} failed`); };
+  return twins;
+}
 
 const FERN = "mbr_AAAAAAAAAAF1";
 const GALE = "mbr_AAAAAAAAAAF2";
@@ -40,8 +34,6 @@ const HOSTS = "chn_AAAAAAAAAAC2";
 const SECRET = "chn_AAAAAAAAAAC3";
 const GROUP = "chn_AAAAAAAAAAC4";
 const OLD = "chn_AAAAAAAAAAC5";
-
-const sb = {} as never;
 
 beforeEach(() => {
   failing = [];
@@ -64,7 +56,7 @@ beforeEach(() => {
 
 describe("loadChatChannels", () => {
   it("lists public channels and the conversations the member is in, channels first, archived last", async () => {
-    const list = await loadChatChannels(sb, FERN, false);
+    const list = await loadChatChannels(repos(), FERN, false);
 
     expect(list.map((c) => [c.label, c.joined, c.archived])).toEqual([
       ["#general", true, false],
@@ -76,30 +68,30 @@ describe("loadChatChannels", () => {
   });
 
   it("hides group messages while viewing as someone else (sudo)", async () => {
-    const list = await loadChatChannels(sb, FERN, true);
+    const list = await loadChatChannels(repos(), FERN, true);
     expect(list.map((c) => c.id)).toEqual([GENERAL, HOSTS, OLD]);
   });
 
   it("lists nothing when the channels can't be read, and no joined state when the memberships can't", async () => {
     failing = ["listChannels"];
-    await expect(loadChatChannels(sb, FERN, false)).resolves.toEqual([]);
+    await expect(loadChatChannels(repos(), FERN, false)).resolves.toEqual([]);
 
     failing = ["joinedChannelIds"];
-    const list = await loadChatChannels(sb, FERN, false);
+    const list = await loadChatChannels(repos(), FERN, false);
     expect(list.map((c) => c.id)).toEqual([GENERAL, OLD]);
     expect(list.every((c) => !c.joined)).toBe(true);
   });
 
   it("labels a group message with the others in it, or generically when that can't be read", async () => {
     failing = ["activeMembersOf"];
-    const list = await loadChatChannels(sb, FERN, false);
+    const list = await loadChatChannels(repos(), FERN, false);
     expect(list.find((c) => c.id === GROUP)!.label).toBe("Group message");
   });
 });
 
 describe("loadChannelForMember", () => {
   it("returns a channel the member is in, with its state", async () => {
-    await expect(loadChannelForMember(sb, HOSTS, FERN, false)).resolves.toEqual({
+    await expect(loadChannelForMember(repos(), HOSTS, FERN, false)).resolves.toEqual({
       id: HOSTS,
       kind: "channel",
       label: "#hosts",
@@ -109,41 +101,41 @@ describe("loadChannelForMember", () => {
       joined: true,
       slackChannelId: "C_HOSTS",
     });
-    await expect(loadChannelForMember(sb, GENERAL, HAZEL, false)).resolves.toMatchObject({ label: "#general", joined: false });
-    await expect(loadChannelForMember(sb, OLD, FERN, false)).resolves.toMatchObject({ archived: true });
+    await expect(loadChannelForMember(repos(), GENERAL, HAZEL, false)).resolves.toMatchObject({ label: "#general", joined: false });
+    await expect(loadChannelForMember(repos(), OLD, FERN, false)).resolves.toMatchObject({ archived: true });
   });
 
   it("returns nothing for a private conversation the member isn't in, a missing one, or a group message in sudo", async () => {
-    await expect(loadChannelForMember(sb, SECRET, FERN, false)).resolves.toBeNull();
-    await expect(loadChannelForMember(sb, "chn_AAAAAAAAAAZZ", FERN, false)).resolves.toBeNull();
-    await expect(loadChannelForMember(sb, GROUP, FERN, true)).resolves.toBeNull();
+    await expect(loadChannelForMember(repos(), SECRET, FERN, false)).resolves.toBeNull();
+    await expect(loadChannelForMember(repos(), "chn_AAAAAAAAAAZZ", FERN, false)).resolves.toBeNull();
+    await expect(loadChannelForMember(repos(), GROUP, FERN, true)).resolves.toBeNull();
   });
 
   it("names a group message after the others in it", async () => {
-    await expect(loadChannelForMember(sb, GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton" });
+    await expect(loadChannelForMember(repos(), GROUP, FERN, false)).resolves.toMatchObject({ kind: "group_dm", label: "Gale Prickleton" });
   });
 
   it("treats a channel or membership it can't read as not there", async () => {
     failing = ["channelRecord"];
-    await expect(loadChannelForMember(sb, GENERAL, FERN, false)).resolves.toBeNull();
+    await expect(loadChannelForMember(repos(), GENERAL, FERN, false)).resolves.toBeNull();
 
     failing = ["activeMembership"];
-    await expect(loadChannelForMember(sb, GENERAL, FERN, false)).resolves.toMatchObject({ joined: false });
-    await expect(loadChannelForMember(sb, HOSTS, FERN, false)).resolves.toBeNull();
+    await expect(loadChannelForMember(repos(), GENERAL, FERN, false)).resolves.toMatchObject({ joined: false });
+    await expect(loadChannelForMember(repos(), HOSTS, FERN, false)).resolves.toBeNull();
   });
 });
 
 describe("loadChannelMembers", () => {
   it("lists who is in a conversation now, A to Z, with their names", async () => {
-    await expect(loadChannelMembers(sb, GENERAL)).resolves.toEqual([
+    await expect(loadChannelMembers(repos(), GENERAL)).resolves.toEqual([
       { memberId: FERN, name: "Fern", photoUrl: null },
       { memberId: GALE, name: "Gale Prickleton", photoUrl: null },
     ]);
-    await expect(loadChannelMembers(sb, GROUP)).resolves.toHaveLength(2);
+    await expect(loadChannelMembers(repos(), GROUP)).resolves.toHaveLength(2);
   });
 
   it("lists nobody when the members can't be read", async () => {
     failing = ["activeMembersOf"];
-    await expect(loadChannelMembers(sb, GENERAL)).resolves.toEqual([]);
+    await expect(loadChannelMembers(repos(), GENERAL)).resolves.toEqual([]);
   });
 });

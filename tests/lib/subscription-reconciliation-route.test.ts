@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
 // The Kajabi/Stripe reconciliation: for each member, what their Stripe subscription says they
 // should have in Kajabi against what they have. Members come from their repository (in memory
@@ -14,10 +13,9 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-let tables: FakeTables = {};
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, forbidden: false, supabase: createFakeSupabase(tables) } : { user: null }),
+  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, forbidden: false, supabase: {} } : { user: null }),
 }));
 
 import { GET } from "@/app/api/analyze/subscription-reconciliation/route";
@@ -85,9 +83,6 @@ beforeEach(() => {
       sub("sub_canceled", "cus_canceled", { status: "canceled" }),
     ],
   }));
-  tables = {
-    member_email_aliases: { data: [{ canonical_email: "multi@example.test", alias_email: "multi.old@example.test" }] },
-  };
 });
 
 describe("GET /api/analyze/subscription-reconciliation", () => {
@@ -133,7 +128,6 @@ describe("GET /api/analyze/subscription-reconciliation", () => {
 
   it("answers with nothing when no system has any data", async () => {
     repos = createInMemoryRepos();
-    tables = Object.fromEntries(Object.keys(tables).map((key) => [key, { data: [] }]));
 
     const { members, summary } = await (await call()).json();
 

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 // POST /api/admin/apply-aliases reads supabase/member-aliases.csv (email,alias per line). Each name
 // is checked like any other new alias (lib/name-alias-conflict.ts) before it is created.
@@ -14,9 +13,8 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-let fake = createFakeSupabase();
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => ({ user: { id: "admin" }, supabase: fake }),
+  requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
 
 const rpcMock = vi.fn();
@@ -42,7 +40,6 @@ const inserts = () => dataset.nameAliases;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fake = createFakeSupabase();
   dataset = new InMemoryDataset({ members: [ADA] });
   repos = createInMemoryRepos(dataset);
   rpcMock.mockResolvedValue({ data: [], error: null });

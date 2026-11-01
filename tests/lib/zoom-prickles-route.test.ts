@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
 // The prickles of the meetings a Zoom name appeared in and the attendees both come from the repositories, in memory here.
@@ -11,12 +10,11 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
-let tables: FakeTables = {};
 let signedIn = true;
 let admin = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: async () =>
-    !signedIn ? { user: null } : !admin ? { user: { id: "u" }, forbidden: true } : { user: { id: "admin" }, supabase: createFakeSupabase(tables) },
+    !signedIn ? { user: null } : !admin ? { user: { id: "u" }, forbidden: true } : { user: { id: "admin" }, supabase: {} },
 }));
 
 import { GET } from "@/app/api/zoom/prickles/route";
@@ -30,7 +28,6 @@ const get = (query = "?zoomName=Ada%20E") => GET(new NextRequest(`http://localho
 beforeEach(() => {
   signedIn = true;
   admin = true;
-  tables = {};
   repos = createInMemoryRepos(
     new InMemoryDataset({
       zoomAttendees: [

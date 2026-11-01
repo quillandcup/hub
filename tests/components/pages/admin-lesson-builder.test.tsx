@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { SUPPORT_EMAIL } from "@/lib/config";
 import type { AdminLessonDetail } from "@/lib/courses/admin";
 
@@ -64,7 +64,6 @@ const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "le
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase();
   requireAdminPage.mockClear();
   loadAdminLesson.mockReset();
   publicLessonPreview.mockReset();

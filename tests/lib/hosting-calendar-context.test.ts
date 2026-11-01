@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
@@ -30,7 +29,7 @@ const prickle = (id: string, typeId: string | null, hostId: string | null, start
 });
 
 beforeEach(() => {
-  vi.mocked(createClient).mockResolvedValue(createFakeSupabase({ prickle_schedules: { data: [] } }) as never);
+  vi.mocked(createClient).mockResolvedValue({} as never);
   vi.mocked(getCurrentUser).mockResolvedValue({ id: "user-1", email: "a@example.test" });
 });
 

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
+import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs } from "@/tests/helpers/server-page";
 import { HOSTING_HEAVY } from "@/lib/data/profiles/index";
 import { buildDataset } from "@/lib/data/seed-profile";
 import { createInMemoryRepos } from "@/lib/data/repos";
@@ -30,7 +30,6 @@ const NOW = new Date("2026-06-30T16:00:00Z");
 beforeEach(() => {
   resetServerPageMocks();
   signInAs(ADMIN_USER);
-  useFakeSupabase({});
 });
 
 describe("community stats page", () => {

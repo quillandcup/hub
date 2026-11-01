@@ -52,6 +52,9 @@ vi.mock("@/lib/chat/load", () => ({
 
 import { loadLatestChat, loadThreadChat } from "@/app/(member)/chat/actions";
 
+/** What the actions hand the loaders: the repositories (the chat one is the in-memory twin mocked above). */
+const REPOS = expect.objectContaining({ chat: expect.anything(), directory: expect.anything() });
+
 const CHANNEL = "chn_AAAAAAAAAAC1";
 const ROOT = "msg_AAAAAAAAAAD1";
 
@@ -74,7 +77,7 @@ describe("loadLatestChat", () => {
       ctx: { ctx: true },
       olderBefore: "2026-10-01T00:00:00Z",
     });
-    expect(m.loadMessages).toHaveBeenCalledWith({ supabase: true }, CHANNEL, {});
+    expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, {});
     expect(m.loadChatChannels).not.toHaveBeenCalled();
     expect(m.chatTextContext).toHaveBeenCalledWith(expect.objectContaining({ userNames: { U1: "Gale" } }), []);
   });
@@ -86,13 +89,13 @@ describe("loadLatestChat", () => {
     await loadLatestChat(CHANNEL, [OLD, OLD, "not-a-uuid", "m1"]);
 
     // Only real ids, each once; and the one already in the newest page isn't built twice.
-    expect(m.loadMessagesByIds).toHaveBeenCalledWith({ supabase: true }, CHANNEL, [OLD]);
-    expect(m.buildMessageViews).toHaveBeenCalledWith({ supabase: true }, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern");
+    expect(m.loadMessagesByIds).toHaveBeenCalledWith(REPOS, CHANNEL, [OLD]);
+    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: "m1" }, { id: OLD }], "member-fern");
   });
 
   it("asks for no extra messages when none are named", async () => {
     await loadLatestChat(CHANNEL);
-    expect(m.loadMessagesByIds).toHaveBeenCalledWith({ supabase: true }, CHANNEL, []);
+    expect(m.loadMessagesByIds).toHaveBeenCalledWith(REPOS, CHANNEL, []);
   });
 
   it("returns nothing for a bad id, a signed-out visitor, chat turned off or a conversation the member can't open", async () => {
@@ -142,9 +145,9 @@ describe("loadThreadChat", () => {
 
   it("returns the root first and then its replies, built together, without reading the channel list", async () => {
     await expect(loadThreadChat(CHANNEL, ROOT)).resolves.toEqual({ views: [{ id: ROOT }, { id: "r1" }, { id: "r2" }], ctx: { ctx: true } });
-    expect(m.loadMessage).toHaveBeenCalledWith({ supabase: true }, CHANNEL, ROOT);
-    expect(m.loadMessages).toHaveBeenCalledWith({ supabase: true }, CHANNEL, { threadRootId: ROOT });
-    expect(m.buildMessageViews).toHaveBeenCalledWith({ supabase: true }, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern");
+    expect(m.loadMessage).toHaveBeenCalledWith(REPOS, CHANNEL, ROOT);
+    expect(m.loadMessages).toHaveBeenCalledWith(REPOS, CHANNEL, { threadRootId: ROOT });
+    expect(m.buildMessageViews).toHaveBeenCalledWith(REPOS, expect.anything(), [{ id: ROOT }, { id: "r1" }, { id: "r2" }], "member-fern");
     expect(m.loadChatChannels).not.toHaveBeenCalled();
   });
 

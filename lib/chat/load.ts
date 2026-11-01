@@ -1,14 +1,16 @@
 import type { StageTimer } from "@/lib/chat/timing";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
 import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
 import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
-import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
-import { createRepos } from "@/lib/data/repos";
+import { getAttendedPrickleCount, getMemberBadges, type BadgeRepos, type EarnedBadge } from "@/lib/badges";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Repos } from "@/lib/data/repos";
 import type { ChannelRecord } from "@/lib/data/chat";
+
+export type ChatLoadRepos = Pick<Repos, "attendance" | "chat" | "directory" | "memberProfile">;
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -37,13 +39,13 @@ export interface ChannelSummary {
 
 
 export async function loadChatChannels(
-  supabase: SupabaseClient,
+  repos: ChatLoadRepos,
   memberId: string,
   isSudo: boolean,
   timer?: StageTimer
 ): Promise<ChannelSummary[]> {
   const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
-  const chat = createRepos(supabase).chat;
+  const chat = repos.chat;
   // A failed read lists nothing, as it always has.
   const [joined, channels] = await Promise.all([
     t("memberships", chat.joinedChannelIds(memberId).catch(() => new Set<string>())),
@@ -59,7 +61,7 @@ export async function loadChatChannels(
   const dmIds = visible.filter((c) => c.kind !== "channel").map((c) => c.id);
   timer?.note("visible", visible.length);
   timer?.note("dms", dmIds.length);
-  const dmLabels = await groupDmLabels(supabase, dmIds, memberId, timer);
+  const dmLabels = await groupDmLabels(repos, dmIds, memberId, timer);
   timer?.mark("dmLabels");
 
   const summaries = visible.map(
@@ -79,14 +81,14 @@ export async function loadChatChannels(
 }
 
 /** "Fern, Gale" for each group DM: the other people in it. */
-async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string, timer?: StageTimer) {
+async function groupDmLabels(repos: ChatLoadRepos, channelIds: string[], memberId: string, timer?: StageTimer) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
-  const rows = await createRepos(supabase).chat.activeMembersOf(channelIds).catch(() => []);
+  const rows = await repos.chat.activeMembersOf(channelIds).catch(() => []);
   timer?.mark("dmMembers");
   const others = rows.filter((r) => r.member_id !== memberId);
   timer?.note("dmPeople", others.length);
-  const names = await memberProfiles(supabase, others.map((r) => r.member_id as string));
+  const names = await memberProfiles(repos, others.map((r) => r.member_id as string));
   for (const channelId of channelIds) {
     const list = others
       .filter((r) => r.channel_id === channelId)
@@ -107,11 +109,11 @@ export async function loadUnreadCounts(supabase: SupabaseClient): Promise<Record
 
 /** Display names and photos from member_directory, which every signed-in member can read. */
 export async function memberProfiles(
-  supabase: SupabaseClient,
+  repos: ChatLoadRepos,
   memberIds: string[]
 ): Promise<Map<string, { name: string; photoUrl: string | null }>> {
   const profiles = new Map<string, { name: string; photoUrl: string | null }>();
-  for (const m of await createRepos(supabase).directory.byIds(memberIds)) {
+  for (const m of await repos.directory.byIds(memberIds)) {
     profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
   }
   return profiles;
@@ -135,13 +137,13 @@ export interface MemberCard {
 }
 
 /** One member's card from member_directory and their "Ask me about…" topics (both readable by any member). */
-export async function loadMemberCard(supabase: SupabaseClient, memberId: string): Promise<MemberCard | null> {
+export async function loadMemberCard(repos: ChatLoadRepos & BadgeRepos, memberId: string): Promise<MemberCard | null> {
   const [m, topics] = await Promise.all([
-    createRepos(supabase).directory.byId(memberId),
-    createRepos(supabase).memberProfile.askMeAbout(memberId),
+    repos.directory.byId(memberId),
+    repos.memberProfile.askMeAbout(memberId),
   ]);
   if (!m) return null;
-  const badges = await getMemberBadges(createRepos(supabase), memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
+  const badges = await getMemberBadges(repos, memberId, await getAttendedPrickleCount(repos.attendance, memberId), m.first_joined_at ?? null);
   return {
     id: m.id,
     name: m.display_name || m.name,
@@ -164,10 +166,10 @@ export interface ChannelPerson {
 }
 
 /** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
-export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
+export async function loadChannelMembers(repos: ChatLoadRepos, channelId: string): Promise<ChannelPerson[]> {
   // A failed read lists nobody, as it always has.
-  const memberIds = await createRepos(supabase).chat.activeMembersOf([channelId]).then((rows) => rows.map((r) => r.member_id)).catch(() => []);
-  const profiles = await memberProfiles(supabase, memberIds);
+  const memberIds = await repos.chat.activeMembersOf([channelId]).then((rows) => rows.map((r) => r.member_id)).catch(() => []);
+  const profiles = await memberProfiles(repos, memberIds);
   return memberIds
     .flatMap((memberId) => {
       const p = profiles.get(memberId);
@@ -182,14 +184,14 @@ export async function loadChannelMembers(supabase: SupabaseClient, channelId: st
  * conversations is not what the member chat is for), or a DM while viewing as a member.
  */
 export async function loadChannelForMember(
-  supabase: SupabaseClient,
+  repos: ChatLoadRepos,
   channelId: string,
   memberId: string,
   isSudo: boolean
 ): Promise<ChannelSummary | null> {
   // The channel and the member's place in it don't depend on each other, so read them together.
   // (A failed read of either is "not there", as it always has been.)
-  const chat = createRepos(supabase).chat;
+  const chat = repos.chat;
   const [channel, membership] = await Promise.all([
     chat.channelRecord(channelId).catch(() => null),
     chat.activeMembership(channelId, memberId).then((m) => m !== null).catch(() => false),
@@ -198,7 +200,7 @@ export async function loadChannelForMember(
   if (isSudo && channel.kind !== "channel") return null;
   if (channel.visibility === "private" && !membership) return null;
 
-  const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(supabase, [channel.id], memberId);
+  const labels = channel.kind === "channel" ? new Map<string, string>() : await groupDmLabels(repos, [channel.id], memberId);
   return {
     id: channel.id,
     kind: channel.kind,
@@ -242,11 +244,11 @@ export interface MessagePage {
 
 /** Top-level messages, newest page first, or one thread's replies in order. */
 export async function loadMessages(
-  supabase: SupabaseClient,
+  repos: ChatLoadRepos,
   channelId: string,
   opts: { before?: string | null; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
-  const { chat } = createRepos(supabase);
+  const { chat } = repos;
   if (opts.threadRootId) {
     return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
   }
@@ -261,14 +263,14 @@ export async function loadMessages(
  * Specific top-level messages of a conversation by id, under RLS: to bring messages that changed
  * (a reaction) up to date wherever they are in the list. Replies are left out (the thread has its own).
  */
-export async function loadMessagesByIds(supabase: SupabaseClient, channelId: string, ids: string[]): Promise<MessageRow[]> {
+export async function loadMessagesByIds(repos: ChatLoadRepos, channelId: string, ids: string[]): Promise<MessageRow[]> {
   if (ids.length === 0) return [];
-  return ignoringErrors(createRepos(supabase).chat.topLevelMessagesByIds(channelId, ids));
+  return ignoringErrors(repos.chat.topLevelMessagesByIds(channelId, ids));
 }
 
 /** One message by id (a thread's root), under RLS. */
-export async function loadMessage(supabase: SupabaseClient, channelId: string, messageId: string): Promise<MessageRow | null> {
-  return createRepos(supabase).chat.messageById(channelId, messageId).catch(() => null);
+export async function loadMessage(repos: ChatLoadRepos, channelId: string, messageId: string): Promise<MessageRow | null> {
+  return repos.chat.messageById(channelId, messageId).catch(() => null);
 }
 
 export interface ReactionSummary {
@@ -361,11 +363,11 @@ interface ReplyAuthor {
  * stack. Members are distinct; Slack-only people are by message, and merged by user later. Reads the whole reply set page by page, since a busy channel can pass the
  * 1000-row cap, and skips deleted replies.
  */
-async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Promise<Map<string, ReplyAuthor[]>> {
+async function loadReplyAuthors(repos: ChatLoadRepos, rootIds: string[]): Promise<Map<string, ReplyAuthor[]>> {
   const out = new Map<string, ReplyAuthor[]>();
   if (rootIds.length === 0) return out;
   const seen = new Map<string, Set<string>>();
-  for (const r of await ignoringErrors(createRepos(supabase).chat.replyAuthorRows(rootIds))) {
+  for (const r of await ignoringErrors(repos.chat.replyAuthorRows(rootIds))) {
     const list = out.get(r.thread_root_id) ?? [];
     const ids = seen.get(r.thread_root_id) ?? new Set<string>();
     // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
@@ -381,13 +383,13 @@ async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Pr
 }
 
 /** Every live reaction on these messages, all pages; a database error is an error, not an empty list (that would read as "everyone took theirs back"). */
-export function loadReactionRows(supabase: SupabaseClient, messageIds: string[]) {
-  return createRepos(supabase).chat.reactionRows(messageIds);
+export function loadReactionRows(repos: ChatLoadRepos, messageIds: string[]) {
+  return repos.chat.reactionRows(messageIds);
 }
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
-  supabase: SupabaseClient,
+  repos: ChatLoadRepos,
   channel: Pick<ChannelSummary, "slackChannelId">,
   allRows: MessageRow[],
   viewerMemberId: string,
@@ -416,15 +418,15 @@ export async function buildMessageViews(
   timer?.note("unmatched", unmatched.length);
 
   const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames] = await Promise.all([
-    t("b1.profiles", memberProfiles(supabase, matched)),
+    t("b1.profiles", memberProfiles(repos, matched)),
     t(
       "b1.slackAuthors",
       channel.slackChannelId && unmatched.length > 0
         ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
         : Promise.resolve({} as Record<string, string>)
     ),
-    t("b1.reactions", loadReactionRows(supabase, rows.map((r) => r.id))),
-    t("b1.replyAuthors", loadReplyAuthors(supabase, threadRoots)),
+    t("b1.reactions", loadReactionRows(repos, rows.map((r) => r.id))),
+    t("b1.replyAuthors", loadReplyAuthors(repos, threadRoots)),
     t("b1.userMembers", slackUserMemberIds(mentioned)),
     t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
     t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? "")))),
@@ -444,7 +446,7 @@ export async function buildMessageViews(
   // Two independent chains run together: the repliers' and reactors' Hub profiles (one lookup), and
   // the Slack side (replier authors by ts, then every Slack name, photo and emoji in one batch).
   const [otherProfiles, slackSide] = await Promise.all([
-    t("b2.profiles", memberProfiles(supabase, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds])),
+    t("b2.profiles", memberProfiles(repos, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds])),
     (async () => {
       const replySlackAuthors =
         channel.slackChannelId && unmatchedReplyTs.length > 0

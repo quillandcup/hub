@@ -12,7 +12,6 @@ import {
   MEMBER_USER,
   resetServerPageMocks,
   signInAs,
-  useFakeSupabase,
 } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -49,7 +48,6 @@ const ADMIN_IDENTITY = { memberId: "member-bramble", memberName: "Bramble", memb
 beforeEach(() => {
   resetServerPageMocks();
   sendTestCheckinDM.mockClear();
-  useFakeSupabase({});
 });
 
 describe("sendTestPrickleDM", () => {

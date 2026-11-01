@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { ambiguousZoomName, zoomAttendee } from "@/tests/helpers/zoom-fixtures";
@@ -33,7 +33,6 @@ const prickle = (id: string, extra: object) => ({
 
 beforeEach(() => {
   resetServerPageMocks();
-  useFakeSupabase({});
 });
 
 describe("data health page", () => {

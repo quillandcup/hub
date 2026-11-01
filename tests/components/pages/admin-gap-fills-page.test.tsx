@@ -4,7 +4,7 @@ import { screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
+import { renderServerPage, resetServerPageMocks } from "@/tests/helpers/server-page";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -47,7 +47,6 @@ beforeEach(() => {
   resetServerPageMocks();
   requireAdminPage.mockClear();
   repos = createInMemoryRepos();
-  useFakeSupabase({});
 });
 
 describe("admin chat gap-fills page", () => {

@@ -15,10 +15,12 @@ vi.mock("@/lib/chat/names", () => ({
 }));
 
 import { buildMessageViews, type MessageRow } from "@/lib/chat/load";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 
 const row = (id: string, extra: Partial<MessageRow> = {}): MessageRow => ({
   id,
-  author_member_id: "member-fern",
+  author_member_id: FERN,
   slack_ts: null,
   created_at: "2026-10-01T00:00:00Z",
   edited_at: null,
@@ -30,51 +32,49 @@ const row = (id: string, extra: Partial<MessageRow> = {}): MessageRow => ({
   ...extra,
 });
 
-function fakeSupabase(tables: Record<string, unknown[] | null>) {
-  return {
-    from: (table: string) => {
-      const chain: Record<string, unknown> = {};
-      for (const f of ["select", "in", "is", "eq", "order", "range"]) chain[f] = () => chain;
-      chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: table in tables ? tables[table] : [], error: null });
-      return chain;
-    },
-  } as never;
+const FERN = "mbr_AAAAAAAAAAF1";
+const BO = "mbr_AAAAAAAAAAF2";
+
+/** The repositories over a dataset of just these reactions (and members, for naming reactors). */
+function reposWith(over: ConstructorParameters<typeof InMemoryDataset>[0] = {}) {
+  return createInMemoryRepos(new InMemoryDataset(over));
 }
+const reaction = (n: number, r: { member_id: string | null; slack_user_id: string | null }) => ({ id: `rct_AAAAAAAAAAA${n}`, message_id: "m1", emoji: "tada", ...r });
 
 describe("buildMessageViews", () => {
   it("looks up Hub names only for people named in notices, and returns them for the page's text context", async () => {
     names.hubAsked.length = 0;
     names.hubNames = { U1: "Cody Ray" };
     const out = await buildMessageViews(
-      fakeSupabase({}),
+      reposWith(),
       { slackChannelId: null },
       [
         row("m1", { system_subtype: "channel_join", chat_message_contents: { body: "<@U1> was added to the channel by <@U2>" } }),
         row("m2", { chat_message_contents: { body: "hello <@U3>" } }),
       ],
-      "member-fern"
+      FERN
     );
     expect(names.hubAsked).toEqual([["U1", "U2"]]);
     expect(out.hubNames).toEqual({ U1: "Cody Ray" });
     names.hubNames = {};
   });
 
-  it("copes with the reactions query returning nothing", async () => {
-    const out = await buildMessageViews(fakeSupabase({ chat_reactions: null }), { slackChannelId: null }, [row("m1")], "member-fern");
+  it("copes with a message nobody reacted to", async () => {
+    const out = await buildMessageViews(reposWith({ chatReactions: [] }), { slackChannelId: null }, [row("m1")], FERN);
     expect(out.views[0].reactions).toEqual([]);
   });
 
   it("leaves deleted messages out entirely", async () => {
-    const out = await buildMessageViews(fakeSupabase({}), { slackChannelId: null }, [row("m1", { deleted_at: "2026-10-02T00:00:00Z" })], "member-fern");
+    const out = await buildMessageViews(reposWith(), { slackChannelId: null }, [row("m1", { deleted_at: "2026-10-02T00:00:00Z" })], FERN);
     expect(out.views).toEqual([]);
   });
 
   it("keeps a deleted thread root that still has replies, with no content", async () => {
     const out = await buildMessageViews(
-      fakeSupabase({}),
+      reposWith(),
       { slackChannelId: null },
       [row("m1", { deleted_at: "2026-10-02T00:00:00Z", reply_count: 2 })],
-      "member-fern"
+      FERN
     );
     expect(out.views).toHaveLength(1);
     expect(out.views[0]).toMatchObject({ contentState: "deleted", body: null, replyCount: 2 });
@@ -82,17 +82,20 @@ describe("buildMessageViews", () => {
 
   it("names the other people who reacted, from the directory and from Slack, and not the viewer", async () => {
     names.userNames = { U_SLACK: "Rae & <Co>" };
-    const supabase = fakeSupabase({
-      member_directory: [{ id: "member-bo", name: "Bo", display_name: "Bo <b>", photo_url: null }, { id: "member-fern", name: "Fern", display_name: null, photo_url: null }],
-      chat_reactions: [
-        { message_id: "m1", emoji: "tada", member_id: "member-fern", slack_user_id: null },
-        { message_id: "m1", emoji: "tada", member_id: "member-bo", slack_user_id: null },
-        { message_id: "m1", emoji: "tada", member_id: null, slack_user_id: "U_SLACK" },
-        { message_id: "m1", emoji: "tada", member_id: null, slack_user_id: "U_UNKNOWN" },
-        { message_id: "m1", emoji: "tada", member_id: null, slack_user_id: null },
+    const repos = reposWith({
+      members: [
+        { id: BO, name: "Bo", displayName: "Bo <b>" },
+        { id: FERN, name: "Fern" },
+      ],
+      chatReactions: [
+        reaction(1, { member_id: FERN, slack_user_id: null }),
+        reaction(2, { member_id: BO, slack_user_id: null }),
+        reaction(3, { member_id: null, slack_user_id: "U_SLACK" }),
+        reaction(4, { member_id: null, slack_user_id: "U_UNKNOWN" }),
+        reaction(5, { member_id: null, slack_user_id: null }),
       ],
     });
-    const out = await buildMessageViews(supabase, { slackChannelId: null }, [row("m1")], "member-fern");
+    const out = await buildMessageViews(repos, { slackChannelId: null }, [row("m1")], FERN);
     expect(out.views[0].reactions).toEqual([{ emoji: "tada", count: 5, mine: true, reactors: ["Bo <b>", "Rae & <Co>"] }]);
   });
 });

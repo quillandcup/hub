@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 import { ambiguousZoomName } from "@/tests/helpers/zoom-fixtures";
 
 // The admin routes that create name aliases (the names attendance is matched by) refuse a name that
@@ -18,11 +17,9 @@ vi.mock("@/lib/data/repos", async () => ({
   createRepos: () => repos,
 }));
 
-let tables: FakeTables = {};
-let fake = createFakeSupabase();
 let signedIn = true;
 vi.mock("@/lib/supabase/api-auth", () => ({
-  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: fake } : { user: null }),
+  requireAdmin: async () => (signedIn ? { user: { id: "admin" }, supabase: {} } : { user: null }),
 }));
 
 const rpcMock = vi.fn();
@@ -46,16 +43,9 @@ const conflictRow = (kind: string, name: string | null = "Fern Example") => ({
   error: null,
 });
 
-/** Calls recorded against one table, to check what was (not) written. */
-function writes(table: string, method: string) {
-  return fake.queries.filter((q) => q.table === table && q.calls.some((c) => c.method === method));
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   signedIn = true;
-  tables = {};
-  fake = createFakeSupabase(tables);
   rpcMock.mockResolvedValue({ data: [], error: null });
   dataset = new InMemoryDataset({ members: [ADA, FERN] });
   repos = createInMemoryRepos(dataset);
@@ -266,7 +256,7 @@ describe("PATCH /api/admin/members/[id]", () => {
     expect(res.status).toBe(409);
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Ada Example" });
     expect(updateContactMock).not.toHaveBeenCalled();
-    expect(writes("members", "update")).toHaveLength(0);
+    expect(dataset.members.find((m) => m.id === ADA.id)?.name).toBe(ADA.name);
     expect(dataset.nameAliases).toEqual([]);
   });
 
