@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeJson, formatProbe, loginHint, normalizeRequestPath, queryNames } from '@/lib/kajabi/probe'
+import { describeJson, describeMarkup, formatProbe, loginHint, normalizeRequestPath, queryNames } from '@/lib/kajabi/probe'
 
 describe('the Kajabi probe output', () => {
   it('squeezes ids and the query string out of a request path', () => {
@@ -72,5 +72,41 @@ describe('the Kajabi probe output', () => {
     expect(loginHint([request('/products/demo/posts/:id'), request('/api/x')])).toBeNull()
     expect(loginHint([request('/blogin'), request('/login/help')])).toBeNull()
     expect(loginHint([])).toBeNull()
+  })
+})
+
+describe('describeMarkup', () => {
+  // A Rails-style response: JavaScript that appends an escaped HTML string. Made-up people and addresses.
+  const SCRIPT = String.raw`$("#comments-list").append("<li class=\"comment comment-99001\" data-comment-id=\"99001\" data-member-id=\"4455667\"><a class=\"author\" href=\"\/members\/4455667?token=secret\">Ada Example<\/a><time datetime=\"2026-06-27\">on Jun 27<\/time><p class=\"comment-body\">Hello from ada@example.com, I write in Springfield.<\/p><a class=\"reply-link\" data-reply-url=\"\/posts\/12345678\/comments\/99001\/reply\" href=\"#\">Reply<\/a><img class=\"avatar\" src=\"https:\/\/cdn.example.test\/ada-example.png\"><\/li>");$("#more").attr("data-desc-from", "2026-06-20T10:00:00Z");<script>evil("Ada Example")<\/script>`
+
+  it('lists the element, class and attribute names and the link paths, with ids squeezed and no query', () => {
+    const text = describeMarkup(SCRIPT).join('\n')
+    expect(text).toContain('li.comment.comment-:id x1 attrs: data-comment-id, data-member-id')
+    expect(text).toContain('a.author x1 attrs: href | urls: /members/:id')
+    expect(text).toContain('a.reply-link x1 attrs: data-reply-url, href | urls: /posts/:id/comments/:id/reply')
+    expect(text).toContain('p.comment-body x1 attrs: none')
+    expect(text).toContain('time x1 attrs: datetime')
+    expect(text).toContain('img.avatar x1 attrs: src')
+  })
+
+  it('never prints a name, an email, what a comment says, an attribute value, a query string or an image address', () => {
+    const text = describeMarkup(SCRIPT).join('\n')
+    for (const secret of ['Ada Example', 'ada@example.com', 'Springfield', 'token=secret', 'ada-example.png', 'cdn.example', '4455667', 'Jun 27', '2026-06-27', 'evil']) {
+      expect(text).not.toContain(secret)
+    }
+  })
+
+  it('narrows a whole page to the elements that match a pattern, and skips script and style bodies', () => {
+    const page = '<html><head><style>.comment{color:red}</style></head><body><nav class="menu"><a href="/home">Home</a></nav><section class="comments" data-comments-url="/posts/12345678/comments/show_more"><div class="comment-item"></div></section><script>var comment = 1</script></body></html>'
+    expect(describeMarkup(page, { pattern: /comment/i })).toEqual([
+      'section.comments x1 attrs: data-comments-url | urls: /posts/:id/comments/show_more',
+      'div.comment-item x1 attrs: none',
+    ])
+    expect(describeMarkup(page).join('\n')).toContain('nav.menu')
+  })
+
+  it('is empty for text with no markup, and capped', () => {
+    expect(describeMarkup('just words, no tags')).toEqual([])
+    expect(describeMarkup(Array.from({ length: 100 }, (_, i) => `<div class="c${i}"></div>`).join(''), { maxLines: 7 })).toHaveLength(7)
   })
 })
