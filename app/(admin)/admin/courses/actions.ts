@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { withAction } from "@/lib/analytics/server";
+import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { parseCourseDetails, type CourseDetails, type CourseDetailsErrors, type CourseDetailsInput } from "@/lib/courses/editor";
@@ -38,14 +39,16 @@ async function createCourseImpl(auth: Auth, input: CourseDetailsInput): Promise<
   const checked = await checkedDetails(auth, input);
   if ("result" in checked) return checked.result;
 
-  const { data, error } = await auth.supabase.from("courses").insert({ ...checked.value, source: "hub", kind: "evergreen" }).select("id").single();
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
-    console.error("course create failed:", error.message);
+  let created;
+  try {
+    created = await createRepos(auth.supabase).courses.createCourse({ ...checked.value, source: "hub", kind: "evergreen" });
+  } catch (error) {
+    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
+    console.error("course create failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't create the course." };
   }
-  revalidate(data.id);
-  return { id: data.id };
+  revalidate(created.id);
+  return { id: created.id };
 }
 
 async function updateCourseDetailsImpl(auth: Auth, courseId: string, input: CourseDetailsInput): Promise<CourseSaveResult> {
@@ -54,13 +57,15 @@ async function updateCourseDetailsImpl(auth: Auth, courseId: string, input: Cour
   if ("result" in checked) return checked.result;
 
   // `source = 'hub'` is also what the database policy requires: a course imported from Kajabi matches no row here.
-  const { data, error } = await auth.supabase.from("courses").update(checked.value).eq("id", courseId).eq("source", "hub").select("id");
-  if (error) {
-    if (error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
-    console.error("course update failed:", error.message);
+  let updated;
+  try {
+    updated = await createRepos(auth.supabase).courses.updateCourse(courseId, checked.value, { source: "hub" });
+  } catch (error) {
+    if (error instanceof CourseWriteError && error.code === UNIQUE_VIOLATION) return { fieldErrors: { slug: "Another course already uses that address." } };
+    console.error("course update failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save the course." };
   }
-  if (!data || data.length === 0) return { error: "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi." };
+  if (!updated) return { error: "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi." };
   revalidate(courseId);
   return { id: courseId };
 }

@@ -22,7 +22,7 @@ vi.mock("@/components/media/MediaPicker", () => ({
   ),
 }));
 
-import EventDetailsCard, { type EventData } from "@/app/(admin)/admin/events/[id]/EventDetailsCard";
+import EventDetailsCard, { type EventData, type EventOverrides } from "@/app/(admin)/admin/events/[slug]/EventDetailsCard";
 
 const EVENT: EventData = {
   id: "evt_AAAAAAAAAAA1",
@@ -44,25 +44,30 @@ const EVENT: EventData = {
   capacity: null,
   selection: "first_come",
   speakers: null,
-  calendar_event_id: null,
-  overridden_fields: [],
+  host_name: null,
+  host_id: null,
+  start_time: "2097-04-01T04:00:00Z",
+  end_time: "2097-04-04T04:00:00Z",
   deleted_at: null,
 };
 
 const onSave = vi.fn();
 const onToggleRemoved = vi.fn();
-const onRevert = vi.fn();
 
-function renderCard(event: Partial<EventData> = {}, prickleId: string | null = null) {
+const NOT_EDITED: EventOverrides = { title: false, description: false, guestSpeaker: false, location: false };
+const MEMBERS = [{ id: "mbr_AAAAAAAAAAA1", name: "Pat Example", displayName: "Pat", email: "pat@example.com" }];
+
+function renderCard(event: Partial<EventData> = {}, { hubSession = true, prickleId = "prkl_AAAAAAAAAAA1", overridden = NOT_EDITED } = {}) {
   return render(
     <EventDetailsCard
       event={{ ...EVENT, ...event }}
       prickleId={prickleId}
+      hubSession={hubSession}
+      members={MEMBERS}
+      overridden={overridden}
       onSave={onSave}
       onToggleRemoved={onToggleRemoved}
       removing={false}
-      onRevert={onRevert}
-      reverting={false}
     />,
   );
 }
@@ -71,7 +76,6 @@ beforeEach(() => {
   onSave.mockReset();
   onSave.mockResolvedValue(null);
   onToggleRemoved.mockReset();
-  onRevert.mockReset();
 });
 afterEach(cleanup);
 
@@ -89,7 +93,7 @@ describe("EventDetailsCard view", () => {
 
   it("has no notice for an event made in the Hub", () => {
     renderCard();
-    expect(screen.queryByText(/Follows the shared calendar/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Stands on a calendar prickle|stands on a calendar prickle/)).not.toBeInTheDocument();
   });
 
   it("offers to remove an event from Events, and to add a removed one back, saying what removing did", async () => {
@@ -98,7 +102,7 @@ describe("EventDetailsCard view", () => {
     expect(onToggleRemoved).toHaveBeenCalledTimes(1);
     unmount();
 
-    renderCard({ deleted_at: "2097-01-01T00:00:00Z", calendar_event_id: "00000000-0000-4000-8000-00000000000a" });
+    renderCard({ deleted_at: "2097-01-01T00:00:00Z" }, { hubSession: false });
     expect(screen.getByText(/Removed from Events: members don't see it/)).toBeInTheDocument();
     expect(screen.getByText(/The calendar sync leaves it removed\./)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add back to Events" })).toBeInTheDocument();
@@ -214,38 +218,98 @@ describe("EventDetailsCard edit", () => {
   });
 });
 
-describe("EventDetailsCard for an event that follows the calendar", () => {
-  const CAL = "00000000-0000-4000-8000-00000000000a";
+describe("EventDetailsCard for an event on a calendar prickle", () => {
+  const calendar = (event: Partial<EventData> = {}, overridden: EventOverrides = NOT_EDITED) =>
+    renderCard({ speakers: "Ada Example", host_name: "Fern Example", host_id: "mbr_FERN00000001", ...event }, { hubSession: false, overridden });
 
-  it("says in one notice what follows the calendar, locks the dates, and offers to follow it again once something is changed", async () => {
-    renderCard({ calendar_event_id: CAL, overridden_fields: ["location"] });
+  it("has no redirect notice, only a secondary link to the prickle", () => {
+    calendar();
 
-    expect(screen.getByText(/Follows the shared calendar: dates and times come from it, and you changed the location\./)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Follow the calendar again" }));
-    expect(onRevert).toHaveBeenCalledTimes(1);
-
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(screen.getByLabelText("Starts")).toBeDisabled();
-    expect(screen.getByLabelText("Ends")).toBeDisabled();
+    expect(screen.queryByText(/It stands on a calendar prickle/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit them on the prickle" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
   });
 
-  it("says the title, description and location follow the calendar until changed, with no button yet", () => {
-    renderCard({ calendar_event_id: CAL });
+  it("edits the title, description, host, guest speaker and location here, and keeps the times read-only with a note", async () => {
+    calendar({ start_time: "2097-04-01T14:00:00Z", end_time: "2097-04-01T15:30:00Z", ends_at: "2097-04-01" });
+    expect(screen.getByText("10:00 – 11:30 Eastern")).toBeInTheDocument();
 
-    expect(screen.getByText(/the title, description and location do too until you change them/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByLabelText("Title")).toBeEnabled();
+    expect(screen.getByLabelText("Description")).toBeEnabled();
+    expect(screen.getByLabelText("Location")).toBeEnabled();
+    expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
+    expect(screen.getByText("Fern Example")).toBeInTheDocument();
+    for (const time of ["Starts", "Ends", "Start time", "End time"]) expect(screen.queryByLabelText(time)).not.toBeInTheDocument();
+    expect(screen.getByText(/come from Google Calendar and can't be changed here yet/)).toBeInTheDocument();
+    expect(screen.getByText("10:00 – 11:30 Eastern")).toBeInTheDocument();
+  });
+
+  it("sends the edited text and the picked host", async () => {
+    calendar();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.clear(screen.getByLabelText("Title"));
+    await userEvent.type(screen.getByLabelText("Title"), "Renamed");
+    await userEvent.clear(screen.getByLabelText("Location"));
+    await userEvent.type(screen.getByLabelText("Location"), "Room 9");
+    await userEvent.type(screen.getByLabelText("Focus"), "Craft");
+    await userEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    await userEvent.type(screen.getByPlaceholderText("Search for the host..."), "Pat");
+    await userEvent.click(await screen.findByText("Pat"));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: "Renamed", location: "Room 9", focus: "Craft", host_id: "mbr_AAAAAAAAAAA1" }));
+  });
+
+  it("marks what was set by hand and gives it back to the calendar on Save", async () => {
+    calendar({}, { title: true, description: false, guestSpeaker: true, location: false });
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getAllByText("(edited)")).toHaveLength(2);
+    const again = screen.getAllByRole("button", { name: "Follow the calendar again" });
+    expect(again).toHaveLength(2);
+    await userEvent.click(again[0]);
+    expect(screen.getByLabelText("Title")).toHaveValue("");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ title: "" }));
+  });
+
+  it("shows no edited markers for an event made in the Hub", async () => {
+    renderCard({}, { hubSession: true, overridden: { title: true, description: true, guestSpeaker: true, location: true } });
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.queryByText("(edited)")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Follow the calendar again" })).not.toBeInTheDocument();
   });
+});
 
-  it("locks the title, description and guest speaker of an event that stands for a prickle, and links to it in the same notice", async () => {
-    renderCard({ calendar_event_id: CAL, speakers: "Ada Example" }, "prkl_AAAAAAAAAAA1");
-
-    expect(screen.getByRole("link", { name: "edit them on the prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
-    expect(screen.getAllByText(/Follows the shared calendar/)).toHaveLength(1);
+describe("EventDetailsCard for an event made in the Hub", () => {
+  it("edits the host, the times and the dates in place; an event with no times is all day", async () => {
+    renderCard();
+    expect(screen.queryByText(/Eastern/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(screen.getByLabelText("Title")).toBeDisabled();
-    expect(screen.getByLabelText("Description")).toBeDisabled();
-    expect(screen.getByLabelText("Guest speakers")).toBeDisabled();
-    expect(screen.getByLabelText("Location")).toBeEnabled();
+
+    expect(screen.getByLabelText("Starts")).toHaveValue("2097-04-01");
+    expect(screen.getByLabelText("Ends")).toHaveValue("2097-04-03");
+    expect(screen.getByLabelText("Start time")).toHaveValue("");
+    expect(screen.getByLabelText("End time")).toHaveValue("");
+
+    await userEvent.type(screen.getByLabelText("Host"), "Fern Example");
+    await userEvent.type(screen.getByLabelText("Start time"), "10:00");
+    await userEvent.type(screen.getByLabelText("End time"), "11:30");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ host_name: "Fern Example", start_clock: "10:00", end_clock: "11:30", starts_at: "2097-04-01", ends_at: "2097-04-03" }));
+  });
+
+  it("opens a timed event with its Eastern times", async () => {
+    renderCard({ start_time: "2097-04-01T14:00:00Z", end_time: "2097-04-01T15:30:00Z", ends_at: "2097-04-01" });
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByLabelText("Start time")).toHaveValue("10:00");
+    expect(screen.getByLabelText("End time")).toHaveValue("11:30");
+    expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
   });
 });
 

@@ -1,3 +1,4 @@
+import { insertEvent } from '../../helpers/event-db'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 
@@ -44,11 +45,7 @@ describe('event attendee RPCs: direct-call authorization', () => {
       .single()
     memberId = member!.id
 
-    const { data: event } = await admin
-      .from('events')
-      .insert({ slug: `rpc-sec-${ts}`, title: `RPC Sec ${ts}`, event_type: 'other', starts_at: '2026-06-01', ends_at: '2026-06-01' })
-      .select('id')
-      .single()
+    const { data: event } = await insertEvent(admin, { slug: `rpc-sec-${ts}`, title: `RPC Sec ${ts}`, starts_at: '2026-06-01', ends_at: '2026-06-01' })
     eventId = event!.id
 
     const { data: badge } = await admin
@@ -61,7 +58,7 @@ describe('event attendee RPCs: direct-call authorization', () => {
 
   afterAll(async () => {
     if (badgeTypeId) await admin.from('badge_types').delete().eq('id', badgeTypeId)
-    if (eventId) await admin.from('events').delete().eq('id', eventId)
+    if (eventId) await admin.from('community_events').delete().eq('id', eventId)
     if (memberId) await admin.from('members').delete().eq('id', memberId)
     await admin.auth.admin.deleteUser(memberAuthUserId).catch(() => {})
     await admin.auth.admin.deleteUser(adminAuthUserId).catch(() => {})

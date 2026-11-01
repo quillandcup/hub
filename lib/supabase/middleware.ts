@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, after, type NextRequest } from 'next/server'
+import { SupabaseAccessEventRepository } from '@/lib/data/access-events'
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from '@/lib/with-timeout'
 import { getAppRoleFromAccessToken, getSessionIdFromAccessToken } from '@/lib/supabase/session-claims'
 import { ADMIN_NO_ACCESS_PATH, isAdminPath } from '@/lib/admin-paths'
@@ -119,7 +120,7 @@ export async function updateSession(request: NextRequest) {
     const location = requestLocation(request.headers)
     after(async () => {
       try {
-        await supabase.from('access_events').insert({
+        await new SupabaseAccessEventRepository(supabase).record({
           user_id: userId,
           path: pathname,
           is_page: false,

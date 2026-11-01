@@ -21,6 +21,9 @@ definePrickleScheduleContract("InMemoryPrickleScheduleRepository", () => {
     typeNames: ["Sprint A", "Sprint B"],
     months,
     missingId: "psch_AAAAAAAAAAAA",
+    clearLocks: async () => {
+      data.scheduleLocks = [];
+    },
     repo: () => new InMemoryPrickleScheduleRepository(data),
     stored: async () => data.prickleSchedules.map((row) => ({ ...row })),
     seed: async (rows: SeedSchedule[]) => {

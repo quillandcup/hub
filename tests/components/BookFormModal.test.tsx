@@ -58,7 +58,7 @@ describe("BookFormModal", () => {
           purchaseUrl: "https://example.com/buy",
           publishedDate: "2026-03-15",
           price: null,
-          genre: null,
+          genres: [],
           format: "print",
           penName: null,
           projectId: null,
@@ -82,7 +82,7 @@ describe("BookFormModal", () => {
       vi.mocked(getMyPenNameOptions).mockResolvedValue({ defaultName: "Ada E.", others: ["A. E. Byron"] });
       vi.mocked(addBook).mockResolvedValue({ success: true });
       const user = userEvent.setup();
-      render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genre: null, format: "print", penName: null, projectId: null, coverAsset: null }} />);
+      render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genres: [], format: "print", penName: null, projectId: null, coverAsset: null }} />);
 
       const select = await screen.findByRole("combobox", { name: /published as/i });
       expect(Array.from((select as HTMLSelectElement).options).map((o) => o.text)).toEqual(["Ada E.", "A. E. Byron"]);
@@ -92,15 +92,50 @@ describe("BookFormModal", () => {
 
     it("keeps a name the book already has even if that alias is no longer offered", async () => {
       vi.mocked(getMyPenNameOptions).mockResolvedValue({ defaultName: "Ada E.", others: [] });
-      render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genre: null, format: "print", penName: "Retired Name", projectId: null, coverAsset: null }} />);
+      render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genres: [], format: "print", penName: "Retired Name", projectId: null, coverAsset: null }} />);
       const select = (await screen.findByRole("combobox", { name: /published as/i })) as HTMLSelectElement;
       expect(select.value).toBe("Retired Name");
     });
   });
 });
 
+describe("BookFormModal genre tags", () => {
+  const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genres: ["Romance", "Fantasy"], format: "print" as const, penName: null, projectId: null, coverAsset: null };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("shows the saved genres as chips", () => {
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={BOOK} />);
+    expect(screen.getByRole("button", { name: "Remove Romance" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Fantasy" })).toBeInTheDocument();
+  });
+
+  it("saves the added and removed genres in order", async () => {
+    vi.mocked(updateBook).mockResolvedValue({ success: true });
+    const onSaved = vi.fn();
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={onSaved} book={BOOK} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove Romance" }));
+    await userEvent.type(screen.getByLabelText("Genre / Tropes"), "Cozy Mystery{Enter}");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(updateBook).toHaveBeenCalledWith("book-1", expect.objectContaining({ genres: ["Fantasy", "Cozy Mystery"] }));
+  });
+
+  it("saves an empty genre when none are left", async () => {
+    vi.mocked(updateBook).mockResolvedValue({ success: true });
+    render(<BookFormModal isOpen onClose={() => {}} onSaved={() => {}} book={{ ...BOOK, genres: [] }} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(updateBook).toHaveBeenCalledWith("book-1", expect.objectContaining({ genres: [] })));
+  });
+});
+
 describe("BookFormModal cover", () => {
-  const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genre: null, format: "print" as const, penName: null, projectId: null, coverAsset: null };
+  const BOOK = { id: "book-1", title: "B", description: null, coverUrl: "https://example.com/c.jpg", purchaseUrl: "https://example.com/b", publishedDate: "2026-03-15", price: null, genres: [], format: "print" as const, penName: null, projectId: null, coverAsset: null };
   const uploaded = { url: "/api/media/media_AAAAAAAAAAA1/book_cover_shelf", assetId: "media_AAAAAAAAAAA1", width: 1600, height: 2560 };
 
   afterEach(() => {

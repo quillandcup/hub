@@ -39,7 +39,7 @@ describe("EventDetailClient photos", () => {
     const { container } = render(<EventDetailClient event={EVENT} photos={photos} />);
     const buttons = container.querySelectorAll<HTMLButtonElement>('button[data-track="event-open-photo"]');
     expect(buttons).toHaveLength(2);
-    expect(buttons[1].querySelector("img")).toHaveAttribute("src", "/api/events/e1/photos/ph2");
+    expect(buttons[1].querySelector("img")).toHaveAttribute("src", "/api/events/e1/photos/ph2?w=480");
 
     await userEvent.click(buttons[1]);
     // The lightbox is open on the second photo: it offers the previous one and a close button.

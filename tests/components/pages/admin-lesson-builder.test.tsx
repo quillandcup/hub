@@ -31,7 +31,7 @@ vi.mock("@/components/courses/LessonPlayer", () => ({
 import AdminLessonPage, { generateMetadata } from "@/app/(admin)/admin/courses/[id]/lessons/[lessonId]/page";
 
 const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLessonDetail["lesson"]> = {}): AdminLessonDetail => ({
-  course: { kajabiId: "k1", title: "The Ready Writer" },
+  course: { id: "crs_AAAAAAAAAAA1", title: "The Ready Writer" },
   lesson: {
     kajabiId: "l1",
     title: "Reader Expectations vs. Reader Preferences",
@@ -59,7 +59,7 @@ const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLess
   video: { status: "ready", playbackId: "pb1" },
   ...over,
 });
-const params = { params: Promise.resolve({ id: "k1", lessonId: "l1" }) };
+const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1" }) };
 
 beforeEach(() => {
   resetServerPageMocks();
@@ -109,7 +109,7 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     await renderServerPage(AdminLessonPage, params);
 
     await user.click(screen.getByRole("button", { name: /Video actions/ }));
-    expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", "/admin/courses/k1/stats/les_AAAAAAAAAAA1");
+    expect(screen.getByRole("menuitem", { name: "Video stats" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1/stats/les_AAAAAAAAAAA1");
     expect(screen.getByRole("menuitem", { name: "Copy timestamp URL" })).toBeEnabled();
   });
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The event photo routes (hide/unhide, the import commit batch, the image proxy) go through
@@ -12,6 +13,9 @@ vi.mock("@/lib/data/repos", async () => ({
   ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
   createRepos: () => repos,
 }));
+
+const sharpPipeline = { rotate: vi.fn(), resize: vi.fn(), webp: vi.fn(), toBuffer: vi.fn() };
+vi.mock("sharp", () => ({ default: () => sharpPipeline }));
 
 const uploadMock = vi.fn();
 const downloadMock = vi.fn();
@@ -66,7 +70,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   auth = { user: { id: "admin" }, supabase };
   dataset = new InMemoryDataset({
-    events: [{ id: EVENT, title: "Retreat", slug: "retreat" }],
+    ...eventSeed([{ id: EVENT, title: "Retreat", slug: "retreat" }]),
     eventPhotos: [{ id: "evph_1", event_id: EVENT, storage_path: `${EVENT}/a.jpg`, google_media_item_id: "a", mime_type: "image/jpeg", hidden_at: null, width: null, height: null, taken_at: null, created_at: "2097-01-01T00:00:00Z" }],
   });
   repos = createInMemoryRepos(dataset);
@@ -163,6 +167,26 @@ describe("GET /api/events/[eventId]/photos/[photoId]", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/jpeg");
     expect(downloadMock).toHaveBeenCalledWith(`${EVENT}/a.jpg`);
+  });
+
+  it("serves a sized copy as webp when asked for an allowed width, and the original for any other", async () => {
+    for (const fn of [sharpPipeline.rotate, sharpPipeline.resize, sharpPipeline.webp]) fn.mockReturnValue(sharpPipeline);
+    sharpPipeline.toBuffer.mockResolvedValue(Buffer.from([1, 2]));
+    const sized = (w: string) => viewPhoto(new NextRequest(`http://localhost/api/x?w=${w}`), { params: Promise.resolve({ eventId: EVENT, photoId: "evph_1" }) });
+
+    const res = await sized("480");
+    expect(res.headers.get("Content-Type")).toBe("image/webp");
+    expect(sharpPipeline.resize).toHaveBeenCalledWith({ width: 480, withoutEnlargement: true });
+
+    expect((await sized("123")).headers.get("Content-Type")).toBe("image/jpeg");
+    expect(sharpPipeline.resize).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the original when resizing fails", async () => {
+    sharpPipeline.rotate.mockImplementation(() => { throw new Error("bad image"); });
+    const res = await viewPhoto(new NextRequest("http://localhost/api/x?w=1600"), { params: Promise.resolve({ eventId: EVENT, photoId: "evph_1" }) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/jpeg");
   });
 
   it("is 401 signed out and 404 for a missing photo, a failed read or a failed download", async () => {

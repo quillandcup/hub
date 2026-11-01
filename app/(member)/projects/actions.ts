@@ -11,6 +11,7 @@ import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { cleanGenres } from "@/lib/book-genres";
 import { resolvePenName } from "@/lib/book-pen-name";
 import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
@@ -195,6 +196,25 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
 
   // A goal can be project-less; buildProjectRows only ever matches goals to a project by id.
   return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
+}
+
+/** The member's projects in a past phase (complete, published, abandoned), with their totals (goals aren't loaded: the list is read-only). */
+export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, startingBalances, attendance, books] = await Promise.all([
+    writing.pastProjectSummaries(memberId),
+    writing.projectEntries(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
+
+  return buildProjectRows(projects, entries, [], startingBalances, attendance, books);
 }
 
 export async function getProject(
@@ -560,6 +580,33 @@ export async function toggleProjectVisibility(
 }
 
 /**
+ * Deletes a project, with its goals and entries. A soft delete: nothing shows it to the member or
+ * anyone else and it counts toward nothing, but the row stays until they ask us to remove it
+ * (/privacy). A book published from it stays on the bookshelf.
+ */
+async function deleteProjectImpl(projectId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  try {
+    await writing.deleteProject(effectiveIdentity.memberId, projectId);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to delete project") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
  * Manual phase change (Planning/Drafting/Revising/On hold/Complete/Abandoned). 'published' is
  * excluded here -- it can only be reached via publishProject, which links a Bookshelf entry in
  * the same step (see the comment there).
@@ -657,7 +704,7 @@ async function publishProjectImpl(
       purchase_url: safeUrl(book.purchaseUrl)!,
       published_date: book.publishedDate,
       price: book.price ?? null,
-      genre: book.genre?.trim() || null,
+      genres: cleanGenres(book.genres),
       format: book.format,
       pen_name: pen.penName,
     });
@@ -1398,6 +1445,10 @@ export async function getProfileWriting(
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function createProject(...args: Parameters<typeof createProjectImpl>): ReturnType<typeof createProjectImpl> {
   return withAction("project_created", () => createProjectImpl(...args));
+}
+
+export async function deleteProject(...args: Parameters<typeof deleteProjectImpl>): ReturnType<typeof deleteProjectImpl> {
+  return withAction("project_deleted", () => deleteProjectImpl(...args));
 }
 
 export async function publishProject(...args: Parameters<typeof publishProjectImpl>): ReturnType<typeof publishProjectImpl> {

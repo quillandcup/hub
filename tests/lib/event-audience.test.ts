@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { audienceSummary, parseEventAudience } from "@/lib/event-audience";
+import { audienceSummary, parseEventAudience, parseGuestSpeakers } from "@/lib/event-audience";
 
 describe("parseEventAudience", () => {
   it("returns only the fields the body names", () => {
@@ -10,13 +10,17 @@ describe("parseEventAudience", () => {
     });
   });
 
-  it("clears the limit with null and trims or empties the speakers", () => {
-    expect(parseEventAudience({ capacity: null, speakers: "  Ada Example  " })).toEqual({
-      ok: true,
-      fields: { capacity: null, speakers: "Ada Example" },
-    });
-    expect(parseEventAudience({ speakers: "   " })).toEqual({ ok: true, fields: { speakers: null } });
-    expect(parseEventAudience({ speakers: null })).toEqual({ ok: true, fields: { speakers: null } });
+  it("clears the limit with null", () => {
+    expect(parseEventAudience({ capacity: null })).toEqual({ ok: true, fields: { capacity: null } });
+  });
+
+  it("trims or empties the guest speakers, which are not an event column", () => {
+    expect(parseEventAudience({ speakers: "Ada Example" })).toEqual({ ok: true, fields: {} });
+    expect(parseGuestSpeakers({ speakers: "  Ada Example  " })).toEqual({ ok: true, value: "Ada Example" });
+    expect(parseGuestSpeakers({ speakers: "   " })).toEqual({ ok: true, value: null });
+    expect(parseGuestSpeakers({ speakers: null })).toEqual({ ok: true, value: null });
+    expect(parseGuestSpeakers({})).toEqual({ ok: true, value: undefined });
+    expect(parseGuestSpeakers({ speakers: 42 })).toMatchObject({ ok: false, error: expect.stringContaining("speakers") });
   });
 
   it.each([
@@ -28,7 +32,6 @@ describe("parseEventAudience", () => {
     [{ capacity: -3 }, "capacity"],
     [{ capacity: 2.5 }, "capacity"],
     [{ capacity: "7" }, "capacity"],
-    [{ speakers: 42 }, "speakers"],
   ])("rejects %j", (body, field) => {
     const result = parseEventAudience(body);
     expect(result.ok).toBe(false);

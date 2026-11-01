@@ -1,10 +1,11 @@
+import { PAST_PHASES, isPastPhase } from "@/lib/writing-projects";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Stored rows, as the database has them; the twin keeps these. */
-export type WritingProjectRow = Row<"writing_projects">;
 // `deleted_at` is optional on the twin's rows so a fixture that predates soft delete still reads as live.
+export type WritingProjectRow = Omit<Row<"writing_projects">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingGoalRow = Omit<Row<"writing_goals">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingEntryRow = Omit<Row<"writing_progress_entries">, "deleted_at"> & { deleted_at?: string | null };
 export type WritingBalanceRow = Row<"writing_project_starting_balances">;
@@ -155,11 +156,11 @@ const goalColumns = (g: WritingGoalRow): GoalColumns => ({
 });
 
 export interface WritingRepository {
-  /** The member's projects that aren't archived, newest first. */
+  /** The member's projects that aren't archived or deleted, newest first (the picker's list, past phases included). */
   activeProjects(memberId: string): Promise<ProjectChoice[]>;
   /** The id of the member's newest project that isn't archived, or null. */
   latestActiveProjectId(memberId: string): Promise<string | null>;
-  /** Whether the project exists and is this member's. */
+  /** Whether the project exists, is this member's and isn't deleted. */
   ownsProject(memberId: string, projectId: string): Promise<boolean>;
   /** Every member's projects whose cover is a link rather than a library image (for moving them in), by id. Paginated. */
   projectsWithLegacyCovers(): Promise<{ id: string; member_id: string; title: string; cover_url: string }[]>;
@@ -217,9 +218,11 @@ export interface WritingRepository {
 
   // --- projects and starting balances ---
 
-  /** The member's projects that aren't archived, newest first, with the columns the projects pages show. */
+  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show. */
   projectSummaries(memberId: string): Promise<ProjectSummary[]>;
-  /** One of the member's projects (archived or not), or null when it isn't theirs or doesn't exist. */
+  /** The member's projects in a past phase (complete, published, abandoned), newest first. */
+  pastProjectSummaries(memberId: string): Promise<ProjectSummary[]>;
+  /** One of the member's projects (archived or not), or null when it isn't theirs, is deleted or doesn't exist. */
   projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;
   /** Every entry the member logged, in no particular order (all pages). */
   projectEntries(memberId: string): Promise<ProjectEntry[]>;
@@ -233,8 +236,13 @@ export interface WritingRepository {
   startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null>;
   /** Creates a project and returns its id. */
   createProject(memberId: string, title: string, phase: string): Promise<string>;
-  /** Changes the given fields of the member's project (a project that isn't theirs is left alone). */
+  /** Changes the given fields of the member's project (a project that isn't theirs, or is deleted, is left alone). */
   updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void>;
+  /**
+   * Soft deletes the member's project together with its goals and entries, so none of them counts
+   * toward totals, streaks or badges. Books and awards linked to it stay. Repeating it is harmless.
+   */
+  deleteProject(memberId: string, projectId: string): Promise<void>;
   /** Sets the starting balance of each `set` measure and removes those of the `clear` measures. */
   replaceStartingBalances(memberId: string, projectId: string, set: { measure: string; amount: number }[], clear: string[]): Promise<void>;
 
@@ -267,6 +275,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("id, title")
       .eq("member_id", memberId)
       .is("archived_at", null)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
@@ -279,6 +288,7 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select("id")
       .eq("member_id", memberId)
       .is("archived_at", null)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(1)
@@ -288,7 +298,7 @@ export class SupabaseWritingRepository implements WritingRepository {
   }
 
   async ownsProject(memberId: string, projectId: string) {
-    const { data, error } = await this.db.from("writing_projects").select("id").eq("id", projectId).eq("member_id", memberId).maybeSingle();
+    const { data, error } = await this.db.from("writing_projects").select("id").eq("id", projectId).eq("member_id", memberId).is("deleted_at", null).maybeSingle();
     if (error) throw new Error(error.message);
     return !!data;
   }
@@ -569,6 +579,22 @@ export class SupabaseWritingRepository implements WritingRepository {
       .select(SUMMARY_COLUMNS)
       .eq("member_id", memberId)
       .is("archived_at", null)
+      .not("phase", "in", `(${PAST_PHASES.join(",")})`)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
+    const { data, error } = await this.db
+      .from("writing_projects")
+      .select(SUMMARY_COLUMNS)
+      .eq("member_id", memberId)
+      .is("archived_at", null)
+      .in("phase", [...PAST_PHASES])
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
     if (error) throw new Error(error.message);
@@ -576,7 +602,13 @@ export class SupabaseWritingRepository implements WritingRepository {
   }
 
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
-    const { data, error } = await this.db.from("writing_projects").select(SUMMARY_COLUMNS).eq("id", projectId).eq("member_id", memberId).maybeSingle();
+    const { data, error } = await this.db
+      .from("writing_projects")
+      .select(SUMMARY_COLUMNS)
+      .eq("id", projectId)
+      .eq("member_id", memberId)
+      .is("deleted_at", null)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }
@@ -659,7 +691,18 @@ export class SupabaseWritingRepository implements WritingRepository {
   }
 
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
-    const { error } = await this.db.from("writing_projects").update(patch).eq("id", projectId).eq("member_id", memberId);
+    const { error } = await this.db.from("writing_projects").update(patch).eq("id", projectId).eq("member_id", memberId).is("deleted_at", null);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteProject(memberId: string, projectId: string): Promise<void> {
+    // The children first: if one step fails the project is still live and the member can try again.
+    const deletedAt = new Date().toISOString();
+    for (const table of ["writing_progress_entries", "writing_goals"] as const) {
+      const { error } = await this.db.from(table).update({ deleted_at: deletedAt }).eq("project_id", projectId).eq("member_id", memberId).is("deleted_at", null);
+      if (error) throw new Error(error.message);
+    }
+    const { error } = await this.db.from("writing_projects").update({ deleted_at: deletedAt }).eq("id", projectId).eq("member_id", memberId).is("deleted_at", null);
     if (error) throw new Error(error.message);
   }
 
@@ -768,7 +811,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async activeProjects(memberId: string) {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at)).map(({ id, title }) => ({ id, title }));
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !p.deleted_at)).map(({ id, title }) => ({ id, title }));
   }
 
   async latestActiveProjectId(memberId: string) {
@@ -776,7 +819,7 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async ownsProject(memberId: string, projectId: string) {
-    return this.data.writingProjects.some((p) => p.id === projectId && p.member_id === memberId);
+    return this.data.writingProjects.some((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
   }
 
   async goalCount(memberId: string) {
@@ -977,11 +1020,15 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at)).map(summaryOf);
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && !isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
+  }
+
+  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.archived_at && isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
   }
 
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
-    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId);
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
     return project ? summaryOf(project) : null;
   }
 
@@ -1059,6 +1106,7 @@ export class InMemoryWritingRepository implements WritingRepository {
       external_id: null,
       show_on_profile: false,
       archived_at: null,
+      deleted_at: null,
       created_at: new Date().toISOString(),
     });
     return id;
@@ -1076,8 +1124,17 @@ export class InMemoryWritingRepository implements WritingRepository {
   }
 
   async updateProject(memberId: string, projectId: string, patch: ProjectPatch): Promise<void> {
-    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId);
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
     if (project) Object.assign(project, patch);
+  }
+
+  async deleteProject(memberId: string, projectId: string): Promise<void> {
+    const deletedAt = new Date().toISOString();
+    for (const row of [...this.data.writingEntries, ...this.data.writingGoals]) {
+      if (row.project_id === projectId && row.member_id === memberId && !row.deleted_at) row.deleted_at = deletedAt;
+    }
+    const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
+    if (project) project.deleted_at = deletedAt;
   }
 
   async replaceStartingBalances(memberId: string, projectId: string, set: { measure: string; amount: number }[], clear: string[]): Promise<void> {

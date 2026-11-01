@@ -1,18 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   calendarCategory,
-  calendarEventFields,
   calendarTitle,
-  eventUpdateFor,
-  prickleEventFields,
-  isOverridableField,
   orgDate,
-  overridesAfterEdit,
   slugify,
-  syncableFields,
 } from "@/lib/calendar-events";
 import { withoutFollowedEvents, type EventPrickle } from "@/lib/event-prickles";
-import type { PrickleDetail } from "@/lib/data/prickles";
 
 describe("orgDate", () => {
   it("is the Eastern date, not the UTC one", () => {
@@ -78,108 +71,7 @@ describe("calendarCategory", () => {
   });
 });
 
-describe("calendarEventFields", () => {
-  const source = {
-    summary: "Hedgie Book Fair w/Ada",
-    description: "<p>Come <b>browse</b></p>",
-    location: "  Zoom room 2  ",
-    start_time: "2097-05-02T23:00:00Z",
-    end_time: "2097-05-03T01:00:00Z",
-  };
-
-  it("takes the title, plain-text description, trimmed location, exact times and Eastern dates", () => {
-    expect(calendarEventFields(source)).toEqual({
-      title: "Hedgie Book Fair",
-      description: "Come **browse**",
-      location: "Zoom room 2",
-      starts_at: "2097-05-02",
-      ends_at: "2097-05-02", // 01:00Z is 21:00 Eastern the same day
-      start_time: source.start_time,
-      end_time: source.end_time,
-    });
-  });
-
-  it("ends an event that finishes exactly at midnight Eastern on the day before", () => {
-    const fields = calendarEventFields({ ...source, start_time: "2097-05-03T00:00:00Z", end_time: "2097-05-03T04:00:00Z" });
-    expect(fields.starts_at).toBe("2097-05-02");
-    expect(fields.ends_at).toBe("2097-05-02"); // ends 00:00 EDT on the 3rd, so the 2nd is its last day
-  });
-
-  it("never ends before it starts, even for a very short event", () => {
-    const fields = calendarEventFields({ ...source, start_time: "2097-05-03T04:00:00Z", end_time: "2097-05-03T04:00:30Z" });
-    expect(fields.ends_at >= fields.starts_at).toBe(true);
-  });
-
-  it("leaves an empty description and location null", () => {
-    const fields = calendarEventFields({ ...source, description: null, location: "   " });
-    expect(fields.description).toBeNull();
-    expect(fields.location).toBeNull();
-  });
-});
-
-describe("syncableFields", () => {
-  const fields = calendarEventFields({
-    summary: "Open House",
-    description: "From the calendar",
-    location: "Zoom",
-    start_time: "2097-05-02T23:00:00Z",
-    end_time: "2097-05-03T01:00:00Z",
-  });
-
-  it("writes everything when nothing is overridden", () => {
-    expect(syncableFields(fields, [])).toEqual(fields);
-  });
-
-  it("always writes dates and times, and leaves overridden text alone", () => {
-    const synced = syncableFields(fields, ["title", "location"]);
-    expect(synced).toEqual({
-      description: "From the calendar",
-      starts_at: fields.starts_at,
-      ends_at: fields.ends_at,
-      start_time: fields.start_time,
-      end_time: fields.end_time,
-    });
-    expect(synced).not.toHaveProperty("title");
-    expect(synced).not.toHaveProperty("location");
-  });
-});
-
-describe("overridesAfterEdit", () => {
-  const current = { title: "Open House", description: "From the calendar", location: "Zoom", overridden_fields: ["location"] };
-
-  it("overrides a field given text that differs from what the row holds, keeping those already overridden, sorted", () => {
-    expect(overridesAfterEdit(current, { title: "Open House", description: "New text", location: "Zoom" })).toEqual({
-      overridden: ["description", "location"],
-      follow: [],
-    });
-    expect(overridesAfterEdit(current, { title: "Fall Open House" })).toEqual({ overridden: ["location", "title"], follow: [] });
-  });
-
-  it("changes nothing for a form saved untouched, however many fields it sends", () => {
-    expect(overridesAfterEdit(current, { title: "Open House", description: "From the calendar", location: "Zoom" })).toEqual({
-      overridden: ["location"],
-      follow: [],
-    });
-  });
-
-  it("follows the calendar again for a field left empty: no override, and the caller takes the calendar's value", () => {
-    expect(overridesAfterEdit(current, { location: "" })).toEqual({ overridden: [], follow: ["location"] });
-    expect(overridesAfterEdit(current, { description: null })).toEqual({ overridden: ["location"], follow: ["description"] });
-    expect(overridesAfterEdit(current, { title: "   ", description: "" })).toEqual({ overridden: ["location"], follow: ["title", "description"] });
-  });
-
-  it("leaves a field the edit doesn't name alone", () => {
-    expect(overridesAfterEdit(current, {})).toEqual({ overridden: ["location"], follow: [] });
-  });
-});
-
-describe("isOverridableField and slugify", () => {
-  it("knows which fields an admin can override", () => {
-    expect(isOverridableField("title")).toBe(true);
-    expect(isOverridableField("starts_at")).toBe(false);
-    expect(isOverridableField(3)).toBe(false);
-  });
-
+describe("slugify", () => {
   it("makes an address from a title", () => {
     expect(slugify("  Hedgie Book Fair & Fun! ")).toBe("hedgie-book-fair-fun");
   });
@@ -202,73 +94,3 @@ describe("withoutFollowedEvents", () => {
     expect(withoutFollowedEvents(list, []).map((p) => p.id)).toEqual(["a", "b", "c"]);
   });
 });
-
-describe("an event that stands for a prickle", () => {
-  const prickle = (over: Partial<PrickleDetail> = {}): PrickleDetail =>
-    ({
-      id: "prkl_AAAAAAAAAAA1",
-      typeId: "prty_AAAAAAAAAAA1",
-      hostId: "mbr_AAAAAAAAAAA1",
-      title: null,
-      description: null,
-      guestSpeaker: null,
-      startTime: "2097-05-02T23:00:00Z",
-      endTime: "2097-05-03T00:00:00Z",
-      source: "calendar",
-      calendarEventId: "00000000-0000-4000-8000-00000000000a",
-      host: { id: "mbr_AAAAAAAAAAA1", name: "Jennifer Parker", displayName: "Jenny" },
-      type: { id: "prty_AAAAAAAAAAA1", name: "Free Writing Hour" } as PrickleDetail["type"],
-      ...over,
-    }) as PrickleDetail;
-
-  const source = {
-    summary: "Free Writing Hour w/Jennifer Parker",
-    description: "<p>From the calendar</p>",
-    location: "Zoom",
-    start_time: "2097-05-02T23:00:00Z",
-    end_time: "2097-05-03T00:00:00Z",
-  };
-
-  describe("prickleEventFields", () => {
-    it("takes the prickle's own title, else its type's name; its description without the #event tag; its speaker; and its host's display name", () => {
-      expect(prickleEventFields(prickle({ title: "  Tiny Things  ", description: "Come #event along", guestSpeaker: " Ada Example " }))).toEqual({
-        title: "Tiny Things",
-        description: "Come along",
-        speakers: "Ada Example",
-        host_name: "Jenny",
-      });
-      expect(prickleEventFields(prickle())).toEqual({ title: "Free Writing Hour", description: null, speakers: null, host_name: "Jenny" });
-    });
-
-    it("has no host name for a prickle with no host, and no title when it has neither a title nor a type", () => {
-      expect(prickleEventFields(prickle({ host: null, hostId: null })).host_name).toBeNull();
-      expect(prickleEventFields(prickle({ type: null, typeId: null })).title).toBeNull();
-    });
-  });
-
-  describe("eventUpdateFor", () => {
-    it("is the calendar's update when there is no prickle", () => {
-      expect(eventUpdateFor(source, ["location"])).toEqual(syncableFields(calendarEventFields(source), ["location"]));
-    });
-
-    it("takes title, description, speaker and host from the prickle, ignoring an override of the title or description on the event", () => {
-      const update = eventUpdateFor(source, ["title", "description", "location"], prickle({ title: "Tiny Things", description: "Edited on the prickle", guestSpeaker: "Ada Example" }));
-
-      expect(update).toMatchObject({
-        title: "Tiny Things",
-        description: "Edited on the prickle",
-        speakers: "Ada Example",
-        host_name: "Jenny",
-        starts_at: "2097-05-02",
-        start_time: source.start_time,
-      });
-      expect(update).not.toHaveProperty("location"); // overridden on the event: the sync leaves it
-    });
-
-    it("falls back to the calendar's title when the prickle has none to give, and clears a description the prickle no longer has", () => {
-      const update = eventUpdateFor(source, [], prickle({ type: null, typeId: null }));
-      expect(update).toMatchObject({ title: "Free Writing Hour", description: null, location: "Zoom" });
-    });
-  });
-});
-

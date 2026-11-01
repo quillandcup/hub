@@ -33,13 +33,13 @@ export async function GET(request: NextRequest) {
     { data: listData, error: listError },
     profiles,
     { data: previews },
-    { data: allStaff },
+    allStaff,
     allMembers,
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ perPage: 1000 }),
     createRepos(supabase).profiles.all(),
     supabase.from("user_feature_previews").select("user_id, feature_key"),
-    supabase.from("staff").select("id, name, email, role, member_id"),
+    createRepos(supabase).staff.all(),
     fetchAllMembers(supabase),
   ]);
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     if (!featureMap.has(row.user_id)) featureMap.set(row.user_id, []);
     featureMap.get(row.user_id)!.push(row.feature_key);
   }
-  const staffByMemberId = new Map((allStaff ?? []).filter((s) => s.member_id).map((s) => [s.member_id, s]));
+  const staffByMemberId = new Map(allStaff.filter((s) => s.member_id).map((s) => [s.member_id, s]));
   const memberByUserId = new Map((allMembers ?? []).filter((m) => m.user_id).map((m) => [m.user_id, m]));
 
   const users = (listData?.users ?? []).map((u) => {

@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { copyCourseFiles } from "@/lib/courses/files";
 import { copyCourseImages } from "@/lib/courses/images";
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
   if (!slug) return NextResponse.json({ error: 'Body needs "course" (a slug)' }, { status: 400 });
 
   const supabase = createServiceRoleClient();
-  const { data: course } = await supabase.from("courses").select("source_key").eq("slug", slug).eq("source", "kajabi").maybeSingle();
+  const course = await createRepos(supabase).courses.courseBySlug(slug, { source: "kajabi" });
   if (!course) return NextResponse.json({ error: `No published course "${slug}"` }, { status: 404 });
 
   if (!course.source_key) return NextResponse.json({ error: `Course "${slug}" has no source key` }, { status: 409 });

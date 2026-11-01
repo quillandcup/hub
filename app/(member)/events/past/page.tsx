@@ -72,7 +72,7 @@ export default async function PastEventsPage({ searchParams }: { searchParams: P
         initialMonth={initialMonth}
         months={months}
         events={rows}
-        followedCalendarEventIds={events.flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : []))}
+        eventPrickleIds={events.map((e) => e.prickle_id)}
         initialPrickles={initialPrickles}
         timeZone={timeZone}
       />

@@ -25,7 +25,7 @@ vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 
-vi.mock("@/app/(member)/projects/actions", () => ({ getMyProjects: vi.fn(), publishProject: vi.fn() }));
+vi.mock("@/app/(member)/projects/actions", () => ({ getMyProjects: vi.fn(), getMyPastProjects: vi.fn(), publishProject: vi.fn() }));
 vi.mock("@/app/(member)/bookshelf/actions", () => ({
   getMyBooks: vi.fn(),
   addBook: vi.fn(),
@@ -51,7 +51,7 @@ import MyWritingIndex from "@/app/(member)/projects/page";
 import BooksRoute from "@/app/(member)/projects/books/page";
 import AwardsRoute from "@/app/(member)/projects/awards/page";
 import ProjectsPage from "@/app/(member)/projects/ProjectsPage";
-import { getMyProjects } from "@/app/(member)/projects/actions";
+import { getMyProjects, getMyPastProjects } from "@/app/(member)/projects/actions";
 import { getMyBooks } from "@/app/(member)/bookshelf/actions";
 import { getMyAwards } from "@/app/(member)/awards/actions";
 
@@ -69,7 +69,7 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     purchaseUrl: null,
     publishedDate: "2025-06-15",
     price: null,
-    genre: null,
+    genres: [],
     format: "ebook",
     projectId: null,
     ...overrides,
@@ -89,6 +89,7 @@ beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   vi.mocked(getMyProjects).mockResolvedValue(PROJECTS);
+  vi.mocked(getMyPastProjects).mockResolvedValue([]);
   vi.mocked(getMyBooks).mockResolvedValue(BOOKS);
   vi.mocked(getMyAwards).mockResolvedValue(AWARDS);
 });

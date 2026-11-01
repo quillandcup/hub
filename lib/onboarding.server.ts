@@ -79,12 +79,13 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
 
   // Whether the tour shows depends only on the record, so check that first: a member who dismissed
   // or finished it skips the other twelve reads.
-  const { data: record } = await supabase
-    .from("member_onboarding")
-    .select("marked_steps, dismissed_at, completed_at, acknowledged_steps")
-    .eq("member_id", memberId)
-    .maybeSingle();
-  const recordData = (record as OnboardingRecord | null) ?? null;
+  // A failed read counts as no record: the tour is not worth failing the layout for.
+  const recordData: OnboardingRecord | null = await createRepos(supabase)
+    .memberProfile.onboardingOf(memberId)
+    .catch((error) => {
+      console.error("onboarding: failed to read the tour state", error);
+      return null;
+    });
   const idle = buildOnboardingState(NO_SIGNALS, recordData);
   // A finished tour may reopen for newly added steps, which only the real signals can tell.
   if (!idle.active && unseenStepIds(recordData).length === 0) return idle;
@@ -111,7 +112,10 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
     createRepos(supabase).memberStatus.profileOverrideOf(memberId),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).memberProfile.askMeAbout(memberId).catch((error) => {
+      console.error("onboarding: failed to read ask-me-about", error);
+      return [] as string[];
+    }),
     createRepos(supabase).writing.latestActiveProjectId(memberId),
     createRepos(supabase).writing.goalCount(memberId),
     // A failed count reads as none: the checklist still renders.
@@ -127,7 +131,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     createRepos(supabase).prickles.countHostedBy(memberId),
     createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
     createRepos(supabase).prickleSchedules.latestMonthOf(memberId),
-    supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
+    createRepos(supabase).prickles.hostVibeCount(memberId),
     createRepos(supabase).calendarFeed.hasBeenFetched(memberId).catch((error) => {
       console.error("onboarding: failed to read the calendar feed", error);
       return false;
@@ -144,11 +148,11 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     membersWithFeature(createServiceRoleClient(), "hosting", [memberId]).then((on) => on.has(memberId)),
   ]);
   const mentorships = bigSistersOn
-    ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+    ? await getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
     : null;
   const latestScheduleMonth = latestSchedule;
 
-  const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
+  const topics = askMeAbout;
 
   return buildOnboardingState(
     {
@@ -160,7 +164,7 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
       hostedRecently: hostedRecently > 0,
-      hasHostVibe: (hostVibes.count ?? 0) > 0,
+      hasHostVibe: hostVibes > 0,
       hasCalendarSynced: feedFetched,
       hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,

@@ -401,6 +401,73 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await ctx.repo().projectSummary(a, ids.gone))?.title).toBe("Shelved");
     });
 
+    it("lists projects in a past phase apart from the ongoing ones, and moves one back when its status changes", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "going", member: 0, title: "Going", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "done", member: 0, title: "Done", createdAt: "2026-02-01T10:00:00Z" },
+          { key: "dropped", member: 0, title: "Dropped", createdAt: "2026-03-01T10:00:00Z" },
+          { key: "other", member: 1, title: "Theirs", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+
+      await ctx.repo().updateProject(a, ids.done, { phase: "complete" });
+      await ctx.repo().updateProject(a, ids.dropped, { phase: "abandoned" });
+      await ctx.repo().updateProject(b, ids.other, { phase: "abandoned" });
+
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Going"]);
+      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
+      expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "abandoned" });
+      // Past projects can still be picked to log against; only the lists apart.
+      expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
+      expect(await ctx.repo().projectSummaries(b)).toEqual([]);
+      expect((await ctx.repo().pastProjectSummaries(b)).map((p) => p.title)).toEqual(["Theirs"]);
+
+      await ctx.repo().updateProject(a, ids.dropped, { phase: "revising" });
+      expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Going"]);
+      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => p.title)).toEqual(["Done"]);
+    });
+
+    it("deletes a project with its goals and entries, only for its owner, and keeps it out of every read", async () => {
+      const [a, b] = ctx.memberIds;
+      const ids = await ctx.seed({
+        projects: [
+          { key: "p", member: 0, title: "Keep", createdAt: "2026-01-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Delete me", createdAt: "2026-02-01T10:00:00Z" },
+        ],
+      });
+      const repo = ctx.repo();
+      const keepEntry = await repo.addEntry({ memberId: a, projectId: ids.p, entryDate: "2026-03-01", measure: "words", mode: "delta", amount: 5 });
+      await repo.addEntry({ memberId: a, projectId: ids.gone, entryDate: "2026-03-02", measure: "words", mode: "delta", amount: 9, prickleId: ctx.prickleId });
+      const keepGoal = await repo.createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 100, is_starred: true });
+      await repo.createGoal({ member_id: a, project_id: ids.gone, measure: "words", target_amount: 7, is_starred: true });
+      await repo.replaceStartingBalances(a, ids.gone, [{ measure: "words", amount: 100 }], []);
+
+      await repo.deleteProject(b, ids.gone);
+      expect(await repo.projectSummary(a, ids.gone)).not.toBeNull();
+
+      await repo.deleteProject(a, ids.gone);
+      await repo.deleteProject(a, ids.gone);
+
+      expect(await repo.projectSummary(a, ids.gone)).toBeNull();
+      expect(await repo.ownsProject(a, ids.gone)).toBe(false);
+      expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["Keep"]);
+      expect((await repo.activeProjects(a)).map((p) => p.title)).toEqual(["Keep"]);
+      expect(await repo.latestActiveProjectId(a)).toBe(ids.p);
+      expect(await repo.pastProjectSummaries(a)).toEqual([]);
+      expect((await repo.projectEntries(a)).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.projectGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
+      expect(await repo.goalCount(a)).toBe(1);
+      expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([]);
+      expect((await repo.exportEntries(a)).map((e) => e.project_title)).toEqual(["Keep"]);
+
+      // A deleted project can't be edited back to life, nor listed as a past one.
+      await repo.updateProject(a, ids.gone, { title: "Revived", phase: "complete" });
+      expect(await repo.projectSummary(a, ids.gone)).toBeNull();
+      expect(await repo.pastProjectSummaries(a)).toEqual([]);
+    });
+
     it("changes only the given fields of the member's own project", async () => {
       const [a, b] = ctx.memberIds;
       const ids = await ctx.seed({ projects: [{ key: "p", member: 0, title: "Before", createdAt: "2026-01-01T10:00:00Z" }] });

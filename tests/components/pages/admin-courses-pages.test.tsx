@@ -35,7 +35,7 @@ import AdminCoursePage, { generateMetadata } from "@/app/(admin)/admin/courses/[
 
 const totals = { open: 0, coming_soon: 8, hidden: 45 };
 const row = (over = {}) => ({
-  kajabiId: "k1",
+  id: "crs_AAAAAAAAAAA1",
   title: "The Ready Writer",
   published: { slug: "the-ready-writer", accessDuration: "P1Y", launchAt: "2026-11-02T05:00:00Z" },
   slug: "the-ready-writer",
@@ -62,7 +62,7 @@ describe("/admin/courses", () => {
   it("lists each course with its Hub state, settings, lesson states and who has access", async () => {
     loadAdminCourses.mockResolvedValue([
       row(),
-      row({ kajabiId: "k2", title: "Self Editing Academy", published: null, access: { current: 0, upcoming: 0, ended: 0 }, totals: { open: 0, coming_soon: 0, hidden: 138 } }),
+      row({ id: null, title: "Self Editing Academy", published: null, access: { current: 0, upcoming: 0, ended: 0 }, totals: { open: 0, coming_soon: 0, hidden: 138 } }),
     ]);
     await renderServerPage(AdminCoursesPage, {});
 
@@ -72,10 +72,12 @@ describe("/admin/courses", () => {
     expect(within(ready).getByText("opens November 2, 2026")).toBeInTheDocument();
     expect(within(ready).getByText("0 / 8 / 45")).toBeInTheDocument();
     expect(within(ready).getByText("0 / 11 / 0")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/admin/courses/k1");
+    expect(screen.getByRole("link", { name: "The Ready Writer" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1");
 
     const other = screen.getByRole("row", { name: /Self Editing Academy/ });
     expect(within(other).getByText("Not published")).toBeInTheDocument();
+    // No Hub row yet (the Kajabi import makes it), so there is no id to link by, and never a Kajabi one.
+    expect(within(other).queryByRole("link")).not.toBeInTheDocument();
     expect(within(other).getByText("0 / 0 / 138")).toBeInTheDocument();
   });
 });
@@ -84,13 +86,13 @@ describe("/admin/courses, Hub-owned courses", () => {
   it("marks a course the Hub owns, and links it by its own id", async () => {
     loadAdminCourses.mockResolvedValue([
       row({ source: "kajabi" }),
-      row({ source: "hub", kajabiId: "crs_AAAAAAAAAAA1", title: "Plot Lab", published: { slug: "plot-lab", accessDuration: "1 year", launchAt: null }, totals: { open: 2, coming_soon: 1, hidden: 0 } }),
+      row({ source: "hub", id: "crs_AAAAAAAAAAA2", title: "Plot Lab", published: { slug: "plot-lab", accessDuration: "1 year", launchAt: null }, totals: { open: 2, coming_soon: 1, hidden: 0 } }),
     ]);
     await renderServerPage(AdminCoursesPage, {});
 
     const hub = screen.getByRole("row", { name: /Plot Lab/ });
     expect(within(hub).getByText("Hub")).toBeInTheDocument();
-    expect(within(hub).getByRole("link", { name: "Plot Lab" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA1");
+    expect(within(hub).getByRole("link", { name: "Plot Lab" })).toHaveAttribute("href", "/admin/courses/crs_AAAAAAAAAAA2");
     expect(within(hub).getByText("2 / 1 / 0")).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /The Ready Writer/ })).queryByText("Hub")).not.toBeInTheDocument();
   });
@@ -110,11 +112,10 @@ describe("/admin/courses/[id]", () => {
     );
     return { course: row({ published }), explained, content: { l1: { hasText: true, hasVideo: false } }, hubLessonIds: { l1: "hub-l1", l2: "hub-l2" }, videos: [], files: { files: [], stale: [], courseId: null }, details: { description: "Learn to write.", includesMembership: true }, lastImportedAt: "2026-11-03T15:30:00Z", ...over };
   };
-  const params = { params: Promise.resolve({ id: "k1" }) };
+  const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1" }) };
 
-  it("is a 404 for a course Kajabi doesn't have", async () => {
-    loadAdminCourse.mockResolvedValue(null);
-    await expect(Promise.resolve().then(() => AdminCoursePage(params))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+  it("is a 404 for an id that is not a course id", async () => {
+    await expect(Promise.resolve().then(() => AdminCoursePage({ params: Promise.resolve({ id: "2149594995" }) }))).rejects.toMatchObject({ digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
   });
 
   it("is the course builder: the course as last imported, with its fields disabled and the support banner above", async () => {
@@ -137,7 +138,7 @@ describe("/admin/courses/[id]", () => {
 
   it("puts the course's name first in the browser tab", async () => {
     loadAdminCourseTitle.mockResolvedValue("The Ready Writer");
-    expect(await generateMetadata({ params: Promise.resolve({ id: "k1" }) })).toEqual({ title: "The Ready Writer · Courses" });
+    expect(await generateMetadata({ params: Promise.resolve({ id: "crs_AAAAAAAAAAA1" }) })).toEqual({ title: "The Ready Writer · Courses" });
     loadAdminCourseTitle.mockResolvedValue(null);
     expect(await generateMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Courses" });
   });

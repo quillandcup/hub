@@ -1,5 +1,5 @@
 import { ApiCheck, AssertionBuilder, Frequency } from 'checkly/constructs'
-import { ownerEmailAlert } from './alert-channels'
+import { ownerEmailAlert, slackAlert } from './alert-channels'
 import { appHost, appUrl, muxCheck } from './config'
 
 // Nightly Mux end-to-end check (docs/MUX_CONFIG.md). It costs nothing and touches no member data:
@@ -12,7 +12,7 @@ new ApiCheck('mux-webhook-rejects-unsigned', {
   activated: true,
   frequency: Frequency.EVERY_24H,
   locations: ['us-east-1'],
-  alertChannels: [ownerEmailAlert],
+  alertChannels: [ownerEmailAlert, slackAlert],
   shouldFail: true, // Checkly treats a 4xx as a failure unless told it is expected
   request: {
     method: 'POST',
@@ -34,7 +34,7 @@ if (muxCheck) {
     activated: true,
     frequency: Frequency.EVERY_24H,
     locations: ['us-east-1'],
-    alertChannels: [ownerEmailAlert],
+    alertChannels: [ownerEmailAlert, slackAlert],
     environmentVariables: [
       { key: 'MUX_CHECK_SIGNING_KEY_ID', value: muxCheck.signingKeyId },
       { key: 'MUX_CHECK_SIGNING_KEY_PRIVATE', value: muxCheck.signingKeyPrivate, secret: true },
@@ -57,7 +57,7 @@ if (muxCheck) {
     activated: true,
     frequency: Frequency.EVERY_24H,
     locations: ['us-east-1'],
-    alertChannels: [ownerEmailAlert],
+    alertChannels: [ownerEmailAlert, slackAlert],
     shouldFail: true,
     request: {
       method: 'GET',

@@ -226,7 +226,7 @@ describe("MediaPicker", () => {
       await open();
       await userEvent.click(screen.getByRole("tab", { name: "Event photos" }));
       const shown = screen.getAllByAltText("An event photo");
-      expect(shown[0]).toHaveAttribute("src", "/api/events/evt_AAAAAAAAAAA1/photos/photo-1");
+      expect(shown[0]).toHaveAttribute("src", "/api/events/evt_AAAAAAAAAAA1/photos/photo-1?w=480");
       await userEvent.click(shown[1]);
 
       await waitFor(() => expect(onChange).toHaveBeenCalledWith("media_EEEEEEEEEEE5"));

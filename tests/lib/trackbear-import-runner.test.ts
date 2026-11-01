@@ -34,6 +34,23 @@ describe("runTrackbearImport", () => {
     expect(dataset.writingEntries).toHaveLength(4);
   });
 
+  it("adds a starting balance an already-imported project has none for, and leaves edited ones alone", async () => {
+    await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
+    const projectId = dataset.writingProjects.find((p) => p.external_id === trackbearExternalId(PROJECT_UUID))!.id;
+    const balances = () => dataset.writingBalances.filter((b) => b.project_id === projectId);
+    expect(balances()).toHaveLength(2);
+    // The time balance went missing; the member changed the word balance in Hub.
+    dataset.writingBalances.splice(dataset.writingBalances.findIndex((b) => b.project_id === projectId && b.measure === "time_minutes"), 1);
+    balances().find((b) => b.measure === "words")!.amount = 5;
+
+    const again = await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
+
+    expect(again.created.startingBalances).toBe(1);
+    expect(balances().map((b) => [b.measure, b.amount]).sort()).toEqual([["time_minutes", 90], ["words", 5]]);
+    const third = await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
+    expect(third.created.startingBalances).toBe(0);
+  });
+
   it("fills in the details of an imported goal that has none", async () => {
     await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
     const goal = dataset.writingGoals.find((g) => g.external_id === trackbearExternalId("20202020-2020-4020-8020-202020202020"))!;

@@ -22,6 +22,7 @@ import { InMemoryWritingRepository, SupabaseWritingRepository, type WritingRepos
 import { InMemoryPrickleScheduleRepository, SupabasePrickleScheduleRepository, type PrickleScheduleRepository } from "./prickle-schedules";
 import { InMemoryProgramRepository, SupabaseProgramRepository, type ProgramRepository } from "./programs";
 import { InMemoryZoomRepository, SupabaseZoomRepository, type ZoomRepository } from "./zoom";
+import { InMemoryHubSessionRepository, SupabaseHubSessionRepository, type HubSessionRepository } from "./hub-sessions";
 import { InMemoryMediaRepository, SupabaseMediaRepository, type MediaRepository } from "./media";
 import { InMemoryKajabiCourseRepository, SupabaseKajabiCourseRepository, type KajabiCourseRepository } from "./kajabi-courses";
 import { InMemoryBillingRepository, SupabaseBillingRepository, type BillingRepository } from "./billing";
@@ -31,6 +32,16 @@ import { InMemoryBookRepository, SupabaseBookRepository, type BookRepository } f
 import { InMemoryPrickleActivityRepository, SupabasePrickleActivityRepository, type PrickleActivityRepository } from "./prickle-activity";
 import { InMemoryCalendarFeedRepository, SupabaseCalendarFeedRepository, type CalendarFeedRepository } from "./calendar-feed";
 import { InMemoryCalendarSyncStateRepository, SupabaseCalendarSyncStateRepository, type CalendarSyncStateRepository } from "./calendar-sync-state";
+import { InMemoryCourseRepository, SupabaseCourseRepository, type CourseRepository } from "./courses";
+import { InMemoryCourseProgressRepository, SupabaseCourseProgressRepository, type CourseProgressRepository } from "./course-progress";
+import { InMemoryStaffRepository, SupabaseStaffRepository, type StaffRepository } from "./staff";
+import { InMemoryMentorshipRepository, SupabaseMentorshipRepository, type MentorshipRepository } from "./mentorship";
+import { InMemoryMemberProfileRepository, SupabaseMemberProfileRepository, type MemberProfileRepository } from "./member-profile";
+import { InMemoryAwardRepository, SupabaseAwardRepository, type AwardRepository } from "./awards";
+import { InMemoryOutreachRepository, SupabaseOutreachRepository, type OutreachRepository } from "./outreach";
+import { InMemoryAdminWorkQueueRepository, SupabaseAdminWorkQueueRepository, type AdminWorkQueueRepository } from "./admin-work";
+import { InMemoryWheelOfWonderRepository, SupabaseWheelOfWonderRepository, type WheelOfWonderRepository } from "./wheel-of-wonder";
+import { InMemoryAccessEventRepository, SupabaseAccessEventRepository, type AccessEventRepository } from "./access-events";
 
 /**
  * Every repository, one per aggregate. Pages, actions and routes depend on these interfaces, not on
@@ -48,6 +59,7 @@ export interface Repos {
   aliases: AliasRepository;
   writing: WritingRepository;
   events: EventRepository;
+  hubSessions: HubSessionRepository;
   prickleSchedules: PrickleScheduleRepository;
   activities: ActivityRepository;
   directory: MemberDirectoryRepository;
@@ -69,6 +81,16 @@ export interface Repos {
   calendarFeed: CalendarFeedRepository;
   calendarSyncState: CalendarSyncStateRepository;
   prospects: ProspectRepository;
+  courses: CourseRepository;
+  courseProgress: CourseProgressRepository;
+  staff: StaffRepository;
+  mentorship: MentorshipRepository;
+  memberProfile: MemberProfileRepository;
+  awards: AwardRepository;
+  outreach: OutreachRepository;
+  adminWork: AdminWorkQueueRepository;
+  wheelOfWonder: WheelOfWonderRepository;
+  accessEvents: AccessEventRepository;
 }
 
 /** Repositories over one client. Which privilege they run with is the client's: user-scoped (RLS) or service role. */
@@ -84,6 +106,7 @@ export function createRepos(db: Db): Repos {
     aliases: new SupabaseAliasRepository(db),
     writing: new SupabaseWritingRepository(db),
     events: new SupabaseEventRepository(db),
+    hubSessions: new SupabaseHubSessionRepository(db),
     prickleSchedules: new SupabasePrickleScheduleRepository(db),
     activities: new SupabaseActivityRepository(db),
     directory: new SupabaseMemberDirectoryRepository(db),
@@ -105,6 +128,16 @@ export function createRepos(db: Db): Repos {
     calendarFeed: new SupabaseCalendarFeedRepository(db),
     calendarSyncState: new SupabaseCalendarSyncStateRepository(db),
     prospects: new SupabaseProspectRepository(db),
+    courses: new SupabaseCourseRepository(db),
+    courseProgress: new SupabaseCourseProgressRepository(db),
+    staff: new SupabaseStaffRepository(db),
+    mentorship: new SupabaseMentorshipRepository(db),
+    memberProfile: new SupabaseMemberProfileRepository(db),
+    awards: new SupabaseAwardRepository(db),
+    outreach: new SupabaseOutreachRepository(db),
+    adminWork: new SupabaseAdminWorkQueueRepository(db),
+    wheelOfWonder: new SupabaseWheelOfWonderRepository(db),
+    accessEvents: new SupabaseAccessEventRepository(db),
   };
 }
 
@@ -121,6 +154,7 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     aliases: new InMemoryAliasRepository(dataset),
     writing: new InMemoryWritingRepository(dataset),
     events: new InMemoryEventRepository(dataset),
+    hubSessions: new InMemoryHubSessionRepository(dataset),
     prickleSchedules: new InMemoryPrickleScheduleRepository(dataset),
     activities: new InMemoryActivityRepository(dataset),
     directory: new InMemoryMemberDirectoryRepository(dataset),
@@ -142,5 +176,15 @@ export function createInMemoryRepos(dataset: InMemoryDataset = new InMemoryDatas
     calendarFeed: new InMemoryCalendarFeedRepository(dataset),
     calendarSyncState: new InMemoryCalendarSyncStateRepository(dataset),
     prospects: new InMemoryProspectRepository(dataset),
+    courses: new InMemoryCourseRepository(dataset),
+    courseProgress: new InMemoryCourseProgressRepository(dataset),
+    staff: new InMemoryStaffRepository(dataset),
+    mentorship: new InMemoryMentorshipRepository(dataset),
+    memberProfile: new InMemoryMemberProfileRepository(dataset),
+    awards: new InMemoryAwardRepository(dataset),
+    outreach: new InMemoryOutreachRepository(dataset),
+    adminWork: new InMemoryAdminWorkQueueRepository(dataset),
+    wheelOfWonder: new InMemoryWheelOfWonderRepository(dataset),
+    accessEvents: new InMemoryAccessEventRepository(dataset),
   };
 }

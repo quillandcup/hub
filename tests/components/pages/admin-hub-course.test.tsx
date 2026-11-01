@@ -68,12 +68,12 @@ beforeEach(() => {
 });
 
 describe("/admin/courses/[id] for a Hub-owned course", () => {
-  it("checks the caller is an admin first, and reads the Hub course, not the Kajabi import", async () => {
+  it("checks the caller is an admin first, and shows the Hub course when the id is not a Kajabi import", async () => {
     loadHubCourse.mockResolvedValue(course());
     await renderServerRoute(AdminCoursePage, params());
     expect(requireAdminPage).toHaveBeenCalled();
     expect(loadHubCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
-    expect(loadAdminCourse).not.toHaveBeenCalled();
+    expect(loadAdminCourse).toHaveBeenCalledWith(expect.anything(), COURSE);
   });
 
   it("shows the course's address, who has access and when it opens, and the details to edit", async () => {

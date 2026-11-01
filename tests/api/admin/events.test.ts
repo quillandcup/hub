@@ -23,7 +23,7 @@ describe('Events API', () => {
   let photoId: string
 
   afterAll(async () => {
-    if (eventId) await supabase.from('events').delete().eq('id', eventId)
+    if (eventId) await supabase.from('community_events').delete().eq('id', eventId)
   })
 
   it('GET returns 401 without auth', async () => {
@@ -156,7 +156,7 @@ describe('Events API', () => {
     })
     expect(response.ok).toBe(true)
 
-    const { data: gone } = await supabase.from('events').select('id').eq('id', eventId).single()
+    const { data: gone } = await supabase.from('community_events').select('id').eq('id', eventId).single()
     expect(gone).toBeNull()
     const { data: photosGone } = await supabase.from('event_photos').select('id').eq('id', photoId)
     expect(photosGone).toEqual([])

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       purchases,
       offers,
       slackUsers,
-      { data: staffMembers, error: staffError },
+      staffMembers,
       emailAliases,
       stripeCustomers,
       existingMembers,
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).billing.kajabiPurchaseRows() as Promise<any[]>,
       createRepos(supabase).billing.kajabiOfferRows() as Promise<any[]>,
       createRepos(supabase).slackUsers.list(),
-      supabase.from("staff").select("*"),
+      createRepos(supabase).staff.all(),
       createRepos(supabase).aliases.emailOwners(),
       createRepos(supabase).billing.stripeCustomers(),
       createRepos(supabase).members.list().then((rows) => rows.map((m) => ({ id: m.id, email: m.email, kajabi_id: m.kajabiId, name: m.name }))),
@@ -81,8 +81,6 @@ export async function POST(request: NextRequest) {
       createRepos(supabase).memberStatus.joinDateOverrides(),
       createRepos(supabase).memberStatus.profileOverrides(),
     ]);
-
-    if (staffError) throw staffError;
 
     // Email alias resolution. Aliases point at a member (member_id); each
     // resolves to the email that member will have after this run — their
@@ -512,9 +510,7 @@ export async function POST(request: NextRequest) {
         }
       }
       if (staffUpdates.length > 0) {
-        await Promise.all(
-          staffUpdates.map((u) => supabase.from("staff").update({ member_id: u.member_id }).eq("id", u.id))
-        );
+        await createRepos(supabase).staff.linkMembers(staffUpdates);
       }
     }
 

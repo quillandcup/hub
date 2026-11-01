@@ -33,6 +33,7 @@ defineMemberContract("InMemoryMemberRepository", () => {
           updatedAt: new Date().toISOString(),
           firstJoinedAt: m.firstJoinedAt ?? null,
           totalActiveMonths: m.totalActiveMonths ?? 0,
+          kajabiTags: m.kajabiTags ?? [],
         };
       });
       const nameAliases = members.flatMap((m, i) =>

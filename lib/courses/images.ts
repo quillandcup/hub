@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAll } from "@/lib/courses/db";
 import type { MediaRepository } from "@/lib/data/media";
 import { createRepos } from "@/lib/data/repos";
 import { storeImage } from "@/lib/media/library";
@@ -24,18 +23,7 @@ export const MAX_COURSE_IMAGE_BYTES = 10 * 1024 * 1024;
 const CONCURRENCY = 5;
 const SEARCH_PAGE = 200;
 
-const TABLES = {
-  course: { table: "courses", urlColumn: "thumbnail_url", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source" },
-  hero: { table: "courses", urlColumn: "hero_url", assetColumn: "hero_asset_id", sourceColumn: "hero_source" },
-  module: { table: "course_modules", urlColumn: "poster_url", assetColumn: "poster_asset_id", sourceColumn: "poster_source" },
-  lesson: { table: "course_lessons", urlColumn: "thumbnail_url", assetColumn: "thumbnail_asset_id", sourceColumn: "thumbnail_source" },
-} as const;
-
 export type { CourseImageKind };
-
-export function imageTable(kind: CourseImageKind) {
-  return TABLES[kind];
-}
 
 const SOURCE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"]);
 
@@ -68,35 +56,28 @@ async function releaseUnused(media: MediaRepository, assetId: string | null): Pr
 
 export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId: string, download: typeof fetch = fetch): Promise<CopyImagesResult> {
   const result: CopyImagesResult = { copied: 0, alreadyCopied: 0, removed: 0, failed: [] };
-  const { data: course, error } = await supabase.from("courses").select("id, slug").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
+  const repos = createRepos(supabase);
+  const course = await repos.courses.courseBySource("kajabi", courseKajabiId);
   if (!course) return result; // not published yet: nothing to attach images to
   const courseId: string = course.id;
   const tags = ["kajabi", course.slug as string];
-  const media = createRepos(supabase).media;
+  const media = repos.media;
 
-  const items: Item[] = [];
-  for (const kind of ["course", "hero", "module", "lesson"] as const) {
-    const t = TABLES[kind];
-    const rows = await fetchAll(supabase, t.table, `id, title, ${t.urlColumn}, ${t.assetColumn}, ${t.sourceColumn}`, (q) =>
-      (kind === "course" || kind === "hero" ? q.eq("id", courseId) : q.eq("course_id", courseId)).order("id")
-    );
-    for (const r of rows) {
-      items.push({ kind, id: r.id, title: r.title ?? "Course image", url: r[t.urlColumn] ?? null, asset: r[t.assetColumn] ?? null, source: r[t.sourceColumn] ?? null });
-    }
-  }
+  const [modules, lessons] = await Promise.all([repos.courses.modulesOf([courseId], { includeHidden: true }), repos.courses.lessonsOf([courseId], { includeHidden: true })]);
+  const items: Item[] = [
+    { kind: "course", id: course.id, title: course.title ?? "Course image", url: course.thumbnail_url, asset: course.thumbnail_asset_id, source: course.thumbnail_source },
+    { kind: "hero", id: course.id, title: course.title ?? "Course image", url: course.hero_url, asset: course.hero_asset_id, source: course.hero_source },
+    ...modules.map((m): Item => ({ kind: "module", id: m.id, title: m.title ?? "Course image", url: m.poster_url, asset: m.poster_asset_id, source: m.poster_source })),
+    ...lessons.map((l): Item => ({ kind: "lesson", id: l.id, title: l.title ?? "Course image", url: l.thumbnail_url, asset: l.thumbnail_asset_id, source: l.thumbnail_source })),
+  ];
 
   const handle = async (item: Item) => {
-    const t = TABLES[item.kind];
     const url = safeUrl(item.url);
-    const save = async (patch: Record<string, string | null>) => {
-      const { error: updateError } = await supabase.from(t.table).update(patch).eq("id", item.id);
-      if (updateError) throw new Error(updateError.message);
-    };
+    const save = (image: { asset: string | null; source: string | null }) => repos.courses.setImage(item.kind, item.id, image);
     try {
       if (!url) {
         if (!item.asset) return;
-        await save({ [t.assetColumn]: null, [t.sourceColumn]: null });
+        await save({ asset: null, source: null });
         await releaseUnused(media, item.asset);
         result.removed++;
         return;
@@ -121,7 +102,7 @@ export async function copyCourseImages(supabase: SupabaseClient, courseKajabiId:
         asset = stored.asset;
       }
 
-      await save({ [t.assetColumn]: asset.id, [t.sourceColumn]: source });
+      await save({ asset: asset.id, source });
       if (item.asset && item.asset !== asset.id) await releaseUnused(media, item.asset); // the source image changed
       result.copied++;
     } catch (e: any) {

@@ -1,7 +1,7 @@
 import { audienceChainError } from "@/lib/audience-rules";
 
 // Who an event is for and how people join it (events.announced_publicly, guests_allowed,
-// registration, capacity, selection, speakers). Shared by the admin forms, the create/update
+// registration, capacity, selection). Shared by the admin forms, the create/update
 // routes and the member event page, so they agree on the values and the wording.
 
 export const REGISTRATION_MODES = ["none", "signup", "application"] as const;
@@ -28,8 +28,13 @@ export interface EventAudience {
   registration: RegistrationMode;
   capacity: number | null;
   selection: SelectionMode;
-  speakers: string | null;
 }
+
+/**
+ * The audience as a form holds it: the guest speakers sit beside it because they are not a column of the event
+ * (they are the prickle's guest speaker, or a Hub session's).
+ */
+export type EventAudienceForm = EventAudience & { speakers: string | null };
 
 export const DEFAULT_AUDIENCE: EventAudience = {
   announced_publicly: false,
@@ -37,7 +42,6 @@ export const DEFAULT_AUDIENCE: EventAudience = {
   registration: "none",
   capacity: null,
   selection: "first_come",
-  speakers: null,
 };
 
 export type AudienceParse = { ok: true; fields: Partial<EventAudience> } | { ok: false; error: string };
@@ -75,10 +79,6 @@ export function parseEventAudience(
     }
     fields.capacity = body.capacity as number | null;
   }
-  if (body.speakers !== undefined) {
-    if (body.speakers !== null && typeof body.speakers !== "string") return { ok: false, error: "speakers must be text" };
-    fields.speakers = typeof body.speakers === "string" && body.speakers.trim() ? body.speakers.trim() : null;
-  }
   // Guests only at something announced publicly: checked against the flags the event will have, so an update
   // that names only one of them is judged with the other as it is now.
   const rule = audienceChainError({
@@ -107,4 +107,14 @@ export function audienceSummary(event: {
     if (event.registration !== "none" && selection) parts.push(selection);
   }
   return parts;
+}
+
+/**
+ * The guest speakers in a request body, trimmed (empty is null); `value` is undefined when the body leaves them out.
+ * Not part of `parseEventAudience`: they live on the prickle (or Hub session) the event stands on, not on the event.
+ */
+export function parseGuestSpeakers(body: Record<string, unknown>): { ok: true; value: string | null | undefined } | { ok: false; error: string } {
+  if (body.speakers === undefined) return { ok: true, value: undefined };
+  if (body.speakers !== null && typeof body.speakers !== "string") return { ok: false, error: "speakers must be text" };
+  return { ok: true, value: typeof body.speakers === "string" && body.speakers.trim() ? body.speakers.trim() : null };
 }

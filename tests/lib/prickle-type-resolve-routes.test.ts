@@ -38,7 +38,7 @@ const SPRINT = { id: "prty_AAAAAAAAAAA1", name: "Sprint", normalizedName: "sprin
 /** A calendar item waiting for review. */
 const queued = (id: string) => ({
   id, calendar_event_id: `c-${id}`, raw_summary: `Summary ${id}`, status: "pending", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
-  resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null,
+  resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null,
 });
 const statuses = () => dataset.unmatchedEvents.map((u) => [u.id, u.status, u.resolved_type_id]);
 

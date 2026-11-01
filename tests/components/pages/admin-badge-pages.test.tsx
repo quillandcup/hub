@@ -4,6 +4,7 @@ import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
@@ -43,10 +44,10 @@ beforeEach(() => {
   useFakeSupabase({ programs: { data: [] } });
   dataset = new InMemoryDataset({
     members: [ADA, FERN],
-    events: [
+    ...eventSeed([
       { id: "evt-1", title: "Spring", slug: "spring", starts_at: "2026-03-01" },
       { id: "evt-2", title: "Autumn", slug: "autumn", starts_at: "2026-09-01" },
-    ],
+    ]),
     badgeTypes: [type("kind", { has_levels: true }), type("auto", { is_automatic: true }), type("retreat", { category: "retreat", event_id: "evt-1" })],
     badgeLevels: [{ id: "l1", badge_type_id: "kind", level: 1, name: "Warm", threshold: 1 }, { id: "l2", badge_type_id: "kind", level: 2, name: "Glowing", threshold: 5 }],
     memberBadges: [award("a1", ADA.id, "kind"), award("a2", FERN.id, "kind"), award("a3", ADA.id, "retreat")],

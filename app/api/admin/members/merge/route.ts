@@ -4,14 +4,6 @@ import type { ExternalIds, Member } from "@/lib/data/members";
 import type { Insert } from "@/lib/data/db";
 import { NextRequest, NextResponse } from "next/server";
 
-// Throws on a Supabase error instead of letting the merge carry on: the
-// secondary is deleted at the end, and anything still pointing at it then
-// cascades away (email aliases, schedules) or is nulled.
-async function run(query: PromiseLike<{ error: unknown }>) {
-  const { error } = await query;
-  if (error) throw error;
-}
-
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -72,7 +64,8 @@ export async function POST(request: NextRequest) {
       // silently deleted along with the secondary.
       createRepos(supabase).prickleSchedules.reassignHost(secondaryId, primaryId),
       createRepos(supabase).prickles.reassignDefaultHost(secondaryId, primaryId),
-      run(supabase.from("ambiguous_zoom_names").update({ resolved_member_id: primaryId }).eq("resolved_member_id", secondaryId)),
+      // Also repoints the ambiguous names that list the secondary among their candidates.
+      createRepos(supabase).zoom.reassignAmbiguousMember(secondaryId, primaryId),
     ]);
 
     // Handle name aliases carefully — alias column is UNIQUE so we can't blindly reassign
@@ -95,32 +88,6 @@ export async function POST(request: NextRequest) {
     // so a secondary enrolled in the same cohort as the primary would collide.
     await createRepos(supabase).programs.moveEnrollments(secondaryId, primaryId);
 
-    // Update ambiguous_zoom_names.candidate_member_ids arrays — Supabase JS can't do
-    // in-place array element replacement, so we fetch affected rows and patch each one.
-    const { data: ambiguousWithSecondary } = await supabase
-      .from("ambiguous_zoom_names")
-      .select("id, candidate_member_ids")
-      .contains("candidate_member_ids", [secondaryId]);
-
-    if (ambiguousWithSecondary && ambiguousWithSecondary.length > 0) {
-      await Promise.all(
-        ambiguousWithSecondary.map((row) => {
-          const withoutSecondary = (row.candidate_member_ids as string[]).filter(
-            (id) => id !== secondaryId
-          );
-          const newIds = withoutSecondary.includes(primaryId)
-            ? withoutSecondary
-            : [...withoutSecondary, primaryId];
-          return run(
-            supabase
-              .from("ambiguous_zoom_names")
-              .update({ candidate_member_ids: newIds })
-              .eq("id", row.id)
-          );
-        })
-      );
-    }
-
     // Email aliases belong to a member (member_id, ON DELETE CASCADE): move the secondary's
     // to the primary, then record the secondary's own email as one of the primary's. Both
     // must land before the delete below.
@@ -129,10 +96,7 @@ export async function POST(request: NextRequest) {
 
     // Patch primary with any external IDs it was missing, and clean up derived records that
     // will be recomputed for the primary.
-    const patchAndCleanup: Promise<unknown>[] = [
-      run(supabase.from("member_metrics").delete().eq("member_id", secondaryId)),
-      run(supabase.from("member_engagement").delete().eq("member_id", secondaryId)),
-    ];
+    const patchAndCleanup: Promise<unknown>[] = [repo.deleteDerivedStats(secondaryId)];
     if (Object.keys(primaryPatch).length > 0) {
       patchAndCleanup.push(repo.setExternalIds(primaryId, idsToFill));
     }

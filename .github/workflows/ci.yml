@@ -137,6 +137,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           CHECK_OPEN_PRS: ${{ github.event_name == 'pull_request' && '1' || '0' }}
 
+      # Old code runs against the new schema while a deploy rolls out, so a migration that
+      # drops or renames something the old code reads breaks production. Squawk fails on
+      # those (see .squawk.toml); only migrations this change adds are linted.
+      - name: Lint new migrations for deploy-breaking changes
+        if: github.event_name != 'workflow_dispatch'
+        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk
+
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
       - uses: supabase/setup-cli@v1

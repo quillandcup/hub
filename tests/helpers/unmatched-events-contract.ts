@@ -95,6 +95,7 @@ export function defineUnmatchedEventContract(name: string, setup: () => Unmatche
         resolved_title: "Set by hand",
         resolved_description: null,
         resolved_guest_speaker: null,
+        resolved_location: null,
       });
 
       await ctx.repo().updateForCalendarEvent(calendarEventId, { resolved_title: null, resolved_guest_speaker: "Guest" });

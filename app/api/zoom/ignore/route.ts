@@ -34,13 +34,9 @@ export async function POST(request: NextRequest) {
       if (!isId(prickleId, "prkl")) {
         return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
       }
-      const { error } = await supabase
-        .from("ignored_zoom_appearances")
-        .upsert(
-          { prickle_id: prickleId, zoom_name: zoomName, reason: reason || null, ignored_by: user.id },
-          { onConflict: "prickle_id,zoom_name", ignoreDuplicates: true }
-        );
-      if (error) {
+      try {
+        await createRepos(supabase).zoom.ignoreAppearance({ prickleId, zoomName, reason: reason || null, ignoredBy: user.id });
+      } catch (error: any) {
         console.error("Error ignoring Zoom name for one prickle:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -98,12 +94,9 @@ export async function DELETE(request: NextRequest) {
       if (!isId(prickleId, "prkl")) {
         return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
       }
-      const { error } = await supabase
-        .from("ignored_zoom_appearances")
-        .delete()
-        .eq("prickle_id", prickleId)
-        .eq("zoom_name", zoomName);
-      if (error) {
+      try {
+        await createRepos(supabase).zoom.unignoreAppearance(prickleId, zoomName);
+      } catch (error: any) {
         console.error("Error un-ignoring Zoom name for one prickle:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

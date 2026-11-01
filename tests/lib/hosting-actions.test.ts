@@ -49,15 +49,6 @@ const SUDO_IDENTITY = {
   isSudo: true,
 };
 
-function chain(result: any) {
-  const obj: any = {};
-  const methods = ["select", "eq", "in", "is", "order", "limit"];
-  for (const m of methods) obj[m] = vi.fn(() => obj);
-  obj.single = vi.fn().mockResolvedValue(result);
-  obj.then = (resolve: any) => Promise.resolve(result).then(resolve);
-  return obj;
-}
-
 function makeSupabaseMock({
   requiresHost = true,
   lockOverrides = [] as { month: string; locked: boolean }[],
@@ -94,6 +85,8 @@ function makeSupabaseMock({
         source: "calendar",
         calendarEventId: null,
       })),
+      // The months an admin locked or unlocked on purpose.
+      scheduleLocks: lockOverrides.map((l) => ({ ...l, notes: null, locked_by: null, locked_at: "2026-09-01T00:00:00Z" })),
       // The schedule the action edits or withdraws, and the confirmed ones that exempt a new member.
       prickleSchedules: [
         ...(existingRow ? [schedule(existingRow)] : []),
@@ -102,10 +95,8 @@ function makeSupabaseMock({
   });
   repos = createInMemoryRepos(data);
 
+  // Every table the actions read comes from a repository; a direct query would be a regression.
   const from = vi.fn((table: string) => {
-    if (table === "prickle_schedule_locks") {
-      return chain({ data: lockOverrides });
-    }
     throw new Error(`Unexpected table in test: ${table}`);
   });
 

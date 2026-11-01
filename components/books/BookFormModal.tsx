@@ -14,6 +14,8 @@ import { publishProject } from "@/app/(member)/projects/actions";
 import type { PenNameOptions } from "@/lib/book-pen-name";
 import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
 import MediaPicker from "@/components/media/MediaPicker";
+import TagInput from "@/components/TagInput";
+import { MAX_GENRE_LENGTH, MAX_GENRES } from "@/lib/book-genres";
 import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface BookFormModalProps {
@@ -50,7 +52,7 @@ export default function BookFormModal({
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");
   const [publishedDate, setPublishedDate] = useState(book?.publishedDate ?? "");
   const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
-  const [genre, setGenre] = useState(book?.genre ?? "");
+  const [genres, setGenres] = useState<string[]>(book?.genres ?? []);
   const [format, setFormat] = useState<BookFormat>(book?.format ?? "print");
   const [penName, setPenName] = useState(book?.penName ?? "");
   const [penNameOptions, setPenNameOptions] = useState<PenNameOptions | null>(null);
@@ -84,7 +86,7 @@ export default function BookFormModal({
       purchaseUrl,
       publishedDate,
       price: price.trim() === "" ? null : Number(price),
-      genre,
+      genres,
       format,
       penName,
     };
@@ -199,15 +201,16 @@ export default function BookFormModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Genre (optional)
+          <label htmlFor="book-genres" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Genre / Tropes
           </label>
-          <input
-            type="text"
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="Romance, Fantasy, Mystery..."
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+          <TagInput
+            id="book-genres"
+            tags={genres}
+            onChange={setGenres}
+            placeholder="e.g. romance, fantasy, cozy mystery"
+            maxTags={MAX_GENRES}
+            maxTagLength={MAX_GENRE_LENGTH}
           />
         </div>
 

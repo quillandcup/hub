@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -8,7 +8,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-import EventDetailClient from "@/app/(admin)/admin/events/[id]/EventDetailClient";
+import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
 
 const EVENT = {
   id: "evt_AAAAAAAAAAA1",
@@ -30,56 +30,69 @@ const EVENT = {
   selection: "first_come",
   speakers: "Ada Example",
   host_name: "Jenny",
-  calendar_event_id: "00000000-0000-4000-8000-00000000000a",
-  overridden_fields: [] as string[],
+  host_id: "mbr_JENNY0000001",
+  start_time: "2097-05-01T04:00:00Z",
+  end_time: "2097-05-02T04:00:00Z",
   deleted_at: null as string | null,
 };
 
-function serve(prickleId: string | null) {
+function serve(hubSession: boolean) {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({ ok: true, json: async () => ({ event: EVENT, prickleId, photos: [], badgeType: null, attendees: [] }) }) as Response),
+    vi.fn(async () => ({ ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession, photos: [], badgeType: null, attendees: [] }) }) as Response),
   );
 }
 
 beforeEach(() => {
-  serve("prkl_AAAAAAAAAAA1");
+  serve(false);
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-describe("admin event that stands for a prickle", () => {
-  it("says in one notice where its title, description, guest speaker and host come from, and what follows the calendar", async () => {
+describe("admin event on a calendar prickle", () => {
+  it("has no notice sending you to the prickle, only a secondary link", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
 
-    const notice = (await screen.findByText(/Stands for a prickle: its title, description, guest speaker and host come from it/)).closest("div")!;
-    expect(notice).toHaveTextContent(/Follows the shared calendar: dates and times come from it; the location does too until you change it/);
-    expect(within(notice).getByRole("link", { name: "edit them on the prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
-    expect(screen.getAllByText(/Follows the shared calendar/)).toHaveLength(1); // not a second notice
+    expect(await screen.findByRole("link", { name: "View prickle" })).toHaveAttribute("href", "/admin/prickles/prkl_AAAAAAAAAAA1");
+    expect(screen.queryByText(/stands on a calendar prickle/)).not.toBeInTheDocument();
   });
 
-  it("locks the title, description and guest speaker while editing, and leaves the rest editable", async () => {
+  it("edits the title, description, host, speaker and location here, with the dates read-only", async () => {
     render(<EventDetailClient eventId={EVENT.id} />);
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
-    expect(screen.getByDisplayValue("Free Writing Hour")).toBeDisabled();
-    expect(screen.getByDisplayValue("From the prickle")).toBeDisabled();
-    expect(screen.getByLabelText("Guest speakers")).toBeDisabled();
+    expect(screen.getByLabelText("Title")).toHaveValue("Free Writing Hour");
+    expect(screen.getByLabelText("Location")).toHaveValue("Zoom");
+    expect(screen.getByLabelText("Description")).toHaveValue("From the prickle");
+    expect(screen.getByText("Jenny")).toBeInTheDocument();
+    expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
+    expect(screen.queryByLabelText("Starts")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Guests allowed")).toBeEnabled();
-    expect(screen.getByDisplayValue("Zoom")).toBeEnabled();
   });
 
-  it("is an ordinary event, with everything editable and no note, when it has no prickle", async () => {
-    serve(null);
+  it("marks what was set by hand, from the server", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: false, overridden: { title: true, description: false, guestSpeaker: false, location: false }, photos: [], badgeType: null, attendees: [] }) }) as Response),
+    );
     render(<EventDetailClient eventId={EVENT.id} />);
     await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
 
-    expect(screen.queryByText(/This event stands for a prickle/)).not.toBeInTheDocument();
+    expect(screen.getByText("(edited)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Follow the calendar again" })).toBeInTheDocument();
+  });
+
+  it("is an ordinary event, with everything editable and no note, when it was made in the Hub", async () => {
+    serve(true);
+    render(<EventDetailClient eventId={EVENT.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(screen.queryByText(/stands on a calendar prickle/)).not.toBeInTheDocument();
     expect(screen.getByDisplayValue("Free Writing Hour")).toBeEnabled();
     expect(screen.getByLabelText("Guest speakers")).toBeEnabled();
-    expect(screen.getByText(/the title, description and location do too until you change them/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Host")).toHaveValue("Jenny");
   });
 });
 
@@ -92,7 +105,7 @@ describe("saving from the admin event page", () => {
         const method = init?.method ?? "GET";
         calls.push({ method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
         if (method === "PATCH") return { ok: patch.ok, json: async () => patch.body } as Response;
-        return { ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", photos: [], badgeType: null, attendees: [] }) } as Response;
+        return { ok: true, json: async () => ({ event: EVENT, prickleId: "prkl_AAAAAAAAAAA1", hubSession: true, photos: [], badgeType: null, attendees: [] }) } as Response;
       }),
     );
     return calls;

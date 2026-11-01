@@ -90,7 +90,7 @@ export default async function BadgeRecipientsPage({ params }: { params: Promise<
             {linkedEvent && (
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 Granted by attendance —{" "}
-                <Link href={`/admin/events/${linkedEvent.id}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+                <Link href={`/admin/events/${linkedEvent.slug}`} className="text-plum-600 dark:text-plum-400 hover:underline">
                   manage attendees
                 </Link>
               </span>

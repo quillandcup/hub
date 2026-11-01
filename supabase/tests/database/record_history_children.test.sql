@@ -15,9 +15,12 @@ ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('00000000-0000-4000-a000-00000000f401', 'Child Alice', 'child-alice@example.test', now(), 'lead');
-INSERT INTO public.events (id, slug, title, event_type, starts_at, ends_at) VALUES
-  ('00000000-0000-4000-a000-00000000f411', 'child-event-a', 'Child Event A', 'other', current_date, current_date),
-  ('00000000-0000-4000-a000-00000000f412', 'child-event-b', 'Child Event B', 'other', current_date, current_date);
+INSERT INTO public.prickles (id, source, start_time, end_time, title) VALUES
+  ('prkl_CHILDEVT0001', 'calendar', now(), now() + interval '1 hour', 'Child Event A'),
+  ('prkl_CHILDEVT0002', 'calendar', now(), now() + interval '1 hour', 'Child Event B');
+INSERT INTO public.community_events (id, slug, event_type, prickle_id) VALUES
+  ('00000000-0000-4000-a000-00000000f411', 'child-event-a', 'other', 'prkl_CHILDEVT0001'),
+  ('00000000-0000-4000-a000-00000000f412', 'child-event-b', 'other', 'prkl_CHILDEVT0002');
 
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;

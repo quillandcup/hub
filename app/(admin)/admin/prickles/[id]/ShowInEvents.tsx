@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 
 interface EventLink {
   id: string;
+  slug: string;
   hidden: boolean;
 }
 
@@ -38,8 +40,14 @@ export default function ShowInEvents({ calendarEventId, initial }: { calendarEve
 
   const show = () =>
     run(async () => {
-      const data = await request("/api/admin/events/calendar", { calendarEventId });
-      setEvent({ id: data.event.id, hidden: !!data.event.hidden });
+      try {
+        const data = await request("/api/admin/events/calendar", { calendarEventId });
+        setEvent({ id: data.event.id, slug: data.event.slug, hidden: !!data.event.hidden });
+        track("event_created", { from: "calendar_item", ok: true });
+      } catch (err) {
+        track("event_created", { from: "calendar_item", ok: false });
+        throw err;
+      }
     });
 
   const setHidden = (hidden: boolean) =>
@@ -69,7 +77,7 @@ export default function ShowInEvents({ calendarEventId, initial }: { calendarEve
         ) : (
           <>
             <p className="text-slate-600 dark:text-slate-400">{event.hidden ? "Removed from Events." : "Shown in Events."}</p>
-            <Link href={`/admin/events/${event.id}`} className="text-plum-600 dark:text-plum-400 hover:underline">
+            <Link href={`/admin/events/${event.slug}`} className="text-plum-600 dark:text-plum-400 hover:underline">
               Edit the event
             </Link>
             <button

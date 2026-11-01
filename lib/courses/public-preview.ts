@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { isFeatureOnForEveryone } from "@/lib/features.server";
 import { safeUrl } from "@/lib/url";
 
@@ -36,24 +37,18 @@ export async function publicLessonPreview(
 ): Promise<{ preview: PublicLessonPreview } | { blocked: PreviewBlocker }> {
   if (!(await isFeatureOnForEveryone(supabase, "courses"))) return { blocked: "feature_off" };
 
-  const { data: lesson, error } = await supabase
-    .from("course_lessons")
-    .select("id, title, excerpt, state, module_id, course_id, thumbnail_asset_id, thumbnail_url")
-    .eq("id", lessonId)
-    .maybeSingle();
-  if (error) throw new Error(`course_lessons read failed: ${error.message}`);
+  const repos = createRepos(supabase);
+  const lesson = await repos.courses.lessonById(lessonId);
   if (!lesson) return { blocked: "not_found" };
 
-  const { data: course, error: courseError } = await supabase.from("courses").select("slug, title, launch_at").eq("id", lesson.course_id).maybeSingle();
-  if (courseError) throw new Error(`courses read failed: ${courseError.message}`);
+  const course = await repos.courses.courseById(lesson.course_id);
   if (!course || (opts.slug !== undefined && course.slug !== opts.slug)) return { blocked: "not_found" };
   if (course.launch_at && new Date(course.launch_at).getTime() > (opts.now ?? new Date()).getTime()) return { blocked: "course_not_live" };
 
   if (lesson.state !== "open") return { blocked: "not_open" };
   if (lesson.module_id) {
-    const { data: modules, error: moduleError } = await supabase.from("course_modules").select("id, parent_id, state").eq("course_id", lesson.course_id);
-    if (moduleError) throw new Error(`course_modules read failed: ${moduleError.message}`);
-    const byId = new Map((modules ?? []).map((m) => [m.id as string, m]));
+    const modules = await repos.courses.modulesOf([lesson.course_id], { includeHidden: true });
+    const byId = new Map(modules.map((m) => [m.id, m]));
     const seen = new Set<string>();
     for (let id: string | null = lesson.module_id; id; ) {
       const ancestor = byId.get(id);

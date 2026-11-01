@@ -1,9 +1,12 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Db } from "./db";
+import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
 /** Ids per `.in(...)` filter, so the request URL stays under the length limit even with long ids. */
 const ID_CHUNK_SIZE = 100;
+
+/** A host's tag for a prickle type they host (`prickle_host_vibes`): how it feels, and a note. `vibe` is plain text with a check constraint in the database. */
+export type HostVibeTag = Pick<Row<"prickle_host_vibes">, "type_id" | "host_id" | "vibe" | "notes">;
 
 /** A kind of prickle ("Sprint Writing", "Coworking"...). */
 export type PrickleType = {
@@ -50,10 +53,15 @@ export type Prickle = {
   description?: string | null;
   /** Who the session is with when they are not the host (an invited speaker); null when nobody. */
   guestSpeaker?: string | null;
+  /** Where it happens (the calendar item's location, or the hub session's); null when not said. */
+  location?: string | null;
   startTime: string;
   endTime: string;
+  /** "calendar", "zoom" (pop-up), "hub" (projected from a hub session) and older sources. */
   source: string;
   calendarEventId: string | null;
+  /** The hub session a source "hub" prickle is projected from (`HubSessionRepository`). */
+  hubSessionId?: string | null;
   /** The Zoom meeting a Pop-Up Prickle (source "zoom") came from. */
   zoomMeetingUuid?: string | null;
   /** When the row was added; for the "last processed" readouts. */
@@ -72,6 +80,8 @@ export type StartingBetween = {
   inclusiveEnd?: boolean;
   /** Only these types. */
   typeIds?: string[];
+  /** The prickles an event stands on (the Event type) are no sessions to join, so they are left out unless asked for (the admin calendar). */
+  includeEventType?: boolean;
   /** Only prickles this member is the assigned host of. */
   hostId?: string;
 };
@@ -108,6 +118,7 @@ export type NewCalendarPrickle = {
   calendarEventId?: string | null;
   title?: string | null;
   description?: string | null;
+  location?: string | null;
   startTime: string;
   endTime: string;
 };
@@ -146,6 +157,14 @@ export interface PrickleRepository {
   hostedStartTimes(options?: { hostId?: string }): Promise<{ hostId: string; startTime: string }[]>;
   /** Prickles not over by `from` and starting no later than `to` (ISO): running at `from` or starting by `to`. Oldest first. */
   activeBetween(window: { from: string; to: string }): Promise<PrickleDetail[]>;
+  /** The prickle types the member has hosted (assigned host) in prickles starting at or after `since` (ISO): id and name, each type once. */
+  hostedTypesSince(hostId: string, since: string): Promise<{ typeId: string; typeName: string }[]>;
+  /** Hosts' vibe tags, by type then host: all of them, or only one host's and/or only some types'. */
+  hostVibes(options?: { hostId?: string; typeIds?: string[] }): Promise<HostVibeTag[]>;
+  /** Sets (or changes) a host's vibe tag for a type. `updatedBy` is the signed-in user. */
+  saveHostVibe(input: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }): Promise<void>;
+  /** How many types the host has tagged. */
+  hostVibeCount(hostId: string): Promise<number>;
   /** Prickles matching every word (in the title, guest speaker, type name or a host's name; case-insensitive, wildcards typed as plain characters), newest first, `limit` of them from `offset`. */
   search(query: PrickleSearch): Promise<PrickleDetail[]>;
   /** How many calendar prickles with a type have no host, by type id (types with none are absent). */
@@ -170,8 +189,8 @@ export interface PrickleRepository {
   setType(prickleId: string, typeId: string): Promise<void>;
   /** Gives a prickle another host. */
   setHost(prickleId: string, hostId: string): Promise<void>;
-  /** Sets the title, description and guest speaker a prickle has; a field left out is not changed, and null empties it. */
-  setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }): Promise<void>;
+  /** Sets the title, description, guest speaker and location a prickle has; a field left out is not changed, and null empties it. */
+  setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null; location?: string | null }): Promise<void>;
   /** Hands every prickle one member hosts to another (merging duplicate members). */
   reassignHost(fromMemberId: string, toMemberId: string): Promise<void>;
   /** How many different members have ever been the assigned host of a prickle. */
@@ -192,7 +211,7 @@ export interface PrickleRepository {
 const TYPE_COLUMNS = "id, name, normalized_name, description, default_host_id, purpose, requires_host, solo_task_friendly, listed_in_events, announced_publicly, guests_allowed";
 // `host_id:host` keeps the host column's id next to the joined host record (which is also aliased `host`).
 const FULL_TYPE_COLUMNS = `${TYPE_COLUMNS}, summary_aliases, names_guest_speaker`;
-const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, guest_speaker, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid";
+const PRICKLE_COLUMNS = "id, type_id, host_id:host, title, description, guest_speaker, location, start_time, end_time, source, calendar_event_id, zoom_meeting_uuid, hub_session_id";
 const HOST_EMBED = "host:prickle_host(id, name, display_name)";
 const DETAIL_SELECT = `${PRICKLE_COLUMNS}, prickle_type:prickle_types(${TYPE_COLUMNS}), ${HOST_EMBED}`;
 
@@ -227,11 +246,13 @@ export type DetailRow = {
   title: string | null;
   description: string | null;
   guest_speaker: string | null;
+  location: string | null;
   start_time: string;
   end_time: string;
   source: string;
   calendar_event_id: string | null;
   zoom_meeting_uuid: string | null;
+  hub_session_id: string | null;
   prickle_type: TypeRow | TypeRow[] | null;
   host: HostRow | HostRow[] | null;
 };
@@ -281,11 +302,13 @@ export function toDetail(row: DetailRow): PrickleDetail {
     title: row.title,
     description: row.description,
     guestSpeaker: row.guest_speaker,
+    location: row.location,
     startTime: row.start_time,
     endTime: row.end_time,
     source: row.source,
     calendarEventId: row.calendar_event_id,
     zoomMeetingUuid: row.zoom_meeting_uuid,
+    hubSessionId: row.hub_session_id,
     type: type ? toType(type) : null,
     host: host ? { id: host.id, name: host.name, displayName: host.display_name } : null,
   };
@@ -296,6 +319,18 @@ const neutralize = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
 
 export class SupabasePrickleRepository implements PrickleRepository {
   constructor(private readonly db: Db) {}
+
+  private eventTypeIdOnce?: Promise<string | null>;
+
+  /** The Event prickle type's id (null if the type doesn't exist): its prickles are events' schedules, not sessions to join. */
+  private eventTypeId(): Promise<string | null> {
+    this.eventTypeIdOnce ??= (async () => {
+      const { data, error } = await this.db.from("prickle_types").select("id").eq("normalized_name", "event").maybeSingle();
+      if (error) throw new Error(error.message);
+      return data?.id ?? null;
+    })();
+    return this.eventTypeIdOnce;
+  }
 
   async byId(id: string): Promise<PrickleDetail | null> {
     const { data, error } = await this.db.from("prickles").select(DETAIL_SELECT).eq("id", id).maybeSingle();
@@ -333,8 +368,9 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return found;
   }
 
-  async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId }: StartingBetween): Promise<PrickleDetail[]> {
+  async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId, includeEventType = false }: StartingBetween): Promise<PrickleDetail[]> {
     if (typeIds && typeIds.length === 0) return [];
+    const eventTypeId = includeEventType ? null : await this.eventTypeId();
     const rows: DetailRow[] = [];
     // Type ids are filtered in chunks like any `.in()`; each chunk is paged, and the merge below restores the order.
     for (const typeChunk of typeIds ? chunk(typeIds, ID_CHUNK_SIZE) : [undefined]) {
@@ -344,6 +380,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           if (to !== undefined) query = inclusiveEnd ? query.lte("start_time", to) : query.lt("start_time", to);
           if (typeChunk) query = query.in("type_id", typeChunk);
           if (hostId) query = query.eq("host", hostId);
+          if (eventTypeId) query = query.or(`type_id.is.null,type_id.neq.${eventTypeId}`);
           return query.order("start_time").order("id").range(start, end) as unknown as PromiseLike<{
             data: DetailRow[] | null;
             error: { message: string } | null;
@@ -418,6 +455,50 @@ export class SupabasePrickleRepository implements PrickleRepository {
     return count ?? 0;
   }
 
+  async hostedTypesSince(hostId: string, since: string) {
+    type Raw = { type_id: string | null; prickle_types: { id: string; name: string } | { id: string; name: string }[] | null };
+    const rows = await fetchAllRows<Raw>(
+      (from, to) =>
+        this.db.from("prickles").select("type_id, prickle_types!inner(id, name)").eq("host", hostId).gte("start_time", since).order("id").range(from, to) as unknown as PromiseLike<{
+          data: Raw[] | null;
+          error: { message: string } | null;
+        }>
+    );
+    const types = new Map<string, string>();
+    for (const row of rows) {
+      const type = Array.isArray(row.prickle_types) ? row.prickle_types[0] : row.prickle_types;
+      if (row.type_id && type) types.set(row.type_id, type.name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async hostVibes({ hostId, typeIds }: { hostId?: string; typeIds?: string[] } = {}) {
+    const read = (ids?: string[]) =>
+      fetchAllRows<HostVibeTag>((from, to) => {
+        let query = this.db.from("prickle_host_vibes").select("type_id, host_id, vibe, notes");
+        if (hostId !== undefined) query = query.eq("host_id", hostId);
+        if (ids) query = query.in("type_id", ids);
+        return query.order("id").range(from, to) as unknown as PromiseLike<{ data: HostVibeTag[] | null; error: { message: string } | null }>;
+      });
+    if (!typeIds) return read();
+    const found: HostVibeTag[] = [];
+    for (const part of chunk([...new Set(typeIds)], ID_CHUNK_SIZE)) found.push(...(await read(part)));
+    return found;
+  }
+
+  async saveHostVibe({ typeId, hostId, vibe, notes, updatedBy }: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }) {
+    const { error } = await this.db
+      .from("prickle_host_vibes")
+      .upsert({ type_id: typeId, host_id: hostId, vibe, notes, updated_by: updatedBy, updated_at: new Date().toISOString() }, { onConflict: "type_id,host_id" });
+    if (error) throw new Error(error.message);
+  }
+
+  async hostVibeCount(hostId: string) {
+    const { count, error } = await this.db.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", hostId);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+
   async countBySource(source: string): Promise<number> {
     const { count, error } = await this.db.from("prickles").select("id", { count: "exact", head: true }).eq("source", source);
     if (error) throw new Error(error.message);
@@ -446,11 +527,12 @@ export class SupabasePrickleRepository implements PrickleRepository {
     if (error) throw new Error(error.message);
   }
 
-  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }): Promise<void> {
+  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null; location?: string | null }): Promise<void> {
     const update = {
       ...(text.title !== undefined ? { title: text.title } : {}),
       ...(text.description !== undefined ? { description: text.description } : {}),
       ...(text.guestSpeaker !== undefined ? { guest_speaker: text.guestSpeaker } : {}),
+      ...(text.location !== undefined ? { location: text.location } : {}),
     };
     if (Object.keys(update).length === 0) return;
     const { error } = await this.db.from("prickles").update(update).eq("id", prickleId);
@@ -579,6 +661,9 @@ export class SupabasePrickleRepository implements PrickleRepository {
       }),
     );
     let query = this.db.from("prickles").select(DETAIL_SELECT);
+    // The prickle an event stands on, of the Event type, is found as the event (hidden ones included), not as a session.
+    const eventTypeId = await this.eventTypeId();
+    if (eventTypeId) query = query.or(`type_id.is.null,type_id.neq.${eventTypeId}`);
     if (hostIds) query = query.in("host", hostIds);
     words.forEach((w, i) => {
       // One .or() per word: PostgREST ANDs separate filters.
@@ -622,6 +707,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
             calendar_event_id: r.calendarEventId ?? null,
             title: r.title ?? null,
             description: r.description ?? null,
+            location: r.location ?? null,
             start_time: r.startTime,
             end_time: r.endTime,
             source: "calendar",
@@ -635,6 +721,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
   }
 
   async activeBetween({ from, to }: { from: string; to: string }): Promise<PrickleDetail[]> {
+    const eventTypeId = await this.eventTypeId();
     const rows = await fetchAllRows<DetailRow>(
       (start, end) =>
         this.db
@@ -642,6 +729,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           .select(DETAIL_SELECT)
           .gte("end_time", from)
           .lte("start_time", to)
+          .or(eventTypeId ? `type_id.is.null,type_id.neq.${eventTypeId}` : "id.not.is.null")
           .order("start_time")
           .order("id")
           .range(start, end) as unknown as PromiseLike<{ data: DetailRow[] | null; error: { message: string } | null }>,
@@ -654,11 +742,12 @@ export class SupabasePrickleRepository implements PrickleRepository {
   }
 
   async nextOrMostRecent(instant: string): Promise<PrickleDetail | null> {
-    const next = await this.db.from("prickles").select(DETAIL_SELECT).gte("start_time", instant).order("start_time").order("id").limit(1);
+    const notEvent = (await this.eventTypeId()) ? `type_id.is.null,type_id.neq.${await this.eventTypeId()}` : "id.not.is.null";
+    const next = await this.db.from("prickles").select(DETAIL_SELECT).gte("start_time", instant).or(notEvent).order("start_time").order("id").limit(1);
     if (next.error) throw new Error(next.error.message);
     let row = (next.data ?? [])[0];
     if (!row) {
-      const latest = await this.db.from("prickles").select(DETAIL_SELECT).order("start_time", { ascending: false }).order("id", { ascending: false }).limit(1);
+      const latest = await this.db.from("prickles").select(DETAIL_SELECT).or(notEvent).order("start_time", { ascending: false }).order("id", { ascending: false }).limit(1);
       if (latest.error) throw new Error(latest.error.message);
       row = (latest.data ?? [])[0];
     }
@@ -666,11 +755,13 @@ export class SupabasePrickleRepository implements PrickleRepository {
   }
 
   async inProgressAt(instant: string): Promise<PrickleDetail | null> {
+    const eventTypeId = await this.eventTypeId();
     const { data, error } = await this.db
       .from("prickles")
       .select(DETAIL_SELECT)
       .lte("start_time", instant)
       .gt("end_time", instant)
+      .or(eventTypeId ? `type_id.is.null,type_id.neq.${eventTypeId}` : "id.not.is.null")
       .order("start_time")
       .order("id")
       .limit(1);
@@ -755,11 +846,17 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles.filter((p) => p.calendarEventId !== null && wanted.has(p.calendarEventId)).map((p) => this.detail(p));
   }
 
-  async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId }: StartingBetween) {
+  /** The prickles that are sessions to join: not the ones an event stands on (the Event type). */
+  private sessions() {
+    const eventTypeIds = new Set(this.data.prickleTypes.filter((t) => t.normalizedName === "event").map((t) => t.id));
+    return this.data.prickles.filter((p) => !(p.typeId && eventTypeIds.has(p.typeId)));
+  }
+
+  async startingBetween({ from, to, inclusiveEnd = false, typeIds, hostId, includeEventType = false }: StartingBetween) {
     const start = new Date(from).getTime();
     const end = to === undefined ? Infinity : new Date(to).getTime();
     const types = typeIds ? new Set(typeIds) : null;
-    return this.data.prickles
+    return (includeEventType ? this.data.prickles : this.sessions())
       .filter((p) => {
         const at = new Date(p.startTime).getTime();
         return at >= start && (inclusiveEnd ? at <= end : at < end) && (!types || (p.typeId !== null && types.has(p.typeId))) && (!hostId || p.hostId === hostId);
@@ -825,6 +922,35 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     return this.data.prickles.filter((p) => p.hostId === memberId && new Date(p.startTime).getTime() >= from).length;
   }
 
+  async hostedTypesSince(hostId: string, since: string) {
+    const from = new Date(since).getTime();
+    const types = new Map<string, string>();
+    for (const p of this.data.prickles) {
+      if (p.hostId !== hostId || p.typeId === null || new Date(p.startTime).getTime() < from) continue;
+      const type = this.data.prickleTypes.find((t) => t.id === p.typeId);
+      if (type) types.set(type.id, type.name);
+    }
+    return [...types].map(([typeId, typeName]) => ({ typeId, typeName }));
+  }
+
+  async hostVibes({ hostId, typeIds }: { hostId?: string; typeIds?: string[] } = {}) {
+    return this.data.hostVibes
+      .filter((v) => (hostId === undefined || v.host_id === hostId) && (!typeIds || typeIds.includes(v.type_id)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map(({ type_id, host_id, vibe, notes }) => ({ type_id, host_id, vibe, notes }));
+  }
+
+  async saveHostVibe({ typeId, hostId, vibe, notes, updatedBy }: { typeId: string; hostId: string; vibe: string; notes: string | null; updatedBy: string | null }) {
+    const existing = this.data.hostVibes.find((v) => v.type_id === typeId && v.host_id === hostId);
+    const updated_at = new Date().toISOString();
+    if (existing) Object.assign(existing, { vibe, notes, updated_by: updatedBy, updated_at });
+    else this.data.hostVibes.push({ id: crypto.randomUUID(), type_id: typeId, host_id: hostId, vibe, notes, updated_by: updatedBy, updated_at });
+  }
+
+  async hostVibeCount(hostId: string) {
+    return this.data.hostVibes.filter((v) => v.host_id === hostId).length;
+  }
+
   async countBySource(source: string) {
     return this.data.prickles.filter((p) => p.source === source).length;
   }
@@ -845,12 +971,13 @@ export class InMemoryPrickleRepository implements PrickleRepository {
     if (prickle) prickle.typeId = typeId;
   }
 
-  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null }) {
+  async setText(prickleId: string, text: { title?: string | null; description?: string | null; guestSpeaker?: string | null; location?: string | null }) {
     const prickle = this.data.prickles.find((p) => p.id === prickleId);
     if (!prickle) return;
     if (text.title !== undefined) prickle.title = text.title;
     if (text.description !== undefined) prickle.description = text.description;
     if (text.guestSpeaker !== undefined) prickle.guestSpeaker = text.guestSpeaker;
+    if (text.location !== undefined) prickle.location = text.location;
   }
 
   async reassignHost(fromMemberId: string, toMemberId: string) {
@@ -928,6 +1055,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
         if (start < afterMs || start >= beforeMs) return false;
         if (hostSet && !(p.hostId && hostSet.has(p.hostId))) return false;
         const type = this.data.prickleTypes.find((t) => t.id === p.typeId);
+        if (type?.normalizedName === "event") return false;
         return words.every((w) => contains(p.title, w.text) || contains(p.guestSpeaker, w.text) || contains(type?.name, w.text) || (!!p.hostId && w.hostIds.includes(p.hostId)));
       })
       .sort((a, b) => -byStartThenId(a, b))
@@ -952,6 +1080,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
         hostId: r.hostId,
         title: r.title ?? null,
         description: r.description ?? null,
+        location: r.location ?? null,
         startTime: r.startTime,
         endTime: r.endTime,
         source: "calendar",
@@ -964,7 +1093,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
   async activeBetween({ from, to }: { from: string; to: string }) {
     const start = new Date(from).getTime();
     const end = new Date(to).getTime();
-    return this.data.prickles
+    return this.sessions()
       .filter((p) => new Date(p.endTime).getTime() >= start && new Date(p.startTime).getTime() <= end)
       .sort(byStartThenId)
       .map((p) => this.detail(p));
@@ -976,7 +1105,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async nextOrMostRecent(instant: string) {
     const at = new Date(instant).getTime();
-    const sorted = [...this.data.prickles].sort(byStartThenId);
+    const sorted = [...this.sessions()].sort(byStartThenId);
     const next = sorted.find((p) => new Date(p.startTime).getTime() >= at);
     const chosen = next ?? sorted[sorted.length - 1];
     return chosen ? this.detail(chosen) : null;
@@ -984,7 +1113,7 @@ export class InMemoryPrickleRepository implements PrickleRepository {
 
   async inProgressAt(instant: string) {
     const at = new Date(instant).getTime();
-    const running = this.data.prickles
+    const running = this.sessions()
       .filter((p) => new Date(p.startTime).getTime() <= at && new Date(p.endTime).getTime() > at)
       .sort(byStartThenId);
     return running[0] ? this.detail(running[0]) : null;

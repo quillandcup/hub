@@ -6,8 +6,8 @@ import { createRepos } from "@/lib/data/repos";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { localDateString } from "@/lib/events-filter";
-import { agendaMonths, parseAgendaMonth } from "@/lib/events-agenda";
-import { EVENT_PRICKLE_WINDOW_DAYS, fetchUpcomingEventPrickles, withoutFollowedEvents } from "@/lib/event-prickles";
+import { agendaMonths, parseAgendaMonth, withoutEventPrickles } from "@/lib/events-agenda";
+import { EVENT_PRICKLE_WINDOW_DAYS, fetchUpcomingEventPrickles } from "@/lib/event-prickles";
 import EventsBrowser, { type EventRow } from "./EventsBrowser";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { eventDisplayName } from "@/lib/event-name";
@@ -74,9 +74,9 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
         initialMonth={initialMonth}
         months={months}
         events={rows}
-        eventPrickles={withoutFollowedEvents(
+        eventPrickles={withoutEventPrickles(
           eventPrickles,
-          events.flatMap((e) => (e.calendar_event_id ? [e.calendar_event_id] : [])),
+          events.map((e) => e.prickle_id),
         )}
         today={today}
         timeZone={timeZone}

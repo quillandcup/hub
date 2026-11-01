@@ -4,13 +4,18 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { formatDateOnly } from "@/lib/formatters";
 import EventAudienceFields from "@/components/EventAudienceFields";
-import { audienceSummary, type EventAudience } from "@/lib/event-audience";
+import { audienceSummary, type EventAudienceForm } from "@/lib/event-audience";
+import { windowInputs } from "@/lib/event-window-inputs";
 import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
 import PrickleDescription from "@/components/PrickleDescription";
+import MemberSearch from "@/components/MemberSearch";
+import type { EventOverrides } from "@/lib/prickle-edits";
+
+export type { EventOverrides };
 import MediaPicker, { type EventPhotos } from "@/components/media/MediaPicker";
 import { mediaSrc } from "@/lib/media/url";
 
-export interface EventData extends EventAudience {
+export interface EventData extends EventAudienceForm {
   id: string;
   slug: string;
   title: string;
@@ -18,6 +23,12 @@ export interface EventData extends EventAudience {
   location: string | null;
   starts_at: string;
   ends_at: string;
+  start_time: string;
+  end_time: string;
+  /** The host as members see them (a member's display name, or the free-text host of an event made in the Hub). */
+  host_name: string | null;
+  /** The member hosting it, when the schedule is a calendar prickle's. */
+  host_id: string | null;
   focus: string | null;
   description: string | null;
   agenda: string | null;
@@ -25,22 +36,32 @@ export interface EventData extends EventAudience {
   google_photos_album_url: string | null;
   /** The cover picked from the media library. */
   image_id: string | null;
-  calendar_event_id: string | null;
-  overridden_fields: string[];
   deleted_at: string | null;
 }
+
+/** The members the host of a calendar-backed event is picked from. */
+export interface HostChoice {
+  id: string;
+  name: string;
+  email: string;
+  displayName?: string | null;
+}
+
+/** The card's form: the event with its window as Eastern dates and clock times (both clocks empty: all day). */
+export type EventForm = EventData & { start_clock: string; end_clock: string };
 
 const INPUT = "w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded disabled:opacity-60";
 const LABEL = "text-gray-500 dark:text-gray-400";
 
 /** One value of the card: its label with the value, or, while editing, with the field that takes its place. */
-function Field({ label, htmlFor, wide = false, children }: { label: string; htmlFor?: string; wide?: boolean; children: ReactNode }) {
+function Field({ label, extra, htmlFor, wide = false, children }: { label: string; extra?: ReactNode; htmlFor?: string; wide?: boolean; children: ReactNode }) {
   return (
     <div className={wide ? "@pair:col-span-2" : undefined}>
       <dt>
         <label htmlFor={htmlFor} className={LABEL}>
           {label}
         </label>
+        {extra}
       </dt>
       <dd className="mt-0.5">{children}</dd>
     </div>
@@ -48,36 +69,56 @@ function Field({ label, htmlFor, wide = false, children }: { label: string; html
 }
 
 /**
- * The Details card of the admin event page. Edit turns each value into its field in the same place, with Save and
- * Cancel; what a prickle or the calendar owns is shown locked, and one notice says which. `onSave` returns an error
- * message, or null when it saved.
+ * The Details card of the admin event page, the one place an event is edited. Edit turns each value into its field in
+ * the same place, with Save and Cancel. The title, description, host, guest speaker and location are the schedule of
+ * the prickle the event stands on and are editable for both kinds: an event made in the Hub keeps them (and its times)
+ * in its Hub session; for one on a calendar prickle they are the calendar item's decision (they survive reprocessing,
+ * marked "(edited)", and "Follow the calendar again" gives them back), and its times are read-only because they come
+ * from Google Calendar. `onSave` returns an error message, or null when it saved.
  */
 export default function EventDetailsCard({
   event,
   prickleId,
+  hubSession,
+  members,
+  overridden,
   onSave,
   onToggleRemoved,
   removing,
-  onRevert,
-  reverting,
   photos,
 }: {
   event: EventData;
-  prickleId: string | null;
-  onSave: (form: EventData) => Promise<string | null>;
+  /** The prickle the event stands on. */
+  prickleId: string;
+  /** Made in the Hub: its times are edited here too. Otherwise the calendar's, read-only. */
+  hubSession: boolean;
+  /** To pick the host of a calendar-backed event from. */
+  members: HostChoice[];
+  /** What was set by hand on a calendar-backed event. */
+  overridden: EventOverrides;
+  onSave: (form: EventForm) => Promise<string | null>;
   onToggleRemoved: () => void;
   removing: boolean;
-  onRevert: () => void;
-  reverting: boolean;
   /** The event's visible gallery photos, offered as cover choices. */
   photos?: EventPhotos["photos"];
 }) {
-  const [form, setForm] = useState<EventData | null>(null);
+  const [form, setForm] = useState<EventForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const editing = form !== null;
-  const followsCalendar = !!event.calendar_event_id;
-  const set = (patch: Partial<EventData>) => form && setForm({ ...form, ...patch });
+  const when = windowInputs(event.start_time, event.end_time);
+  const set = (patch: Partial<EventForm>) => form && setForm({ ...form, ...patch });
+  // The schedule's text fields are inputs for both kinds while editing; the times only for an event made in the Hub.
+  const scheduleForm = form;
+  const timesForm = hubSession ? form : null;
+  const edited = (isOverridden: boolean) => (!hubSession && isOverridden ? <span className="ml-1 text-xs text-plum-600 dark:text-plum-400">(edited)</span> : null);
+  // Emptying a field that was set by hand gives it back to the calendar when saved.
+  const followAgain = (isOverridden: boolean, clear: () => void) =>
+    !hubSession && isOverridden ? (
+      <button type="button" onClick={clear} className="ml-2 text-xs text-plum-600 dark:text-plum-400 hover:underline">
+        Follow the calendar again
+      </button>
+    ) : null;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -98,10 +139,17 @@ export default function EventDetailsCard({
         <h2 className="text-lg font-semibold">Details</h2>
         {!editing && (
           <div className="flex gap-4">
+            <Link href={`/admin/prickles/${prickleId}`} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
+              View prickle
+            </Link>
             <button type="button" disabled={removing} onClick={onToggleRemoved} className="text-plum-600 dark:text-plum-400 hover:underline text-sm disabled:opacity-50">
               {event.deleted_at ? "Add back to Events" : "Remove from Events"}
             </button>
-            <button type="button" onClick={() => setForm(event)} className="text-plum-600 dark:text-plum-400 hover:underline text-sm">
+            <button
+              type="button"
+              onClick={() => setForm({ ...event, starts_at: when.startDate, ends_at: when.endDate, start_clock: when.startClock, end_clock: when.endClock })}
+              className="text-plum-600 dark:text-plum-400 hover:underline text-sm"
+            >
               Edit
             </button>
           </div>
@@ -111,34 +159,7 @@ export default function EventDetailsCard({
       {event.deleted_at && (
         <div className="mb-4 p-3 rounded bg-amber-50 dark:bg-amber-900/20 text-sm">
           Removed from Events: members don&apos;t see it in Events, search or their calendar feed.
-          {followsCalendar ? " The calendar sync leaves it removed." : ""}
-        </div>
-      )}
-
-      {followsCalendar && (
-        <div className="mb-4 p-3 rounded bg-plum-50 dark:bg-plum-900/20 text-sm">
-          <p>
-            {prickleId && (
-              <>
-                Stands for a prickle: its title, description, guest speaker and host come from it (
-                <Link href={`/admin/prickles/${prickleId}`} className="text-plum-600 dark:text-plum-400 hover:underline">
-                  edit them on the prickle
-                </Link>
-                ).{" "}
-              </>
-            )}
-            Follows the shared calendar: dates and times come from it
-            {event.overridden_fields.length > 0
-              ? `, and you changed the ${event.overridden_fields.join(", ")}.`
-              : prickleId
-                ? "; the location does too until you change it."
-                : "; the title, description and location do too until you change them."}
-          </p>
-          {event.overridden_fields.length > 0 && (
-            <button type="button" disabled={reverting} onClick={onRevert} className="mt-1 text-plum-600 dark:text-plum-400 hover:underline disabled:opacity-50">
-              {reverting ? "Updating..." : "Follow the calendar again"}
-            </button>
-          )}
+          {hubSession ? "" : " The calendar sync leaves it removed."}
         </div>
       )}
 
@@ -149,10 +170,10 @@ export default function EventDetailsCard({
       <form onSubmit={save}>
         <div className="@container">
           <dl className="grid grid-cols-1 @pair:grid-cols-2 gap-4 text-sm">
-            {(editing || event.title) && (
-              <Field label="Title" htmlFor="event-title" wide>
-                {form ? (
-                  <input id="event-title" type="text" value={form.title} disabled={!!prickleId} required={!prickleId} onChange={(e) => set({ title: e.target.value })} className={INPUT} />
+            {(scheduleForm || event.title) && (
+              <Field label="Title" extra={form && <>{edited(overridden.title)}{followAgain(overridden.title, () => set({ title: "" }))}</>} htmlFor="event-title" wide>
+                {scheduleForm ? (
+                  <input id="event-title" type="text" value={scheduleForm.title} required={hubSession} onChange={(e) => set({ title: e.target.value })} className={INPUT} />
                 ) : (
                   event.title
                 )}
@@ -171,24 +192,56 @@ export default function EventDetailsCard({
                 EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type
               )}
             </Field>
-            {form ? (
+            {timesForm ? (
               <>
                 <Field label="Starts" htmlFor="event-starts">
-                  <input id="event-starts" type="date" value={form.starts_at} disabled={followsCalendar} required onChange={(e) => set({ starts_at: e.target.value })} className={INPUT} />
+                  <input id="event-starts" type="date" value={timesForm.starts_at} required onChange={(e) => set({ starts_at: e.target.value })} className={INPUT} />
                 </Field>
                 <Field label="Ends" htmlFor="event-ends">
-                  <input id="event-ends" type="date" value={form.ends_at} disabled={followsCalendar} required onChange={(e) => set({ ends_at: e.target.value })} className={INPUT} />
+                  <input id="event-ends" type="date" value={timesForm.ends_at} required onChange={(e) => set({ ends_at: e.target.value })} className={INPUT} />
                 </Field>
+                <Field label="Start time" htmlFor="event-start-clock">
+                  <input id="event-start-clock" type="time" value={timesForm.start_clock} onChange={(e) => set({ start_clock: e.target.value })} className={INPUT} />
+                </Field>
+                <Field label="End time" htmlFor="event-end-clock">
+                  <input id="event-end-clock" type="time" value={timesForm.end_clock} onChange={(e) => set({ end_clock: e.target.value })} className={INPUT} />
+                </Field>
+                <p className="@pair:col-span-2 -mt-2 text-xs text-slate-600 dark:text-slate-400">Eastern time. Leave both times empty for an all-day event.</p>
               </>
             ) : (
-              <Field label="Dates">
-                {formatDateOnly(event.starts_at)} – {formatDateOnly(event.ends_at)}
+              <>
+                <Field label="Dates">
+                  {formatDateOnly(event.starts_at)} – {formatDateOnly(event.ends_at)}
+                </Field>
+                {when.startClock && (
+                  <Field label="Time">
+                    {when.startClock} – {when.endClock} Eastern
+                  </Field>
+                )}
+                {form && <p className="@pair:col-span-2 -mt-2 text-xs text-slate-600 dark:text-slate-400">The dates and times come from Google Calendar and can&apos;t be changed here yet.</p>}
+              </>
+            )}
+            {(scheduleForm || event.host_name) && (
+              <Field label="Host" htmlFor="event-host">
+                {scheduleForm && !hubSession ? (
+                  <MemberSearch
+                    members={members}
+                    selectedMemberId={scheduleForm.host_id}
+                    selectedMemberName={scheduleForm.host_name}
+                    onSelect={(member) => set({ host_id: member?.id ?? null, host_name: member ? member.displayName?.trim() || member.name : null })}
+                    placeholder="Search for the host..."
+                  />
+                ) : scheduleForm ? (
+                  <input id="event-host" type="text" value={scheduleForm.host_name ?? ""} onChange={(e) => set({ host_name: e.target.value || null })} className={INPUT} />
+                ) : (
+                  event.host_name
+                )}
               </Field>
             )}
-            {(editing || event.location) && (
-              <Field label="Location" htmlFor="event-location">
-                {form ? (
-                  <input id="event-location" type="text" value={form.location ?? ""} onChange={(e) => set({ location: e.target.value || null })} className={INPUT} />
+            {(scheduleForm || event.location) && (
+              <Field label="Location" extra={form && <>{edited(overridden.location)}{followAgain(overridden.location, () => set({ location: null }))}</>} htmlFor="event-location">
+                {scheduleForm ? (
+                  <input id="event-location" type="text" value={scheduleForm.location ?? ""} onChange={(e) => set({ location: e.target.value || null })} className={INPUT} />
                 ) : (
                   event.location
                 )}
@@ -196,7 +249,16 @@ export default function EventDetailsCard({
             )}
             {form ? (
               <div className="@pair:col-span-2">
-                <EventAudienceFields value={form} onChange={(audience) => set(audience)} speakersLocked={!!prickleId} />
+                <EventAudienceFields
+                  value={form}
+                  onChange={(audience) => set(audience)}
+                  speakersExtra={
+                    <>
+                      {edited(overridden.guestSpeaker)}
+                      {followAgain(overridden.guestSpeaker, () => set({ speakers: null }))}
+                    </>
+                  }
+                />
               </div>
             ) : (
               <>
@@ -209,10 +271,10 @@ export default function EventDetailsCard({
                 {form ? <input id="event-focus" type="text" value={form.focus ?? ""} onChange={(e) => set({ focus: e.target.value || null })} className={INPUT} /> : event.focus}
               </Field>
             )}
-            {(editing || event.description) && (
-              <Field label="Description" htmlFor="event-description" wide>
-                {form ? (
-                  <textarea id="event-description" rows={2} value={form.description ?? ""} disabled={!!prickleId} onChange={(e) => set({ description: e.target.value || null })} className={INPUT} />
+            {(scheduleForm || event.description) && (
+              <Field label="Description" extra={form && <>{edited(overridden.description)}{followAgain(overridden.description, () => set({ description: null }))}</>} htmlFor="event-description" wide>
+                {scheduleForm ? (
+                  <textarea id="event-description" rows={2} value={scheduleForm.description ?? ""} onChange={(e) => set({ description: e.target.value || null })} className={INPUT} />
                 ) : (
                   <PrickleDescription markdown={event.description ?? ""} className="" />
                 )}

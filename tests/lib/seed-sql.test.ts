@@ -20,6 +20,13 @@ describe("supabase/seed.sql", () => {
     expect(statements.some((s) => /^TRUNCATE\s+bronze\.calendar_events/i.test(s))).toBe(false);
   });
 
+  it("clears prickles with DELETE, events first: events stand on prickles, and a cascading truncate would reach badge_types through them", () => {
+    const at = (re: RegExp) => statements.findIndex((s) => re.test(s));
+    expect(at(/^DELETE FROM community_events$/i)).toBeGreaterThan(-1);
+    expect(at(/^DELETE FROM community_events$/i)).toBeLessThan(at(/^DELETE FROM prickles$/i));
+    expect(statements.some((s) => /^TRUNCATE\s+(public\.)?prickles\b/i.test(s))).toBe(false);
+  });
+
   it("clears members with DELETE too: a cascading truncate reaches events through a media asset's owner and image, and badge_types through events", () => {
     expect(statements.some((s) => /^DELETE FROM members$/i.test(s))).toBe(true);
     expect(statements.some((s) => /^TRUNCATE\s+(public\.)?members\b/i.test(s))).toBe(false);

@@ -1,5 +1,5 @@
 import { HeartbeatMonitor } from 'checkly/constructs'
-import { ownerEmailAlert } from './alert-channels'
+import { ownerEmailAlert, slackAlert } from './alert-channels'
 import { CRON_HEARTBEATS } from '../lib/cron-heartbeats'
 
 // One heartbeat per scheduled job. The job list, periods and grace windows live in
@@ -8,7 +8,7 @@ for (const [job, heartbeat] of Object.entries(CRON_HEARTBEATS)) {
   new HeartbeatMonitor(`cron-${job}`, {
     name: heartbeat.name,
     activated: true,
-    alertChannels: [ownerEmailAlert],
+    alertChannels: [ownerEmailAlert, slackAlert],
     period: heartbeat.period,
     periodUnit: heartbeat.periodUnit,
     grace: heartbeat.grace,

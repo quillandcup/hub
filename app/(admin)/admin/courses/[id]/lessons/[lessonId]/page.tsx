@@ -62,7 +62,7 @@ async function lessonMedia(detail: AdminLessonDetail) {
   const { lesson, video, hub, course } = detail;
   const note = "rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400";
   const lessonUrl = hub ? `${APP_URL}/courses/${hub.slug}/lessons/${hub.lessonId}` : null;
-  const statsHref = hub && video ? `/admin/courses/${course.kajabiId}/stats/${hub.lessonId}` : null;
+  const statsHref = hub && video ? `/admin/courses/${course.id}/stats/${hub.lessonId}` : null;
   const { link: thumbnailLink, blocked: thumbnailLinkBlocked } = await thumbnailLinkFor(detail, lessonUrl);
   const actions = (
     <div className="mt-3">
@@ -115,7 +115,7 @@ export default async function AdminLessonPage({ params }: Params) {
     <>
       <CourseBuilderBanner />
       <div className="@container container mx-auto max-w-6xl px-6 py-8">
-        <Link href={`/admin/courses/${course.kajabiId}`} className="text-sm text-slate-600 hover:underline dark:text-slate-400">
+        <Link href={`/admin/courses/${course.id}`} className="text-sm text-slate-600 hover:underline dark:text-slate-400">
           ← {course.title}
         </Link>
         <div className="mb-1 mt-2 flex flex-wrap items-center justify-between gap-3">

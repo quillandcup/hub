@@ -11,7 +11,7 @@ import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
 import { getProfileWriting } from "@/app/(member)/projects/actions"
-import { MEASURE_LABELS } from "@/lib/writing-projects"
+import { MEASURE_LABELS, isMissedGoal } from "@/lib/writing-projects"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
 import { createRepos } from "@/lib/data/repos"
@@ -75,7 +75,8 @@ export default async function MemberProfilePage({
 
   if (!member) notFound()
 
-  const writing = await getProfileWriting(id)
+  const profileWriting = await getProfileWriting(id)
+  const writing = { ...profileWriting, goals: profileWriting.goals.filter((goal) => !isMissedGoal(goal)) }
 
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,
@@ -83,28 +84,14 @@ export default async function MemberProfilePage({
   // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
   // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
-  const [booksData, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
+  const [booksData, awards, tzPref, askMeAbout, noteRow] = await Promise.all([
     createRepos(supabase).books.ofMember(id),
-    supabase
-      .from("member_awards")
-      .select("id, award_name, category, work_title, award_date, url")
-      .eq("member_id", id)
-      .is("deleted_at", null)
-      .order("award_date", { ascending: false }),
+    createRepos(supabase).awards.ofMember(id),
     getUserTimezonePreference(),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),
-    showNotes
-      ? supabase
-          .from("member_notes")
-          .select("body, updated_at")
-          .eq("author_member_id", effectiveIdentity.memberId)
-          .eq("subject_member_id", id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    createRepos(supabase).memberProfile.askMeAbout(id),
+    showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
   ])
-  const askMeAbout: string[] = askMeAboutRow?.topics ?? []
   const books = booksData
-  const awards = awardsData ?? []
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
   // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather

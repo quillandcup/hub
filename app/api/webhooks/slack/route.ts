@@ -345,16 +345,11 @@ async function hubMessageAuthor(supabase: any, event: any): Promise<string | nul
 
 async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: string | null = null) {
   try {
-    const { data: match, error: matchError } = await supabase
-      .from("wheel_of_wonder_matches")
-      .select(
-        "id, spinner_member_id, matched_member_id, spinner_slack_user_id, matched_slack_user_id, spinner_message_count, matched_message_count"
-      )
-      .eq("slack_channel_id", event.channel)
-      .eq("status", "proposed")
-      .maybeSingle();
-
-    if (matchError) {
+    const wheel = createRepos(supabase).wheelOfWonder;
+    let match;
+    try {
+      match = await wheel.proposedInChannel(event.channel);
+    } catch (matchError) {
       console.error("Error looking up Wheel of Wonder match for channel:", matchError);
       return;
     }
@@ -375,19 +370,15 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
       bothSidesParticipated &&
       spinnerMessageCount + matchedMessageCount >= CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD;
 
-    const update: Record<string, unknown> = {
-      spinner_message_count: spinnerMessageCount,
-      matched_message_count: matchedMessageCount,
-    };
-    if (shouldConfirm) {
-      update.status = "confirmed";
-      update.confirmed_at = new Date().toISOString();
-      update.confirmed_by_member_id = isSpinner ? match.spinner_member_id : match.matched_member_id;
-    }
-
-    const { error: updateError } = await supabase.from("wheel_of_wonder_matches").update(update).eq("id", match.id);
-
-    if (updateError) {
+    try {
+      await wheel.recordExchange(match.id, {
+        spinnerMessageCount,
+        matchedMessageCount,
+        ...(shouldConfirm
+          ? { confirmed: { at: new Date().toISOString(), byMemberId: isSpinner ? match.spinner_member_id : match.matched_member_id } }
+          : {}),
+      });
+    } catch (updateError) {
       console.error("Error updating Wheel of Wonder match exchange:", updateError);
       return;
     }

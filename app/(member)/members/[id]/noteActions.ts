@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { MAX_NOTE_LENGTH } from "@/lib/member-notes";
@@ -28,15 +29,12 @@ async function saveMemberNoteImpl(subjectMemberId: string, body: string): Promis
   if (typeof body !== "string") return { error: "Invalid note" };
   if (body.length > MAX_NOTE_LENGTH) return { error: `Notes can be up to ${MAX_NOTE_LENGTH} characters.` };
 
-  const supabase = await createClient();
+  const profile = createRepos(await createClient()).memberProfile;
 
   if (!body.trim()) {
-    const { error } = await supabase
-      .from("member_notes")
-      .delete()
-      .eq("author_member_id", identity.memberId)
-      .eq("subject_member_id", subjectMemberId);
-    if (error) {
+    try {
+      await profile.deleteNote(identity.memberId, subjectMemberId);
+    } catch (error) {
       console.error("[member-notes] Deleting note failed", { author: identity.memberId, subjectMemberId, error });
       return { error: "Couldn't save your note — please try again." };
     }
@@ -44,20 +42,15 @@ async function saveMemberNoteImpl(subjectMemberId: string, body: string): Promis
     return { success: true, updatedAt: null };
   }
 
-  const { data, error } = await supabase
-    .from("member_notes")
-    .upsert(
-      { author_member_id: identity.memberId, subject_member_id: subjectMemberId, body },
-      { onConflict: "author_member_id,subject_member_id" }
-    )
-    .select("updated_at")
-    .single();
-  if (error) {
+  let updatedAt: string;
+  try {
+    updatedAt = await profile.saveNote(identity.memberId, subjectMemberId, body);
+  } catch (error) {
     console.error("[member-notes] Saving note failed", { author: identity.memberId, subjectMemberId, error });
     return { error: "Couldn't save your note — please try again." };
   }
   revalidatePath(`/members/${subjectMemberId}`);
-  return { success: true, updatedAt: data?.updated_at ?? null };
+  return { success: true, updatedAt };
 }
 
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).

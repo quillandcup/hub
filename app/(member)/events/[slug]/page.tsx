@@ -7,6 +7,7 @@ import { createRepos } from "@/lib/data/repos";
 import { mediaSrc } from "@/lib/media/url";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
+import { stripEventTag } from "@/lib/calendar-events";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddEventToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
@@ -51,7 +52,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
         ← All Events
       </Link>
       <EventDetailClient
-        event={event}
+        event={{ ...event, description: stripEventTag(event.description) }}
         photos={visiblePhotos}
         calendarControl={calendarControl}
         coverImage={image && !image.deleted_at ? { src: mediaSrc(image.id, "event_hero"), alt: image.alt_text ?? "" } : null}

@@ -42,11 +42,15 @@ export default async function AdminCoursesPage() {
           </thead>
           <tbody>
             {courses.map((c) => (
-              <tr key={c.kajabiId} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+              <tr key={c.id ?? c.title} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3 font-medium">
-                  <Link href={`/admin/courses/${c.kajabiId}`} className="text-plum-700 hover:underline dark:text-plum-300">
-                    {c.title}
-                  </Link>
+                  {c.id ? (
+                    <Link href={`/admin/courses/${c.id}`} className="text-plum-700 hover:underline dark:text-plum-300">
+                      {c.title}
+                    </Link>
+                  ) : (
+                    <span title="Run the Kajabi import to open this course">{c.title}</span>
+                  )}
                   {c.source === "hub" && <span className="ml-2 rounded-full bg-plum-100 px-2 py-0.5 text-xs font-medium text-plum-800 dark:bg-plum-900/30 dark:text-plum-200">Hub</span>}
                 </td>
                 <td className="px-4 py-3">{c.published ? <span>Published</span> : <span className="text-slate-600 dark:text-slate-400">Not published</span>}</td>

@@ -39,7 +39,7 @@ const supabase = {};
 const decide = (fields: Record<string, unknown>) =>
   dataset.unmatchedEvents.push({
     id: "u1", calendar_event_id: CAL, raw_summary: "HEDGIE HOUSE BOOK FAIR INTRO!", status: "resolved", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
-    resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, ...fields,
+    resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null, ...fields,
   });
 let admin = true;
 vi.mock("@/lib/admin-auth", () => ({
@@ -52,8 +52,6 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 const reprocess = vi.hoisted(() => vi.fn(async () => ({ processed: [] })));
 vi.mock("@/lib/processing/trigger", () => ({ triggerReprocessing: reprocess }));
 // The event that stands for the prickle follows what was saved (its own tests are with the calendar events).
-const syncEvent = vi.hoisted(() => vi.fn(async () => {}));
-vi.mock("@/lib/calendar-events", () => ({ syncCalendarEvent: syncEvent }));
 
 import { updatePrickle } from "@/app/(admin)/admin/prickles/[id]/actions";
 
@@ -62,7 +60,6 @@ const read = async () => (await repos.prickles.byId("p1"))!;
 beforeEach(() => {
   admin = true;
   reprocess.mockClear();
-  syncEvent.mockClear();
   dataset = new InMemoryDataset({
     // The Bronze calendar item the first prickle follows, whose summary a decision records.
     calendarEvents: [
@@ -86,7 +83,6 @@ describe("updatePrickle", () => {
 
     expect(dataset.unmatchedEvents).toEqual([]);
     expect(reprocess).not.toHaveBeenCalled();
-    expect(syncEvent).not.toHaveBeenCalled();
   });
 
   it("keeps new text as the event's decision and shows it at once, without reprocessing", async () => {
@@ -102,8 +98,19 @@ describe("updatePrickle", () => {
         })]);
     expect(await read()).toMatchObject({ title: "Book Fair: Meet the Fair", description: "New words", guestSpeaker: "Ada Example" });
     expect(reprocess).not.toHaveBeenCalled();
-    // The event that stands for this prickle takes the new text at once.
-    expect(syncEvent).toHaveBeenCalledWith(supabase, CAL);
+  });
+
+  it("keeps a new location as the decision, shows it at once, and follows the calendar again when emptied", async () => {
+    await updatePrickle("p1", { location: "  Cedar Lodge " });
+
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_location: "Cedar Lodge" })]);
+    expect(await read()).toMatchObject({ location: "Cedar Lodge" });
+    expect(reprocess).not.toHaveBeenCalled();
+
+    await updatePrickle("p1", { location: "" });
+
+    expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_location: null })]);
+    expect(reprocess).toHaveBeenCalledTimes(1);
   });
 
   it("rewrites an earlier decision instead of adding another", async () => {
@@ -130,12 +137,12 @@ describe("updatePrickle", () => {
   });
 
   it("follows the calendar again for text emptied that had been set by hand, and says nothing for text that never was", async () => {
-    decide({ resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null });
+    decide({ resolved_title: "Set by hand", resolved_description: null, resolved_guest_speaker: null, resolved_location: null });
 
     await updatePrickle("p1", { title: "  ", description: "", guestSpeaker: "" });
 
     expect(dataset.unmatchedEvents).toEqual([expect.objectContaining({ resolved_title: null })]);
-    expect(dataset.unmatchedEvents[0]).toMatchObject({ resolved_description: null, resolved_guest_speaker: null });
+    expect(dataset.unmatchedEvents[0]).toMatchObject({ resolved_description: null, resolved_guest_speaker: null, resolved_location: null });
     expect(reprocess).toHaveBeenCalledTimes(1); // the calendar's text comes back
     expect((await read()).title).toBe("Book Fair Intro"); // until that runs
   });

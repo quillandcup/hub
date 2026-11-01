@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
 const STATUSES = ["new", "acknowledged", "resolved", "wontfix"] as const;
@@ -27,8 +28,9 @@ export async function PATCH(
     update.admin_notes = body.admin_notes;
   }
 
-  const { error } = await supabase.from("feedback").update(update).eq("id", id);
-  if (error) {
+  try {
+    await createRepos(supabase).adminWork.updateFeedback(id, update);
+  } catch (error) {
     console.error("Feedback update failed:", error);
     return NextResponse.json({ error: "Failed to update feedback" }, { status: 500 });
   }

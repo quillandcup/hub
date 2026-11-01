@@ -33,7 +33,7 @@ function book(overrides: Partial<MyBookRow>): MyBookRow {
     purchaseUrl: "https://example.com/buy",
     publishedDate: "2025-06-15",
     price: 4.99,
-    genre: null,
+    genres: [],
     format: "ebook",
     projectId: null,
     ...overrides,

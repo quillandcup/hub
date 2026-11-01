@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 import { clock } from "@/lib/clock";
 import { withRefreshLease } from "@/lib/slack-token-refresh";
@@ -128,12 +129,12 @@ export async function linkSlackAccount(service: SupabaseClient, grant: SlackGran
   const team = process.env.SLACK_TEAM_ID;
   if (team && grant.teamId !== team) return { ok: false, reason: "wrong_workspace" };
 
-  const [{ data: held }, { data: bySlack }, { data: byUser }] = await Promise.all([
-    service.from("member_slack_connections").select("member_id").eq("slack_user_id", grant.slackUserId).neq("member_id", memberId).limit(1),
+  const [held, { data: bySlack }, { data: byUser }] = await Promise.all([
+    createRepos(service).memberProfile.slackUserConnectedByOther(grant.slackUserId, memberId),
     service.from("slack_identities").select("user_id, linked_via").eq("slack_user_id", grant.slackUserId).maybeSingle(),
     service.from("slack_identities").select("slack_user_id, linked_via").eq("user_id", authUserId).maybeSingle(),
   ]);
-  if ((held?.length ?? 0) > 0 || (bySlack && bySlack.user_id !== authUserId && bySlack.linked_via === "slack_connect")) {
+  if (held || (bySlack && bySlack.user_id !== authUserId && bySlack.linked_via === "slack_connect")) {
     return { ok: false, reason: "taken" };
   }
   if (byUser && byUser.slack_user_id !== grant.slackUserId && byUser.linked_via === "slack_connect") {
@@ -184,11 +185,7 @@ export interface SlackConnectionStatus {
 
 /** Whether the member has an active connection (the row, never the tokens). */
 export async function getSlackConnectionStatus(service: SupabaseClient, memberId: string): Promise<SlackConnectionStatus> {
-  const { data } = await service
-    .from("member_slack_connections")
-    .select("slack_user_id, connected_at, revoked_at, scopes")
-    .eq("member_id", memberId)
-    .maybeSingle();
+  const data = await createRepos(service).memberProfile.slackConnectionOf(memberId);
   const connected = Boolean(data && !data.revoked_at);
   return {
     connected,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
+import { eventSeed } from "@/tests/helpers/event-fixtures";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 // The create and update routes for events carry the audience fields (who it's for, how people
@@ -10,6 +11,7 @@ let written: Record<string, unknown> | undefined;
 // What the event being updated holds now (the route judges a partial update against it); it follows no calendar item.
 let currentEvent: { announced_publicly: boolean; guests_allowed: boolean };
 let repos = createInMemoryRepos();
+let data = new InMemoryDataset();
 vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: async () => ({ user: { id: "admin" }, supabase: {} }),
 }));
@@ -32,7 +34,8 @@ const send = (route: unknown, body: unknown) =>
 function setUp(event: typeof currentEvent) {
   currentEvent = event;
   written = undefined;
-  repos = createInMemoryRepos(new InMemoryDataset({ events: [{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", ...event }] }));
+  data = new InMemoryDataset(eventSeed([{ id: "evt_AAAAAAAAAAA1", title: "Open house", slug: "open-house", ...event }]));
+  repos = createInMemoryRepos(data);
   const create = repos.events.create.bind(repos.events);
   const edit = repos.events.edit.bind(repos.events);
   repos.events.create = async (fields) => ((written = { ...fields }), create(fields));
@@ -61,8 +64,10 @@ describe("POST /api/admin/events: audience", () => {
       registration: "application",
       capacity: 7,
       selection: "selected",
-      speakers: "Ada Example",
     });
+    // The guest speakers are the schedule's, kept on the Hub session the event stands on, not on the event.
+    expect(written).not.toHaveProperty("speakers");
+    expect(data.hubSessions).toEqual([expect.objectContaining({ title: "Build-a-query", guestSpeaker: "Ada Example" })]);
   });
 
   it("leaves the audience to the database defaults when the request doesn't name it", async () => {

@@ -1,5 +1,6 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row } from "./db";
+import { eventDays, eventDetail } from "./events";
 import type { InMemoryDataset } from "./in-memory";
 import { asPage, byKeyThenId, compareText } from "./query";
 
@@ -71,7 +72,7 @@ export interface CalendarFeedRepository {
 }
 
 const LISTED_COLUMNS =
-  "id, kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id, created_at, prickle_types(name), prickles(start_time, prickle_types(name)), events(title, starts_at, ends_at)";
+  "id, kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id, created_at, prickle_types(name), prickles(start_time, prickle_types(name)), community_events(prickles(title, start_time, end_time, prickle_types(name)))";
 const ITEM_COLUMNS = "kind, prickle_id, type_id, day_of_week, start_time_local, timezone, event_id";
 
 /** PostgREST returns a to-one embed as an object, though callers have also met it as a one-item array. */
@@ -84,8 +85,15 @@ type ListedRaw = Pick<ListedFeedItem, "id" | "created_at"> &
   FeedItemRow & {
     prickle_types: Embed<{ name: string }>;
     prickles: Embed<{ start_time: string; prickle_types: Embed<{ name: string }> }>;
-    events: Embed<{ title: string; starts_at: string; ends_at: string }>;
+    community_events: Embed<{ prickles: Embed<{ title: string | null; start_time: string; end_time: string; prickle_types: Embed<{ name: string }> }> }>;
   };
+
+/** What a feed lists of an event: the title and Eastern days of the prickle it stands on, as the `community_event_details` view has them. */
+function eventOf(event: { prickles: Embed<{ title: string | null; start_time: string; end_time: string; prickle_types: Embed<{ name: string }> }> } | null): ListedFeedItem["event"] {
+  const prickle = event ? one(event.prickles) : null;
+  if (!prickle) return null;
+  return { title: prickle.title?.trim() || one(prickle.prickle_types)?.name || "Untitled event", ...eventDays(prickle.start_time, prickle.end_time) };
+}
 
 /** Postgres returns a `time` as HH:MM:SS. */
 const withSeconds = (time: string | null) => (time && time.length === 5 ? `${time}:00` : time);
@@ -154,7 +162,7 @@ export class SupabaseCalendarFeedRepository implements CalendarFeedRepository {
         created_at: row.created_at,
         type_name: one(row.prickle_types)?.name ?? null,
         prickle: prickle ? { start_time: prickle.start_time, type_name: one(prickle.prickle_types)?.name ?? null } : null,
-        event: one(row.events),
+        event: eventOf(one(row.community_events)),
       };
     });
   }
@@ -270,14 +278,15 @@ export class InMemoryCalendarFeedRepository implements CalendarFeedRepository {
       .sort(byKeyThenId((i) => i.created_at ?? "", (i) => i.id))
       .map((i): ListedFeedItem => {
         const prickle = i.prickle_id ? this.data.prickles.find((p) => p.id === i.prickle_id) : undefined;
-        const event = i.event_id ? this.data.events.find((e) => e.id === i.event_id && !e.deleted_at) : undefined;
+        const eventRow = i.event_id ? this.data.events.find((e) => e.id === i.event_id && !e.deleted_at) : undefined;
+        const event = eventRow ? eventDetail(this.data, eventRow) : null;
         return {
           ...this.toRow(i),
           id: i.id,
           created_at: i.created_at ?? "",
           type_name: typeName(i.type_id),
           prickle: prickle ? { start_time: prickle.startTime, type_name: typeName(prickle.typeId) } : null,
-          event: event ? { title: event.title, starts_at: event.starts_at ?? "", ends_at: event.ends_at ?? "" } : null,
+          event: event ? { title: event.title, starts_at: event.starts_at, ends_at: event.ends_at } : null,
         };
       });
   }

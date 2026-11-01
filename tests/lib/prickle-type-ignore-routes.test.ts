@@ -27,7 +27,7 @@ import { POST as ignoreBatch } from "@/app/api/prickle-types/ignore-batch/route"
 
 const queued = (id: string) => ({
   id, calendar_event_id: `c-${id}`, raw_summary: `Summary ${id}`, status: "pending", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
-  resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null,
+  resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null,
 });
 const statuses = () => dataset.unmatchedEvents.map((u) => [u.id, u.status]);
 const post = (route: typeof ignoreOne, body: unknown) => route(new NextRequest("http://localhost/api/prickle-types/ignore", { method: "POST", body: JSON.stringify(body) }));

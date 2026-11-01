@@ -93,6 +93,7 @@ function makeSupabaseMock(
         return obj;
       });
     }
+    obj.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null })); // the Event type lookup: none to leave out
     obj.range = vi.fn(() => {
       const data = served ? [] : (tables[table] ?? []);
       served = true;

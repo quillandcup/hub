@@ -11,6 +11,7 @@ export type EventDecisionChoice = Partial<{
   resolved_title: string | null;
   resolved_description: string | null;
   resolved_guest_speaker: string | null;
+  resolved_location: string | null;
 }>;
 
 /**
@@ -51,6 +52,7 @@ export interface EventDecisionValues {
   resolved_title: string | null;
   resolved_description: string | null;
   resolved_guest_speaker: string | null;
+  resolved_location: string | null;
 }
 
 export async function loadEventDecision(supabase: Db, calendarEventId: string): Promise<EventDecisionValues> {
@@ -62,5 +64,6 @@ export async function loadEventDecision(supabase: Db, calendarEventId: string): 
     resolved_title: data?.resolved_title ?? null,
     resolved_description: data?.resolved_description ?? null,
     resolved_guest_speaker: data?.resolved_guest_speaker ?? null,
+    resolved_location: data?.resolved_location ?? null,
   };
 }

@@ -5,8 +5,15 @@ export type ZoomContractContext = {
   repo: () => ZoomRepository;
   /** A value no other run has used (names, meeting uuids, ids). Everything a test stores carries it, so `clear` can find it. */
   unique: (label: string) => string;
-  /** Removes every attendee, meeting and ignored name this context made. */
+  /** Removes every attendee, meeting, ignored name, per-prickle ignore, ambiguous name and participant event this context made. */
   clear: () => Promise<void>;
+  /** Two members and two prickles that exist (the ambiguous names and per-prickle ignores point at them). */
+  members: [string, string];
+  prickles: [string, string];
+  /** Queues an ambiguous name the way attendance processing does (nothing in the repository writes them). */
+  seedAmbiguousName: (row: { zoomName: string; zoomEmail: string | null; candidates: string[]; status?: "unresolved" | "resolved" | "ignored"; resolvedMemberId?: string }) => Promise<void>;
+  /** Every ambiguous-name row with this name, by email. */
+  ambiguousNamed: (zoomName: string) => Promise<{ zoom_email: string | null; status: string | null; resolved_member_id: string | null; candidate_member_ids: string[] }[]>;
 };
 
 const at = (day: number, hour = 9, minute = 0) => new Date(Date.UTC(2097, 6, day, hour, minute)).toISOString();
@@ -209,6 +216,120 @@ export function defineZoomContract(name: string, setup: () => ZoomContractContex
       expect(after).not.toContain(zoomName);
       expect(after).toContain(other);
       await ctx.repo().unignoreName(ctx.unique("never")); // nothing to remove
+    });
+
+    it("ignores a name for one prickle only, keeps the first reason when ignored again, and stops ignoring it", async () => {
+      const [one, two] = ctx.prickles;
+      const name = ctx.unique("one-prickle");
+      const other = ctx.unique("one-prickle-other");
+
+      await ctx.repo().ignoreAppearance({ prickleId: one, zoomName: name, reason: "joined by mistake", ignoredBy: null });
+      await ctx.repo().ignoreAppearance({ prickleId: one, zoomName: name, reason: "a second reason", ignoredBy: null });
+      await ctx.repo().ignoreAppearance({ prickleId: two, zoomName: other, reason: null, ignoredBy: null });
+
+      expect(await ctx.repo().ignoredAppearancesOf(one)).toEqual([{ zoom_name: name, reason: "joined by mistake" }]);
+      expect(await ctx.repo().ignoredAppearancesOf(two)).toEqual([{ zoom_name: other, reason: null }]);
+      const all = (await ctx.repo().ignoredAppearances()).filter((r) => [name, other].includes(r.zoom_name));
+      expect(all).toHaveLength(2);
+      expect(all).toEqual(expect.arrayContaining([{ zoom_name: name, prickle_id: one }, { zoom_name: other, prickle_id: two }]));
+      // Not the everywhere list.
+      expect(await ctx.repo().ignoredNames()).not.toContain(name);
+
+      await ctx.repo().unignoreAppearance(one, name);
+      expect(await ctx.repo().ignoredAppearancesOf(one)).toEqual([]);
+      expect(await ctx.repo().ignoredAppearancesOf(two)).toHaveLength(1);
+      await ctx.repo().unignoreAppearance(one, ctx.unique("never")); // nothing to remove
+    });
+
+    it("lists the unresolved ambiguous names, resolves or ignores every unresolved entry of a name and leaves the rest alone", async () => {
+      const [ada, bea] = ctx.members;
+      const name = ctx.unique("ambiguous");
+      const settled = ctx.unique("ambiguous-settled");
+      await ctx.seedAmbiguousName({ zoomName: name, zoomEmail: null, candidates: [ada, bea] });
+      await ctx.seedAmbiguousName({ zoomName: name, zoomEmail: "same@example.test", candidates: [ada, bea] });
+      await ctx.seedAmbiguousName({ zoomName: settled, zoomEmail: null, candidates: [ada, bea], status: "ignored" });
+
+      const listed = (await ctx.repo().unresolvedAmbiguousNames()).filter((r) => [name, settled].includes(r.zoom_name));
+      expect(listed.map((r) => r.zoom_name)).toEqual([name, name]);
+      expect(await ctx.repo().hasUnresolvedAmbiguousName(name)).toBe(true);
+      expect(await ctx.repo().hasUnresolvedAmbiguousName(settled)).toBe(false);
+      expect(await ctx.repo().hasUnresolvedAmbiguousName(ctx.unique("never"))).toBe(false);
+
+      await ctx.repo().resolveAmbiguousName(name, ada);
+      await ctx.repo().resolveAmbiguousName(settled, ada); // already settled: untouched
+
+      const rows = await ctx.ambiguousNamed(name);
+      expect(rows.map((r) => [r.status, r.resolved_member_id])).toEqual([["resolved", ada], ["resolved", ada]]);
+      expect((await ctx.ambiguousNamed(settled)).map((r) => [r.status, r.resolved_member_id])).toEqual([["ignored", null]]);
+      expect(await ctx.repo().hasUnresolvedAmbiguousName(name)).toBe(false);
+
+      const another = ctx.unique("ambiguous-ignore");
+      await ctx.seedAmbiguousName({ zoomName: another, zoomEmail: null, candidates: [ada, bea] });
+      await ctx.seedAmbiguousName({ zoomName: another, zoomEmail: "x@example.test", candidates: [ada, bea], status: "resolved", resolvedMemberId: bea });
+      await ctx.repo().ignoreAmbiguousName(another);
+      expect((await ctx.ambiguousNamed(another)).map((r) => r.status).sort()).toEqual(["ignored", "resolved"]);
+    });
+
+    it("moves a merged member to the other in the ambiguous names, as resolved member and among the candidates, once", async () => {
+      const [ada, bea] = ctx.members;
+      const gone = ctx.unique("ambiguous-merge-gone");
+      const both = ctx.unique("ambiguous-merge-both");
+      const untouched = ctx.unique("ambiguous-merge-untouched");
+      await ctx.seedAmbiguousName({ zoomName: gone, zoomEmail: null, candidates: [bea], status: "resolved", resolvedMemberId: bea });
+      await ctx.seedAmbiguousName({ zoomName: both, zoomEmail: null, candidates: [bea, ada] });
+      await ctx.seedAmbiguousName({ zoomName: untouched, zoomEmail: null, candidates: [ada] });
+
+      await ctx.repo().reassignAmbiguousMember(bea, ada);
+
+      expect(await ctx.ambiguousNamed(gone)).toEqual([expect.objectContaining({ resolved_member_id: ada, candidate_member_ids: [ada] })]);
+      expect((await ctx.ambiguousNamed(both))[0].candidate_member_ids).toEqual([ada]);
+      expect((await ctx.ambiguousNamed(untouched))[0].candidate_member_ids).toEqual([ada]);
+      await ctx.repo().reassignAmbiguousMember(bea, ada); // nothing left to move
+    });
+
+    it("keeps the join settings newest first, a correction for the same instant ahead of what it corrects, and removes one", async () => {
+      const link = (label: string) => `https://zoom.example.test/j/${ctx.unique(label)}`;
+      const [old, corrected, correction, later] = [link("old"), link("corrected"), link("correction"), link("later")];
+      await ctx.repo().addJoinSetting({ joinUrl: old, meetingId: "111", passcode: "one", effectiveFrom: at(1), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: corrected, meetingId: null, passcode: null, effectiveFrom: at(5), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: correction, meetingId: "222", passcode: "two", effectiveFrom: at(5), createdBy: null });
+      await ctx.repo().addJoinSetting({ joinUrl: later, meetingId: null, passcode: null, effectiveFrom: at(9), createdBy: null });
+
+      const mine = (await ctx.repo().joinSettings()).filter((j) => [old, corrected, correction, later].includes(j.join_url));
+      expect(mine.map((j) => j.join_url)).toEqual([later, correction, corrected, old]);
+      expect(mine[1]).toMatchObject({ meeting_id: "222", passcode: "two", id: expect.any(String), created_at: expect.any(String) });
+      expect(new Date(mine[1].effective_from).toISOString()).toBe(at(5));
+
+      expect(await ctx.repo().removeJoinSetting(mine[0].id)).toBe(true);
+      expect(await ctx.repo().removeJoinSetting(mine[0].id)).toBe(false);
+      expect((await ctx.repo().joinSettings()).some((j) => j.join_url === later)).toBe(false);
+    });
+
+    it("records a live join or leave once, and lists the events since an instant in id order", async () => {
+      const meeting = ctx.unique("live");
+      const event = (key: string, kind: "joined" | "left", time: string) => ({
+        meeting_uuid: meeting,
+        meeting_id: "999",
+        host_id: "host-live",
+        event: kind,
+        participant_key: key,
+        participant_name: `Ada ${key}`,
+        participant_email: null,
+        event_time: time,
+        leave_reason: null,
+        raw_payload: { example: true },
+      });
+      await ctx.repo().recordParticipantEvent(event("p1", "joined", at(23, 9)));
+      await ctx.repo().recordParticipantEvent(event("p1", "joined", at(23, 9))); // the webhook retried
+      await ctx.repo().recordParticipantEvent(event("p1", "left", at(23, 10)));
+      await ctx.repo().recordParticipantEvent(event("p2", "joined", at(23, 8)));
+
+      const since = (await ctx.repo().participantEventsSince(at(23, 8, 30))).filter((e) => e.meeting_uuid === meeting);
+      expect(since.map((e) => [e.participant_key, e.event])).toEqual(expect.arrayContaining([["p1", "joined"], ["p1", "left"]]));
+      expect(since).toHaveLength(2);
+      expect(since[0]).toEqual(expect.objectContaining({ host_id: "host-live", participant_name: "Ada p1", participant_email: null }));
+      const all = (await ctx.repo().participantEventsSince(at(23, 0))).filter((e) => e.meeting_uuid === meeting);
+      expect(all).toHaveLength(3);
     });
   });
 }

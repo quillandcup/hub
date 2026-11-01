@@ -26,7 +26,8 @@ defineMediaContract("InMemoryMediaRepository", () => {
     },
     eventShowing: async (assetId, title, startsAt) => {
       const id = `evt_${String(++n).padStart(12, "A")}`;
-      data.events.push({ id, slug: id, title, starts_at: startsAt, image_id: assetId });
+      data.prickles.push({ id: `prkl_${id}`, typeId: null, hostId: null, title, startTime: `${startsAt}T15:00:00Z`, endTime: `${startsAt}T16:00:00Z`, source: "calendar", calendarEventId: null });
+      data.events.push({ id, slug: id, prickle_id: `prkl_${id}`, image_id: assetId });
       return id;
     },
   };

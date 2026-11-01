@@ -2,7 +2,8 @@ import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { eventImageError } from "@/lib/media/event-image";
 import { NextRequest, NextResponse } from "next/server";
-import { parseEventAudience } from "@/lib/event-audience";
+import { parseEventAudience, parseGuestSpeakers } from "@/lib/event-audience";
+import { eventWindow } from "@/lib/event-window";
 import { EVENT_TYPES, isEventType } from "@/lib/events-filter";
 
 export async function GET(request: NextRequest) {
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { slug, title, event_type, location, starts_at, ends_at, focus, description, agenda, results, google_photos_album_url, image_id } = body;
+    const { slug, title, event_type, location, starts_at, ends_at, start_clock, end_clock, host_name, focus, description, agenda, results, google_photos_album_url, image_id } = body;
 
     if (!slug || !title || !event_type || !starts_at || !ends_at) {
       return NextResponse.json(
@@ -43,26 +44,45 @@ export async function POST(request: NextRequest) {
     }
     const audience = parseEventAudience(body);
     if (!audience.ok) return NextResponse.json({ error: audience.error }, { status: 400 });
+    const speakers = parseGuestSpeakers(body);
+    if (!speakers.ok) return NextResponse.json({ error: speakers.error }, { status: 400 });
+    const window = eventWindow({ startDate: starts_at, endDate: ends_at, startClock: start_clock, endClock: end_clock });
+    if (!window.ok) return NextResponse.json({ error: window.error }, { status: 400 });
     const repos = createRepos(supabase);
     const imageError = await eventImageError(repos.media, image_id);
     if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
 
-    const event = await repos.events.create({
+    // An event made in the Hub has no calendar item: its schedule is a Hub session, projected into the prickle it stands on.
+    const session = await repos.hubSessions.create({
+      title,
+      description: description || null,
+      location: location || null,
+      hostName: typeof host_name === "string" && host_name.trim() ? host_name.trim() : null,
+      guestSpeaker: speakers.value ?? null,
+      startTime: window.startTime,
+      endTime: window.endTime,
+    });
+    if (!session.prickleId) throw new Error("The event's session has no prickle");
+
+    let event;
+    try {
+      event = await repos.events.create({
         ...audience.fields,
         slug,
-        title,
+        prickle_id: session.prickleId,
         event_type,
-        location: location || null,
-        starts_at,
-        ends_at,
         focus: focus || null,
-        description: description || null,
         agenda: agenda || null,
         results: results || null,
         google_photos_album_url: google_photos_album_url || null,
         image_id: image_id ?? null,
         created_by: user.id === "service-role" || user.id === "cron" ? null : user.id,
-    });
+      });
+    } catch (error) {
+      // Don't leave a schedule with no event behind (a taken slug, say).
+      await repos.hubSessions.remove(session.id).catch(() => {});
+      throw error;
+    }
 
     return NextResponse.json({ event }, { status: 201 });
   } catch (error: any) {

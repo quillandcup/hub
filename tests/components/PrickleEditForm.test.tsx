@@ -35,7 +35,7 @@ const config = (over: Partial<PrickleEditConfig> = {}): PrickleEditConfig => ({
     { id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker", email: "jenn@example.test" },
     { id: "mbr_AAAAAAAAAAA2", name: "Ada Example", email: "ada@example.test" },
   ],
-  overridden: { title: false, description: false, guestSpeaker: false },
+  overridden: { title: false, description: false, guestSpeaker: false, location: false },
   onSave,
   ...over,
 });
@@ -123,7 +123,7 @@ describe("the prickle details card", () => {
   });
 
   it("sends an emptied field as empty, which follows the calendar again", async () => {
-    renderDetails(config({ overridden: { title: true, description: false, guestSpeaker: false } }));
+    renderDetails(config({ overridden: { title: true, description: false, guestSpeaker: false, location: false } }));
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByText("(edited)")).toBeInTheDocument(); // only the title was set by hand
     await userEvent.clear(screen.getByLabelText(/^Title/));

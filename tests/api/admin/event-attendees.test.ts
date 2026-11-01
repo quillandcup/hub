@@ -39,7 +39,7 @@ describe('Event Attendees + Badge Linking', () => {
 
   afterAll(async () => {
     if (badgeTypeId) await supabase.from('badge_types').delete().eq('id', badgeTypeId)
-    if (eventId) await supabase.from('events').delete().eq('id', eventId)
+    if (eventId) await supabase.from('community_events').delete().eq('id', eventId)
     await supabase.from('members').delete().in('id', [memberAId, memberBId])
   })
 

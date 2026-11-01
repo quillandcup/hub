@@ -210,6 +210,12 @@ export default function PrickleDetails({
               <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.guestSpeaker}</p>
             </div>
           )}
+          {!editing && prickle.location && (
+            <div>
+              <span className="text-slate-600 dark:text-slate-400">Location:</span>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.location}</p>
+            </div>
+          )}
           <div>
             <span className="text-slate-600 dark:text-slate-400">Date:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(startTime)}</p>

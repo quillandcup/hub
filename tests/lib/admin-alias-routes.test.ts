@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
 import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { ambiguousZoomName } from "@/tests/helpers/zoom-fixtures";
 
 // The admin routes that create name aliases (the names attendance is matched by) refuse a name that
 // belongs to another member (lib/name-alias-conflict.ts) instead of taking it over.
@@ -107,6 +108,9 @@ describe("POST /api/aliases", () => {
 });
 
 describe("POST /api/zoom/resolve-ambiguous", () => {
+  beforeEach(() => {
+    dataset.ambiguousZoomNames.push(ambiguousZoomName({ zoom_name: "Katie" }));
+  });
   const post = (body: unknown) =>
     resolveAmbiguous(new NextRequest("http://localhost/api/zoom/resolve-ambiguous", { method: "POST", body: JSON.stringify(body) }));
 
@@ -116,7 +120,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
     expect(res.status).toBe(200);
     expect(rpcMock).toHaveBeenCalledWith("name_alias_conflict", { p_member_id: ADA.id, p_alias: "Katie" });
     expect(dataset.nameAliases.map((a) => [a.member_id, a.alias, a.source])).toEqual([[ADA.id, "Katie", "zoom"]]);
-    expect(writes("ambiguous_zoom_names", "update")).toHaveLength(1);
+    expect(dataset.ambiguousZoomNames.map((r) => [r.status, r.resolved_member_id])).toEqual([["resolved", ADA.id]]);
     expect(triggerReprocessingMock).toHaveBeenCalledWith("member_name_aliases", "local");
   });
 
@@ -127,7 +131,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "db down" });
-    expect(writes("ambiguous_zoom_names", "update")).toHaveLength(0);
+    expect(dataset.ambiguousZoomNames.map((r) => r.status)).toEqual(["unresolved"]);
   });
 
   it("doesn't take the name from another member", async () => {
@@ -138,7 +142,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
     expect(res.status).toBe(409);
     expect((await res.json()).error).toContain("already an alias for Fern Example");
     expect(dataset.nameAliases).toEqual([]);
-    expect(writes("ambiguous_zoom_names", "update")).toHaveLength(0);
+    expect(dataset.ambiguousZoomNames.map((r) => r.status)).toEqual(["unresolved"]);
   });
 
   it("doesn't shadow another member's real name when the name isn't an ambiguous one", async () => {
@@ -148,7 +152,7 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
   });
 
   it("lets the admin pick who uses a name that is another member's real name, when it is ambiguous", async () => {
-    tables.ambiguous_zoom_names = { data: [{ zoom_name: "Fern" }] };
+    dataset.ambiguousZoomNames.push(ambiguousZoomName({ zoom_name: "Fern" }));
     rpcMock.mockResolvedValue(conflictRow("other_name"));
 
     const res = await post({ zoomName: "Fern", memberId: ADA.id });
@@ -159,12 +163,13 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
   });
 
   it("reports a failed lookup of the ambiguous name", async () => {
-    tables.ambiguous_zoom_names = { data: null, error: { message: "lookup down" } };
+    vi.spyOn(repos.zoom, "hasUnresolvedAmbiguousName").mockRejectedValue(new Error("lookup down"));
     rpcMock.mockResolvedValue(conflictRow("other_name"));
 
     const res = await post({ zoomName: "Fern", memberId: ADA.id });
 
     expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("lookup down");
     expect(dataset.nameAliases).toEqual([]);
   });
 
@@ -175,7 +180,31 @@ describe("POST /api/zoom/resolve-ambiguous", () => {
 
     expect(res.status).toBe(200);
     expect(dataset.nameAliases).toEqual([]);
-    expect(writes("ambiguous_zoom_names", "update")).toHaveLength(1);
+    expect(dataset.ambiguousZoomNames.map((r) => [r.status, r.resolved_member_id])).toEqual([["resolved", ADA.id]]);
+  });
+
+  it("marks the name ignored without making an alias", async () => {
+    const res = await post({ zoomName: "Katie", action: "ignore" });
+
+    expect(res.status).toBe(200);
+    expect(dataset.ambiguousZoomNames.map((r) => r.status)).toEqual(["ignored"]);
+    expect(dataset.nameAliases).toEqual([]);
+    expect(triggerReprocessingMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed ignore", async () => {
+    vi.spyOn(repos.zoom, "ignoreAmbiguousName").mockRejectedValue(new Error("ignore down"));
+    const res = await post({ zoomName: "Katie", action: "ignore" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "ignore down" });
+  });
+
+  it("reports a failed resolve after the alias is saved", async () => {
+    vi.spyOn(repos.zoom, "resolveAmbiguousName").mockRejectedValue(new Error("resolve down"));
+    const res = await post({ zoomName: "Katie", memberId: ADA.id });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "resolve down" });
+    expect(triggerReprocessingMock).not.toHaveBeenCalled();
   });
 
   it("asks the admin to switch it back on when the member has it switched off", async () => {

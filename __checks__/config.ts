@@ -6,6 +6,9 @@ import appConfig from '../app.config'
 export const appUrl = appConfig.appUrl.replace(/\/+$/, '')
 export const appHost = new URL(appUrl).host
 
+/** The Slack channel (name) the monitors alert, alongside the email. */
+export const alertsSlackChannel = appConfig.slack.alertsChannelName
+
 /** The monitors watch production, so they alert production's ALERTS_EMAIL. */
 const alertsEmail = process.env.ALERTS_EMAIL
 if (!alertsEmail) throw new Error('ALERTS_EMAIL is not set -- see env-vars.config.ts')

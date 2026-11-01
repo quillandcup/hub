@@ -7,8 +7,8 @@ vi.mock("next/link", () => ({
 }));
 
 import EventsClient from "@/app/(admin)/admin/events/EventsClient";
-import EventDetailClient from "@/app/(admin)/admin/events/[id]/EventDetailClient";
-import ImportPhotosClient from "@/app/(admin)/admin/events/[id]/import-photos/ImportPhotosClient";
+import EventDetailClient from "@/app/(admin)/admin/events/[slug]/EventDetailClient";
+import ImportPhotosClient from "@/app/(admin)/admin/events/[slug]/import-photos/ImportPhotosClient";
 import MemberOverridesClient from "@/app/(admin)/admin/member-overrides/MemberOverridesClient";
 import ProgramsClient from "@/app/(admin)/admin/programs/ProgramsClient";
 import ProgramDetailClient from "@/app/(admin)/admin/programs/[id]/ProgramDetailClient";
@@ -107,7 +107,7 @@ describe("admin pages that fetch on mount", () => {
       "/api/admin/events/evt_1/photos/import/status": { body: { mediaItemsSet: true } },
       "/api/admin/events/evt_1/photos/import/commit": { body: { total: 3, imported: 3, skipped: 0, remaining: 0 } },
     });
-    render(<ImportPhotosClient eventId="evt_1" pickerUri="https://picker.example.com/x" />);
+    render(<ImportPhotosClient eventId="evt_1" slug="spring-retreat" pickerUri="https://picker.example.com/x" />);
     expect(await screen.findByText(/3 of 3 photos imported/)).toBeInTheDocument();
     expect(fetchFn).toHaveBeenCalledWith("/api/admin/events/evt_1/photos/import/status");
   });
@@ -116,7 +116,7 @@ describe("admin pages that fetch on mount", () => {
     mockFetch({
       "/api/admin/events/evt_1/photos/import/status": { ok: false, body: { error: "Picker unavailable" } },
     });
-    render(<ImportPhotosClient eventId="evt_1" pickerUri="https://picker.example.com/x" />);
+    render(<ImportPhotosClient eventId="evt_1" slug="spring-retreat" pickerUri="https://picker.example.com/x" />);
     expect(await screen.findByText("Picker unavailable")).toBeInTheDocument();
   });
 

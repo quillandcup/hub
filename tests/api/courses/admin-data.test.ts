@@ -21,7 +21,7 @@ describe('Admin course data', () => {
   const days = (n: number) => new Date(now.getTime() + n * 86_400_000).toISOString()
 
   async function cleanup() {
-    await supabase.from('courses').delete().eq('source_key', PUBLISHED)
+    await supabase.from('courses').delete().in('source_key', [PUBLISHED, UNPUBLISHED])
     await bronze.from('kajabi_lesson_files').delete().like('kajabi_id', `${PUBLISHED}-%`)
     for (const id of [PUBLISHED, UNPUBLISHED]) {
       await bronze.from('kajabi_course_lessons').delete().eq('course_kajabi_id', id)
@@ -55,6 +55,13 @@ describe('Admin course data', () => {
       .select('id')
       .single()
     ids.course = course!.id
+    // What the Kajabi import makes for a course that is not published: a draft row.
+    const { data: draft } = await supabase
+      .from('courses')
+      .insert({ slug: `admin-unpublished-${ts}`, title: 'Admin Unpublished', source_key: UNPUBLISHED, is_draft: true })
+      .select('id')
+      .single()
+    ids.draft = draft!.id
     const { data: members } = await supabase
       .from('members')
       .insert(['now', 'soon', 'over'].map((w) => ({ name: `Adm ${w}`, email: `adm-${w}-${ts}@example.com`, joined_at: now.toISOString(), status: 'active' })))
@@ -71,7 +78,7 @@ describe('Admin course data', () => {
 
   describe('loadAdminCourses', () => {
     it('lists a published course with its settings, access counts and lesson states', async () => {
-      const row = (await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === PUBLISHED)!
+      const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!
       // The interval comes back as ISO or Postgres text depending on the connection; it reads the same.
       expect(row.published).toMatchObject({ slug: `admin-published-${ts}` })
       expect(accessLabel(row.published!.accessDuration)).toBe('1 year')
@@ -81,13 +88,24 @@ describe('Admin course data', () => {
     })
 
     it('lists an unpublished course with the slug publishing would use, and no access', async () => {
-      const row = (await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === UNPUBLISHED)!
-      expect(row).toMatchObject({ published: null, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
+      const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === ids.draft)!
+      expect(row).toMatchObject({ id: ids.draft, published: null, slug: `admin-unpublished-${ts}`, access: { current: 0, upcoming: 0, ended: 0 } })
+    })
+
+    it('has no id for an imported course that has no row yet, so nothing links to it', async () => {
+      const NOROW = `test-adm-norow-${ts}`
+      await bronze.from('kajabi_courses').insert({ kajabi_id: NOROW, title: `Admin No Row ${ts}`, raw_payload: {} })
+      try {
+        const row = (await loadAdminCourses(supabase, now)).find((c) => c.title === `Admin No Row ${ts}`)!
+        expect(row.id).toBeNull()
+      } finally {
+        await bronze.from('kajabi_courses').delete().eq('kajabi_id', NOROW)
+      }
     })
 
     it('puts published courses first', async () => {
       const rows = await loadAdminCourses(supabase, now)
-      expect(rows.findIndex((c) => c.kajabiId === PUBLISHED)).toBeLessThan(rows.findIndex((c) => c.kajabiId === UNPUBLISHED))
+      expect(rows.findIndex((c) => c.id === ids.course)).toBeLessThan(rows.findIndex((c) => c.id === ids.draft))
     })
   })
 
@@ -111,11 +129,11 @@ describe('Admin course data', () => {
     })
 
     it('are in the list beside the imported ones, marked as the Hub\'s, with their lesson states and access', async () => {
-      const row = (await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === hubId)!
+      const row = (await loadAdminCourses(supabase, now)).find((c) => c.id === hubId)!
       expect(row).toMatchObject({ source: 'hub', title: `Admin Hub ${ts}`, slug: HUB, totals: { open: 2, coming_soon: 1, hidden: 1 }, access: { current: 1, upcoming: 0, ended: 0 } })
       expect(row.published).toMatchObject({ slug: HUB })
       expect(accessLabel(row.published!.accessDuration)).toBe('6 months')
-      expect((await loadAdminCourses(supabase, now)).find((c) => c.kajabiId === PUBLISHED)!.source).toBe('kajabi')
+      expect((await loadAdminCourses(supabase, now)).find((c) => c.id === ids.course)!.source).toBe('kajabi')
     })
 
     it('load for their own page, with the details the form edits', async () => {
@@ -151,75 +169,86 @@ describe('Admin course data', () => {
       expect(await loadHubCourse(supabase, 'crs_AAAAAAAAAAA1', now)).toBeNull()
     })
 
-    it("give the tab their own name, and nothing for an imported course's id or an unknown one", async () => {
+    it("give the tab their own name, and nothing for an unknown one", async () => {
       expect(await loadAdminCourseTitle(supabase, hubId)).toBe(`Admin Hub ${ts}`)
       const { data: imported } = await supabase.from('courses').select('id').eq('source_key', PUBLISHED).single()
-      expect(await loadAdminCourseTitle(supabase, imported!.id)).toBeNull()
+      expect(await loadAdminCourseTitle(supabase, imported!.id)).toBe('Admin Published')
       expect(await loadAdminCourseTitle(supabase, 'crs_AAAAAAAAAAA1')).toBeNull()
     })
   })
 
   describe('loadAdminCourseTitle', () => {
-    it("is a course's name for the browser tab, and null for one Kajabi does not have", async () => {
-      expect(await loadAdminCourseTitle(supabase, PUBLISHED)).toBe(`Admin Published ${ts}`)
+    it("is a course's name for the browser tab by its Hub id, and null for a Kajabi id or an unknown one", async () => {
+      expect(await loadAdminCourseTitle(supabase, ids.course)).toBe('Admin Published')
+      expect(await loadAdminCourseTitle(supabase, ids.draft)).toBe('Admin Unpublished')
+      expect(await loadAdminCourseTitle(supabase, PUBLISHED)).toBeNull()
       expect(await loadAdminCourseTitle(supabase, 'no-such-course')).toBeNull()
     })
   })
 
   describe('loadAdminLesson', () => {
     const lessonId = `${PUBLISHED}-l1`
+    // A lesson has a builder page once it is in the Hub, and its address is the Hub's ids.
+    let hubLesson: string
+    let hubLoose: string
+    beforeAll(async () => {
+      const { data } = await supabase
+        .from('course_lessons')
+        .insert([
+          { course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: lessonId },
+          { course_id: ids.course, title: 'Loose open', position: 2, state: 'open', source_key: `${PUBLISHED}-l3` },
+        ])
+        .select('id, source_key')
+      hubLesson = data!.find((l) => l.source_key === lessonId)!.id
+      hubLoose = data!.find((l) => l.source_key === `${PUBLISHED}-l3`)!.id
+    })
+    afterAll(async () => {
+      await supabase.from('course_lessons').delete().in('id', [hubLesson, hubLoose])
+    })
 
     it("gives the lesson with its state, the modules above it, the course's module paths and its downloads", async () => {
       await bronze.from('kajabi_course_lessons').update({ body_html: '<p>Hey</p><script>alert(1)</script>', thumbnail_url: 'https://example.com/t.jpg', video_duration_seconds: 410 }).eq('kajabi_id', lessonId)
       await bronze.from('kajabi_lesson_files').insert({ kajabi_id: `${PUBLISHED}-f1`, lesson_kajabi_id: lessonId, filename: 'Tracker.pdf', size_bytes: 2048 })
 
-      const detail = (await loadAdminLesson(supabase, PUBLISHED, lessonId))!
-      expect(detail.course).toEqual({ kajabiId: PUBLISHED, title: `Admin Published ${ts}` })
+      const detail = (await loadAdminLesson(supabase, ids.course, hubLesson))!
+      expect(detail.course).toEqual({ id: ids.course, title: `Admin Published ${ts}` })
       expect(detail.lesson).toMatchObject({ title: 'Published in locked', publishingOption: 'published', state: 'coming_soon', reason: 'Inside “Module 2” (Locked)', hasVideo: true, videoDurationSeconds: 410, thumbnailSrc: 'https://example.com/t.jpg' })
       // Never Kajabi's raw HTML.
       expect(detail.lesson.bodyHtml).toBe('<p>Hey</p>')
       expect(detail.trail.map((t) => t.title)).toEqual(['Module 2', 'Week 1'])
       expect(detail.modules.map((m) => m.path)).toEqual(['Module 1', 'Module 2', 'Module 2 / Week 1'])
       expect(detail.files).toEqual([{ filename: 'Tracker.pdf', sizeBytes: 2048 }])
+      expect(detail.hub).toEqual({ slug: `admin-published-${ts}`, lessonId: hubLesson })
     })
 
-    it("has no module trail for a lesson outside every module, and no Hub link until the lesson is in the Hub", async () => {
-      const loose = (await loadAdminLesson(supabase, PUBLISHED, `${PUBLISHED}-l3`))!
+    it('has no module trail for a lesson outside every module', async () => {
+      const loose = (await loadAdminLesson(supabase, ids.course, hubLoose))!
       expect(loose.trail).toEqual([])
-      expect(loose.hub).toBeNull()
       expect(loose.lesson.hasVideo).toBe(false)
-    })
-
-    it("links the lesson to its Hub page once it is there", async () => {
-      const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: lessonId }).select('id').single()
-      const detail = (await loadAdminLesson(supabase, PUBLISHED, lessonId))!
-      expect(detail.hub).toEqual({ slug: `admin-published-${ts}`, lessonId: hub!.id })
-      // Other tests insert the same Hub lesson.
-      await supabase.from('course_lessons').delete().eq('id', hub!.id)
     })
 
     it("gives the Hub lesson's video, what plays it and whether it is ready, and none before the lesson has one", async () => {
       const { data: video } = await supabase.from('videos').insert({ source_kind: 'kajabi', source_key: `${PUBLISHED}-media`, status: 'ready', mux_playback_id: 'pb-test', duration_seconds: 410 }).select('id').single()
-      const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: lessonId }).select('id').single()
-      expect((await loadAdminLesson(supabase, PUBLISHED, lessonId))!.video).toBeNull()
+      expect((await loadAdminLesson(supabase, ids.course, hubLesson))!.video).toBeNull()
 
-      await supabase.from('course_lessons').update({ video_id: video!.id }).eq('id', hub!.id)
-      expect((await loadAdminLesson(supabase, PUBLISHED, lessonId))!.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
-      // Other tests insert the same Hub lesson.
-      await supabase.from('course_lessons').delete().eq('id', hub!.id)
+      await supabase.from('course_lessons').update({ video_id: video!.id }).eq('id', hubLesson)
+      expect((await loadAdminLesson(supabase, ids.course, hubLesson))!.video).toEqual({ status: 'ready', playbackId: 'pb-test' })
+      await supabase.from('course_lessons').update({ video_id: null }).eq('id', hubLesson)
       await supabase.from('videos').delete().eq('id', video!.id)
     })
 
-    it('is null for a lesson in another course, one that does not exist, or a course Kajabi does not have', async () => {
-      expect(await loadAdminLesson(supabase, UNPUBLISHED, lessonId)).toBeNull()
-      expect(await loadAdminLesson(supabase, PUBLISHED, 'no-such-lesson')).toBeNull()
-      expect(await loadAdminLesson(supabase, 'no-such-course', lessonId)).toBeNull()
+    it('is null for a lesson of another course, an unknown lesson or course, and any Kajabi id', async () => {
+      expect(await loadAdminLesson(supabase, ids.draft, hubLesson)).toBeNull()
+      expect(await loadAdminLesson(supabase, ids.course, 'les_AAAAAAAAAAA1')).toBeNull()
+      expect(await loadAdminLesson(supabase, 'crs_AAAAAAAAAAA1', hubLesson)).toBeNull()
+      expect(await loadAdminLesson(supabase, PUBLISHED, hubLesson)).toBeNull()
+      expect(await loadAdminLesson(supabase, ids.course, lessonId)).toBeNull()
     })
   })
 
   describe('loadAdminCourse', () => {
     it('explains a published lesson inside a locked module, and flags what the content step found', async () => {
-      const detail = (await loadAdminCourse(supabase, PUBLISHED, now))!
+      const detail = (await loadAdminCourse(supabase, ids.course, now))!
       const module2 = detail.explained.modules.find((m) => m.title === 'Module 2')!
       expect(module2).toMatchObject({ state: 'coming_soon', reason: 'Locked in Kajabi' })
       expect(module2.children[0].lessons[0]).toMatchObject({ title: 'Published in locked', state: 'coming_soon', reason: 'Inside “Module 2” (Locked)' })
@@ -230,27 +259,28 @@ describe('Admin course data', () => {
 
     it('maps Kajabi lessons to their Hub lessons, only for lessons that are in the Hub', async () => {
       const { data: hub } = await supabase.from('course_lessons').insert({ course_id: ids.course, title: 'Published in locked', position: 1, state: 'coming_soon', source_key: `${PUBLISHED}-l1` }).select('id').single()
-      const detail = (await loadAdminCourse(supabase, PUBLISHED, now))!
+      const detail = (await loadAdminCourse(supabase, ids.course, now))!
       expect(detail.hubLessonIds).toEqual({ [`${PUBLISHED}-l1`]: hub!.id })
       // An unpublished course has none.
-      expect((await loadAdminCourse(supabase, UNPUBLISHED, now))!.hubLessonIds).toEqual({})
+      expect((await loadAdminCourse(supabase, ids.draft, now))!.hubLessonIds).toEqual({})
     })
 
     it('gives the builder its details and when the structure was last imported, newest row first', async () => {
       await supabase.from('courses').update({ description: 'Learn to write.' }).eq('id', ids.course)
       const newest = '2031-05-06T12:00:00.000Z'
       await bronze.from('kajabi_course_lessons').update({ fetched_at: newest }).eq('kajabi_id', `${PUBLISHED}-l3`)
-      const detail = (await loadAdminCourse(supabase, PUBLISHED, now))!
+      const detail = (await loadAdminCourse(supabase, ids.course, now))!
       expect(detail.details).toEqual({ description: 'Learn to write.', includesMembership: null })
       expect(new Date(detail.lastImportedAt!).toISOString()).toBe(newest)
       // Not in the Hub yet: nothing to show beyond Kajabi's own data.
-      const unpublished = (await loadAdminCourse(supabase, UNPUBLISHED, now))!
+      const unpublished = (await loadAdminCourse(supabase, ids.draft, now))!
       expect(unpublished.details).toEqual({ description: null, includesMembership: null })
       expect(unpublished.lastImportedAt).not.toBeNull()
     })
 
-    it('is null for a course Kajabi does not have', async () => {
-      expect(await loadAdminCourse(supabase, 'no-such-course', now)).toBeNull()
+    it('is null for an unknown id and for a Kajabi id', async () => {
+      expect(await loadAdminCourse(supabase, 'crs_AAAAAAAAAAA1', now)).toBeNull()
+      expect(await loadAdminCourse(supabase, PUBLISHED, now)).toBeNull()
     })
   })
 })

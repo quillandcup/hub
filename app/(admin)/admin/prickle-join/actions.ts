@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { effectiveFromForDate, isFutureDate } from "@/lib/prickle-join";
 
@@ -31,14 +32,15 @@ export async function savePrickleJoin(input: { url: string; meetingId: string; p
   }
   const effectiveFrom = startDate ? effectiveFromForDate(startDate, ORG_TIMEZONE) : now;
 
-  const { error } = await auth.supabase.from("prickle_join_settings").insert({
-    join_url: url,
-    meeting_id: meetingId || null,
-    passcode: passcode || null,
-    effective_from: effectiveFrom.toISOString(),
-    created_by: auth.user.id,
-  });
-  if (error) {
+  try {
+    await createRepos(auth.supabase).zoom.addJoinSetting({
+      joinUrl: url,
+      meetingId: meetingId || null,
+      passcode: passcode || null,
+      effectiveFrom: effectiveFrom.toISOString(),
+      createdBy: auth.user.id,
+    });
+  } catch (error) {
     console.error("savePrickleJoin failed", error);
     return { error: "Couldn't save the join link" };
   }
@@ -52,12 +54,14 @@ export async function removeScheduledPrickleJoin(id: string) {
   if (!auth.ok) return { error: auth.error };
   if (typeof id !== "string" || !id) return { error: "Invalid setting" };
 
-  const { data, error } = await auth.supabase.from("prickle_join_settings").delete().eq("id", id).select("id");
-  if (error) {
+  let removed;
+  try {
+    removed = await createRepos(auth.supabase).zoom.removeJoinSetting(id);
+  } catch (error) {
     console.error("removeScheduledPrickleJoin failed", error);
     return { error: "Couldn't remove it" };
   }
-  if (!data?.length) return { error: "That change already took effect, so it can't be removed" };
+  if (!removed) return { error: "That change already took effect, so it can't be removed" };
   revalidatePath("/admin/prickle-join");
   return { success: true as const };
 }

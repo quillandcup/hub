@@ -35,7 +35,7 @@ export default async function CalendarPage({
 
   // The week's prickles (type and host joined in) and who attended each
   const repos = createRepos(supabase);
-  const prickles = await repos.prickles.startingBetween({ from: week.startInstant.toISOString(), to: week.endInstant.toISOString() });
+  const prickles = await repos.prickles.startingBetween({ from: week.startInstant.toISOString(), to: week.endInstant.toISOString(), includeEventType: true });
   const attendanceByPrickle = new Map<string, { memberId: string; joinTime: string }[]>();
   for (const link of await repos.attendance.forPrickles(prickles.map((p) => p.id))) {
     attendanceByPrickle.set(link.prickleId, [...(attendanceByPrickle.get(link.prickleId) ?? []), link]);

@@ -5,9 +5,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import EventAudienceFields from "@/components/EventAudienceFields";
-import { DEFAULT_AUDIENCE, type EventAudience } from "@/lib/event-audience";
+import { DEFAULT_AUDIENCE, type EventAudienceForm as EventAudience } from "@/lib/event-audience";
 
-function Harness({ initial = DEFAULT_AUDIENCE, onChange }: { initial?: EventAudience; onChange?: (v: EventAudience) => void }) {
+function Harness({ initial = { ...DEFAULT_AUDIENCE, speakers: null }, onChange }: { initial?: EventAudience; onChange?: (v: EventAudience) => void }) {
   const [value, setValue] = useState(initial);
   return (
     <EventAudienceFields
@@ -67,7 +67,7 @@ describe("EventAudienceFields", () => {
 
   it("lets the hosts choose when there are more people than places", async () => {
     const onChange = vi.fn();
-    render(<Harness initial={{ ...DEFAULT_AUDIENCE, registration: "signup", capacity: 7 }} onChange={onChange} />);
+    render(<Harness initial={{ ...DEFAULT_AUDIENCE, speakers: null, registration: "signup", capacity: 7 }} onChange={onChange} />);
 
     await userEvent.selectOptions(screen.getByLabelText("When there are more people than places"), "selected");
 

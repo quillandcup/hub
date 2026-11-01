@@ -39,11 +39,11 @@ let data: InMemoryDataset;
 
 function makeSupabaseMock() {
   const projectSingle = vi.fn().mockResolvedValue({ data: { id: "project-1" }, error: null });
-  const projectUpdate = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) }));
+  const projectUpdate = vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ is: vi.fn().mockResolvedValue({ error: null }) })) })) }));
   const from = vi.fn((table: string) => {
     if (table === "writing_projects") {
       return {
-        select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: projectSingle })) })) })),
+        select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ is: vi.fn(() => ({ maybeSingle: projectSingle })) })) })) })),
         update: projectUpdate,
       };
     }

@@ -8,6 +8,7 @@ import { redirect, notFound } from "next/navigation";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { isId } from "@/lib/ids";
 
 export const metadata: Metadata = {
   title: "Event",
@@ -17,11 +18,11 @@ export default async function EventDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{ photo_import_error?: string }>;
 }) {
   await requireAdminPage();
-  const { id } = await params;
+  const { slug } = await params;
   const { photo_import_error } = await searchParams;
   const supabase = await createClient();
 
@@ -31,7 +32,13 @@ export default async function EventDetailPage({
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("events")) redirect("/admin");
 
-  const event = await createRepos(supabase).events.byId(id);
+  const events = createRepos(supabase).events;
+  const event = await events.bySlug(slug);
+  if (!event && isId(slug, "evt")) {
+    // An older link, bookmark or message with the event's id: go to its address.
+    const byId = await events.byId(slug);
+    if (byId) redirect(`/admin/events/${byId.slug}${photo_import_error ? `?photo_import_error=${encodeURIComponent(photo_import_error)}` : ""}`);
+  }
   if (!event) notFound();
 
   return (
@@ -59,7 +66,7 @@ export default async function EventDetailPage({
             Google Photos import didn&apos;t start ({photo_import_error}). Try again.
           </div>
         )}
-        <EventDetailClient eventId={id} />
+        <EventDetailClient eventId={event.id} />
       </main>
     </div>
   );

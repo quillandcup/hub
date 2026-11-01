@@ -1,12 +1,94 @@
+import { ORG_TIMEZONE } from "@/lib/config";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
+import type { Prickle } from "./prickles";
 
 /**
- * An event as the in-memory dataset keeps it. The badges only need `id`, `title` and `slug`; the rest
- * of the database's columns are optional so a test or seed names just the ones it cares about.
+ * An event as the in-memory dataset keeps it: only what the `events` table holds. Its schedule (title,
+ * host, times...) is the prickle `prickle_id` points at, joined in by `eventDetail`. The rest of the
+ * columns are optional so a test or seed names just the ones it cares about.
  */
-export type EventRow = Pick<Row<"events">, "id" | "title" | "slug"> & Partial<Omit<Row<"events">, "id" | "title" | "slug">>;
+export type EventRow = Pick<Row<"community_events">, "id" | "slug" | "prickle_id"> & Partial<Omit<Row<"community_events">, "id" | "slug" | "prickle_id">>;
+
+/**
+ * An event with the schedule of the prickle it stands on (the `community_event_details` view): the title is the
+ * prickle's own, else its type's name; `starts_at`/`ends_at` are Eastern days (YYYY-MM-DD), an event
+ * ending exactly at midnight ending the day before. Nothing here is stored on the event itself.
+ */
+export type EventDetail = Row<"community_events"> & {
+  title: string;
+  description: string | null;
+  location: string | null;
+  /** The guest speaker of the prickle. */
+  speakers: string | null;
+  /** Member id of the prickle's host, if it has one. */
+  host_id: string | null;
+  /** The host's display name (else name), else a Hub session's free-text host. */
+  host_name: string | null;
+  start_time: string;
+  end_time: string;
+  starts_at: string;
+  ends_at: string;
+};
+
+/** YYYY-MM-DD of an instant in the organization's timezone. */
+const orgDay = (instant: string | number | Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(instant));
+
+/** The Eastern days a prickle's window covers: it starts on `starts_at` and, ending exactly at midnight, ends the day before. */
+export function eventDays(startTime: string, endTime: string): { starts_at: string; ends_at: string } {
+  const start = new Date(startTime).getTime();
+  const lastMinute = Math.max(start, new Date(endTime).getTime() - 60_000);
+  return { starts_at: orgDay(start), ends_at: orgDay(lastMinute) };
+}
+
+/**
+ * An in-memory event joined with its prickle (type name for the title, member names for the host, hub
+ * session for a free-text host), the way the `community_event_details` view does it. Null when the prickle is missing.
+ */
+export function eventDetail(data: InMemoryDataset, event: EventRow): EventDetail | null {
+  const prickle = data.prickles.find((p) => p.id === event.prickle_id);
+  if (!prickle) return null;
+  const type = data.prickleTypes.find((t) => t.id === prickle.typeId);
+  const host = prickle.hostId ? data.members.find((m) => m.id === prickle.hostId) : undefined;
+  const session = prickle.hubSessionId ? data.hubSessions.find((s) => s.id === prickle.hubSessionId) : undefined;
+  return {
+    agenda: null,
+    announced_publicly: false,
+    automatic: false,
+    capacity: null,
+    created_at: prickle.startTime,
+    created_by: null,
+    deleted_at: null,
+    event_type: "other",
+    focus: null,
+    google_photos_album_url: null,
+    guests_allowed: false,
+    image_id: null,
+    registration: "none",
+    results: null,
+    selection: "first_come",
+    updated_at: prickle.startTime,
+    ...event,
+    title: prickle.title?.trim() || type?.name || "Untitled event",
+    description: prickle.description ?? null,
+    location: prickle.location ?? null,
+    speakers: prickle.guestSpeaker ?? null,
+    host_id: prickle.hostId,
+    host_name: host?.displayName?.trim() || host?.name || session?.hostName || null,
+    start_time: prickle.startTime,
+    end_time: prickle.endTime,
+    ...eventDays(prickle.startTime, prickle.endTime),
+  };
+}
+
+/** The in-memory event details, every event that has a prickle. */
+export const eventDetails = (data: InMemoryDataset): EventDetail[] => data.events.flatMap((e) => eventDetail(data, e) ?? []);
+
+/** The calendar item a prickle comes from, for the calendar-sync reads. */
+const calendarOf = (data: InMemoryDataset, prickleId: string): Prickle | undefined => data.prickles.find((p) => p.id === prickleId);
+
 
 /** An attendee row as the in-memory dataset keeps it (only the event matters to the calendar sync). */
 export type EventAttendeeRow = Pick<Row<"event_attendees">, "event_id"> & Partial<Omit<Row<"event_attendees">, "event_id">>;
@@ -41,19 +123,21 @@ export interface EventRepository {
 
   // --- calendar sync ---
 
-  /** The event that follows this calendar event (a hidden one included), or null. */
+  /** The event standing on the prickle made from this calendar event (a hidden one included), or null. */
   byCalendarEventId(calendarEventId: string): Promise<CalendarLinkedEvent | null>;
-  /** Which of these calendar events already have an event (hidden ones count). Chunked. */
+  /** The event standing on this prickle (a hidden one included), with its schedule, or null. */
+  byPrickleId(prickleId: string): Promise<EventDetail | null>;
+  /** Which of these calendar events already have an event through their prickle (hidden ones count). Chunked. */
   calendarEventIdsWithEvent(calendarEventIds: string[]): Promise<Set<string>>;
-  /** The events that follow these calendar events, with the fields an admin overrode. Chunked. */
+  /** The events standing on the prickles of these calendar events. Chunked. */
   linkedToCalendarEvents(calendarEventIds: string[]): Promise<CalendarFollower[]>;
-  /** Creates an event; a unique violation comes back as a conflict instead of throwing, so the caller can retry. */
-  createFromCalendar(row: Insert<"events">): Promise<CreateEventResult>;
+  /** Creates an event on a prickle; a unique violation (the prickle already has one, or the slug is taken) comes back as a conflict instead of throwing, so the caller can retry. */
+  createForPrickle(row: Insert<"community_events">): Promise<CreateEventResult>;
   /** Writes these columns to one event. */
-  update(id: string, fields: Update<"events">): Promise<void>;
-  /** The automatic events that follow one of these calendar events. Chunked. */
+  update(id: string, fields: Update<"community_events">): Promise<void>;
+  /** The automatic events standing on a prickle of one of these calendar events. Chunked. */
   automaticFollowing(calendarEventIds: string[]): Promise<{ id: string; calendarEventId: string }[]>;
-  /** Ids of the automatic events whose calendar event is gone (no link). Paginated. */
+  /** Ids of the automatic events whose prickle no longer has a calendar event (the item is gone). Paginated. */
   automaticWithoutCalendarEvent(): Promise<string[]>;
   /** Which of these events have a photo or an attendee. Chunked. */
   idsWithPhotosOrAttendees(eventIds: string[]): Promise<Set<string>>;
@@ -64,8 +148,8 @@ export interface EventRepository {
 
   /** Every event (hidden ones too, flagged by `deleted_at`), newest first, each with the id of its first visible photo. Paginated. */
   listWithCover(): Promise<EventListItem[]>;
-  /** The visible (not hidden by an admin) event with this slug, or null. */
-  visibleBySlug(slug: string): Promise<Row<"events"> | null>;
+  /** The visible (not hidden by an admin) event with this slug, with its schedule, or null. */
+  visibleBySlug(slug: string): Promise<EventDetail | null>;
   /** The event's photos an admin has not hidden, in the order they were taken. */
   visiblePhotos(eventId: string): Promise<EventPhotoSummary[]>;
   /** Whether a visible event has this id. */
@@ -79,14 +163,16 @@ export interface EventRepository {
 
   /** Every event, newest first, each with how many of its photos are not hidden. Paginated. */
   listWithPhotoCounts(): Promise<EventWithPhotoCount[]>;
-  /** One event by id, or null. */
-  byId(id: string): Promise<Row<"events"> | null>;
-  /** Creates an event and returns it. */
-  create(fields: Insert<"events">): Promise<Row<"events">>;
+  /** One event by id with its schedule, or null. */
+  byId(id: string): Promise<EventDetail | null>;
+  /** One event by slug with its schedule (a hidden one included), or null: the admin page's address. */
+  bySlug(slug: string): Promise<EventDetail | null>;
+  /** Creates an event (it needs `prickle_id`) and returns it with its schedule. */
+  create(fields: Insert<"community_events">): Promise<EventDetail>;
   /** Updates an event and returns it; throws when there is no such event. (`update` writes without reading back.) */
-  edit(id: string, fields: Update<"events">): Promise<Row<"events">>;
+  edit(id: string, fields: Update<"community_events">): Promise<EventDetail>;
   /** Hides an event (`deletedAt` set) or shows it again (null); the event, or null when there is none. */
-  setDeletedAt(id: string, deletedAt: string | null): Promise<Row<"events"> | null>;
+  setDeletedAt(id: string, deletedAt: string | null): Promise<EventDetail | null>;
   /** Deletes an event; its photo and attendee rows go with it. */
   remove(id: string): Promise<void>;
   /** An event's photos, oldest first (undated last). */
@@ -112,12 +198,12 @@ export interface CalendarLinkedEvent {
 export interface CalendarFollower {
   id: string;
   calendarEventId: string | null;
-  overriddenFields: string[];
+  prickleId: string;
 }
 
 export type CreateEventResult =
   | { status: "created"; event: { id: string; slug: string } }
-  | { status: "conflict"; on: "calendar_event" | "slug" };
+  | { status: "conflict"; on: "prickle" | "slug" };
 
 const CHUNK = 100;
 const chunks = <T>(items: T[], size = CHUNK): T[][] => {
@@ -141,14 +227,14 @@ export interface EventListItem {
   location: string | null;
   starts_at: string;
   ends_at: string;
-  /** The exact instants, for an event that follows a calendar item; null for one made by hand (dates only). */
-  start_time: string | null;
-  end_time: string | null;
+  start_time: string;
+  end_time: string;
   focus: string | null;
   registration: string;
   speakers: string | null;
   host_name: string | null;
-  calendar_event_id: string | null;
+  /** The prickle the event stands on. */
+  prickle_id: string;
   deleted_at: string | null;
   /** The cover picked from the media library, if any. */
   imageId: string | null;
@@ -202,11 +288,8 @@ const SEARCH_FIELDS = ["title", "speakers", "host_name", "location", "focus", "d
 const ID_CHUNK_SIZE = 200;
 /** A search word with the characters that mean something to LIKE or to a PostgREST filter neutralized. */
 const searchWord = (word: string) => word.replace(/[\\%_,()"]/g, " ").trim();
-const byStartsAtDesc = (a: EventRow, b: EventRow) => {
-  const x = a.starts_at ?? "";
-  const y = b.starts_at ?? "";
-  return x !== y ? (x < y ? 1 : -1) : a.id < b.id ? -1 : 1;
-};
+const byStartsAtDesc = (a: { starts_at: string; id: string }, b: { starts_at: string; id: string }) =>
+  a.starts_at !== b.starts_at ? (a.starts_at < b.starts_at ? 1 : -1) : a.id < b.id ? -1 : 1;
 const photoOrder = (a: EventPhotoRow, b: EventPhotoRow) => {
   const ta = a.taken_at ?? null;
   const tb = b.taken_at ?? null;
@@ -215,7 +298,7 @@ const photoOrder = (a: EventPhotoRow, b: EventPhotoRow) => {
 };
 
 /** An event with its count of photos that are not hidden. */
-export type EventWithPhotoCount = Row<"events"> & { photo_count: number };
+export type EventWithPhotoCount = EventDetail & { photo_count: number };
 
 /** An event attendee with the member's names (null when the member row is gone). */
 export interface EventAttendeeEntry {
@@ -233,7 +316,7 @@ export class SupabaseEventRepository implements EventRepository {
   async choices(): Promise<EventChoice[]> {
     type Page = { data: EventChoice[] | null; error: { message: string } | null };
     return fetchAllRows<EventChoice>(
-      (from, to) => this.db.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("community_event_details").select("id, title, starts_at").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
     );
   }
 
@@ -279,57 +362,66 @@ export class SupabaseEventRepository implements EventRepository {
   // --- calendar sync ---
 
   async byCalendarEventId(calendarEventId: string) {
-    const { data, error } = await this.db.from("events").select("id, slug, deleted_at, automatic").eq("calendar_event_id", calendarEventId).maybeSingle();
+    const { data, error } = await this.db
+      .from("community_events")
+      .select("id, slug, deleted_at, automatic, prickles!inner(calendar_event_id)")
+      .eq("prickles.calendar_event_id", calendarEventId)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     return data ? { id: data.id, slug: data.slug, hidden: !!data.deleted_at, automatic: !!data.automatic } : null;
   }
 
-  async calendarEventIdsWithEvent(calendarEventIds: string[]) {
-    const have = new Set<string>();
-    for (const chunk of chunks(calendarEventIds)) {
-      const { data, error } = await this.db.from("events").select("calendar_event_id").in("calendar_event_id", chunk);
-      if (error) throw new Error(error.message);
-      for (const row of data ?? []) if (row.calendar_event_id) have.add(row.calendar_event_id);
-    }
-    return have;
+  async byPrickleId(prickleId: string) {
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("prickle_id", prickleId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as unknown as EventDetail | null;
   }
 
-  async linkedToCalendarEvents(calendarEventIds: string[]) {
-    const out: CalendarFollower[] = [];
-    for (const chunk of chunks(calendarEventIds)) {
-      const { data, error } = await this.db.from("events").select("id, calendar_event_id, overridden_fields").in("calendar_event_id", chunk).order("id");
+  /** Events with the calendar event of their prickle, for these calendar events. */
+  private async onCalendarEvents(calendarEventIds: string[], automaticOnly = false) {
+    const out: { id: string; prickleId: string; calendarEventId: string; deletedAt: string | null }[] = [];
+    for (const ids of chunks(calendarEventIds)) {
+      let query = this.db.from("community_events").select("id, prickle_id, deleted_at, prickles!inner(calendar_event_id)").in("prickles.calendar_event_id", ids);
+      if (automaticOnly) query = query.eq("automatic", true);
+      const { data, error } = await query.order("id");
       if (error) throw new Error(error.message);
-      for (const r of data ?? []) out.push({ id: r.id, calendarEventId: r.calendar_event_id, overriddenFields: r.overridden_fields });
+      for (const r of data ?? []) {
+        const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
+        if (prickle?.calendar_event_id) out.push({ id: r.id, prickleId: r.prickle_id, calendarEventId: prickle.calendar_event_id, deletedAt: r.deleted_at });
+      }
     }
     return out;
   }
 
-  async createFromCalendar(row: Insert<"events">): Promise<CreateEventResult> {
-    const { data, error } = await this.db.from("events").insert(row).select("id, slug").single();
+  async calendarEventIdsWithEvent(calendarEventIds: string[]) {
+    return new Set((await this.onCalendarEvents(calendarEventIds)).map((r) => r.calendarEventId));
+  }
+
+  async linkedToCalendarEvents(calendarEventIds: string[]) {
+    return (await this.onCalendarEvents(calendarEventIds)).map((r) => ({ id: r.id, calendarEventId: r.calendarEventId, prickleId: r.prickleId }));
+  }
+
+  async createForPrickle(row: Insert<"community_events">): Promise<CreateEventResult> {
+    const { data, error } = await this.db.from("community_events").insert(row).select("id, slug").single();
     if (!error) return { status: "created", event: { id: data.id, slug: data.slug } };
-    if (error.code === "23505") return { status: "conflict", on: error.message.includes("calendar_event_id") ? "calendar_event" : "slug" };
+    if (error.code === "23505") return { status: "conflict", on: error.message.includes("prickle_id") ? "prickle" : "slug" };
     throw new Error(error.message);
   }
 
-  async update(id: string, fields: Update<"events">) {
-    const { error } = await this.db.from("events").update(fields).eq("id", id);
+  async update(id: string, fields: Update<"community_events">) {
+    const { error } = await this.db.from("community_events").update(fields).eq("id", id);
     if (error) throw new Error(error.message);
   }
 
   async automaticFollowing(calendarEventIds: string[]) {
-    const out: { id: string; calendarEventId: string }[] = [];
-    for (const chunk of chunks(calendarEventIds)) {
-      const { data, error } = await this.db.from("events").select("id, calendar_event_id").eq("automatic", true).in("calendar_event_id", chunk).order("id");
-      if (error) throw new Error(error.message);
-      for (const r of data ?? []) if (r.calendar_event_id) out.push({ id: r.id, calendarEventId: r.calendar_event_id });
-    }
-    return out;
+    return (await this.onCalendarEvents(calendarEventIds, true)).map((r) => ({ id: r.id, calendarEventId: r.calendarEventId }));
   }
 
   async automaticWithoutCalendarEvent() {
-    type Page = { data: { id: string }[] | null; error: { message: string } | null };
-    const rows = await fetchAllRows<{ id: string }>(
-      (from, to) => this.db.from("events").select("id").eq("automatic", true).is("calendar_event_id", null).order("id").range(from, to) as unknown as PromiseLike<Page>
+    type Row = { id: string; prickles: { calendar_event_id: string | null } | { calendar_event_id: string | null }[] | null };
+    type Page = { data: Row[] | null; error: { message: string } | null };
+    const rows = await fetchAllRows<Row>(
+      (from, to) => this.db.from("community_events").select("id, prickles!inner(calendar_event_id)").eq("automatic", true).is("prickles.calendar_event_id", null).order("id").range(from, to) as unknown as PromiseLike<Page>
     );
     return rows.map((r) => r.id);
   }
@@ -351,7 +443,7 @@ export class SupabaseEventRepository implements EventRepository {
 
   async deleteByIds(ids: string[]) {
     for (const chunk of chunks(ids)) {
-      const { error } = await this.db.from("events").delete().in("id", chunk);
+      const { error } = await this.db.from("community_events").delete().in("id", chunk);
       if (error) throw new Error(error.message);
     }
   }
@@ -364,8 +456,8 @@ export class SupabaseEventRepository implements EventRepository {
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
         this.db
-          .from("events")
-          .select("id, slug, title, event_type, location, starts_at, ends_at, start_time, end_time, focus, registration, speakers, host_name, calendar_event_id, deleted_at, image_id, event_photos(id, hidden_at)")
+          .from("community_event_details")
+          .select("id, slug, title, event_type, location, starts_at, ends_at, start_time, end_time, focus, registration, speakers, host_name, prickle_id, deleted_at, image_id, event_photos(id, hidden_at)")
           .order("starts_at", { ascending: false })
           .order("id")
           .order("taken_at", { referencedTable: "event_photos", ascending: true, nullsFirst: false })
@@ -376,27 +468,27 @@ export class SupabaseEventRepository implements EventRepository {
     return rows.map(({ event_photos, image_id, ...e }) => ({ ...e, imageId: image_id, coverPhotoId: (event_photos ?? []).find((p) => !p.hidden_at)?.id ?? null }));
   }
 
-  async visibleBySlug(slug: string): Promise<Row<"events"> | null> {
-    const { data, error } = await this.db.from("events").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
+  async visibleBySlug(slug: string): Promise<EventDetail | null> {
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).is("deleted_at", null).maybeSingle();
     if (error) throw new Error(error.message);
-    return data;
+    return data as unknown as EventDetail | null;
   }
 
   // --- admin events ---
 
   async listWithPhotoCounts() {
-    type Embedded = Row<"events"> & { event_photos: { id: string; hidden_at: string | null }[] | null };
+    type Embedded = EventDetail & { event_photos: { id: string; hidden_at: string | null }[] | null };
     type Page = { data: Embedded[] | null; error: { message: string } | null };
     const rows = await fetchAllRows<Embedded>(
-      (from, to) => this.db.from("events").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
+      (from, to) => this.db.from("community_event_details").select("*, event_photos(id, hidden_at)").order("starts_at", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page>
     );
     return rows.map(({ event_photos, ...event }) => ({ ...event, photo_count: (event_photos ?? []).filter((p) => !p.hidden_at).length }));
   }
 
   async byId(id: string) {
-    const { data, error } = await this.db.from("events").select("*").eq("id", id).maybeSingle();
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data;
+    return data as unknown as EventDetail | null;
   }
 
   async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
@@ -413,7 +505,7 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async isVisible(eventId: string): Promise<boolean> {
-    const { data, error } = await this.db.from("events").select("id").eq("id", eventId).is("deleted_at", null).maybeSingle();
+    const { data, error } = await this.db.from("community_events").select("id").eq("id", eventId).is("deleted_at", null).maybeSingle();
     if (error) throw new Error(error.message);
     return data !== null;
   }
@@ -422,13 +514,13 @@ export class SupabaseEventRepository implements EventRepository {
     const out: FeedEvent[] = [];
     for (const ids of chunk(eventIds, ID_CHUNK_SIZE)) {
       const { data, error } = await this.db
-        .from("events")
+        .from("community_event_details")
         .select("id, slug, title, speakers, host_name, location, starts_at, ends_at")
         .in("id", ids)
         .is("deleted_at", null)
         .gte("ends_at", endsOnOrAfter);
       if (error) throw new Error(error.message);
-      out.push(...(data ?? []));
+      out.push(...((data ?? []) as unknown as FeedEvent[]));
     }
     return out;
   }
@@ -445,7 +537,7 @@ export class SupabaseEventRepository implements EventRepository {
       if (found.size === 0) return [];
       attendedIds = [...found].slice(0, 1000);
     }
-    let query = this.db.from("events").select("id, slug, title, speakers, host_name, event_type, location, starts_at, focus");
+    let query = this.db.from("community_event_details").select("id, slug, title, speakers, host_name, event_type, location, starts_at, focus");
     for (const word of q.words) {
       query = query.or(SEARCH_FIELDS.map((f) => `${f}.ilike."%${searchWord(word)}%"`).join(","));
     }
@@ -458,29 +550,41 @@ export class SupabaseEventRepository implements EventRepository {
       .order("id")
       .range(q.offset, q.offset + q.limit - 1);
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return (data ?? []) as unknown as EventSearchHit[];
   }
 
-  async create(fields: Insert<"events">) {
-    const { data, error } = await this.db.from("events").insert(fields).select("*").single();
+  async create(fields: Insert<"community_events">) {
+    const { data, error } = await this.db.from("community_events").insert(fields).select("id").single();
     if (error) throw new Error(error.message);
-    return data;
+    return this.detailOf(data.id);
   }
 
-  async edit(id: string, fields: Update<"events">) {
-    const { data, error } = await this.db.from("events").update(fields).eq("id", id).select("*").single();
+  async edit(id: string, fields: Update<"community_events">) {
+    const { data, error } = await this.db.from("community_events").update(fields).eq("id", id).select("id").single();
     if (error) throw new Error(error.message);
-    return data;
+    return this.detailOf(data.id);
   }
 
   async setDeletedAt(id: string, deletedAt: string | null) {
-    const { data, error } = await this.db.from("events").update({ deleted_at: deletedAt }).eq("id", id).select("*").maybeSingle();
+    const { data, error } = await this.db.from("community_events").update({ deleted_at: deletedAt }).eq("id", id).select("id").maybeSingle();
     if (error) throw new Error(error.message);
-    return data;
+    return data ? this.detailOf(data.id) : null;
+  }
+
+  async bySlug(slug: string) {
+    const { data, error } = await this.db.from("community_event_details").select("*").eq("slug", slug).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as unknown as EventDetail | null;
+  }
+
+  private async detailOf(id: string): Promise<EventDetail> {
+    const event = await this.byId(id);
+    if (!event) throw new Error(`event ${id} not found`);
+    return event;
   }
 
   async remove(id: string) {
-    const { error } = await this.db.from("events").delete().eq("id", id);
+    const { error } = await this.db.from("community_events").delete().eq("id", id);
     if (error) throw new Error(error.message);
   }
 
@@ -525,11 +629,7 @@ export class SupabaseEventRepository implements EventRepository {
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
     const out = new Map<string, "shown" | "hidden">();
-    for (const ids of chunks(calendarEventIds)) {
-      const { data, error } = await this.db.from("events").select("calendar_event_id, deleted_at").in("calendar_event_id", ids);
-      if (error) throw new Error(error.message);
-      for (const e of data ?? []) if (e.calendar_event_id) out.set(e.calendar_event_id, e.deleted_at ? "hidden" : "shown");
-    }
+    for (const r of await this.onCalendarEvents(calendarEventIds)) out.set(r.calendarEventId, r.deletedAt ? "hidden" : "shown");
     return out;
   }
 }
@@ -539,8 +639,8 @@ export class InMemoryEventRepository implements EventRepository {
   constructor(private readonly data: InMemoryDataset) {}
 
   async choices() {
-    return this.data.events
-      .flatMap((e) => (e.starts_at ? [{ id: e.id, title: e.title, starts_at: e.starts_at }] : []))
+    return eventDetails(this.data)
+      .map((e) => ({ id: e.id, title: e.title, starts_at: e.starts_at }))
       .sort((a, b) => (a.starts_at < b.starts_at ? 1 : a.starts_at > b.starts_at ? -1 : a.id < b.id ? -1 : 1));
   }
 
@@ -582,46 +682,54 @@ export class InMemoryEventRepository implements EventRepository {
 
   // --- calendar sync ---
 
+  /** The events standing on a prickle that comes from one of these calendar events. */
+  private onCalendarEvents(calendarEventIds: string[], automaticOnly = false) {
+    const wanted = new Set(calendarEventIds);
+    return this.data.events
+      .flatMap((e) => {
+        const calendarEventId = calendarOf(this.data, e.prickle_id)?.calendarEventId;
+        return calendarEventId && wanted.has(calendarEventId) && (!automaticOnly || e.automatic) ? [{ event: e, calendarEventId }] : [];
+      })
+      .sort((a, b) => (a.event.id < b.event.id ? -1 : 1));
+  }
+
   async byCalendarEventId(calendarEventId: string) {
-    const e = this.data.events.find((x) => x.calendar_event_id === calendarEventId);
+    const e = this.onCalendarEvents([calendarEventId])[0]?.event;
     return e ? { id: e.id, slug: e.slug, hidden: !!e.deleted_at, automatic: !!e.automatic } : null;
   }
 
+  async byPrickleId(prickleId: string) {
+    const e = this.data.events.find((x) => x.prickle_id === prickleId);
+    return e ? eventDetail(this.data, e) : null;
+  }
+
   async calendarEventIdsWithEvent(calendarEventIds: string[]) {
-    const wanted = new Set(calendarEventIds);
-    return new Set(this.data.events.flatMap((e) => (e.calendar_event_id && wanted.has(e.calendar_event_id) ? [e.calendar_event_id] : [])));
+    return new Set(this.onCalendarEvents(calendarEventIds).map((r) => r.calendarEventId));
   }
 
   async linkedToCalendarEvents(calendarEventIds: string[]) {
-    const wanted = new Set(calendarEventIds);
-    return this.data.events
-      .filter((e) => e.calendar_event_id && wanted.has(e.calendar_event_id))
-      .sort((a, b) => (a.id < b.id ? -1 : 1))
-      .map((e) => ({ id: e.id, calendarEventId: e.calendar_event_id ?? null, overriddenFields: [...(e.overridden_fields ?? [])] }));
+    return this.onCalendarEvents(calendarEventIds).map((r) => ({ id: r.event.id, calendarEventId: r.calendarEventId, prickleId: r.event.prickle_id }));
   }
 
-  async createFromCalendar(row: Insert<"events">): Promise<CreateEventResult> {
-    if (row.calendar_event_id && this.data.events.some((e) => e.calendar_event_id === row.calendar_event_id)) return { status: "conflict", on: "calendar_event" };
+  async createForPrickle(row: Insert<"community_events">): Promise<CreateEventResult> {
+    if (this.data.events.some((e) => e.prickle_id === row.prickle_id)) return { status: "conflict", on: "prickle" };
     if (this.data.events.some((e) => e.slug === row.slug)) return { status: "conflict", on: "slug" };
-    const id = row.id ?? `evnt_mem${this.data.events.length + 1}`;
-    this.data.events.push({ overridden_fields: [], automatic: false, deleted_at: null, ...(row as Partial<Row<"events">>), id, title: row.title, slug: row.slug });
+    const id = row.id ?? `evt_mem${this.data.events.length + 1}`;
+    this.data.events.push({ automatic: false, deleted_at: null, ...(row as Partial<Row<"community_events">>), id, slug: row.slug, prickle_id: row.prickle_id });
     return { status: "created", event: { id, slug: row.slug } };
   }
 
-  async update(id: string, fields: Update<"events">) {
+  async update(id: string, fields: Update<"community_events">) {
     const e = this.data.events.find((x) => x.id === id);
     if (e) Object.assign(e, fields);
   }
 
   async automaticFollowing(calendarEventIds: string[]) {
-    const wanted = new Set(calendarEventIds);
-    return this.data.events
-      .flatMap((e) => (e.automatic && e.calendar_event_id && wanted.has(e.calendar_event_id) ? [{ id: e.id, calendarEventId: e.calendar_event_id }] : []))
-      .sort((a, b) => (a.id < b.id ? -1 : 1));
+    return this.onCalendarEvents(calendarEventIds, true).map((r) => ({ id: r.event.id, calendarEventId: r.calendarEventId }));
   }
 
   async automaticWithoutCalendarEvent() {
-    return this.data.events.filter((e) => e.automatic && !e.calendar_event_id).map((e) => e.id).sort();
+    return this.data.events.filter((e) => e.automatic && !calendarOf(this.data, e.prickle_id)?.calendarEventId).map((e) => e.id).sort();
   }
 
   async idsWithPhotosOrAttendees(eventIds: string[]) {
@@ -637,60 +745,30 @@ export class InMemoryEventRepository implements EventRepository {
   // --- member-facing reads ---
 
   async listWithCover(): Promise<EventListItem[]> {
-    return [...this.data.events].sort(byStartsAtDesc).map((e) => ({
+    return [...eventDetails(this.data)].sort(byStartsAtDesc).map((e) => ({
       id: e.id,
       slug: e.slug,
       title: e.title,
-      event_type: e.event_type ?? "other",
-      location: e.location ?? null,
-      starts_at: e.starts_at ?? "",
-      ends_at: e.ends_at ?? e.starts_at ?? "",
-      start_time: e.start_time ?? null,
-      end_time: e.end_time ?? null,
-      focus: e.focus ?? null,
-      registration: e.registration ?? "none",
-      speakers: e.speakers ?? null,
-      host_name: e.host_name ?? null,
-      calendar_event_id: e.calendar_event_id ?? null,
-      deleted_at: e.deleted_at ?? null,
-      imageId: e.image_id ?? null,
+      event_type: e.event_type,
+      location: e.location,
+      starts_at: e.starts_at,
+      ends_at: e.ends_at,
+      start_time: e.start_time,
+      end_time: e.end_time,
+      focus: e.focus,
+      registration: e.registration,
+      speakers: e.speakers,
+      host_name: e.host_name,
+      prickle_id: e.prickle_id,
+      deleted_at: e.deleted_at,
+      imageId: e.image_id,
       coverPhotoId: this.photosOf(e.id).find((p) => !p.hidden_at)?.id ?? null,
     }));
   }
 
-  async visibleBySlug(slug: string): Promise<Row<"events"> | null> {
+  async visibleBySlug(slug: string): Promise<EventDetail | null> {
     const e = this.data.events.find((row) => row.slug === slug && !row.deleted_at);
-    if (!e) return null;
-    const startsAt = e.starts_at ?? "";
-    return {
-      agenda: null,
-      announced_publicly: false,
-      automatic: false,
-      calendar_event_id: null,
-      capacity: null,
-      created_at: startsAt,
-      created_by: null,
-      deleted_at: null,
-      description: null,
-      end_time: null,
-      ends_at: startsAt,
-      event_type: "other",
-      focus: null,
-      google_photos_album_url: null,
-      guests_allowed: false,
-      host_name: null,
-      image_id: null,
-      location: null,
-      overridden_fields: [],
-      registration: "none",
-      results: null,
-      selection: "first_come",
-      speakers: null,
-      start_time: null,
-      starts_at: startsAt,
-      updated_at: startsAt,
-      ...e,
-    };
+    return e ? eventDetail(this.data, e) : null;
   }
 
   async visiblePhotos(eventId: string): Promise<EventPhotoSummary[]> {
@@ -705,18 +783,9 @@ export class InMemoryEventRepository implements EventRepository {
 
   async visibleEndingFrom(eventIds: string[], endsOnOrAfter: string): Promise<FeedEvent[]> {
     const wanted = new Set(eventIds);
-    return this.data.events
-      .filter((e) => wanted.has(e.id) && !e.deleted_at && (e.ends_at ?? "") >= endsOnOrAfter)
-      .map((e) => ({
-        id: e.id,
-        slug: e.slug,
-        title: e.title,
-        speakers: e.speakers ?? null,
-        host_name: e.host_name ?? null,
-        location: e.location ?? null,
-        starts_at: e.starts_at ?? "",
-        ends_at: e.ends_at ?? "",
-      }));
+    return eventDetails(this.data)
+      .filter((e) => wanted.has(e.id) && !e.deleted_at && e.ends_at >= endsOnOrAfter)
+      .map((e) => ({ id: e.id, slug: e.slug, title: e.title, speakers: e.speakers, host_name: e.host_name, location: e.location, starts_at: e.starts_at, ends_at: e.ends_at }));
   }
 
   async search(q: EventSearchQuery): Promise<EventSearchHit[]> {
@@ -725,27 +794,17 @@ export class InMemoryEventRepository implements EventRepository {
     if (attended && attended.size === 0) return [];
     const words = q.words.map((w) => searchWord(w).toLowerCase());
     const dayStart = (d: string) => Date.parse(d.slice(0, 10));
-    return this.data.events
+    return eventDetails(this.data)
       .filter((e) => {
         if (attended && !attended.has(e.id)) return false;
         if (!q.includeHidden && e.deleted_at) return false;
-        if (q.after && Date.parse(e.starts_at ?? "") < dayStart(q.after)) return false;
-        if (q.before && Date.parse(e.starts_at ?? "") >= dayStart(q.before)) return false;
+        if (q.after && Date.parse(e.starts_at) < dayStart(q.after)) return false;
+        if (q.before && Date.parse(e.starts_at) >= dayStart(q.before)) return false;
         return words.every((w) => SEARCH_FIELDS.some((f) => (e[f] ?? "").toLowerCase().includes(w)));
       })
       .sort(byStartsAtDesc)
       .slice(q.offset, q.offset + q.limit)
-      .map((e) => ({
-        id: e.id,
-        slug: e.slug,
-        title: e.title,
-        speakers: e.speakers ?? null,
-        host_name: e.host_name ?? null,
-        event_type: e.event_type ?? "other",
-        location: e.location ?? null,
-        starts_at: e.starts_at ?? "",
-        focus: e.focus ?? null,
-      }));
+      .map((e) => ({ id: e.id, slug: e.slug, title: e.title, speakers: e.speakers, host_name: e.host_name, event_type: e.event_type, location: e.location, starts_at: e.starts_at, focus: e.focus }));
   }
 
   private photosOf(eventId: string) {
@@ -756,42 +815,51 @@ export class InMemoryEventRepository implements EventRepository {
 
   private nextId = 0;
 
-  // The dataset's event rows leave columns out; the twin hands them back as the full row type, so a column a test did not set is undefined.
-  private full(row: EventRow) {
-    return { ...row } as Row<"events">;
+  private detail(row: EventRow): EventDetail {
+    const detail = eventDetail(this.data, row);
+    if (!detail) throw new Error(`event ${row.id} has no prickle`);
+    return detail;
   }
 
   async listWithPhotoCounts() {
-    return [...this.data.events].sort(byStartsDesc).map((e) => ({
-      ...this.full(e),
+    return [...eventDetails(this.data)].sort(byStartsDesc).map((e) => ({
+      ...e,
       photo_count: this.data.eventPhotos.filter((p) => p.event_id === e.id && !p.hidden_at).length,
     }));
   }
 
   async byId(id: string) {
     const row = this.data.events.find((e) => e.id === id);
-    return row ? this.full(row) : null;
+    return row ? eventDetail(this.data, row) : null;
   }
 
-  async create(fields: Insert<"events">) {
-    if (!fields.slug || !fields.title) throw new Error("null value in column violates not-null constraint");
-    const row = { id: `evnt_created${++this.nextId}`, ...fields } as EventRow;
+  async bySlug(slug: string) {
+    const row = this.data.events.find((e) => e.slug === slug);
+    return row ? eventDetail(this.data, row) : null;
+  }
+
+  async create(fields: Insert<"community_events">) {
+    if (!fields.slug || !fields.prickle_id) throw new Error("null value in column violates not-null constraint");
+    if (!this.data.prickles.some((p) => p.id === fields.prickle_id)) throw new Error("violates foreign key constraint community_events_prickle_id_fkey");
+    if (this.data.events.some((e) => e.prickle_id === fields.prickle_id)) throw new Error("duplicate key value violates unique constraint community_events_prickle_id_key");
+    if (this.data.events.some((e) => e.slug === fields.slug)) throw new Error("duplicate key value violates unique constraint community_events_slug_key");
+    const row = { id: `evt_created${++this.nextId}`, ...fields } as EventRow;
     this.data.events.push(row);
-    return this.full(row);
+    return this.detail(row);
   }
 
-  async edit(id: string, fields: Update<"events">) {
+  async edit(id: string, fields: Update<"community_events">) {
     const row = this.data.events.find((e) => e.id === id);
     if (!row) throw new Error("JSON object requested, multiple (or no) rows returned");
     Object.assign(row, fields);
-    return this.full(row);
+    return this.detail(row);
   }
 
   async setDeletedAt(id: string, deletedAt: string | null) {
     const row = this.data.events.find((e) => e.id === id);
     if (!row) return null;
     row.deleted_at = deletedAt;
-    return this.full(row);
+    return this.detail(row);
   }
 
   async remove(id: string) {
@@ -830,9 +898,8 @@ export class InMemoryEventRepository implements EventRepository {
   }
 
   async visibilityByCalendarEvent(calendarEventIds: string[]) {
-    const wanted = new Set(calendarEventIds);
     const out = new Map<string, "shown" | "hidden">();
-    for (const e of this.data.events) if (e.calendar_event_id && wanted.has(e.calendar_event_id)) out.set(e.calendar_event_id, e.deleted_at ? "hidden" : "shown");
+    for (const r of this.onCalendarEvents(calendarEventIds)) out.set(r.calendarEventId, r.event.deleted_at ? "hidden" : "shown");
     return out;
   }
 }

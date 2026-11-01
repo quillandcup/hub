@@ -4,8 +4,10 @@ import { useState, useTransition } from "react";
 import { setAnalyticsOptOut } from "./actions";
 
 /**
- * The "leave me out of statistics" switch (see lib/analytics/opt-out.ts). On means left out. Turning
- * it on also removes the usage events already recorded, which is said next to the switch.
+ * The "Share usage statistics" switch (see lib/analytics/opt-out.ts). On means shared, the usual way
+ * round for a switch; the stored choice is still the opt-out (`analytics_opt_out_at`), so the switch
+ * shows its opposite. Turning it off also removes the usage events already recorded, which is said
+ * next to the switch.
  */
 export function StatsOptOutSwitch({ initialOptedOut, readOnly }: { initialOptedOut: boolean; readOnly: boolean }) {
   const [optedOut, setOptedOut] = useState(initialOptedOut);
@@ -26,9 +28,9 @@ export function StatsOptOutSwitch({ initialOptedOut, readOnly }: { initialOptedO
       setMessage(
         next
           ? result.removed > 0
-            ? "You're left out. We removed the usage statistics recorded under your account."
-            : "You're left out. We record no usage statistics for you."
-          : "Usage statistics are on again (subject to the banner, if you're in the EU, EEA or UK).",
+            ? "Usage statistics are off. We removed the usage statistics recorded under your account."
+            : "Usage statistics are off. We record no usage statistics for you."
+          : "Usage statistics are on (subject to the banner, if you're in the EU, EEA or UK).",
       );
     });
   }
@@ -37,26 +39,26 @@ export function StatsOptOutSwitch({ initialOptedOut, readOnly }: { initialOptedO
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Leave me out of usage statistics</p>
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Share usage statistics</p>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Stops our usage log, Google Analytics and screen recordings of ordinary visits, and removes the usage log recorded so far. Recordings of errors continue.
+            Helps us see which parts of the Hub people use, so we can improve what's useful. It covers our usage log, Google Analytics and screen recordings of ordinary visits. Turning it off stops them and removes the usage log recorded so far. Recordings of errors continue.
           </p>
         </div>
         <button
           type="button"
           role="switch"
           data-track-ignore
-          aria-checked={optedOut}
-          aria-label="Leave me out of usage statistics"
+          aria-checked={!optedOut}
+          aria-label="Share usage statistics"
           disabled={pending || readOnly}
           onClick={() => change(!optedOut)}
           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-plum-500 focus:ring-offset-2 ${
-            optedOut ? "bg-plum-600" : "bg-slate-300 dark:bg-slate-600"
+            optedOut ? "bg-slate-300 dark:bg-slate-600" : "bg-plum-600"
           }`}
         >
           <span
             className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              optedOut ? "translate-x-6" : "translate-x-1"
+              optedOut ? "translate-x-1" : "translate-x-6"
             }`}
           />
         </button>

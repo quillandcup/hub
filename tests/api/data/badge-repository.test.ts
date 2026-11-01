@@ -8,6 +8,7 @@ const db = getTestSupabaseAdminClient() as unknown as Db;
 const RUN = `${Date.now()}`;
 let memberIds: [string, string];
 let events: [{ id: string; title: string; slug: string }, { id: string; title: string; slug: string }];
+let prickleIds: string[] = [];
 const createdTypes: string[] = [];
 const createdAwards: string[] = [];
 let counter = 0;
@@ -25,18 +26,27 @@ beforeAll(async () => {
   if (members.error) throw new Error(members.error.message);
   memberIds = [members.data![0].id, members.data![1].id];
 
+  const type = await db.from("prickle_types").select("id").eq("normalized_name", "event").single();
+  if (type.error) throw new Error(type.error.message);
+  const prickles = await db
+    .from("prickles")
+    .insert([0, 1].map((i) => ({ source: "calendar", type_id: type.data.id, title: `Badge Event ${i} ${RUN}`, start_time: "2097-03-01T10:00:00Z", end_time: "2097-03-02T10:00:00Z" })))
+    .select("id, title");
+  if (prickles.error) throw new Error(prickles.error.message);
+  prickleIds = prickles.data!.map((p) => p.id);
   const evs = await db
-    .from("events")
-    .insert([0, 1].map((i) => ({ title: `Badge Event ${i} ${RUN}`, slug: `badge-event-${i}-${RUN}`, starts_at: "2097-03-01T10:00:00Z", ends_at: "2097-03-02T10:00:00Z", event_type: "other" })))
-    .select("id, title, slug");
+    .from("community_events")
+    .insert(prickles.data!.map((p, i) => ({ prickle_id: p.id, slug: `badge-event-${i}-${RUN}`, event_type: "other" })))
+    .select("id, slug, prickle_id");
   if (evs.error) throw new Error(evs.error.message);
-  events = [evs.data![0], evs.data![1]];
+  events = [0, 1].map((i) => ({ id: evs.data![i].id, slug: evs.data![i].slug, title: prickles.data!.find((p) => p.id === evs.data![i].prickle_id)!.title! })) as unknown as typeof events;
 });
 
 afterAll(async () => {
   await removeCreated();
   await db.from("member_badges").delete().in("member_id", memberIds);
-  await db.from("events").delete().in("id", events.map((e) => e.id));
+  await db.from("community_events").delete().in("id", events.map((e) => e.id));
+  await db.from("prickles").delete().in("id", prickleIds);
   await db.from("members").delete().in("id", memberIds);
 });
 

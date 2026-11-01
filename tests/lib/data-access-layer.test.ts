@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -37,9 +38,12 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   writing_goals: [],
   writing_progress_entries: [],
   // Events (EventRepository): every query on the three event tables is moved.
-  events: [],
+  community_events: [],
   event_attendees: [],
   event_photos: [],
+  // The event schedule view and the Hub-made events' schedules (EventRepository, HubSessionRepository).
+  community_event_details: [],
+  hub_sessions: [],
   // Media library (MediaRepository): every query is in the repository.
   media_assets: [],
   // Member activity log (ActivityRepository): every query is moved.
@@ -69,6 +73,24 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   zoom_attendees: [],
   zoom_meetings: [],
   ignored_zoom_names: [],
+  // The ambiguous-name queue, the per-prickle ignores and the live join/leave events (ZoomRepository): every query is moved.
+  ambiguous_zoom_names: [],
+  ignored_zoom_appearances: [],
+  zoom_participant_events: [],
+  // How to join the prickle room (ZoomRepository): every query is moved.
+  prickle_join_settings: [],
+  // Hosts' vibe tags (PrickleRepository), the hosting schedule's month locks (PrickleScheduleRepository) and the
+  // check-in and check-out DM claims (PrickleActivityRepository): every query is moved.
+  prickle_host_vibes: [],
+  prickle_schedule_locks: [],
+  prickle_checkin_dm_log: [],
+  // The Wheel of Wonder's matches (WheelOfWonderRepository, lib/data/wheel-of-wonder.ts) and the page-view log
+  // (AccessEventRepository, lib/data/access-events.ts): every query is moved.
+  wheel_of_wonder_matches: [],
+  access_events: [],
+  // Derived per-member stats (MemberRepository.deleteDerivedStats): the merge route's cleanup was the only direct query.
+  member_metrics: [],
+  member_engagement: [],
   // Chat (ChatRepository, lib/data/chat.ts): only a channel's bridge settings and its Slack-id lookup are
   // moved so far; each slice removes its files from the lists below (see the chat plan in docs/TODO.md).
   chat_channels: [
@@ -97,7 +119,6 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   kajabi_product_progress: [],
   kajabi_lesson_progress: [],
   // Billing (BillingRepository, lib/data/billing.ts): the Bronze Kajabi and Stripe data, reads and the imports' writes. Every query is moved.
-  // (lib/courses/process.ts still reads purchases and customers through fetchAllBronzeRows, which this check does not see.)
   kajabi_contacts: [],
   kajabi_customers: [],
   kajabi_purchases: [],
@@ -124,6 +145,60 @@ const REPOSITORY_TABLES: Record<string, string[]> = {
   prickle_checkins: [],
   prickle_checkin_dismissals: [],
   prickle_checkout_dismissals: [],
+  // Courses (CourseRepository, lib/data/courses.ts: the Silver curriculum and the Mux videos; CourseProgressRepository,
+  // lib/data/course-progress.ts: lesson progress, access, staff grants and watch segments): every query is moved.
+  courses: [],
+  course_modules: [],
+  course_lessons: [],
+  course_lesson_files: [],
+  videos: [],
+  lesson_progress: [],
+  course_access: [],
+  course_access_grants: [],
+  video_watch_segments: [],
+  // The people and profile long tail (StaffRepository, MentorshipRepository, MemberProfileRepository, AwardRepository,
+  // OutreachRepository, AdminWorkQueueRepository): every query is moved.
+  admin_work_queue_completions: [],
+  big_sister_volunteers: [],
+  dismissed_duplicate_groups: [],
+  feedback: [],
+  member_ask_me_about: [],
+  member_awards: [],
+  member_notes: [],
+  member_onboarding: [],
+  member_roster_opt_outs: [],
+  member_slack_connections: [],
+  mentorships: [],
+  outreach_leads: [],
+  outreach_touches: [],
+  staff: [],
+};
+
+/**
+ * Tables still queried directly outside lib/data/ (no repository yet). The census below fails on a direct
+ * query of a table that is neither registered above nor listed here, so a new table can't slip in without
+ * a repository, and fails on a stale entry here, so the list only shrinks. When a table gets a repository,
+ * move it from here to REPOSITORY_TABLES.
+ */
+const UNMIGRATED_TABLES = new Set([
+  "analytics_events",
+  "calendar_watch_channels",
+  "feature_flag_segments",
+  "feature_flags",
+  "segment_members",
+  "segments",
+  "slack_identities",
+  "slack_sign_in_tokens",
+  "user_feature_previews",
+]);
+
+/**
+ * Files that build a query on a table named by a variable (`.from(table)`), which no text search of table
+ * names can see. Each needs a reason; the census fails on a new one and on a stale entry.
+ */
+const VARIABLE_TABLE_FILES: Record<string, string> = {
+  "lib/supabase/bronze-pagination.ts": "the generic Bronze pager; callers are caught by the helper-call check below",
+  "lib/slack-sign-in.ts": "looks up in one of two tables chosen by a variable; moves with the Slack sign-in repository",
 };
 
 const root = path.resolve(__dirname, "../..");
@@ -161,4 +236,57 @@ describe("data access layer", () => {
       expect(allowed.filter((file) => !querying.includes(file)), "no longer queries it directly: remove from the allowlist").toEqual([]);
     });
   }
+});
+
+/**
+ * Every `.from(x)` call outside lib/data/, found by parsing the source (a text search misses a table named by a
+ * variable). File storage (`.storage.from(bucket)`, a bucket constant or a hyphenated name) and `Array.from` /
+ * `Buffer.from` are not queries.
+ */
+function directFromCalls() {
+  const tables = new Map<string, Set<string>>();
+  const variable = new Set<string>();
+  const notQueries = new Set(["Array", "Buffer", "Uint8Array", "Int8Array", "Object", "Promise", "String", "Map", "Set"]);
+  for (const file of files) {
+    const sf = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "from" && node.arguments.length === 1) {
+        const receiver = node.expression.expression;
+        const storage = ts.isPropertyAccessExpression(receiver) && receiver.name.text === "storage";
+        const builtin = ts.isIdentifier(receiver) && notQueries.has(receiver.text);
+        const arg = node.arguments[0];
+        if (!storage && !builtin) {
+          if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
+            if (/^[a-z][a-z0-9_]*$/.test(arg.text)) tables.set(arg.text, (tables.get(arg.text) ?? new Set()).add(file));
+          } else if (!/BUCKET/.test(arg.getText())) {
+            variable.add(file);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return { tables, variable };
+}
+
+describe("data access layer census", () => {
+  const { tables, variable } = directFromCalls();
+  const registered = new Set(Object.keys(REPOSITORY_TABLES));
+
+  it("no table is queried directly unless it is registered or listed as not yet migrated", () => {
+    const unknown = [...tables.keys()].filter((t) => !registered.has(t) && !UNMIGRATED_TABLES.has(t)).sort();
+    expect(unknown, "add a repository in lib/data/ for these tables (and register them in REPOSITORY_TABLES)").toEqual([]);
+  });
+
+  it("UNMIGRATED_TABLES lists only tables that are still queried directly", () => {
+    const stale = [...UNMIGRATED_TABLES].filter((t) => !tables.has(t)).sort();
+    expect(stale, "no longer queried directly: remove from UNMIGRATED_TABLES").toEqual([]);
+    expect([...UNMIGRATED_TABLES].filter((t) => registered.has(t)), "registered tables don't belong in UNMIGRATED_TABLES").toEqual([]);
+  });
+
+  it("a query on a table named by a variable is only in a listed file", () => {
+    expect([...variable].filter((f) => !(f in VARIABLE_TABLE_FILES)).sort(), "name the table with a literal inside a repository").toEqual([]);
+    expect(Object.keys(VARIABLE_TABLE_FILES).filter((f) => !variable.has(f)), "no longer builds a variable-table query: remove from VARIABLE_TABLE_FILES").toEqual([]);
+  });
 });

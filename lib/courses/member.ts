@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAll, inBatches } from "@/lib/courses/db";
+import { createRepos } from "@/lib/data/repos";
+import type { CourseRecord } from "@/lib/data/courses";
 import { courseImageSrc } from "@/lib/courses/image-urls";
 import { resumeSeconds } from "@/lib/courses/watch";
 import {
@@ -58,12 +59,15 @@ export interface CourseRow {
   hero_url?: string | null;
 }
 
-/** A courses row with `thumbnail_url` resolved to our copy of the image when there is one. */
-function withCourseImage({ thumbnail_asset_id, hero_asset_id, hero_url, ...course }: any): CourseRow {
+/** A course with its images resolved to our copy when there is one; only what the pages show (never the whole row). */
+function withCourseImage(course: CourseRecord): CourseRow {
   return {
-    ...course,
-    thumbnail_url: courseImageSrc("course", course.id, thumbnail_asset_id, course.thumbnail_url),
-    hero_url: courseImageSrc("hero", course.id, hero_asset_id, hero_url),
+    id: course.id,
+    slug: course.slug,
+    title: course.title,
+    description: course.description,
+    thumbnail_url: courseImageSrc("course", course.id, course.thumbnail_asset_id, course.thumbnail_url),
+    hero_url: courseImageSrc("hero", course.id, course.hero_asset_id, course.hero_url),
   };
 }
 
@@ -75,13 +79,8 @@ export interface MemberScope {
 }
 
 async function loadAccessRows(supabase: SupabaseClient, memberId: string, courseIds?: string[]) {
-  const { data, error } = await supabase
-    .from("course_access")
-    .select("course_id, starts_at, ends_at")
-    .eq("member_id", memberId)
-    .in("course_id", courseIds ?? []);
-  if (error) throw new Error(`course_access read failed: ${error.message}`);
-  return new Map((data ?? []).map((r) => [r.course_id as string, r as AccessRowLike]));
+  const rows = await createRepos(supabase).courseProgress.memberAccess(memberId, courseIds);
+  return new Map(rows.map((r) => [r.course_id, r as AccessRowLike]));
 }
 
 /**
@@ -90,29 +89,27 @@ async function loadAccessRows(supabase: SupabaseClient, memberId: string, course
  * its title. This is the one place the member pages read the structure, so it is the one place that decides.
  */
 async function loadStructure(supabase: SupabaseClient, courseIds: string[], includeHidden = false) {
-  const [modules, lessons] = await Promise.all([
-    fetchAll(supabase, "course_modules", "id, course_id, parent_id, title, position, state", (q) => (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)),
-    fetchAll(supabase, "course_lessons", "id, course_id, module_id, title, position, state, duration_seconds, thumbnail_url, thumbnail_asset_id, excerpt", (q) =>
-      (includeHidden ? q : q.neq("state", "hidden")).in("course_id", courseIds)
-    ),
-  ]);
-  // Our copy of a thumbnail when there is one, the Kajabi URL until the images step has run.
-  return { modules, lessons: lessons.map(({ thumbnail_asset_id, ...l }) => ({ ...l, thumbnail_url: courseImageSrc("lesson", l.id, thumbnail_asset_id, l.thumbnail_url) })) };
+  const courses = createRepos(supabase).courses;
+  const [modules, lessons] = await Promise.all([courses.modulesOf(courseIds, { includeHidden }), courses.lessonsOf(courseIds, { includeHidden })]);
+  return {
+    modules: modules.map((m) => ({ id: m.id, course_id: m.course_id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state })),
+    // Our copy of a thumbnail when there is one, the Kajabi URL until the images step has run.
+    lessons: lessons.map((l) => ({
+      id: l.id,
+      course_id: l.course_id,
+      module_id: l.module_id,
+      title: l.title,
+      position: l.position,
+      state: l.state,
+      duration_seconds: l.duration_seconds,
+      excerpt: l.excerpt,
+      thumbnail_url: courseImageSrc("lesson", l.id, l.thumbnail_asset_id, l.thumbnail_url),
+    })),
+  };
 }
 
-async function loadCompleted(supabase: SupabaseClient, memberId: string, lessonIds: string[]): Promise<Set<string>> {
-  const done = new Set<string>();
-  for (const batch of inBatches(lessonIds)) {
-    const { data, error } = await supabase
-      .from("lesson_progress")
-      .select("lesson_id")
-      .eq("member_id", memberId)
-      .not("completed_at", "is", null)
-      .in("lesson_id", batch);
-    if (error) throw new Error(`lesson_progress read failed: ${error.message}`);
-    for (const r of data ?? []) done.add(r.lesson_id);
-  }
-  return done;
+function loadCompleted(supabase: SupabaseClient, memberId: string, lessonIds: string[]): Promise<Set<string>> {
+  return createRepos(supabase).courseProgress.completedLessonIds(memberId, lessonIds);
 }
 
 /** A member's access to one course (admins acting as themselves open everything). */
@@ -131,20 +128,19 @@ export interface CourseListItem {
 /** The courses a member can see: the ones they have (or had) access to, or all of them for staff. Current courses first, ended ones after, each by title. */
 export async function loadCourseList(supabase: SupabaseClient, scope: MemberScope): Promise<CourseListItem[]> {
   const now = scope.now ?? new Date();
+  const repos = createRepos(supabase);
   let courseIds: string[];
   let accessByCourse = new Map<string, AccessRowLike>();
 
   if (scope.isAdminActing) {
-    courseIds = (await fetchAll(supabase, "courses", "id", (q) => q)).map((c) => c.id);
+    courseIds = (await repos.courses.courses({ isDraft: false })).map((c) => c.id);
   } else {
-    const { data, error } = await supabase.from("course_access").select("course_id, starts_at, ends_at").eq("member_id", scope.memberId);
-    if (error) throw new Error(`course_access read failed: ${error.message}`);
-    accessByCourse = new Map((data ?? []).map((r) => [r.course_id as string, r as AccessRowLike]));
+    accessByCourse = await loadAccessRows(supabase, scope.memberId);
     courseIds = Array.from(accessByCourse.keys());
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = (await fetchAll(supabase, "courses", "id, slug, title, description, thumbnail_url, thumbnail_asset_id", (q) => q.in("id", courseIds))).map(withCourseImage);
+  const courses: CourseRow[] = (await repos.courses.courses({ ids: courseIds })).map(withCourseImage);
   const { modules, lessons } = await loadStructure(supabase, courseIds, scope.isAdminActing);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
@@ -181,27 +177,11 @@ export async function loadContinueWatching(supabase: SupabaseClient, scope: Memb
   if (items.length === 0) return null;
   const byCourse = new Map(items.map((i) => [i.course.id, i]));
 
-  const { data: rows, error } = await supabase
-    .from("lesson_progress")
-    .select("lesson_id, last_position_seconds")
-    .eq("member_id", scope.memberId)
-    .is("completed_at", null)
-    .gt("last_position_seconds", 0)
-    .order("updated_at", { ascending: false })
-    .limit(50);
-  if (error) throw new Error(`lesson_progress read failed: ${error.message}`);
-  const positions = new Map((rows ?? []).map((r) => [r.lesson_id as string, Number(r.last_position_seconds)]));
+  const repos = createRepos(supabase);
+  const rows = await repos.courseProgress.partlyWatched(scope.memberId, 50);
+  const positions = new Map(rows.map((r) => [r.lesson_id, r.last_position_seconds]));
 
-  const openLessons = async (lessonIds: string[]) => {
-    if (lessonIds.length === 0) return [];
-    const { data, error: lessonError } = await supabase
-      .from("course_lessons")
-      .select("id, course_id, title, thumbnail_url")
-      .eq("state", "open")
-      .in("id", lessonIds);
-    if (lessonError) throw new Error(`course_lessons read failed: ${lessonError.message}`);
-    return data ?? [];
-  };
+  const openLessons = (lessonIds: string[]) => repos.courses.openLessons(lessonIds);
 
   const half = await openLessons(Array.from(positions.keys()));
   for (const [id, position] of positions) {
@@ -241,8 +221,7 @@ export interface CourseView {
 
 /** One course by slug, or null when there is none. */
 export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const { data: courseRow, error } = await supabase.from("courses").select("id, slug, title, description, thumbnail_url, thumbnail_asset_id, hero_url, hero_asset_id").eq("slug", slug).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
+  const courseRow = await createRepos(supabase).courses.courseBySlug(slug, { isDraft: false });
   if (!courseRow) return null;
   const course = withCourseImage(courseRow);
 
@@ -302,43 +281,24 @@ export async function loadLessonView(
   const preview = summary.state !== "open";
   if (preview && !scope.isAdminActing) return { kind: "coming_soon", view: withOutline };
 
-  const { data: lesson, error } = await supabase
-    .from("course_lessons")
-    .select("body_html, video_id")
-    .eq("id", lessonId)
-    .single();
-  if (error) throw new Error(`course_lessons read failed: ${error.message}`);
+  const repos = createRepos(supabase);
+  const lesson = await repos.courses.lessonBody(lessonId);
+  if (!lesson) return { kind: "not_found" };
 
   let video: LessonView["video"] = null;
   if (lesson.video_id) {
-    const { data: v, error: videoError } = await supabase
-      .from("videos")
-      .select("status, mux_playback_id")
-      .eq("id", lesson.video_id)
-      .maybeSingle();
-    if (videoError) throw new Error(`videos read failed: ${videoError.message}`);
+    const v = await repos.courses.video(lesson.video_id);
     if (v) video = { id: lesson.video_id, status: v.status, playbackId: v.mux_playback_id };
   }
 
-  const { data: files, error: filesError } = await supabase
-    .from("course_lesson_files")
-    .select("id, filename, size_bytes")
-    .eq("lesson_id", lessonId)
-    .order("position");
-  if (filesError) throw new Error(`course_lesson_files read failed: ${filesError.message}`);
-
-  const { data: progress, error: progressError } = await supabase
-    .from("lesson_progress")
-    .select("last_position_seconds")
-    .eq("member_id", scope.memberId)
-    .eq("lesson_id", lessonId)
-    .maybeSingle();
-  if (progressError) throw new Error(`lesson_progress read failed: ${progressError.message}`);
+  // Only what the page shows: the storage path stays on the server.
+  const files = (await repos.courses.lessonFiles(lessonId)).map((f) => ({ id: f.id, filename: f.filename, size_bytes: f.size_bytes }));
+  const position = await repos.courseProgress.lessonPosition(scope.memberId, lessonId);
 
   return {
     kind: "ok",
-    resumeSeconds: resumeSeconds(progress ? Number(progress.last_position_seconds) : null),
-    files: (files ?? []) as LessonFileView[],
+    resumeSeconds: resumeSeconds(position),
+    files,
     view: withOutline,
     lesson: { ...summary, body_html: lesson.body_html },
     neighbors: lessonNeighbors(view.outline, lessonId, { includeComingSoon: scope.isAdminActing }),

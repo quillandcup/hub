@@ -3,6 +3,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { triggerZoomImport } from "@/lib/processing/trigger";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 import { parseParticipantEvent } from "@/lib/zoom-presence";
 
 // Webhook should respond quickly
@@ -113,14 +114,11 @@ async function processMeetingEvent(payload: any) {
   // prickle check-out cron reads it; the import after the meeting ends is the backstop.
   const participantEvent = parseParticipantEvent(payload);
   if (participantEvent) {
-    const { error } = await createServiceRoleClient()
-      .schema("bronze")
-      .from("zoom_participant_events")
-      .upsert(participantEvent, {
-        onConflict: "meeting_uuid,participant_key,event,event_time",
-        ignoreDuplicates: true,
-      });
-    if (error) console.error("Error recording Zoom participant event:", error);
+    try {
+      await createRepos(createServiceRoleClient()).zoom.recordParticipantEvent(participantEvent);
+    } catch (error) {
+      console.error("Error recording Zoom participant event:", error);
+    }
   }
 
   if (

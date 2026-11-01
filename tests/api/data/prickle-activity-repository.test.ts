@@ -11,7 +11,7 @@ let types: { id: string; name: string }[];
 let prickles: { id: string; typeId: string; hostId: string | null }[];
 
 async function clear() {
-  for (const table of ["prickle_commitments", "prickle_checkins", "prickle_checkin_dismissals", "prickle_checkout_dismissals"] as const) {
+  for (const table of ["prickle_commitments", "prickle_checkins", "prickle_checkin_dismissals", "prickle_checkout_dismissals", "prickle_checkin_dm_log"] as const) {
     const { error } = await db.from(table).delete().in("member_id", members);
     if (error) throw new Error(error.message);
   }

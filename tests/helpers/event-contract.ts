@@ -3,6 +3,9 @@ import type { EventPhotoRow, EventRepository } from "@/lib/data/events";
 
 export type SeedEvent = { key: string; title: string; startsAt: string; calendarEventId?: string; deletedAt?: string };
 
+/** A prickle for an event to stand on. A null title falls back to the name of the event-only prickle type, "Event". */
+export type SeedPrickle = { title: string | null; startTime: string; endTime: string; location?: string; guestSpeaker?: string; calendarEventId?: string };
+
 export type EventContractContext = {
   repo: () => EventRepository;
   /** Replaces the events this context created with these; returns each one's id by its key. */
@@ -10,6 +13,8 @@ export type EventContractContext = {
   // --- admin events ---
   /** Makes an id an event can follow (a calendar event). */
   calendarEvent: () => Promise<string>;
+  /** Makes a prickle of the event-only type, returning its id (the event the test creates stands on it). */
+  prickle: (p: SeedPrickle) => Promise<string>;
   /** Makes a member, returning the id. */
   member: (m: { name: string; displayName: string | null; email: string }) => Promise<string>;
   attend: (eventId: string, memberId: string, createdAt: string) => Promise<void>;
@@ -109,45 +114,81 @@ export function defineEventContract(name: string, setup: () => EventContractCont
 
     describe("admin events", () => {
       const NONE = "00000000-0000-4000-8000-000000000000";
-      const fields = (extra: object = {}) => ({
+      const fields = async (p: Partial<SeedPrickle> = {}, extra: object = {}) => ({
         slug: `contract-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        title: "Open House",
         event_type: "other",
-        starts_at: "2097-05-01T09:00:00Z",
-        ends_at: "2097-05-01T10:00:00Z",
+        prickle_id: await ctx.prickle({ title: "Open House", startTime: "2097-05-01T09:00:00Z", endTime: "2097-05-01T10:00:00Z", ...p }),
         ...extra,
       });
 
       it("creates, reads, updates and deletes an event", async () => {
         const repo = ctx.repo();
-        const made = await repo.create(fields({ location: "Lakehouse" }));
+        const made = await repo.create(await fields({ location: "Lakehouse", guestSpeaker: "Ada Example" }));
         ctx.track(made.id);
-        expect(made).toMatchObject({ title: "Open House", location: "Lakehouse" });
+        expect(made).toMatchObject({ title: "Open House", location: "Lakehouse", speakers: "Ada Example", starts_at: "2097-05-01", ends_at: "2097-05-01" });
 
         expect(await repo.byId(made.id)).toMatchObject({ id: made.id, title: "Open House" });
         expect(await repo.byId(NONE)).toBeNull();
+        expect(await repo.bySlug(made.slug)).toMatchObject({ id: made.id, title: "Open House" });
+        expect(await repo.bySlug("no-such-slug")).toBeNull();
 
-        const updated = await repo.edit(made.id, { title: "Closed House", automatic: false });
-        expect(updated).toMatchObject({ id: made.id, title: "Closed House", automatic: false });
-        await expect(repo.edit(NONE, { title: "Nope" })).rejects.toThrow();
+        const updated = await repo.edit(made.id, { focus: "Craft", automatic: true });
+        expect(updated).toMatchObject({ id: made.id, title: "Open House", focus: "Craft", automatic: true });
+        await expect(repo.edit(NONE, { focus: "Nope" })).rejects.toThrow();
 
         await repo.remove(made.id);
         expect(await repo.byId(made.id)).toBeNull();
       });
 
       it("throws when the database refuses a write", async () => {
-        await expect(ctx.repo().create({ title: "No slug" } as never)).rejects.toThrow();
+        await expect(ctx.repo().create({ focus: "No slug, no prickle" } as never)).rejects.toThrow();
       });
 
       it("hides and shows an event", async () => {
         const repo = ctx.repo();
-        const made = await repo.create(fields());
+        const made = await repo.create(await fields());
         ctx.track(made.id);
 
         const hidden = await repo.setDeletedAt(made.id, "2097-01-01T00:00:00Z");
         expect(hidden?.deleted_at?.slice(0, 10)).toBe("2097-01-01");
         expect((await repo.setDeletedAt(made.id, null))?.deleted_at).toBeNull();
         expect(await repo.setDeletedAt(NONE, null)).toBeNull();
+      });
+
+      it("refuses a second event on the same prickle, or an event on no prickle", async () => {
+        const repo = ctx.repo();
+        const first = await fields();
+        const made = await repo.create(first);
+        ctx.track(made.id);
+
+        await expect(repo.create({ ...(await fields()), prickle_id: first.prickle_id })).rejects.toThrow();
+        await expect(repo.create({ slug: "no-prickle", event_type: "other" } as never)).rejects.toThrow();
+      });
+
+      it("reads the schedule from the prickle: the title falls back to the type's name, and the days are Eastern", async () => {
+        const repo = ctx.repo();
+        const untitled = await repo.create(await fields({ title: null }));
+        // 03:30Z on the 2nd is 23:30 on the 1st in Eastern time (daylight saving).
+        const lateNight = await repo.create(await fields({ title: "Late", startTime: "2097-07-02T03:30:00Z", endTime: "2097-07-02T05:00:00Z" }));
+        // Ends exactly at Eastern midnight: the event ends the day before.
+        const midnight = await repo.create(await fields({ title: "Midnight", startTime: "2097-07-03T20:00:00Z", endTime: "2097-07-04T04:00:00Z" }));
+        // 2097-03-10 is the second Sunday of March: a 23-hour Eastern day. Ends at the next midnight.
+        const springForward = await repo.create(await fields({ title: "Spring", startTime: "2097-03-10T05:00:00Z", endTime: "2097-03-11T04:00:00Z" }));
+        for (const e of [untitled, lateNight, midnight, springForward]) ctx.track(e.id);
+
+        expect(untitled.title).toBe("Event");
+        expect([lateNight.starts_at, lateNight.ends_at]).toEqual(["2097-07-01", "2097-07-02"]);
+        expect([midnight.starts_at, midnight.ends_at]).toEqual(["2097-07-03", "2097-07-03"]);
+        expect([springForward.starts_at, springForward.ends_at]).toEqual(["2097-03-10", "2097-03-10"]);
+      });
+
+      it("finds the event standing on a prickle", async () => {
+        const repo = ctx.repo();
+        const made = await repo.create(await fields());
+        ctx.track(made.id);
+
+        expect(await repo.byPrickleId(made.prickle_id)).toMatchObject({ id: made.id, title: "Open House" });
+        expect(await repo.byPrickleId("prkl_AAAAAAAAAAA1")).toBeNull();
       });
 
       it("lists events newest first with the count of photos that are not hidden", async () => {
@@ -237,10 +278,9 @@ export type SyncSeedEvent = {
   key: string;
   /** Whether it follows a calendar event (default true). */
   calendar?: boolean;
-  /** Only the calendar event, no events row. */
+  /** Only the calendar event and its prickle, no events row. */
   eventless?: boolean;
   automatic?: boolean;
-  overridden?: string[];
   hidden?: boolean;
   photo?: boolean;
 };
@@ -249,6 +289,8 @@ export type SyncSeedResult = {
   events: Record<string, string>;
   slugs: Record<string, string>;
   calendars: Record<string, string>;
+  /** Each key's prickle: with a calendar event unless `calendar` is false; an `eventless` one has a prickle and no event. */
+  prickles: Record<string, string>;
 };
 
 export type EventSyncContext = {
@@ -256,7 +298,7 @@ export type EventSyncContext = {
   /** Replaces what this context seeded before with these events and the calendar events they follow. */
   seed: (events: SyncSeedEvent[]) => Promise<SyncSeedResult>;
   /** The event row now, or null (so a test can see what a write did). */
-  read: (id: string) => Promise<{ title: string; automatic: boolean } | null>;
+  read: (id: string) => Promise<{ focus: string | null; automatic: boolean } | null>;
 };
 
 /** Calendar sync behavior of an `EventRepository`; run against the in-memory twin (unit) and Supabase (db). */
@@ -284,34 +326,26 @@ export function defineEventSyncContract(name: string, setup: () => EventSyncCont
       expect((await ctx.repo().calendarEventIdsWithEvent([])).size).toBe(0);
     });
 
-    it("lists the followers of calendar events with their overridden fields", async () => {
-      const s = await ctx.seed([{ key: "a", overridden: ["title"] }, { key: "b" }, { key: "c", eventless: true }]);
+    it("lists the events standing on the prickles of calendar events", async () => {
+      const s = await ctx.seed([{ key: "a" }, { key: "b" }, { key: "c", eventless: true }]);
 
       const linked = await ctx.repo().linkedToCalendarEvents([s.calendars.a, s.calendars.b, s.calendars.c]);
 
       expect(linked.sort((x, y) => (x.id < y.id ? -1 : 1))).toEqual(
         [
-          { id: s.events.a, calendarEventId: s.calendars.a, overriddenFields: ["title"] },
-          { id: s.events.b, calendarEventId: s.calendars.b, overriddenFields: [] },
+          { id: s.events.a, calendarEventId: s.calendars.a, prickleId: s.prickles.a },
+          { id: s.events.b, calendarEventId: s.calendars.b, prickleId: s.prickles.b },
         ].sort((x, y) => (x.id < y.id ? -1 : 1)),
       );
     });
 
-    it("creates an event for a calendar event, and reports a taken calendar event or slug as a conflict", async () => {
+    it("creates an event on a prickle, and reports a taken prickle or slug as a conflict", async () => {
       const s = await ctx.seed([{ key: "taken" }, { key: "free", eventless: true }]);
-      const row = (calendar: string, slug: string) => ({
-        title: "Made by the sync",
-        slug,
-        event_type: "other" as const,
-        starts_at: "2185-05-02",
-        ends_at: "2185-05-02",
-        calendar_event_id: calendar,
-        automatic: true,
-      });
+      const row = (prickleId: string, slug: string) => ({ slug, event_type: "other" as const, prickle_id: prickleId, automatic: true });
 
-      expect(await ctx.repo().createFromCalendar(row(s.calendars.taken, `${s.slugs.taken}-x`))).toEqual({ status: "conflict", on: "calendar_event" });
-      expect(await ctx.repo().createFromCalendar(row(s.calendars.free, s.slugs.taken))).toEqual({ status: "conflict", on: "slug" });
-      const made = await ctx.repo().createFromCalendar(row(s.calendars.free, `${s.slugs.taken}-y`));
+      expect(await ctx.repo().createForPrickle(row(s.prickles.taken, `${s.slugs.taken}-x`))).toEqual({ status: "conflict", on: "prickle" });
+      expect(await ctx.repo().createForPrickle(row(s.prickles.free, s.slugs.taken))).toEqual({ status: "conflict", on: "slug" });
+      const made = await ctx.repo().createForPrickle(row(s.prickles.free, `${s.slugs.taken}-y`));
 
       expect(made).toMatchObject({ status: "created", event: { slug: `${s.slugs.taken}-y` } });
       expect(await ctx.repo().byCalendarEventId(s.calendars.free)).toMatchObject({ slug: `${s.slugs.taken}-y`, automatic: true });
@@ -320,9 +354,9 @@ export function defineEventSyncContract(name: string, setup: () => EventSyncCont
     it("writes columns to one event and leaves the others alone", async () => {
       const s = await ctx.seed([{ key: "a", automatic: true }, { key: "b", automatic: true }]);
 
-      await ctx.repo().update(s.events.a, { title: "Retitled", automatic: false });
+      await ctx.repo().update(s.events.a, { focus: "Refocused", automatic: false });
 
-      expect(await ctx.read(s.events.a)).toEqual({ title: "Retitled", automatic: false });
+      expect(await ctx.read(s.events.a)).toEqual({ focus: "Refocused", automatic: false });
       expect(await ctx.read(s.events.b)).toMatchObject({ automatic: true });
     });
 

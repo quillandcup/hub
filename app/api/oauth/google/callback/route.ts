@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createPickerSession, exchangeCodeForToken } from "@/lib/google-photos-picker/client";
 import { redirectUriFor } from "@/lib/google-photos-picker/redirect-uri";
@@ -57,7 +58,8 @@ export async function GET(request: NextRequest) {
       maxAgeSeconds
     );
 
-    return NextResponse.redirect(new URL(`/admin/events/${eventId}/import-photos`, request.nextUrl.origin));
+    const event = await createRepos(auth.supabase).events.byId(eventId).catch(() => null);
+    return NextResponse.redirect(new URL(`/admin/events/${event?.slug ?? eventId}/import-photos`, request.nextUrl.origin));
   } catch (error: any) {
     console.error("Error starting Google Photos import:", error);
     const eventFailureUrl = new URL(`/admin/events/${eventId}`, request.nextUrl.origin);

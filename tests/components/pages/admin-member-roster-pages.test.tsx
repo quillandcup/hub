@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { ADMIN_USER, renderServerPage, resetServerPageMocks, signInAs, useFakeSupabase } from "@/tests/helpers/server-page";
 import { InMemoryDataset } from "@/lib/data/in-memory";
 import { createInMemoryRepos } from "@/lib/data/repos";
-import { zoomAttendee } from "@/tests/helpers/zoom-fixtures";
+import { ambiguousZoomName, zoomAttendee } from "@/tests/helpers/zoom-fixtures";
 
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
@@ -63,7 +63,7 @@ describe("ambiguous Zoom names page", () => {
   const SAM_FERN = { id: "mbr_AAAAAAAAAAB5", name: "Sam Fern", email: "samfern@example.test" };
   const withMembers = (members: object[], nameAliases: object[] = [], prickles: object[] = [], attendees: object[] = []) => {
     repos = createInMemoryRepos(
-      new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never, prickles: prickles as never, zoomAttendees: attendees.map((a) => zoomAttendee(a as never)) })
+      new InMemoryDataset({ members: members as never, nameAliases: nameAliases as never, prickles: prickles as never, zoomAttendees: attendees.map((a) => zoomAttendee(a as never)), ambiguousZoomNames: [ambiguousZoomName({ zoom_name: "Sam", occurrence_count: 4890, last_seen_at: "2026-08-30T00:00:00Z" })] })
     );
   };
   const prickle = (id: string, title: string, source: string, start: string, end: string, zoomMeetingUuid: string | null = null) => ({
@@ -77,9 +77,7 @@ describe("ambiguous Zoom names page", () => {
       { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", meeting_uuid: "m2", meeting_id: "2" },
       { name: "Sam", email: "other@example.test", join_time: "2026-10-09T00:00:00Z", meeting_uuid: "m3", meeting_id: "3" },
     ]);
-    useFakeSupabase({
-      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null, occurrence_count: 4890, last_seen_at: "2026-08-30T00:00:00Z" }] },
-    });
+    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -106,9 +104,7 @@ describe("ambiguous Zoom names page", () => {
         { name: SAM_FERN.name, email: null, join_time: "2026-10-05T00:00:00Z", topic: "Evening Writing", meeting_uuid: "m2", meeting_id: "2" },
       ]
     );
-    useFakeSupabase({
-      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-    });
+    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -130,9 +126,7 @@ describe("ambiguous Zoom names page", () => {
       { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z", topic: "Link", meeting_uuid: "m1", meeting_id: "1" },
       { name: "Sam", email: null, join_time: "2026-10-05T00:00:00Z", topic: "Link", meeting_uuid: "m2", meeting_id: "2" },
     ]);
-    useFakeSupabase({
-      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-    });
+    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -152,7 +146,7 @@ describe("ambiguous Zoom names page", () => {
         { name: "Sam", email: null, join_time: "2026-10-30T23:05:00Z", topic: "Other", meeting_uuid: "m3", meeting_id: "3" },
       ]
     );
-    useFakeSupabase({ ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] } });
+    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 
@@ -164,13 +158,23 @@ describe("ambiguous Zoom names page", () => {
     ]);
   });
 
+  it("lists nothing when the stored names can't be read", async () => {
+    withMembers([ADA, SAM_ADA, SAM_FERN], [], [], [{ name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" }]);
+    repos.zoom.unresolvedAmbiguousNames = async () => {
+      throw new Error("boom");
+    };
+    useFakeSupabase({});
+
+    await renderServerPage(AmbiguousNamesPage, {});
+
+    expect(JSON.parse(screen.getByTestId("entries").textContent!)).toEqual([]);
+  });
+
   it("drops a stored name once an alias settles who it is", async () => {
     withMembers([ADA, SAM_ADA], [{ id: "nal_AAAAAAAAAAA1", member_id: SAM_ADA.id, alias: "Sam", active: true }], [], [
       { name: "Sam", email: null, join_time: "2026-10-01T00:00:00Z" },
     ]);
-    useFakeSupabase({
-      ambiguous_zoom_names: { data: [{ zoom_name: "Sam", zoom_email: null }] },
-    });
+    useFakeSupabase({});
 
     await renderServerPage(AmbiguousNamesPage, {});
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventFields, descriptionWithoutEventTag, hasEventTag, stripEventTag } from "@/lib/calendar-events";
+import { descriptionWithoutEventTag, hasEventTag, stripEventTag } from "@/lib/calendar-events";
 
 describe("hasEventTag", () => {
   it.each([
@@ -53,18 +53,5 @@ describe("stripEventTag", () => {
   it("is null for nothing", () => {
     expect(stripEventTag(null)).toBeNull();
     expect(stripEventTag("  #event ")).toBeNull();
-  });
-});
-
-describe("calendarEventFields", () => {
-  it("leaves the #event tag out of the event's description", () => {
-    const fields = calendarEventFields({
-      summary: "Book Fair",
-      description: "<p>Browse our books</p><p>#event</p>",
-      location: null,
-      start_time: "2097-05-02T23:00:00Z",
-      end_time: "2097-05-03T01:00:00Z",
-    });
-    expect(fields.description).toBe("Browse our books");
   });
 });

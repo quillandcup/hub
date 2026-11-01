@@ -160,18 +160,18 @@ describe("/privacy page", () => {
     expect(document.querySelectorAll("details[open]")).toHaveLength(0);
   });
 
-  it("states the consent rule and that the switch leaves a member out", async () => {
+  it("states the consent rule, with statistics shared unless the member turns them off", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
     expect(choices.getByText(/we ask before we start, with the banner/)).toBeInTheDocument();
     expect(choices.getByText(/if you decline we don't record any of this/)).toBeInTheDocument();
-    expect(choices.getByRole("switch", { name: "Leave me out of usage statistics" })).toHaveAttribute("aria-checked", "false");
+    expect(choices.getByRole("switch", { name: "Share usage statistics" })).toHaveAttribute("aria-checked", "true");
   });
 
-  it("shows the switch on when the member has left usage statistics, and read-only in sudo", async () => {
+  it("shows the switch off when the member has left usage statistics, and read-only in sudo", async () => {
     isAnalyticsOptedOut.mockResolvedValue(true);
     await renderServerPage(PrivacyPage, {});
-    expect(section("choices").getByRole("switch")).toHaveAttribute("aria-checked", "true");
+    expect(section("choices").getByRole("switch")).toHaveAttribute("aria-checked", "false");
     expect(isAnalyticsOptedOut).toHaveBeenCalledWith(MEMBER_USER.id);
   });
 
@@ -198,7 +198,7 @@ describe("/privacy page", () => {
   it("puts the switch first, with how usage statistics work folded away below it", async () => {
     await renderServerPage(PrivacyPage, {});
     const choices = section("choices");
-    const toggle = choices.getByRole("switch", { name: "Leave me out of usage statistics" });
+    const toggle = choices.getByRole("switch", { name: "Share usage statistics" });
     const folded = choices.getByText("How usage statistics work").closest("details")!;
     expect(folded).not.toHaveAttribute("open");
     // The switch comes before the folded explanation in the page.

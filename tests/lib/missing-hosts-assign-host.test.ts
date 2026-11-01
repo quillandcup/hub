@@ -75,7 +75,7 @@ describe("assignHostToUnhostedPrickles", () => {
   it("updates an event's existing decision instead of adding a second", async () => {
     dataset.unmatchedEvents.push({
       id: "u1", calendar_event_id: "cal-1", raw_summary: "Event cal-1", status: "pending", created_at: null, resolved_at: null, suggested_host: null, suggested_type: null,
-      resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null,
+      resolved_type_id: null, resolved_host_id: null, resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null,
     });
 
     await assignHostToUnhostedPrickles(TYPE.id, FORMER.id);
