@@ -5,6 +5,8 @@
 -- dropped in a later migration, once the code that stopped reading it is deployed.
 -- writing_goals.archived_at ("mark as done") is a different column and stays.
 
+set lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION public.get_member_directory()
  RETURNS TABLE(id text, name text, display_name text, photo_url text, bio text, first_joined_at date, projects text[], topics text[])
  LANGUAGE sql
