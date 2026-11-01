@@ -80,7 +80,10 @@ export async function loadChatChannels(
   return summaries.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
 }
 
-/** "Fern, Gale" for each group DM: the other people in it. */
+/**
+ * "Fern, Gale" for each group DM: the other people in it. Deliberately not Billie Bot: it is in every group
+ * message (the bridge needs it there) and isn't a Hub member, so naming it would say nothing.
+ */
 async function groupDmLabels(repos: ChatLoadRepos, channelIds: string[], memberId: string, timer?: StageTimer) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
