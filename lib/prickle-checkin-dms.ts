@@ -181,8 +181,8 @@ export async function releaseCheckinDM(
 
 /** Measures this member has logged on the project, most recent first (a recency hint, so only the latest entries are read). */
 async function recentMeasures(supabase: any, projectId: string, memberId: string): Promise<WritingMeasure[]> {
-  const measures = await createRepos(supabase).writing.recentProjectMeasures(memberId, projectId, 50);
-  return [...new Set(measures as WritingMeasure[])];
+  const recent = await createRepos(supabase).writing.recentEntryMeasures(memberId, 50, { projectId });
+  return [...new Set(recent.map((e) => e.measure) as WritingMeasure[])];
 }
 
 export const QUICK_LOG_ACTION_ID = "writing_quick_log";
