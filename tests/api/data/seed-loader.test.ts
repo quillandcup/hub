@@ -88,6 +88,27 @@ describe("loadProfile", () => {
     expect((await db.from("members").select("id").eq("raw_payload->>seed_profile", other.name)).data).toHaveLength(4);
   });
 
+  it("writes only the parts asked for, and links the people to their accounts", async () => {
+    const profile = mine(HOSTING_HEAVY);
+    const dataset = buildDataset(profile, NOW, { timeZone: ZONE });
+    const email = `hana.hostess.hosting-heavy-${RUN}@example.com`;
+    const account = await db.auth.admin.createUser({ email, email_confirm: true });
+    expect(account.error).toBeNull();
+    const userId = account.data.user!.id;
+
+    try {
+      const result = await loadProfile(db, dataset, { profile: profile.name, include: ["badges"], userIdByEmail: new Map([[email, userId]]) });
+
+      expect(result).toMatchObject({ members: 5, prickles: 0, attendance: 0, notifications: 0, mentorships: 0, badges: 1 });
+      expect((await db.from("prickles").select("id").eq("type", `seed:${profile.name}`)).data).toHaveLength(0);
+      expect((await db.from("members").select("user_id").eq("email", email).single()).data?.user_id).toBe(userId);
+      await expect(loadProfile(db, dataset, { profile: profile.name, include: ["attendance"] })).rejects.toThrow(/attendance needs the prickles/);
+    } finally {
+      await clearProfile(db, profile.name);
+      await db.auth.admin.deleteUser(userId);
+    }
+  });
+
   it("refuses to take over addresses that belong to someone else", async () => {
     const profile = mine(FIRST_WEEK);
     await clearProfile(db, profile.name);

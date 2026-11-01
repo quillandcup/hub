@@ -5,6 +5,7 @@ import { googleCalendarFrames } from "./google-calendar";
 import { LONG as L, SHORT as S } from "./script";
 import { recordingOf, synthesize } from "./voiceover";
 import { LINE_IDS } from "./script";
+import { persona } from "../personas";
 import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 
 /**
@@ -175,7 +176,7 @@ test("overview-long", async ({ browser }) => {
 
   // Notifications, reached the way a member would: the user menu, Settings, the Notifications tab.
   await d.narrate(L.reminders, async () => {
-    await d.click(d.page.getByRole("button", { name: /Maya/ }).first(), 700);
+    await d.click(d.page.getByRole("button", { name: new RegExp(persona("member").name.split(" ")[0]) }).first(), 700);
     await d.click(d.page.getByRole("link", { name: /^Settings$/ }), 500);
     // The settings tab, not the bell in the header that has the same name.
     const inPage = d.page.locator("main");
