@@ -480,7 +480,7 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       const repo = ctx.courses();
       const [moduleId] = [...(await repo.upsertModules([{ course_id: imported.id, title: "K", position: 1, publishing_option: "published", state: "open", source: "kajabi", source_key: ctx.unique("km") }])).values()];
       await expect(repo.setItemStatus("module", moduleId, "draft")).rejects.toThrow("not_editable");
-      expect(await repo.moduleById(moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
+      expect((await repo.modulesOf([imported.id], { includeHidden: true })).find((x) => x.id === moduleId)).toMatchObject({ publishing_option: "published", state: "open" });
     });
 
     it("records and clears the library image of a course, its banner, a module and a lesson", async () => {

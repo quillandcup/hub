@@ -1,4 +1,4 @@
--- pgTAP tests for the settings of a course's modules and lessons (20270330000000): each has its
+-- pgTAP tests for the settings of a course's modules and lessons (20270401000000): each has its
 -- OWN setting, an item can simply follow what is above it, and the state members get is worked out from
 -- them by one rule (lib/courses/visibility.ts is the same rule: keep the two in step, tests/lib/
 -- courses-visibility-rule.test.ts has the same cases). Changing a setting is one audit entry for the
