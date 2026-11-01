@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, type Page } from "./query";
+import { compareText } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -65,7 +65,7 @@ export class SupabaseAdminWorkQueueRepository implements AdminWorkQueueRepositor
           .from("admin_work_queue_completions")
           .select("queue_type, member_id, occurrence_key, status, postponed_until")
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<WorkQueueCompletion>>,
+          .range(from, to),
     );
   }
 
@@ -87,7 +87,7 @@ export class SupabaseAdminWorkQueueRepository implements AdminWorkQueueRepositor
   async dismissedGroupKeys() {
     const rows = await fetchAllRows<Pick<Row<"dismissed_duplicate_groups">, "group_key">>(
       (from, to) =>
-        this.db.from("dismissed_duplicate_groups").select("group_key").order("group_key").range(from, to) as unknown as PromiseLike<Page<Pick<Row<"dismissed_duplicate_groups">, "group_key">>>,
+        this.db.from("dismissed_duplicate_groups").select("group_key").order("group_key").range(from, to),
     );
     return new Set(rows.map((r) => r.group_key));
   }
@@ -112,7 +112,7 @@ export class SupabaseAdminWorkQueueRepository implements AdminWorkQueueRepositor
     if (status) query = query.eq("status", status);
     const { data, error, count } = await query;
     if (error) throw new Error(error.message);
-    const rows = ((data ?? []) as unknown as (Omit<FeedbackWithMember, "member"> & { member: FeedbackWithMember["member"] | FeedbackWithMember["member"][] })[]).map((r) => ({
+    const rows = (data ?? []).map((r) => ({
       ...r,
       member: one(r.member),
     }));

@@ -335,7 +335,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async byId(id: string): Promise<PrickleDetail | null> {
     const { data, error } = await this.db.from("prickles").select(DETAIL_SELECT).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toDetail(data as unknown as DetailRow) : null;
+    return data ? toDetail(data) : null;
   }
 
   async byIds(ids: string[]): Promise<PrickleDetail[]> {
@@ -343,10 +343,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     for (const idChunk of chunk(ids, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<DetailRow>(
         (from, to) =>
-          this.db.from("prickles").select(DETAIL_SELECT).in("id", idChunk).order("id").range(from, to) as unknown as PromiseLike<{
-            data: DetailRow[] | null;
-            error: { message: string } | null;
-          }>,
+          this.db.from("prickles").select(DETAIL_SELECT).in("id", idChunk).order("id").range(from, to),
       );
       found.push(...rows.map(toDetail));
     }
@@ -358,10 +355,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     for (const idChunk of chunk(calendarEventIds, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<DetailRow>(
         (from, to) =>
-          this.db.from("prickles").select(DETAIL_SELECT).in("calendar_event_id", idChunk).order("id").range(from, to) as unknown as PromiseLike<{
-            data: DetailRow[] | null;
-            error: { message: string } | null;
-          }>,
+          this.db.from("prickles").select(DETAIL_SELECT).in("calendar_event_id", idChunk).order("id").range(from, to),
       );
       found.push(...rows.map(toDetail));
     }
@@ -381,10 +375,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           if (typeChunk) query = query.in("type_id", typeChunk);
           if (hostId) query = query.eq("host", hostId);
           if (eventTypeId) query = query.or(`type_id.is.null,type_id.neq.${eventTypeId}`);
-          return query.order("start_time").order("id").range(start, end) as unknown as PromiseLike<{
-            data: DetailRow[] | null;
-            error: { message: string } | null;
-          }>;
+          return query.order("start_time").order("id").range(start, end);
         })),
       );
     }
@@ -395,10 +386,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async types(): Promise<PrickleType[]> {
     const rows = await fetchAllRows<TypeRow>(
       (from, to) =>
-        this.db.from("prickle_types").select(FULL_TYPE_COLUMNS).order("name").order("id").range(from, to) as unknown as PromiseLike<{
-          data: TypeRow[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("prickle_types").select(FULL_TYPE_COLUMNS).order("name").order("id").range(from, to),
     );
     return rows.map(toType);
   }
@@ -406,16 +394,13 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async typeById(id: string): Promise<PrickleType | null> {
     const { data, error } = await this.db.from("prickle_types").select(FULL_TYPE_COLUMNS).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toType(data as unknown as TypeRow) : null;
+    return data ? toType(data) : null;
   }
 
   async typesRequiringHost(): Promise<Pick<PrickleType, "id" | "name">[]> {
     return fetchAllRows<{ id: string; name: string }>(
       (from, to) =>
-        this.db.from("prickle_types").select("id, name").eq("requires_host", true).order("name").order("id").range(from, to) as unknown as PromiseLike<{
-          data: { id: string; name: string }[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("prickle_types").select("id, name").eq("requires_host", true).order("name").order("id").range(from, to),
     );
   }
 
@@ -434,7 +419,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       .select(FULL_TYPE_COLUMNS)
       .single();
     if (error || !data) throw new Error(error?.message ?? "Couldn't create the prickle type");
-    return toType(data as unknown as TypeRow);
+    return toType(data);
   }
 
   async updateType(id: string, patch: PrickleTypePatch): Promise<void> {
@@ -459,10 +444,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     type Raw = { type_id: string | null; prickle_types: { id: string; name: string } | { id: string; name: string }[] | null };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
-        this.db.from("prickles").select("type_id, prickle_types!inner(id, name)").eq("host", hostId).gte("start_time", since).order("id").range(from, to) as unknown as PromiseLike<{
-          data: Raw[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("prickles").select("type_id, prickle_types!inner(id, name)").eq("host", hostId).gte("start_time", since).order("id").range(from, to)
     );
     const types = new Map<string, string>();
     for (const row of rows) {
@@ -478,7 +460,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
         let query = this.db.from("prickle_host_vibes").select("type_id, host_id, vibe, notes");
         if (hostId !== undefined) query = query.eq("host_id", hostId);
         if (ids) query = query.in("type_id", ids);
-        return query.order("id").range(from, to) as unknown as PromiseLike<{ data: HostVibeTag[] | null; error: { message: string } | null }>;
+        return query.order("id").range(from, to);
       });
     if (!typeIds) return read();
     const found: HostVibeTag[] = [];
@@ -509,10 +491,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     const rows = await fetchAllRows<{ host: string; start_time: string }>((from, to) => {
       let query = this.db.from("prickles").select("host, start_time").not("host", "is", null);
       if (hostId) query = query.eq("host", hostId);
-      return query.order("id").range(from, to) as unknown as PromiseLike<{
-        data: { host: string; start_time: string }[] | null;
-        error: { message: string } | null;
-      }>;
+      return query.order("id").range(from, to);
     });
     return rows.map((r) => ({ hostId: r.host, startTime: r.start_time }));
   }
@@ -547,10 +526,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
   async hostlessCalendarCountsByType(): Promise<Map<string, number>> {
     const rows = await fetchAllRows<{ type_id: string }>(
       (from, to) =>
-        this.db.from("prickles").select("type_id").eq("source", "calendar").is("host", null).not("type_id", "is", null).order("id").range(from, to) as unknown as PromiseLike<{
-          data: { type_id: string }[] | null;
-          error: { message: string } | null;
-        }>,
+        this.db.from("prickles").select("type_id").eq("source", "calendar").is("host", null).not("type_id", "is", null).order("id").range(from, to),
     );
     const counts = new Map<string, number>();
     for (const row of rows) counts.set(row.type_id, (counts.get(row.type_id) ?? 0) + 1);
@@ -568,7 +544,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       .order("id", { ascending: false })
       .limit(limit);
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
+    return ((data ?? [])).map(toDetail);
   }
 
   async calendarOverlapping({ from, to }: { from: string; to: string }) {
@@ -582,10 +558,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           .gt("end_time", from)
           .order("start_time")
           .order("id")
-          .range(start, end) as unknown as PromiseLike<{
-          data: { id: string; type_id: string | null; start_time: string; end_time: string }[] | null;
-          error: { message: string } | null;
-        }>,
+          .range(start, end),
     );
     return rows.map((r) => ({ id: r.id, typeId: r.type_id, startTime: r.start_time, endTime: r.end_time }));
   }
@@ -595,10 +568,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     for (const uuidChunk of chunk(meetingUuids, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<DetailRow>(
         (from, to) =>
-          this.db.from("prickles").select(DETAIL_SELECT).in("zoom_meeting_uuid", uuidChunk).order("id").range(from, to) as unknown as PromiseLike<{
-            data: DetailRow[] | null;
-            error: { message: string } | null;
-          }>,
+          this.db.from("prickles").select(DETAIL_SELECT).in("zoom_meeting_uuid", uuidChunk).order("id").range(from, to),
       );
       found.push(...rows.map(toDetail));
     }
@@ -642,10 +612,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           .select("id, start_time, end_time, zoom_meeting_uuid, source")
           .order("start_time")
           .order("id")
-          .range(from, to) as unknown as PromiseLike<{
-          data: { id: string; start_time: string; end_time: string; source: string; zoom_meeting_uuid: string | null }[] | null;
-          error: { message: string } | null;
-        }>,
+          .range(from, to),
     );
     return rows.map((r) => ({ id: r.id, startTime: r.start_time, endTime: r.end_time, source: r.source, zoomMeetingUuid: r.zoom_meeting_uuid }));
   }
@@ -679,7 +646,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
     if (before) query = query.lt("start_time", before);
     const { data, error } = await query.order("start_time", { ascending: false }).order("id", { ascending: false }).range(offset, offset + limit - 1);
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
+    return ((data ?? [])).map(toDetail);
   }
 
   async findOrCreateType({ name, normalizedName, description }: { name: string; normalizedName: string; description?: string }): Promise<string> {
@@ -732,7 +699,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
           .or(eventTypeId ? `type_id.is.null,type_id.neq.${eventTypeId}` : "id.not.is.null")
           .order("start_time")
           .order("id")
-          .range(start, end) as unknown as PromiseLike<{ data: DetailRow[] | null; error: { message: string } | null }>,
+          .range(start, end),
     );
     return rows.map(toDetail);
   }
@@ -751,7 +718,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       if (latest.error) throw new Error(latest.error.message);
       row = (latest.data ?? [])[0];
     }
-    return row ? toDetail(row as unknown as DetailRow) : null;
+    return row ? toDetail(row) : null;
   }
 
   async inProgressAt(instant: string): Promise<PrickleDetail | null> {
@@ -767,20 +734,17 @@ export class SupabasePrickleRepository implements PrickleRepository {
       .limit(1);
     if (error) throw new Error(error.message);
     const row = (data ?? [])[0];
-    return row ? toDetail(row as unknown as DetailRow) : null;
+    return row ? toDetail(row) : null;
   }
 
   async hostedCounts(hostIds: string[], before: string): Promise<Map<string, number>> {
     const counts = new Map<string, number>(hostIds.map((id) => [id, 0]));
     for (const hostChunk of chunk(hostIds, ID_CHUNK_SIZE)) {
-      const rows = await fetchAllRows<{ host: string }>(
+      const rows = await fetchAllRows(
         (from, to) =>
-          this.db.from("prickles").select("host").in("host", hostChunk).lt("start_time", before).order("id").range(from, to) as unknown as PromiseLike<{
-            data: { host: string }[] | null;
-            error: { message: string } | null;
-          }>,
+          this.db.from("prickles").select("host").in("host", hostChunk).lt("start_time", before).order("id").range(from, to),
       );
-      for (const row of rows) counts.set(row.host, (counts.get(row.host) ?? 0) + 1);
+      for (const row of rows) if (row.host) counts.set(row.host, (counts.get(row.host) ?? 0) + 1); // `in` never matches null
     }
     return counts;
   }
@@ -800,7 +764,7 @@ export class SupabasePrickleRepository implements PrickleRepository {
       .order("id")
       .limit(limit);
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as DetailRow[]).map(toDetail);
+    return ((data ?? [])).map(toDetail);
   }
 }
 

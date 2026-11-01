@@ -1,5 +1,4 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Page } from "./query";
 import { ORG_TIMEZONE } from "@/lib/config";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -96,7 +95,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
       .order("created_at")
       .order("id");
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as (ScheduleRow & { prickle_types: { name: string } | null })[]).map(({ prickle_types, ...row }) => ({
+    return (data ?? []).map(({ prickle_types, ...row }) => ({
       ...row,
       typeName: prickle_types?.name ?? null,
     }));
@@ -139,7 +138,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
           .in("status", ["proposed", "confirmed"])
           .is("deleted_at", null)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Raw>>
+          .range(from, to)
     );
     return rows.map(({ prickle_types, member, ...slot }) => ({ ...slot, typeName: prickle_types?.name ?? null, host: member }));
   }
@@ -147,9 +146,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
   async liveInMonth(month: string): Promise<ScheduleRow[]> {
     return fetchAllRows<ScheduleRow>(
       (from, to) =>
-        this.db.from("prickle_schedules").select("*").eq("month", month).is("deleted_at", null).order("created_at").order("id").range(from, to) as unknown as PromiseLike<
-          Page<ScheduleRow>
-        >
+        this.db.from("prickle_schedules").select("*").eq("month", month).is("deleted_at", null).order("created_at").order("id").range(from, to)
     );
   }
 
@@ -163,7 +160,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
           .is("deleted_at", null)
           .order("created_at")
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<ScheduleDetail>>
+          .range(from, to)
     );
   }
 
@@ -182,7 +179,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
   async insertDetailed(row: Insert<"prickle_schedules">) {
     const { data, error } = await this.db.from("prickle_schedules").insert(row).select(DETAIL_SELECT).single();
     if (error) throw new Error(error.message);
-    return data as unknown as ScheduleDetail;
+    return data;
   }
 
   async update(id: string, patch: Update<"prickle_schedules">, scope: { hostId?: string } = {}) {
@@ -195,7 +192,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
   async updateLive(id: string, patch: Update<"prickle_schedules">) {
     const { data, error } = await this.db.from("prickle_schedules").update(patch).eq("id", id).is("deleted_at", null).select(DETAIL_SELECT).maybeSingle();
     if (error) throw new Error(error.message);
-    return (data as unknown as ScheduleDetail | null) ?? null;
+    return (data) ?? null;
   }
 
   async confirmProposed(ids: string[], { confirmedBy, at }: { confirmedBy: string | null; at: string }) {
@@ -226,7 +223,7 @@ export class SupabasePrickleScheduleRepository implements PrickleScheduleReposit
           .in("status", ["proposed", "confirmed"])
           .is("deleted_at", null)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Raw>>
+          .range(from, to)
     );
     const types = new Map<string, string>();
     for (const row of rows) {

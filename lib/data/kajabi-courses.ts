@@ -1,5 +1,4 @@
 import { chunk, fetchAllRows } from "../supabase/paginate";
-import type { PageQuery } from "./query";
 import type { Database, Json } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -192,7 +191,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
 
   async liveCourses() {
     return fetchAllRows<KajabiCourse>(
-      (a, b) => this.bronze.from("kajabi_courses").select("*").is("deleted_at", null).order("title").order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiCourse>,
+      (a, b) => this.bronze.from("kajabi_courses").select("*").is("deleted_at", null).order("title").order("kajabi_id").range(a, b),
     );
   }
 
@@ -236,7 +235,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
   async liveModules(courseKajabiId?: string) {
     return fetchAllRows<KajabiModule>((a, b) => {
       const query = this.bronze.from("kajabi_course_modules").select("*").is("deleted_at", null);
-      return (courseKajabiId === undefined ? query : query.eq("course_kajabi_id", courseKajabiId)).order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiModule>;
+      return (courseKajabiId === undefined ? query : query.eq("course_kajabi_id", courseKajabiId)).order("kajabi_id").range(a, b);
     });
   }
 
@@ -257,14 +256,14 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
   async liveLessons(courseKajabiId: string) {
     return fetchAllRows<KajabiLesson>(
       (a, b) =>
-        this.bronze.from("kajabi_course_lessons").select("*").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiLesson>,
+        this.bronze.from("kajabi_course_lessons").select("*").eq("course_kajabi_id", courseKajabiId).is("deleted_at", null).order("kajabi_id").range(a, b),
     );
   }
 
   async liveLessonOutlines(courseKajabiId?: string) {
     return fetchAllRows<KajabiLessonOutline>((a, b) => {
       const query = this.bronze.from("kajabi_course_lessons").select(OUTLINE_COLUMNS).is("deleted_at", null);
-      return (courseKajabiId === undefined ? query : query.eq("course_kajabi_id", courseKajabiId)).order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiLessonOutline>;
+      return (courseKajabiId === undefined ? query : query.eq("course_kajabi_id", courseKajabiId)).order("kajabi_id").range(a, b);
     });
   }
 
@@ -298,7 +297,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
         query = "courseId" in scope ? query.eq("course_kajabi_id", scope.courseId) : query.eq("kajabi_id", scope.lessonId);
         // neq alone would also drop rows where publishing_option is NULL.
         if (!includeDrafts) query = query.or("publishing_option.is.null,publishing_option.neq.draft");
-        return query.range(a, b) as unknown as PageQuery<LessonTarget>;
+        return query.range(a, b);
       });
     } catch (error) {
       throw new Error(`kajabi_course_lessons: ${(error as Error).message}`);
@@ -335,7 +334,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
       rows.push(
         ...(await fetchAllRows<KajabiLessonFile>(
           (a, b) =>
-            this.bronze.from("kajabi_lesson_files").select("*").in("lesson_kajabi_id", part).is("deleted_at", null).order("filename").order("kajabi_id").range(a, b) as unknown as PageQuery<KajabiLessonFile>,
+            this.bronze.from("kajabi_lesson_files").select("*").in("lesson_kajabi_id", part).is("deleted_at", null).order("filename").order("kajabi_id").range(a, b),
         )),
       );
     }
@@ -367,7 +366,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
       rows.push(
         ...(await fetchAllRows<KajabiCourseOffer>(
           (a, b) =>
-            this.bronze.from("kajabi_course_offers").select("*").in("course_kajabi_id", part).is("deleted_at", null).order("course_kajabi_id").order("offer_kajabi_id").range(a, b) as unknown as PageQuery<KajabiCourseOffer>,
+            this.bronze.from("kajabi_course_offers").select("*").in("course_kajabi_id", part).is("deleted_at", null).order("course_kajabi_id").order("offer_kajabi_id").range(a, b),
         )),
       );
     }
@@ -396,7 +395,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
           .select("email, percent, logins, started_on, last_activity_on, deleted_at")
           .eq("course_kajabi_id", courseKajabiId)
           .order("email")
-          .range(a, b) as unknown as PageQuery<StoredProductProgress>,
+          .range(a, b),
     );
   }
 
@@ -445,7 +444,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
           .eq("course_kajabi_id", courseKajabiId)
           .eq("email", email)
           .order("kajabi_lesson_id")
-          .range(a, b) as unknown as PageQuery<StoredLessonProgress>,
+          .range(a, b),
     );
   }
 
@@ -460,7 +459,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
           .is("deleted_at", null)
           .order("email")
           .order("kajabi_lesson_id")
-          .range(a, b) as unknown as PageQuery<CompletedLessonProgress>,
+          .range(a, b),
     );
   }
 
@@ -491,7 +490,7 @@ export class SupabaseKajabiCourseRepository implements KajabiCourseRepository {
           .select("course_kajabi_id, comment_key, parent_comment_key, author_name, posted_at, body, deleted_at")
           .eq("lesson_kajabi_id", lessonKajabiId)
           .order("comment_key")
-          .range(a, b) as unknown as PageQuery<StoredLessonComment>,
+          .range(a, b),
     );
   }
 

@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { upsertInChunks, type PageQuery } from "./query";
+import { upsertInChunks } from "./query";
 import type { Database } from "./database.types";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -154,26 +154,26 @@ export class SupabaseZoomRepository implements ZoomRepository {
     return fetchAllRows<ZoomAttendeeRef>((a, b) => {
       let query = this.attendees.select("name, email, meeting_uuid, join_time, leave_time");
       if (withMeetingOnly) query = query.not("meeting_uuid", "is", null);
-      return query.order("id").range(a, b) as unknown as PageQuery<ZoomAttendeeRef>;
+      return query.order("id").range(a, b);
     });
   }
 
   async attendeesSince(from: string) {
     return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>(
-      (a, b) => this.attendees.select("name, email, meeting_uuid").gte("join_time", from).order("id").range(a, b) as unknown as PageQuery<Pick<ZoomAttendeeRow, "name" | "email" | "meeting_uuid">>
+      (a, b) => this.attendees.select("name, email, meeting_uuid").gte("join_time", from).order("id").range(a, b)
     );
   }
 
   async attendeeNamesOverlapping(from: string, to: string) {
     return fetchAllRows<Pick<ZoomAttendeeRow, "name" | "email">>(
       (a, b) =>
-        this.attendees.select("name, email").lt("join_time", to).gt("leave_time", from).order("id").range(a, b) as unknown as PageQuery<Pick<ZoomAttendeeRow, "name" | "email">>
+        this.attendees.select("name, email").lt("join_time", to).gt("leave_time", from).order("id").range(a, b)
     );
   }
 
   async attendeesOverlapping(from: string, to: string) {
     return fetchAllRows<ZoomAttendeeRow>(
-      (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b) as unknown as PageQuery<ZoomAttendeeRow>
+      (a, b) => this.attendees.select("*").lt("join_time", to).gt("leave_time", from).order("join_time").order("id").range(a, b)
     );
   }
 
@@ -183,7 +183,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
       rows.push(
         ...(await fetchAllRows<ZoomNameAppearance>(
           (a, b) =>
-            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id").in("name", part).order("id").range(a, b) as unknown as PageQuery<ZoomNameAppearance>
+            this.attendees.select("name, email, join_time, topic, meeting_uuid, meeting_id").in("name", part).order("id").range(a, b)
         ))
       );
     }
@@ -195,10 +195,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
     for (const part of chunk([...new Set(names)], PAGE_CHUNK)) {
       const rows = await fetchAllRows<{ name: string; meeting_uuid: string | null }>(
         (a, b) =>
-          this.attendees.select("name, meeting_uuid").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as PageQuery<{
-            name: string;
-            meeting_uuid: string | null;
-          }>
+          this.attendees.select("name, meeting_uuid").in("name", part).not("meeting_uuid", "is", null).order("id").range(a, b)
       );
       for (const r of rows) {
         if (!r.meeting_uuid) continue;
@@ -212,7 +209,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
 
   async meetingUuidsForName(name: string) {
     const rows = await fetchAllRows<{ meeting_uuid: string | null }>(
-      (a, b) => this.attendees.select("meeting_uuid").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b) as unknown as PageQuery<{ meeting_uuid: string | null }>
+      (a, b) => this.attendees.select("meeting_uuid").eq("name", name).not("meeting_uuid", "is", null).order("id").range(a, b)
     );
     return [...new Set(rows.flatMap((r) => (r.meeting_uuid ? [r.meeting_uuid] : [])))];
   }
@@ -225,7 +222,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
       // The attendance run groups by meeting_uuid, falling back to meeting_id; look up both.
       for (const column of ["meeting_uuid", "meeting_id"] as const) {
         const rows = await fetchAllRows<Row>(
-          (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id").in(column, part).order("id").range(a, b) as unknown as PageQuery<Row>
+          (a, b) => this.attendees.select("id, name, email, meeting_uuid, meeting_id").in(column, part).order("id").range(a, b)
         );
         for (const r of rows) {
           const key = r.meeting_uuid || r.meeting_id;
@@ -255,13 +252,13 @@ export class SupabaseZoomRepository implements ZoomRepository {
 
   async importedHostIds(since: string) {
     const rows = await fetchAllRows<{ host_id: string | null }>(
-      (a, b) => this.meetings.select("id, host_id:data->>host_id").gte("start_time", since).order("id").range(a, b) as unknown as PageQuery<{ host_id: string | null }>
+      (a, b) => this.meetings.select("id, host_id:data->>host_id").gte("start_time", since).order("id").range(a, b)
     );
     return new Set(rows.flatMap((r) => (r.host_id ? [r.host_id] : [])));
   }
 
   async ignoredNames() {
-    const rows = await fetchAllRows<{ zoom_name: string }>((a, b) => this.ignored.select("zoom_name").order("id").range(a, b) as unknown as PageQuery<{ zoom_name: string }>);
+    const rows = await fetchAllRows<{ zoom_name: string }>((a, b) => this.ignored.select("zoom_name").order("id").range(a, b));
     return rows.map((r) => r.zoom_name);
   }
 
@@ -277,7 +274,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
 
   async ignoredAppearances() {
     type R = Pick<IgnoredZoomAppearanceRow, "zoom_name" | "prickle_id">;
-    return fetchAllRows<R>((a, b) => this.db.from("ignored_zoom_appearances").select("zoom_name, prickle_id").order("id").range(a, b) as unknown as PageQuery<R>);
+    return fetchAllRows<R>((a, b) => this.db.from("ignored_zoom_appearances").select("zoom_name, prickle_id").order("id").range(a, b));
   }
 
   async ignoredAppearancesOf(prickleId: string) {
@@ -301,7 +298,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
   async unresolvedAmbiguousNames() {
     type R = Pick<AmbiguousZoomNameRow, "zoom_name" | "zoom_email">;
     return fetchAllRows<R>(
-      (a, b) => this.db.from("ambiguous_zoom_names").select("zoom_name, zoom_email").eq("status", "unresolved").order("id").range(a, b) as unknown as PageQuery<R>
+      (a, b) => this.db.from("ambiguous_zoom_names").select("zoom_name, zoom_email").eq("status", "unresolved").order("id").range(a, b)
     );
   }
 
@@ -336,7 +333,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
     type R = Pick<AmbiguousZoomNameRow, "id" | "candidate_member_ids">;
     const rows = await fetchAllRows<R>(
       (a, b) =>
-        this.db.from("ambiguous_zoom_names").select("id, candidate_member_ids").contains("candidate_member_ids", [fromMemberId]).order("id").range(a, b) as unknown as PageQuery<R>
+        this.db.from("ambiguous_zoom_names").select("id, candidate_member_ids").contains("candidate_member_ids", [fromMemberId]).order("id").range(a, b)
     );
     for (const part of chunk(rows, PAGE_CHUNK)) {
       const results = await Promise.all(
@@ -385,7 +382,7 @@ export class SupabaseZoomRepository implements ZoomRepository {
   }
 
   async participantEventsSince(since: string) {
-    return fetchAllRows<ZoomParticipantEvent>(
+    const rows = await fetchAllRows(
       (a, b) =>
         this.db
           .schema("bronze")
@@ -393,8 +390,10 @@ export class SupabaseZoomRepository implements ZoomRepository {
           .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
           .gte("event_time", since)
           .order("id")
-          .range(a, b) as unknown as PageQuery<ZoomParticipantEvent>
+          .range(a, b)
     );
+    // The column is text; the webhook only writes "joined" and "left".
+    return rows.map((row) => ({ ...row, event: row.event as ZoomParticipantEvent["event"] }));
   }
 }
 

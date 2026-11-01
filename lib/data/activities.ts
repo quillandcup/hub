@@ -162,10 +162,7 @@ export class SupabaseActivityRepository implements ActivityRepository {
     type Row = { member_id: string };
     const rows = await fetchAllRows<Row>(
       (from, to) =>
-        this.db.from("member_activities").select("member_id").eq("source", "slack").gte("occurred_at", sinceIso).order("id").range(from, to) as unknown as PromiseLike<{
-          data: Row[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_activities").select("member_id").eq("source", "slack").gte("occurred_at", sinceIso).order("id").range(from, to)
     );
     const counts = new Map<string, number>();
     for (const r of rows) counts.set(r.member_id, (counts.get(r.member_id) ?? 0) + 1);
@@ -182,20 +179,14 @@ export class SupabaseActivityRepository implements ActivityRepository {
     type Row = { member_id: string; occurred_at: string };
     return fetchAllRows<Row>(
       (from, to) =>
-        this.db.from("member_activities").select("member_id, occurred_at").eq("member_id", memberId).eq("activity_type", "prickle_attended").order("id").range(from, to) as unknown as PromiseLike<{
-          data: Row[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_activities").select("member_id, occurred_at").eq("member_id", memberId).eq("activity_type", "prickle_attended").order("id").range(from, to)
     );
   }
 
   async engagementSince(memberId: string, sinceIso: string) {
     return fetchAllRows<EngagementRow>(
       (from, to) =>
-        this.db.from("member_activities").select("member_id, activity_type, engagement_value, occurred_at").eq("member_id", memberId).gte("occurred_at", sinceIso).order("id").range(from, to) as unknown as PromiseLike<{
-          data: EngagementRow[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_activities").select("member_id, activity_type, engagement_value, occurred_at").eq("member_id", memberId).gte("occurred_at", sinceIso).order("id").range(from, to)
     );
   }
 
@@ -255,7 +246,7 @@ export class SupabaseActivityRepository implements ActivityRepository {
             .eq("activity_type", "slack_message")
             .filter("data->>channel_name", "eq", channelName)
             .order("id")
-            .range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>
+            .range(from, to)
       );
       for (const r of rows) introduced.add(r.member_id);
     }

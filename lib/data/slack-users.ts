@@ -52,7 +52,7 @@ export class SupabaseSlackUserRepository implements SlackUserRepository {
       let query = this.table.select(COLUMNS);
       if (excludeBots) query = query.eq("is_bot", false);
       if (excludeSlackbot) query = query.neq("user_id", SLACKBOT_USER_ID);
-      return query.order("user_id").range(from, to) as unknown as PromiseLike<{ data: SlackUserProfile[] | null; error: { message: string } | null }>;
+      return query.order("user_id").range(from, to);
     });
   }
 

@@ -2,7 +2,7 @@ import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Insert, Row } from "./db";
 import { eventDays, eventDetail } from "./events";
 import type { InMemoryDataset } from "./in-memory";
-import { asPage, byKeyThenId, compareText } from "./query";
+import { byKeyThenId, compareText } from "./query";
 
 /**
  * What a member's personal calendar feed is built from: the secret token in its URL
@@ -140,13 +140,13 @@ export class SupabaseCalendarFeedRepository implements CalendarFeedRepository {
 
   async itemsOf(memberId: string) {
     return fetchAllRows<FeedItemRow>((from, to) =>
-      asPage<FeedItemRow>(this.db.from("calendar_feed_items").select(ITEM_COLUMNS).eq("member_id", memberId).order("id").range(from, to))
+      this.db.from("calendar_feed_items").select(ITEM_COLUMNS).eq("member_id", memberId).order("id").range(from, to)
     );
   }
 
   async listedItemsOf(memberId: string) {
     const rows = await fetchAllRows<ListedRaw>((from, to) =>
-      asPage<ListedRaw>(this.db.from("calendar_feed_items").select(LISTED_COLUMNS).eq("member_id", memberId).order("created_at").order("id").range(from, to))
+      this.db.from("calendar_feed_items").select(LISTED_COLUMNS).eq("member_id", memberId).order("created_at").order("id").range(from, to)
     );
     return rows.map((row): ListedFeedItem => {
       const prickle = one(row.prickles);
@@ -187,15 +187,14 @@ export class SupabaseCalendarFeedRepository implements CalendarFeedRepository {
 
   async memberIdsWithPrickle(prickleId: string) {
     const rows = await fetchAllRows<{ member_id: string }>((from, to) =>
-      asPage<{ member_id: string }>(this.db.from("calendar_feed_items").select("member_id").eq("kind", "prickle").eq("prickle_id", prickleId).order("id").range(from, to))
+      this.db.from("calendar_feed_items").select("member_id").eq("kind", "prickle").eq("prickle_id", prickleId).order("id").range(from, to)
     );
     return rows.map((r) => r.member_id);
   }
 
   async weeklySlotMembers(slot: { typeId: string; dayOfWeek: number; timezone: string }) {
     const rows = await fetchAllRows<{ member_id: string; start_time_local: string }>((from, to) =>
-      asPage<{ member_id: string; start_time_local: string }>(
-        this.db
+      this.db
           .from("calendar_feed_items")
           .select("member_id, start_time_local")
           .eq("kind", "slot")
@@ -204,7 +203,7 @@ export class SupabaseCalendarFeedRepository implements CalendarFeedRepository {
           .eq("timezone", slot.timezone)
           .order("id")
           .range(from, to)
-      )
+          .overrideTypes<{ member_id: string; start_time_local: string }[], { merge: false }>() // a slot row always has its time; the column is nullable for other kinds
     );
     return rows.map((r) => ({ memberId: r.member_id, startTimeLocal: r.start_time_local }));
   }

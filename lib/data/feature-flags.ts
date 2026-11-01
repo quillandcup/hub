@@ -1,7 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db } from "./db";
 import type { InMemoryDataset } from "./in-memory";
-import { asPage, inChunks, must } from "./query";
+import { inChunks, must } from "./query";
 
 /** A feature flag's registry row (`feature_flags`). */
 export type FeatureFlag = { featureKey: string; enabledGlobally: boolean };
@@ -56,7 +56,7 @@ export class SupabaseFeatureFlagRepository implements FeatureFlagRepository {
 
   async all(): Promise<FeatureFlag[]> {
     const rows = await fetchAllRows<{ feature_key: string; enabled_globally: boolean }>((from, to) =>
-      asPage(this.db.from("feature_flags").select("feature_key, enabled_globally").order("feature_key").range(from, to)),
+      this.db.from("feature_flags").select("feature_key, enabled_globally").order("feature_key").range(from, to),
     );
     return rows.map((r) => ({ featureKey: r.feature_key, enabledGlobally: r.enabled_globally }));
   }
@@ -79,7 +79,7 @@ export class SupabaseFeatureFlagRepository implements FeatureFlagRepository {
     const rows = await fetchAllRows<{ feature_key: string; segment_id: string }>((from, to) => {
       let query = this.db.from("feature_flag_segments").select("feature_key, segment_id");
       if (key !== undefined) query = query.eq("feature_key", key);
-      return asPage(query.order("feature_key").order("segment_id").range(from, to));
+      return query.order("feature_key").order("segment_id").range(from, to);
     });
     return rows.map((r) => ({ featureKey: r.feature_key, segmentId: r.segment_id }));
   }
@@ -101,7 +101,7 @@ export class SupabaseFeatureFlagRepository implements FeatureFlagRepository {
 
   async allPreviews(): Promise<FeaturePreview[]> {
     const rows = await fetchAllRows<{ user_id: string; feature_key: string }>((from, to) =>
-      asPage(this.db.from("user_feature_previews").select("user_id, feature_key").order("user_id").order("feature_key").range(from, to)),
+      this.db.from("user_feature_previews").select("user_id, feature_key").order("user_id").order("feature_key").range(from, to),
     );
     return rows.map((r) => ({ userId: r.user_id, featureKey: r.feature_key }));
   }

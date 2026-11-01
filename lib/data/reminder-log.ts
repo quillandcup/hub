@@ -31,10 +31,7 @@ export class SupabaseReminderLogRepository implements ReminderLogRepository {
     for (const ids of chunk(memberIds, MEMBER_ID_CHUNK)) {
       const rows = await fetchAllRows<{ member_id: string; kind: string; sent_at: string }>(
         (from, to) =>
-          this.db.from("member_reminder_log").select("member_id, kind, sent_at").in("member_id", ids).order("id").range(from, to) as unknown as PromiseLike<{
-            data: { member_id: string; kind: string; sent_at: string }[] | null;
-            error: { message: string } | null;
-          }>,
+          this.db.from("member_reminder_log").select("member_id, kind, sent_at").in("member_id", ids).order("id").range(from, to),
       );
       for (const row of rows) {
         const key = `${row.member_id}:${row.kind}`;

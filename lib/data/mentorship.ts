@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { byKeyThenId, compareText, type Page } from "./query";
+import { byKeyThenId, compareText } from "./query";
 import type { Database } from "./database.types";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
@@ -117,7 +117,7 @@ export class SupabaseMentorshipRepository implements MentorshipRepository {
   async listWithMembers() {
     const rows = await fetchAllRows<WithMembersRow>(
       (from, to) =>
-        this.db.from("mentorships").select(WITH_MEMBERS).order("started_on", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page<WithMembersRow>>,
+        this.db.from("mentorships").select(WITH_MEMBERS).order("started_on", { ascending: false }).order("id").range(from, to),
     );
     return rows.map((r) => ({ ...r, mentor: one(r.mentor), new_member: one(r.new_member) }));
   }
@@ -125,7 +125,7 @@ export class SupabaseMentorshipRepository implements MentorshipRepository {
   async matchedArrivals() {
     return fetchAllRows<MatchedArrival>(
       (from, to) =>
-        this.db.from("mentorships").select("new_member_id, started_on").eq("status", "matched").order("id").range(from, to) as unknown as PromiseLike<Page<MatchedArrival>>,
+        this.db.from("mentorships").select("new_member_id, started_on").eq("status", "matched").order("id").range(from, to),
     );
   }
 
@@ -156,7 +156,7 @@ export class SupabaseMentorshipRepository implements MentorshipRepository {
           .select("member_id, note, created_at, member:members(name, display_name)")
           .is("deleted_at", null)
           .order("member_id")
-          .range(from, to) as unknown as PromiseLike<Page<VolunteerWithMember & { member: unknown }>>,
+          .range(from, to),
     );
     return rows.map((r) => ({ ...r, member: one(r.member as VolunteerWithMember["member"] | VolunteerWithMember["member"][]) }));
   }
@@ -190,7 +190,7 @@ export class SupabaseMentorshipRepository implements MentorshipRepository {
   async myMentorships(memberId: string) {
     const { data, error } = await this.db.rpc("my_mentorships", { p_member_id: memberId });
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as MyMentorshipRow[];
+    return (data ?? []);
   }
 
   async setNote(mentorshipId: string, note: string) {

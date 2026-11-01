@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, type Page } from "./query";
+import { compareText } from "./query";
 import type { Db, Update } from "./db";
 import type { InMemoryDataset, MemberSeed } from "./in-memory";
 
@@ -266,7 +266,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     const rows = await fetchAllRows<IdentityRow>((from, to) => {
       let query = this.db.from("members").select(IDENTITY_COLUMNS);
       if (status !== undefined) query = query.eq("status", status);
-      return query.order("id").range(from, to) as unknown as PromiseLike<Page<IdentityRow>>;
+      return query.order("id").range(from, to);
     });
     return rows.map(toIdentity);
   }
@@ -276,7 +276,7 @@ export class SupabaseMemberRepository implements MemberRepository {
       let query = this.db.from("members").select(MEMBER_COLUMNS);
       if (status !== undefined) query = query.eq("status", status);
       // `id` last so paging has a total order even when names repeat.
-      return (orderBy === "name" ? query.order("name").order("id") : query.order("id")).range(from, to) as unknown as PromiseLike<Page<MemberRow>>;
+      return (orderBy === "name" ? query.order("name").order("id") : query.order("id")).range(from, to);
     });
     return rows.map(toMember);
   }
@@ -292,7 +292,7 @@ export class SupabaseMemberRepository implements MemberRepository {
           .in("status", statuses)
           .order("name")
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Row>>,
+          .range(from, to),
     );
     return rows.map((r) => ({ id: r.id, name: r.name, displayName: r.display_name, email: r.email, photoUrl: r.photo_url, instagramUrl: r.instagram_url, status: r.status }));
   }
@@ -314,7 +314,7 @@ export class SupabaseMemberRepository implements MemberRepository {
           .select("id, name, display_name, email, first_joined_at, most_recent_joined_at, total_active_months")
           .in("status", statuses)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<Row>>,
+          .range(from, to),
     );
     return rows.map((r) => ({
       id: r.id,
@@ -329,7 +329,7 @@ export class SupabaseMemberRepository implements MemberRepository {
 
   async instagramUrls(): Promise<string[]> {
     const rows = await fetchAllRows<{ instagram_url: string | null }>((from, to) =>
-      this.db.from("members").select("instagram_url").not("instagram_url", "is", null).order("id").range(from, to) as unknown as PromiseLike<Page<{ instagram_url: string | null }>>,
+      this.db.from("members").select("instagram_url").not("instagram_url", "is", null).order("id").range(from, to),
     );
     return rows.flatMap((r) => (r.instagram_url ? [r.instagram_url] : []));
   }
@@ -345,7 +345,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     for (const emailChunk of chunk(emails, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<MemberRow>(
         (from, to) =>
-          this.db.from("members").select(MEMBER_COLUMNS).in("email", emailChunk).order("id").range(from, to) as unknown as PromiseLike<Page<MemberRow>>,
+          this.db.from("members").select(MEMBER_COLUMNS).in("email", emailChunk).order("id").range(from, to),
       );
       found.push(...rows.map(toMember));
     }
@@ -355,7 +355,7 @@ export class SupabaseMemberRepository implements MemberRepository {
   async profile(id: string): Promise<MemberProfile | null> {
     const { data, error } = await this.db.from("members").select(PROFILE_COLUMNS).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toProfile(data as unknown as ProfileRow) : null;
+    return data ? toProfile(data) : null;
   }
 
   async adminView(id: string): Promise<AdminMember | null> {
@@ -407,7 +407,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     if (limit !== undefined) query = query.range(offset, offset + limit - 1);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as MemberRow[]).map(toMember).map((m) => ({
+    return ((data ?? [])).map(toMember).map((m) => ({
       ...m,
       matchedAlias: explainByAlias(m, words, (word) => aliasHits.get(word)?.get(m.id)),
     }));
@@ -438,7 +438,7 @@ export class SupabaseMemberRepository implements MemberRepository {
   async byId(id: string): Promise<Member | null> {
     const { data, error } = await this.db.from("members").select(MEMBER_COLUMNS).eq("id", id).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toMember(data as unknown as MemberRow) : null;
+    return data ? toMember(data) : null;
   }
 
   async byIds(ids: string[]): Promise<Member[]> {
@@ -446,7 +446,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     for (const idChunk of chunk(ids, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<MemberRow>(
         (from, to) =>
-          this.db.from("members").select(MEMBER_COLUMNS).in("id", idChunk).order("id").range(from, to) as unknown as PromiseLike<Page<MemberRow>>,
+          this.db.from("members").select(MEMBER_COLUMNS).in("id", idChunk).order("id").range(from, to),
       );
       found.push(...rows.map(toMember));
     }
@@ -456,13 +456,13 @@ export class SupabaseMemberRepository implements MemberRepository {
   async byUserId(userId: string): Promise<Member | null> {
     const { data, error } = await this.db.from("members").select(MEMBER_COLUMNS).eq("user_id", userId).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toMember(data as unknown as MemberRow) : null;
+    return data ? toMember(data) : null;
   }
 
   async byEmail(email: string): Promise<Member | null> {
     const { data, error } = await this.db.from("members").select(MEMBER_COLUMNS).eq("email", email).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toMember(data as unknown as MemberRow) : null;
+    return data ? toMember(data) : null;
   }
 
   async idsByUserId(userIds: string[]): Promise<Map<string, string>> {
@@ -470,9 +470,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     for (const userChunk of chunk(userIds, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<{ id: string; user_id: string | null }>(
         (from, to) =>
-          this.db.from("members").select("id, user_id").in("user_id", userChunk).order("id").range(from, to) as unknown as PromiseLike<
-            Page<{ id: string; user_id: string | null }>
-          >,
+          this.db.from("members").select("id, user_id").in("user_id", userChunk).order("id").range(from, to),
       );
       for (const row of rows) if (row.user_id) ids.set(row.user_id, row.id);
     }
@@ -484,9 +482,7 @@ export class SupabaseMemberRepository implements MemberRepository {
     for (const idChunk of chunk(memberIds, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<{ id: string; user_id: string | null }>(
         (from, to) =>
-          this.db.from("members").select("id, user_id").in("id", idChunk).order("id").range(from, to) as unknown as PromiseLike<
-            Page<{ id: string; user_id: string | null }>
-          >,
+          this.db.from("members").select("id, user_id").in("id", idChunk).order("id").range(from, to),
       );
       for (const row of rows) userIds.set(row.id, row.user_id);
     }
@@ -495,7 +491,7 @@ export class SupabaseMemberRepository implements MemberRepository {
 
   async countsByStatus(): Promise<Map<string, number>> {
     const rows = await fetchAllRows<{ status: string }>(
-      (from, to) => this.db.from("members").select("status").order("id").range(from, to) as unknown as PromiseLike<Page<{ status: string }>>,
+      (from, to) => this.db.from("members").select("status").order("id").range(from, to),
     );
     const counts = new Map<string, number>();
     for (const row of rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);

@@ -145,10 +145,8 @@ export interface PrickleActivityRepository {
   claimedDmPairs(kind: CheckinDmKind, prickleIds: string[]): Promise<Set<string>>;
 }
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
-
 type RawSlot = { id: string; type_id: string; day_of_week: number; start_time_local: string; timezone: string; prickle_types: { name: string } | { name: string }[] | null };
-type RawCommitment = { id: string; start_date: string; weeks: number; status: CommitmentStatus; cancelled_at: string | null; prickle_commitment_slots: RawSlot[] | null };
+type RawCommitment = { id: string; start_date: string; weeks: number; status: string; cancelled_at: string | null; prickle_commitment_slots: RawSlot[] | null };
 
 const COMMITMENT_SELECT =
   "id, start_date, weeks, status, cancelled_at, prickle_commitment_slots(id, type_id, day_of_week, start_time_local, timezone, prickle_types(name))";
@@ -162,7 +160,7 @@ function toStored(row: RawCommitment): StoredCommitment {
     .map((s) => ({ id: s.id, typeId: s.type_id, dayOfWeek: s.day_of_week, startTimeLocal: s.start_time_local, timezone: s.timezone, typeName: one(s.prickle_types)?.name ?? null }))
     .sort((a, b) => bySlotOrder(a, b) || byIdAsc(a, b))
     .map((s) => ({ typeId: s.typeId, dayOfWeek: s.dayOfWeek, startTimeLocal: s.startTimeLocal, timezone: s.timezone, typeName: s.typeName }));
-  return { id: row.id, startDate: row.start_date, weeks: row.weeks, status: row.status, cancelledAt: row.cancelled_at, slots };
+  return { id: row.id, startDate: row.start_date, weeks: row.weeks, status: row.status as CommitmentStatus, cancelledAt: row.cancelled_at, slots };
 }
 
 export class SupabasePrickleActivityRepository implements PrickleActivityRepository {
@@ -177,7 +175,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
         .order("start_date", { ascending: false })
         .order("created_at", { ascending: false })
         .order("id")
-        .range(from, to) as unknown as Page<RawCommitment>;
+        .range(from, to);
     });
     return rows.map(toStored);
   }
@@ -232,7 +230,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
   async slotCommitments(slot: { typeId: string; dayOfWeek: number; timezone: string }) {
     type Raw = {
       start_time_local: string;
-      prickle_commitments: { member_id: string; status: string; start_date: string; end_date: string } | { member_id: string; status: string; start_date: string; end_date: string }[] | null;
+      prickle_commitments: { member_id: string; status: string; start_date: string; end_date: string | null };
     };
     const rows = await fetchAllRows<Raw>(
       (from, to) =>
@@ -243,12 +241,13 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
           .eq("day_of_week", slot.dayOfWeek)
           .eq("timezone", slot.timezone)
           .order("id")
-          .range(from, to) as unknown as Page<Raw>
+          .range(from, to)
     );
     const out: SlotCommitment[] = [];
     for (const row of rows) {
-      const c = one(row.prickle_commitments);
-      if (c) out.push({ memberId: c.member_id, status: c.status as CommitmentStatus, startDate: c.start_date, endDate: c.end_date, startTimeLocal: row.start_time_local });
+      const c = row.prickle_commitments;
+      // `end_date` is nullable in the schema, but the commitment RPC always sets it.
+      if (c) out.push({ memberId: c.member_id, status: c.status as CommitmentStatus, startDate: c.start_date, endDate: c.end_date as string, startTimeLocal: row.start_time_local });
     }
     return out;
   }
@@ -275,7 +274,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
           .eq("member_id", memberId)
           .is("deleted_at", null)
           .order("id")
-          .range(from, to) as unknown as Page<Raw>
+          .range(from, to)
     );
     return new Map(rows.map((row) => [row.prickle_id, checkinFromRow(row)]));
   }
@@ -311,7 +310,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
               .in("prickle_id", prickles)
               .is("deleted_at", null)
               .order("id")
-              .range(from, to) as unknown as Page<Raw>
+              .range(from, to)
         );
         for (const row of rows) result.set(pairKey(row.member_id, row.prickle_id), checkinFromRow(row));
       }
@@ -337,7 +336,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
           .is("deleted_at", null)
           .not("intention_met", "is", null)
           .order("id")
-          .range(from, to) as unknown as Page<Raw>
+          .range(from, to)
     );
     return rows.map((r) => {
       const prickle = one(r.prickles);
@@ -395,7 +394,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
           .eq("member_id", memberId)
           .gte("dismissed_at", since)
           .order("id")
-          .range(from, to) as unknown as Page<{ prickle_id: string }>
+          .range(from, to)
     );
     return new Set(rows.map((r) => r.prickle_id));
   }
@@ -405,10 +404,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
     for (const part of chunk(prickleIds, ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<{ member_id: string; prickle_id: string }>(
         (from, to) =>
-          this.db.from(DISMISSALS_TABLE[half]).select("id, member_id, prickle_id").in("prickle_id", part).order("id").range(from, to) as unknown as Page<{
-            member_id: string;
-            prickle_id: string;
-          }>
+          this.db.from(DISMISSALS_TABLE[half]).select("id, member_id, prickle_id").in("prickle_id", part).order("id").range(from, to)
       );
       for (const r of rows) pairs.add(pairKey(r.member_id, r.prickle_id));
     }
@@ -433,10 +429,7 @@ export class SupabasePrickleActivityRepository implements PrickleActivityReposit
     for (const part of chunk([...new Set(prickleIds)], ID_CHUNK_SIZE)) {
       const rows = await fetchAllRows<{ member_id: string; prickle_id: string }>(
         (from, to) =>
-          this.db.from("prickle_checkin_dm_log").select("id, member_id, prickle_id").eq("kind", kind).in("prickle_id", part).order("id").range(from, to) as unknown as Page<{
-            member_id: string;
-            prickle_id: string;
-          }>
+          this.db.from("prickle_checkin_dm_log").select("id, member_id, prickle_id").eq("kind", kind).in("prickle_id", part).order("id").range(from, to)
       );
       for (const r of rows) pairs.add(pairKey(r.member_id, r.prickle_id));
     }

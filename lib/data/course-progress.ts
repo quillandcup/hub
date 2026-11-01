@@ -1,5 +1,5 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, inChunks, must, upsertInChunks, type PageQuery } from "./query";
+import { compareText, inChunks, must, upsertInChunks } from "./query";
 import type { Db, Insert, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -78,7 +78,7 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
       fetchAllRows<CourseAccessRecord>((from, to) => {
         let query = this.db.from("course_access").select("*").eq("member_id", memberId);
         if (ids) query = query.in("course_id", ids);
-        return query.order("course_id").range(from, to) as unknown as PageQuery<CourseAccessRecord>;
+        return query.order("course_id").range(from, to);
       });
     if (!courseIds) return read();
     return (await inChunks(courseIds, ID_CHUNK, (part) => read(part))).sort((a, b) => compareText(a.course_id, b.course_id));
@@ -87,7 +87,7 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
   async accessOfCourses(courseIds: string[]) {
     const rows = await inChunks(courseIds, ID_CHUNK, (part) =>
       fetchAllRows<CourseAccessRecord>(
-        (from, to) => this.db.from("course_access").select("*").in("course_id", part).order("course_id").order("member_id").range(from, to) as unknown as PageQuery<CourseAccessRecord>
+        (from, to) => this.db.from("course_access").select("*").in("course_id", part).order("course_id").order("member_id").range(from, to)
       )
     );
     return rows.sort((a, b) => compareText(a.course_id, b.course_id) || compareText(a.member_id, b.member_id));
@@ -132,7 +132,7 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
   async grantsOfCourses(courseIds: string[]) {
     const rows = await inChunks(courseIds, ID_CHUNK, (part) =>
       fetchAllRows<CourseGrantRecord>(
-        (from, to) => this.db.from("course_access_grants").select("*").in("course_id", part).order("course_id").order("member_id").range(from, to) as unknown as PageQuery<CourseGrantRecord>
+        (from, to) => this.db.from("course_access_grants").select("*").in("course_id", part).order("course_id").order("member_id").range(from, to)
       )
     );
     return rows.sort((a, b) => compareText(a.course_id, b.course_id) || compareText(a.member_id, b.member_id));
@@ -141,7 +141,7 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
   async progressOfLessons(lessonIds: string[]) {
     const rows = await inChunks(lessonIds, ID_CHUNK, (part) =>
       fetchAllRows<LessonProgressRecord>(
-        (from, to) => this.db.from("lesson_progress").select("*").in("lesson_id", part).order("member_id").order("lesson_id").range(from, to) as unknown as PageQuery<LessonProgressRecord>
+        (from, to) => this.db.from("lesson_progress").select("*").in("lesson_id", part).order("member_id").order("lesson_id").range(from, to)
       )
     );
     return rows.sort((a, b) => compareText(a.member_id, b.member_id) || compareText(a.lesson_id, b.lesson_id));
@@ -184,14 +184,14 @@ export class SupabaseCourseProgressRepository implements CourseProgressRepositor
           .gte("started_at", since)
           .order("started_at")
           .order("id")
-          .range(from, to) as unknown as PageQuery<{ start_seconds: number; end_seconds: number; started_at: string; id: string }>
+          .range(from, to)
     ).then((rows) => rows.map(({ start_seconds, end_seconds, started_at }) => ({ start_seconds: Number(start_seconds), end_seconds: Number(end_seconds), started_at })));
   }
 
   async segmentsOfVideos(videoIds: string[]) {
     const rows = await inChunks(videoIds, ID_CHUNK, (part) =>
       fetchAllRows<WatchSegmentRecord>(
-        (from, to) => this.db.from("video_watch_segments").select("*").in("video_id", part).order("id").range(from, to) as unknown as PageQuery<WatchSegmentRecord>
+        (from, to) => this.db.from("video_watch_segments").select("*").in("video_id", part).order("id").range(from, to)
       )
     );
     return rows.sort((a, b) => compareText(a.id, b.id));

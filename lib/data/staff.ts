@@ -1,5 +1,5 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { compareText, type Page } from "./query";
+import { compareText } from "./query";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 
@@ -27,7 +27,7 @@ export class SupabaseStaffRepository implements StaffRepository {
 
   async all() {
     return fetchAllRows<StaffRow>(
-      (from, to) => this.db.from("staff").select("*").order("name").order("id").range(from, to) as unknown as PromiseLike<Page<StaffRow>>,
+      (from, to) => this.db.from("staff").select("*").order("name").order("id").range(from, to),
     );
   }
 

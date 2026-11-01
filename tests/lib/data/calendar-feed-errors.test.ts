@@ -7,7 +7,7 @@ import { SupabaseCalendarSyncStateRepository } from "@/lib/data/calendar-sync-st
 function failingDb(error: { message: string; code?: string }): Db {
   const answer = { data: null, error, count: null };
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "is", "in", "or", "order", "range"]) chain[m] = () => chain;
+  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "is", "in", "or", "order", "range", "overrideTypes"]) chain[m] = () => chain;
   chain.single = async () => answer;
   chain.maybeSingle = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);

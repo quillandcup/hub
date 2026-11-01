@@ -120,7 +120,7 @@ export class SupabaseWheelOfWonderRepository implements WheelOfWonderRepository 
       .order("id")
       .limit(limit);
     if (error) throw new Error(error.message);
-    const rows = (data ?? []) as unknown as Raw[];
+    const rows = (data ?? []);
     return rows.map((row) => ({ ...row, spinner: one(row.spinner), matched: one(row.matched) }));
   }
 }

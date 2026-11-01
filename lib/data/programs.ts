@@ -154,7 +154,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
   async listWithCounts() {
     const { data, error } = await this.db.from("programs").select("*, program_cohorts(id, member_program_enrollments(id))").order("name").order("id");
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as (Program & { program_cohorts: { id: string; member_program_enrollments: { id: string }[] }[] | null })[]).map(({ program_cohorts, ...program }) => ({
+    return (data ?? []).map(({ program_cohorts, ...program }) => ({
       ...program,
       cohort_count: program_cohorts?.length ?? 0,
       enrollment_count: (program_cohorts ?? []).reduce((sum, c) => sum + (c.member_program_enrollments?.length ?? 0), 0),
@@ -200,15 +200,14 @@ export class SupabaseProgramRepository implements ProgramRepository {
       .order("created_at", { referencedTable: "member_program_enrollments" })
       .order("id", { referencedTable: "member_program_enrollments" });
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as CohortWithEnrollments[];
+    return (data ?? []);
   }
 
   async cohortForMatching(cohortId: string) {
     const { data, error } = await this.db.from("program_cohorts").select("id, starts_at, expires_at, program:programs(id, kajabi_offer_names)").eq("id", cohortId).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-    const row = data as unknown as Omit<CohortForMatching, "program"> & { program: CohortForMatching["program"] | NonNullable<CohortForMatching["program"]>[] };
-    return { id: row.id, starts_at: row.starts_at, expires_at: row.expires_at, program: one(row.program) };
+    return { id: data.id, starts_at: data.starts_at, expires_at: data.expires_at, program: one(data.program) };
   }
 
   async createCohort(cohort: NewProgramCohort) {
@@ -247,7 +246,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
             .in("cohort_id", [...names.keys()])
             .order("created_at")
             .order("id")
-            .range(from, to) as unknown as PromiseLike<{ data: { member_id: string; cohort_id: string }[] | null; error: { message: string } | null }>
+            .range(from, to)
       );
       for (const row of rows) if (!result.has(row.member_id)) result.set(row.member_id, names.get(row.cohort_id) ?? "another cohort");
     }
@@ -260,7 +259,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
       if (error.code === "23505") throw new ProgramEnrollmentExistsError();
       throw new Error(error.message);
     }
-    return data as unknown as EnrollmentWithMember;
+    return data;
   }
 
   async unenroll(id: string) {
@@ -271,10 +270,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
   async memberIdsInCohort(cohortId: string) {
     const rows = await fetchAllRows<{ member_id: string }>(
       (from, to) =>
-        this.db.from("member_program_enrollments").select("member_id").eq("cohort_id", cohortId).order("id").range(from, to) as unknown as PromiseLike<{
-          data: { member_id: string }[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_program_enrollments").select("member_id").eq("cohort_id", cohortId).order("id").range(from, to)
     );
     return new Set(rows.map((r) => r.member_id));
   }
@@ -307,7 +303,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
       .order("created_at", { ascending: false })
       .order("id");
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as EnrollmentEmbedRow[]).flatMap((row) => {
+    return ((data ?? [])).flatMap((row) => {
       const cohort = one(row.cohort);
       const program = cohort && one(cohort.program);
       if (!cohort || !program) return [];
@@ -318,10 +314,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
   async allEnrollmentCohorts() {
     const rows = await fetchAllRows<EndEmbedRow>(
       (from, to) =>
-        this.db.from("member_program_enrollments").select("member_id, program_cohorts(program_id, expires_at)").order("id").range(from, to) as unknown as PromiseLike<{
-          data: EndEmbedRow[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("member_program_enrollments").select("member_id, program_cohorts(program_id, expires_at)").order("id").range(from, to)
     );
     return rows.flatMap((row) => {
       const cohort = one(row.program_cohorts);
@@ -339,7 +332,7 @@ export class SupabaseProgramRepository implements ProgramRepository {
           .lte("program_cohorts.starts_at", today)
           .eq("program_cohorts.programs.includes_membership", true)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<{ data: ArrivalEmbedRow[] | null; error: { message: string } | null }>
+          .range(from, to)
     );
     return rows.map((row) => ({ startsOn: row.program_cohorts.starts_at, programName: one(row.program_cohorts.programs)?.name ?? null, member: one(row.members) }));
   }

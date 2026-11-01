@@ -1,7 +1,7 @@
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { Db, Row } from "./db";
 import type { InMemoryDataset } from "./in-memory";
-import { asPage, inChunks, must } from "./query";
+import { inChunks, must } from "./query";
 
 /** A named group of members, which feature flags and bulk invites can target (`segments`). */
 export type Segment = Row<"segments">;
@@ -50,7 +50,7 @@ export class SupabaseSegmentRepository implements SegmentRepository {
     const [segments, links] = await Promise.all([
       this.db.from("segments").select(SEGMENT_COLUMNS).order("created_at", { ascending: false }).order("id").then(must),
       fetchAllRows<{ segment_id: string }>((from, to) =>
-        asPage<{ segment_id: string }>(this.db.from("segment_members").select("segment_id").order("segment_id").order("member_id").range(from, to)),
+        this.db.from("segment_members").select("segment_id").order("segment_id").order("member_id").range(from, to),
       ),
     ]);
     const counts = new Map<string, number>();
@@ -72,7 +72,7 @@ export class SupabaseSegmentRepository implements SegmentRepository {
 
   async memberIds(segmentId: string): Promise<string[]> {
     const rows = await fetchAllRows<{ member_id: string }>((from, to) =>
-      asPage<{ member_id: string }>(this.db.from("segment_members").select("member_id").eq("segment_id", segmentId).order("member_id").range(from, to)),
+      this.db.from("segment_members").select("member_id").eq("segment_id", segmentId).order("member_id").range(from, to),
     );
     return rows.map((r) => r.member_id);
   }

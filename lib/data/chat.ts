@@ -1,5 +1,4 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { PageQuery } from "./query";
 import type { Db, Row } from "./db";
 import type { Json } from "./database.types";
 import type { InMemoryDataset } from "./in-memory";
@@ -357,9 +356,9 @@ export class SupabaseChatRepository implements ChatRepository {
   async channelMessages(channelId: string, opts: { before?: string | null; limit: number }) {
     let query = this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
     if (opts.before) query = query.lt("created_at", opts.before);
-    const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(opts.limit);
+    const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(opts.limit).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as ChatMessageRow[];
+    return data ?? [];
   }
 
   async threadMessages(channelId: string, threadRootId: string, limit: number) {
@@ -370,25 +369,26 @@ export class SupabaseChatRepository implements ChatRepository {
       .eq("thread_root_id", threadRootId)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
-      .limit(limit);
+      .limit(limit)
+      .overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as ChatMessageRow[];
+    return data ?? [];
   }
 
   async topLevelMessagesByIds(channelId: string, ids: string[]) {
     const out: ChatMessageRow[] = [];
     for (const part of chunk(ids, ID_CHUNK)) {
-      const { data, error } = await this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null).in("id", part);
+      const { data, error } = await this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null).in("id", part).overrideTypes<ChatMessageRow[], { merge: false }>(); // text columns held to unions by check constraints
       if (error) throw new Error(error.message);
-      out.push(...((data ?? []) as unknown as ChatMessageRow[]));
+      out.push(...(data ?? []));
     }
     return out;
   }
 
   async messageById(channelId: string, messageId: string) {
-    const { data, error } = await this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).eq("id", messageId).maybeSingle();
+    const { data, error } = await this.db.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).eq("id", messageId).maybeSingle().overrideTypes<ChatMessageRow, { merge: false }>(); // text columns held to unions by check constraints
     if (error) throw new Error(error.message);
-    return (data as unknown as ChatMessageRow | null) ?? null;
+    return data ?? null;
   }
 
   async newestMessageId(channelId: string, threadRootId: string | null) {
@@ -404,7 +404,7 @@ export class SupabaseChatRepository implements ChatRepository {
     for (const part of chunk(ids, ID_CHUNK)) {
       const { data, error } = await this.db.from("chat_messages").select(SEARCH_MESSAGE_COLUMNS).in("id", part);
       if (error) throw new Error(error.message);
-      out.push(...((data ?? []) as unknown as ChatSearchMessageRow[]));
+      out.push(...((data ?? [])));
     }
     return out;
   }
@@ -424,7 +424,7 @@ export class SupabaseChatRepository implements ChatRepository {
       p_limit: q.limit,
       p_offset: q.offset,
     };
-    const { data, error } = await this.db.rpc("search_chat_messages", args as never);
+    const { data, error } = await this.db.rpc("search_chat_messages", args as never); // null args, see above
     if (error) throw new Error(error.message);
     return (data ?? []).map((h) => h.message_id);
   }
@@ -432,7 +432,7 @@ export class SupabaseChatRepository implements ChatRepository {
   async replyAuthorRows(rootIds: string[]) {
     const out: ChatReplyAuthorRow[] = [];
     for (const part of chunk(rootIds, ID_CHUNK)) {
-      const rows = await fetchAllRows<ChatReplyAuthorRow>(
+      const rows = await fetchAllRows(
         (from, to) =>
           this.db
             .from("chat_messages")
@@ -441,9 +441,9 @@ export class SupabaseChatRepository implements ChatRepository {
             .is("deleted_at", null)
             .order("created_at", { ascending: true })
             .order("id", { ascending: true })
-            .range(from, to) as unknown as PageQuery<ChatReplyAuthorRow>
+            .range(from, to)
       );
-      out.push(...rows);
+      for (const row of rows) if (row.thread_root_id) out.push({ ...row, thread_root_id: row.thread_root_id }); // `in` never matches null
     }
     return out;
   }
@@ -495,9 +495,11 @@ export class SupabaseChatRepository implements ChatRepository {
   // --- channels and membership ---
 
   async listChannels() {
-    return fetchAllRows<ChannelRecord>(
-      (from, to) => this.db.from("chat_channels").select(CHANNEL_COLUMNS).order("name").order("id").range(from, to) as unknown as PageQuery<ChannelRecord>
+    const rows = await fetchAllRows(
+      (from, to) => this.db.from("chat_channels").select(CHANNEL_COLUMNS).order("name").order("id").range(from, to)
     );
+    // `kind` and `visibility` are text columns held to these values by check constraints.
+    return rows.map((row) => ({ ...row, kind: row.kind as ChannelRecord["kind"], visibility: row.visibility as ChannelRecord["visibility"] }));
   }
 
   async channelRecord(channelId: string) {
@@ -603,7 +605,7 @@ export class SupabaseChatRepository implements ChatRepository {
           .eq("member_id", memberId)
           .is("left_at", null)
           .order("channel_id")
-          .range(from, to) as unknown as PageQuery<Row>
+          .range(from, to)
     );
     return rows.flatMap((r) => {
       const c = Array.isArray(r.chat_channels) ? r.chat_channels[0] : r.chat_channels;
@@ -650,7 +652,7 @@ export class SupabaseChatRepository implements ChatRepository {
   async slackTarget(messageId: string) {
     const { data, error } = await this.db.from("chat_messages").select(`${TARGET_COLUMNS}, chat_channels(slack_channel_id)`).eq("id", messageId).maybeSingle();
     if (error) throw new Error(error.message);
-    return data ? toTarget(data as unknown as TargetRow) : null;
+    return data ? toTarget(data) : null;
   }
 
   async outboxMessage(messageId: string) {
@@ -661,7 +663,7 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-    const row = data as unknown as TargetRow;
+    const row = data;
     const content = one(row.chat_message_contents ?? null);
     return { ...toTarget(row), body: content?.body ?? "", files: content?.files ?? null };
   }
@@ -736,10 +738,8 @@ export class SupabaseChatRepository implements ChatRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-    // A to-one embed is an object; older typings give an array.
-    const one = <T>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
-    const message = one(data.chat_messages as any) as { slack_ts: string | null; chat_channels: unknown } | null;
-    const channel = one(message?.chat_channels as any) as { slack_channel_id: string | null } | null;
+    const message = data.chat_messages;
+    const channel = message?.chat_channels;
     return { files: data.files, slackTs: message?.slack_ts ?? null, slackChannelId: channel?.slack_channel_id ?? null };
   }
 

@@ -624,10 +624,7 @@ export class SupabaseWritingRepository implements WritingRepository {
     type Row = { id: string; member_id: string; title: string; cover_url: string };
     return fetchAllRows<Row>(
       (from, to) =>
-        this.db.from("writing_projects").select("id, member_id, title, cover_url").not("cover_url", "is", null).is("cover_asset_id", null).order("id").range(from, to) as unknown as PromiseLike<{
-          data: Row[] | null;
-          error: { message: string } | null;
-        }>
+        this.db.from("writing_projects").select("id, member_id, title, cover_url").not("cover_url", "is", null).is("cover_asset_id", null).order("id").range(from, to)
     );
   }
 

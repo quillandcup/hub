@@ -7,7 +7,7 @@ import { SupabaseSlackWorkspaceRepository } from "@/lib/data/slack-workspace";
 function failingDb(code?: string): Db {
   const answer = { data: null, error: { message: "database is down", code }, count: null };
   const chain: Record<string, unknown> = {};
-  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lte", "is", "or", "not", "order", "range", "limit"]) chain[m] = () => chain;
+  for (const m of ["select", "insert", "update", "upsert", "delete", "eq", "in", "gte", "lte", "is", "or", "not", "order", "range", "limit", "overrideTypes"]) chain[m] = () => chain;
   chain.maybeSingle = async () => answer;
   chain.then = (resolve: (v: unknown) => unknown) => resolve(answer);
   const client = { from: () => chain, schema: () => client };

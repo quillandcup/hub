@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import { byKeyThenId, compareText, inChunks, must, upsertInChunks, type PageQuery } from "./query";
+import { byKeyThenId, compareText, inChunks, must, upsertInChunks } from "./query";
 import type { Db, Insert, Row, Update } from "./db";
 import type { InMemoryDataset } from "./in-memory";
 import { itemState, planFullTree, visibilityFromPublishing, type Visibility } from "@/lib/courses/visibility";
@@ -187,7 +187,7 @@ export class SupabaseCourseRepository implements CourseRepository {
         if (filter.source !== undefined) query = query.eq("source", filter.source);
         if (filter.isDraft !== undefined) query = query.eq("is_draft", filter.isDraft);
         if (ids) query = query.in("id", ids);
-        return query.order("slug").order("id").range(from, to) as unknown as PageQuery<CourseRecord>;
+        return query.order("slug").order("id").range(from, to);
       });
     if (!filter.ids) return read();
     const rows = await inChunks(filter.ids, ID_CHUNK, (part) => read(part));
@@ -221,7 +221,7 @@ export class SupabaseCourseRepository implements CourseRepository {
         let query = this.db.from("course_modules").select("*").in("course_id", part);
         if (!filter.includeHidden) query = query.neq("state", "hidden");
         if (filter.source !== undefined) query = query.eq("source", filter.source);
-        return query.order("id").range(from, to) as unknown as PageQuery<ModuleRecord>;
+        return query.order("id").range(from, to);
       })
     );
     return rows.sort((a, b) => compareText(a.id, b.id));
@@ -233,7 +233,7 @@ export class SupabaseCourseRepository implements CourseRepository {
         let query = this.db.from("course_lessons").select(LESSON_COLUMNS).in("course_id", part);
         if (!filter.includeHidden) query = query.neq("state", "hidden");
         if (filter.source !== undefined) query = query.eq("source", filter.source);
-        return query.order("id").range(from, to) as unknown as PageQuery<LessonRecord>;
+        return query.order("id").range(from, to);
       })
     );
     return rows.sort((a, b) => compareText(a.id, b.id));
@@ -372,6 +372,7 @@ export class SupabaseCourseRepository implements CourseRepository {
   async setImage(kind: CourseImageKind, id: string, image: { asset: string | null; source: string | null }) {
     const columns = IMAGE_COLUMNS[kind];
     const table = kind === "course" || kind === "hero" ? "courses" : kind === "module" ? "course_modules" : "course_lessons";
+    // Computed column names, over three tables' Update types: the payload can't be checked.
     const { error } = await this.db.from(table).update({ [columns.asset]: image.asset, [columns.source]: image.source } as never).eq("id", id);
     if (error) throw new Error(error.message);
   }
@@ -383,7 +384,7 @@ export class SupabaseCourseRepository implements CourseRepository {
   async filesOfLessons(lessonIds: string[]) {
     const rows = await inChunks(lessonIds, ID_CHUNK, (part) =>
       fetchAllRows<LessonFileRecord>(
-        (from, to) => this.db.from("course_lesson_files").select("*").in("lesson_id", part).order("id").range(from, to) as unknown as PageQuery<LessonFileRecord>
+        (from, to) => this.db.from("course_lesson_files").select("*").in("lesson_id", part).order("id").range(from, to)
       )
     );
     return rows.sort((a, b) => compareText(a.id, b.id));

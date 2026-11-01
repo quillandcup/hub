@@ -1,5 +1,4 @@
 import { chunk, fetchAllRows } from "@/lib/supabase/paginate";
-import type { Page } from "./query";
 import type { Db } from "./db";
 import { InMemoryDataset } from "./in-memory";
 import { one, prickleDetail, prickleEmbed, toDetail, type DetailRow, type PrickleDetail } from "./prickles";
@@ -304,7 +303,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         .eq("member_id", memberId);
       if (purpose !== undefined) query = query.eq("prickles.prickle_type.purpose", purpose);
       if (prickleStartedSince !== undefined) query = query.gte("prickles.start_time", prickleStartedSince);
-      return query.order("join_time", { ascending: false }).order("id").range(from, to) as unknown as PromiseLike<Page<AttendedRow>>;
+      // The select string is built at runtime (the embed varies), so PostgREST can't type it: rows typed by hand.
+      return query.order("join_time", { ascending: false }).order("id").range(from, to).overrideTypes<AttendedRow[], { merge: false }>();
     });
     return rows.map((row) => {
       const prickle = one(row.prickles);
@@ -327,7 +327,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         .eq("prickle_id", prickleId)
         .order("join_time")
         .order("id")
-        .range(from, to) as unknown as PromiseLike<Page<AttendeeRow>>,
+        .range(from, to)
+        .overrideTypes<AttendeeRow[], { merge: false }>(), // runtime select string: rows typed by hand
     );
     return rows.map(toAttendee);
   }
@@ -342,7 +343,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
           .in("prickle_id", ids)
           .neq("member_id", memberId)
           .order("id")
-          .range(from, to) as unknown as PromiseLike<Page<AttendeeRow>>,
+          .range(from, to)
+          .overrideTypes<AttendeeRow[], { merge: false }>(), // runtime select string: rows typed by hand
       );
       found.push(...rows.map(toAttendee));
     }
@@ -357,7 +359,8 @@ export class SupabaseAttendanceRepository implements AttendanceRepository {
         .gte("join_time", from)
         .lte("join_time", to)
         .order("id")
-        .range(start, end) as unknown as PromiseLike<Page<AttendeeRow>>,
+        .range(start, end)
+        .overrideTypes<AttendeeRow[], { merge: false }>(), // runtime select string: rows typed by hand
     );
     return rows.map(toAttendee);
   }
