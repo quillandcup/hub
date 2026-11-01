@@ -34,32 +34,51 @@ describe("runTrackbearImport", () => {
     expect(dataset.writingEntries).toHaveLength(4);
   });
 
-  it("adds a starting balance an already-imported project has none for, and leaves edited ones alone", async () => {
+  it("overwrites what Hub has with the export's values, and reports what changed", async () => {
     await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
-    const projectId = dataset.writingProjects.find((p) => p.external_id === trackbearExternalId(PROJECT_UUID))!.id;
-    const balances = () => dataset.writingBalances.filter((b) => b.project_id === projectId);
-    expect(balances()).toHaveLength(2);
-    // The time balance went missing; the member changed the word balance in Hub.
-    dataset.writingBalances.splice(dataset.writingBalances.findIndex((b) => b.project_id === projectId && b.measure === "time_minutes"), 1);
-    balances().find((b) => b.measure === "words")!.amount = 5;
+    const project = dataset.writingProjects.find((p) => p.external_id === trackbearExternalId(PROJECT_UUID))!;
+    const balances = () => dataset.writingBalances.filter((b) => b.project_id === project.id);
+    const goal = dataset.writingGoals.find((g) => g.external_id === trackbearExternalId("20202020-2020-4020-8020-202020202020"))!;
+    const entry = dataset.writingEntries.find((e) => e.external_id === trackbearExternalId("10101010-1010-4010-8010-101010101010"))!;
+
+    // The time balance went missing, the word balance and others were changed in Hub.
+    dataset.writingBalances.splice(dataset.writingBalances.findIndex((b) => b.project_id === project.id && b.measure === "time_minutes"), 1);
+    balances().find((b) => b.measure === "words")!.amount = 24657;
+    Object.assign(project, { title: "Renamed in Hub", phase: "drafting" });
+    Object.assign(goal, { end_date: "2026-03-13", target_amount: 1, title: null, is_starred: true });
+    Object.assign(entry, { amount: 7, note: "edited", tags: [] });
 
     const again = await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
 
-    expect(again.created.startingBalances).toBe(1);
-    expect(balances().map((b) => [b.measure, b.amount]).sort()).toEqual([["time_minutes", 90], ["words", 5]]);
+    expect(again.created).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 });
+    expect(again.updated).toEqual({ projects: 1, entries: 1, goals: 1, startingBalances: 2 });
+    expect(balances().map((b) => [b.measure, b.amount]).sort()).toEqual([["time_minutes", 90], ["words", 12000]]);
+    expect(project).toMatchObject({ title: "The Hedgehog's Journey", phase: "on_hold" });
+    expect(goal).toMatchObject({ title: "Finish draft", target_amount: expect.any(Number), is_starred: true });
+    expect(goal.target_amount).not.toBe(1);
+    expect(goal.end_date).not.toBe("2026-03-13");
+    expect(entry).toMatchObject({ amount: 1500, note: "Great session", tags: ["drafting", "sprint"] });
+
     const third = await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
-    expect(third.created.startingBalances).toBe(0);
+    expect(third.updated).toEqual({ projects: 0, entries: 0, goals: 0, startingBalances: 0 });
   });
 
-  it("fills in the details of an imported goal that has none", async () => {
+  it("leaves what exists only in Hub, and what the member deleted, alone", async () => {
     await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
-    const goal = dataset.writingGoals.find((g) => g.external_id === trackbearExternalId("20202020-2020-4020-8020-202020202020"))!;
-    Object.assign(goal, { title: null, description: null, show_on_profile: false });
+    const project = dataset.writingProjects.find((p) => p.external_id === trackbearExternalId(PROJECT_UUID))!;
+    const deleted = dataset.writingEntries.find((e) => e.external_id === trackbearExternalId("10101010-1010-4010-8010-101010101010"))!;
+    Object.assign(deleted, { amount: 7, deleted_at: "2026-02-01T00:00:00Z" });
+    dataset.writingBalances.push({ project_id: project.id, member_id: ME, measure: "pages", amount: 40 });
+    // An entry made in Hub, with no TrackBear counterpart.
+    dataset.writingEntries.push({ ...deleted, id: "wpe_AAAAAAAAAAA9", external_id: null, amount: 1, deleted_at: null } as never);
+    const before = dataset.writingEntries.length;
 
     const again = await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
 
-    expect(again.updated).toEqual({ goalDetails: 1 });
-    expect(goal).toMatchObject({ title: "Finish draft", description: "80k by summer", show_on_profile: true });
+    expect(again.updated.entries).toBe(0);
+    expect(deleted.amount).toBe(7);
+    expect(dataset.writingEntries).toHaveLength(before);
+    expect(dataset.writingBalances.find((b) => b.project_id === project.id && b.measure === "pages")?.amount).toBe(40);
   });
 
   it("reports a cover that can't be copied or saved, and carries on", async () => {
@@ -129,10 +148,25 @@ describe("runTrackbearImport", () => {
     await expect(runTrackbearImport(writing, ME, makeTrackbearData(), copier)).rejects.toThrow(`${message}: boom`);
   });
 
+  it.each([
+    ["updateProject", "Failed to update projects"],
+    ["replaceStartingBalances", "Failed to update starting balances"],
+    ["overwriteImportedEntries", "Failed to update progress entries"],
+  ] as const)("names an update that fails: %s", async (method, message) => {
+    await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
+    // Make Hub differ from the export in all three places, so each update has something to do.
+    Object.assign(dataset.writingProjects[0], { title: "x" });
+    dataset.writingBalances.length = 0;
+    Object.assign(dataset.writingEntries[0], { amount: 1 });
+    vi.spyOn(writing, method).mockRejectedValue(new Error("boom"));
+
+    await expect(runTrackbearImport(writing, ME, makeTrackbearData(), copier)).rejects.toThrow(`${message}: boom`);
+  });
+
   it("names a goal update that fails, and a failure that is not an Error", async () => {
     await runTrackbearImport(writing, ME, makeTrackbearData(), copier);
-    for (const goal of dataset.writingGoals) Object.assign(goal, { title: null, description: null });
-    vi.spyOn(writing, "backfillGoalDetails").mockRejectedValue("odd");
+    for (const goal of dataset.writingGoals) Object.assign(goal, { title: null, description: null, target_amount: 1 });
+    vi.spyOn(writing, "overwriteImportedGoal").mockRejectedValue("odd");
 
     await expect(runTrackbearImport(writing, ME, makeTrackbearData(), copier)).rejects.toThrow("Failed to update goals: odd");
   });

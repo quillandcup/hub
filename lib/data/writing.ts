@@ -33,6 +33,50 @@ const SUMMARY_COLUMNS = "id, title, phase, created_at, show_on_profile, cover_ur
 const ENTRY_COLUMNS = "id, project_id, entry_date, measure, mode, amount, note, tags, created_at";
 const IMPORT_PREFIX = "trackbear:%";
 
+export type ImportedProject = Pick<WritingProjectRow, "id" | "title" | "description" | "phase" | "show_on_profile"> & {
+  external_id: string;
+  deleted: boolean;
+};
+export type ImportedEntry = Pick<WritingEntryRow, "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags"> & {
+  external_id: string;
+  deleted: boolean;
+};
+export type ImportedGoal = Pick<
+  WritingGoalRow,
+  | "project_id"
+  | "goal_type"
+  | "measure"
+  | "target_amount"
+  | "start_date"
+  | "end_date"
+  | "habit_period"
+  | "habit_threshold"
+  | "title"
+  | "description"
+  | "show_on_profile"
+> & { external_id: string; deleted: boolean };
+
+/** The fields of an imported entry the export decides. */
+export type ImportedEntryPatch = Pick<
+  Insert<"writing_progress_entries">,
+  "member_id" | "external_id" | "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags"
+>;
+/** The fields of an imported goal the export decides; is_starred (the Hub dashboard pin) is the member's. */
+export type ImportedGoalPatch = Pick<
+  Update<"writing_goals">,
+  | "project_id"
+  | "goal_type"
+  | "measure"
+  | "target_amount"
+  | "start_date"
+  | "end_date"
+  | "habit_period"
+  | "habit_threshold"
+  | "title"
+  | "description"
+  | "show_on_profile"
+>;
+
 /** A project as a picker lists it. */
 export interface ProjectChoice {
   id: string;
@@ -249,22 +293,24 @@ export interface WritingRepository {
 
   // --- importing from another tracker (rows carry external ids, unique per member) ---
 
-  /** The member's imported projects (external id starting `trackbear:`). */
-  importedProjects(memberId: string): Promise<{ id: string; external_id: string }[]>;
-  /** External ids of the member's imported entries. */
-  importedEntryExternalIds(memberId: string): Promise<string[]>;
-  /** External ids, titles and descriptions of the member's imported goals. */
-  importedGoals(memberId: string): Promise<{ external_id: string; title: string | null; description: string | null }[]>;
+  /** The member's imported projects (external id starting `trackbear:`), deleted ones included. */
+  importedProjects(memberId: string): Promise<ImportedProject[]>;
+  /** The member's imported entries, deleted ones included. */
+  importedEntries(memberId: string): Promise<ImportedEntry[]>;
+  /** The member's imported goals, deleted ones included. */
+  importedGoals(memberId: string): Promise<ImportedGoal[]>;
   /** Inserts projects, skipping ones whose (member, external id) exists; returns only those inserted. */
   importProjects(rows: Insert<"writing_projects">[]): Promise<{ id: string; external_id: string }[]>;
   /** Inserts starting balances. */
   importStartingBalances(rows: Insert<"writing_project_starting_balances">[]): Promise<void>;
   /** Inserts entries, skipping ones whose (member, external id) exists; returns how many were inserted. */
   importEntries(rows: Insert<"writing_progress_entries">[]): Promise<number>;
+  /** Overwrites the imported entries that carry these external ids (rows for ones that don't exist are ignored); returns how many changed. */
+  overwriteImportedEntries(rows: ImportedEntryPatch[]): Promise<number>;
   /** Inserts goals, skipping ones whose (member, external id) exists; returns how many were inserted. */
   importGoals(rows: Insert<"writing_goals">[]): Promise<number>;
-  /** Fills in an imported goal's title, description and profile visibility when it has neither title nor description; returns how many rows changed (0 or 1). */
-  backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }): Promise<number>;
+  /** Overwrites an imported goal's TrackBear-owned fields (its dashboard pin stays); returns how many rows changed (0 or 1). */
+  overwriteImportedGoal(memberId: string, externalId: string, patch: ImportedGoalPatch): Promise<number>;
 }
 
 export class SupabaseWritingRepository implements WritingRepository {
@@ -722,25 +768,45 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   // --- importing from another tracker ---
 
-  async importedProjects(memberId: string) {
-    const rows = await fetchAllRows<{ id: string; external_id: string | null }>((from, to) =>
-      this.db.from("writing_projects").select("id, external_id").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+  async importedProjects(memberId: string): Promise<ImportedProject[]> {
+    const rows = await fetchAllRows<Pick<WritingProjectRow, "id" | "external_id" | "title" | "description" | "phase" | "show_on_profile" | "deleted_at">>((from, to) =>
+      this.db
+        .from("writing_projects")
+        .select("id, external_id, title, description, phase, show_on_profile, deleted_at")
+        .eq("member_id", memberId)
+        .like("external_id", IMPORT_PREFIX)
+        .order("id")
+        .range(from, to),
     );
-    return rows.map((r) => ({ id: r.id, external_id: r.external_id! }));
+    return rows.map(({ external_id, deleted_at, ...r }) => ({ ...r, external_id: external_id!, deleted: !!deleted_at }));
   }
 
-  async importedEntryExternalIds(memberId: string) {
-    const rows = await fetchAllRows<{ external_id: string | null }>((from, to) =>
-      this.db.from("writing_progress_entries").select("external_id").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+  async importedEntries(memberId: string): Promise<ImportedEntry[]> {
+    const rows = await fetchAllRows<Pick<WritingEntryRow, "external_id" | "project_id" | "entry_date" | "measure" | "mode" | "amount" | "note" | "tags" | "deleted_at">>((from, to) =>
+      this.db
+        .from("writing_progress_entries")
+        .select("external_id, project_id, entry_date, measure, mode, amount, note, tags, deleted_at")
+        .eq("member_id", memberId)
+        .like("external_id", IMPORT_PREFIX)
+        .order("id")
+        .range(from, to),
     );
-    return rows.map((r) => r.external_id!);
+    return rows.map(({ external_id, deleted_at, ...r }) => ({ ...r, external_id: external_id!, deleted: !!deleted_at }));
   }
 
-  async importedGoals(memberId: string) {
-    const rows = await fetchAllRows<{ external_id: string | null; title: string | null; description: string | null }>((from, to) =>
-      this.db.from("writing_goals").select("external_id, title, description").eq("member_id", memberId).like("external_id", IMPORT_PREFIX).order("id").range(from, to),
+  async importedGoals(memberId: string): Promise<ImportedGoal[]> {
+    const rows = await fetchAllRows<
+      Pick<WritingGoalRow, "external_id" | "project_id" | "goal_type" | "measure" | "target_amount" | "start_date" | "end_date" | "habit_period" | "habit_threshold" | "title" | "description" | "show_on_profile" | "deleted_at">
+    >((from, to) =>
+      this.db
+        .from("writing_goals")
+        .select("external_id, project_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold, title, description, show_on_profile, deleted_at")
+        .eq("member_id", memberId)
+        .like("external_id", IMPORT_PREFIX)
+        .order("id")
+        .range(from, to),
     );
-    return rows.map((r) => ({ ...r, external_id: r.external_id! }));
+    return rows.map(({ external_id, deleted_at, ...r }) => ({ ...r, external_id: external_id!, deleted: !!deleted_at }));
   }
 
   async importProjects(rows: Insert<"writing_projects">[]) {
@@ -775,14 +841,24 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data?.length ?? 0;
   }
 
-  async backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }) {
+  async overwriteImportedEntries(rows: ImportedEntryPatch[]) {
+    if (rows.length === 0) return 0;
+    // Only the listed columns are written on a conflict, so created_at, deleted_at and the like stay.
+    const { data, error } = await this.db
+      .from("writing_progress_entries")
+      .upsert(rows, { onConflict: "member_id,external_id" })
+      .select("id");
+    if (error) throw new Error(error.message);
+    return data?.length ?? 0;
+  }
+
+  async overwriteImportedGoal(memberId: string, externalId: string, patch: ImportedGoalPatch) {
     const { data, error } = await this.db
       .from("writing_goals")
-      .update(details)
+      .update(patch)
       .eq("member_id", memberId)
       .eq("external_id", externalId)
-      .is("title", null)
-      .is("description", null)
+      .is("deleted_at", null)
       .select("id");
     if (error) throw new Error(error.message);
     return data?.length ?? 0;
@@ -1158,16 +1234,48 @@ export class InMemoryWritingRepository implements WritingRepository {
     });
   }
 
-  async importedProjects(memberId: string) {
-    return this.imported(this.data.writingProjects, memberId).map((p) => ({ id: p.id, external_id: p.external_id! }));
+  async importedProjects(memberId: string): Promise<ImportedProject[]> {
+    return this.imported(this.data.writingProjects, memberId).map((p) => ({
+      id: p.id,
+      external_id: p.external_id!,
+      title: p.title,
+      description: p.description,
+      phase: p.phase,
+      show_on_profile: p.show_on_profile,
+      deleted: !!p.deleted_at,
+    }));
   }
 
-  async importedEntryExternalIds(memberId: string) {
-    return this.imported(this.data.writingEntries, memberId).map((e) => e.external_id!);
+  async importedEntries(memberId: string): Promise<ImportedEntry[]> {
+    return this.imported(this.data.writingEntries, memberId).map((e) => ({
+      external_id: e.external_id!,
+      project_id: e.project_id,
+      entry_date: e.entry_date,
+      measure: e.measure,
+      mode: e.mode,
+      amount: e.amount,
+      note: e.note,
+      tags: e.tags,
+      deleted: !!e.deleted_at,
+    }));
   }
 
-  async importedGoals(memberId: string) {
-    return this.imported(this.data.writingGoals, memberId).map((g) => ({ external_id: g.external_id!, title: g.title, description: g.description }));
+  async importedGoals(memberId: string): Promise<ImportedGoal[]> {
+    return this.imported(this.data.writingGoals, memberId).map((g) => ({
+      external_id: g.external_id!,
+      project_id: g.project_id,
+      goal_type: g.goal_type,
+      measure: g.measure,
+      target_amount: g.target_amount,
+      start_date: g.start_date,
+      end_date: g.end_date,
+      habit_period: g.habit_period,
+      habit_threshold: g.habit_threshold,
+      title: g.title,
+      description: g.description,
+      show_on_profile: g.show_on_profile,
+      deleted: !!g.deleted_at,
+    }));
   }
 
   async importProjects(rows: Insert<"writing_projects">[]) {
@@ -1247,10 +1355,29 @@ export class InMemoryWritingRepository implements WritingRepository {
     return fresh.length;
   }
 
-  async backfillGoalDetails(memberId: string, externalId: string, details: { title: string | null; description: string | null; show_on_profile: boolean }) {
-    const goal = this.data.writingGoals.find((g) => g.member_id === memberId && g.external_id === externalId && g.title === null && g.description === null);
+  async overwriteImportedEntries(rows: ImportedEntryPatch[]) {
+    let changed = 0;
+    for (const r of rows) {
+      const entry = this.data.writingEntries.find((e) => e.member_id === r.member_id && e.external_id === r.external_id);
+      if (!entry) continue;
+      Object.assign(entry, {
+        project_id: r.project_id,
+        entry_date: r.entry_date,
+        measure: r.measure,
+        mode: r.mode,
+        amount: r.amount,
+        note: r.note ?? null,
+        tags: r.tags ?? [],
+      });
+      changed++;
+    }
+    return changed;
+  }
+
+  async overwriteImportedGoal(memberId: string, externalId: string, patch: ImportedGoalPatch) {
+    const goal = this.data.writingGoals.find((g) => g.member_id === memberId && g.external_id === externalId && !g.deleted_at);
     if (!goal) return 0;
-    Object.assign(goal, details);
+    Object.assign(goal, patch);
     return 1;
   }
 }
