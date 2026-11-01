@@ -7,7 +7,7 @@ Two reminders the Hub sends on its own, from one hourly job.
 | `intro_nudge` | Introduce yourself in #start-here | After 4, or once the member posts at top level there |
 | `prickle_nudge` | Put a prickle on your calendar ("first", "we miss you" or "next", by history) | Never; backs off, and starts over after they attend |
 
-Both are notification kinds (`lib/notifications/registry.ts`), so members choose channels per kind in Settings. `intro_nudge` defaults to Slack and in-app; `prickle_nudge` is off until a member opts in.
+Both are notification kinds (`lib/notifications/registry.ts`), so members choose channels per kind in Settings. `intro_nudge` defaults to Slack and in-app; `prickle_nudge` is on (Slack and in-app) only for new members, those in their first 90 days (`isNewcomer`, `newcomerDefaultChannels` in the registry), and off for everyone else until they opt in. A stored choice always wins, and the Settings grid shows the default that applies to the member. When a member's 90 days end, the default stops applying and the reminders stop unless they chose to keep them. To widen it later (joined after a date, or everyone), change that default; members who chose are untouched.
 
 ## Rules
 

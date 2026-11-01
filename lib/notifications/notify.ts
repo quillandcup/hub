@@ -5,7 +5,9 @@ import * as Sentry from "@sentry/nextjs";
 import { sendOperationsAlert } from "@/lib/operations-alerts";
 import { attributeMessage } from "./attribution";
 import { recordSystemEvents } from "@/lib/analytics/system";
-import { effectiveChannels, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
+import { clock } from "@/lib/clock";
+import { isNewcomer } from "@/lib/newcomer";
+import { effectiveChannels, notificationKind, type NotificationKindId, type NotificationPreferenceRow } from "./registry";
 
 type NotifierRepos = Repos;
 
@@ -76,7 +78,10 @@ export async function createNotifier(
     for (const memberId of unique) wanted.set(memberId, options.channels);
   } else {
     const preferences = await loadNotificationPreferences(repos, kind, unique);
-    for (const memberId of unique) wanted.set(memberId, effectiveChannels(kind, preferences.get(memberId) ?? []));
+    const newcomers = await loadNewcomers(repos, kind, unique);
+    for (const memberId of unique) {
+      wanted.set(memberId, effectiveChannels(kind, preferences.get(memberId) ?? [], { newcomer: newcomers.has(memberId) }));
+    }
   }
 
   const usedChannels = [...new Set([...wanted.values()].flat())];
@@ -138,6 +143,19 @@ export async function createNotifier(
  * memberId -> auth user id, for the usage log (a notification sent is recorded against the user it
  * went to). Best effort: a failed lookup just means those sends aren't counted.
  */
+/** Members in their first 90 days, for a kind whose defaults differ for them; empty (and no lookup) for the rest. */
+async function loadNewcomers(repos: NotifierRepos, kind: NotificationKindId, memberIds: string[]): Promise<Set<string>> {
+  if (!notificationKind(kind).newcomerDefaultChannels || memberIds.length === 0) return new Set();
+  // A failed lookup means no new-member default (the plain default applies), never a send nobody asked for.
+  try {
+    const members = await repos.members.byIds(memberIds);
+    return new Set(members.filter((m) => isNewcomer(m.firstJoinedAt, new Date(clock.now()))).map((m) => m.id));
+  } catch (error) {
+    console.error(`[notifications] Loading new members for ${kind} failed`, error instanceof Error ? error.message : error);
+    return new Set();
+  }
+}
+
 async function loadUserIds(repos: NotifierRepos, memberIds: string[]): Promise<Map<string, string>> {
   const userIds = new Map<string, string>();
   try {
