@@ -7,7 +7,7 @@ import { requireAdminAction } from '@/lib/admin-auth'
 import { getCurrentUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { signSudoCookie } from '@/lib/sudo'
-import { SUDO_COOKIE_NAME, SUDO_RETURN_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
+import { SUDO_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
 import { sudoExitPath, sudoLandingPath } from '@/lib/sudo-redirect'
 
 type SudoEvent = 'sudo_started' | 'sudo_ended'
