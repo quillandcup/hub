@@ -16,12 +16,17 @@
  * from inside the logged-in page. The roster feeds bronze.kajabi_product_progress, the lessons feed
  * bronze.kajabi_lesson_progress; /api/process/course-progress turns completed lessons into lesson_progress.
  *
+ * With --comments it captures each lesson's comments and replies instead (docs/COURSES.md, "Lesson comments"): the
+ * admin's posts list gives every lesson's member-page link, each page is opened and "Show More" pressed until it is
+ * gone, and the comments go to bronze.kajabi_lesson_comments. It never types or submits anything.
+ *
  * Run step A (/api/import/kajabi-courses) first: this only fills in lessons Bronze already has.
  *
  * Usage:
  *   npm run courses:content -- --course <kajabi-course-id> [--apply] [--env .env.prod]
  *   npm run courses:content -- --course <kajabi-course-id> --skip-drafts
  *   npm run courses:content -- --course <kajabi-course-id> --progress [--apply]
+ *   npm run courses:content -- --course <kajabi-course-id> --comments [--apply]
  * Without --apply it captures and reports what it would change, and writes nothing. Re-running is
  * safe: a lesson whose content hasn't changed is skipped. Writes use the service role.
  */
@@ -44,12 +49,19 @@ import { describeDomShape, describeJson, describeMarkup, formatProbe, loginHint,
 import { ORG_TIMEZONE } from "../lib/config";
 import { ProgressSessionExpiredError, runProgressCapture } from "../lib/kajabi/progress-run";
 import { describeRosterResponse, forwardableHeaders, rosterHasMembers } from "../lib/kajabi/progress-capture";
+import { extractCommentsInPage, parsePostsList, type PostLink } from "../lib/kajabi/comments-capture";
+import { CommentsSessionExpiredError, runCommentsCapture, type LessonRead } from "../lib/kajabi/comments-run";
 import { loadLayeredEnv } from "./load-layered-env";
 import { CONTENT_USAGE, parseContentArgs } from "./kajabi-course-content-args";
 
 const KAJABI_APP = "https://app.kajabi.com";
 const LOGIN_WAIT_MS = 10 * 60 * 1000;
 const RESPONSE_TIMEOUT_MS = 60_000;
+// Comments: the most times "Show More" is pressed on one lesson, and how long to wait for a page or for more comments.
+const MAX_SHOW_MORE_PRESSES = 200;
+const COMMENTS_PAGE_TIMEOUT_MS = 60_000;
+const COMMENTS_LIST_TIMEOUT_MS = 20_000;
+const SHOW_MORE_TIMEOUT_MS = 15_000;
 // The Product Progress report is built in the background: how long to wait for it, and how often to ask again.
 const ROSTER_WAIT_MS = 90_000;
 const ROSTER_REASK_MS = 4_000;
@@ -439,11 +451,135 @@ async function captureProgress(courseId: string): Promise<void> {
   }
 }
 
+/**
+ * Opens one lesson's member page (the admin's "view comments" link, which carries a preview token), presses Show More
+ * until it is gone, and reads the comments. It only navigates and presses Show More: it never types, never submits a
+ * form and never clicks Reply or Post Comment. Errors are rethrown with short generic messages, because Playwright's
+ * own messages can contain the page address, and that holds the preview token.
+ */
+async function readCommentsPage(context: BrowserContext, lesson: PostLink): Promise<LessonRead> {
+  const page = await context.newPage();
+  try {
+    let response: Response | null;
+    try {
+      response = await page.goto(new URL(lesson.url, KAJABI_APP).toString(), { waitUntil: "domcontentloaded", timeout: COMMENTS_PAGE_TIMEOUT_MS });
+    } catch {
+      throw new Error("the lesson page did not load");
+    }
+    if (response?.status() === 401 || /(^|\/)(login|sign_in)(\/|$)/.test(new URL(page.url()).pathname)) {
+      throw new CommentsSessionExpiredError("Kajabi sent a lesson page to its login screen: the login expired, or the preview link did. Run again and log in.");
+    }
+    if (response && response.status() >= 400) throw new Error(`Kajabi answered ${response.status()} for the lesson page`);
+    const hasList = await page
+      .waitForSelector("[data-comments-list]", { state: "attached", timeout: COMMENTS_LIST_TIMEOUT_MS })
+      .then(() => true)
+      .catch(() => false);
+    if (!hasList) return { kind: "noList" };
+
+    const more = page.locator("a.btn--more");
+    let presses = 0;
+    let capped = false;
+    let before = await page.locator("div.comment").count();
+    while ((await more.count()) > 0) {
+      if (presses >= MAX_SHOW_MORE_PRESSES) {
+        capped = true;
+        break;
+      }
+      try {
+        await more.first().click({ timeout: SHOW_MORE_TIMEOUT_MS });
+      } catch {
+        throw new Error("Show More could not be pressed");
+      }
+      presses++;
+      const grew = await page
+        .waitForFunction((n) => document.querySelectorAll("div.comment").length > n, before, { timeout: SHOW_MORE_TIMEOUT_MS })
+        .then(() => true)
+        .catch(() => false);
+      const after = await page.locator("div.comment").count();
+      if (!grew || after <= before) {
+        // The press brought nothing: done if the button went away, cut off if it is still there.
+        capped = (await more.count()) > 0;
+        break;
+      }
+      before = after;
+    }
+    return { kind: "ok", page: await page.evaluate(extractCommentsInPage), capped };
+  } finally {
+    await page.close().catch(() => undefined);
+  }
+}
+
+/**
+ * Comments mode (docs/COURSES.md, "Lesson comments"). The course's admin product page requests the posts list
+ * itself (`/api/admin/products/{id}/posts`); its response gives every lesson's "view comments" link. Each lesson is
+ * then opened in a new page of the same browser and read. UNVERIFIED against the live site: the dry run is the first
+ * real test. Prints counts only, never a name, a comment or an address.
+ */
+async function captureComments(courseId: string): Promise<void> {
+  console.log(`${args.apply ? "Capturing" : "Dry run: capturing"} lesson comments for course ${courseId} from ${args.envFile}`);
+  const context = await chromium.launchPersistentContext(args.profileDir ?? join(homedir(), ".hub-kajabi-profile"), {
+    channel: "chrome",
+    headless: args.headless,
+  });
+  try {
+    await context.route("**/*", (route) => (SKIPPED_RESOURCES.has(route.request().resourceType()) ? route.abort() : route.continue()));
+    // tsx adds a `__name` helper to functions it compiles; the page has none (see the probe).
+    await context.addInitScript("window.__name = window.__name || function (fn) { return fn; };");
+    await ensureLoggedIn(context);
+
+    const postsPath = `/api/admin/products/${courseId}/posts`;
+    const admin = await context.newPage();
+    const postsResponse = admin.waitForResponse((r) => r.request().method() === "GET" && pathOf(r) === postsPath, { timeout: RESPONSE_TIMEOUT_MS });
+    postsResponse.catch(() => undefined);
+    await admin.goto(`${KAJABI_APP}/admin/products/${courseId}`, { waitUntil: "domcontentloaded" });
+    if (!new URL(admin.url()).pathname.startsWith("/admin/")) throw new SessionExpiredError("The Kajabi login expired. Run again and log in.");
+    const response = await postsResponse.catch(() => null);
+    if (!response) throw new Error(`The course page did not request ${postsPath} within ${RESPONSE_TIMEOUT_MS / 1000} seconds. Is the course id right?`);
+    if (response.status() === 401) throw new SessionExpiredError("Kajabi answered 401: the login expired. Run again and log in.");
+    if (!response.ok()) throw new Error(`Kajabi answered ${response.status()} for the posts list`);
+    const list = parsePostsList(await response.json().catch(() => undefined));
+    await admin.close();
+    console.log(`The posts list has ${list.lessons.length} lessons with a comments link (${list.withoutLink} without one).`);
+    if (list.paged) console.log("Warning: the posts list points at a next page, which this capture does not follow.");
+
+    const summary = await runCommentsCapture({
+      db: supabase as never,
+      courseKajabiId: courseId,
+      lessons: list.lessons,
+      readLesson: (lesson) => readCommentsPage(context, lesson),
+      apply: args.apply,
+      timeZone: ORG_TIMEZONE,
+      concurrency: args.concurrency,
+      log: (line) => console.log(line),
+    }).catch((error) => {
+      if (error instanceof CommentsSessionExpiredError) throw new SessionExpiredError(error.message);
+      throw error;
+    });
+
+    const k = summary.keySources;
+    console.log(
+      `\n${args.apply ? "Done" : "Dry run, nothing written"}: ${summary.lessonsCaptured} lessons captured, ${summary.lessonsWithComments} with comments; ` +
+        `${summary.comments} comments and replies (${summary.replies} replies); ` +
+        `${summary.rows.written} rows written, ${summary.rows.unchanged} unchanged, ${summary.rows.removed} removed\n` +
+        `comment ids: ${k["reply-link"] + k["reply-container"] + k["data-comment"]} from the page (${k["reply-link"]} reply link, ${k["reply-container"]} reply container, ${k["data-comment"]} data-comment), ${k.hash} hashed, ${summary.duplicateKeys} repeated within a lesson\n` +
+        `lessons: ${summary.lessonsCapped} cut off at the Show More limit, ${summary.lessonsMismatched} with a different total on the page, ` +
+        `${summary.lessonsWithoutList} without a comments list, ${summary.lessonsFailed} failed, ${summary.lessonsNotInBronze} not in Bronze (skipped)`
+    );
+    if (summary.lessonsFailed > 0 || summary.lessonsCapped > 0) process.exitCode = 1;
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   if (args.probe) return probe(args.probe);
   if (args.progress) {
     if (!args.scope || !("courseId" in args.scope)) throw new Error("--progress needs --course");
     return captureProgress(args.scope.courseId);
+  }
+  if (args.comments) {
+    if (!args.scope || !("courseId" in args.scope)) throw new Error("--comments needs --course");
+    return captureComments(args.scope.courseId);
   }
   if (!args.scope) throw new Error("Give --course or --lesson");
   const lessons = await selectLessons(supabase, args.scope, { includeDrafts: !args.skipDrafts });

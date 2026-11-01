@@ -14,6 +14,8 @@ export interface ContentArgs {
   skipDrafts: boolean;
   /** Progress mode: capture every student's per-lesson completion for the course instead of lesson content. */
   progress: boolean;
+  /** Comments mode: capture every lesson's comments from its member page into Bronze instead of lesson content. */
+  comments: boolean;
   /** Also look for the course's hero banner on its admin product page. Off by default: it isn't there (docs/TODO.md, "Course Hero Image"). */
   hero: boolean;
   concurrency: number;
@@ -31,6 +33,7 @@ export const CONTENT_USAGE = [
   "  --apply         write to the database (default: capture and report only)",
   "  --env           env file with the Supabase URL and service role key (default .env.local); the .env.shared beside it is read too, and the file wins",
   "  --progress      with --course: capture every student's per-lesson progress (roster and one report per student) into Bronze instead of lesson content",
+  "  --comments      with --course: capture every lesson's comments and replies (read from its member page, pressing Show More) into Bronze instead of lesson content",
   "  --skip-drafts   leave draft lessons out (they are captured by default; staff preview them)",
   "  --hero          also look for the course's hero banner (experimental; the admin product page doesn't carry it)",
   "  --probe         instead of capturing, open this Kajabi admin page and print the paths and field names of the JSON it loads while you click around (no values; --seconds sets how long, default 90)",
@@ -41,7 +44,7 @@ export const CONTENT_USAGE = [
 
 const VALUE_FLAGS = ["course", "lesson", "env", "concurrency", "profile", "probe", "seconds"] as const;
 // include-drafts is the old opt-in, now the default; still accepted so existing commands keep working.
-const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero", "progress"] as const;
+const BOOLEAN_FLAGS = ["apply", "skip-drafts", "include-drafts", "headless", "hero", "progress", "comments"] as const;
 
 export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
   const values: Partial<Record<(typeof VALUE_FLAGS)[number], string>> = {};
@@ -72,6 +75,13 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     if (!values.course) return { ok: false, error: "--progress needs --course <kajabi-course-id>" };
     if (flags.has("hero") || flags.has("skip-drafts") || flags.has("include-drafts")) {
       return { ok: false, error: "--progress captures progress only; --hero and the draft options are for lesson content" };
+    }
+  }
+  if (flags.has("comments")) {
+    if (!values.course) return { ok: false, error: "--comments needs --course <kajabi-course-id>" };
+    if (flags.has("progress")) return { ok: false, error: "Give --progress or --comments, not both" };
+    if (flags.has("hero") || flags.has("skip-drafts") || flags.has("include-drafts")) {
+      return { ok: false, error: "--comments captures comments only; --hero and the draft options are for lesson content" };
     }
   }
   if (values.probe && (values.course || values.lesson)) return { ok: false, error: "--probe takes a page, not --course or --lesson" };
@@ -108,6 +118,7 @@ export function parseContentArgs(argv: readonly string[]): ParsedContentArgs {
     apply: flags.has("apply"),
     skipDrafts: flags.has("skip-drafts"),
     progress: flags.has("progress"),
+    comments: flags.has("comments"),
     hero: flags.has("hero"),
     concurrency,
     headless: flags.has("headless"),
