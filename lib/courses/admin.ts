@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createRepos } from "@/lib/data/repos";
+import type { LessonRecord } from "@/lib/data/courses";
 import { isId } from "@/lib/ids";
 import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
 import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
@@ -249,14 +250,18 @@ export interface AdminLessonDetail {
   hub: { slug: string; lessonId: string } | null;
   /** The lesson's video in the Hub (what plays), when it has one. */
   video: { status: string; playbackId: string | null } | null;
+  /** The lesson is in a Hub-owned course: its setting and title can be changed here. An imported lesson is shown as Kajabi has it. */
+  editable: boolean;
 }
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
 export async function loadAdminLesson(supabase: SupabaseClient, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
-  const courseKajabiId = await kajabiIdOfCourse(supabase, courseId);
-  if (!courseKajabiId || !isId(lessonId, "les")) return null;
+  if (!isId(courseId, "crs") || !isId(lessonId, "les")) return null;
   const repos = createRepos(supabase);
   const found = await repos.courses.lessonById(lessonId);
+  if (found && found.course_id === courseId && found.source === "hub") return loadHubLesson(repos, courseId, found);
+  const courseKajabiId = await kajabiIdOfCourse(supabase, courseId);
+  if (!courseKajabiId) return null;
   const hubLesson = found && found.course_id === courseId && found.source === "kajabi" ? found : null;
   const lessonKajabiId = hubLesson?.source_key;
   if (!hubLesson || !lessonKajabiId) return null;
@@ -325,6 +330,70 @@ export async function loadAdminLesson(supabase: SupabaseClient, courseId: string
     files: files.map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
     hub,
     video,
+    editable: false,
+  };
+}
+
+/** One lesson of a Hub-owned course, from the Hub's own rows: nothing of it comes from Kajabi. */
+async function loadHubLesson(repos: ReturnType<typeof createRepos>, courseId: string, lesson: LessonRecord): Promise<AdminLessonDetail | null> {
+  const [course, modules, lessons, body, files] = await Promise.all([
+    repos.courses.courseById(courseId),
+    repos.courses.modulesOf([courseId], { includeHidden: true }),
+    repos.courses.lessonsOf([courseId], { includeHidden: true }),
+    repos.courses.lessonBody(lesson.id),
+    repos.courses.lessonFiles(lesson.id),
+  ]);
+  if (!course || course.source !== "hub") return null;
+
+  const outline = buildHubOutline(
+    modules.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, publishing_option: m.publishing_option })),
+    lessons.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, publishing_option: l.publishing_option, hasText: false, hasVideo: false }))
+  );
+  const flat: ExplainedLesson[] = [...outline.loose];
+  const walk = (ms: typeof outline.modules) => ms.forEach((m) => (flat.push(...m.lessons), walk(m.children)));
+  walk(outline.modules);
+  const explained = flat.find((x) => x.kajabiId === lesson.id);
+  if (!explained) return null;
+
+  const byId = new Map(modules.map((m) => [m.id, m]));
+  const trailOf = (moduleId: string | null) => {
+    const trail: AdminLessonDetail["trail"] = [];
+    for (let id = moduleId, seen = new Set<string>(); id && byId.has(id) && !seen.has(id); ) {
+      seen.add(id);
+      const m = byId.get(id)!;
+      trail.unshift({ kajabiId: m.id, title: m.title, publishingOption: m.publishing_option });
+      id = m.parent_id;
+    }
+    return trail;
+  };
+
+  let video: AdminLessonDetail["video"] = null;
+  if (lesson.video_id) {
+    const v = (await repos.courses.videosByIds([lesson.video_id]))[0];
+    if (v) video = { status: v.status, playbackId: v.mux_playback_id };
+  }
+  return {
+    course: { id: courseId, title: course.title },
+    // The id goes in `kajabiId`, as in the Hub outline: the page's rows are keyed by it and a Hub-owned item has no Kajabi id.
+    lesson: {
+      kajabiId: lesson.id,
+      title: lesson.title,
+      publishingOption: lesson.publishing_option,
+      state: explained.state,
+      reason: explained.reason,
+      bodyHtml: sanitizeLessonHtml(body?.body_html ?? null),
+      thumbnailSrc: courseImageSrc("lesson", lesson.id, lesson.thumbnail_asset_id, lesson.thumbnail_url),
+      videoDurationSeconds: lesson.duration_seconds,
+      hasVideo: lesson.video_id !== null,
+      contentFetchedAt: null,
+      fetchedAt: lesson.updated_at,
+    },
+    trail: trailOf(lesson.module_id),
+    modules: modules.map((m) => ({ kajabiId: m.id, path: trailOf(m.id).map((t) => t.title).join(" / ") })).sort((a, b) => a.path.localeCompare(b.path)),
+    files: files.map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
+    hub: { slug: course.slug, lessonId: lesson.id },
+    video,
+    editable: true,
   };
 }
 
