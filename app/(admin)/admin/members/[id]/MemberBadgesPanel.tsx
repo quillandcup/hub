@@ -27,6 +27,8 @@ interface RawAward {
 interface MemberBadgesPanelProps {
   memberId: string;
   earnedBadges: EarnedBadge[];
+  /** The address of each event an earned badge is linked to, by event id. */
+  eventSlugs?: Record<string, string>;
   awardableBadgeTypes: AwardableBadgeType[];
   awards: RawAward[];
 }
@@ -34,6 +36,7 @@ interface MemberBadgesPanelProps {
 export default function MemberBadgesPanel({
   memberId,
   earnedBadges,
+  eventSlugs = {},
   awardableBadgeTypes,
   awards,
 }: MemberBadgesPanelProps) {
@@ -94,7 +97,7 @@ export default function MemberBadgesPanel({
               badge={badge}
               href={
                 badge.badgeType.event_id
-                  ? `/admin/events/${badge.badgeType.event_id}`
+                  ? `/admin/events/${eventSlugs[badge.badgeType.event_id] ?? badge.badgeType.event_id}`
                   : badge.badgeType.key === "hedgie_mentor"
                     ? "/admin/mentorship"
                     : null
@@ -183,7 +186,7 @@ export default function MemberBadgesPanel({
                 </span>
                 {award.eventId ? (
                   <Link
-                    href={`/admin/events/${award.eventId}`}
+                    href={`/admin/events/${award.eventSlug ?? award.eventId}`}
                     className="text-xs text-slate-600 dark:text-slate-400 hover:underline flex-shrink-0"
                     title="Revoking this means removing the attendee on the event page"
                   >
