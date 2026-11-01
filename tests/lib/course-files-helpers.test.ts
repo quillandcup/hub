@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { contentTypeFor, formatBytes, presignedExpiry, safeFilename, storagePathFor } from "@/lib/courses/files";
+import { MAX_COURSE_FILE_BYTES, UPLOADED_FILE_KEY, contentTypeFor, formatBytes, parseLessonFileUpload, presignedExpiry, safeFilename, storagePathFor } from "@/lib/courses/files";
 
 describe("contentTypeFor", () => {
   it("keeps a specific type the source reports, without parameters", () => {
@@ -56,5 +56,32 @@ describe("presignedExpiry", () => {
     expect(presignedExpiry("https://example.test/f.pdf")).toBeNull();
     expect(presignedExpiry("not a url")).toBeNull();
     expect(presignedExpiry(null)).toBeNull();
+  });
+});
+
+describe("parseLessonFileUpload", () => {
+  it("accepts a named file of a size the bucket takes, keeping only the name when given a path", () => {
+    expect(parseLessonFileUpload({ filename: "  Tracker Sheet.pdf ", size: 2048 })).toEqual({ ok: true, filename: "Tracker Sheet.pdf", size: 2048 });
+    expect(parseLessonFileUpload({ filename: "C:\\Users\\a\\notes.txt", size: 1 })).toEqual({ ok: true, filename: "notes.txt", size: 1 });
+    expect(parseLessonFileUpload({ filename: "a/b/notes.txt", size: MAX_COURSE_FILE_BYTES })).toEqual({ ok: true, filename: "notes.txt", size: MAX_COURSE_FILE_BYTES });
+  });
+
+  it("refuses no name, a name that is too long, an empty file, a file too large, and values that aren't a name or a size", () => {
+    expect(parseLessonFileUpload({ filename: "  ", size: 10 })).toMatchObject({ ok: false, error: "That file has no name." });
+    expect(parseLessonFileUpload({ filename: 5, size: 10 })).toMatchObject({ ok: false });
+    expect(parseLessonFileUpload({ filename: `${"a".repeat(201)}.pdf`, size: 10 })).toMatchObject({ ok: false, error: expect.stringMatching(/longer than 200/) });
+    expect(parseLessonFileUpload({ filename: "a.pdf", size: 0 })).toMatchObject({ ok: false, error: "That file is empty." });
+    expect(parseLessonFileUpload({ filename: "a.pdf", size: Number.NaN })).toMatchObject({ ok: false });
+    expect(parseLessonFileUpload({ filename: "a.pdf", size: "10" })).toMatchObject({ ok: false });
+    expect(parseLessonFileUpload({ filename: "a.pdf", size: MAX_COURSE_FILE_BYTES + 1 })).toMatchObject({ ok: false, error: "That file is larger than 50 MB." });
+  });
+});
+
+describe("UPLOADED_FILE_KEY", () => {
+  it("matches the key an upload is given and nothing that could change the stored path", () => {
+    expect(UPLOADED_FILE_KEY.test("up-123e4567-e89b-12d3-a456-426614174000")).toBe(true);
+    expect(UPLOADED_FILE_KEY.test("up-../../x")).toBe(false);
+    expect(UPLOADED_FILE_KEY.test("123e4567-e89b-12d3-a456-426614174000")).toBe(false);
+    expect(UPLOADED_FILE_KEY.test("up-123e4567-e89b-12d3-a456-426614174000/extra")).toBe(false);
   });
 });

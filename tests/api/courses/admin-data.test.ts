@@ -252,7 +252,7 @@ describe('Admin course data', () => {
       expect(detail.lesson.bodyHtml).toBe('<p>Hey</p>')
       expect(detail.trail.map((t) => t.title)).toEqual(['Module 2', 'Week 1'])
       expect(detail.modules.map((m) => m.path)).toEqual(['Module 1', 'Module 2', 'Module 2 / Week 1'])
-      expect(detail.files).toEqual([{ filename: 'Tracker.pdf', sizeBytes: 2048 }])
+      expect(detail.files).toEqual([{ id: null, filename: 'Tracker.pdf', sizeBytes: 2048 }])
       expect(detail.hub).toEqual({ slug: `admin-published-${ts}`, lessonId: hubLesson })
     })
 

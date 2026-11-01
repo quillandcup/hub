@@ -54,7 +54,7 @@ const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLess
     { kajabiId: "m2", path: "Module 2" },
     { kajabiId: "w1", path: "Module 2 / Week 1" },
   ],
-  files: [{ filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }],
+  files: [{ id: null, filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }],
   hub: { slug: "the-ready-writer", lessonId: "les_AAAAAAAAAAA1" },
   video: { status: "ready", playbackId: "pb1" },
   editable: false,
@@ -120,6 +120,20 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     loadAdminLesson.mockResolvedValue(detail({ editable: false }));
     await renderServerPage(AdminLessonPage, params);
     expect(screen.queryByRole("button", { name: /video$/ })).toBeNull();
+  });
+
+  it("lets a Hub-owned lesson's downloads be added and removed, and shows an imported lesson's as they are", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true, files: [{ id: "file_AAAAAAAAAAA1", filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }] }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByRole("button", { name: "Add files" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Remove Tracker_Sheet.pdf" })).toBeEnabled();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByText("Tracker_Sheet.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add files" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
   });
 
   it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {

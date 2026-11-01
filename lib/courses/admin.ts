@@ -246,7 +246,8 @@ export interface AdminLessonDetail {
   trail: { kajabiId: string; title: string; publishingOption: string | null }[];
   /** Every module of the course as a path ("Module 2 / Week 1"), for the module picker. */
   modules: { kajabiId: string; path: string }[];
-  files: { filename: string; sizeBytes: number | null }[];
+  /** `id` is the Hub's, set for a Hub-owned lesson (its downloads can be removed); an imported lesson's are Kajabi's copies. */
+  files: { id: string | null; filename: string; sizeBytes: number | null }[];
   /** The lesson in the Hub, when the course is published there. */
   hub: { slug: string; lessonId: string } | null;
   /** The lesson's video in the Hub (what plays), when it has one. */
@@ -328,7 +329,7 @@ export async function loadAdminLesson(repos: AdminCourseRepos, courseParam: stri
     modules: modules
       .map((m) => ({ kajabiId: m.kajabi_id as string, path: trailOf(m.kajabi_id).map((t) => t.title).join(" / ") }))
       .sort((a, b) => a.path.localeCompare(b.path)),
-    files: files.map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
+    files: files.map((f) => ({ id: null, filename: f.filename, sizeBytes: f.size_bytes })),
     hub,
     video,
     editable: false,
@@ -391,7 +392,7 @@ async function loadHubLesson(repos: AdminCourseRepos, courseId: string, lesson: 
     },
     trail: trailOf(lesson.module_id),
     modules: modules.map((m) => ({ kajabiId: m.id, path: trailOf(m.id).map((t) => t.title).join(" / ") })).sort((a, b) => a.path.localeCompare(b.path)),
-    files: files.map((f) => ({ filename: f.filename, sizeBytes: f.size_bytes })),
+    files: files.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: f.size_bytes })),
     hub: { slug: course.slug, lessonId: lesson.id },
     video,
     editable: true,
