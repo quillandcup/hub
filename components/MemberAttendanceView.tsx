@@ -1,5 +1,6 @@
 "use client";
 
+import TimezoneSelect from "@/components/TimezoneSelect";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState, useEffect, useCallback } from "react";
@@ -13,14 +14,6 @@ import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
 
 type SortColumn = "type" | "date" | "time" | "duration" | "host";
-
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "UTC", label: "UTC" },
-];
 
 interface MemberAttendanceViewProps {
   member: { id: string };
@@ -58,12 +51,6 @@ export default function MemberAttendanceView({
   useEffect(() => {
     setTimezone(defaultTimezone);
   }, [defaultTimezone]);
-
-  // A member's own zone isn't one of the presets; without an option for it the select would show
-  // its first entry while the times are in the member's zone.
-  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
-    ? TIMEZONES
-    : [{ value: timezone, label: timezone.split("/").pop()!.replace(/_/g, " ") }, ...TIMEZONES];
 
   // "Time" sorts by time of day in the selected timezone; "Date" by the full instant.
   const getSortValue = useCallback(
@@ -165,20 +152,7 @@ export default function MemberAttendanceView({
           <h2 className="text-xl font-bold">Attendance History ({distinctPrickleCount})</h2>
           <div className="flex items-center gap-3">
             {/* Timezone selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-              <select data-track="attendance-timezone"
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
-              >
-                {timezoneOptions.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <TimezoneSelect value={timezone} onChange={setTimezone} track="attendance-timezone" />
             {/* View toggle */}
             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               <button data-track="attendance-list"

@@ -1,5 +1,6 @@
 "use client";
 
+import TimezoneSelect from "@/components/TimezoneSelect";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -21,14 +22,6 @@ const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
   committed: { icon: REASON_ICON.commitment, label: "Committed" },
   calendar: { icon: REASON_ICON.calendar, label: "On their calendar" },
 };
-
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "UTC", label: "UTC" },
-];
 
 interface PrickleDetailsProps {
   prickle: PrickleDetail;
@@ -120,12 +113,6 @@ export default function PrickleDetails({
       minute: "2-digit",
     });
   };
-  // A member's own zone (e.g. America/Costa_Rica) isn't one of the presets; without an option for it
-  // the select would show its first entry while the times are in the member's zone.
-  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
-    ? TIMEZONES
-    : [{ value: timezone, label: timezone.split("/").pop()!.replace(/_/g, " ") }, ...TIMEZONES];
-
   const formatTimeWithOrg = (date: Date) => withSecondary(formatTime(date), date, timezone);
 
   const formatDate = (date: Date) => {
@@ -142,20 +129,7 @@ export default function PrickleDetails({
     <div className="space-y-6">
       {/* Timezone Selector */}
       <div className="flex justify-end">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-          <select data-track="prickle-timezone"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
-          >
-            {timezoneOptions.map((tz) => (
-              <option key={tz.value} value={tz.value}>
-                {tz.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <TimezoneSelect value={timezone} onChange={setTimezone} track="prickle-timezone" />
       </div>
 
       {/* Prickle Info */}

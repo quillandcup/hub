@@ -1,5 +1,6 @@
 "use client";
 
+import TimezoneSelect from "@/components/TimezoneSelect";
 import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -65,15 +66,6 @@ interface CalendarWeekViewProps {
   onPrickleClick?: (prickle: Prickle) => void;
   selectedPrickleIds?: ReadonlySet<string>;
 }
-
-// Common timezones for the dropdown
-const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern (ET)" },
-  { value: "America/Chicago", label: "Central (CT)" },
-  { value: "America/Denver", label: "Mountain (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific (PT)" },
-  { value: "UTC", label: "UTC" },
-];
 
 // Define color intensity based on attendance count
 function getAttendanceColor(count: number): string {
@@ -201,13 +193,6 @@ export default function CalendarWeekView({
   const [showPups, setShowPups] = useState(true);
   const router = useRouter();
 
-  // The preset list above only covers common US timezones. If the user's profile
-  // timezone isn't one of them, add it so the dropdown reflects the timezone
-  // actually in use instead of silently falling back to the first option (ET).
-  const timezoneOptions = TIMEZONES.some((tz) => tz.value === timezone)
-    ? TIMEZONES
-    : [{ value: timezone, label: timezone }, ...TIMEZONES];
-
   // Update timezone when defaultTimezone changes (after browser detection)
   useEffect(() => {
     setTimezone(defaultTimezone);
@@ -299,21 +284,7 @@ export default function CalendarWeekView({
                 />
                 <span className="text-sm text-slate-700 dark:text-slate-300">Show Pop-Up Prickles</span>
               </label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Timezone:</span>
-                <select data-track="calendar-week-timezone"
-                  aria-label="Timezone"
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-plum-500"
-                >
-                  {timezoneOptions.map((tz) => (
-                    <option key={tz.value} value={tz.value}>
-                      {tz.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <TimezoneSelect value={timezone} onChange={setTimezone} track="calendar-week-timezone" />
             </div>
           </div>
         </div>
