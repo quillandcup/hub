@@ -417,9 +417,10 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       expect(draft).toMatchObject({ publishing_option: "draft", is_draft: true });
 
       expect(await states()).toEqual(all("hidden"));
-      // Under a draft course nothing can be published on its own.
-      await expect(repo.setItemStatus("module", m, "published")).rejects.toThrow("parent_not_published");
-      await expect(repo.setItemStatus("lesson", (await repo.lessonsOf([course.id], { includeHidden: true })).find((x) => x.title === "Loose")!.id, "published")).rejects.toThrow("parent_not_published");
+      // Things can be marked published while the course is still a draft: they wait, hidden, until it is switched on.
+      await repo.setItemStatus("module", m, "published");
+      await repo.setItemStatus("lesson", (await repo.lessonsOf([course.id], { includeHidden: true })).find((x) => x.title === "Loose")!.id, "published");
+      expect(await states()).toEqual(all("hidden"));
 
       await repo.setCourseStatus(course.id, "published");
       expect(await repo.courseById(course.id)).toMatchObject({ publishing_option: "published", is_draft: false });
@@ -428,9 +429,11 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       // A draft module hides what is under it, a lesson with its own published setting included.
       await repo.setItemStatus("module", m, "draft");
       expect(await states()).toEqual({ M: "hidden", W: "hidden", L: "hidden", Own: "hidden", Loose: "open" });
-      await expect(repo.setItemStatus("module", w, "published")).rejects.toThrow("parent_not_published");
+      // A submodule can be marked published under a draft module too: it waits.
+      await repo.setItemStatus("module", w, "published");
+      expect(await states()).toEqual({ M: "hidden", W: "hidden", L: "hidden", Own: "hidden", Loose: "open" });
 
-      // A locked module doesn't block publishing under it; what is under it is coming soon.
+      // Under a locked module a published item is coming soon.
       await repo.setItemStatus("module", m, "locked");
       await repo.setItemStatus("lesson", l, "published");
       expect(await states()).toEqual({ M: "coming_soon", W: "coming_soon", L: "coming_soon", Own: "coming_soon", Loose: "open" });
@@ -454,6 +457,37 @@ export function defineCourseContract(name: string, setup: () => CourseContractCo
       await expect(repo.setCourseStatus(course.id, "inherit")).rejects.toThrow("unsupported_status");
       await expect(repo.setItemStatus("lesson", newCourseId("les"), "draft")).rejects.toThrow("not_found");
       await expect(repo.setCourseStatus(newCourseId("crs"), "draft")).rejects.toThrow("not_found");
+    });
+
+    it("opens or closes a whole section by its own setting once everything in it is marked published", async () => {
+      const course = newCourse("section", { is_draft: false, publishing_option: "published" });
+      await ctx.seed.courses([course]);
+      const repo = ctx.courses();
+      const section = await repo.addModule({ course_id: course.id, title: "Section", position: 1, publishing_option: "draft", source: "hub" });
+      const week = await repo.addModule({ course_id: course.id, parent_id: section, title: "Week", position: 1, publishing_option: "draft", source: "hub" });
+      const lessons = [
+        await repo.addLesson({ course_id: course.id, module_id: week, title: "One", position: 1, publishing_option: "inherit", source: "hub" }),
+        await repo.addLesson({ course_id: course.id, module_id: section, title: "Two", position: 2, publishing_option: "inherit", source: "hub" }),
+      ];
+      const states = async () => Object.fromEntries([...(await repo.modulesOf([course.id], { includeHidden: true })), ...(await repo.lessonsOf([course.id], { includeHidden: true }))].map((r) => [r.title, r.state]));
+      expect(await states()).toEqual({ Section: "hidden", Week: "hidden", One: "hidden", Two: "hidden" });
+
+      // Prepare it: mark every lesson, and the week, published. Nothing opens: they are in a draft module.
+      for (const id of lessons) await repo.setItemStatus("lesson", id, "published");
+      await repo.setItemStatus("module", week, "published");
+      expect(await states()).toEqual({ Section: "hidden", Week: "hidden", One: "hidden", Two: "hidden" });
+
+      // Then the section's own setting is the one switch for all of it, either way.
+      await repo.setItemStatus("module", section, "published");
+      expect(await states()).toEqual({ Section: "open", Week: "open", One: "open", Two: "open" });
+      await repo.setItemStatus("module", section, "draft");
+      expect(await states()).toEqual({ Section: "hidden", Week: "hidden", One: "hidden", Two: "hidden" });
+      await repo.setItemStatus("module", section, "locked");
+      expect(await states()).toEqual({ Section: "coming_soon", Week: "coming_soon", One: "coming_soon", Two: "coming_soon" });
+      // The week alone: draft hides it and its lesson, and the section's other lesson stays as the section has it.
+      await repo.setItemStatus("module", section, "published");
+      await repo.setItemStatus("module", week, "draft");
+      expect(await states()).toEqual({ Section: "open", Week: "hidden", One: "hidden", Two: "open" });
     });
 
     it("won't change the setting of a course imported from Kajabi, or of what is in it", async () => {

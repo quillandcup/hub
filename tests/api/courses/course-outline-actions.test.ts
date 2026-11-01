@@ -284,10 +284,17 @@ describe('Course outline actions', () => {
       expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
     })
 
-    it("won't publish under a draft, and says what to do", async () => {
+    it("lets everything in a section be marked published while the section is a draft, then switches it all on with the section's own setting", async () => {
       await setCourseItemStatus(course, 'module', top, 'draft')
-      expect(await setCourseItemStatus(course, 'module', week, 'published')).toEqual({ error: 'Publish what it is in first: the module, or the course, above it is still a draft.' })
-      expect(await setCourseItemStatus(course, 'lesson', lesson, 'published')).toEqual({ error: 'Publish what it is in first: the module, or the course, above it is still a draft.' })
+      expect(await setCourseItemStatus(course, 'module', week, 'published')).toEqual({ id: week })
+      expect(await setCourseItemStatus(course, 'lesson', lesson, 'published')).toEqual({ id: lesson })
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      await setCourseItemStatus(course, 'module', top, 'published')
+      expect(await states()).toEqual({ Top: 'open', Week: 'open', Lesson: 'open' })
+      await setCourseItemStatus(course, 'module', top, 'draft')
+      expect(await states()).toEqual({ Top: 'hidden', Week: 'hidden', Lesson: 'hidden' })
+      await setCourseItemStatus(course, 'module', week, 'inherit')
+      await setCourseItemStatus(course, 'lesson', lesson, 'inherit')
       await setCourseItemStatus(course, 'module', top, 'inherit')
     })
 

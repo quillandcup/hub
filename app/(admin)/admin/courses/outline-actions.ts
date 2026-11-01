@@ -32,7 +32,6 @@ function describe(error: DbError, what: string): string {
   if (error.message === "stale_order") return "The outline changed since you opened it. Refresh the page and try again.";
   if (error.message === "not_editable") return NOT_EDITABLE;
   if (error.message === "not_found") return "That has been deleted. Refresh the page.";
-  if (error.message === "parent_not_published") return "Publish what it is in first: the module, or the course, above it is still a draft.";
   if (error.message === "unsupported_status") return "That setting isn't available yet.";
   if (error.code === "23514" || error.code === "23503") return error.message.startsWith("A ") ? error.message : "That doesn't fit there.";
   console.error(`course outline: ${what} failed:`, error.message);

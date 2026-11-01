@@ -116,7 +116,7 @@ export interface CourseRepository {
   setCourseStatus(courseId: string, option: string): Promise<void>;
   /**
    * Sets a Hub-owned module's or lesson's own setting (inherit, draft, published or locked); its state, and that of what is
-   * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`, `parent_not_published`).
+   * under it, follow. Throws a {@link CourseWriteError} (`unsupported_status`, `not_found`, `not_editable`).
    */
   setItemStatus(kind: OutlineKind, id: string, option: string): Promise<void>;
 
@@ -824,8 +824,6 @@ export class InMemoryCourseRepository implements CourseRepository {
     if (!item) throw new CourseWriteError("not_found");
     if (item.source !== "hub" || this.data.courses.find((c) => c.id === item.course_id)?.source !== "hub") throw new CourseWriteError("not_editable");
     if (item.publishing_option === option) return;
-    const moduleId = kind === "module" ? (item as Row<"course_modules">).parent_id : (item as Row<"course_lessons">).module_id;
-    if (option === "published" && this.stateAbove(item.course_id, moduleId) === "hidden") throw new CourseWriteError("parent_not_published");
     item.publishing_option = option;
     item.updated_at = now();
     this.recompute(item.course_id);

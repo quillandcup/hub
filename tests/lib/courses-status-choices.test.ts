@@ -9,41 +9,28 @@ describe("statusLabel", () => {
     expect(statusLabel("weird")).toBe("weird");
     expect(statusLabel(null)).toBe("No setting");
   });
+
+  it("says an item that follows what is above it follows it", () => {
+    expect(statusLabel("inherit")).toBe("Follows what is above");
+  });
 });
 
 describe("statusChoices", () => {
   it("offers Draft, Publish, Schedule, Drip and Lock", () => {
     expect(STATUS_CHOICES.map((c) => c.action)).toEqual(["Draft", "Publish", "Schedule", "Drip", "Lock"]);
+    expect(statusChoices().map((c) => c.action)).toEqual(["Draft", "Publish", "Schedule", "Drip", "Lock"]);
   });
 
-  it("allows everything at the top of the course and under published modules", () => {
-    expect(statusChoices([]).every((c) => !c.disabledReason)).toBe(true);
-    expect(statusChoices([{ title: "Module 1", publishingOption: "published" }, { title: "Week 1", publishingOption: "published" }]).every((c) => !c.disabledReason)).toBe(true);
+  it("never blocks Publish, whatever is above: a published lesson can wait in a draft module until the module is switched on", () => {
+    // There is nothing to pass it: what is above an item limits its state, not what it may be set to.
+    expect(statusChoices().find((c) => c.value === "published")?.disabledReason).toBeUndefined();
+    expect(statusChoices("draft").find((c) => c.value === "published")?.disabledReason).toBeUndefined();
+    expect(statusChoices("published").find((c) => c.value === "published")?.disabledReason).toBeUndefined();
   });
 
-  it("won't publish under a draft module, and names the nearest draft to publish first", () => {
-    const choices = statusChoices([
-      { title: "Module 1", publishingOption: "draft" },
-      { title: "Week 1", publishingOption: "draft" },
-    ]);
-    expect(choices.find((c) => c.value === "published")?.disabledReason).toBe("Publish “Week 1” first");
-    expect(choices.filter((c) => c.disabledReason).map((c) => c.value)).toEqual(["published"]);
-  });
-
-  it("looks past a published submodule to a draft module above it", () => {
-    const choices = statusChoices([
-      { title: "Module 1", publishingOption: "draft" },
-      { title: "Week 1", publishingOption: "published" },
-    ]);
-    expect(choices.find((c) => c.value === "published")?.disabledReason).toBe("Publish “Module 1” first");
-  });
-
-  it("allows a published week inside a locked module, which Kajabi does too", () => {
-    expect(statusChoices([{ title: "Module 2", publishingOption: "locked" }]).find((c) => c.value === "published")?.disabledReason).toBeUndefined();
-  });
-
-  it("never blocks the status an item already has, so a published lesson under a draft module isn't marked blocked", () => {
-    const choices = statusChoices([{ title: "Module 1", publishingOption: "draft" }], "published");
-    expect(choices.every((c) => !c.disabledReason)).toBe(true);
+  it("marks Schedule and Drip as not offered yet, since they need a date or a delay, unless that is what the item already has", () => {
+    expect(statusChoices("draft").filter((c) => c.disabledReason).map((c) => c.value)).toEqual(["scheduled", "drip"]);
+    expect(statusChoices("drip").filter((c) => c.disabledReason).map((c) => c.value)).toEqual(["scheduled"]);
+    expect(statusChoices("scheduled").filter((c) => c.disabledReason).map((c) => c.value)).toEqual(["drip"]);
   });
 });

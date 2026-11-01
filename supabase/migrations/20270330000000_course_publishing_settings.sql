@@ -204,9 +204,10 @@ END $$;
 -- A module or lesson: inherit (follow what is above it), draft, published or locked. Scheduled and drip need
 -- a date or a delay the Hub doesn't take yet, so they are refused here, not stored half-set.
 --
--- An item can't be made published while what is above it is hidden (a draft module, or a draft course):
--- publish that first. A locked module or course doesn't block it (Kajabi allows a published week inside a
--- locked module).
+-- Nothing is refused for what is above it: an item can be set to published under a draft module or in a
+-- draft course. It is not visible until what is above it is (its state is limited by it), so a whole module
+-- can be prepared, every lesson in it marked published, and then switched on or off by its own setting alone.
+-- (Kajabi does the same: "Meet Your Instructor" is Published inside the draft module "Welcome to the 180".)
 CREATE FUNCTION public.set_course_item_status(p_kind text, p_id text, p_option text) RETURNS void
   LANGUAGE plpgsql
   SECURITY DEFINER
@@ -214,10 +215,8 @@ CREATE FUNCTION public.set_course_item_status(p_kind text, p_id text, p_option t
 AS $$
 DECLARE
   v_course text;
-  v_parent text;
   v_old text;
   v_source text;
-  v_above text;
 BEGIN
   IF NOT (public.is_admin() OR auth.role() = 'service_role') THEN
     RAISE EXCEPTION 'not_editable';
@@ -230,9 +229,9 @@ BEGIN
   END IF;
 
   IF p_kind = 'module' THEN
-    SELECT course_id, parent_id, publishing_option, source INTO v_course, v_parent, v_old, v_source FROM course_modules WHERE id = p_id;
+    SELECT course_id, publishing_option, source INTO v_course, v_old, v_source FROM course_modules WHERE id = p_id;
   ELSE
-    SELECT course_id, module_id, publishing_option, source INTO v_course, v_parent, v_old, v_source FROM course_lessons WHERE id = p_id;
+    SELECT course_id, publishing_option, source INTO v_course, v_old, v_source FROM course_lessons WHERE id = p_id;
   END IF;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'not_found';
@@ -242,14 +241,6 @@ BEGIN
   END IF;
   IF v_old IS NOT DISTINCT FROM p_option THEN
     RETURN;
-  END IF;
-
-  IF p_option = 'published' THEN
-    SELECT CASE WHEN v_parent IS NOT NULL THEN (SELECT state FROM course_modules WHERE id = v_parent)
-                ELSE (SELECT public.course_visibility(publishing_option) FROM courses WHERE id = v_course) END INTO v_above;
-    IF v_above = 'hidden' THEN
-      RAISE EXCEPTION 'parent_not_published';
-    END IF;
   END IF;
 
   IF p_kind = 'module' THEN

@@ -8,7 +8,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(41);
+SELECT plan(42);
 
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
   ('00000000-0000-4000-a000-00000000e2a1', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'settings-alice@example.test'),
@@ -88,9 +88,10 @@ INSERT INTO result SELECT 'member_item', to_jsonb(pg_temp.failure($$SELECT publi
 -- Dana (an admin).
 SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e2a4", "email": "settings-dana@example.test", "role": "authenticated"}', true);
 
--- Publishing an item under a draft course is refused; a locked or inherited one is fine.
-INSERT INTO result SELECT 'publish_under_draft_course', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'published')$$));
-INSERT INTO result SELECT 'publish_loose_under_draft_course', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'published')$$));
+-- Items can be marked published while the course is still a draft: they wait, hidden, until it is switched on.
+SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'published');
+SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'published');
+INSERT INTO result SELECT 'marked_published_in_draft_course', pg_temp.states();
 INSERT INTO result SELECT 'unsupported_drip', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'drip')$$));
 INSERT INTO result SELECT 'unsupported_scheduled', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('lesson', 'les_SettingsLoose', 'scheduled')$$));
 INSERT INTO result SELECT 'unsupported_course_drip', to_jsonb(pg_temp.failure($$SELECT public.set_course_status('crs_Settings0001', 'drip')$$));
@@ -110,8 +111,16 @@ INSERT INTO result SELECT 'course_locked', pg_temp.states();
 SELECT public.set_course_status('crs_Settings0001', 'published');
 SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'draft');
 INSERT INTO result SELECT 'module_a_draft', pg_temp.states();
--- A draft module blocks publishing what is under it; a locked one doesn't.
-INSERT INTO result SELECT 'publish_under_draft_module', to_jsonb(pg_temp.failure($$SELECT public.set_course_item_status('module', 'mod_SettingsA1001', 'published')$$));
+-- Under a draft module, what is under it can be marked published too, and waits; then the module's own setting
+-- is the one switch for the whole section, either way.
+SELECT public.set_course_item_status('module', 'mod_SettingsA1001', 'published');
+SELECT public.set_course_item_status('lesson', 'les_SettingsA1L01', 'published');
+INSERT INTO result SELECT 'section_waiting', pg_temp.states();
+SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'published');
+INSERT INTO result SELECT 'section_on', pg_temp.states();
+SELECT public.set_course_item_status('module', 'mod_SettingsA0001', 'draft');
+INSERT INTO result SELECT 'section_off', pg_temp.states();
+-- A locked module also allows publishing under it.
 SELECT public.set_course_item_status('lesson', 'les_SettingsB0L01', 'published');
 INSERT INTO result SELECT 'published_in_locked_module', to_jsonb((SELECT state FROM public.course_lessons WHERE id = 'les_SettingsB0L01'));
 -- Back to following: the module follows the (published) course again, and what it holds opens.
@@ -139,8 +148,9 @@ SELECT is((SELECT publishing_option FROM public.courses WHERE id = 'crs_Settings
 
 SELECT is((SELECT value FROM result WHERE label = 'member_course'), '"not_editable"'::jsonb, 'a member can''t change a course''s setting');
 SELECT is((SELECT value FROM result WHERE label = 'member_item'), '"not_editable"'::jsonb, 'a member can''t change an item''s setting');
-SELECT is((SELECT value FROM result WHERE label = 'publish_under_draft_course'), '"parent_not_published"'::jsonb, 'a module can''t be published while the course is a draft');
-SELECT is((SELECT value FROM result WHERE label = 'publish_loose_under_draft_course'), '"parent_not_published"'::jsonb, 'nor a lesson in no module');
+SELECT is((SELECT value FROM result WHERE label = 'marked_published_in_draft_course'),
+  '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"hidden","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"hidden","les_SettingsLoose":"hidden"}'::jsonb,
+  'a module and a lesson can be marked published while the course is a draft, and wait, hidden');
 SELECT is((SELECT value FROM result WHERE label = 'unsupported_drip'), '"unsupported_status"'::jsonb, 'drip isn''t offered yet');
 SELECT is((SELECT value FROM result WHERE label = 'unsupported_scheduled'), '"unsupported_status"'::jsonb, 'nor scheduled');
 SELECT is((SELECT value FROM result WHERE label = 'unsupported_course_drip'), '"unsupported_status"'::jsonb, 'nor for a course');
@@ -158,7 +168,15 @@ SELECT is((SELECT value FROM result WHERE label = 'course_locked'),
 SELECT is((SELECT value FROM result WHERE label = 'module_a_draft'),
   '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
   'a draft module hides what is under it, its submodule and a lesson with its own published setting included');
-SELECT is((SELECT value FROM result WHERE label = 'publish_under_draft_module'), '"parent_not_published"'::jsonb, 'a submodule can''t be published under a draft module');
+SELECT is((SELECT value FROM result WHERE label = 'section_waiting'),
+  '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
+  'everything under a draft module can be marked published, and waits, hidden');
+SELECT is((SELECT value FROM result WHERE label = 'section_on'),
+  '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
+  'publishing the module opens the whole section at once');
+SELECT is((SELECT value FROM result WHERE label = 'section_off'),
+  '{"mod_SettingsA0001":"hidden","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"hidden","les_SettingsA1L01":"hidden","les_SettingsAOwn1":"hidden","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,
+  'and making it a draft closes the whole section again');
 SELECT is((SELECT value FROM result WHERE label = 'published_in_locked_module'), '"coming_soon"'::jsonb, 'a lesson published in a locked module is allowed, and is coming soon');
 SELECT is((SELECT value FROM result WHERE label = 'module_a_follows_again'),
   '{"mod_SettingsA0001":"open","mod_SettingsB0001":"coming_soon","mod_SettingsA1001":"open","les_SettingsA1L01":"open","les_SettingsAOwn1":"open","les_SettingsB0L01":"coming_soon","les_SettingsLoose":"open"}'::jsonb,

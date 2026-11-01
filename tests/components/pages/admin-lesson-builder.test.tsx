@@ -231,25 +231,22 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.getByText("No thumbnail.")).toBeInTheDocument();
   });
 
-  it("blocks Publish under a draft module, and says which to publish first", async () => {
+  it("can be set to Published under a draft module: it waits there, and the line under says why", async () => {
     loadAdminLesson.mockResolvedValue(
-      detail({ trail: [{ kajabiId: "m1", title: "Module 1", publishingOption: "draft" }] }, { publishingOption: "draft", state: "hidden", reason: "Draft in Kajabi" })
+      detail({ trail: [{ kajabiId: "m1", title: "Module 1", publishingOption: "draft" }] }, { publishingOption: "published", state: "hidden", reason: "Inside “Module 1” (Draft)" })
     );
     await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("radio", { name: /Published/ })).toBeDisabled();
-    expect(screen.getByRole("radio", { name: /Published/ }).closest("label")).toHaveAttribute("title", "Publish “Module 1” first");
-    expect(screen.queryByText(/Publish “Module 1” first/)).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Draft" })).toBeChecked();
-    // The radio already says Draft: the line under it only adds what members get.
-    expect(screen.getByText("Members don't see it.")).toBeInTheDocument();
-    expect(screen.queryByText(/Draft in Kajabi/)).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Published" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Draft" })).not.toBeChecked();
+    expect(screen.getByText("Members don't see it. Inside “Module 1” (Draft).")).toBeInTheDocument();
   });
 
-  it("doesn't mark Published as blocked on a lesson that is already published under a draft module", async () => {
-    loadAdminLesson.mockResolvedValue(detail({ trail: [{ kajabiId: "m1", title: "Module 1", publishingOption: "draft" }] }));
+  it("says what members get from a draft, once, without repeating the setting the radio already shows", async () => {
+    loadAdminLesson.mockResolvedValue(detail({}, { publishingOption: "draft", state: "hidden", reason: "Draft in Kajabi" }));
     await renderServerPage(AdminLessonPage, params);
-    expect(screen.getByRole("radio", { name: "Published" })).toBeChecked();
-    expect(screen.queryByText(/Publish “Module 1” first/)).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Draft" })).toBeChecked();
+    expect(screen.getByText("Members don't see it.")).toBeInTheDocument();
+    expect(screen.queryByText(/Draft in Kajabi/)).not.toBeInTheDocument();
   });
 
   it("titles the tab with the lesson, then the course", async () => {
