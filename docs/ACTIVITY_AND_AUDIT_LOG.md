@@ -47,6 +47,19 @@ Details worth knowing:
 - No FKs on `changed_by`/`member_id`: history outlives deleted users and merged members.
 - Pipeline writes to `members` (`reprocess_members_atomic`) are `system` rows when a field actually changes.
 
+### Record the intent, not the noise
+
+The audit log answers "who did what, and why does this look different", so an entry should say what the person **meant**. When one action rewrites many rows, the row-by-row trigger would bury that under mechanical changes, and nobody reading the log could tell the action from its consequences. So:
+
+- **One entry for the thing acted on**, with the before and after, as the person who did it. "Reordered the 4 lessons in “Week 1”" is one entry holding the order before and after, not four `position` updates. "Changed Module 2 to Published" is one entry for the module's own setting, not a `state` update on every lesson under it that followed.
+- **Mechanical columns are skipped per row.** A trigger's `WHEN` clause compares the row without the columns that only follow from something else (`position`, a derived `state`, `updated_at`) and doesn't fire if nothing else differs. Today: `course_modules` and `course_lessons` (`20270317000000`, `20270328000000`).
+- **Where the intent has no row of its own, a function writes it.** Nothing but the audit triggers may write `audit_log`, so a reorder is a `SECURITY DEFINER` function (`reorder_course_children`, `20270327000000`) that first checks, itself, what the row policies would have: the caller is an admin (or the server), and the rows are ones they may change. It writes `entity_type` `course_lesson_order` or `course_module_order`, `entity_id` the module (or course) whose list it is, `entity_label` that module's or course's name, and `changes` `{"order": {"old": [...], "new": [...]}}`.
+- **The feed says it as a sentence.** Add the entity to `specialAuditPhrase` in `lib/activity-feed.ts` (`course_lesson_order` reads "reordered the 4 lessons in “Week 1”").
+- **Nothing for nothing.** A reorder to the order it already had, a stale list, a refused attempt, or a setting set to the value it has writes no entry.
+- **Test both halves**, in pgTAP: the one entry (who, what, before and after, in the same transaction) and the absence of the noise (no per-row entries). `supabase/tests/database/course_editor_outline.test.sql` does both.
+
+The same rule is in `CLAUDE.md` ("Audit Log: Record the Intent, Not the Noise") so it applies to the next resource that gets an editor.
+
 ## The central activity log (`/admin/activity`)
 
 One page over **both** tables plus page visits, backed by the `get_activity_feed()` SQL function (admin-only via `is_admin()` inside; keyset-paginated on `occurred_at`). Each row is one of:

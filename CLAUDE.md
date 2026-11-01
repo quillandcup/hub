@@ -263,6 +263,16 @@ Sudo doesn't affect any of these checks: the sudo cookie changes the effective *
 
 The hook is tested by `supabase/tests/database/custom_access_token_hook.test.sql` (pgTAP, rolled back; `pnpm test:pgtap`, which CI also runs). Because the proxy has no fallback, **no one reaches `/admin` on a project until the hook is enabled there** (and they've signed in again or their token has refreshed). See "Supabase config as code" below for how it gets enabled.
 
+### Audit Log: Record the Intent, Not the Noise
+
+**RULE**: The audit log records what someone *meant*, once, with the before and after, and not every row that changed because of it. A change that rewrites many rows (reordering a list, publishing a module whose lessons' states then follow, moving a subtree) is **one entry for the thing that was acted on**, written as the person who did it. Full explanation and the worked examples: `docs/ACTIVITY_AND_AUDIT_LOG.md`, "Record the intent, not the noise".
+
+- **Leave mechanical columns out of the per-row trigger.** A column that only follows from something else (`position` in a reordered list, a `state` derived from a setting above it, `updated_at`) goes in the `WHEN` clause's exclusions (`(to_jsonb(OLD) - 'position' - 'state' - 'updated_at') IS DISTINCT FROM (to_jsonb(NEW) - ...)`), so a rewrite of it writes no rows.
+- **The intent is one entry.** Either the row's own change carries it (the setting that was changed shows as that item's delta), or, when no single row does (a reorder), a `SECURITY DEFINER` database function that checks the caller itself writes one entry: the list it was done in as `entity_label`, `changes` as `{"order": {"old": [...], "new": [...]}}`. Add its sentence to `describeRow` (`lib/activity-feed.ts`) so the feed reads "reordered the 4 lessons in “Week 1”".
+- **Write as the person, not the service role.** An admin's change goes through their own client (or a function that reads their identity), so it isn't recorded as `system`.
+- **No entry when nothing changed, and none for a refused or stale attempt.**
+- **Test both halves**: that the one entry is there (who, what, before and after) and that the per-row noise isn't (pgTAP: see `supabase/tests/database/course_editor_outline.test.sql`).
+
 ### Supabase config as code
 
 `supabase/config.toml` is the source of truth for the Auth/API/DB/storage settings it declares: the top of the file is local dev, and `[remotes.prod]` overrides it for production (project `bxwtougjidectvjegdlr`). Anything not overridden there, such as `[auth.hook.custom_access_token]`, applies to production as-is. `supabase config push` only writes declared properties; undeclared ones keep their dashboard values. So change declared settings in `config.toml`, not the dashboard, or the next push reverts them.
