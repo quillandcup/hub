@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import UnmatchedEventsTable from "../../data/prickle-types/UnmatchedEventsTable";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Unmatched Calendar Events",
@@ -13,35 +14,7 @@ export default async function UnmatchedEventsPage() {
   const supabase = await createClient();
 
   // Fetch unmatched calendar events (paginate to handle >1000 rows)
-  let unmatchedEvents: any[] = [];
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("unmatched_calendar_events")
-      .select(`
-        id,
-        calendar_event_id,
-        raw_summary,
-        suggested_type,
-        suggested_host,
-        status,
-        created_at
-      `)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (batch && batch.length > 0) {
-      unmatchedEvents = unmatchedEvents.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const unmatchedEvents = await createRepos(supabase).unmatchedEvents.pending();
 
   // Group by raw_summary
   const groupedEvents = new Map<string, any[]>();
@@ -64,10 +37,7 @@ export default async function UnmatchedEventsPage() {
   }));
 
   // Fetch all prickle types
-  const { data: prickleTypes } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .order("name");
+  const prickleTypes = (await createRepos(supabase).prickles.types()).filter((t) => t.normalizedName !== "event").map((t) => ({ id: t.id, name: t.name, normalized_name: t.normalizedName }));
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -87,10 +57,10 @@ export default async function UnmatchedEventsPage() {
           </h2>
         </div>
 
-        <UnmatchedEventsTable eventGroups={eventGroups} prickleTypes={prickleTypes || []} />
+        <UnmatchedEventsTable eventGroups={eventGroups} prickleTypes={prickleTypes} />
 
         {eventGroups.length === 0 && (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">
             No unmatched events! All calendar events have been categorized. 🎉
           </div>
         )}

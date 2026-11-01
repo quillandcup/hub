@@ -63,6 +63,90 @@ export class GoogleCalendarClient {
   }
 
   /**
+   * Events changed since `updatedMin` inside a window, cancelled ones included (they come back with
+   * status "cancelled" and often no start time). The incremental sync's fetch: a handful of items
+   * instead of the whole window. Paginated like listEvents.
+   */
+  async listChangedEvents(
+    calendarId: string,
+    params: { updatedMin: string; timeMin: string; timeMax: string }
+  ): Promise<any[]> {
+    let all: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await this.calendar.events.list({
+        calendarId,
+        ...params,
+        singleEvents: true,
+        showDeleted: true,
+        maxResults: 250,
+        pageToken,
+      });
+      all = all.concat(response.data.items || []);
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return all;
+  }
+
+  /**
+   * Events cancelled (deleted) since `updatedMin`, wherever they were on the calendar: no date window,
+   * since a deletion can be of any past or future event, and there are only ever a handful. Asks for
+   * the unexpanded form (`singleEvents` off) so a recurring series isn't expanded without a time
+   * bound; a cancelled single event or cancelled instance of a series still comes back by its own id
+   * (the same id the expanded listing gives it).
+   */
+  async listCancelledEvents(calendarId: string, updatedMin: string): Promise<any[]> {
+    let all: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const response = await this.calendar.events.list({
+        calendarId,
+        updatedMin,
+        showDeleted: true,
+        singleEvents: false,
+        maxResults: 250,
+        pageToken,
+      });
+      all = all.concat((response.data.items || []).filter((e) => e.status === "cancelled"));
+      pageToken = response.data.nextPageToken || undefined;
+    } while (pageToken);
+    return all;
+  }
+
+  /**
+   * Open a push channel: Google POSTs to `address` (with `token` in X-Goog-Channel-Token)
+   * whenever an event on the calendar changes. Returns Google's resource id and the real expiry.
+   */
+  async watchEvents(params: {
+    calendarId: string;
+    channelId: string;
+    address: string;
+    token: string;
+    expiration: Date;
+  }): Promise<{ resourceId: string; expiresAt: Date }> {
+    const response = await this.calendar.events.watch({
+      calendarId: params.calendarId,
+      requestBody: {
+        id: params.channelId,
+        type: "web_hook",
+        address: params.address,
+        token: params.token,
+        expiration: String(params.expiration.getTime()),
+      },
+    });
+    const { resourceId, expiration } = response.data;
+    if (!resourceId || !expiration) {
+      throw new Error("Google Calendar watch response is missing resourceId or expiration");
+    }
+    return { resourceId, expiresAt: new Date(Number(expiration)) };
+  }
+
+  /** Stop a push channel. Google needs both ids from the original watch response. */
+  async stopChannel(channelId: string, resourceId: string): Promise<void> {
+    await this.calendar.channels.stop({ requestBody: { id: channelId, resourceId } });
+  }
+
+  /**
    * Get primary calendar ID for the authenticated user
    */
   async getPrimaryCalendarId(): Promise<string> {

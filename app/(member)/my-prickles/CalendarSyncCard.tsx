@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTimeout } from "@/components/useTimeout";
 import { CALENDAR_FEED_NAME, type CalendarFeedUrls } from "@/lib/calendar-feed";
 import { regenerateMyCalendarFeedToken } from "./calendar-feed-actions";
 
@@ -26,6 +27,7 @@ function CalendarIcon({ className = "" }: { className?: string }) {
  * by hand is listed separately (AddedToCalendarList), not hidden in here.
  */
 export default function CalendarSyncCard({ initialUrls }: { initialUrls: CalendarFeedUrls }) {
+  const startCopiedTimer = useTimeout();
   const [urls, setUrls] = useState(initialUrls);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,7 +61,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
     try {
       await navigator.clipboard.writeText(urls.https);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      startCopiedTimer(() => setCopied(false), 2000);
     } catch {
       setError(`Couldn't copy automatically. Your link: ${urls.https}`);
     }
@@ -107,7 +109,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
           aria-expanded={!collapsed}
           aria-controls="calendar-sync-body"
           aria-label={collapsed ? "Show calendar sync options" : "Hide calendar sync options"}
-          className="shrink-0 p-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          className="shrink-0 p-1 rounded text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
         >
           <svg className={`w-5 h-5 transition-transform ${collapsed ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -171,7 +173,7 @@ export default function CalendarSyncCard({ initialUrls }: { initialUrls: Calenda
               <button data-track="calendar-sync-generate-new-link-2"
                 type="button"
                 onClick={() => setConfirmingRegenerate(true)}
-                className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline-offset-2 hover:underline"
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 underline-offset-2 hover:underline"
               >
                 Generate new link
               </button>

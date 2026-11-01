@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 
 interface ProcessOrphanedMeetingsButtonProps {
   orphanedCount: number;
@@ -8,6 +10,7 @@ interface ProcessOrphanedMeetingsButtonProps {
 }
 
 export default function ProcessOrphanedMeetingsButton({ orphanedCount, dateRange }: ProcessOrphanedMeetingsButtonProps) {
+  const timeZone = useTimeZone();
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -21,8 +24,8 @@ export default function ProcessOrphanedMeetingsButton({ orphanedCount, dateRange
       return;
     }
 
-    const fromFormatted = new Date(dateRange.fromDate).toLocaleDateString();
-    const toFormatted = new Date(dateRange.toDate).toLocaleDateString();
+    const fromFormatted = formatDateInZone(dateRange.fromDate, timeZone);
+    const toFormatted = formatDateInZone(dateRange.toDate, timeZone);
 
     if (!confirm(`Process Zoom meetings to resolve ${orphanedCount} orphaned meetings?\n\nThis will reprocess attendance from ${fromFormatted} to ${toFormatted}.`)) {
       return;

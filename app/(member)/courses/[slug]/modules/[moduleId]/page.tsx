@@ -5,7 +5,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { moduleView, nodeLessons, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 import { courseTitle, moduleTitles } from "@/lib/courses/page-title";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import PageBanner from "@/components/PageBanner";
 
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 const row = "grid grid-cols-[6rem_minmax(0,1fr)_1.5rem] items-center gap-4 rounded-lg p-2 transition";
 
 function Thumbnail({ url }: { url: string | null | undefined }) {
-  const src = safeUrl(url);
+  const src = courseImageUrl(url);
   // Decorative (the title is beside it); a plain img so any Kajabi image host works.
   // eslint-disable-next-line @next/next/no-img-element
   return src ? <img src={src} alt="" loading="lazy" className="aspect-video w-full rounded object-cover" /> : <span aria-hidden="true" className="aspect-video w-full rounded bg-slate-100 dark:bg-slate-800" />;
@@ -70,7 +70,7 @@ function ModuleRow({ slug, node, completed, openable }: { slug: string; node: Ou
       <Thumbnail url={first?.thumbnail_url} />
       <span>
         <span className="block font-medium leading-snug">{node.module.title}</span>
-        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-400">
+        <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
           {done} of {lessons.length} {lessons.length === 1 ? "lesson" : "lessons"} done
         </span>
       </span>
@@ -111,12 +111,12 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
       {preview && (
         <PageBanner>
           {node.module.state === "hidden"
-            ? "Draft: this module is a draft in Kajabi, so members can't see it at all."
-            : "Preview: members can't see this module until it's published in Kajabi."}
+            ? "Draft: this module is a draft, so members can't see it at all."
+            : "Preview: members can't see this module until it's published."}
         </PageBanner>
       )}
-      <div className="mx-auto w-full max-w-4xl px-6 py-6">
-        <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
+      <div className="@container mx-auto w-full max-w-4xl px-6 py-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
               <Link data-track="course-module-breadcrumb-course" href={`/courses/${slug}`} className="hover:underline">
@@ -138,10 +138,10 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
           </ol>
         </nav>
 
-        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-baseline justify-between gap-4">
             <h1 className="text-3xl font-bold leading-tight">{node.module.title}</h1>
-            <span className="shrink-0 text-sm text-slate-500 dark:text-slate-400">
+            <span className="shrink-0 text-sm text-slate-600 dark:text-slate-400">
               {done} of {lessons.length} {lessons.length === 1 ? "lesson" : "lessons"} done
             </span>
           </div>

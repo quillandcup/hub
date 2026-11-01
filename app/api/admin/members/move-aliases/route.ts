@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse, after } from "next/server";
 
@@ -46,47 +47,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Tick at least one name or email to move" }, { status: 400 });
   }
 
-  const [{ data: from }, { data: to }] = await Promise.all([
-    supabase.from("members").select("id").eq("id", fromMemberId).single(),
-    supabase.from("members").select("id, email").eq("id", toMemberId).single(),
-  ]);
+  const members = createRepos(supabase).members;
+  const [from, to] = await Promise.all([members.byId(fromMemberId), members.byId(toMemberId)]);
   if (!from) return NextResponse.json({ error: "Member not found" }, { status: 404 });
   if (!to) return NextResponse.json({ error: "Target member not found" }, { status: 404 });
 
   // Only aliases that belong to the source member can move.
-  const [{ data: nameRows }, { data: emailRows }] = await Promise.all([
-    nameIds.length
-      ? supabase.from("member_name_aliases").select("id").eq("member_id", from.id).in("id", nameIds)
-      : Promise.resolve({ data: [] as { id: string }[] }),
-    emailIds.length
-      ? supabase.from("member_email_aliases").select("id, alias_email").eq("member_id", from.id).in("id", emailIds)
-      : Promise.resolve({ data: [] as { id: string; alias_email: string }[] }),
-  ]);
-  const moveNameIds = (nameRows ?? []).map((r) => r.id);
+  const aliases = createRepos(supabase).aliases;
+  const [moveNameIds, emailRows] = await Promise.all([aliases.ownedNameIds(from.id, nameIds), aliases.ownedEmails(from.id, emailIds)]);
   const targetEmail = to.email.toLowerCase();
-  const redundantEmailIds = (emailRows ?? []).filter((r) => r.alias_email.toLowerCase() === targetEmail).map((r) => r.id);
-  const moveEmailIds = (emailRows ?? []).filter((r) => r.alias_email.toLowerCase() !== targetEmail).map((r) => r.id);
+  const redundantEmailIds = emailRows.filter((r) => r.alias_email.toLowerCase() === targetEmail).map((r) => r.id);
+  const moveEmailIds = emailRows.filter((r) => r.alias_email.toLowerCase() !== targetEmail).map((r) => r.id);
 
-  const { data: earliest } = await supabase
-    .from("prickle_attendance")
-    .select("join_time")
-    .eq("member_id", from.id)
-    .order("join_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const earliestJoinTime = await createRepos(supabase).attendance.firstJoinTime(from.id);
 
   try {
-    if (redundantEmailIds.length) {
-      await run(supabase.from("member_email_aliases").delete().in("id", redundantEmailIds));
-    }
-    if (moveNameIds.length) {
-      await run(supabase.from("member_name_aliases").update({ member_id: to.id }).in("id", moveNameIds));
-    }
-    if (moveEmailIds.length) {
-      await run(supabase.from("member_email_aliases").update({ member_id: to.id }).in("id", moveEmailIds));
-    }
+    await aliases.removeEmails(redundantEmailIds);
+    await aliases.moveNames(moveNameIds, to.id);
+    await aliases.moveEmails(moveEmailIds, to.id);
 
-    const rangeStart = earliest?.join_time ? new Date(earliest.join_time) : new Date(Date.now() - 90 * 86_400_000);
+    const rangeStart = earliestJoinTime ? new Date(earliestJoinTime) : new Date(Date.now() - 90 * 86_400_000);
     after(async () => {
       try {
         await triggerAttendanceReprocessing({ from: rangeStart, to: new Date() });

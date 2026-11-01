@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import FeedbackWidget from '@/components/FeedbackWidget'
+import HelpMenu from '@/components/HelpMenu'
 
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn().mockResolvedValue(new Blob(['fake-png'], { type: 'image/png' })),
@@ -17,16 +17,21 @@ beforeEach(() => {
     .mockResolvedValue({ ok: true, json: async () => ({ id: 'f1', screenshotCaptured: true }) }) as any
 })
 
-describe('FeedbackWidget', () => {
-  it('renders a launcher button with the popover closed', () => {
-    render(<FeedbackWidget />)
-    expect(screen.getByLabelText('Send feedback')).toBeInTheDocument()
+async function openFeedback() {
+  await userEvent.click(screen.getByRole('button', { name: 'Help' }))
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Send feedback' }))
+}
+
+describe('Send feedback (from the Help menu)', () => {
+  it('has no floating launcher and keeps the form closed until chosen from the menu', () => {
+    render(<HelpMenu />)
+    expect(screen.queryByLabelText('Send feedback')).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Send feedback' })).not.toBeInTheDocument()
   })
 
   it('opens the popover and captures a screenshot on click', async () => {
-    render(<FeedbackWidget />)
-    await userEvent.click(screen.getByLabelText('Send feedback'))
+    render(<HelpMenu />)
+    await openFeedback()
 
     expect(screen.getByPlaceholderText("What's going on?")).toBeInTheDocument()
     await waitFor(() => expect(toBlob).toHaveBeenCalledTimes(1))
@@ -36,8 +41,8 @@ describe('FeedbackWidget', () => {
   })
 
   it('submits feedback and stays open for another entry', async () => {
-    render(<FeedbackWidget />)
-    await userEvent.click(screen.getByLabelText('Send feedback'))
+    render(<HelpMenu />)
+    await openFeedback()
     await waitFor(() => expect(toBlob).toHaveBeenCalledTimes(1))
 
     await userEvent.type(screen.getByPlaceholderText("What's going on?"), 'The chart is wrong')
@@ -64,8 +69,8 @@ describe('FeedbackWidget', () => {
 
   it('falls back gracefully when screenshot capture fails', async () => {
     vi.mocked(toBlob).mockRejectedValueOnce(new Error('capture failed'))
-    render(<FeedbackWidget />)
-    await userEvent.click(screen.getByLabelText('Send feedback'))
+    render(<HelpMenu />)
+    await openFeedback()
 
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent("Couldn't capture a screenshot")

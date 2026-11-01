@@ -1,17 +1,24 @@
 # GitHub repository settings that live in git, applied by scripts/github-config.ts
-# (`npm run github:config:diff` previews, `npm run github:config:push` applies; needs repo admin
+# (`pnpm github:config:diff` previews, `pnpm github:config:push` applies; needs repo admin
 # through `gh auth login`). Edit this file, not the Settings page: a push makes the live
 # ruleset match it.
 #
 # Repository settings: allow_auto_merge lets GitHub merge a PR by itself once its required checks
-# pass, which .github/workflows/auto-merge.yml turns on for every new PR (and
-# dependabot-auto-merge.yml for patch/minor bumps); it does nothing while this is off.
+# pass, which .github/workflows/auto-merge.yml turns on for every new PR (Dependabot's only
+# for patch/minor bumps); it does nothing while this is off.
+#
+# delete_branch_on_merge removes a PR's branch from the remote when it merges (auto-merge
+# included), so merged branches don't pile up and nobody pushes follow-ups to a dead one.
+# Local copies are separate: `pnpm branches:prune` (scripts/prune-branches.ts) cleans them.
 settings:
   allow_auto_merge: true
+  delete_branch_on_merge: true
 
 # One ruleset on the default branch. Required checks are the job names in
 # .github/workflows/ci.yml; a check skipped by its `if:` (Coverage report on a push to main)
-# counts as passing, so only pull requests wait on it. Nothing can be pushed to main directly,
+# counts as passing, so only pull requests wait on it; that is also how a docs-only change gets
+# through (ci.yml skips the test jobs, scripts/docs-only.ts decides). Don't use `[skip ci]` for
+# that: it skips the whole workflow and leaves these checks pending forever. Nothing can be pushed to main directly,
 # admins included: changes go through a pull request, where the checks and the coverage gate run
 # (the Coverage report job is PR-only). An admin can still override a failing PR with "Merge
 # without waiting for requirements".
@@ -51,4 +58,6 @@ rulesets:
             - context: Test (db) & build
               integration_id: 15368
             - context: Coverage report
+              integration_id: 15368
+            - context: Check migrations
               integration_id: 15368

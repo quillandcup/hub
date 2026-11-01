@@ -1,3 +1,4 @@
+import { SessionReplay } from "@/components/SessionReplay";
 import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import { headers } from "next/headers";
@@ -12,6 +13,7 @@ import { ConsentBanner } from "@/components/ConsentBanner";
 import { AnalyticsIdentity } from "@/components/AnalyticsIdentity";
 import { AnalyticsEvents } from "@/components/AnalyticsEvents";
 import { getCurrentUser } from "@/lib/auth";
+import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { initialUserIdCommand } from "@/lib/analytics-identity";
 import { analyticsUserId } from "@/lib/analytics-user";
 import { countryNeedsConsent } from "@/lib/gdpr-countries";
@@ -62,11 +64,14 @@ export default async function RootLayout({
 
   // Signed-in visitors are identified to GA by their auth user ID (see
   // lib/analytics-identity.ts).
-  const gaUserId = await analyticsUserId(gaId);
+  const user = await getCurrentUser();
+  // "Leave me out of statistics" (the switch on /privacy): no usage events, and Google Analytics denied.
+  const optedOut = user ? await isAnalyticsOptedOut(user.id) : false;
+  const gaUserId = optedOut ? null : await analyticsUserId(gaId);
 
   // Usage events (lib/analytics) are for signed-in members and follow the same consent rule as GA.
   // Outside production there is no banner to ask with, so they are on for development.
-  const signedIn = (await getCurrentUser()) !== null;
+  const signedIn = user !== null;
   const eventsNeedConsent = needsConsent && process.env.NODE_ENV === "production";
 
   return (
@@ -81,7 +86,8 @@ export default async function RootLayout({
           <EnvironmentIndicator />
           {children}
         </ThemeProvider>
-        {signedIn && <AnalyticsEvents needsConsent={eventsNeedConsent} />}
+        <SessionReplay needsConsent={eventsNeedConsent} optedOut={optedOut} />
+        {signedIn && <AnalyticsEvents needsConsent={eventsNeedConsent} optedOut={optedOut} />}
         <Analytics />
         <SpeedInsights />
         {gaId && (
@@ -96,14 +102,14 @@ export default async function RootLayout({
               {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('consent', 'default', {
-  analytics_storage: '${needsConsent ? "denied" : "granted"}',
-  ad_storage: '${needsConsent ? "denied" : "granted"}'
+  analytics_storage: '${needsConsent || optedOut ? "denied" : "granted"}',
+  ad_storage: '${needsConsent || optedOut ? "denied" : "granted"}'
 });
 ${initialUserIdCommand(gaUserId)}`}
             </Script>
             <GoogleAnalytics gaId={gaId} />
             <AnalyticsIdentity userId={gaUserId} />
-            <ConsentBanner needsConsent={needsConsent} />
+            <ConsentBanner needsConsent={needsConsent} optedOut={optedOut} />
           </>
         )}
       </body>

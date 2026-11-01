@@ -13,6 +13,7 @@ const file = (over: Partial<PlannedFile> = {}): PlannedFile => ({
   kajabiFileId: "f1",
   filename: "Tracker.pdf",
   lessonTitle: "Lesson 1",
+  draft: false,
   position: 1,
   state: "ready_to_copy",
   sourceUrl: "https://kajabi.test/f",
@@ -30,9 +31,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CourseFilesPanel", () => {
-  it("says so when no visible lesson has a download", () => {
+  it("says so when no lesson has a download", () => {
     render(<CourseFilesPanel slug="c" plan={plan([])} />);
-    expect(screen.getByText("No visible lesson has a download recorded.")).toBeInTheDocument();
+    expect(screen.getByText("No lesson has a download recorded.")).toBeInTheDocument();
+  });
+
+  it("marks draft lessons' files and says they are copied too, only when there are some", () => {
+    const { rerender } = render(<CourseFilesPanel slug="c" plan={plan([file()])} />);
+    expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Files of draft lessons are copied too/)).not.toBeInTheDocument();
+
+    rerender(<CourseFilesPanel slug="c" plan={plan([file(), file({ kajabiFileId: "f2", filename: "Plot.pdf", lessonTitle: "Draft: Plot", draft: true })])} />);
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(screen.getByText(/Files of draft lessons are copied too/)).toBeInTheDocument();
+    // One button covers both: files cost nothing to keep.
+    expect(screen.getByRole("button", { name: "Copy 2 files" })).toBeEnabled();
   });
 
   it("lists each file with its lesson and state, and what will be removed", () => {
@@ -53,9 +66,9 @@ describe("CourseFilesPanel", () => {
 
     expect(screen.getByText("Ready to copy")).toBeInTheDocument();
     expect(screen.getByText("In the Hub")).toBeInTheDocument();
-    expect(screen.getByText("Link expired: run the Kajabi content step again")).toBeInTheDocument();
+    expect(screen.getByText("Link expired: run the content step again")).toBeInTheDocument();
     expect(screen.getByText("Its lesson isn't in the Hub yet: publish or sync first")).toBeInTheDocument();
-    expect(screen.getByText("No longer in Kajabi: will be removed")).toBeInTheDocument();
+    expect(screen.getByText("No longer listed: will be removed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy 1 file and remove 1" })).toBeEnabled();
   });
 
@@ -75,6 +88,40 @@ describe("CourseFilesPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Copy 1 file" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("1 failed: source answered 403");
+  });
+
+  it("copies the course images even when no lesson has a download, and reports them", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 5, removed: 1, alreadyCopied: 0, failed: [] } }),
+    });
+    render(<CourseFilesPanel slug="c" plan={plan([])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Copied 0, images: copied 5, removed 1.");
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("says nothing about images when there was nothing to do", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, removed: 0, alreadyCopied: 40, failed: [] } }),
+    });
+    render(<CourseFilesPanel slug="c" plan={plan([])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/^Copied 0\.$/);
+  });
+
+  it("shows a failed image as an error", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ copied: [], removed: 0, needsNewLink: [], failed: [], images: { copied: 0, removed: 0, alreadyCopied: 0, failed: [{ error: "source answered 404" }] } }),
+    });
+    render(<CourseFilesPanel slug="c" plan={plan([])} />);
+    await userEvent.click(screen.getByRole("button", { name: "Copy images" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 images failed: source answered 404");
   });
 
   it("has nothing to do when everything is copied, and asks to publish first when the course isn't", () => {

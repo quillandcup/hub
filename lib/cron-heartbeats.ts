@@ -8,7 +8,7 @@
 //
 // Checkly assigns each monitor's ping URL on first deploy. After adding a job, deploy the
 // checks, copy the new monitor's ping URL into .env.prod under `envVar`, and run
-// `npm run env:sync`. Until the var is set, pingCronHeartbeat is a no-op.
+// `pnpm env:sync`. Until the var is set, pingCronHeartbeat is a no-op.
 
 type TimeUnit = "seconds" | "minutes" | "hours" | "days";
 
@@ -63,6 +63,20 @@ export const CRON_HEARTBEATS = {
     path: "/api/reconcile/logins",
     scheduler: "vercel",
     envVar: "CHECKLY_HEARTBEAT_RECONCILE_LOGINS",
+    ...daily,
+  },
+  "reconcile-retention": {
+    name: "Cron: raw network details retention (daily 04:00 UTC)",
+    path: "/api/reconcile/retention",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_RETENTION",
+    ...daily,
+  },
+  "reconcile-media": {
+    name: "Cron: media library sweep (daily 03:30 UTC)",
+    path: "/api/reconcile/media",
+    scheduler: "vercel",
+    envVar: "CHECKLY_HEARTBEAT_RECONCILE_MEDIA",
     ...daily,
   },
   // The key and envVar keep the job's old "pre-prickle nudges" name on purpose: the key is the

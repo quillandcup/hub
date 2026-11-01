@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeScheduledPrickleStats,
   computeGroupedPrickleStats,
+  pricklesWindowEnd,
   type PrickleWithHost,
 } from '@/lib/scheduled-prickle-stats';
 
@@ -28,7 +29,7 @@ function attend(prickleId: string, memberId: string) {
 function pw(
   id: string,
   isoTime: string,
-  host?: { id: string; name: string } | null
+  host?: { id: string; name: string; display_name?: string | null } | null
 ): PrickleWithHost {
   return { id, type_id: 't1', start_time: isoTime, host: host ?? null };
 }
@@ -285,6 +286,17 @@ describe('computeGroupedPrickleStats — by schedule', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeGroupedPrickleStats — by host', () => {
+  it('labels a host by display name, falling back to the legal name', () => {
+    const ada = { id: 'h1', name: 'Ada Example', display_name: 'Ada E' };
+    const groups = computeGroupedPrickleStats(
+      [pw('p1', '2026-01-05T16:00:00Z', ada), pw('p2', '2026-01-06T16:00:00Z', { id: 'h2', name: 'Bo Example', display_name: ' ' })],
+      [],
+      'host'
+    );
+    expect(groups.map((g) => g.groupLabel)).toEqual(['Ada E', 'Bo Example']);
+    expect(groups[0].prickleSessions[0].hostName).toBe('Ada E');
+  });
+
   const AJ   = { id: 'h1', name: 'AJ' };
   const JENN = { id: 'h2', name: 'Jenn P' };
 
@@ -378,3 +390,16 @@ describe('computeGroupedPrickleStats — by host', () => {
     expect(groups[0].max).toBe(2);
   });
 });
+
+describe('pricklesWindowEnd', () => {
+  const now = new Date('2026-10-20T12:00:00Z')
+
+  it('ends at the end of the chosen day when that is in the past', () => {
+    expect(pricklesWindowEnd('2026-10-01', now)).toBe('2026-10-01T23:59:59.000Z')
+  })
+
+  it('never reaches past now, since prickles that have not happened have no attendance', () => {
+    expect(pricklesWindowEnd('2026-12-01', now)).toBe(now.toISOString())
+    expect(pricklesWindowEnd(undefined, now)).toBe(now.toISOString())
+  })
+})

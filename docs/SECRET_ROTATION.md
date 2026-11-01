@@ -21,16 +21,16 @@ management).
 3. **Sync:**
    ```bash
    # Scoped sync -- just the vars you rotated, production only (fast, low blast radius)
-   npm run env:sync -- --only=NAME1,NAME2 --target=production
+   pnpm env:sync --only=NAME1,NAME2 --target=production
 
    # Full Vercel sync -- every var, preview + production (e.g. after editing .env.shared)
-   npm run env:sync
+   pnpm env:sync
 
    # GitHub Actions secrets (CHECKLY_*, SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, VERCEL_*)
-   npm run env:sync:github
+   pnpm env:sync:github
 
    # Supabase Vault (CRON_INTERNAL_SECRET only, read by pg_cron -- not covered by the above)
-   npm run env:sync:vault
+   pnpm env:sync:vault
    ```
 4. **Trigger a deploy** -- push a commit to `main` (even a trivial one) or re-run the `CI`
    workflow. This is the actual test: `vercel pull`/`build`/`deploy` in the `deploy` job will
@@ -116,6 +116,19 @@ management).
   for days. Long-term fix: Slack token rotation (see `docs/SLACK_BRIDGED_CHAT.md`), which
   never needs an uninstall.
 
+### Moving the bot to rotating tokens (one time, irreversible)
+Slack's token rotation replaces the bot's never-expiring token with a 12-hour one that the Hub refreshes by itself, so no later rotation needs an uninstall. **Opting in cannot be undone** (Slack's docs: "token rotation may not be turned off once it's turned on"), and Slack advises trying it on a development app first. The code is `lib/slack-bot-token.ts`, the refresh lease is `slack_token_refresh_claim`, the by-hand tool is `pnpm slack:bot-token`. Members' own tokens rotate the same way and use the same lease. In order:
+1. **Deploy the code and migration** (merge as usual). Nothing changes yet: `SLACK_BOT_TOKEN_ROTATION` is unset, so the bot still uses `SLACK_BOT_TOKEN`.
+2. `pnpm slack:bot-token status` should say no rotating token is stored.
+3. **Opt in** (done 2026-10-29): `token_rotation_enabled: true` in `slack-app-manifest.yml`, merged (CI pushes the manifest; run `pnpm slack:manifest:diff` first and check it shows only that). Existing tokens keep working. Members who connect Slack from now on get rotating user tokens (those who connected before keep non-rotating ones until they reconnect, which is why this is done before members connect).
+4. **Exchange**: `pnpm slack:bot-token exchange --confirm` trades the current bot token for a rotating one and stores it in Vault. A long-lived token can be exchanged once; the script refuses to run twice. It prints the first expiry, never a token.
+5. **Switch it on**: set `SLACK_BOT_TOKEN_ROTATION=on` in `.env.prod`, `pnpm env:sync --only=SLACK_BOT_TOKEN_ROTATION --target=production`, redeploy. From then on every use of the bot goes through `getSlackBotToken()`, which refreshes the credential in its last hour.
+6. **Check**: `status` shows an expiry; about 11 hours later it moves forward (a refresh happened); the Vercel logs show no `Refreshing the Slack bot token failed` or `CRITICAL` lines; an admin test notification (`/admin/notifications`) reaches Slack. The old `SLACK_BOT_TOKEN` stops working after the first refresh: never `auth.revoke` it (that uninstalls the app); `auth.test` with it confirms it is dead.
+
+How refreshes stay safe: a refresh token is single-use, so two refreshes at once would lose the credential. The refresh happens under a lease row (one holder at a time, 60 seconds, runs out if the holder dies); everyone else keeps using the token they have (it is still valid when refreshing starts) or waits a few seconds for the holder's result, and the holder reads the stored credential again after winning the lease, in case a refresh finished just before. The new pair is stored with retries before anything else, since the old refresh token is spent the moment Slack answers.
+
+If the refresh token is ever lost (`invalid_refresh_token` in the logs, a `CRITICAL` line, or the bot answering `invalid_auth`): reinstall the app from OAuth & Permissions, put the new bot token in `SLACK_BOT_TOKEN`, delete the stored row (`delete from public.slack_bot_token;` in the SQL editor), set `SLACK_BOT_TOKEN_ROTATION` off, redeploy, and exchange again. Slack's documentation doesn't say what a reinstall hands out for an app that has opted in, so check that path on a development app before relying on it.
+
 - **Signing secret** (`SLACK_SIGNING_SECRET`): https://api.slack.com/apps/A0AS93BKT09/general
   -> App Credentials -> Regenerate. Events, interactions and `/hub` are rejected between the
   regenerate and the resync+redeploy.
@@ -128,12 +141,13 @@ management).
 ### GitHub
 - `GH_TOKEN_SLACK_MANIFEST`: https://github.com/settings/personal-access-tokens -> generate a
   fine-grained token, resource owner `quillandcup`, only this repository, **Secrets: Read and
-  write**. Put it in `.env.shared`, run `npm run env:sync:github`, then delete the old token on
+  write**. Put it in `.env.shared`, run `pnpm env:sync:github`, then delete the old token on
   that page. It has an expiry date; the Slack manifest job fails once it passes.
 - `GH_TOKEN_AUTO_MERGE`: same page, fine-grained, resource owner `quillandcup`, only this
   repository, **Contents: Read and write** and **Pull requests: Read and write**. Put it in
-  `.env.shared`, run `npm run env:sync:github`, then delete the old token. Once it expires,
-  new PRs stop getting auto-merge enabled (the Auto-merge workflow fails).
+  `.env.shared`, run `pnpm env:sync:github` (it writes both the Actions and the Dependabot
+  secret), then delete the old token. Once it expires, new PRs stop getting auto-merge
+  enabled (the Auto-merge workflow fails).
 
 ### Sentry
 - https://quillandcup.sentry.io/settings/auth-tokens/ (org slug is `quillandcup` -- matches
@@ -159,12 +173,12 @@ generate a fresh one and paste it in:
 ```bash
 openssl rand -hex 32
 ```
-`CRON_INTERNAL_SECRET` additionally needs `npm run env:sync:vault` (pg_cron reads it from
+`CRON_INTERNAL_SECRET` additionally needs `pnpm env:sync:vault` (pg_cron reads it from
 Supabase Vault, not from Vercel's `process.env`).
 
 ## Backfilling vars missing from the value files
 
-`npm run env:sync` lists every var it skipped and the file(s) it expected it in (it leaves
+`pnpm env:sync` lists every var it skipped and the file(s) it expected it in (it leaves
 Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one in:
 
 - **Config-type values** can be copied out of Vercel -- pull to a throwaway file, copy the line,
@@ -176,7 +190,7 @@ Vercel's copy alone, and exits non-zero so the gap stays visible). To fill one i
 - **Secret-type values** come back as `[SENSITIVE]`, so they have to come from the provider
   (per-service sections above) or be generated (`openssl rand -hex 32` for self-generated ones;
   use a different value for preview than production).
-- **GitHub Actions credentials** (`npm run env:sync:github`) can't be read back from GitHub
+- **GitHub Actions credentials** (`pnpm env:sync:github`) can't be read back from GitHub
   either -- create a new token at the provider, put it in `.env.prod`, sync, then revoke the old one.
 
 ## Gotchas learned the hard way (2026-09-25 incident)

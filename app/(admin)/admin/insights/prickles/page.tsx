@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   computeScheduledPrickleStats,
+  pricklesWindowEnd,
   type PrickleType,
   type Prickle,
   type AttendanceRow,
@@ -25,61 +27,19 @@ async function fetchAllPrickles(
   from?: string,
   to?: string
 ): Promise<Prickle[]> {
-  const BATCH = 1000;
-  const rows: Prickle[] = [];
-  let offset = 0;
-  let hasMore = true;
-  const now = new Date().toISOString();
-
-  while (hasMore) {
-    let query = supabase
-      .from("prickles")
-      .select("id, type_id, start_time")
-      .lte("start_time", now)
-      .range(offset, offset + BATCH - 1)
-      .order("start_time", { ascending: true });
-
-    if (from) query = query.gte("start_time", from);
-    if (to) query = query.lte("start_time", to + "T23:59:59Z");
-
-    const { data } = await query;
-
-    if (data && data.length > 0) {
-      rows.push(...data);
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const found = await createRepos(supabase).prickles.startingBetween({
+    from: from ?? new Date(0).toISOString(),
+    to: pricklesWindowEnd(to, new Date()),
+    inclusiveEnd: true,
+  });
+  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime }));
 }
 
 async function fetchAllAttendance(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<AttendanceRow[]> {
-  const BATCH = 1000;
-  const rows: AttendanceRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data } = await supabase
-      .from("prickle_attendance")
-      .select("prickle_id, member_id")
-      .range(offset, offset + BATCH - 1);
-
-    if (data && data.length > 0) {
-      rows.push(...data);
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const links = await createRepos(supabase).attendance.list();
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 // ---------------------------------------------------------------------------
@@ -122,13 +82,11 @@ export default async function PrickleInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Prickle types (small table — no pagination needed)
-  const { data: typesRaw } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .order("name", { ascending: true });
-
-  const types: PrickleType[] = typesRaw ?? [];
+  const types: PrickleType[] = (await createRepos(supabase).prickles.types()).filter((t) => t.normalizedName !== "event").map((t) => ({
+    id: t.id,
+    name: t.name,
+    normalized_name: t.normalizedName,
+  }));
 
   // All prickles in range (paginated)
   const prickles = await fetchAllPrickles(supabase, from, to);
@@ -197,7 +155,7 @@ export default async function PrickleInsightsPage({
                 max={today}
                 className="border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
-              <span className="text-slate-500">to</span>
+              <span className="text-slate-600 dark:text-slate-400">to</span>
               <input
                 type="date"
                 name="to"
@@ -216,7 +174,7 @@ export default async function PrickleInsightsPage({
         </div>
 
         {stats.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-600 dark:text-slate-400">
             No prickle data found
             {(from || to) && (
               <span>

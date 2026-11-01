@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Locate } from "lucide-react";
 import { updateTimezonePreference } from "./actions";
 
 /**
@@ -20,7 +21,7 @@ interface TimezoneSwitcherProps {
 }
 
 // Common timezones grouped by region
-const TIMEZONES = [
+export const TIMEZONES = [
   { value: "separator-us", label: "─── United States ───", disabled: true },
   { value: "America/New_York", label: "Eastern Time (ET)" },
   { value: "America/Chicago", label: "Central Time (CT)" },
@@ -107,7 +108,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
         htmlFor="timezone"
         className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"
       >
-        Default Timezone
+        Primary time zone
       </label>
       <select
         id="timezone"
@@ -119,7 +120,7 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
       >
         {options.map((tz) =>
           "disabled" in tz && tz.disabled ? (
-            <option key={tz.value} disabled className="text-slate-400 dark:text-slate-500">
+            <option key={tz.value} disabled className="text-slate-500 dark:text-slate-400">
               {tz.label}
             </option>
           ) : (
@@ -137,16 +138,11 @@ export function TimezoneSwitcher({ initialTimezone = "browser" }: TimezoneSwitch
           disabled={saving}
           className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-plum-600 hover:underline disabled:opacity-50 dark:text-plum-400"
         >
-          {/* The usual "my location" crosshair. */}
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="3" />
-            <circle cx="12" cy="12" r="7" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-          </svg>
+          <Locate aria-hidden="true" className="h-4 w-4" />
           Use current location ({browserTimezone.replace(/_/g, " ")})
         </button>
       )}
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         All times will display in: <span className="font-medium">{current || "Detecting..."}</span>
         {saving && <span className="ml-2 italic">Saving...</span>}
       </p>

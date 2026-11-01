@@ -67,7 +67,7 @@ describe('SlackAliasSearchForm', () => {
     const aliceRow = screen.getByText('Alice Example').closest('div.p-3') as HTMLElement
     const searchInput = within(aliceRow).getByPlaceholderText('Search for member...')
     await userEvent.type(searchInput, 'Alice')
-    await userEvent.click(within(aliceRow).getByRole('button', { name: /Alice Example/ }))
+    await userEvent.click(within(aliceRow).getByRole('option', { name: /Alice Example/ }))
 
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/aliases/slack',

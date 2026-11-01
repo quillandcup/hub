@@ -1,9 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import PrickleDescription from "@/components/PrickleDescription";
 import PhotoLightbox from "@/components/PhotoLightbox";
+import { audienceSummary } from "@/lib/event-audience";
+import { locationDisplay } from "@/lib/location-display";
+import { eventDisplayName } from "@/lib/event-name";
+import { EVENT_TYPE_LABELS, type EventType } from "@/lib/events-filter";
 
 interface EventData {
+  guests_allowed: boolean;
+  registration: string;
+  capacity: number | null;
+  selection: string;
+  speakers: string | null;
+  host_name?: string | null;
   id: string;
   title: string;
   event_type: string;
@@ -23,12 +34,6 @@ interface Photo {
   height: number | null;
 }
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  in_person_retreat: "In-Person Retreat",
-  virtual_retreat: "Virtual Retreat",
-  other: "Event",
-};
-
 function fmtDate(d: string) {
   return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 }
@@ -37,26 +42,51 @@ export default function EventDetailClient({
   event,
   photos,
   calendarControl,
+  coverImage = null,
 }: {
   event: EventData;
   photos: Photo[];
   /** "Add to my calendar", rendered by the page for upcoming events. */
   calendarControl?: ReactNode;
+  /** The picture picked from the media library, shown above the title. */
+  coverImage?: { src: string; alt: string } | null;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}` }));
+  const audience = audienceSummary(event);
+  const where = locationDisplay(event.location);
+  const lightboxPhotos = photos.map((p) => ({ id: p.id, src: `/api/events/${event.id}/photos/${p.id}?w=1600` }));
 
   return (
     <div className="mt-4 space-y-6">
+      {coverImage && (
+        // eslint-disable-next-line @next/next/no-img-element -- served by the media route, already sized by its preset
+        <img src={coverImage.src} alt={coverImage.alt} fetchPriority="high" className="w-full aspect-video object-cover rounded-lg shadow" />
+      )}
       <div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-          {EVENT_TYPE_LABELS[event.event_type] || event.event_type}
+        <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+          {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
         </p>
-        <h1 className="text-2xl font-bold mt-0.5">{event.title}</h1>
+        <h1 className="text-2xl font-bold mt-0.5">{eventDisplayName(event.title, event.speakers, event.host_name)}</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-1">
           {fmtDate(event.starts_at)} – {fmtDate(event.ends_at)}
-          {event.location ? ` · ${event.location}` : ""}
+          {where && " · "}
+          {where?.href ? (
+            <a href={where.href} target="_blank" rel="noopener noreferrer" className="text-plum-600 dark:text-plum-400 hover:underline">
+              {where.joinLabel}
+            </a>
+          ) : (
+            where?.text
+          )}
         </p>
+        {audience.length > 0 && (
+          <ul aria-label="Who it's for" className="mt-3 flex flex-wrap gap-2">
+            {audience.map((a) => (
+              <li key={a} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-plum-50 text-plum-700 dark:bg-plum-900/30 dark:text-plum-300">
+                {a}
+              </li>
+            ))}
+          </ul>
+        )}
         {calendarControl && <div className="mt-3">{calendarControl}</div>}
       </div>
 
@@ -64,7 +94,7 @@ export default function EventDetailClient({
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6 space-y-4">
           {event.focus && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Focus
               </h2>
               <p>{event.focus}</p>
@@ -72,15 +102,15 @@ export default function EventDetailClient({
           )}
           {event.description && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 About
               </h2>
-              <p className="whitespace-pre-wrap">{event.description}</p>
+              <PrickleDescription markdown={event.description} className="" />
             </div>
           )}
           {event.agenda && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Agenda
               </h2>
               <p className="whitespace-pre-wrap">{event.agenda}</p>
@@ -88,7 +118,7 @@ export default function EventDetailClient({
           )}
           {event.results && (
             <div>
-              <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+              <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
                 Results
               </h2>
               <p className="whitespace-pre-wrap">{event.results}</p>
@@ -113,19 +143,23 @@ export default function EventDetailClient({
         </div>
 
         {photos.length === 0 ? (
-          <p className="text-slate-500">No photos yet.</p>
+          <p className="text-slate-600 dark:text-slate-400">No photos yet.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="@container">
+            <div className="grid grid-cols-2 @pair:grid-cols-4 gap-2">
             {photos.map((photo, i) => (
               <button data-track="event-open-photo" key={photo.id} onClick={() => setLightboxIndex(i)} className="aspect-square">
                 {/* eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route */}
                 <img
-                  src={`/api/events/${event.id}/photos/${photo.id}`}
+                  src={`/api/events/${event.id}/photos/${photo.id}?w=480`}
                   alt=""
+                  loading={i < 8 ? "eager" : "lazy"}
+                  decoding="async"
                   className="w-full h-full object-cover rounded"
                 />
               </button>
             ))}
+          </div>
           </div>
         )}
       </div>

@@ -18,7 +18,7 @@ function formatDate(iso: string): string {
 }
 
 function GapBadge({ days }: { days: number }) {
-  return <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">({formatGapLabel(days)})</span>;
+  return <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">({formatGapLabel(days)})</span>;
 }
 
 type SortColumn = "member" | "times" | "latestRejoin";
@@ -61,12 +61,12 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
               active
             </span>
           ) : (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
               cancelled
             </span>
           )}
         </div>
-        <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{member.memberEmail}</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{member.memberEmail}</div>
       </td>
       <td className="px-4 py-3 text-right text-sm font-medium text-slate-700 dark:text-slate-300">
         {member.resubscriptions.length}
@@ -75,9 +75,9 @@ function MemberRow({ member }: { member: ResubscribingMember }) {
         <div className="space-y-1">
           {member.resubscriptions.map((event, i) => (
             <div key={i} className="text-sm text-slate-600 dark:text-slate-400">
-              <span className="text-slate-400 dark:text-slate-500 text-xs">Cancelled</span> {formatDate(event.cancelledAt)}
+              <span className="text-slate-500 dark:text-slate-400 text-xs">Cancelled</span> {formatDate(event.cancelledAt)}
               <span className="mx-2 text-slate-300 dark:text-slate-600">→</span>
-              <span className="text-slate-400 dark:text-slate-500 text-xs">Rejoined</span>{" "}
+              <span className="text-slate-500 dark:text-slate-400 text-xs">Rejoined</span>{" "}
               <span className="text-green-600 dark:text-green-400 font-medium">{formatDate(event.resubscribedAt)}</span>
               <GapBadge days={event.gapDays} />
             </div>

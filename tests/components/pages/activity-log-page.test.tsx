@@ -80,6 +80,19 @@ describe("/admin/activity", () => {
     expect(screen.getByText("active")).toBeInTheDocument();
   });
 
+  it("names a filtered-to actor who isn't staff by their profile's email", async () => {
+    const outsider = "00000000-0000-4000-a000-0000000000b2";
+    tables.user_profiles = [
+      { id: "00000000-0000-4000-a000-0000000000a1", email: "bramble@example.test", role: "admin" },
+      { id: outsider, email: "outsider@example.test", role: "member" },
+    ];
+    feed([base]);
+
+    await renderPage({ actor: outsider });
+
+    expect(screen.getByText(/outsider@example\.test/)).toBeInTheDocument();
+  });
+
   it("passes the hide-system toggle to the feed", async () => {
     feed([base]);
     await renderPage({ nosystem: "1" });

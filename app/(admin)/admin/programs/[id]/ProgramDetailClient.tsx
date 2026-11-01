@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
 import MultiSelectSearch from "@/components/MultiSelectSearch";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
   status?: string;
 }
@@ -34,6 +37,7 @@ interface Cohort {
 interface LeakageRow {
   member_id: string;
   member_name: string;
+  member_real_name?: string;
   member_email: string;
   member_status: string;
   cohort_name: string;
@@ -60,7 +64,7 @@ interface ProgramDetailData {
 }
 
 function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString();
+  return formatDateOnly(d);
 }
 
 // Six months out, clamping day-of-month like the Hedgieversary math does
@@ -129,10 +133,6 @@ export default function ProgramDetailClient({ programId }: { programId: string }
   const [enrollingSelectedCohortId, setEnrollingSelectedCohortId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [programId]);
-
-  useEffect(() => {
     fetch("/api/members")
       .then((res) => res.json())
       .then((body) => setAllMembers(body.members || []))
@@ -143,11 +143,15 @@ export default function ProgramDetailClient({ programId }: { programId: string }
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (data?.program) setOfferNamesSelection(data.program.kajabi_offer_names || []);
-  }, [data?.program.id]);
+  // Reset the editable offer selection when a different program loads (adjusting state while
+  // rendering, not in an effect, so there is no extra commit with stale names).
+  const [selectionProgramId, setSelectionProgramId] = useState<string | undefined>(undefined);
+  if (data?.program && data.program.id !== selectionProgramId) {
+    setSelectionProgramId(data.program.id);
+    setOfferNamesSelection(data.program.kajabi_offer_names || []);
+  }
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/programs/${programId}`);
@@ -159,7 +163,12 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     } finally {
       setLoading(false);
     }
-  };
+  }, [programId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
 
   const handleCreateCohort = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +365,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-600 dark:text-slate-400">Loading...</p>;
   if (!data) return <p className="text-red-600">{error || "Not found"}</p>;
 
   return (
@@ -421,6 +430,9 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                   <tr key={row.member_id}>
                     <td className="px-4 py-2">
                       <div className="font-medium">{row.member_name}</div>
+                      {row.member_real_name && row.member_real_name !== row.member_name && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{row.member_real_name}</div>
+                      )}
                       <div className="text-sm text-gray-600 dark:text-gray-400">{row.member_email}</div>
                     </td>
                     <td className="px-4 py-2 text-sm">{row.cohort_name}</td>
@@ -476,7 +488,8 @@ export default function ProgramDetailClient({ programId }: { programId: string }
 
         {showCohortForm && (
           <form onSubmit={handleCreateCohort} className="mb-6 p-4 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="@container">
+              <div className="grid grid-cols-1 @pair:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1 dark:text-gray-200">Name</label>
                 <input
@@ -516,6 +529,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Defaults to 6 months out</p>
               </div>
             </div>
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes (optional)</label>
               <input
@@ -548,7 +562,8 @@ export default function ProgramDetailClient({ programId }: { programId: string }
               <div key={cohort.id} className="border border-gray-200 dark:border-slate-700 rounded p-3">
                 {editingCohortId === cohort.id ? (
                   <form onSubmit={(e) => handleUpdateCohort(e, cohort.id)} className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="@container">
+                      <div className="grid grid-cols-1 @pair:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1 dark:text-gray-200">Name</label>
                         <input
@@ -579,6 +594,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                           required
                         />
                       </div>
+                    </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1 dark:text-gray-200">Notes (optional)</label>
@@ -639,7 +655,7 @@ export default function ProgramDetailClient({ programId }: { programId: string }
                           key={enrollment.id}
                           className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-gray-100 dark:bg-slate-800 rounded text-xs"
                         >
-                          {enrollment.member.name}
+                          {getMemberDisplayName(enrollment.member)}
                           <button
                             onClick={() => handleRemoveEnrollment(enrollment.id)}
                             className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 leading-none"

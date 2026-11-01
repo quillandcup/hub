@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -14,12 +15,9 @@ export default async function MissingMemberDataPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const { data: missingStripe } = await supabase
-    .from("members")
-    .select("id, name, email, kajabi_id")
-    .eq("status", "active")
-    .is("stripe_customer_id", null)
-    .order("name");
+  const missingStripe = (await createRepos(supabase).members.list({ status: "active", orderBy: "name" }))
+    .filter((m) => m.stripeCustomerId === null)
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, kajabi_id: m.kajabiId }));
 
   return (
     <div className="p-6">
@@ -36,7 +34,7 @@ export default async function MissingMemberDataPage() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
           Missing Member Data
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
           Active members with incomplete external account linkage.
         </p>
 
@@ -48,7 +46,7 @@ export default async function MissingMemberDataPage() {
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                   Missing Stripe Customer ID
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                   Active members with no match in{" "}
                   <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
                     bronze.stripe_customers

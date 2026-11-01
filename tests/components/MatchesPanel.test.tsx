@@ -35,6 +35,8 @@ const row: MentorshipRow = {
   currentMember: true,
 };
 
+const NAMED: MentorshipRow = { ...row, mentorName: "Ada E", mentorRealName: "Ada Quill", newMemberName: "Bea Moss" };
+
 beforeEach(() => {
   createMentorship.mockResolvedValue({ success: true });
   updateMentorship.mockResolvedValue({ success: true });
@@ -63,6 +65,12 @@ describe("MatchesPanel", () => {
     render(<MatchesPanel rows={[row]} openLoad={{}} />);
     expect(screen.getByText("Bea Moss")).toBeInTheDocument();
     expect(screen.getByText(/Converted · current member/)).toBeInTheDocument();
+  });
+
+  it("shows the display name with the legal name beside it", () => {
+    render(<MatchesPanel rows={[NAMED]} openLoad={{}} />);
+    expect(screen.getByText("Ada E")).toBeInTheDocument();
+    expect(screen.getByText("Ada Quill")).toBeInTheDocument();
   });
 
   it("shows when the trial ends", () => {

@@ -1,7 +1,15 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { matchAttendeeToMember, type MatchResult, type MemberEmailAlias } from "@/lib/member-matching";
-import { chunkAttendanceWrites, filterTrivialPups } from "@/lib/processing/attendance";
+import {
+  chunkAttendanceWrites,
+  filterTrivialPups,
+  reprocessAttendanceRange,
+  trackAmbiguousZoomName,
+  type AttendanceInput,
+  type PupInput,
+} from "@/lib/processing/attendance";
 
 // Extend timeout for processing large batches of attendance records
 export const maxDuration = 300; // 5 minutes
@@ -27,25 +35,6 @@ function chunk<T>(array: T[], size: number): T[][] {
     chunks.push(array.slice(i, i + size));
   }
   return chunks;
-}
-
-/**
- * Find all calendar prickles that overlap with a time range
- */
-async function findOverlappingPrickles(
-  supabase: any,
-  start: string,
-  end: string
-): Promise<any[]> {
-  const { data: prickles } = await supabase
-    .from("prickles")
-    .select("id, start_time, end_time, type_id")
-    .eq("source", "calendar")
-    .lt("start_time", end)
-    .gt("end_time", start)
-    .order("start_time", { ascending: true });
-
-  return prickles || [];
 }
 
 /**
@@ -211,40 +200,15 @@ export async function POST(request: NextRequest) {
     // Get all zoom attendees that overlap the date range (paginated — table has large historical data)
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch attendees
     // whose sessions span across date boundaries
-    const zoomAttendees: any[] = [];
-    {
-      const BATCH = 1000;
-      let offset = 0, hasMore = true;
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .schema('bronze').from("zoom_attendees")
-          .select("*")
-          .lt("join_time", toDateTime)
-          .gt("leave_time", fromDateTime)
-          .order("join_time")
-          .range(offset, offset + BATCH - 1);
-        if (error) throw error;
-        if (batch && batch.length > 0) {
-          zoomAttendees.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === BATCH;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const zoomAttendees = await createRepos(supabase).zoom.attendeesOverlapping(fromDateTime, toDateTime);
 
     console.log(`Found ${zoomAttendees.length} zoom attendees in range`);
 
     if (zoomAttendees.length === 0) {
       // Still call the atomic procedure to DELETE any orphaned PUPs/attendance in this range
-      const { error: cleanupError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
-        from_date: fromDateTime,
-        to_date: toDateTime,
-        new_pup_data: [],
-        new_attendance_data: [],
-      });
-      if (cleanupError) {
+      try {
+        await reprocessAttendanceRange(supabase, { from: fromDateTime, to: toDateTime, pups: [], attendance: [] });
+      } catch (cleanupError) {
         console.error("Error cleaning up attendance for empty range:", cleanupError);
         throw cleanupError;
       }
@@ -256,11 +220,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Pop-Up Prickle type ID
-    const { data: pupType } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", "pop-up")
-      .single();
+    const pupType = (await createRepos(supabase).prickles.types()).find((t) => t.normalizedName === "pop-up");
 
     if (!pupType) {
       return NextResponse.json(
@@ -272,34 +232,17 @@ export async function POST(request: NextRequest) {
     // Load reference data upfront for in-memory matching (performance optimization)
     // Note: Load ALL calendar prickles that OVERLAP with date range (not just contained within)
     // A prickle overlaps if: prickle.start_time < toDate AND prickle.end_time > fromDate
-    let allPrickles: any[] = [];
-    let prickleOffset = 0;
-    const PRICKLE_BATCH = 1000;
-    let hasMorePrickles = true;
+    const allPrickles = (await createRepos(supabase).prickles.calendarOverlapping({ from: fromDateTime, to: toDateTime })).map((p) => ({
+      id: p.id,
+      start_time: p.startTime,
+      end_time: p.endTime,
+      type_id: p.typeId,
+    }));
 
-    while (hasMorePrickles) {
-      const { data: batch } = await supabase
-        .from("prickles")
-        .select("id, start_time, end_time, type_id")
-        .eq("source", "calendar")
-        .lt("start_time", toDateTime)    // Prickle starts before end of range
-        .gt("end_time", fromDateTime)    // Prickle ends after start of range
-        .order("start_time")
-        .range(prickleOffset, prickleOffset + PRICKLE_BATCH - 1);
-
-      if (batch && batch.length > 0) {
-        allPrickles = allPrickles.concat(batch);
-        prickleOffset += batch.length;
-        hasMorePrickles = batch.length === PRICKLE_BATCH;
-      } else {
-        hasMorePrickles = false;
-      }
-    }
-
-    const [{ data: members }, { data: aliases }, { data: emailAliases }] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
-      supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
+    const [members, aliases, emailAliases] = await Promise.all([
+      createRepos(supabase).members.identities(),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+      createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
     ]);
 
     // Helper to find overlapping prickles in memory
@@ -333,7 +276,7 @@ export async function POST(request: NextRequest) {
       // for time windows where only unmatched attendees were present,
       // resulting in 0-attendee PUPs
       const matchedAttendeesForWindow = attendees.filter(a => {
-        const match = matchAttendeeToMember(a.name, a.email, members || [], aliases || [], (emailAliases as MemberEmailAlias[]) || []);
+        const match = matchAttendeeToMember(a.name, a.email, members, aliases || [], (emailAliases as MemberEmailAlias[]) || []);
         return match !== null;
       });
 
@@ -368,7 +311,7 @@ export async function POST(request: NextRequest) {
     // STEP 3: Prepare PUP data (assign client-side temp IDs instead of creating them now)
     // We'll create them atomically with attendance later
     const prickleIdsBySegment = new Map<any, string>();
-    let pupsToCreate: any[] = [];
+    let pupsToCreate: PupInput[] = [];
     let clientPupIdCounter = 0;
 
     for (const segments of segmentsByMeeting.values()) {
@@ -407,7 +350,7 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 4: Assign attendees to segments and collect attendance records
-    let attendanceToUpsert: any[] = [];
+    let attendanceToUpsert: AttendanceInput[] = [];
     const ambiguousMatches: Array<{ name: string; email: string | null; candidateIds: string[] }> = [];
     let segmentLookupFailures = 0;
 
@@ -416,7 +359,7 @@ export async function POST(request: NextRequest) {
 
       for (const attendee of attendees) {
         // Match attendee to member using centralized logic
-        const match = matchAttendeeToMember(attendee.name, attendee.email, members || [], aliases || [], (emailAliases as MemberEmailAlias[]) || []);
+        const match = matchAttendeeToMember(attendee.name, attendee.email, members, aliases || [], (emailAliases as MemberEmailAlias[]) || []);
 
         if (!match) {
           skippedUnmatched++;
@@ -515,7 +458,9 @@ export async function POST(request: NextRequest) {
           // Determine if this is a calendar prickle (UUID) or PUP (temp ID)
           const isCalendarPrickle = item.segment.type === "calendar";
           const resolvedMatch = match as MatchResult;
-          const attendanceRecord: any = {
+          const attendanceRecord: AttendanceInput = {
+            prickle_id: null,
+            client_prickle_id: null,
             member_id: resolvedMatch.member_id,
             join_time: item.intersection.start.toISOString(),
             leave_time: item.intersection.end.toISOString(),
@@ -570,14 +515,9 @@ export async function POST(request: NextRequest) {
     if (writeChunks.length > 1) console.log(`Writing attendance in ${writeChunks.length} atomic chunks`);
 
     for (const [i, chunk] of writeChunks.entries()) {
-      const { error: reprocessError } = await supabase.rpc('reprocess_prickle_attendance_atomic', {
-        from_date: chunk.from,
-        to_date: chunk.to,
-        new_pup_data: chunk.pups,
-        new_attendance_data: chunk.attendance,
-      });
-
-      if (reprocessError) {
+      try {
+        await reprocessAttendanceRange(supabase, chunk);
+      } catch (reprocessError) {
         console.error(
           `Error atomically reprocessing attendance (chunk ${i + 1}/${writeChunks.length}, ${chunk.from} to ${chunk.to}):`,
           reprocessError
@@ -606,17 +546,11 @@ export async function POST(request: NextRequest) {
 
       // Upsert each unique ambiguous name using database function
       for (const group of ambiguousGroups.values()) {
-        const { error: upsertError } = await supabase.rpc('upsert_ambiguous_zoom_name', {
-          p_zoom_name: group.name,
-          p_zoom_email: group.email,
-          p_candidate_member_ids: group.candidateIds,
-          p_occurrence_increment: group.count,
-        });
-
-        if (upsertError) {
-          console.error(`Error tracking ambiguous name "${group.name}":`, upsertError);
-        } else {
+        try {
+          await trackAmbiguousZoomName(supabase, group.name, group.email, group.candidateIds, group.count);
           ambiguousNamesTracked++;
+        } catch (upsertError) {
+          console.error(`Error tracking ambiguous name "${group.name}":`, upsertError);
         }
       }
 

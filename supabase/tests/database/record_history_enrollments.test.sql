@@ -1,6 +1,6 @@
 -- pgTAP tests for the enrollment match in get_record_history (20261103000000): enrolling a member
 -- shows on the program's history through its cohort, and not on another program's. Rolled back.
--- Run with `npm run test:pgtap`.
+-- Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

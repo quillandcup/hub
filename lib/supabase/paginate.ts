@@ -10,8 +10,8 @@ const BATCH_SIZE = 1000;
  *
  * Example:
  * ```ts
- * const rows = await fetchAllRows<{ segment_id: string }>((from, to) =>
- *   supabase.from("segment_members").select("segment_id").range(from, to)
+ * const rows = await fetchAllRows<{ id: string }>((from, to) =>
+ *   supabase.from("some_table").select("id").range(from, to)
  * );
  * ```
  */

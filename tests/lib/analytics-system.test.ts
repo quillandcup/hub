@@ -35,6 +35,18 @@ describe("recordSystemEvents", () => {
     expect(rows[0].message_id).not.toBe(rows[1].message_id);
   });
 
+  it("records a send for a member who left usage statistics too: it is the app's record, not their usage", async () => {
+    const OTHER = "22222222-2222-4222-8222-222222222222";
+    const { insert, supabase } = client();
+    await recordSystemEvents(supabase, [
+      { userId: USER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
+      { userId: OTHER, event: "notification_sent", properties: { kind: "prickle_checkin", channel: "slack" } },
+    ]);
+    expect(insert.mock.calls[0][0].map((row: { user_id: string }) => row.user_id)).toEqual([USER, OTHER]);
+    // It never looks anyone's opt-out up.
+    expect(supabase.from).not.toHaveBeenCalledWith("user_profiles");
+  });
+
   it("writes nothing for an empty list", async () => {
     const { insert, supabase } = client();
     await recordSystemEvents(supabase, []);

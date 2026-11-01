@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -11,13 +12,13 @@ export const metadata: Metadata = {
 export default async function NewBadgePage() {
   await requireAdminPage();
   const supabase = await createClient();
-  const [{ data: allEvents }, { data: linkedBadges }, { data: programs }] = await Promise.all([
-    supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
-    supabase.from("badge_types").select("event_id").not("event_id", "is", null),
-    supabase.from("programs").select("id, name").order("name"),
+  const repos = createRepos(supabase);
+  const [allEvents, linkedEventIds, programs] = await Promise.all([
+    repos.events.choices(),
+    repos.badges.linkedEventIds(),
+    repos.programs.names(),
   ]);
-  const linkedEventIds = new Set((linkedBadges ?? []).map((b) => b.event_id));
-  const events = (allEvents ?? []).filter((e) => !linkedEventIds.has(e.id));
+  const events = allEvents.filter((e) => !linkedEventIds.has(e.id));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

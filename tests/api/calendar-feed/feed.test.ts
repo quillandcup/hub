@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { NextRequest } from 'next/server'
+import { insertEvent } from '../../helpers/event-db'
 import { getTestSupabaseAdminClient, getTestSupabaseClient } from '../../helpers/supabase'
 import { GET } from '@/app/api/calendar/feed/[token]/route'
 import { slotTimeForInstant } from '@/lib/commitments'
@@ -120,18 +121,14 @@ describe('calendar feed', () => {
     if (eduTypeError || !eduType) throw new Error(`Failed to create prickle type: ${eduTypeError?.message}`)
     eduTypeId = eduType.id
 
-    const { data: event, error: eventError } = await admin
-      .from('events')
-      .insert({
-        slug: `feed-retreat-${suffix}`,
-        title: `Feed Retreat ${suffix}`,
-        event_type: 'in_person_retreat',
-        location: 'Asheville, NC',
-        starts_at: eventStart,
-        ends_at: eventEnd,
-      })
-      .select('id')
-      .single()
+    const { data: event, error: eventError } = await insertEvent(admin, {
+      slug: `feed-retreat-${suffix}`,
+      title: `Feed Retreat ${suffix}`,
+      event_type: 'in_person_retreat',
+      location: 'Asheville, NC',
+      starts_at: eventStart,
+      ends_at: eventEnd,
+    })
     if (eventError || !event) throw new Error(`Failed to create event: ${eventError?.message}`)
     eventId = event.id
 
@@ -194,7 +191,7 @@ describe('calendar feed', () => {
     }
     if (typeId) await admin.from('prickle_types').delete().eq('id', typeId)
     if (eduTypeId) await admin.from('prickle_types').delete().eq('id', eduTypeId)
-    if (eventId) await admin.from('events').delete().eq('id', eventId)
+    if (eventId) await admin.from('community_events').delete().eq('id', eventId)
     for (const id of authUserIds) await admin.auth.admin.deleteUser(id).catch(() => {})
   })
 

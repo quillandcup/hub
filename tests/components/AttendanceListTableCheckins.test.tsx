@@ -17,7 +17,16 @@ const row = (id: string, prickleId: string, join: string) => ({
   prickles: { id: prickleId, host: { id: "h1", name: "Jenn P" }, prickle_types: { name: "Progress Prickle" } },
 });
 const ATTENDANCE = [row("a1", "p1", "2026-10-05T17:00:00Z"), row("a2", "p2", "2026-10-04T17:00:00Z")];
-const DONE: CheckinInput = { feelingsBefore: ["calm"], need: "company", sessionRating: 5, feelingsAfter: ["calm"] };
+const DONE: CheckinInput = {
+  pleasantBefore: 3,
+  energyBefore: 3,
+  emotionBefore: null,
+  need: "company",
+  intentionMet: 5,
+  pleasantAfter: 4,
+  energyAfter: 3,
+  emotionAfter: null,
+};
 
 const onOpenCheck = vi.fn();
 

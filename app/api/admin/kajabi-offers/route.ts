@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,15 +9,11 @@ export async function GET(request: NextRequest) {
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { supabase } = auth;
 
-  const { data, error } = await supabase.schema("bronze").from("kajabi_offers").select("name");
-  if (error) {
+  try {
+    const names = await createRepos(supabase).billing.kajabiOfferNames();
+    return NextResponse.json({ names });
+  } catch (error) {
     console.error("Error fetching Kajabi offers:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
-
-  const names = Array.from(new Set((data || []).map((o) => o.name).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b)
-  );
-
-  return NextResponse.json({ names });
 }

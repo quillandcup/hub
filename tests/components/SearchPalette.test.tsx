@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -32,7 +32,7 @@ const results = {
 async function open(isAdmin = false) {
   const user = userEvent.setup();
   render(<SearchPalette resultsPath={isAdmin ? "/admin/search" : "/search"} isAdmin={isAdmin} />);
-  await user.click(screen.getByRole("button", { name: "Search" }));
+  await user.click(screen.getByRole("button", { name: "Search pages, members, chat…" }));
   return user;
 }
 
@@ -324,6 +324,35 @@ describe("SearchPalette", () => {
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("");
   });
 
+  it("confirms a copied recent search for 1.5 s with one timer, restarts it on another copy, and leaves none behind on unmount", async () => {
+    localStorage.setItem("hub:search-history-on", "true");
+    localStorage.setItem("hub:recent-searches", JSON.stringify(["cody", "fern"]));
+    await open();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const baseline = vi.getTimerCount();
+      const copy = async (query: string) =>
+        act(async () => void fireEvent.click(screen.getByRole("button", { name: `Copy search query “${query}”` })));
+
+      await copy("cody");
+      expect(screen.getByRole("button", { name: "Copy search query “cody”" })).toHaveAttribute("title", "Copied");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+
+      await copy("fern");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+      act(() => void vi.advanceTimersByTime(1500));
+      expect(screen.getByRole("button", { name: "Copy search query “fern”" })).toHaveAttribute("title", "Copy search query");
+
+      await copy("cody");
+      expect(vi.getTimerCount()).toBe(baseline + 1);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("runs a recent search when it is chosen", async () => {
     localStorage.setItem("hub:search-history-on", "true");
     localStorage.setItem("hub:recent-searches", JSON.stringify(["cody"]));
@@ -331,5 +360,33 @@ describe("SearchPalette", () => {
     await user.click(screen.getByRole("button", { name: "cody" }));
     expect(screen.getByRole("textbox", { name: "Search" })).toHaveValue("cody");
     await waitFor(() => expect(searchPalette).toHaveBeenCalledWith("cody"));
+  });
+});
+
+describe("SearchPalette button name", () => {
+  it("contains the text printed on the button, so voice control and screen readers agree with the screen", () => {
+    render(<SearchPalette resultsPath="/search" isAdmin={false} />);
+    const button = screen.getByRole("button", { name: /Search pages, members, chat/ });
+    expect(button).toHaveTextContent("Search pages, members, chat…");
+    expect(button).toHaveAccessibleName("Search pages, members, chat…");
+    // The shortcut hint is drawn by CSS, so it is not visible text that the name would have to include.
+    expect(button).not.toHaveTextContent("⌘K");
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Meta+K Control+K");
+  });
+});
+
+describe("SearchPalette Clear button", () => {
+  it("appears once something is typed, empties the box and returns the cursor to it", async () => {
+    const user = await open();
+    const box = screen.getByRole("textbox", { name: "Search" });
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
+
+    await user.type(box, "pizza");
+    expect(box).toHaveValue("pizza");
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(box).toHaveValue("");
+    expect(box).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Clear" })).not.toBeInTheDocument();
   });
 });

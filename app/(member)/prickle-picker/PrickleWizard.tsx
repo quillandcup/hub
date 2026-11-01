@@ -6,17 +6,9 @@ import MultiMemberSearch from "@/components/MultiMemberSearch";
 import { getWizardRecommendations, type WizardAnswers } from "./actions";
 import type { PickerRecommendation, TimeOfDay, VibePreference, PurposePreference } from "@/lib/prickle-picker";
 import { ORG_TIMEZONE } from "@/lib/config";
-import {
-  FEELING_DISPLAY_GROUPS,
-  MAX_FEELINGS,
-  NEEDS,
-  NEED_VIBE,
-  SESSION_RATINGS,
-  prickleHref,
-  toggleFeeling,
-  type Feeling,
-  type Need,
-} from "@/lib/prickle-checkins";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
+import { EMPTY_CHECKIN, INTENTION_MET, NEED_VIBE, prickleHref, type CheckinInput } from "@/lib/prickle-checkins";
+import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 
 interface Member {
   id: string;
@@ -58,8 +50,9 @@ const PURPOSE_OPTIONS: { label: string; value: PurposePreference; hint: string }
 
 const TOTAL_STEPS = 5;
 
-function ratingLabel(avg: number): string {
-  return SESSION_RATINGS[Math.min(4, Math.max(0, Math.round(avg) - 1))].label;
+/** An average "got what I came for" (1-5) in its scale's words. */
+function intentionMetLabel(avg: number): string {
+  return INTENTION_MET[Math.min(4, Math.max(0, Math.round(avg) - 1))].label;
 }
 
 
@@ -101,7 +94,7 @@ function VibeBadge({ vibe }: { vibe: PickerRecommendation["vibe"] }) {
     focused: "bg-mist-50 text-mist-700 dark:bg-mist-900/30 dark:text-mist-300",
     balanced: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
     chatty: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-    unknown: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+    unknown: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
   };
   const labels: Record<string, string> = {
     focused: "🤫 Focused",
@@ -128,9 +121,11 @@ function formatOccurrence(iso: string, timezone: string): string {
 }
 
 export default function PrickleWizard({ members }: PrickleWizardProps) {
+  const withSecondary = useWithSecondaryTime();
   const [step, setStep] = useState(0);
-  const [feelings, setFeelings] = useState<Feeling[]>([]);
-  const [need, setNeed] = useState<Need | null>(null);
+  // The "How are you feeling?" step: the check-in's "coming in" questions, carried to the prickle's check-in.
+  const [comingIn, setComingIn] = useState<CheckinInput>(EMPTY_CHECKIN);
+  const need = comingIn.need;
   const [windowDays, setWindowDays] = useState(7);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("any");
   const [vibe, setVibe] = useState<VibePreference>("any");
@@ -150,7 +145,8 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
     // A need that points at a vibe fills in the mood unless the member already chose one.
     const effectiveVibe = vibe === "any" && need && NEED_VIBE[need] ? NEED_VIBE[need]! : vibe;
     setVibe(effectiveVibe);
-    const answers: WizardAnswers = { windowDays, timeOfDay, vibe: effectiveVibe, purpose, withMemberIds, feelings, need };
+    const mood = { pleasant: comingIn.pleasantBefore, energy: comingIn.energyBefore, emotion: comingIn.emotionBefore };
+    const answers: WizardAnswers = { windowDays, timeOfDay, vibe: effectiveVibe, purpose, withMemberIds, mood, need };
     const result = await getWizardRecommendations(answers);
 
     setLoading(false);
@@ -206,7 +202,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">{rec.typeName}</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     {rec.hostName ? `Hosted by ${rec.hostName} · ` : ""}
                     {rec.scheduleLabel}
                   </p>
@@ -229,8 +225,8 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 )}
                 {rec.personal && (
                   <span className="px-2.5 py-1 rounded-full bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300">
-                    You rated it {ratingLabel(rec.personal.avgRating)} on average ({rec.personal.sessions} similar
-                    sessions)
+                    Got what you came for: {intentionMetLabel(rec.personal.avgRating)} on average ({rec.personal.sessions}{" "}
+                    similar sessions)
                   </span>
                 )}
                 {rec.vibeNotes && (
@@ -244,11 +240,11 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
                 {rec.occurrences.map((occ) => (
                   <Link
                     key={occ.id}
-                    href={prickleHref(occ.id, feelings, need)}
+                    href={prickleHref(occ.id, comingIn)}
                     data-track="prickle-picker-result"
                     className="px-3 py-1.5 rounded-lg text-sm bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 hover:bg-plum-100 dark:hover:bg-plum-900/40 transition-colors"
                   >
-                    {formatOccurrence(occ.startTime, timezone)}
+                    {withSecondary(formatOccurrence(occ.startTime, timezone), occ.startTime, timezone)}
                   </Link>
                 ))}
               </div>
@@ -274,7 +270,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
         </div>
 
         {results.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-8 text-center text-slate-600 dark:text-slate-400">
             There aren't any prickles on the calendar for the next two weeks.
           </div>
         )}
@@ -343,7 +339,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
             Anyone you&apos;re hoping to see there?
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Totally optional — skip if it doesn&apos;t matter.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Totally optional — skip if it doesn&apos;t matter.</p>
           <MultiMemberSearch
             members={members}
             selectedMemberIds={withMemberIds}
@@ -356,66 +352,10 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
       {step === 4 && (
         <div className="space-y-5">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">How are you feeling?</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Optional, so skip it if you like. It helps pick prickles that have worked for you when you felt like this.
           </p>
-          <div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-              Coming in, I&apos;m feeling… <span className="font-normal">(up to {MAX_FEELINGS})</span>
-            </p>
-            <div className="space-y-2">
-              {FEELING_DISPLAY_GROUPS.map((group) => (
-                <div key={group[0].key} className="flex flex-wrap gap-2">
-                  {group.map((f) => {
-                    const selected = feelings.includes(f.key);
-                    const atMax = !selected && feelings.length >= MAX_FEELINGS;
-                    return (
-                      <button data-track="prickle-picker-feeling"
-                        key={f.key}
-                        type="button"
-                        aria-pressed={selected}
-                        disabled={atMax}
-                        onClick={() => setFeelings((cur) => toggleFeeling(cur, f.key))}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-                          selected
-                            ? "bg-plum-600 border-plum-600 text-white"
-                            : atMax
-                              ? "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                              : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">What I need most from this session</p>
-            <div className="flex flex-wrap gap-2">
-              {NEEDS.map((n) => {
-                const selected = need === n.key;
-                return (
-                  <button data-track="prickle-picker-need"
-                    key={n.key}
-                    type="button"
-                    aria-pressed={selected}
-                    title={n.hint}
-                    onClick={() => setNeed(selected ? null : n.key)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-                      selected
-                        ? "bg-plum-600 border-plum-600 text-white"
-                        : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:border-plum-400"
-                    }`}
-                  >
-                    {n.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <CheckinHalfFields half="checkin" value={comingIn} onChange={(patch) => setComingIn((c) => ({ ...c, ...patch }))} />
         </div>
       )}
 
@@ -430,7 +370,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
           type="button"
           onClick={() => setStep((s) => Math.max(0, s - 1))}
           disabled={step === 0}
-          className="px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-0 disabled:pointer-events-none"
+          className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-0 disabled:pointer-events-none"
         >
           ← Back
         </button>
@@ -456,7 +396,7 @@ export default function PrickleWizard({ members }: PrickleWizardProps) {
         )}
       </div>
 
-      <p className="text-xs text-center text-slate-400 dark:text-slate-500">
+      <p className="text-xs text-center text-slate-500 dark:text-slate-400">
         <Link data-track="prickle-picker-never-mind-back-to-my" href="/my-prickles/history" className="hover:underline">
           Never mind, back to my calendar
         </Link>

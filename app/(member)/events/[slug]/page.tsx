@@ -3,8 +3,11 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
+import { createRepos } from "@/lib/data/repos";
+import { mediaSrc } from "@/lib/media/url";
 import { getUserFeaturePreviews } from "@/lib/features.server";
 import EventDetailClient from "./EventDetailClient";
+import { stripEventTag } from "@/lib/calendar-events";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { getMyCalendarItems } from "@/app/(member)/my-prickles/calendar-feed-actions";
 import { AddEventToCalendar } from "@/app/(member)/my-prickles/AddToCalendar";
@@ -24,19 +27,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
   const enabledFeatures = await getUserFeaturePreviews(user.id);
   if (!enabledFeatures.includes("events")) redirect("/dashboard");
 
-  const { data: event } = await supabase.from("events").select("*").eq("slug", slug).single();
+  const events = createRepos(supabase).events;
+  const event = await events.visibleBySlug(slug);
   if (!event) notFound();
 
-  const [{ data: visiblePhotos }, effectiveIdentity, calendarItems] = await Promise.all([
-    supabase
-      .from("event_photos")
-      .select("id, width, height")
-      .eq("event_id", event.id)
-      .is("hidden_at", null)
-      .order("taken_at", { ascending: true, nullsFirst: false })
-      .order("created_at", { ascending: true }),
+  const [visiblePhotos, effectiveIdentity, calendarItems, image] = await Promise.all([
+    events.visiblePhotos(event.id),
     getEffectiveIdentity(user),
     getMyCalendarItems(),
+    event.image_id ? createRepos(supabase).media.byId(event.image_id).catch(() => null) : null,
   ]);
 
   // Upcoming (or ongoing) events can go in the member's synced calendar -- retreats included,
@@ -52,7 +51,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ sl
       <Link data-track="event-all-events" href="/events" className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
         ← All Events
       </Link>
-      <EventDetailClient event={event} photos={visiblePhotos || []} calendarControl={calendarControl} />
+      <EventDetailClient
+        event={{ ...event, description: stripEventTag(event.description) }}
+        photos={visiblePhotos}
+        calendarControl={calendarControl}
+        coverImage={image && !image.deleted_at ? { src: mediaSrc(image.id, "event_hero"), alt: image.alt_text ?? "" } : null}
+      />
     </div>
   );
 }

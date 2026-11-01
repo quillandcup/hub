@@ -5,7 +5,7 @@
 // env-vars.config.ts. Nothing else in the code should hardcode these.
 //
 // Read by lib/config.ts (app code), next.config.ts, __checks__/config.ts (Checkly), and
-// scripts. SQL can't import this file: `npm run env:sync:vault` copies the values pg_cron
+// scripts. SQL can't import this file: `pnpm env:sync:vault` copies the values pg_cron
 // needs into Supabase Vault (SHARED_CONFIG_IN_VAULT in scripts/sync-vault-secrets.ts) -- re-run
 // it after changing one of those.
 
@@ -47,6 +47,8 @@ export const appConfig = {
     introChannel: "start-here",
     /** Production operations alerts for failed notification DMs and ambiguous member matches. */
     alertsChannelId: "C0CA91G8LGH", // #hub-alerts
+    /** The same channel by name, for the Checkly Slack app (__checks__/alert-channels.ts), which takes names. */
+    alertsChannelName: "#hub-alerts",
   },
 
   /**
@@ -55,8 +57,19 @@ export const appConfig = {
    */
   attendanceDataStartsOn: "2026-01-01",
 
-  /** Sentry org/project slugs for the production build's source map upload. */
-  sentry: { org: "quillandcup", project: "hub" },
+  /**
+   * Whether the Bookshelf is open to people who aren't signed in. While false, a book's cover is readable by
+   * signed-in members only. When true, the shelf-size version of any image a book uses as its cover is served
+   * to everyone (app/api/media/[id]/[preset]/route.ts); it does not make the Bookshelf page public, which is a
+   * change to that page and to who may reach it.
+   */
+  bookshelfPublic: false,
+
+  /**
+   * Sentry org/project slugs for the production build's source map upload, and the regional API host the org's
+   * settings are read and written on (sentry-config.yml, scripts/sentry-config.ts). The org is in the EU region.
+   */
+  sentry: { org: "quillandcup", project: "hub", apiUrl: "https://de.sentry.io" },
 } as const;
 
 export default appConfig;

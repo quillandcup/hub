@@ -1,6 +1,6 @@
 "use client";
 
-import { useLessonCompletion } from "./LessonCompletion";
+import { useLessonCompletion } from "@/components/courses/LessonCompletion";
 
 /**
  * The lesson page's main action, wide across its column. "Mark as complete" (white, outlined) until the

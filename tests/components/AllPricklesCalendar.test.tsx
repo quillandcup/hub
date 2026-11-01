@@ -108,3 +108,10 @@ describe("AllPricklesCalendar", () => {
     expect(screen.getByText("Monday Morning Sprint", CALENDAR_ONLY)).toBeInTheDocument();
   });
 });
+
+describe("AllPricklesCalendar type filter", () => {
+  it("names the filter, so a screen reader doesn't announce an unlabelled combo box", () => {
+    render(<AllPricklesCalendar instances={INSTANCES} timeZone={TZ} upcomingWindowDays={14} lookbackDays={28} />);
+    expect(screen.getByRole("combobox", { name: "Filter by prickle type" })).toBeInTheDocument();
+  });
+});

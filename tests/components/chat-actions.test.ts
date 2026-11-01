@@ -28,7 +28,7 @@ vi.mock("@/lib/features.server", () => ({
 
 const { markChatRead, syncChatReadFromSlack } = await import("@/app/(member)/chat/actions");
 
-const CHANNEL = "00000000-0000-4000-a000-000000000001";
+const CHANNEL = "chn_AAAAAAAAAAA1";
 let fake: FakeSupabase;
 const calls = () => fake.queries.filter((q) => q.table === "rpc:chat_mark_read");
 

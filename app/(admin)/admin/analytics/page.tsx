@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { clock } from "@/lib/clock";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -80,18 +81,18 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
   // A rate from a handful of visits, or of a control that just shipped, says nothing: hold those back.
   const minVisits = wholeNumber(params.min, 10, 1);
   const minAgeDays = wholeNumber(params.age, 14, 0);
-  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  const since = new Date(clock.now() - days * DAY_MS).toISOString();
 
   const supabase = await createClient();
   const [summary, topClicks, controlRates, actionOutcomes, notificationRates, ...funnels] = await Promise.all([
     supabase.rpc("analytics_event_summary", { since, ...audienceArgs }),
-    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
-    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_top_clicks", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
+    supabase.rpc("analytics_control_rates", { since, route_prefix: routePrefix as string, hide_admin: !showAdmin, ...audienceArgs }),
     supabase.rpc("analytics_action_outcomes", { since, ...audienceArgs }),
     supabase.rpc("analytics_notification_rates", { since, ...audienceArgs }),
     ...FUNNELS.map((f) => supabase.rpc("analytics_funnel", { steps: f.steps.map((s) => s.event), since, filters: f.steps.map((s) => s.where ?? {}), ...audienceArgs })),
   ]);
-  const oldEnough = Date.now() - minAgeDays * DAY_MS;
+  const oldEnough = clock.now() - minAgeDays * DAY_MS;
   const allControls = (controlRates.data ?? []) as ControlRateRow[];
   const judged = allControls.filter((c) => c.seen_sessions >= minVisits && Date.parse(c.first_seen) <= oldEnough);
   const held = allControls.length - judged.length;
@@ -188,7 +189,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               {((topClicks.data ?? []) as TopClickRow[]).map((row) => (
                 <tr key={`${row.label}|${row.element}`} className="border-t border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
                   <td className="px-3 py-2">
-                    {row.label === "(unlabelled)" ? <span className="text-slate-500">(unlabelled)</span> : <span className="font-mono text-xs">{row.label}</span>}
+                    {row.label === "(unlabelled)" ? <span className="text-slate-600 dark:text-slate-400">(unlabelled)</span> : <span className="font-mono text-xs">{row.label}</span>}
                   </td>
                   <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{row.element ?? ""}</td>
                   <td className="px-3 py-2 text-right">{row.events}</td>
@@ -199,7 +200,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {(topClicks.data ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No clicks in this window.
                   </td>
                 </tr>
@@ -274,7 +275,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {judged.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No control has been seen by {minVisits}+ visits and for {minAgeDays}+ days yet.
                   </td>
                 </tr>
@@ -283,7 +284,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
           </table>
         </div>
         {held > 0 && (
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
             {held} {held === 1 ? "control is" : "controls are"} held back: seen by fewer than {minVisits} visits, or first seen less than {minAgeDays} days ago.
           </p>
         )}
@@ -322,7 +323,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {actions.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No actions recorded in this window.
                   </td>
                 </tr>
@@ -363,7 +364,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {notifications.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No notifications recorded in this window.
                   </td>
                 </tr>
@@ -398,7 +399,7 @@ export default async function FeatureUsagePage({ searchParams }: { searchParams:
               ))}
               {(summary.data ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-600 dark:text-slate-400">
                     No events yet in this window.
                   </td>
                 </tr>

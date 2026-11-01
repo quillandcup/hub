@@ -13,7 +13,7 @@ interface UnloggedPricklesCardProps {
 }
 
 /**
- * Dashboard prompt to check out of prickles attended recently: how it went, how they feel and how
+ * Dashboard prompt to check out of prickles attended recently: did they get what they came for, how they feel and how
  * much they wrote, in the same modal as Attendance History's "Check out →". A prickle drops off
  * once it's checked out or has progress logged against it.
  */
@@ -45,10 +45,10 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-      <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+      <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
         How did it go?
       </h2>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
         Check out of recent prickles and log what you wrote, so you can see which sessions work best for you.
       </p>
       <ul className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -76,7 +76,7 @@ export default function UnloggedPricklesCard({ prickles }: UnloggedPricklesCardP
                 data-track="unlogged-prickles-dismiss"
                 aria-label={`Dismiss ${p.label}`}
                 title="Not checking out of this one"
-                className="px-2 py-1 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
+                className="px-2 py-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg"
               >
                 ×
               </button>

@@ -1,0 +1,78 @@
+import { describe, expect, it } from "vitest";
+import { SupabaseCourseProgressRepository } from "@/lib/data/course-progress";
+import { SupabaseCourseRepository } from "@/lib/data/courses";
+import { failingDb } from "@/tests/helpers/failing-db";
+
+describe("the course repositories on a database error", () => {
+  const courses = new SupabaseCourseRepository(failingDb());
+  const progress = new SupabaseCourseProgressRepository(failingDb());
+
+  it.each([
+    ["courseById", () => courses.courseById("crs_x")],
+    ["courseBySlug", () => courses.courseBySlug("memoir")],
+    ["courses", () => courses.courses()],
+    ["courses by ids", () => courses.courses({ ids: ["crs_x"] })],
+    ["modulesOf", () => courses.modulesOf(["crs_x"])],
+    ["lessonsOf", () => courses.lessonsOf(["crs_x"])],
+    ["lessonById", () => courses.lessonById("les_x")],
+    ["lessonBody", () => courses.lessonBody("les_x")],
+    ["openLessons", () => courses.openLessons(["les_x"])],
+    ["lessonFiles", () => courses.lessonFiles("les_x")],
+    ["lessonFile", () => courses.lessonFile("les_x", "file_x")],
+    ["memberAccess", () => progress.memberAccess("mbr_x")],
+    ["memberAccess for courses", () => progress.memberAccess("mbr_x", ["crs_x"])],
+    ["accessOfCourses", () => progress.accessOfCourses(["crs_x"])],
+    ["completedLessonIds", () => progress.completedLessonIds("mbr_x", ["les_x"])],
+    ["partlyWatched", () => progress.partlyWatched("mbr_x", 5)],
+    ["lessonPosition", () => progress.lessonPosition("mbr_x", "les_x")],
+    ["hasProgressIn", () => progress.hasProgressIn(["les_x"])],
+    ["grantsOfCourses", () => progress.grantsOfCourses(["crs_x"])],
+    ["upsertAccess", () => progress.upsertAccess([{ member_id: "mbr_x", course_id: "crs_x", starts_at: "2097-01-01T00:00:00Z", origin: "grant" }])],
+    ["removeAccess", () => progress.removeAccess("crs_x", ["mbr_x"])],
+    ["courseBySource", () => courses.courseBySource("kajabi", "k")],
+    ["createCourse", () => courses.createCourse({ slug: "s", title: "T" })],
+    ["createCourses", () => courses.createCourses([{ slug: "s", title: "T" }])],
+    ["updateCourse", () => courses.updateCourse("crs_x", { title: "T" }, { source: "hub" })],
+    ["upsertModules", () => courses.upsertModules([{ course_id: "crs_x", title: "M", source_key: "k" }])],
+    ["upsertLessons", () => courses.upsertLessons([{ course_id: "crs_x", title: "L", source_key: "k" }])],
+    ["deleteModules", () => courses.deleteModules(["mod_x"])],
+    ["deleteLessons", () => courses.deleteLessons(["les_x"])],
+    ["nextPosition (module)", () => courses.nextPosition("module", "crs_x", null)],
+    ["nextPosition (lesson in a module)", () => courses.nextPosition("lesson", "crs_x", "mod_x")],
+    ["addModule", () => courses.addModule({ course_id: "crs_x", title: "M" })],
+    ["addLesson", () => courses.addLesson({ course_id: "crs_x", title: "L" })],
+    ["renameItem (module)", () => courses.renameItem("module", { id: "mod_x", courseId: "crs_x" }, "T")],
+    ["renameItem (lesson)", () => courses.renameItem("lesson", { id: "les_x", courseId: "crs_x" }, "T")],
+    ["lessonIdsUnder", () => courses.lessonIdsUnder("module", "mod_x")],
+    ["deleteItem (module)", () => courses.deleteItem("module", { id: "mod_x", courseId: "crs_x" })],
+    ["duplicateItem (module)", () => courses.duplicateItem("module", "mod_x")],
+    ["duplicateItem (lesson)", () => courses.duplicateItem("lesson", "les_x")],
+    ["reorderChildren", () => courses.reorderChildren({ courseId: "crs_x", kind: "module", parentId: null, ids: ["mod_x"] })],
+    ["imageOf (course)", () => courses.imageOf("course", "crs_x")],
+    ["imageOf (module)", () => courses.imageOf("module", "mod_x")],
+    ["imageOf (lesson)", () => courses.imageOf("lesson", "les_x")],
+    ["setImage (course)", () => courses.setImage("hero", "crs_x", { asset: null, source: null })],
+    ["setImage (module)", () => courses.setImage("module", "mod_x", { asset: null, source: null })],
+    ["setImage (lesson)", () => courses.setImage("lesson", "les_x", { asset: null, source: null })],
+    ["filesOfLessons", () => courses.filesOfLessons(["les_x"])],
+    ["saveLessonFile", () => courses.saveLessonFile({ lesson_id: "les_x", source_key: "k", filename: "a.pdf", storage_path: "p" })],
+    ["deleteLessonFile", () => courses.deleteLessonFile("file_x")],
+    ["videosBySourceKeys", () => courses.videosBySourceKeys("kajabi", ["k"])],
+    ["createVideo", () => courses.createVideo({ source_kind: "kajabi", source_key: "k" })],
+    ["updateVideo", () => courses.updateVideo("v", { status: "ready" })],
+    ["preparingVideos", () => courses.preparingVideos()],
+    ["updateVideosByAsset", () => courses.updateVideosByAsset("asset", { status: "ready" })],
+    ["videosByIds", () => courses.videosByIds(["v"])],
+    ["progressOfLessons", () => progress.progressOfLessons(["les_x"])],
+    ["insertProgressIfAbsent", () => progress.insertProgressIfAbsent([{ member_id: "mbr_x", lesson_id: "les_x" }])],
+    ["setCompletion", () => progress.setCompletion("mbr_x", "les_x", null)],
+    ["savePosition", () => progress.savePosition("mbr_x", "les_x", 5)],
+    ["clearProgress", () => progress.clearProgress("mbr_x", "les_x")],
+    ["watchedSince", () => progress.watchedSince("mbr_x", "v", "2097-01-01T00:00:00Z")],
+    ["segmentsOfVideos", () => progress.segmentsOfVideos(["v"])],
+    ["saveSegments", () => progress.saveSegments([{ member_id: "mbr_x", video_id: "v", session_id: "s", start_seconds: 0, end_seconds: 1 }])],
+    ["clearSegments", () => progress.clearSegments("mbr_x", "v")],
+  ])("%s throws the database's message", async (_name, call) => {
+    await expect(call()).rejects.toThrow("database is down");
+  });
+});

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { normalizeTrackedPath } from "@/lib/page-views";
 import { userAgentForStorage } from "@/lib/device-label";
+import { deviceForStorage } from "@/lib/device";
 import { requestLocation } from "@/lib/request-location";
 import { GA_COOKIE_NAME, gaClientIdFromCookie } from "@/lib/analytics-identity";
 import { getSessionIdFromAccessToken } from "@/lib/supabase/session-claims";
@@ -34,18 +36,20 @@ export async function POST(request: NextRequest) {
   const actingAsMemberId =
     actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, user.id)?.split(":")[1] ?? null;
 
-  const { error } = await supabase.from("access_events").insert({
-    user_id: user.id,
-    path,
-    is_page: true,
-    session_id: accessToken ? getSessionIdFromAccessToken(accessToken) : null,
-    acting_as_member_id: actingAsMemberId,
-    user_agent: userAgentForStorage(request.headers.get("user-agent")),
-    ...requestLocation(request.headers),
-    ga_client_id: gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value),
-  });
-  if (error) {
-    console.error("Failed to record page view:", error.message);
+  try {
+    await createRepos(supabase).accessEvents.record({
+      user_id: user.id,
+      path,
+      is_page: true,
+      session_id: accessToken ? getSessionIdFromAccessToken(accessToken) : null,
+      acting_as_member_id: actingAsMemberId,
+      user_agent: userAgentForStorage(request.headers.get("user-agent")),
+      device: deviceForStorage(request.headers.get("user-agent")),
+      ...requestLocation(request.headers),
+      ga_client_id: gaClientIdFromCookie(request.cookies.get(GA_COOKIE_NAME)?.value),
+    });
+  } catch (error) {
+    console.error("Failed to record page view:", (error as Error).message);
     return NextResponse.json({ error: "Failed to record page view" }, { status: 500 });
   }
   return new NextResponse(null, { status: 204 });

@@ -2,14 +2,20 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import PrickleDetails from "@/components/PrickleDetails";
+import type { PrickleDetail } from "@/lib/domain/prickle";
 
-const prickle = {
+const prickle: PrickleDetail = {
   id: "p1",
-  start_time: "2026-10-20T15:00:00Z",
-  end_time: "2026-10-20T16:00:00Z",
+  typeId: "t1",
+  hostId: "h1",
+  title: null,
+  description: null,
+  startTime: "2026-10-20T15:00:00Z",
+  endTime: "2026-10-20T16:00:00Z",
   source: "calendar",
-  host: { id: "h1", name: "Jenn Parker" },
-  prickle_types: { name: "Progress Prickle", description: null },
+  calendarEventId: null,
+  host: { id: "h1", name: "Jenn Parker", displayName: null },
+  type: { id: "t1", name: "Progress Prickle", normalizedName: "progress", description: null, purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false },
 };
 
 const record = {
@@ -23,7 +29,7 @@ const record = {
 const renderDetails = (props: Partial<React.ComponentProps<typeof PrickleDetails>> = {}) =>
   render(
     <PrickleDetails
-      prickle={prickle as never}
+      prickle={prickle}
       attendanceRecords={[]}
       hostMissing={false}
       hostLate={false}
@@ -35,6 +41,15 @@ const renderDetails = (props: Partial<React.ComponentProps<typeof PrickleDetails
   );
 
 describe("PrickleDetails attendees", () => {
+  it("shows the guest speaker next to the host, and nothing when there is none", () => {
+    const { unmount } = renderDetails({ prickle: { ...prickle, guestSpeaker: "Ellen Example" } });
+    expect(screen.getByText("Guest speaker:")).toBeInTheDocument();
+    expect(screen.getByText("Ellen Example")).toBeInTheDocument();
+    unmount();
+    renderDetails();
+    expect(screen.queryByText("Guest speaker:")).not.toBeInTheDocument();
+  });
+
   it("invites you to check back for a prickle that hasn't started, rather than saying nobody came", () => {
     renderDetails({ hasStarted: false });
     expect(screen.getByRole("heading", { name: "Who's coming" })).toBeInTheDocument();
@@ -128,5 +143,68 @@ describe("PrickleDetails who's coming", () => {
     renderDetails({ hasStarted: true, roster: { entries: [entry()], total: 1 } });
     expect(screen.queryByText("Committed")).not.toBeInTheDocument();
     expect(screen.getByText("No attendance records for this Prickle")).toBeInTheDocument();
+  });
+});
+
+describe("PrickleDetails summary", () => {
+  it("shows the title or a default, the description, type, host and source", () => {
+    const { rerender } = renderDetails();
+    expect(screen.getByRole("heading", { name: "Prickle Details" })).toBeInTheDocument();
+    expect(screen.getByText("Progress Prickle")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jenn Parker" })).toHaveAttribute("href", "/members/h1");
+    expect(screen.getByText("Google Calendar")).toBeInTheDocument();
+
+    rerender(
+      <PrickleDetails
+        prickle={{
+          ...prickle,
+          title: "Tiny Things Workshop",
+          description: "Bring a tiny idea.",
+          source: "zoom",
+          type: { ...prickle.type!, description: "Timed writing in company." },
+        }}
+        attendanceRecords={[]}
+        hostMissing={false}
+        hostLate={false}
+        userTimezonePreference="America/New_York"
+        memberBasePath="/members"
+        showMemberEmails={false}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Tiny Things Workshop" })).toBeInTheDocument();
+    expect(screen.getByText("Bring a tiny idea.")).toBeInTheDocument();
+    expect(screen.getByText("Timed writing in company.")).toBeInTheDocument();
+    expect(screen.getByText("Pop-Up Prickle (Zoom)")).toBeInTheDocument();
+  });
+
+  describe("display names", () => {
+    const named = { ...prickle, host: { id: "h1", name: "Laura May Best", displayName: "Bestie" } };
+    const bestAttendee = { ...record, members: { id: "m1", name: "Laura May Best", display_name: "Bestie" } };
+
+    it("shows the host and attendees by display name to members", () => {
+      renderDetails({ prickle: named, attendanceRecords: [bestAttendee, { ...record, id: "a2", members: { id: "m2", name: "Ann Example", display_name: null } }] });
+      expect(screen.getAllByRole("link", { name: "Bestie" })).toHaveLength(2);
+      expect(screen.queryByText("Laura May Best")).not.toBeInTheDocument();
+    });
+
+    it("shows admins the display name too, with the legal name beside the email", () => {
+      renderDetails({ prickle: named, attendanceRecords: [{ ...bestAttendee, members: { ...bestAttendee.members, email: "laura@example.test" } }], memberBasePath: "/admin/members", showMemberEmails: true });
+      expect(screen.getAllByRole("link", { name: "Bestie" })).toHaveLength(2);
+      expect(screen.getByText("Laura May Best · laura@example.test")).toBeInTheDocument();
+    });
+
+    it("sorts attendees by the name shown", async () => {
+      const { default: userEvent } = await import("@testing-library/user-event");
+      // Legal names sort Zed first, display names sort Amy first.
+      renderDetails({
+        attendanceRecords: [
+          { ...record, id: "a1", members: { id: "m1", name: "Abe Example", display_name: "Zed" } },
+          { ...record, id: "a2", members: { id: "m2", name: "Zoe Example", display_name: "Amy" } },
+        ],
+      });
+      await userEvent.click(screen.getByRole("columnheader", { name: /member/i }));
+      const links = screen.getAllByRole("link").filter((l) => ["Amy", "Zed"].includes(l.textContent ?? ""));
+      expect(links.map((l) => l.textContent)).toEqual(["Amy", "Zed"]);
+    });
   });
 });

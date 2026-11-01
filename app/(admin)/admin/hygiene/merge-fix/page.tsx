@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -22,30 +23,16 @@ export default async function MergeFixPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { data: dismissedRows } = await supabase
-    .from("dismissed_duplicate_groups")
-    .select("group_key");
-  const dismissedKeys = new Set((dismissedRows ?? []).map((r) => r.group_key));
+  const dismissedKeys = await createRepos(supabase).adminWork.dismissedGroupKeys();
 
-  // Paginate in case member count grows
-  const allMembers: { id: string; name: string; email: string; status: string; stripe_customer_id: string | null }[] = [];
-  const BATCH = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("members")
-      .select("id, name, email, status, stripe_customer_id")
-      .order("name")
-      .range(offset, offset + BATCH - 1);
-    if (batch && batch.length > 0) {
-      allMembers.push(...batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allMembers = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
+    id: m.id,
+    name: m.name,
+    displayName: m.displayName,
+    email: m.email,
+    status: m.status,
+    stripe_customer_id: m.stripeCustomerId,
+  }));
 
   const duplicateGroups = detectDuplicates(allMembers);
 
@@ -58,14 +45,11 @@ export default async function MergeFixPage() {
       .filter((id): id is string => !!id)
   ));
 
-  const { data: activeSubs } = stripeIdsInGroups.length > 0
-    ? await supabase.schema("bronze").from("stripe_subscriptions")
-        .select("stripe_customer_id")
-        .in("stripe_customer_id", stripeIdsInGroups)
-        .in("status", ["active", "trialing", "past_due"])
-    : { data: [] as { stripe_customer_id: string }[] };
+  const activeSubs = stripeIdsInGroups.length > 0
+    ? await createRepos(supabase).billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"], stripeIdsInGroups)
+    : [];
 
-  const activeStripeCustomers = new Set((activeSubs ?? []).map(s => s.stripe_customer_id));
+  const activeStripeCustomers = new Set(activeSubs.map(s => s.stripe_customer_id));
 
   const enrichedGroups: EnrichedGroup[] = duplicateGroups.map(group => ({
     reason: group.reason,
@@ -75,6 +59,7 @@ export default async function MergeFixPage() {
         const raw = memberById.get(m.id);
         return {
           ...m,
+          displayName: raw?.displayName ?? null,
           stripe_customer_id: raw?.stripe_customer_id ?? null,
           stripe_active: raw?.stripe_customer_id ? activeStripeCustomers.has(raw.stripe_customer_id) : false,
         };
@@ -95,7 +80,7 @@ export default async function MergeFixPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Merge & Fix</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Potential duplicate members detected by matching name or email
               </p>
             </div>

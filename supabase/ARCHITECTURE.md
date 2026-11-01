@@ -451,7 +451,7 @@ Tests verify:
 - Fuzzy matching thresholds
 - Match confidence scoring
 
-Run tests: `npm test`
+Run tests: `pnpm test`
 
 ## Evolution: From Batch to Streaming/Real-time
 

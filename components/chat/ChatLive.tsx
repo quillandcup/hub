@@ -3,15 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { SupabaseChatRepository } from "@/lib/data/chat";
 import { authenticateRealtime } from "@/lib/chat/live";
-import { scrollParent } from "@/lib/chat/scroll";
+import { scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadLatestChat, loadThreadChat, markChatRead } from "@/app/(member)/chat/actions";
 import { emitListEvent, onPoke } from "@/lib/chat/list-events";
+import { firstUnreadMessageId } from "@/lib/chat/unread";
 
 /** Changes right behind the first one in a burst (a message plus its reactions) fold into one more fetch. */
 const REFRESH_DELAY_MS = 300;
 /** Within this many pixels of the bottom counts as "following the conversation". */
 const NEAR_BOTTOM_PX = 150;
+/**
+ * A page rendered longer ago than this when it mounts came from the router's client cache (revisited
+ * within `staleTimes`), so it is brought up to date at once. Generous enough that clock skew between
+ * server and browser does not trigger it on a fresh render.
+ */
+const CACHED_PAGE_MS = 5000;
 /** Most messages with a changed reaction one fetch asks about. */
 const MAX_CHANGED_IDS = 50;
 
@@ -54,6 +62,7 @@ export default function ChatLive({
   threadRootId,
   markRead = false,
   latestAt = null,
+  renderedAt = null,
 }: {
   channelId: string;
   view: ChatLiveView;
@@ -63,6 +72,8 @@ export default function ChatLive({
   markRead?: boolean;
   /** When the newest message on the page was sent: how far the reader has seen. */
   latestAt?: string | null;
+  /** When the server rendered this page (ISO). Older than a moment on mount means it was served from the client cache. */
+  renderedAt?: string | null;
 }) {
   const router = useRouter();
   const anchor = useRef<HTMLSpanElement>(null);
@@ -94,19 +105,24 @@ export default function ChatLive({
 
   // Bring the conversation up to date: just the newest messages (or the open thread), merged into
   // the list in place; or the whole page for older pages and when that small fetch can't be done.
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (fromCache = false) => {
     if (view === "older") return router.refresh();
     const changed = [...changedIds.current].slice(0, MAX_CHANGED_IDS);
     changedIds.current.clear();
     const result =
       view === "thread"
         ? await loadThreadChat(channelId, threadRootId ?? "").catch(() => null)
-        : await loadLatestChat(channelId, changed).catch(() => null);
+        : await (fromCache ? loadLatestChat(channelId, changed, true) : loadLatestChat(channelId, changed)).catch(() => null);
     if (!result) return router.refresh();
     if (view === "thread") {
       emitListEvent({ kind: "merge-thread", channelId, threadRootId: threadRootId ?? "", views: result.views, ctx: result.ctx });
     } else {
       emitListEvent({ kind: "merge", channelId, views: result.views, ctx: result.ctx });
+      // The unread line the cached page drew is where the marker was then; the reader has moved it since.
+      const readMarker = (result as { readMarker?: string | null }).readMarker;
+      if (readMarker !== undefined) {
+        emitListEvent({ kind: "unread", channelId, firstUnreadId: firstUnreadMessageId(result.views, readMarker) ?? null });
+      }
     }
     // The newest message is the newest by time, not the last one in the list: a fetch can carry older
     // messages that changed.
@@ -142,6 +158,15 @@ export default function ChatLive({
     };
     timer.current = setTimeout(cooldown, REFRESH_DELAY_MS);
   }, [reload]);
+
+  // A conversation opened from the client cache shows what it had when it was cached: catch up once,
+  // merged in place (the realtime subscription only reports changes from now on).
+  useEffect(() => {
+    if (view === "older" || !renderedAt) return;
+    if (Date.now() - Date.parse(renderedAt) > CACHED_PAGE_MS) void reload(true);
+    // Only on mount: later renders of the same page must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Someone changed something here (a reaction toggled, a message sent): catch up now, without the debounce.
   useEffect(() => onPoke(channelId, () => void reload()), [channelId, reload]);
@@ -180,10 +205,8 @@ export default function ChatLive({
     // offline are picked up by the refresh either way.
     const catchUp = async () => {
       if (view !== "older") {
-        let query = supabase.from("chat_messages").select("id").eq("channel_id", channelId).order("created_at", { ascending: false }).limit(1);
-        query = view === "thread" ? query.eq("thread_root_id", threadRootId ?? "") : query.is("thread_root_id", null);
-        const { data } = await query;
-        const newest = data?.[0]?.id;
+        // A failed read just means nothing new is announced; the refresh below catches up either way.
+        const newest = await new SupabaseChatRepository(supabase).newestMessageId(channelId, view === "thread" ? (threadRootId ?? "") : null).catch(() => null);
         if (cancelled) return;
         if (newest && newest !== latest.current) {
           if (nearBottom()) followNewest.current = true;
@@ -261,6 +284,8 @@ export default function ChatLive({
   // that is followed instead of waiting behind the pill).
   useEffect(() => {
     if (view !== "latest") return;
+    // A link to one message (#m-<id>) wins over where the reader left off.
+    if (scrollToHashMessage(anchor.current)) return;
     const scroller = scrollParent(anchor.current);
     const line = scroller.querySelector("#unread-divider");
     if (line) scroller.scrollTop += line.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;

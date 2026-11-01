@@ -25,7 +25,7 @@ describe("KajabiCoursesResult", () => {
           imported: imported(),
           unpublished: [],
           processed: [
-            { slug: "the-ready-writer", created: false, modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, access: { members: 40, removed: 2 } },
+            { slug: "the-ready-writer", modules: 3, lessons: 12, comingSoon: 2, hiddenLessons: 1, deleted: { modules: 0, lessons: 1 }, access: { members: 40, removed: 2 } },
           ],
         }}
       />
@@ -76,7 +76,7 @@ describe("KajabiCoursesResult", () => {
       await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Published the-ready-writer: 12 lessons (2 coming soon), access for 40 members"));
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/process/courses",
-        expect.objectContaining({ body: JSON.stringify({ course: "the-ready-writer", accessDuration: "1 year" }) })
+        expect.objectContaining({ body: JSON.stringify({ course: "the-ready-writer", publish: true, accessDuration: "1 year" }) })
       );
       expect(screen.queryByText("Not published in the Hub yet:")).not.toBeInTheDocument();
     });
@@ -89,7 +89,7 @@ describe("KajabiCoursesResult", () => {
       await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "the-ready-writer", accessDuration: "1 year", launchOn: "2026-11-02" });
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "the-ready-writer", publish: true, accessDuration: "1 year", launchOn: "2026-11-02" });
     });
 
     it("sends null for lifetime access", async () => {
@@ -99,7 +99,7 @@ describe("KajabiCoursesResult", () => {
       await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
       await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Published the-ready-writer: published"));
-      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "the-ready-writer", accessDuration: null });
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ course: "the-ready-writer", publish: true, accessDuration: null });
     });
 
     it("shows the server's reason and keeps the course listed when publishing fails", async () => {

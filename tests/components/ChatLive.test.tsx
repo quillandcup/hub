@@ -24,8 +24,11 @@ const query: Record<string, unknown> = {
   is: () => query,
   order: () => query,
   limit: () => query,
-  then: (resolve: (r: { data: { id: string }[] }) => void) => resolve({ data: [{ id: newestId }] }),
+  then: (resolve: (r: { data: { id: string }[] | null; error?: { message: string } }) => void) =>
+    resolve(newestError ? { data: null, error: { message: newestError } } : { data: [{ id: newestId }] }),
 };
+/** Set to make the "newest message" lookup fail. */
+let newestError: string | null = null;
 const calls: string[] = [];
 const setAuth = vi.fn(async () => {
   calls.push("setAuth");
@@ -57,7 +60,7 @@ import type { ChatMessageView } from "@/lib/chat/load";
 import { markChatRead } from "@/app/(member)/chat/actions";
 
 /** Like the member layout: the page scrolls inside <main>, not the window. */
-async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null } = {}) {
+async function mount(view: ChatLiveView = "latest", extra: { threadRootId?: string; markRead?: boolean; latestAt?: string | null; renderedAt?: string | null } = {}) {
   const result = render(
     <main style={{ overflowY: "auto" }}>
       <ChatLive channelId="c1" view={view} latestId="m2" {...extra} />
@@ -89,6 +92,32 @@ describe("ChatLive", () => {
     scrolledTo("bottom");
   });
   afterEach(() => vi.useRealTimers());
+
+  it("catches up once on mount when the page came from the client cache, not when it was just rendered", async () => {
+    const now = Date.now();
+    await mount("latest", { renderedAt: new Date(now - 1000).toISOString() });
+    expect(loadLatestChat).not.toHaveBeenCalled();
+    cleanup();
+    const events: ListEvent[] = [];
+    const stop = subscribeListEvents((e) => events.push(e));
+    loadLatestChat.mockResolvedValueOnce({
+      views: [{ id: "m1", createdAt: "2026-10-03T10:00:00Z", contentState: "ok", mine: false }, { id: "m2", createdAt: "2026-10-03T12:00:00Z", contentState: "ok", mine: false }],
+      ctx: {},
+      olderBefore: null,
+      readMarker: "2026-10-03T11:00:00Z",
+    });
+    await mount("latest", { renderedAt: new Date(now - 20_000).toISOString() });
+    expect(loadLatestChat).toHaveBeenCalledWith("c1", [], true);
+    expect(loadLatestChat).toHaveBeenCalledTimes(1);
+    expect(events.find((e) => e.kind === "unread")).toEqual({ kind: "unread", channelId: "c1", firstUnreadId: "m2" });
+    stop();
+    cleanup();
+    loadLatestChat.mockClear();
+    refresh.mockClear();
+    await mount("older", { renderedAt: new Date(now - 20_000).toISOString() });
+    expect(loadLatestChat).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
 
   it("listens to this channel's messages and to reactions, but not message content", async () => {
     await mount();
@@ -289,6 +318,23 @@ describe("ChatLive", () => {
     await act(async () => onStatus("SUBSCRIBED"));
     await act(async () => onStatus("SUBSCRIBED"));
     expect(screen.getByRole("button", { name: /New messages/ })).toBeTruthy();
+  });
+
+  it("announces nothing, and still refreshes, when the newest-message lookup after a reconnect fails", async () => {
+    scrolledTo("top");
+    newestId = "m3";
+    newestError = "boom";
+    try {
+      await mount("thread", { threadRootId: "m1" });
+      await act(async () => onStatus("SUBSCRIBED"));
+      await act(async () => onStatus("SUBSCRIBED"));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(screen.queryByText(/New messages/)).toBeNull();
+      expect(refresh).toHaveBeenCalledTimes(1);
+    } finally {
+      newestError = null;
+      loadThreadChat.mockClear();
+    }
   });
 
   describe("keeping the newest messages current without a page refresh", () => {

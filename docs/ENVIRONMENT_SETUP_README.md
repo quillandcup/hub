@@ -19,7 +19,7 @@ This directory contains all the documentation you need to set up custom domains 
 
 ### Helper Resources
 
-- **[ENV_MANAGEMENT.md](./ENV_MANAGEMENT.md)** - Which env file feeds which environment, and `npm run env:sync`
+- **[ENV_MANAGEMENT.md](./ENV_MANAGEMENT.md)** - Which env file feeds which environment, and `pnpm env:sync`
 
 ## What You'll Set Up
 
@@ -80,7 +80,7 @@ git clone <repository-url>
 cd hub
 
 # Install dependencies
-npm install
+pnpm install
 
 # Install Vercel CLI
 npm install -g vercel
@@ -92,7 +92,7 @@ vercel link --yes --project hub
 vercel env pull .env.local --environment=development
 
 # Start development
-npm run dev
+pnpm dev
 ```
 
 See [QUICK_START.md](./QUICK_START.md) for more details.

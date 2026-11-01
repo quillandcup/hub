@@ -1,6 +1,6 @@
 -- pgTAP test for public.get_profile_writing (20260928000400_writing_goal_details_and_profile.sql).
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job). It runs
 -- as supabase_admin, since tests here SET ROLE to roles postgres can't. finish(true) raises on
 -- any "not ok", so a failed assertion fails the run.
 BEGIN;
@@ -11,26 +11,26 @@ SELECT plan(11);
 
 -- Writer (whose profile is viewed) and a regular member viewing it. Fixed ids nothing else uses.
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
-  ('00000000-0000-4000-a000-00000000b901', 'Profile Writer', 'profile-writer@example.test', now(), 'active'),
-  ('00000000-0000-4000-a000-00000000b902', 'Profile Viewer', 'profile-viewer@example.test', now(), 'active');
+  ('mbr_AAAAAAAAb9A1', 'Profile Writer', 'profile-writer@example.test', now(), 'active'),
+  ('mbr_AAAAAAAAb9A2', 'Profile Viewer', 'profile-viewer@example.test', now(), 'active');
 
 INSERT INTO public.writing_projects (id, member_id, title, show_on_profile) VALUES
-  ('00000000-0000-4000-a000-00000000b911', '00000000-0000-4000-a000-00000000b901', 'Shown project', true),
-  ('00000000-0000-4000-a000-00000000b912', '00000000-0000-4000-a000-00000000b901', 'Hidden project with shown goal', false),
-  ('00000000-0000-4000-a000-00000000b913', '00000000-0000-4000-a000-00000000b901', 'Fully private', false);
+  ('prj_AAAAAAAAb911', 'mbr_AAAAAAAAb9A1', 'Shown project', true),
+  ('prj_AAAAAAAAb912', 'mbr_AAAAAAAAb9A1', 'Hidden project with shown goal', false),
+  ('prj_AAAAAAAAb913', 'mbr_AAAAAAAAb9A1', 'Fully private', false);
 
 INSERT INTO public.writing_progress_entries (member_id, project_id, entry_date, measure, mode, amount, note, tags) VALUES
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b911', '2026-01-02', 'words', 'delta', 1000, 'secret note', '{private}'),
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b912', '2026-01-03', 'chapters', 'delta', 2, NULL, '{}'),
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b913', '2026-01-04', 'words', 'delta', 500, NULL, '{}');
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb911', '2026-01-02', 'words', 'delta', 1000, 'secret note', '{private}'),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', '2026-01-03', 'chapters', 'delta', 2, NULL, '{}'),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', '2026-01-04', 'words', 'delta', 500, NULL, '{}');
 
 INSERT INTO public.writing_project_starting_balances (member_id, project_id, measure, amount) VALUES
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b911', 'words', 24657),
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b913', 'words', 999);
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb911', 'words', 24657),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', 'words', 999);
 
 INSERT INTO public.writing_goals (member_id, project_id, goal_type, measure, target_amount, title, description, show_on_profile) VALUES
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b912', 'target', 'chapters', 18, 'Finish Draft 3', 'For beta readers', true),
-  ('00000000-0000-4000-a000-00000000b901', '00000000-0000-4000-a000-00000000b913', 'target', 'words', 1000, 'Private goal', NULL, false);
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb912', 'target', 'chapters', 18, 'Finish Draft 3', 'For beta readers', true),
+  ('mbr_AAAAAAAAb9A1', 'prj_AAAAAAAAb913', 'target', 'words', 1000, 'Private goal', NULL, false);
 
 -- Call it as a signed-in regular member, the way PostgREST does.
 CREATE TEMP TABLE profile_result(label text, result jsonb) ON COMMIT DROP;
@@ -40,13 +40,13 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000b999", "email": "profile-viewer@example.test", "role": "authenticated"}', true);
 INSERT INTO profile_result
-SELECT 'viewer', public.get_profile_writing('00000000-0000-4000-a000-00000000b901');
+SELECT 'viewer', public.get_profile_writing('mbr_AAAAAAAAb9A1');
 -- Plain table reads as the same viewer stay owner-only.
 INSERT INTO profile_result
-SELECT 'direct', to_jsonb(count(*)) FROM public.writing_projects WHERE member_id = '00000000-0000-4000-a000-00000000b901';
+SELECT 'direct', to_jsonb(count(*)) FROM public.writing_projects WHERE member_id = 'mbr_AAAAAAAAb9A1';
 SELECT set_config('request.jwt.claims', '{"role": "authenticated"}', true);
 INSERT INTO profile_result
-SELECT 'no_user', public.get_profile_writing('00000000-0000-4000-a000-00000000b901');
+SELECT 'no_user', public.get_profile_writing('mbr_AAAAAAAAb9A1');
 RESET ROLE;
 
 SELECT is(
@@ -80,7 +80,7 @@ SELECT is(
   (SELECT result FROM profile_result WHERE label = 'no_user'),
   NULL, 'no signed-in user → NULL');
 SELECT ok(
-  NOT has_function_privilege('anon', 'public.get_profile_writing(uuid)', 'EXECUTE'),
+  NOT has_function_privilege('anon', 'public.get_profile_writing(text)', 'EXECUTE'),
   'anon can''t call it');
 
 SELECT * FROM finish(true);

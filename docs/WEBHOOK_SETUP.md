@@ -47,27 +47,12 @@ Example endpoints:
 
 ### Setup
 
-1. **Enable Google Calendar API** in Google Cloud Console
-2. **Create a watch channel** using the Google Calendar API:
+Nothing to do by hand. The nightly `/api/reconcile/calendar` cron (production only) opens the push channel with the service account, using `GOOGLE_CALENDAR_WEBHOOK_TOKEN` as the channel token and `<APP_URL>/api/webhooks/calendar` as the address, and renews it when under 3 days remain (`lib/google-calendar/watch.ts`). The channel is requested for 7 days; the real expiry Google returns is kept in `calendar_watch_channels` (service role only), which is how the old channel is stopped when it is replaced (Google has no call that lists channels). The new channel is opened before the old one is stopped, so no edit falls in a gap.
 
-```bash
-curl -X POST \
-  'https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events/watch' \
-  -H 'Authorization: Bearer {access_token}' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "id": "hedgie-hub",
-    "type": "web_hook",
-    "address": "https://hub.quillandcup.com/api/webhooks/calendar",
-    "token": "{your_secret_token}",
-    "expiration": "{unix_timestamp_ms}"
-  }'
-```
-
-3. **Set webhook token** in environment variables:
-   ```bash
-   GOOGLE_CALENDAR_WEBHOOK_TOKEN=your_secret_token
-   ```
+- The service account needs access to the calendar (the same as the import).
+- If opening the channel fails, the reconcile still syncs but returns 500 and skips its Checkly heartbeat, so it alerts. The nightly sync stays the guaranteed path.
+- To check it: `select channel_id, expires_at, stopped_at from calendar_watch_channels order by created_at desc` (prod, read-only), and the `Calendar webhook received` lines in the Vercel logs.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` needs a new channel: mark the live row `stopped_at` (or wait until it is under 3 days from expiry) and the next reconcile opens one with the new token.
 
 ### Testing
 
@@ -183,14 +168,14 @@ See: [Slack Events API](https://api.slack.com/apis/connections/events-api)
 
 ## Local Testing with a tunnel
 
-Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `npm run tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
+Vendors send webhooks from their own servers, so `localhost:3000` means nothing to them. `pnpm tunnel` opens a public https address that forwards to your dev server, one command for every vendor (Mux, Zoom, Google Calendar, Slack):
 
 ```bash
 # Terminal 1: Start dev server
-npm run dev
+pnpm dev
 
-# Terminal 2: Start the tunnel (optionally: npm run tunnel -- 3107 for another port)
-npm run tunnel
+# Terminal 2: Start the tunnel (optionally: pnpm tunnel 3107 for another port)
+pnpm tunnel
 ```
 
 Paste the `https://...` address it prints, plus the route, into the vendor's webhook settings, for example `https://<address>/api/webhooks/calendar`.
@@ -210,7 +195,7 @@ Paste the `https://...` address it prints, plus the route, into the vendor's web
 
 Every webhook route verifies its caller itself, whether or not a tunnel or proxy sits in front:
 
-- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The token is set when the watch channel is created, so a channel created without one is rejected once the variable is set: re-create the channel with `"token": "<the value>"`. 
+- **Google Calendar:** `X-Goog-Channel-Token` must equal `GOOGLE_CALENDAR_WEBHOOK_TOKEN` (constant-time compare). The reconcile cron sets it when it opens the channel, so a channel opened with an older token is rejected once the variable changes: see Setup above.
 - **Slack:** HMAC-SHA256 over `v0:{timestamp}:{body}` with `SLACK_SIGNING_SECRET`, within a 5-minute window.
 - **Zoom:** HMAC-SHA256 in `X-Zm-Signature` with `ZOOM_WEBHOOK_SECRET_TOKEN`.
 
@@ -313,13 +298,14 @@ External System → Webhook Handler → Bronze UPSERT → Silver Processing
 
 1. User updates calendar event in Google Calendar
 2. Google sends webhook to `/api/webhooks/calendar`
-3. Handler triggers calendar sync (fire-and-forget)
-4. Handler returns 200 OK immediately
-5. Sync fetches latest calendar data from Google API
-6. Sync UPSERTS to `bronze.calendar_events` (idempotent)
-7. Sync triggers `/api/process/calendar` for affected date range
-8. Processing DELETE+INSERT to `prickles` (Silver layer)
-9. Dashboard shows updated data
+3. Handler returns 200 OK immediately and runs `syncCalendarChanges` (`lib/google-calendar/incremental-sync.ts`) in `after()`
+4. The sync claims the calendar (`calendar_sync_state`); a notification that arrives while one is running just notes "run once more", so a burst of edits is one sync plus one rerun
+5. It asks Google only for events changed since the last sync (`events.list` with `updatedMin` and `showDeleted`, inside the 90-days-back / 90-forward window the nightly reconcile keeps), not the whole window; and, separately, for events *cancelled* since then with no date window at all, because a deletion can be of any event (a past prickle taken off the calendar), and the windowed listing never returns those
+6. Changed events are UPSERTed to `bronze.calendar_events` by Google id (Hub ids and links stay); cancelled ones, and ones that became all-day, are deleted
+7. Calendar and attendance are reprocessed for just the dates those events touch (old and new, a day of padding), not the whole window
+8. The watermark (`calendar_sync_state.synced_through`) moves to when the sync began; a failure leaves it, so the next notification retries the same span
+
+With no watermark yet, or one older than two days, the sync falls back to the full import (`triggerCalendarSync`, 90/90), which then sets it. The nightly reconcile does a full sync and sets the watermark too; it stays the guaranteed path and the only one that notices an event moved out of the watched window. It also sweeps deletions outside the window (`sweepCancelledEvents`, the last 8 days by default): to clean up older ones, open `/api/reconcile/calendar?cancelledSinceDays=30` as an admin.
 
 ## Next Steps
 

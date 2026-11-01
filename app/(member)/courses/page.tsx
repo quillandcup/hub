@@ -4,7 +4,7 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadCourseList } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { formatCourseDate } from "@/lib/courses/format";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 
 export const metadata: Metadata = { title: "Courses" };
 
@@ -15,7 +15,7 @@ export default async function CoursesPage() {
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
       <h1 className="mb-2 text-3xl font-bold">Courses</h1>
-      <p className="mb-8 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-8 text-sm text-slate-600 dark:text-slate-400">
         Your courses, with where you are in each one.
       </p>
 
@@ -24,7 +24,8 @@ export default async function CoursesPage() {
           You don&apos;t have any courses yet. Once you join one, it shows up here.
         </div>
       ) : (
-        <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="@container">
+          <ul className="grid gap-6 @pair:grid-cols-2 @columns:grid-cols-3">
           {items.map(({ course, access, progress }) => {
             const ended = access.kind === "ended";
             const upcoming = access.kind === "upcoming";
@@ -32,7 +33,7 @@ export default async function CoursesPage() {
             const href = ended || !progress.continueLessonId ? courseHref : `${courseHref}/lessons/${progress.continueLessonId}`;
             const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
             const started = progress.completed > 0;
-            const thumbnail = safeUrl(course.thumbnail_url);
+            const thumbnail = courseImageUrl(course.thumbnail_url);
             return (
               <li
                 key={course.id}
@@ -47,6 +48,9 @@ export default async function CoursesPage() {
                     <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-plum-100 to-plum-50 px-6 text-center font-display text-2xl font-semibold text-plum-800 dark:from-slate-800 dark:to-slate-900 dark:text-plum-300">
                       {course.title}
                     </span>
+                  )}
+                  {course.is_draft && (
+                    <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">Draft: only staff see this</span>
                   )}
                   {ended && (
                     <span className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-700 shadow-sm">
@@ -87,7 +91,7 @@ export default async function CoursesPage() {
                         >
                           <div className="h-full bg-plum-600" style={{ width: `${percent}%` }} />
                         </div>
-                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                           {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
                         </p>
                         <Link data-track="courses-start-course"
@@ -104,6 +108,7 @@ export default async function CoursesPage() {
             );
           })}
         </ul>
+        </div>
       )}
     </div>
   );

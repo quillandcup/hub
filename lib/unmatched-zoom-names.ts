@@ -9,7 +9,16 @@ export interface UnmatchedZoomName {
 interface ZoomAttendeeRecord {
   name: string;
   email: string | null;
-  meeting_uuid: string;
+  meeting_uuid: string | null;
+  join_time?: string;
+  leave_time?: string;
+}
+
+/** A Zoom name ignored for one prickle only: its appearances inside that prickle's window don't count. */
+export interface IgnoredAppearance {
+  zoomName: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface StaffMember {
@@ -27,15 +36,29 @@ export function computeUnmatchedZoomNames(
   members: Member[],
   aliases: MemberAlias[],
   ignoredNames: string[],
-  staffMembers: StaffMember[] = []
+  staffMembers: StaffMember[] = [],
+  ignoredAppearances: IgnoredAppearance[] = []
 ): UnmatchedZoomName[] {
   const ignoredSet = new Set(ignoredNames);
+  const windowsByName = new Map<string, { start: number; end: number }[]>();
+  for (const a of ignoredAppearances) {
+    const list = windowsByName.get(a.zoomName) ?? [];
+    list.push({ start: Date.parse(a.startTime), end: Date.parse(a.endTime) });
+    windowsByName.set(a.zoomName, list);
+  }
+  const ignoredHere = (z: ZoomAttendeeRecord) => {
+    if (!z.join_time || !z.leave_time) return false;
+    const join = Date.parse(z.join_time);
+    const leave = Date.parse(z.leave_time);
+    return (windowsByName.get(z.name) ?? []).some((w) => join < w.end && leave > w.start);
+  };
   const staffEmails = new Set(staffMembers.map((s) => s.email.toLowerCase()));
   const staffNames = new Set(staffMembers.map((s) => s.name.toLowerCase()));
 
   // Count unique meetings (not total records) for each Zoom name
   const zoomNameCounts = new Map<string, { emails: Set<string>; meetings: Set<string> }>();
   for (const z of zoomAttendees) {
+    if (ignoredHere(z)) continue;
     const existing = zoomNameCounts.get(z.name);
     if (existing) {
       if (z.meeting_uuid) existing.meetings.add(z.meeting_uuid);

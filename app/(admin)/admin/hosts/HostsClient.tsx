@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import { TabBar } from "@/components/Tabs";
@@ -21,6 +22,7 @@ import type { SortValue } from "@/lib/hooks/useTableSort";
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
 }
 
@@ -118,7 +120,7 @@ function scheduleLabel(s: Schedule): string {
 function scheduleSortValue(s: Schedule, column: ScheduleSortColumn): SortValue {
   switch (column) {
     case "host":
-      return s.member.name.toLowerCase();
+      return getMemberDisplayName(s.member).toLowerCase();
     case "schedule":
       return scheduleLabel(s).toLowerCase();
     case "status":
@@ -646,15 +648,18 @@ export default function HostsClient({ prickleTypes }: { prickleTypes: PrickleTyp
                         href={`/admin/members/${s.member.id}`}
                         className="font-medium text-plum-600 hover:underline dark:text-plum-400"
                       >
-                        {s.member.name}
+                        {getMemberDisplayName(s.member)}
                       </Link>
                     </div>
+                    {getMemberDisplayName(s.member) !== s.member.name && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{s.member.name}</div>
+                    )}
                     <HostEligibilityBadge eligibility={s.host_eligibility} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-sm dark:text-slate-200">{scheduleLabel(s)}</div>
                     {s.carried_forward_from && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500">carried forward from last month</div>
+                      <div className="text-xs text-gray-400 dark:text-slate-400">carried forward from last month</div>
                     )}
                     {s.notes && <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{s.notes}</div>}
                   </td>

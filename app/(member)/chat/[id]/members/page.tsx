@@ -2,25 +2,52 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireChat } from "@/lib/chat/access";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { loadChannelForMember, loadChannelMembers } from "@/lib/chat/load";
-import MemberAvatar from "@/app/(member)/members/[id]/MemberAvatar";
+import { membershipAbilities } from "@/lib/chat/membership-abilities";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import MembersManager from "@/components/chat/MembersManager";
 
-export const metadata: Metadata = {
-  title: "Members · Chat",
-};
-
-/** Who is in a conversation, each linking to their profile. Same scoping as the conversation itself. */
-export default async function ChatMembersPage({ params }: { params: Promise<{ id: string }> }) {
-  const { identity } = await requireChat();
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  if (!isUuid(id)) notFound();
+  if (!isId(id, "chn")) return { title: "Members · Chat" };
+  const { identity } = await requireChat();
+  const channel = await loadChannelForMember(await createClient(), id, identity.memberId, identity.isSudo);
+  return { title: channel ? `Members · ${channel.label} · Chat` : "Members · Chat" };
+}
+
+/**
+ * Who is in a conversation, each linking to their profile, with the controls for changing it (join or
+ * leave, add people, and staff removing someone) when the member has them. Same scoping as the
+ * conversation itself.
+ */
+export default async function ChatMembersPage({ params }: { params: Promise<{ id: string }> }) {
+  const { user, identity } = await requireChat();
+  const { id } = await params;
+  if (!isId(id, "chn")) notFound();
 
   const supabase = await createClient();
   const channel = await loadChannelForMember(supabase, id, identity.memberId, identity.isSudo);
   if (!channel) notFound();
-  const people = await loadChannelMembers(supabase, channel.id);
+  const [people, features, profile, bridge] = await Promise.all([
+    loadChannelMembers(supabase, channel.id),
+    getUserFeaturePreviews(user.id),
+    createRepos(supabase).profiles.isAdmin(user.id),
+    createRepos(supabase).chat.bridgeState(channel.id),
+  ]);
+  const abilities = membershipAbilities({
+    kind: channel.kind,
+    visibility: channel.visibility,
+    archived: channel.archived,
+    joined: channel.joined,
+    postingOn: await effectiveMemberHasFeature("chat_posting", identity, features),
+    isSudo: identity.isSudo,
+    isStaff: profile,
+    bridge,
+    slackChannelId: channel.slackChannelId,
+  });
 
   return (
     <div className="p-6 max-w-3xl">
@@ -29,26 +56,17 @@ export default async function ChatMembersPage({ params }: { params: Promise<{ id
           ← Back to {channel.label}
         </Link>
         <h1 className="text-2xl font-bold mt-1">
-          {channel.label} members <span className="text-base font-normal text-slate-500">({people.length})</span>
+          {channel.label} members <span className="text-base font-normal text-slate-600 dark:text-slate-400">({people.length})</span>
         </h1>
       </header>
-      {people.length === 0 ? (
-        <p className="text-sm text-slate-500">No members to show.</p>
-      ) : (
-        <ul className="grid gap-1 sm:grid-cols-2">
-          {people.map((p) => (
-            <li key={p.memberId}>
-              <Link data-track="chat-members-open-member"
-                href={`/members/${p.memberId}`}
-                className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <MemberAvatar name={p.name} photoUrl={p.photoUrl} size={32} />
-                <span className="text-sm font-medium">{p.name}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <MembersManager
+        channelId={channel.id}
+        channelLabel={channel.label}
+        isPrivate={channel.visibility === "private"}
+        people={people}
+        viewerId={identity.memberId}
+        abilities={abilities}
+      />
     </div>
   );
 }

@@ -94,7 +94,7 @@ describe("searchSuggestions", () => {
       { priority: 1, prickle: { id: "p1", typeName: "Morning Writing", startTime: soon } },
       { priority: 1, prickle: { id: "p2", typeName: "Answered", startTime: soon } },
     ]);
-    getMyCheckins.mockResolvedValue({ p2: { feelingsBefore: ["calm"], need: "momentum", sessionRating: null, feelingsAfter: [] } });
+    getMyCheckins.mockResolvedValue({ p2: { pleasantBefore: 3, energyBefore: 3, emotionBefore: null, need: "momentum", intentionMet: null, pleasantAfter: null, energyAfter: null, emotionAfter: null } });
     getUnloggedRecentPrickles.mockResolvedValue([{ id: "p9", label: "Sunday Sprint", startTime: "x", attended: true }]);
     getSearcher.mockResolvedValue(searcher());
     const { needsAttention } = await searchSuggestions();
@@ -157,9 +157,9 @@ describe("suggestOperatorValues", () => {
 });
 
 describe("markSuggestionsRead", () => {
-  const A = "00000000-0000-4000-a000-00000000000a";
-  const B = "00000000-0000-4000-a000-00000000000b";
-  const C = "00000000-0000-4000-a000-00000000000c";
+  const A = "prkl_AAAAAAAAAAAa"; // a prickle
+  const B = "prkl_AAAAAAAAAAAb";
+  const C = "chn_AAAAAAAAAAAc";
   const D = "00000000-0000-4000-a000-00000000000d";
 
   it("dismisses check-ins and check-outs, reads notifications, and ignores chats and junk", async () => {
@@ -167,7 +167,7 @@ describe("markSuggestionsRead", () => {
     const note: { kind: string; ref: string } | null = null;
     const q = (table: string, op: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ["eq", "is"]) chain[m] = () => chain;
+      for (const m of ["eq", "in", "is"]) chain[m] = () => chain;
       chain.then = (resolve: (v: unknown) => unknown) => (writes.push([table, op]), Promise.resolve({ error: null }).then(resolve));
       return chain;
     };

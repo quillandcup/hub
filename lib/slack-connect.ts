@@ -2,8 +2,10 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRepos } from "@/lib/data/repos";
 import { APP_URL } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { withRefreshLease } from "@/lib/slack-token-refresh";
 
 /**
  * Slack connect (docs/SLACK_BRIDGED_CHAT.md, "Hub -> Slack"): a member connects their own Slack
@@ -27,6 +29,8 @@ export const SLACK_USER_SCOPES = [
   "channels:write",
   "groups:write",
   "mpim:write",
+  // Sending files from the Hub as the member (lib/chat/slack-upload.ts); without it the bot uploads.
+  "files:write",
 ];
 
 /** Whether a stored connection predates read sync and needs to be reconnected to share read state. */
@@ -108,33 +112,48 @@ export async function exchangeSlackCode(code: string): Promise<SlackGrant> {
   };
 }
 
-/**
- * Whether this Slack user is the member: the Slack user the Hub already matched to them, or the one
- * their account signs in from Slack as. A connection to anyone else's Slack account is refused, so
- * what the Hub posts "as" a member is always that member.
- */
-export async function slackUserIsMember(service: SupabaseClient, slackUserId: string, memberId: string, authUserId: string): Promise<boolean> {
-  const [{ data: matched }, { data: identity }] = await Promise.all([
-    service.from("chat_slack_authors").select("member_id").eq("slack_user_id", slackUserId).maybeSingle(),
-    service.from("slack_identities").select("user_id").eq("slack_user_id", slackUserId).maybeSingle(),
-  ]);
-  return matched?.member_id === memberId || identity?.user_id === authUserId;
-}
+export type LinkResult =
+  | { ok: true; replaced: string[] }
+  | { ok: false; reason: "wrong_workspace" | "taken" | "other_account" };
 
 /**
- * Bind the Slack account that just approved to the signed-in member, so "Open Hedgie Hub" works
- * even when their Slack email isn't one of their Hub emails. Slack's OAuth shows they control that
- * Slack account and their session shows the Hub one. Refuses a Slack account already matched to
- * another member, or a Hub account already bound to a different Slack user (the unique keys).
+ * Binds the Slack account that just approved to the signed-in member. Slack's OAuth shows they
+ * control that Slack account and their Hub session shows the Hub one, so the binding needs no name
+ * or email match, and it outranks every other kind (email_match, email_alias, admin): those are
+ * inferences, this is a proof. It replaces them, loudly, and the matcher follows it
+ * (lib/slack-matching.ts). Refused only when the Slack account is in another workspace, is already
+ * connected by a different member (a real dispute for an admin), or this member already connected a
+ * different Slack account.
  */
-export async function bindSlackIdentity(service: SupabaseClient, slackUserId: string, memberId: string, authUserId: string): Promise<boolean> {
-  const { data: matched } = await service.from("chat_slack_authors").select("member_id").eq("slack_user_id", slackUserId).maybeSingle();
-  if (matched && matched.member_id !== memberId) return false;
-  const { error } = await service
-    .from("slack_identities")
-    .insert({ slack_user_id: slackUserId, user_id: authUserId, linked_via: "slack_connect" });
-  if (error) console.error("slack-connect: could not bind %s to user %s:", slackUserId, authUserId, error);
-  return !error;
+export async function linkSlackAccount(service: SupabaseClient, grant: SlackGrant, memberId: string, authUserId: string): Promise<LinkResult> {
+  const team = process.env.SLACK_TEAM_ID;
+  if (team && grant.teamId !== team) return { ok: false, reason: "wrong_workspace" };
+
+  const signIn = createRepos(service).slackSignIn;
+  const [held, bySlack, byUser] = await Promise.all([
+    createRepos(service).memberProfile.slackUserConnectedByOther(grant.slackUserId, memberId),
+    signIn.identityBySlackUser(grant.slackUserId),
+    signIn.identityByUser(authUserId),
+  ]);
+  if (held || (bySlack && bySlack.userId !== authUserId && bySlack.linkedVia === "slack_connect")) {
+    return { ok: false, reason: "taken" };
+  }
+  if (byUser && byUser.slackUserId !== grant.slackUserId && byUser.linkedVia === "slack_connect") {
+    return { ok: false, reason: "other_account" };
+  }
+
+  const replaced: string[] = [];
+  if (bySlack && bySlack.userId !== authUserId) {
+    await signIn.unbind({ slackUserId: grant.slackUserId });
+    replaced.push(`${bySlack.linkedVia} (another account)`);
+  }
+  if (byUser && byUser.slackUserId !== grant.slackUserId) {
+    await signIn.unbind({ userId: authUserId });
+    replaced.push(`${byUser.linkedVia} (another Slack user)`);
+  }
+  await signIn.connect(grant.slackUserId, authUserId);
+  if (replaced.length > 0) console.error("slack-connect: a verified link replaced %s for member %s", replaced.join(", "), memberId);
+  return { ok: true, replaced };
 }
 
 export async function saveSlackConnection(service: SupabaseClient, memberId: string, grant: SlackGrant): Promise<void> {
@@ -156,66 +175,99 @@ export interface SlackConnectionStatus {
   connectedAt: string | null;
   /** Connected with every scope read sync needs; false for a connection made before it existed. */
   sharesReadState: boolean;
+  /** Had a connection that Slack stopped honouring (revoked by us when its token died), so it needs reconnecting rather than connecting. */
+  revoked: boolean;
 }
 
 /** Whether the member has an active connection (the row, never the tokens). */
 export async function getSlackConnectionStatus(service: SupabaseClient, memberId: string): Promise<SlackConnectionStatus> {
-  const { data } = await service
-    .from("member_slack_connections")
-    .select("slack_user_id, connected_at, revoked_at, scopes")
-    .eq("member_id", memberId)
-    .maybeSingle();
+  const data = await createRepos(service).memberProfile.slackConnectionOf(memberId);
   const connected = Boolean(data && !data.revoked_at);
   return {
     connected,
     slackUserId: connected ? data!.slack_user_id : null,
     connectedAt: connected ? data!.connected_at : null,
     sharesReadState: connected && hasReadSyncScopes((data!.scopes as string[] | null) ?? []),
+    revoked: Boolean(data?.revoked_at),
   };
 }
 
 /** Refresh a rotating token when it has less than this left. */
 const REFRESH_WITHIN_MS = 5 * 60 * 1000;
 
+interface ConnectionRow {
+  slack_user_id: string;
+  access_token: string;
+  refresh_token: string | null;
+  expires_at: string | null;
+}
+
+async function readConnection(service: SupabaseClient, memberId: string): Promise<ConnectionRow | null> {
+  const { data, error } = await service.rpc("slack_connection_tokens", { p_member: memberId });
+  const row = (Array.isArray(data) ? data[0] : data) as ConnectionRow | undefined;
+  return error || !row ? null : row;
+}
+
+const isExpiring = (row: ConnectionRow): boolean => row.expires_at !== null && Date.parse(row.expires_at) - clock.now() < REFRESH_WITHIN_MS;
+const hasNotExpired = (row: ConnectionRow): boolean => row.expires_at === null || Date.parse(row.expires_at) - clock.now() > 60 * 1000;
+const asToken = (row: ConnectionRow) => ({ token: row.access_token, slackUserId: row.slack_user_id });
+
 /**
  * The member's Slack user token, ready to use, or null when they haven't connected or the
- * connection no longer works. Refreshes a rotating (expiring) token first; a refresh Slack
- * refuses revokes the connection so the member is asked to reconnect instead of failing silently.
+ * connection no longer works. Refreshes a rotating (expiring) token first, under a lease so two requests
+ * never refresh one token at once (Slack refresh tokens are single-use: the second would be refused and
+ * the member asked to reconnect; lib/slack-token-refresh.ts); a refresh Slack refuses revokes the
+ * connection so the member is asked to reconnect instead of failing silently.
  */
 export async function getSlackUserToken(service: SupabaseClient, memberId: string): Promise<{ token: string; slackUserId: string } | null> {
-  const { data, error } = await service.rpc("slack_connection_tokens", { p_member: memberId });
-  const row = (Array.isArray(data) ? data[0] : data) as
-    | { slack_user_id: string; access_token: string; refresh_token: string | null; expires_at: string | null }
-    | undefined;
-  if (error || !row) return null;
-
-  const expiring = row.expires_at !== null && Date.parse(row.expires_at) - clock.now() < REFRESH_WITHIN_MS;
-  if (!expiring) return { token: row.access_token, slackUserId: row.slack_user_id };
+  const row = await readConnection(service, memberId);
+  if (!row) return null;
+  if (!isExpiring(row)) return asToken(row);
   if (!row.refresh_token) {
     await service.rpc("slack_connection_revoke", { p_member: memberId });
     return null;
   }
 
   try {
-    const result = await new WebClient().oauth.v2.access({
-      client_id: process.env.SLACK_CLIENT_ID ?? "",
-      client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
-      grant_type: "refresh_token",
-      refresh_token: row.refresh_token,
+    return await withRefreshLease<ReturnType<typeof asToken> | null>(service, `member:${memberId}`, {
+      fallback: hasNotExpired(row) ? asToken(row) : null,
+      reread: async () => {
+        const again = await readConnection(service, memberId);
+        return again && !isExpiring(again) ? asToken(again) : null;
+      },
+      refresh: async () => {
+        // Read again now that this request holds the lease: another may have refreshed (spending the refresh
+        // token read above), or the member may have disconnected, in between.
+        const latest = await readConnection(service, memberId);
+        if (!latest) return null;
+        if (!isExpiring(latest)) return asToken(latest);
+        try {
+          const result = await new WebClient().oauth.v2.access({
+            client_id: process.env.SLACK_CLIENT_ID ?? "",
+            client_secret: process.env.SLACK_CLIENT_SECRET ?? "",
+            grant_type: "refresh_token",
+            refresh_token: latest.refresh_token ?? "",
+          });
+          const access = result.access_token ?? result.authed_user?.access_token;
+          if (!result.ok || !access) throw new Error("Slack did not return a refreshed token");
+          await service.rpc("slack_connection_update_tokens", {
+            p_member: memberId,
+            p_access_token: access,
+            p_refresh_token: result.refresh_token ?? result.authed_user?.refresh_token ?? null,
+            p_expires_at: expiryFrom(result.expires_in ?? result.authed_user?.expires_in),
+          });
+          return { token: access, slackUserId: latest.slack_user_id };
+        } catch (error) {
+          console.error("Slack token refresh failed for member %s:", memberId, error);
+          await service.rpc("slack_connection_revoke", { p_member: memberId });
+          return null;
+        }
+      },
     });
-    const access = result.access_token ?? result.authed_user?.access_token;
-    if (!result.ok || !access) throw new Error("Slack did not return a refreshed token");
-    await service.rpc("slack_connection_update_tokens", {
-      p_member: memberId,
-      p_access_token: access,
-      p_refresh_token: result.refresh_token ?? result.authed_user?.refresh_token ?? null,
-      p_expires_at: expiryFrom(result.expires_in ?? result.authed_user?.expires_in),
-    });
-    return { token: access, slackUserId: row.slack_user_id };
   } catch (error) {
-    console.error("Slack token refresh failed for member %s:", memberId, error);
-    await service.rpc("slack_connection_revoke", { p_member: memberId });
-    return null;
+    // Couldn't coordinate (the database): not a reason to disconnect anyone. Use what works, if anything.
+    console.error("Slack token refresh lease failed for member %s:", memberId, error);
+    return hasNotExpired(row) ? asToken(row) : null;
   }
 }
 

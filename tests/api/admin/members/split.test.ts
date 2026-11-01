@@ -1,16 +1,23 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { POST } from "@/app/api/admin/members/split/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
 
+vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members, () => aliasData)));
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 
 const ORIGINAL = { id: "orig-1", name: "Wren Holloway", email: "wren@example.com" };
-const NEW_ID = "new-1";
+
+// The members the route finds, in the in-memory repository: the one being split, and whoever already has the new email.
+let members: { id: string; name: string; email: string }[] = [];
+// The aliases it finds and changes, in the in-memory alias repository.
+let aliasData: InMemoryDataset;
 
 type Call = { table: string; op: string; payload?: unknown; filters: [string, string, unknown][] };
 
@@ -25,6 +32,13 @@ interface Fixtures {
 
 function makeSupabaseMock(fx: Fixtures = {}) {
   const calls: Call[] = [];
+  members = [ORIGINAL, ...(fx.emailHolder ? [{ id: fx.emailHolder.id, name: (fx.emailHolder as { name?: string }).name ?? fx.emailHolder.id, email: "ivy@example.com" }] : [])];
+  const emailRows = [...(fx.emailRows ?? []).map((r) => ({ ...r, memberId: ORIGINAL.id })), ...(fx.emailAlias && !(fx.emailRows ?? []).some((r) => r.id === fx.emailAlias!.id) ? [{ id: fx.emailAlias.id, alias_email: "ivy@example.com", memberId: fx.emailAlias.member_id }] : [])];
+  aliasData = new InMemoryDataset({
+    members,
+    nameAliases: (fx.nameRows ?? []).map((r) => ({ id: r.id, member_id: ORIGINAL.id, alias: `Name ${r.id}`, source: "zoom", active: true })),
+    emailAliases: emailRows.map((r) => ({ ...r, canonical_email: ORIGINAL.email, active: true })),
+  });
   const from = vi.fn((table: string) => {
     const call: Call = { table, op: "select", filters: [] };
     const builder: any = {
@@ -38,9 +52,7 @@ function makeSupabaseMock(fx: Fixtures = {}) {
       limit: () => builder,
       single: () =>
         Promise.resolve(
-          call.op === "insert"
-            ? { data: { id: NEW_ID }, error: null }
-            : { data: call.filters.some(([, , v]) => v === ORIGINAL.id) ? ORIGINAL : null, error: null }
+          { data: call.filters.some(([, , v]) => v === ORIGINAL.id) ? ORIGINAL : null, error: null }
         ),
       maybeSingle: () => {
         if (table === "members") return Promise.resolve({ data: fx.emailHolder ?? null, error: null });
@@ -58,7 +70,7 @@ function makeSupabaseMock(fx: Fixtures = {}) {
     };
     return builder;
   });
-  return { from, calls };
+  return { from, calls, failOn: fx.failOn };
 }
 
 function request(body: unknown) {
@@ -84,19 +96,21 @@ describe("POST /api/admin/members/split", () => {
 
     const res = await POST(request({ ...BODY, emailAliasIds: ["e1", "e2"] }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ memberId: NEW_ID, movedNameAliases: 1, movedEmailAliases: 1 });
+    // The in-memory repository makes the id.
+    const { memberId } = await res.json();
+    expect(memberId).toMatch(/^mbr_/);
 
     const insert = mock.calls.find((c) => c.table === "members" && c.op === "insert");
-    expect(insert?.payload).toMatchObject({ name: "Ivy Marsh", email: "ivy@example.com" });
+    expect(insert?.payload).toMatchObject({ name: "Ivy Marsh", email: "ivy@example.com", source: "kajabi" }); // members.source only allows kajabi or staff
 
     // The new primary email stops being an alias; the other email moves.
-    expect(mock.calls.find((c) => c.table === "member_email_aliases" && c.op === "delete")?.filters).toEqual([["eq", "id", "e1"]]);
+    expect(mock.calls.find((c) => c.table === "member_email_aliases" && c.op === "delete")?.filters).toEqual([["in", "id", ["e1"]]]);
     expect(mock.calls.find((c) => c.table === "member_email_aliases" && c.op === "update")).toMatchObject({
-      payload: { member_id: NEW_ID },
+      payload: { member_id: memberId },
       filters: [["in", "id", ["e2"]]],
     });
     expect(mock.calls.find((c) => c.table === "member_name_aliases" && c.op === "update")).toMatchObject({
-      payload: { member_id: NEW_ID },
+      payload: { member_id: memberId },
       filters: [["in", "id", ["n1"]]],
     });
 

@@ -191,6 +191,12 @@ describe("remembering where a signed-out visitor was headed", () => {
   });
 });
 
+describe("public pages", () => {
+  it.each(["/login", "/unsubscribe", "/privacy"])("lets an anonymous visitor read %s", async (path) => {
+    expect(await redirectedTo(path)).toBeNull();
+  });
+});
+
 describe("isAdminPath", () => {
   it.each([
     ["/admin", true],

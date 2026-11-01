@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import type { Outline, OutlineLesson } from "@/lib/courses/outline";
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 function Row({ slug, lesson, number, completed, current, openable }: { slug: string; lesson: OutlineLesson; number: number; completed: boolean; current: boolean; openable: boolean }) {
-  const thumbnail = safeUrl(lesson.thumbnail_url);
+  const thumbnail = courseImageUrl(lesson.thumbnail_url);
   const content = (
     <>
       <span aria-hidden="true" className="text-center text-sm text-slate-400">

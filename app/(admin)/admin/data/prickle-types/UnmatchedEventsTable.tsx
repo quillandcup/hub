@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import MemberSearch from "@/components/MemberSearch";
@@ -27,6 +28,7 @@ interface PrickleType {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -73,6 +75,11 @@ export default function UnmatchedEventsTable({
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [hostSearchTerm, setHostSearchTerm] = useState("");
   const [showHostDropdown, setShowHostDropdown] = useState(false);
+  const hostBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A pending blur must not fire after the table is gone (it would set state on an unmounted component).
+  useEffect(() => () => {
+    if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+  }, []);
 
   // Fetch members when component mounts
   useEffect(() => {
@@ -114,6 +121,7 @@ export default function UnmatchedEventsTable({
   const filteredMembers = members.filter(
     (member) =>
       member.name.toLowerCase().includes(hostSearchTerm.toLowerCase()) ||
+      (member.displayName ?? "").toLowerCase().includes(hostSearchTerm.toLowerCase()) ||
       member.email.toLowerCase().includes(hostSearchTerm.toLowerCase())
   );
 
@@ -216,7 +224,7 @@ export default function UnmatchedEventsTable({
                 direction={sortDirection}
                 onClick={() => handleSort("suggestedHost")}
               />
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -275,7 +283,7 @@ export default function UnmatchedEventsTable({
               <h2 className="text-xl font-bold">Categorize Event</h2>
               <button
                 onClick={closeModal}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 ✕
               </button>
@@ -369,7 +377,7 @@ export default function UnmatchedEventsTable({
                 {/* Host */}
                 <div className="mb-6 relative">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">
-                    Host <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">(optional - leave empty for community events)</span>
+                    Host <span className="text-xs text-slate-600 dark:text-slate-400 font-normal">(optional - leave empty for community events)</span>
                   </label>
                   <input
                     type="text"
@@ -379,10 +387,14 @@ export default function UnmatchedEventsTable({
                       setHost(e.target.value);
                       setShowHostDropdown(true);
                     }}
-                    onFocus={() => setShowHostDropdown(true)}
+                    onFocus={() => {
+                      if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+                      setShowHostDropdown(true);
+                    }}
                     onBlur={() => {
                       // Delay to allow click on dropdown item
-                      setTimeout(() => setShowHostDropdown(false), 200);
+                      if (hostBlurTimer.current) clearTimeout(hostBlurTimer.current);
+                      hostBlurTimer.current = setTimeout(() => setShowHostDropdown(false), 200);
                     }}
                     placeholder="Search for a member or leave empty..."
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
@@ -396,8 +408,11 @@ export default function UnmatchedEventsTable({
                           onClick={() => handleHostSelect(member.name)}
                           className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100"
                         >
-                          <div className="font-medium">{member.name}</div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="font-medium">{getMemberDisplayName({ name: member.name, display_name: member.displayName })}</div>
+                          {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                          )}
+                          <div className="text-xs text-slate-600 dark:text-slate-400">
                             {member.email}
                           </div>
                         </button>
@@ -405,7 +420,7 @@ export default function UnmatchedEventsTable({
                     </div>
                   )}
                   {loadingMembers && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                       Loading members...
                     </div>
                   )}

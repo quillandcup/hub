@@ -1,5 +1,7 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -16,26 +18,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const [
-      { data: slackUsers },
-      { data: members },
-      { data: aliases },
-      { data: ignoredUsers },
+      slackUsers,
+      members,
+      aliases,
+      ignoredUserIds,
     ] = await Promise.all([
-      supabase.schema("bronze").from("slack_users").select("user_id, email, real_name, display_name, is_bot, is_deleted").neq("user_id", SLACKBOT_USER_ID),
-      supabase.from("members").select("id, name, email, status"),
-      supabase.from("member_name_aliases").select("alias, member_id, source"),
-      supabase.from("ignored_slack_users").select("user_id"),
+      createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
+      createRepos(supabase).members.list(),
+      createRepos(supabase).aliases.nameAliases(),
+      createRepos(supabase).slackWorkspace.ignoredUserIds(),
     ]);
 
-    const ignoredUserIds = new Set((ignoredUsers || []).map((u) => u.user_id));
     const nonBotSlackUsers = (slackUsers || []).filter(
       (u) => !u.is_bot && !u.is_deleted && !ignoredUserIds.has(u.user_id)
     );
 
     const userToMemberMap = await matchSlackUsersToMembers(
       nonBotSlackUsers,
-      members || [],
-      aliases || []
+      members,
+      aliases || [],
+      await loadVerifiedSlackLinks(createServiceRoleClient())
     );
 
     // Set of member IDs that have a Slack user matched to them

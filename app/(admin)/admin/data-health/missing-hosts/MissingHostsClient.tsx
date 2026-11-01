@@ -1,297 +1,136 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import MemberSearch from "@/components/MemberSearch";
 import { formatDateTimeRange } from "@/lib/formatters";
-import { setDefaultHost, setRequiresHost } from "./actions";
+import { useTimeZone } from "@/components/Timezone";
+import { UNHOSTED_LIST_LIMIT, type MissingHostsData } from "@/lib/missing-hosts";
+import { assignHostToUnhostedPrickles, getUnhostedPrickles, setDefaultHosts, setRequiresHost, type UnhostedPrickle } from "./actions";
 
-interface PrickleTypeStats {
-  prickle_type: string;
-  prickle_type_id: string;
-  requires_host: boolean;
-  missing_host_count: number;
-  default_host_id: string | null;
-  default_host_name: string | null;
-}
-
-interface Member {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface PrickleWithoutHost {
-  id: string;
-  title: string;
-  start_time: string;
-  end_time: string;
-  prickle_type: string;
-  source: string;
-}
-
-export default function MissingHostsClient() {
-  const [stats, setStats] = useState<PrickleTypeStats[]>([]);
+export default function MissingHostsClient({ stats, coverage, members }: MissingHostsData) {
+  const timeZone = useTimeZone();
+  const router = useRouter();
+  // A default host is someone who hosts now, so only active members; crediting past prickles takes anyone.
+  const activeMembers = members.filter((m) => m.status === "active");
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [prickles, setPrickles] = useState<PrickleWithoutHost[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [prickles, setPrickles] = useState<UnhostedPrickle[]>([]);
   const [showDetailedStats, setShowDetailedStats] = useState(false);
-  const [detailedStats, setDetailedStats] = useState<{
-    total: number;
-    withHost: number;
-    withHostRequiring: number;
-    withHostNotRequiring: number;
-    withoutHost: number;
-    withoutHostRequiring: number;
-    withoutHostNotRequiring: number;
-  } | null>(null);
+  // The breakdown of every calendar prickle by whether its type needs a host and whether one is assigned.
+  const detailedStats = {
+    total: coverage.total,
+    withHost: coverage.requiresHost.withHost + coverage.optionalHost.withHost,
+    withHostRequiring: coverage.requiresHost.withHost,
+    withHostNotRequiring: coverage.optionalHost.withHost,
+    withoutHost: coverage.requiresHost.withoutHost + coverage.optionalHost.withoutHost,
+    withoutHostRequiring: coverage.requiresHost.withoutHost,
+    withoutHostNotRequiring: coverage.optionalHost.withoutHost,
+  };
 
   useEffect(() => {
-    loadStats();
-    loadMembers();
-    loadDetailedStats();
-  }, []);
-
-  useEffect(() => {
-    if (selectedType) {
-      loadPrickles(selectedType);
-    }
+    if (!selectedType) return;
+    let cancelled = false;
+    getUnhostedPrickles(selectedType).then((result) => {
+      if (cancelled) return;
+      if ("error" in result) {
+        console.error("Error loading prickles:", result.error);
+        return;
+      }
+      setPrickles(result.prickles);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedType]);
-
-  async function loadStats() {
-    const supabase = createClient();
-
-    const data: any[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch, error } = await supabase
-        .from("prickles")
-        .select(`
-          type_id,
-          prickle_types!inner(name, requires_host, default_host_id, members(name))
-        `)
-        .is("host", null)
-        .eq("source", "calendar")
-        .range(offset, offset + 999);
-
-      if (error) {
-        console.error("Error loading stats:", error);
-        setLoading(false);
-        return;
-      }
-
-      if (batch && batch.length > 0) {
-        data.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === 1000;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    // Group by type
-    const typeMap = new Map<string, {
-      name: string;
-      requires_host: boolean;
-      count: number;
-      default_host_id: string | null;
-      default_host_name: string | null;
-    }>();
-
-    data.forEach((p: any) => {
-      const typeName = p.prickle_types.name;
-      const requiresHost = p.prickle_types.requires_host;
-      const defaultHostId = p.prickle_types.default_host_id;
-      const defaultHostName = p.prickle_types.members?.name || null;
-
-      if (!typeMap.has(p.type_id)) {
-        typeMap.set(p.type_id, {
-          name: typeName,
-          requires_host: requiresHost,
-          count: 0,
-          default_host_id: defaultHostId,
-          default_host_name: defaultHostName,
-        });
-      }
-
-      const entry = typeMap.get(p.type_id)!;
-      entry.count++;
-    });
-
-    const statsArray: PrickleTypeStats[] = Array.from(typeMap.entries()).map(([typeId, data]) => ({
-      prickle_type: data.name,
-      prickle_type_id: typeId,
-      requires_host: data.requires_host,
-      missing_host_count: data.count,
-      default_host_id: data.default_host_id,
-      default_host_name: data.default_host_name,
-    }));
-
-    // Sort: requires_host types first, then by count
-    statsArray.sort((a, b) => {
-      if (a.requires_host !== b.requires_host) {
-        return a.requires_host ? -1 : 1;
-      }
-      return b.missing_host_count - a.missing_host_count;
-    });
-
-    setStats(statsArray);
-    setLoading(false);
-  }
-
-  async function loadDetailedStats() {
-    const supabase = createClient();
-
-    // Count all calendar prickles
-    const { count: total } = await supabase
-      .from("prickles")
-      .select("*", { count: "exact", head: true })
-      .eq("source", "calendar");
-
-    // Count prickles with hosts (requiring)
-    const { count: withHostRequiring } = await supabase
-      .from("prickles")
-      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .not("host", "is", null)
-      .eq("prickle_types.requires_host", true);
-
-    // Count prickles with hosts (not requiring)
-    const { count: withHostNotRequiring } = await supabase
-      .from("prickles")
-      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .not("host", "is", null)
-      .eq("prickle_types.requires_host", false);
-
-    // Count prickles without hosts (requiring)
-    const { count: withoutHostRequiring } = await supabase
-      .from("prickles")
-      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .is("host", null)
-      .eq("prickle_types.requires_host", true);
-
-    // Count prickles without hosts (not requiring)
-    const { count: withoutHostNotRequiring } = await supabase
-      .from("prickles")
-      .select("*, prickle_types!inner(requires_host)", { count: "exact", head: true })
-      .eq("source", "calendar")
-      .is("host", null)
-      .eq("prickle_types.requires_host", false);
-
-    setDetailedStats({
-      total: total || 0,
-      withHost: (withHostRequiring || 0) + (withHostNotRequiring || 0),
-      withHostRequiring: withHostRequiring || 0,
-      withHostNotRequiring: withHostNotRequiring || 0,
-      withoutHost: (withoutHostRequiring || 0) + (withoutHostNotRequiring || 0),
-      withoutHostRequiring: withoutHostRequiring || 0,
-      withoutHostNotRequiring: withoutHostNotRequiring || 0,
-    });
-  }
-
-  async function loadMembers() {
-    const supabase = createClient();
-
-    const members: Member[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: batch, error } = await supabase
-        .from("members")
-        .select("id, name, email")
-        .eq("status", "active")
-        .order("name")
-        .range(offset, offset + 999);
-
-      if (error) {
-        console.error("Error loading members:", error);
-        return;
-      }
-
-      if (batch && batch.length > 0) {
-        members.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === 1000;
-      } else {
-        hasMore = false;
-      }
-    }
-
-    setMembers(members);
-  }
-
-  async function loadPrickles(typeId: string) {
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from("prickles")
-      .select(`
-        id,
-        title,
-        start_time,
-        end_time,
-        source,
-        prickle_types!inner(name)
-      `)
-      .eq("type_id", typeId)
-      .is("host", null)
-      .eq("source", "calendar")
-      .order("start_time", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error("Error loading prickles:", error);
-      return;
-    }
-
-    setPrickles(
-      data.map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        start_time: p.start_time,
-        end_time: p.end_time,
-        prickle_type: p.prickle_types.name,
-        source: p.source,
-      }))
-    );
-  }
 
   // Writes go through server actions so they carry the admin's identity (and sudo context) for the audit log.
   async function toggleRequiresHost(typeId: string, currentValue: boolean) {
     const { error } = await setRequiresHost(typeId, !currentValue);
-    if (error) {
-      alert(`Failed to update: ${error}`);
-      return;
-    }
-    loadStats();
+    if (error) alert(`Failed to update: ${error}`);
   }
 
-  async function changeDefaultHost(typeId: string, member: Member | null) {
-    const { error } = await setDefaultHost(typeId, member?.id ?? null);
-    if (error) {
-      alert(`Failed to set default host: ${error}`);
-      return;
-    }
-    loadStats();
+  // Default hosts picked but not saved yet: type id -> the member chosen (null clears the default).
+  const [staged, setStaged] = useState<Map<string, { id: string; name: string } | null>>(new Map());
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<string | null>(null);
+
+  function stageDefaultHost(typeId: string, currentId: string | null, member: { id: string; name: string } | null) {
+    setSaveResult(null);
+    setStaged((prev) => {
+      const next = new Map(prev);
+      // Choosing what is already saved is no change
+      if ((member?.id ?? null) === currentId) next.delete(typeId);
+      else next.set(typeId, member ? { id: member.id, name: member.name } : null);
+      return next;
+    });
   }
 
-  const expectedUnhosted = stats.filter(s => !s.requires_host);
-  const unexpectedUnhosted = stats.filter(s => s.requires_host);
-  const totalUnexpected = unexpectedUnhosted.reduce((sum, s) => sum + s.missing_host_count, 0);
+  async function saveDefaultHosts() {
+    setSaving(true);
+    setSaveResult(null);
+    const { error, saved } = await setDefaultHosts([...staged].map(([typeId, member]) => ({ typeId, memberId: member?.id ?? null })));
+    setSaving(false);
+    if (saved) setStaged(new Map());
+    setSaveResult(error ?? `Saved ${saved} default host${saved === 1 ? "" : "s"} and rebuilt the calendar prickles.`);
+  }
+
+  // Crediting one member as the host of all of a type's unhosted prickles (the detail view).
+  const [bulkHost, setBulkHost] = useState<{ id: string; name: string } | null>(null);
+  const [assigning, setAssigning] = useState(false);
+  const [assignResult, setAssignResult] = useState<string | null>(null);
+
+  async function assignAll(typeId: string, count: number) {
+    if (!bulkHost) return;
+    if (!confirm(`Credit ${bulkHost.name} as the host of all ${count} unhosted prickles of this type?`)) return;
+    setAssigning(true);
+    setAssignResult(null);
+    const { error, assigned } = await assignHostToUnhostedPrickles(typeId, bulkHost.id);
+    setAssigning(false);
+    setAssignResult(error ?? `Credited ${bulkHost.name} as the host of ${assigned} prickle${assigned === 1 ? "" : "s"}.`);
+    if (!error) {
+      setBulkHost(null);
+      setPrickles([]);
+      router.refresh();
+    }
+  }
+
+  const expectedUnhosted = stats.filter(s => !s.requiresHost);
+  const unexpectedUnhosted = stats.filter(s => s.requiresHost);
+  const totalUnexpected = unexpectedUnhosted.reduce((sum, s) => sum + s.missingCount, 0);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold mb-6 dark:text-slate-100">Prickles Missing Hosts</h1>
 
-      {loading ? (
-        <p className="text-gray-500 dark:text-slate-400">Loading...</p>
-      ) : (
-        <div className="space-y-8">
+      <div className="space-y-8">
+          {(staged.size > 0 || saveResult) && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-green-800 dark:text-green-200">Default Hosts to Save ({staged.size})</h3>
+                {staged.size > 0 && (
+                  <button
+                    onClick={saveDefaultHosts}
+                    disabled={saving}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
+                  >
+                    {saving ? "Saving..." : "Save & Reprocess"}
+                  </button>
+                )}
+              </div>
+              {saveResult && <div className="mb-4 p-3 bg-white dark:bg-slate-800 rounded-lg text-sm dark:text-slate-100">{saveResult}</div>}
+              <div className="space-y-2">
+                {[...staged].map(([typeId, member]) => (
+                  <div key={typeId} className="p-3 bg-white dark:bg-slate-800 rounded-lg dark:text-slate-100">
+                    <span className="text-plum-600 dark:text-plum-400">{stats.find((s) => s.typeId === typeId)?.typeName}</span>
+                    <span className="mx-2 text-gray-500">→</span>
+                    <span className="font-semibold">{member?.name ?? "No default host"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Summary */}
           <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4 dark:text-slate-100">Summary</h2>
@@ -299,19 +138,18 @@ export default function MissingHostsClient() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-slate-400">Data Quality Issues</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{totalUnexpected}</p>
-                <p className="text-sm text-gray-500 dark:text-slate-500">prickles requiring hosts</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">prickles requiring hosts</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-slate-400">Expected (No Host Required)</p>
                 <p className="text-2xl font-bold text-gray-600 dark:text-slate-400">
-                  {expectedUnhosted.reduce((sum, s) => sum + s.missing_host_count, 0)}
+                  {expectedUnhosted.reduce((sum, s) => sum + s.missingCount, 0)}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-slate-500">prickles intentionally unhosted</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">prickles intentionally unhosted</p>
               </div>
             </div>
 
             {/* Collapsible Detailed Breakdown */}
-            {detailedStats && (
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
                 <button
                   onClick={() => setShowDetailedStats(!showDetailedStats)}
@@ -329,7 +167,6 @@ export default function MissingHostsClient() {
                   </div>
                 )}
               </div>
-            )}
           </div>
 
           {/* Data Quality Issues */}
@@ -344,18 +181,18 @@ export default function MissingHostsClient() {
               <div className="space-y-2">
                 {unexpectedUnhosted.map((stat) => (
                   <div
-                    key={stat.prickle_type_id}
+                    key={stat.typeId}
                     className="p-3 bg-orange-50 dark:bg-orange-900/20 border dark:border-orange-800/30 rounded-lg"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <p className="font-medium dark:text-slate-100">{stat.prickle_type}</p>
+                        <p className="font-medium dark:text-slate-100">{stat.typeName}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          {stat.missing_host_count} prickles missing hosts
+                          {stat.missingCount} prickles missing hosts
                         </p>
                       </div>
                       <button
-                        onClick={() => setSelectedType(stat.prickle_type_id)}
+                        onClick={() => setSelectedType(stat.typeId)}
                         className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200"
                       >
                         View
@@ -363,14 +200,14 @@ export default function MissingHostsClient() {
                     </div>
                     <div className="flex items-center gap-2">
                       <MemberSearch
-                        members={members}
-                        selectedMemberId={stat.default_host_id}
-                        selectedMemberName={stat.default_host_name}
-                        onSelect={(member) => changeDefaultHost(stat.prickle_type_id, member)}
+                        members={activeMembers}
+                        selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
+                        selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
+                        onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
                         className="flex-1"
                       />
                       <button
-                        onClick={() => toggleRequiresHost(stat.prickle_type_id, stat.requires_host)}
+                        onClick={() => toggleRequiresHost(stat.typeId, stat.requiresHost)}
                         className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200 whitespace-nowrap"
                       >
                         Mark Optional
@@ -394,18 +231,18 @@ export default function MissingHostsClient() {
               <div className="space-y-2">
                 {expectedUnhosted.map((stat) => (
                   <div
-                    key={stat.prickle_type_id}
+                    key={stat.typeId}
                     className="p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-700 dark:text-slate-200">{stat.prickle_type}</p>
+                        <p className="font-medium text-gray-700 dark:text-slate-200">{stat.typeName}</p>
                         <p className="text-sm text-gray-500 dark:text-slate-400">
-                          {stat.missing_host_count} prickles (host not required)
+                          {stat.missingCount} prickles (host not required)
                         </p>
                       </div>
                       <button
-                        onClick={() => toggleRequiresHost(stat.prickle_type_id, stat.requires_host)}
+                        onClick={() => toggleRequiresHost(stat.typeId, stat.requiresHost)}
                         className="text-xs px-3 py-1 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded hover:bg-gray-50 dark:hover:bg-slate-600 dark:text-slate-200 whitespace-nowrap"
                       >
                         Mark Required
@@ -413,10 +250,10 @@ export default function MissingHostsClient() {
                     </div>
                     <div className="flex items-center gap-2">
                       <MemberSearch
-                        members={members}
-                        selectedMemberId={stat.default_host_id}
-                        selectedMemberName={stat.default_host_name}
-                        onSelect={(member) => changeDefaultHost(stat.prickle_type_id, member)}
+                        members={activeMembers}
+                        selectedMemberId={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.id ?? null) : stat.defaultHostId}
+                        selectedMemberName={staged.has(stat.typeId) ? (staged.get(stat.typeId)?.name ?? null) : stat.defaultHostName}
+                        onSelect={(member) => stageDefaultHost(stat.typeId, stat.defaultHostId, member)}
                         className="flex-1"
                       />
                     </div>
@@ -431,7 +268,7 @@ export default function MissingHostsClient() {
             <div className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold dark:text-slate-100">
-                  {stats.find((s) => s.prickle_type_id === selectedType)?.prickle_type} - Missing Hosts
+                  {stats.find((s) => s.typeId === selectedType)?.typeName} - Missing Hosts
                 </h2>
                 <button
                   onClick={() => setSelectedType(null)}
@@ -441,6 +278,38 @@ export default function MissingHostsClient() {
                 </button>
               </div>
 
+              {(() => {
+                const count = stats.find((s) => s.typeId === selectedType)?.missingCount ?? prickles.length;
+                return (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">
+                      Nobody hosts this any more? Credit one member as the host of all {count}, so the past ones say who hosted. Former members can be picked.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <MemberSearch
+                        members={members}
+                        selectedMemberId={bulkHost?.id ?? null}
+                        selectedMemberName={bulkHost?.name}
+                        onSelect={(member) => {
+                          setAssignResult(null);
+                          setBulkHost(member ? { id: member.id, name: member.displayName?.trim() || member.name } : null);
+                        }}
+                        placeholder="Search for the host..."
+                        className="flex-1"
+                      />
+                      <button
+                        onClick={() => assignAll(selectedType, count)}
+                        disabled={!bulkHost || assigning}
+                        className="text-sm px-3 py-1.5 bg-plum-600 text-white rounded hover:bg-plum-700 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {assigning ? "Assigning..." : `Assign to all ${count}`}
+                      </button>
+                    </div>
+                    {assignResult && <p className="mt-2 text-sm text-gray-700 dark:text-slate-300">{assignResult}</p>}
+                  </div>
+                );
+              })()}
+
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {prickles.map((prickle) => (
                   <Link
@@ -449,22 +318,21 @@ export default function MissingHostsClient() {
                     className="block p-3 bg-gray-50 dark:bg-slate-700/50 border dark:border-slate-600/50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                   >
                     <p className="font-medium dark:text-slate-100">
-                      {prickle.title || prickle.prickle_type}
+                      {prickle.title || prickle.typeName}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-slate-400">
-                      {formatDateTimeRange(prickle.start_time, prickle.end_time)}
+                      {formatDateTimeRange(prickle.startTime, prickle.endTime, timeZone)}
                     </p>
                   </Link>
                 ))}
               </div>
 
-              {prickles.length === 100 && (
+              {prickles.length === UNHOSTED_LIST_LIMIT && (
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-4">Showing first 100 prickles</p>
               )}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

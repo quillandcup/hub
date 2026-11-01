@@ -26,7 +26,7 @@ describe('loadCourseWatchStats', () => {
   beforeAll(async () => {
     const { data: members, error } = await supabase
       .from('members')
-      .insert(['ann', 'bea', 'staff'].map((who) => ({ name: `Watch Stats ${who}`, email: emailOf(who), joined_at: new Date().toISOString(), status: 'active' })))
+      .insert(['ann', 'bea', 'staff'].map((who) => ({ name: `Watch Stats ${who}`, display_name: who === 'bea' ? 'Watch Bea' : null, email: emailOf(who), joined_at: new Date().toISOString(), status: 'active' })))
       .select('id, email')
     expect(error).toBeNull()
     for (const who of ['ann', 'bea', 'staff']) ids[who] = members!.find((m) => m.email === emailOf(who))!.id
@@ -100,11 +100,11 @@ describe('loadCourseWatchStats', () => {
   })
 
   it('is null for a course that is not in the Hub', async () => {
-    expect(await loadCourseWatchStats(supabase, `no-such-${ts}`)).toBeNull()
+    expect(await loadCourseWatchStats(supabase, 'crs_AAAAAAAAAAA1')).toBeNull()
   })
 
   it("gives each lesson's video stats in page order, with staff viewing left out", async () => {
-    const result = await loadCourseWatchStats(supabase, SLUG)
+    const result = await loadCourseWatchStats(supabase, ids.course)
     expect(result).not.toBeNull()
     expect(result!.course).toMatchObject({ title: `Watch Stats ${ts}`, slug: SLUG })
     expect(result!.staffExcluded).toBe(true)
@@ -131,42 +131,42 @@ describe('loadCourseWatchStats', () => {
   })
 
   it('includes staff viewing on request', async () => {
-    const result = await loadCourseWatchStats(supabase, SLUG, { includeStaff: true })
+    const result = await loadCourseWatchStats(supabase, ids.course, { includeStaff: true })
     expect(result!.staffExcluded).toBe(false)
     expect(result!.lessons[0].stats).toMatchObject({ viewers: 3, watchedSeconds: 270, plays: 4, views: 7 })
     expect(result!.viewers).toBe(3)
   })
 
   it('lists the visits with who and the device when asked, newest first, staff left out', async () => {
-    const without = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne })
+    const without = await loadCourseWatchStats(supabase, ids.course, { lessonId: ids.lessonOne })
     expect(without!.lessons[0].sessions).toEqual([])
 
-    const result = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne, withSessions: true })
+    const result = await loadCourseWatchStats(supabase, ids.course, { lessonId: ids.lessonOne, withSessions: true })
     const sessions = result!.lessons[0].sessions
     expect(sessions).toHaveLength(5)
-    expect(sessions.every((x) => ['Watch Stats ann', 'Watch Stats bea'].includes(x.memberName))).toBe(true)
+    expect(sessions.every((x) => ['Watch Stats ann', 'Watch Bea'].includes(x.memberName))).toBe(true)
     expect(sessions.filter((x) => x.played)).toHaveLength(3)
     expect(sessions.find((x) => x.userAgent?.includes('Macintosh'))).toMatchObject({ memberName: 'Watch Stats ann', played: false, coveredFraction: 0 })
     // Where a visit came from: Ann's latest located access event before it (Muncie, not the older Boston, and not the later event without a place). Bea has no account.
     const annsMarker = sessions.find((x) => x.userAgent?.includes('Macintosh'))!
     expect(annsMarker.location).toEqual({ place: 'Muncie, IN, US', ip: '203.0.113.7' })
-    expect(sessions.filter((x) => x.memberName === 'Watch Stats bea').every((x) => x.location === null)).toBe(true)
+    expect(sessions.filter((x) => x.memberName === 'Watch Bea').every((x) => x.location === null)).toBe(true)
     const times = sessions.map((x) => x.startedAt ?? '')
     expect(times).toEqual([...times].sort().reverse())
   })
 
   it('reads just one lesson when asked', async () => {
-    const result = await loadCourseWatchStats(supabase, SLUG, { lessonId: ids.lessonOne })
+    const result = await loadCourseWatchStats(supabase, ids.course, { lessonId: ids.lessonOne })
     expect(result!.lessons).toHaveLength(1)
     expect(result!.lessons[0].lesson.id).toBe(ids.lessonOne)
     expect(result!.lessons[0].stats?.viewers).toBe(2)
-    expect((await loadCourseWatchStats(supabase, SLUG, { lessonId: '00000000-0000-4000-a000-0000000000ff' }))!.lessons).toEqual([])
+    expect((await loadCourseWatchStats(supabase, ids.course, { lessonId: '00000000-0000-4000-a000-0000000000ff' }))!.lessons).toEqual([])
   })
 
   it('reads past the 1000-row cap', async () => {
     const rows = Array.from({ length: 1200 }, (_, i) => segment('ann', ids.videoB, i % 40, (i % 40) + 5))
     for (let i = 0; i < rows.length; i += 400) expect((await supabase.from('video_watch_segments').insert(rows.slice(i, i + 400))).error).toBeNull()
-    const result = await loadCourseWatchStats(supabase, SLUG)
+    const result = await loadCourseWatchStats(supabase, ids.course)
     expect(result!.lessons[1].stats!.watchedSeconds).toBe(1200 * 5)
   })
 })

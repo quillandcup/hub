@@ -25,7 +25,7 @@ describe("SlackConnectPanel", () => {
   it("offers to connect, and says what changes", () => {
     render(<SlackConnectPanel connected={false} />);
     expect(screen.getByRole("link", { name: "Connect Slack" })).toHaveAttribute("href", "/api/oauth/slack/start");
-    expect(screen.getByText(/appear in Slack as you, not as Billie Bot/)).toBeInTheDocument();
+    expect(screen.getByText(/Hub chat needs your Slack account/)).toBeInTheDocument();
   });
 
   it("asks a connection made before read sync to reconnect, and says read state is shared once it has", () => {
@@ -44,9 +44,14 @@ describe("SlackConnectPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Your Slack account is connected.");
     cleanup();
 
-    slackParam = "wrong_account";
+    slackParam = "required";
     render(<SlackConnectPanel connected={false} />);
-    expect(screen.getByRole("status")).toHaveTextContent("isn't the one matched to you");
+    expect(screen.getByRole("status")).toHaveTextContent("Chat needs your Slack account connected");
+    cleanup();
+
+    slackParam = "taken";
+    render(<SlackConnectPanel connected={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent("already connected to another member");
   });
 
   it("disconnects and clears the outcome from the URL", async () => {
@@ -62,5 +67,16 @@ describe("SlackConnectPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Disconnect Slack" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't disconnect");
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("SlackConnectPanel privacy link", () => {
+  it("links to the privacy page, connected or not", () => {
+    render(<SlackConnectPanel connected={false} />);
+    expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
+    cleanup();
+
+    render(<SlackConnectPanel connected />);
+    expect(screen.getByRole("link", { name: /what staff can and can't see/ })).toHaveAttribute("href", "/privacy");
   });
 });

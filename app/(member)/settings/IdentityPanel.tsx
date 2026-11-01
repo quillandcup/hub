@@ -8,12 +8,8 @@ import {
   setDisplayName,
   setCustomDisplayName,
   addNameAlias,
-  setNameAliasActive,
   addEmailAlias,
-  setEmailAliasActive,
   type IdentitySettings,
-  type NameAliasRow,
-  type EmailAliasRow,
 } from "./identityActions";
 import { SUPPORT_EMAIL } from "@/lib/config";
 
@@ -45,16 +41,12 @@ function AliasChip({
   label,
   source,
   active,
-  pending,
   isDisplayName,
-  onToggle,
 }: {
   label: string;
   isDisplayName?: boolean;
   source: string;
   active: boolean;
-  pending: boolean;
-  onToggle: () => void;
 }) {
   return (
     <div
@@ -65,25 +57,16 @@ function AliasChip({
       }`}
     >
       <div className="min-w-0">
-        <span className={`truncate ${active ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400 line-through"}`}>
+        <span className={`truncate ${active ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400 line-through"}`}>
           {label}
         </span>
-        <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{sourceLabel(source)}</span>
+        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">{sourceLabel(source)}</span>
         {isDisplayName && (
           <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-plum-100 dark:bg-plum-900/40 text-plum-700 dark:text-plum-300">
             Your display name
           </span>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        data-track="settings-identity-toggle-active"
-        disabled={pending}
-        className="shrink-0 text-xs px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {pending ? "…" : active ? "Deactivate" : "Reactivate"}
-      </button>
     </div>
   );
 }
@@ -105,7 +88,6 @@ export function IdentityPanel() {
   const [addingEmailAlias, setAddingEmailAlias] = useState(false);
   const [savingDisplayName, setSavingDisplayName] = useState(false);
   const [customDisplayName, setCustomDisplayNameInput] = useState<string | null>(null);
-  const [pendingAliasId, setPendingAliasId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -230,46 +212,6 @@ export function IdentityPanel() {
     setAddingEmailAlias(false);
   }
 
-  async function handleToggleNameAlias(alias: NameAliasRow) {
-    if (alias.active) {
-      const warning = data?.hasAttendanceHistory
-        ? `Deactivate "${alias.alias}"? You have prickle attendance history, and there's no way to know for certain whether this name was used to match some of it. Deactivating only stops it from matching NEW attendance going forward — your existing history stays exactly as recorded. This is usually safe if you no longer go by this name in Zoom/Slack.`
-        : `Deactivate "${alias.alias}"? It will stop matching new attendance going forward. You can reactivate it later.`;
-      if (!confirm(warning)) return;
-    }
-    setPendingAliasId(alias.id);
-    setError(null);
-    setMessage(null);
-    const result = await setNameAliasActive(alias.id, !alias.active);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setMessage(alias.active ? "Deactivated." : "Reactivated.");
-      await load();
-    }
-    setPendingAliasId(null);
-  }
-
-  async function handleToggleEmailAlias(alias: EmailAliasRow) {
-    if (alias.active) {
-      const warning = data?.hasAttendanceHistory
-        ? `Deactivate "${alias.aliasEmail}"? It will stop matching new imports going forward — your existing history stays exactly as recorded. This is usually safe if you no longer use this email.`
-        : `Deactivate "${alias.aliasEmail}"? It will stop matching new imports going forward. You can reactivate it later.`;
-      if (!confirm(warning)) return;
-    }
-    setPendingAliasId(alias.id);
-    setError(null);
-    setMessage(null);
-    const result = await setEmailAliasActive(alias.id, !alias.active);
-    if ("error" in result) {
-      setError(result.error);
-    } else {
-      setMessage(alias.active ? "Deactivated." : "Reactivated.");
-      await load();
-    }
-    setPendingAliasId(null);
-  }
-
   if (loading) {
     return (
       <div className="animate-pulse space-y-2">
@@ -296,7 +238,7 @@ export function IdentityPanel() {
       {/* Real Name */}
       <div data-tour="identity-basics">
         <h3 id="identity-real-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Real Name</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           Your Real Name: the one on your account and records. Not necessarily what other members see; that's your Display Name, below.
         </p>
         {data.nameChangeLocked ? (
@@ -304,7 +246,7 @@ export function IdentityPanel() {
             <p className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100">
               {data.realName}
             </p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
               You&apos;ve already changed your name once. Email{" "}
               <a data-track="settings-identity-contact-support" href={`mailto:${SUPPORT_EMAIL}`} className="underline">
                 {SUPPORT_EMAIL}
@@ -336,7 +278,7 @@ export function IdentityPanel() {
       {/* Display Name: what the community sees. */}
       <div data-tour="identity-display-name">
         <h3 id="identity-display-name" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Display Name</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           The name other members see everywhere, as opposed to your Real Name, which stays on
           your account and records. Choose your Real Name, one of your pen names below, or write your own.
         </p>
@@ -378,7 +320,7 @@ export function IdentityPanel() {
             </button>
           </form>
         )}
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           A name you write here is also saved as a pen name, so it matches your Zoom and Slack attendance.
         </p>
       </div>
@@ -386,15 +328,16 @@ export function IdentityPanel() {
       {/* Pen Names / Zoom & Slack aliases */}
       <div data-tour="identity-names">
         <h3 id="identity-pen-names" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Pen Names &amp; Zoom/Slack Names</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Other names you go by, such as a pen name or a different name in Zoom or Slack. These only match your
-          attendance; they don&apos;t change the name shown in the community. Add
-          one here if your attendance isn&apos;t showing up because you joined under a name other than your
-          Real Name above. Once added, you can choose one as your Display Name above.
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+          Your prickle attendance is counted by the name Zoom shows for you. The simplest fix is to change your
+          name in Zoom to match your Real Name above. If you&apos;d rather join as something else, such as a pen
+          name or a nickname, add that name here (exactly as Zoom shows it) so your attendance still counts. These
+          only match your attendance; they don&apos;t change the name shown in the community. Once added, you can
+          choose one as your Display Name above.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.nameAliases.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No other names on file yet.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">No other names on file yet.</p>
           )}
           {data.nameAliases.map((alias) => (
             <AliasChip
@@ -402,9 +345,7 @@ export function IdentityPanel() {
               label={alias.alias}
               source={alias.source}
               active={alias.active}
-              pending={pendingAliasId === alias.id}
               isDisplayName={alias.alias === data.displayName}
-              onToggle={() => handleToggleNameAlias(alias)}
             />
           ))}
         </div>
@@ -431,13 +372,13 @@ export function IdentityPanel() {
       {/* Email aliases */}
       <div data-tour="identity-emails">
         <h3 id="identity-email-aliases" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Email Aliases</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           Other email addresses that should also count as you (e.g. an old Kajabi or Slack email). Your
           primary email is <span className="font-medium">{data.primaryEmail}</span>.
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {data.emailAliases.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No email aliases on file yet.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">No email aliases on file yet.</p>
           )}
           {data.emailAliases.map((alias) => (
             <AliasChip
@@ -445,8 +386,6 @@ export function IdentityPanel() {
               label={alias.aliasEmail}
               source={alias.source}
               active={alias.active}
-              pending={pendingAliasId === alias.id}
-              onToggle={() => handleToggleEmailAlias(alias)}
             />
           ))}
         </div>
@@ -472,7 +411,7 @@ export function IdentityPanel() {
       {/* Birthday */}
       <div data-tour="identity-birthday">
         <h3 id="identity-birthday" className="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">Birthday</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
           Month and day only — no year needed. Used to celebrate your hedgie birthday with you.
         </p>
         <form onSubmit={handleSaveBirthday} className="flex gap-2 max-w-md">

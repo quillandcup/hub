@@ -1,9 +1,10 @@
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import BadgeTypeForm from "../../BadgeTypeForm";
+import BadgeTypeForm, { type Category } from "../../BadgeTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export async function generateMetadata({
@@ -13,7 +14,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createClient();
-  const { data: badgeType } = await supabase.from("badge_types").select("name").eq("id", id).single();
+  const badgeType = await createRepos(supabase).badges.typeById(id);
   return { title: badgeType?.name ?? "Edit Badge" };
 }
 
@@ -22,20 +23,20 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: badgeType }, { data: levels }, { count: awardCount }, { data: allEvents }, { data: linkedBadges }, { data: programs }] =
-    await Promise.all([
-      supabase.from("badge_types").select("*").eq("id", id).single(),
-      supabase.from("badge_levels").select("*").eq("badge_type_id", id).order("level"),
-      supabase.from("member_badges").select("id", { count: "exact", head: true }).eq("badge_type_id", id),
-      supabase.from("events").select("id, title, starts_at").order("starts_at", { ascending: false }),
-      supabase.from("badge_types").select("event_id").not("event_id", "is", null).neq("id", id),
-      supabase.from("programs").select("id, name").order("name"),
-    ]);
+  const badges = createRepos(supabase).badges;
+  const [badgeType, levels, awardCounts, allEvents, linkedEventIds, programs] = await Promise.all([
+    badges.typeById(id),
+    badges.levelsOf(id),
+    badges.awardCounts(),
+    createRepos(supabase).events.choices(),
+    badges.linkedEventIds({ exceptTypeId: id }),
+    createRepos(supabase).programs.names(),
+  ]);
+  const awardCount = awardCounts.get(id) ?? 0;
 
   if (!badgeType) notFound();
 
-  const linkedEventIds = new Set((linkedBadges ?? []).map((b) => b.event_id));
-  const events = (allEvents ?? []).filter((e) => !linkedEventIds.has(e.id));
+  const events = allEvents.filter((e) => !linkedEventIds.has(e.id));
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
@@ -72,14 +73,14 @@ export default async function EditBadgePage({ params }: { params: Promise<{ id: 
               name: badgeType.name,
               description: badgeType.description ?? "",
               icon: badgeType.icon,
-              category: badgeType.category,
+              category: badgeType.category as Category, // a check constraint limits the column to these
               hasLevels: badgeType.has_levels,
               levels: (levels ?? []).map((l) => ({
                 level: l.level,
                 name: l.name,
                 threshold: l.threshold != null ? String(l.threshold) : "",
               })),
-              eventId: badgeType.event_id,
+              eventId: badgeType.event_id ?? null,
               programId: badgeType.program_id,
             }}
           />

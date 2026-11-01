@@ -3,8 +3,6 @@
 -- =====================================================
 
 -- Clear existing data (in reverse dependency order)
--- Note: TRUNCATE members CASCADE will also wipe prickle_types (because of default_host_id FK)
--- We'll re-seed prickle_types after the truncates
 TRUNCATE prickle_popularity CASCADE;
 TRUNCATE member_engagement CASCADE;
 TRUNCATE member_metrics CASCADE;
@@ -13,19 +11,33 @@ TRUNCATE prickle_attendance CASCADE;
 TRUNCATE member_hiatus_history CASCADE;
 TRUNCATE member_status_overrides CASCADE;
 TRUNCATE member_name_aliases CASCADE;
-TRUNCATE prickles CASCADE;
+-- DELETE, not a cascading truncate: events stand on prickles (community_events.prickle_id), and a cascading truncate would
+-- empty community_events and then everything that references them, badge definitions included. Events go first: the key is RESTRICT.
+DELETE FROM community_events;
+DELETE FROM prickles;
 TRUNCATE bronze.zoom_attendees CASCADE;
-TRUNCATE bronze.calendar_events CASCADE;
+-- DELETE, not TRUNCATE ... CASCADE: events point at calendar events (events.calendar_event_id), and a
+-- cascading truncate would empty events and then everything that references them, badge definitions included.
+DELETE FROM bronze.calendar_events;
 TRUNCATE bronze.kajabi_members CASCADE;
 TRUNCATE bronze.subscription_history CASCADE;
 TRUNCATE bronze.slack_messages CASCADE;
 TRUNCATE bronze.slack_reactions CASCADE;
 TRUNCATE bronze.slack_channels CASCADE;
 TRUNCATE bronze.slack_users CASCADE;
-TRUNCATE members CASCADE;
+-- DELETE, not TRUNCATE ... CASCADE (as for the calendar above). A cascading truncate follows every foreign key
+-- whatever its ON DELETE rule, so it reaches tables the app never deletes along with a member: members ->
+-- media_assets (owner) -> events (image) -> badge_types (event) emptied the badge definitions the migrations
+-- create. A delete follows the rules: what a member owns goes with them (attendees, badges, their media), what
+-- only mentions them (a prickle type's default host) just forgets them. These two tables have a key to
+-- members that blocks a delete, so they go first (both are empty on a fresh database).
+DELETE FROM feedback;
+DELETE FROM ambiguous_zoom_names;
+DELETE FROM members;
 
--- Re-seed prickle_types (wiped by TRUNCATE members CASCADE)
--- Note: migrations normally handle this, but seed.sql wipes it.
+-- prickle_types keep their rows from the migrations now (default_host_id is ON DELETE SET NULL), so this
+-- only adds what is missing.
+-- Note: migrations normally handle this; the seed makes sure.
 -- purpose/solo_task_friendly must be kept in sync with the best-guess mapping
 -- in 20260827000001_add_purpose_to_prickle_types.sql -- this INSERT bypasses
 -- that migration's column defaults, so it needs its own explicit values.
@@ -46,9 +58,15 @@ VALUES
   ('Monthly Goal Review', 'monthly-goal-review', 'Monthly goal planning', false, NULL, 'work', false),
   ('Pop-Up Prickle', 'pop-up', 'Spontaneous prickles from Zoom', false, NULL, 'writing', true),
   ('Hedgies on First', 'hedgies-on-first', 'First week community onboarding', false, NULL, 'writing', false),
-  ('Members Only Pitch Prickle', 'members-only-pitch', 'Members-only pitching sessions', true, NULL, 'writing', false),
   ('Educational Prickle', 'educational', 'Educational and workshop sessions', true, NULL, 'writing', false)
 ON CONFLICT (normalized_name) DO NOTHING;
+
+-- Same reason: the migrations that add the audience flags ran before these rows existed. Listed in Events, and
+-- all but the members-only pitch announced publicly (never guests: they need an event of their own).
+UPDATE prickle_types SET listed_in_events = true, announced_publicly = true
+  WHERE normalized_name IN ('educational', 'hedgies-on-first', 'monthly-goal-review', 'pitch');
+UPDATE prickle_types SET listed_in_events = true
+  WHERE normalized_name = 'members-only-pitch';
 
 -- =====================================================
 -- MEMBERS (Bronze)
@@ -105,9 +123,9 @@ INSERT INTO member_hiatus_history (member_id, start_date, end_date, reason, note
 -- Get type IDs from prickle_types table
 DO $$
 DECLARE
-  sprint_type_id UUID;
-  heads_down_type_id UUID;
-  progress_type_id UUID;
+  sprint_type_id text;
+  heads_down_type_id text;
+  progress_type_id text;
 BEGIN
   SELECT id INTO sprint_type_id FROM prickle_types WHERE normalized_name = 'sprint';
   SELECT id INTO heads_down_type_id FROM prickle_types WHERE normalized_name = 'heads-down';

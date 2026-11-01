@@ -5,7 +5,7 @@
 --   * RLS ownership follows member_id, including after the member's email changes.
 --   * reprocess_members_atomic writes member_id and keeps aliases through email changes.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
@@ -24,16 +24,16 @@ INSERT INTO public.user_profiles (id, email, role) VALUES
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 INSERT INTO public.members (id, name, email, joined_at, status, user_id, kajabi_id) VALUES
-  ('00000000-0000-4000-a000-00000000e101', 'Alias Alice', 'alias-alice@example.test', now(), 'active',
+  ('mbr_AAAAAAAAe1A1', 'Alias Alice', 'alias-alice@example.test', now(), 'active',
    '00000000-0000-4000-a000-00000000e1a1', 'alias-test-k-alice'),
-  ('00000000-0000-4000-a000-00000000e102', 'Alias Bob', 'alias-bob@example.test', now(), 'active',
+  ('mbr_AAAAAAAAe1A2', 'Alias Bob', 'alias-bob@example.test', now(), 'active',
    '00000000-0000-4000-a000-00000000e1a2', 'alias-test-k-bob'),
-  ('00000000-0000-4000-a000-00000000e104', 'Alias Dana', 'alias-dana@example.test', now(), 'active',
+  ('mbr_AAAAAAAAe1A4', 'Alias Dana', 'alias-dana@example.test', now(), 'active',
    '00000000-0000-4000-a000-00000000e1a4', NULL);
 
 -- 1-3: insert by member_id fills canonical_email and lowercases the alias.
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e101', 'Alice-Books@Example.TEST', 'manual');
+VALUES ('mbr_AAAAAAAAe1A1', 'Alice-Books@Example.TEST', 'manual');
 SELECT is(
   (SELECT canonical_email FROM public.member_email_aliases WHERE alias_email = 'alice-books@example.test'),
   'alias-alice@example.test',
@@ -46,13 +46,13 @@ SELECT is(
 );
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'alice-books@example.test'),
-  '00000000-0000-4000-a000-00000000e101'::uuid,
+  'mbr_AAAAAAAAe1A1',
   'member_id is kept as given'
 );
 
 -- 4: a canonical_email passed alongside member_id is ignored (member_id wins).
 INSERT INTO public.member_email_aliases (member_id, canonical_email, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e101', 'alias-bob@example.test', 'alice-mismatch@example.test', 'manual');
+VALUES ('mbr_AAAAAAAAe1A1', 'alias-bob@example.test', 'alice-mismatch@example.test', 'manual');
 SELECT is(
   (SELECT canonical_email FROM public.member_email_aliases WHERE alias_email = 'alice-mismatch@example.test'),
   'alias-alice@example.test',
@@ -64,7 +64,7 @@ INSERT INTO public.member_email_aliases (canonical_email, alias_email, source)
 VALUES ('ALIAS-BOB@example.test', 'bob-old@example.test', 'manual');
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'bob-old@example.test'),
-  '00000000-0000-4000-a000-00000000e102'::uuid,
+  'mbr_AAAAAAAAe1A2',
   'insert by canonical_email only resolves member_id'
 );
 SELECT is(
@@ -83,28 +83,28 @@ SELECT throws_ok(
 );
 SELECT throws_ok(
   $$INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-    VALUES ('00000000-0000-4000-a000-00000000eeee', 'ghost-alias@example.test', 'manual')$$,
+    VALUES ('mbr_AAAAAAAAeeee', 'ghost-alias@example.test', 'manual')$$,
   '23503',
   NULL,
   'insert for a member id that does not exist is rejected'
 );
 
 -- 9-10: when the member's email changes, canonical_email follows and member_id stays.
-UPDATE public.members SET email = 'alias-alice-new@example.test' WHERE id = '00000000-0000-4000-a000-00000000e101';
+UPDATE public.members SET email = 'alias-alice-new@example.test' WHERE id = 'mbr_AAAAAAAAe1A1';
 SELECT is(
   (SELECT array_agg(DISTINCT canonical_email) FROM public.member_email_aliases
-    WHERE member_id = '00000000-0000-4000-a000-00000000e101'),
+    WHERE member_id = 'mbr_AAAAAAAAe1A1'),
   ARRAY['alias-alice-new@example.test'],
   'every alias''s canonical_email follows the member''s email change'
 );
 SELECT is(
-  (SELECT count(*)::int FROM public.member_email_aliases WHERE member_id = '00000000-0000-4000-a000-00000000e101'),
+  (SELECT count(*)::int FROM public.member_email_aliases WHERE member_id = 'mbr_AAAAAAAAe1A1'),
   2,
   'aliases stay with the member through an email change'
 );
 
 -- 11: updating an unrelated member column leaves aliases alone.
-UPDATE public.members SET name = 'Alias Alice Renamed' WHERE id = '00000000-0000-4000-a000-00000000e101';
+UPDATE public.members SET name = 'Alias Alice Renamed' WHERE id = 'mbr_AAAAAAAAe1A1';
 SELECT is(
   (SELECT canonical_email FROM public.member_email_aliases WHERE alias_email = 'alice-books@example.test'),
   'alias-alice-new@example.test',
@@ -116,7 +116,7 @@ UPDATE public.member_email_aliases SET canonical_email = 'alias-bob@example.test
 WHERE alias_email = 'alice-mismatch@example.test';
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'alice-mismatch@example.test'),
-  '00000000-0000-4000-a000-00000000e102'::uuid,
+  'mbr_AAAAAAAAe1A2',
   'updating canonical_email alone moves the alias to the member with that email'
 );
 
@@ -130,11 +130,11 @@ SELECT throws_ok(
 );
 
 -- 14-15: updating member_id moves the alias and refreshes canonical_email.
-UPDATE public.member_email_aliases SET member_id = '00000000-0000-4000-a000-00000000e101'
+UPDATE public.member_email_aliases SET member_id = 'mbr_AAAAAAAAe1A1'
 WHERE alias_email = 'alice-mismatch@example.test';
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'alice-mismatch@example.test'),
-  '00000000-0000-4000-a000-00000000e101'::uuid,
+  'mbr_AAAAAAAAe1A1',
   'updating member_id moves the alias'
 );
 SELECT is(
@@ -147,7 +147,7 @@ SELECT is(
 UPDATE public.member_email_aliases SET active = false WHERE alias_email = 'alice-mismatch@example.test';
 SELECT is(
   (SELECT (member_id, canonical_email, active)::text FROM public.member_email_aliases WHERE alias_email = 'alice-mismatch@example.test'),
-  '(00000000-0000-4000-a000-00000000e101,alias-alice-new@example.test,f)',
+  '(mbr_AAAAAAAAe1A1,alias-alice-new@example.test,f)',
   'deactivating an alias changes only active'
 );
 
@@ -165,15 +165,15 @@ SELECT set_config('request.jwt.claims',
 INSERT INTO result SELECT 'alice_sees', jsonb_agg(alias_email ORDER BY alias_email) FROM public.member_email_aliases
   WHERE alias_email LIKE '%@example.test' AND alias_email LIKE ANY (ARRAY['alice-%', 'bob-%']);
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e101', 'alice-self-service@example.test', 'manual');
+VALUES ('mbr_AAAAAAAAe1A1', 'alice-self-service@example.test', 'manual');
 UPDATE public.member_email_aliases SET active = false WHERE alias_email = 'bob-old@example.test';
 
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000e1a4", "email": "alias-dana@example.test", "role": "authenticated"}', true);
 INSERT INTO result SELECT 'admin_sees', to_jsonb(count(*)) FROM public.member_email_aliases
-  WHERE member_id IN ('00000000-0000-4000-a000-00000000e101', '00000000-0000-4000-a000-00000000e102');
+  WHERE member_id IN ('mbr_AAAAAAAAe1A1', 'mbr_AAAAAAAAe1A2');
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e102', 'bob-by-admin@example.test', 'manual');
+VALUES ('mbr_AAAAAAAAe1A2', 'bob-by-admin@example.test', 'manual');
 RESET ROLE;
 
 -- 18-22
@@ -184,7 +184,7 @@ SELECT is(
 );
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'alice-self-service@example.test'),
-  '00000000-0000-4000-a000-00000000e101'::uuid,
+  'mbr_AAAAAAAAe1A1',
   'a member can add an alias to themselves'
 );
 SELECT is(
@@ -195,7 +195,7 @@ SELECT is(
 SELECT is((SELECT value FROM result WHERE label = 'admin_sees'), '4'::jsonb, 'an admin sees every member''s aliases');
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'bob-by-admin@example.test'),
-  '00000000-0000-4000-a000-00000000e102'::uuid,
+  'mbr_AAAAAAAAe1A2',
   'an admin can add an alias to any member'
 );
 
@@ -204,7 +204,7 @@ SELECT throws_ok(
   $$SET LOCAL ROLE authenticated;
     SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-a000-00000000e1a1", "email": "alias-alice-login@example.test", "role": "authenticated"}', true);
     INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-    VALUES ('00000000-0000-4000-a000-00000000e102', 'alice-forges-bob@example.test', 'manual')$$,
+    VALUES ('mbr_AAAAAAAAe1A2', 'alice-forges-bob@example.test', 'manual')$$,
   NULL,
   NULL,
   'a member cannot add an alias to another member'
@@ -216,10 +216,10 @@ RESET ROLE;
 
 -- 24: deleting a member deletes their aliases.
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
-  ('00000000-0000-4000-a000-00000000e105', 'Alias Eve', 'alias-eve@example.test', now(), 'lead');
+  ('mbr_AAAAAAAAe1A5', 'Alias Eve', 'alias-eve@example.test', now(), 'lead');
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e105', 'eve-old@example.test', 'manual');
-DELETE FROM public.members WHERE id = '00000000-0000-4000-a000-00000000e105';
+VALUES ('mbr_AAAAAAAAe1A5', 'eve-old@example.test', 'manual');
+DELETE FROM public.members WHERE id = 'mbr_AAAAAAAAe1A5';
 SELECT is(
   (SELECT count(*)::int FROM public.member_email_aliases WHERE alias_email = 'eve-old@example.test'),
   0,
@@ -234,54 +234,54 @@ SELECT reprocess_members_atomic(jsonb_build_array(jsonb_build_object(
 )));
 SELECT is(
   (SELECT (member_id, canonical_email, source)::text FROM public.member_email_aliases WHERE alias_email = 'alias-bob@example.test'),
-  '(00000000-0000-4000-a000-00000000e102,alias-bob-new@example.test,auto_detected)',
+  '(mbr_AAAAAAAAe1A2,alias-bob-new@example.test,auto_detected)',
   'reprocess auto-aliases the old email to the member, with the new canonical email'
 );
 SELECT is(
   (SELECT array_agg(DISTINCT canonical_email) FROM public.member_email_aliases
-    WHERE member_id = '00000000-0000-4000-a000-00000000e102'),
+    WHERE member_id = 'mbr_AAAAAAAAe1A2'),
   ARRAY['alias-bob-new@example.test'],
   'reprocess: the member''s existing aliases now show the new email'
 );
 SELECT is(
-  (SELECT email FROM public.members WHERE id = '00000000-0000-4000-a000-00000000e102'),
+  (SELECT email FROM public.members WHERE id = 'mbr_AAAAAAAAe1A2'),
   'alias-bob-new@example.test',
   'reprocess updated the member''s email'
 );
 
 -- 28: an old email that was someone else's alias moves to this member.
 INSERT INTO public.members (id, name, email, joined_at, status, kajabi_id) VALUES
-  ('00000000-0000-4000-a000-00000000e106', 'Alias Fay', 'alias-fay@example.test', now(), 'lead', 'alias-test-k-fay');
+  ('mbr_AAAAAAAAe1A6', 'Alias Fay', 'alias-fay@example.test', now(), 'lead', 'alias-test-k-fay');
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e101', 'alias-fay@example.test', 'manual');
+VALUES ('mbr_AAAAAAAAe1A1', 'alias-fay@example.test', 'manual');
 SELECT reprocess_members_atomic(jsonb_build_array(jsonb_build_object(
   'email', 'alias-fay-new@example.test', 'name', 'Alias Fay', 'joined_at', '2024-01-01',
   'status', 'lead', 'source', 'kajabi', 'kajabi_id', 'alias-test-k-fay'
 )));
 SELECT is(
   (SELECT member_id FROM public.member_email_aliases WHERE alias_email = 'alias-fay@example.test'),
-  '00000000-0000-4000-a000-00000000e106'::uuid,
+  'mbr_AAAAAAAAe1A6',
   'reprocess: a member''s own old email becomes their alias even if it was aliased elsewhere'
 );
 
 -- 29-30: a stale duplicate (same kajabi_id, new email) hands its aliases to the original before it's deleted.
 INSERT INTO public.members (id, name, email, joined_at, status, kajabi_id) VALUES
-  ('00000000-0000-4000-a000-00000000e107', 'Alias Gus', 'alias-gus-old@example.test', now(), 'lead', 'alias-test-k-gus'),
-  ('00000000-0000-4000-a000-00000000e108', 'Alias Gus', 'alias-gus-new@example.test', now(), 'lead', 'alias-test-k-gus');
+  ('mbr_AAAAAAAAe1A7', 'Alias Gus', 'alias-gus-old@example.test', now(), 'lead', 'alias-test-k-gus'),
+  ('mbr_AAAAAAAAe1A8', 'Alias Gus', 'alias-gus-new@example.test', now(), 'lead', 'alias-test-k-gus');
 INSERT INTO public.member_email_aliases (member_id, alias_email, source)
-VALUES ('00000000-0000-4000-a000-00000000e108', 'gus-on-dup@example.test', 'manual');
+VALUES ('mbr_AAAAAAAAe1A8', 'gus-on-dup@example.test', 'manual');
 SELECT reprocess_members_atomic(jsonb_build_array(jsonb_build_object(
   'email', 'alias-gus-new@example.test', 'name', 'Alias Gus', 'joined_at', '2024-01-01',
   'status', 'lead', 'source', 'kajabi', 'kajabi_id', 'alias-test-k-gus'
 )));
 SELECT is(
-  (SELECT count(*)::int FROM public.members WHERE id = '00000000-0000-4000-a000-00000000e108'),
+  (SELECT count(*)::int FROM public.members WHERE id = 'mbr_AAAAAAAAe1A8'),
   0,
   'reprocess deletes the stale duplicate'
 );
 SELECT is(
   (SELECT (member_id, canonical_email)::text FROM public.member_email_aliases WHERE alias_email = 'gus-on-dup@example.test'),
-  '(00000000-0000-4000-a000-00000000e107,alias-gus-new@example.test)',
+  '(mbr_AAAAAAAAe1A7,alias-gus-new@example.test)',
   'reprocess moves the stale duplicate''s aliases to the original member'
 );
 

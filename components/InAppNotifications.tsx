@@ -12,7 +12,9 @@ import {
 } from "@/app/actions/in-app-notifications";
 import type { InAppNotification } from "@/lib/channels/in-app";
 import { formatRelativeTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { track } from "@/lib/analytics/client";
+import { ANNOUNCEMENT_TONE_CLASSES } from "@/components/announcements/tones";
 
 /** At most this many banners at once; the rest are still in the bell. */
 export const MAX_BANNERS = 3;
@@ -162,7 +164,7 @@ function BannerStrips() {
       {banners.map((n, i) => (
         <div
           key={n.id}
-          className={`${i === 0 ? "flex" : "hidden sm:flex"} items-center gap-3 border-b border-plum-700 bg-plum-600 px-6 py-2 text-sm text-white`}
+          className={`${i === 0 ? "flex" : "hidden sm:flex"} items-center gap-3 ${ANNOUNCEMENT_TONE_CLASSES.notice} px-6 py-2 text-sm`}
         >
           <p className="min-w-0 flex-1">
             {n.text}
@@ -215,6 +217,7 @@ export function NotificationRow({
   notification: InAppNotification;
   onOpen: (n: InAppNotification) => void;
 }) {
+  const timeZone = useTimeZone();
   const body = (
     <span className="flex items-start gap-2">
       <span
@@ -226,7 +229,7 @@ export function NotificationRow({
           {n.text}
           {!n.read && <span className="sr-only"> (unread)</span>}
         </span>
-        <span className="mt-0.5 block text-xs text-slate-400">{formatRelativeTime(n.createdAt)}</span>
+        <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{formatRelativeTime(n.createdAt, timeZone)}</span>
       </span>
     </span>
   );
@@ -282,7 +285,7 @@ function BellMenu() {
         data-track="notifications-bell"
         aria-expanded={isOpen}
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" focusable="false">
           <path
@@ -315,7 +318,7 @@ function BellMenu() {
             </button>
           </div>
           {latest.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Nothing yet.</p>
+            <p className="px-4 py-6 text-center text-sm text-slate-600 dark:text-slate-400">Nothing yet.</p>
           ) : (
             <ul className="max-h-96 overflow-y-auto text-sm">
               {latest.map((n) => (

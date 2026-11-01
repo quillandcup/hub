@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdminPage } from "@/lib/admin-auth";
 import Link from "next/link";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
@@ -8,50 +9,11 @@ export const metadata: Metadata = {
   title: "Wheel of Wonder",
 };
 
-interface MatchMember {
-  id: string;
-  name: string;
-}
-
-interface WheelMatchRow {
-  id: string;
-  status: "proposed" | "confirmed";
-  created_at: string;
-  confirmed_at: string | null;
-  spinner_message_count: number;
-  matched_message_count: number;
-  spinner: MatchMember | MatchMember[] | null;
-  matched: MatchMember | MatchMember[] | null;
-}
-
-// Supabase returns the embedded FK relation as an object for a to-one join,
-// but the generated type is looser (array-or-object) -- normalize here.
-function oneMember(value: MatchMember | MatchMember[] | null): MatchMember | null {
-  return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
 export default async function WheelOfWonderAdminPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const { data: matchesData } = await supabase
-    .from("wheel_of_wonder_matches")
-    .select(
-      `
-      id,
-      status,
-      created_at,
-      confirmed_at,
-      spinner_message_count,
-      matched_message_count,
-      spinner:members!spinner_member_id(id, name),
-      matched:members!matched_member_id(id, name)
-    `
-    )
-    .order("created_at", { ascending: false })
-    .limit(1000);
-
-  const matches = (matchesData ?? []) as unknown as WheelMatchRow[];
+  const matches = await createRepos(supabase).wheelOfWonder.recent(1000);
 
   const confirmedCount = matches.filter((m) => m.status === "confirmed").length;
   const proposedCount = matches.length - confirmedCount;
@@ -72,7 +34,8 @@ export default async function WheelOfWonderAdminPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="@container">
+          <div className="grid grid-cols-1 @pair:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">{matches.length}</div>
             <div className="text-sm text-slate-600 dark:text-slate-400">total matches</div>
@@ -88,19 +51,19 @@ export default async function WheelOfWonderAdminPage() {
             </div>
           </div>
         </div>
+        </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
             A match is confirmed once both people have replied in the shared Slack room and their combined
             message count reaches {CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD}.
           </div>
           <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {matches.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">No spins yet.</div>
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">No spins yet.</div>
             ) : (
               matches.map((match) => {
-                const spinner = oneMember(match.spinner);
-                const matched = oneMember(match.matched);
+                const { spinner, matched } = match;
                 return (
                   <div
                     key={match.id}
@@ -118,7 +81,7 @@ export default async function WheelOfWonderAdminPage() {
                         ) : (
                           "Unknown member"
                         )}
-                        <span className="text-slate-400 dark:text-slate-600 mx-2">→</span>
+                        <span className="text-slate-500 dark:text-slate-600 mx-2">→</span>
                         {matched ? (
                           <Link
                             href={`/admin/members/${matched.id}`}
@@ -136,7 +99,7 @@ export default async function WheelOfWonderAdminPage() {
                           <> &middot; confirmed {new Date(match.confirmed_at).toLocaleString()}</>
                         )}
                       </div>
-                      <div className="text-sm text-slate-500 dark:text-slate-500 mt-1">
+                      <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         Messages: {spinner?.name ?? "spinner"} {match.spinner_message_count} &middot;{" "}
                         {matched?.name ?? "matched"} {match.matched_message_count}
                       </div>

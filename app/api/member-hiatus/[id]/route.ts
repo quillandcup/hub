@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { recomputeMemberStatus } from "@/lib/member-status";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -24,21 +25,7 @@ export async function PATCH(
     if (reason !== undefined) updates.reason = reason;
     if (notes !== undefined) updates.notes = notes;
 
-    const { data: hiatus, error } = await supabase
-      .from("member_hiatus_history")
-      .update(updates)
-      .eq("id", id)
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating member hiatus:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!hiatus) {
-      return NextResponse.json({ error: "Hiatus not found" }, { status: 404 });
-    }
+    const hiatus = await createRepos(supabase).memberStatus.updateHiatus(id, updates);
 
     await recomputeMemberStatus(supabase, hiatus.member_id);
 
@@ -64,18 +51,9 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const { data: existing } = await supabase
-      .from("member_hiatus_history")
-      .select("member_id")
-      .eq("id", id)
-      .single();
-
-    const { error } = await supabase.from("member_hiatus_history").delete().eq("id", id);
-
-    if (error) {
-      console.error("Error deleting member hiatus:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const memberStatus = createRepos(supabase).memberStatus;
+    const existing = await memberStatus.hiatusById(id);
+    await memberStatus.deleteHiatus(id);
 
     if (existing) await recomputeMemberStatus(supabase, existing.member_id);
 

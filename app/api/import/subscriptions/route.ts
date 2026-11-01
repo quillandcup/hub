@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
@@ -66,14 +67,10 @@ export async function POST(request: NextRequest) {
     }));
 
     // UPSERT to make imports idempotent
-    const { error: insertError, data: inserted } = await supabase
-      .schema('bronze').from("subscription_history")
-      .upsert(records, {
-        onConflict: "kajabi_subscription_id,imported_at",
-      })
-      .select();
-
-    if (insertError) {
+    let written: number;
+    try {
+      written = await createRepos(supabase).billing.upsertSubscriptionHistory(records);
+    } catch (insertError) {
       console.error("Error inserting subscriptions:", insertError);
       throw insertError;
     }
@@ -90,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      imported: inserted?.length || 0,
+      imported: written,
       importTimestamp,
       statusBreakdown,
       processing: processingResults.processed,

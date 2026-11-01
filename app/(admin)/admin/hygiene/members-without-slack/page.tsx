@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import MemberSlackSearchForm from "./MemberSlackSearchForm";
@@ -13,16 +14,13 @@ export default async function MembersWithoutSlackPage() {
   const supabase = await createClient();
 
   const [
-    { data: members },
-    { data: slackUsers },
-    { data: aliases },
+    members,
+    slackUsers,
+    aliases,
   ] = await Promise.all([
-    supabase.from("members").select("id, name, email, status").order("name"),
-    supabase
-      .schema("bronze")
-      .from("slack_users")
-      .select("user_id, email, real_name, display_name, is_bot, is_deleted"),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
+    createRepos(supabase).members.list({ orderBy: "name" }),
+    createRepos(supabase).slackUsers.list(),
+    createRepos(supabase).aliases.nameAliases(),
   ]);
 
   // Reuses the exact same matching logic as /admin/hygiene/unmatched-slack —
@@ -33,7 +31,7 @@ export default async function MembersWithoutSlackPage() {
   // resolve automatically.
   const userToMemberMap = await matchSlackUsersToMembers(
     slackUsers || [],
-    members || [],
+    members,
     aliases || []
   );
   const matchedMemberIds = new Set(userToMemberMap.values());
@@ -41,7 +39,7 @@ export default async function MembersWithoutSlackPage() {
   const unmatchedMembers = (members || [])
     .filter((m) => m.status === "active")
     .filter((m) => !matchedMemberIds.has(m.id))
-    .map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }));
 
   const searchableSlackUsers = (slackUsers || [])
     .filter((u) => !u.is_bot)

@@ -1,5 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
 import { quarterKey } from "@/lib/badges";
+import { isId } from "@/lib/ids";
 
 // The Big Sister program: every new member (a trial, a direct sign-up, someone rejoining, someone
 // arriving through a program that includes membership) is matched with an existing member for 30
@@ -117,9 +119,12 @@ export function deriveOutcome(
 export interface MentorshipRow {
   id: string;
   mentorMemberId: string;
+  /** Display name; the legal name is in `mentorRealName` when it differs. */
   mentorName: string;
+  mentorRealName?: string;
   newMemberId: string;
   newMemberName: string;
+  newMemberRealName?: string;
   /** The day their membership began (sign-up, or the program cohort's start). */
   startedOn: string;
   /** From Stripe, for a trial; null otherwise. */
@@ -246,6 +251,7 @@ export function openLoadByMentor(rows: MentorshipRow[]): Map<string, number> {
 interface MemberEmbed {
   id: string;
   name: string;
+  display_name?: string | null;
   status: string | null;
   first_joined_at: string | null;
   most_recent_joined_at: string | null;
@@ -287,9 +293,11 @@ export function toMentorshipRows(dbRows: MentorshipDbRow[], today: string): Ment
     return {
       id: r.id,
       mentorMemberId: r.mentor_member_id,
-      mentorName: mentor?.name ?? "Unknown member",
+      mentorName: mentor ? getMemberDisplayName(mentor) : "Unknown member",
+      mentorRealName: mentor && getMemberDisplayName(mentor) !== mentor.name ? mentor.name : undefined,
       newMemberId: r.new_member_id,
-      newMemberName: newMember?.name ?? "Unknown member",
+      newMemberName: newMember ? getMemberDisplayName(newMember) : "Unknown member",
+      newMemberRealName: newMember && getMemberDisplayName(newMember) !== newMember.name ? newMember.name : undefined,
       startedOn: r.started_on,
       trialEndsOn: r.trial_ends_on,
       kind: r.kind,
@@ -301,34 +309,9 @@ export function toMentorshipRows(dbRows: MentorshipDbRow[], today: string): Ment
   });
 }
 
-const MEMBER_COLUMNS = "id, name, status, first_joined_at, most_recent_joined_at";
-
-/** Every match (newest first) with names and the derived outcome. Paginated per CLAUDE.md. */
-export async function getMentorships(supabase: SupabaseClient, today: string): Promise<MentorshipRow[]> {
-  const BATCH_SIZE = 1000;
-  const all: MentorshipDbRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("mentorships")
-      .select(
-        `id, mentor_member_id, new_member_id, started_on, trial_ends_on, kind, status, outcome_note,
-         mentor:members!mentorships_mentor_member_id_fkey(${MEMBER_COLUMNS}),
-         new_member:members!mentorships_new_member_id_fkey(${MEMBER_COLUMNS})`
-      )
-      .order("started_on", { ascending: false })
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      all.push(...(batch as unknown as MentorshipDbRow[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return toMentorshipRows(all, today);
+/** Every match (newest first) with names and the derived outcome. */
+export async function getMentorships(mentorships: MentorshipRepository, today: string): Promise<MentorshipRow[]> {
+  return toMentorshipRows((await mentorships.listWithMembers()) as MentorshipDbRow[], today);
 }
 
 export interface MatchInput {
@@ -336,7 +319,6 @@ export interface MatchInput {
   newMemberId: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Checks the two members chosen in the admin form before the match is made. The start date isn't
  * entered: it comes from the new member's sign-up (lib/arrivals.ts). */
@@ -345,8 +327,8 @@ export function parseMatchInput(raw: {
   newMemberId?: string | null;
 }): { ok: true; value: MatchInput } | { ok: false; error: string } {
   const { mentorMemberId, newMemberId } = raw;
-  if (!mentorMemberId || !UUID.test(mentorMemberId)) return { ok: false, error: "Choose a big sister." };
-  if (!newMemberId || !UUID.test(newMemberId)) return { ok: false, error: "Choose a new member." };
+  if (!mentorMemberId || !isId(mentorMemberId, "mbr")) return { ok: false, error: "Choose a big sister." };
+  if (!newMemberId || !isId(newMemberId, "mbr")) return { ok: false, error: "Choose a new member." };
   if (mentorMemberId === newMemberId) return { ok: false, error: "A member can't be their own big sister." };
   return { ok: true, value: { mentorMemberId, newMemberId } };
 }

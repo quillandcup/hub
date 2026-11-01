@@ -4,6 +4,7 @@
 // math, slot matching, kept/missed progress, and input validation -- so it's easy to unit test
 // (tests/lib/commitments.test.ts). The server actions in
 // app/(member)/my-prickles/commitment-actions.ts do the fetching.
+import { secondaryTimeNote, withSecondaryTime } from "@/lib/secondary-time";
 
 import { formatScheduleLabel, zonedTimeToUtc } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -344,25 +345,41 @@ export function commitmentsFetchWindow(commitments: Commitment[]): { from: strin
   return { from: new Date(min - toleranceMs).toISOString(), to: new Date(max + toleranceMs).toISOString() };
 }
 
-/** e.g. "Progress Prickle · every Monday · 7:00 AM EDT" */
-export function formatSlotLabel(typeName: string, slot: CommitmentSlot): string {
-  return formatScheduleLabel(typeName, {
-    recurrenceType: "weekly",
-    dayOfWeek: slot.dayOfWeek,
-    recurrenceAnchorDate: null,
-    weekOfMonth: null,
-    eventDate: null,
-    startTimeLocal: slot.startTimeLocal,
-    timezone: slot.timezone,
-  });
+/** The member's secondary time zone and the date to read a slot's next occurrence from. */
+export interface SecondaryZoneContext {
+  secondaryZone: string | null;
+  now: Date;
+}
+
+/** "(7:00 AM ET)" for the slot's next occurrence in the secondary zone, or "" when there isn't one to show. */
+function slotSecondaryNote(slot: CommitmentSlot, secondary?: SecondaryZoneContext): string {
+  if (!secondary?.secondaryZone) return "";
+  const date = firstOccurrenceDate(localDateFor(secondary.now, slot.timezone), slot.dayOfWeek);
+  const note = secondaryTimeNote(expectedOccurrenceStart(date, slot), slot.timezone, secondary.secondaryZone);
+  return note ? ` (${note})` : "";
+}
+
+/** e.g. "Progress Prickle · every Monday · 7:00 AM EDT", plus " (7:00 AM ET)" when `secondary` has a zone. */
+export function formatSlotLabel(typeName: string, slot: CommitmentSlot, secondary?: SecondaryZoneContext): string {
+  return (
+    formatScheduleLabel(typeName, {
+      recurrenceType: "weekly",
+      dayOfWeek: slot.dayOfWeek,
+      recurrenceAnchorDate: null,
+      weekOfMonth: null,
+      eventDate: null,
+      startTimeLocal: slot.startTimeLocal,
+      timezone: slot.timezone,
+    }) + slotSecondaryNote(slot, secondary)
+  );
 }
 
 /**
  * A one-line title for a commitment. Slots sharing a type and time collapse into one day list
  * ("Progress Prickle · Mon, Wed, Fri · 5 AM EDT"); otherwise one "Type · Day · time" part per slot.
  */
-export function formatCommitmentTitle(slots: (CommitmentSlot & { typeName: string })[]): string {
-  if (slots.length === 1) return formatSlotLabel(slots[0].typeName, slots[0]);
+export function formatCommitmentTitle(slots: (CommitmentSlot & { typeName: string })[], secondary?: SecondaryZoneContext): string {
+  if (slots.length === 1) return formatSlotLabel(slots[0].typeName, slots[0], secondary);
   const groups = new Map<string, (CommitmentSlot & { typeName: string })[]>();
   for (const s of slots) {
     const key = `${s.typeId}|${normalizeTime(s.startTimeLocal)}|${s.timezone}`;
@@ -371,8 +388,8 @@ export function formatCommitmentTitle(slots: (CommitmentSlot & { typeName: strin
   return [...groups.values()]
     .map((group) => {
       const days = [...group].sort((a, b) => a.dayOfWeek - b.dayOfWeek).map((s) => DAY_SHORT[s.dayOfWeek]);
-      // Reuse the single-slot label's time part (after the last " · ").
-      const time = formatSlotLabel(group[0].typeName, group[0]).split(" · ").pop();
+      // Reuse the single-slot label's time part (after the last " · "); its secondary reading is the first day's.
+      const time = formatSlotLabel(group[0].typeName, group[0], secondary).split(" · ").pop();
       return `${group[0].typeName} · ${days.join(", ")} · ${time}`;
     })
     .join("; ");
@@ -506,7 +523,9 @@ export function buildSlotOptions(
     timeLabel: string;
     hostName: string | null;
     nextOccurrenceStart: string;
-  }[]
+  }[],
+  timeZone?: string,
+  secondaryZone: string | null = null
 ): CommitmentSlotOption[] {
   const options: CommitmentSlotOption[] = [];
   for (const row of rows) {
@@ -516,7 +535,7 @@ export function buildSlotOptions(
       ...slot,
       key: row.seriesKey,
       typeName: row.typeName,
-      label: `${row.dayOfWeek} ${row.timeLabel} · ${row.typeName}${row.hostName ? ` with ${row.hostName}` : ""}`,
+      label: `${row.dayOfWeek} ${timeZone ? withSecondaryTime(row.timeLabel, row.nextOccurrenceStart, timeZone, secondaryZone) : row.timeLabel} · ${row.typeName}${row.hostName ? ` with ${row.hostName}` : ""}`,
       nextDate: localDateFor(new Date(row.nextOccurrenceStart), SCHEDULE_TIMEZONE),
     });
   }

@@ -96,3 +96,10 @@ describe('HedgieversariesTable date sorting', () => {
     expect(renderedNames()).toEqual(['Clover', 'Bramble', 'Acorn', 'Thistle', 'Hazel'])
   })
 })
+
+describe('HedgieversariesTable legal name', () => {
+  it('shows the display name and keeps the legal name as a tooltip', () => {
+    render(<HedgieversariesTable rows={[row('Ada E', { legalName: 'Ada Example' })]} asOf="2026-09-26T00:00:00Z" />)
+    expect(screen.getByRole('link', { name: 'Ada E' })).toHaveAttribute('title', 'Ada Example')
+  })
+})

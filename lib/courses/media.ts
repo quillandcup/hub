@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { visibleLessonIds } from "@/lib/courses/visible";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
-import { inBatches } from "@/lib/courses/db";
+import { createRepos } from "@/lib/data/repos";
+import type { VideoRecord } from "@/lib/data/courses";
 import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
 
 /**
@@ -14,7 +14,7 @@ import type { MuxAssetStatus, MuxVideoQuality } from "@/lib/mux";
  * upload. A video used only by Kajabi drafts is planned too (`draft`) so staff can preview those
  * lessons, but it is never uploaded by the normal upload: every upload is billed, and drafts are
  * work in progress (some are leftovers), so uploading them is a separate, deliberate action
- * (`drafts: true`). A video already uploaded is never uploaded again, and a run only ever does new
+ * (`drafts: true`), and one staff can narrow to the exact videos they pick (`mediaIds`). A video already uploaded is never uploaded again, and a run only ever does new
  * work, so it is safe to repeat. An upload is a button press, not part of the automatic sync, for
  * the same cost reason.
  *
@@ -56,26 +56,11 @@ export interface PlannedVideo {
   videoStatus: "preparing" | "ready" | "errored" | null;
 }
 
-interface VideoRow {
-  id: string;
-  source_key: string;
-  status: "preparing" | "ready" | "errored";
-  mux_asset_id: string | null;
-}
-
 /** The videos of a course's lessons, drafts' included and marked, and what each needs. Reads only. */
 export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<PlannedVideo[]> {
-  const [modules, lessons] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-    fetchAllBronzeRows(
-      supabase,
-      "kajabi_course_lessons",
-      "kajabi_id, module_kajabi_id, position, title, publishing_option, video_media_id, video_source, video_duration_seconds",
-      (q) => q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-  ]);
+  const repos = createRepos(supabase);
+  const repo = repos.kajabiCourses;
+  const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
 
   // Same visibility rule as members get: a video is a draft's when no visible lesson uses it.
   const visibleIds = visibleLessonIds(modules, lessons);
@@ -83,16 +68,8 @@ export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId:
   const withVideo = lessons.filter((l) => l.video_media_id);
   const mediaIds = Array.from(new Set(withVideo.map((l) => l.video_media_id as string)));
 
-  const videos = new Map<string, VideoRow>();
-  for (const batch of inBatches(mediaIds)) {
-    const { data, error } = await supabase
-      .from("videos")
-      .select("id, source_key, status, mux_asset_id")
-      .eq("source_kind", "kajabi")
-      .in("source_key", batch);
-    if (error) throw new Error(`videos read failed: ${error.message}`);
-    for (const v of data ?? []) videos.set(v.source_key, v as VideoRow);
-  }
+  const videos = new Map<string, VideoRecord>();
+  for (const v of await repos.courses.videosBySourceKeys("kajabi", mediaIds)) videos.set(v.source_key, v);
 
   return mediaIds.map((mediaId) => {
     const group = withVideo.filter((l) => l.video_media_id === mediaId);
@@ -115,7 +92,7 @@ export async function planCourseVideos(supabase: SupabaseClient, courseKajabiId:
       state,
       downloadUrl: source?.download_url ?? null,
       retryVideoId: row && !inMux ? row.id : null,
-      videoStatus: row?.status ?? null,
+      videoStatus: (row?.status as PlannedVideo["videoStatus"] | undefined) ?? null,
     };
   });
 }
@@ -138,6 +115,8 @@ export interface UploadResult {
   /** Needs a fresh link: run the Kajabi content step again. */
   needsNewLink: { mediaId: string; lessonTitles: string[]; reason: "expired" | "missing" }[];
   failed: { mediaId: string; lessonTitles: string[]; error: string }[];
+  /** Picked videos (`mediaIds`) that this upload doesn't cover: not in the course, or the other kind (draft or not). Nothing was done for them. */
+  notAvailable: string[];
 }
 
 export async function uploadCourseVideos(
@@ -146,14 +125,28 @@ export async function uploadCourseVideos(
   courseKajabiId: string,
   now: Date,
   fingerprint: (url: string) => Promise<string> = fingerprintSource,
-  /** `drafts` uploads the videos only drafts use, and only those: the normal upload never does. */
-  options: { drafts?: boolean } = {}
+  /**
+   * `drafts` uploads the videos only drafts use, and only those: the normal upload never does.
+   * `mediaIds` narrows either kind to exactly the videos picked (Kajabi media ids); every other video
+   * is left alone. Without it, every video of that kind is considered.
+   */
+  options: { drafts?: boolean; mediaIds?: string[] } = {}
 ): Promise<UploadResult> {
   const plan = await planCourseVideos(supabase, courseKajabiId, now);
-  const result: UploadResult = { uploaded: [], alreadyInMux: 0, needsNewLink: [], failed: [] };
+  const videosRepo = createRepos(supabase).courses;
+  const wantDrafts = options.drafts ?? false;
+  const picked = options.mediaIds ? new Set(options.mediaIds) : null;
+  const result: UploadResult = {
+    uploaded: [],
+    alreadyInMux: 0,
+    needsNewLink: [],
+    failed: [],
+    notAvailable: picked ? [...picked].filter((id) => !plan.some((p) => p.mediaId === id && p.draft === wantDrafts)) : [],
+  };
 
   for (const item of plan) {
-    if (item.draft !== (options.drafts ?? false)) continue;
+    if (item.draft !== wantDrafts) continue;
+    if (picked && !picked.has(item.mediaId)) continue;
     if (item.state === "uploaded") {
       result.alreadyInMux++;
       continue;
@@ -167,34 +160,28 @@ export async function uploadCourseVideos(
     try {
       const sourceFingerprint = await fingerprint(item.downloadUrl!).catch(() => null);
       if (videoId) {
-        const { error } = await supabase.from("videos").update({ status: "preparing", source_fingerprint: sourceFingerprint }).eq("id", videoId);
-        if (error) throw new Error(error.message);
+        await videosRepo.updateVideo(videoId, { status: "preparing", source_fingerprint: sourceFingerprint });
       } else {
-        const { data, error } = await supabase
-          .from("videos")
-          .insert({
-            source_kind: "kajabi",
-            source_key: item.mediaId,
-            status: "preparing",
-            quality: COURSE_VIDEO_QUALITY,
-            source_fingerprint: sourceFingerprint,
-            duration_seconds: item.durationSeconds,
-            has_burned_in_captions: true,
-          })
-          .select("id")
-          .single();
-        if (error) throw new Error(error.message);
-        videoId = data.id;
+        videoId = await videosRepo.createVideo({
+          source_kind: "kajabi",
+          source_key: item.mediaId,
+          status: "preparing",
+          quality: COURSE_VIDEO_QUALITY,
+          source_fingerprint: sourceFingerprint,
+          duration_seconds: item.durationSeconds,
+          has_burned_in_captions: true,
+        });
       }
 
       const { assetId } = await api.createAsset({ url: item.downloadUrl!, videoId: videoId!, quality: COURSE_VIDEO_QUALITY });
       // Saved straight away: the webhook looks the video up by this id.
-      const { error: saveError } = await supabase.from("videos").update({ mux_asset_id: assetId }).eq("id", videoId!);
-      if (saveError) throw new Error(`couldn't save the Mux asset id ${assetId}: ${saveError.message}`);
+      await videosRepo.updateVideo(videoId!, { mux_asset_id: assetId }).catch((saveError: Error) => {
+        throw new Error(`couldn't save the Mux asset id ${assetId}: ${saveError.message}`);
+      });
       result.uploaded.push({ mediaId: item.mediaId, videoId: videoId!, assetId });
     } catch (error: any) {
       // Left errored so the next run retries it; a row that never got an asset id counts as failed too.
-      if (videoId) await supabase.from("videos").update({ status: "errored" }).eq("id", videoId);
+      if (videoId) await videosRepo.updateVideo(videoId, { status: "errored" }).catch((markError: Error) => console.error("Couldn't mark a video errored:", markError.message));
       result.failed.push({ mediaId: item.mediaId, lessonTitles: item.lessonTitles, error: error?.message ?? "upload failed" });
     }
   }
@@ -210,26 +197,22 @@ export interface RefreshResult {
 
 /** Brings videos still "preparing" up to date from Mux, for when the webhook hasn't (or can't) deliver. */
 export async function refreshVideoStatuses(supabase: SupabaseClient, api: CourseMuxApi): Promise<RefreshResult> {
-  const { data, error } = await supabase.from("videos").select("id, mux_asset_id").eq("status", "preparing").not("mux_asset_id", "is", null);
-  if (error) throw new Error(`videos read failed: ${error.message}`);
+  const videosRepo = createRepos(supabase).courses;
+  const preparing = await videosRepo.preparingVideos();
 
   const result: RefreshResult = { checked: 0, ready: 0, errored: 0, stillPreparing: 0 };
-  for (const video of data ?? []) {
+  for (const video of preparing) {
     result.checked++;
     const status = await api.getAsset(video.mux_asset_id);
     if (status.status === "preparing") {
       result.stillPreparing++;
       continue;
     }
-    const { error: updateError } = await supabase
-      .from("videos")
-      .update({
-        status: status.status,
-        ...(status.playbackId ? { mux_playback_id: status.playbackId } : {}),
-        ...(status.durationSeconds !== undefined ? { duration_seconds: status.durationSeconds } : {}),
-      })
-      .eq("id", video.id);
-    if (updateError) throw new Error(`videos update failed: ${updateError.message}`);
+    await videosRepo.updateVideo(video.id, {
+      status: status.status,
+      ...(status.playbackId ? { mux_playback_id: status.playbackId } : {}),
+      ...(status.durationSeconds !== undefined ? { duration_seconds: status.durationSeconds } : {}),
+    });
     if (status.status === "ready") result.ready++;
     else result.errored++;
   }

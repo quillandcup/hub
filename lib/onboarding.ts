@@ -27,7 +27,7 @@
  * types listed in Settings → Hosting, the vibe they run each type with.
  */
 
-export const ONBOARDING_STEP_IDS = ["identity", "profile", "slack", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
+export const ONBOARDING_STEP_IDS = ["identity", "slack", "profile", "intro", "writing", "prickles", "calendar", "big-sister", "hosting", "host-vibe"] as const;
 export type OnboardingStepId = (typeof ONBOARDING_STEP_IDS)[number];
 
 /** What the member's own data says, gathered once per page load. */
@@ -63,8 +63,12 @@ export interface OnboardingSignals {
   hasBirthday: boolean;
   /** Their Big Sister's name while the match is current (lib/my-mentorship.ts), else null. */
   bigSisterName?: string | null;
-  /** Whether the member can connect Slack in Settings (the panel is shown); absent/null means no step. */
-  slackConnect?: { connected: boolean } | null;
+  /**
+   * Whether the member can connect Slack in Settings (the panel is shown); absent/null means no step.
+   * `connected` means a working connection with every scope the Hub asks for. `required`: they have chat, which
+   * needs it, so the step can't be skipped.
+   */
+  slackConnect?: { connected: boolean; required?: boolean } | null;
 }
 
 export interface OnboardingStepView {
@@ -145,8 +149,8 @@ const IDENTITY_STOPS: OnboardingStop[] = [
     id: "names",
     target: "identity-names",
     title: "Pen names and Zoom/Slack names",
-    hint: "We match Zoom and Slack to you by name. If you ever join as something other than your Real Name, like a pen name or a nickname, add it here.",
-    confirmLabel: "My names look right",
+    hint: "We count your prickles by the name Zoom shows for you. Change your name in Zoom to match your Real Name, or add the name you use in Zoom here, so your attendance counts. Same for Slack.",
+    confirmLabel: "My Zoom name is set",
   },
   {
     id: "emails",
@@ -254,6 +258,25 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       href: "/settings/identity",
       ...stopFields("identity", IDENTITY_STOPS, marked, signals.hasBirthday),
     },
+    ...(signals.slackConnect
+      ? [
+          {
+            id: "slack" as const,
+            title: "Connect Slack",
+            summary: signals.slackConnect.required ? "Connect your Slack account: chat needs it." : "Connect your Slack account.",
+            href: "/settings",
+            target: "slack-connect",
+            calloutTitle: "Connect Slack",
+            hint: signals.slackConnect.required
+              ? "Chat needs your Slack account: it's how your messages and reactions reach Slack as you, and what you read in one place is marked read in the other. Connect once and Open Hedgie Hub in Slack signs you straight in too."
+              : "Connect once and Open Hedgie Hub in Slack signs you straight in, and chat posts as you.",
+            // Chat is closed without it, so it can't be waved away for someone who has chat.
+            ...(signals.slackConnect.required ? {} : { confirmLabel: "I'll skip this" }),
+            markKey: "slack",
+            done: signals.slackConnect.connected || (!signals.slackConnect.required && marked.has("slack")),
+          },
+        ]
+      : []),
     {
       id: "profile",
       title: "Introduce yourself",
@@ -267,22 +290,6 @@ function stepViews(signals: OnboardingSignals, marked: Set<string>): StepWithout
       markKey: "profile",
       done: signals.hasHubProfile || marked.has("profile"),
     },
-    ...(signals.slackConnect
-      ? [
-          {
-        id: "slack" as const,
-        title: "Connect Slack",
-        summary: "Connect your Slack account.",
-        href: "/settings",
-        target: "slack-connect",
-        calloutTitle: "Connect Slack",
-        hint: "Connect once and Open Hedgie Hub in Slack signs you straight in, and chat posts as you.",
-        confirmLabel: "I'll skip this",
-        markKey: "slack",
-        done: signals.slackConnect.connected || marked.has("slack"),
-          },
-        ]
-      : []),
     ...(signals.isNewcomer && signals.introUrl
       ? [
           {

@@ -2,7 +2,7 @@
 // Diffs or pushes vercel-project-config.yml against the live Vercel project, so Vercel
 // project settings that vercel.json can't express are reviewed in git instead of clicked in
 // the dashboard. CI runs `push` after every production deploy that changed the file or this
-// script (ci.yml, push-vercel-config job); `npm run vercel:config:diff` is the read-only
+// script (ci.yml, push-vercel-config job); `pnpm vercel:config:diff` is the read-only
 // preview.
 //
 //   tsx scripts/vercel-config.ts diff   show what a push would change (read-only)

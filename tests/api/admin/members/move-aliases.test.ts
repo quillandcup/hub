@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { POST } from "@/app/api/admin/members/move-aliases/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/processing/trigger", () => ({ triggerAttendanceReprocessing: vi.fn().mockResolvedValue({}) }));
 vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
+
+vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => members, () => aliasData)));
 
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
@@ -12,10 +15,24 @@ import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 const FROM = { id: "from-1" };
 const TO = { id: "to-1", email: "Ivy@Example.com" };
 
+// The members the route finds, in the in-memory repository; a test can leave one out.
+let members: { id: string; name: string; email: string }[] = [];
+// The aliases it finds and changes, in the in-memory alias repository: n1 (a name) and e1, e2 (emails) belong to the source.
+let aliasData: InMemoryDataset;
+
 type Call = { table: string; op: string; payload?: unknown; filters: [string, string, unknown][] };
 
 function makeSupabaseMock(opts: { noAttendance?: boolean; failOn?: { table: string; op: string }; missing?: string } = {}) {
   const calls: Call[] = [];
+  members = [FROM, TO].filter((m) => m.id !== opts.missing).map((m) => ({ id: m.id, name: m.id, email: "email" in m ? String(m.email) : `${m.id}@example.test` }));
+  aliasData = new InMemoryDataset({
+    members,
+    nameAliases: [{ id: "n1", member_id: FROM.id, alias: "Ivy Old", source: "zoom", active: true }],
+    emailAliases: [
+      { id: "e1", memberId: FROM.id, alias_email: "ivy@example.com", canonical_email: "from@example.test", active: true },
+      { id: "e2", memberId: FROM.id, alias_email: "ivy.old@example.com", canonical_email: "from@example.test", active: true },
+    ],
+  });
   const from = vi.fn((table: string) => {
     const call: Call = { table, op: "select", filters: [] };
     const builder: any = {
@@ -36,19 +53,12 @@ function makeSupabaseMock(opts: { noAttendance?: boolean; failOn?: { table: stri
         if (opts.failOn && opts.failOn.table === table && opts.failOn.op === call.op) {
           return resolve({ data: null, error: { message: `${table} ${call.op} failed` } });
         }
-        if (call.op !== "select") return resolve({ data: [], error: null });
-        return resolve({
-          data:
-            table === "member_name_aliases"
-              ? [{ id: "n1" }]
-              : [{ id: "e1", alias_email: "ivy@example.com" }, { id: "e2", alias_email: "ivy.old@example.com" }],
-          error: null,
-        });
+        return resolve({ data: [], error: null });
       },
     };
     return builder;
   });
-  return { from, calls };
+  return { from, calls, failOn: opts.failOn };
 }
 
 const request = (body: unknown) => ({ json: async () => body }) as unknown as NextRequest;

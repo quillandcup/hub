@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import DashboardCharts from "./DashboardCharts";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
+import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -13,28 +16,18 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Fetch dashboard metrics
-  const { data: memberStats, error: memberStatsError } = await supabase
-    .from("members")
-    .select("status");
+  const memberRepo = createRepos(supabase).members;
+  const memberStatusCounts = await memberRepo.countsByStatus();
 
-  if (memberStatsError) {
-    console.error("Dashboard: failed to fetch member stats", memberStatsError);
-  }
-
-  const activeMembers = memberStats?.filter(m => m.status === "active").length || 0;
-  const onHiatus = memberStats?.filter(m => m.status === "on_hiatus").length || 0;
-  const leads = memberStats?.filter(m => m.status === "lead").length || 0;
-  const cancelled = memberStats?.filter(m => m.status === "cancelled").length || 0;
+  const activeMembers = memberStatusCounts.get("active") ?? 0;
+  const onHiatus = memberStatusCounts.get("on_hiatus") ?? 0;
+  const leads = memberStatusCounts.get("lead") ?? 0;
+  const cancelled = memberStatusCounts.get("cancelled") ?? 0;
   const totalMembers = activeMembers + onHiatus; // Exclude leads and cancelled (never-converted / former members)
 
   const now = new Date();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  // Total attendance records
-  const { count: totalAttendance } = await supabase
-    .from("prickle_attendance")
-    .select("*", { count: "exact", head: true });
 
   // At-risk: active members with no attendance in last 30 days. Leads,
   // cancelled, and on-hiatus members are excluded — a hiatus member isn't
@@ -42,59 +35,21 @@ export default async function DashboardPage() {
   // accounts (source='staff', no paying Kajabi subscription) are also
   // excluded — staff who are ALSO paying members keep source='kajabi' and
   // stay eligible.
-  const { data: atRiskMembers } = await supabase
-    .from("members")
-    .select(`
-      id,
-      name,
-      email,
-      source,
-      prickle_attendance(join_time)
-    `)
-    .eq("status", "active");
+  const repos = createRepos(supabase);
+  const [activeRoster, allAttendance] = await Promise.all([repos.members.list({ status: "active" }), repos.attendance.list()]);
+  const summaries = summarizeAttendance(allAttendance);
+  const allAtRisk = activeRoster.filter((m) => isAtRisk(m, summaries.get(m.id), thirtyDaysAgo));
 
-  const isAtRisk = (m: { source: string; prickle_attendance?: { join_time: string }[] | null }) => {
-    if (m.source === "staff") {
-      return false;
-    }
-    // No attendance at all, or no recent attendance
-    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
-      return true;
-    }
-    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
-      new Date(a.join_time) >= thirtyDaysAgo
-    );
-    return !hasRecentAttendance;
-  };
-
-  const atRisk = atRiskMembers?.filter(isAtRisk).length || 0;
+  const atRisk = allAtRisk.length;
 
   // Top 10 most active members (all time)
   // Fetch all attendance records (just member_id) with pagination
-  let allAttendance: any[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (batch && batch.length > 0) {
-      allAttendance = allAttendance.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const attendanceRepo = repos.attendance;
 
   // Count attendance per member
   const attendanceCounts = new Map<string, number>();
   allAttendance.forEach((a) => {
-    attendanceCounts.set(a.member_id, (attendanceCounts.get(a.member_id) || 0) + 1);
+    attendanceCounts.set(a.memberId, (attendanceCounts.get(a.memberId) || 0) + 1);
   });
 
   // Get top 10 member IDs
@@ -104,50 +59,45 @@ export default async function DashboardPage() {
     .map(([memberId]) => memberId);
 
   // Fetch member details for top 10
-  const { data: topMembers } = await supabase
-    .from("members")
-    .select("id, name, email")
-    .in("id", topMemberIds);
+  const topMembers = await memberRepo.byIds(topMemberIds);
 
-  const memberMap = new Map(topMembers?.map(m => [m.id, m]) || []);
+  const memberMap = new Map(topMembers.map(m => [m.id, m]));
 
   const topAttendeesData = topMemberIds
     .map(memberId => {
       const member = memberMap.get(memberId);
       return member ? {
         id: member.id,
-        name: member.name,
+        name: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
+        legalName: member.name,
         email: member.email,
         count: attendanceCounts.get(memberId) || 0,
       } : null;
     })
-    .filter((m): m is { id: string; name: string; email: string; count: number } => m !== null);
+    .filter((m): m is { id: string; name: string; legalName: string; email: string; count: number } => m !== null);
 
   // At-risk members list (active with no attendance in 30 days)
-  const atRiskMembersList = atRiskMembers?.filter(isAtRisk).slice(0, 10) || [];
+  const atRiskMembersList = allAtRisk.slice(0, 10);
 
   // Writing Hours Last 30 Days - median per active member
-  const { data: last30DaysAttendance } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, leave_time, member_id")
-    .gte("join_time", thirtyDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  // One read for the longest window below (8 weeks); the 30-day and 7-day figures are slices of it.
+  const eightWeeksAgo = new Date();
+  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
+  const recentAttendance = await attendanceRepo.joinedBetween(eightWeeksAgo.toISOString(), now.toISOString());
+  const last30DaysAttendance = recentAttendance.filter((a) => new Date(a.joinTime) >= thirtyDaysAgo);
 
   // Calculate hours per member
   const hoursByMember = new Map<string, number>();
-  last30DaysAttendance?.forEach(record => {
-    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
-    hoursByMember.set(record.member_id, (hoursByMember.get(record.member_id) || 0) + duration);
+  last30DaysAttendance.forEach(record => {
+    const duration = (new Date(record.leaveTime).getTime() - new Date(record.joinTime).getTime()) / (1000 * 60 * 60);
+    hoursByMember.set(record.memberId, (hoursByMember.get(record.memberId) || 0) + duration);
   });
 
   // Get all active member IDs to include zeros for members who didn't attend
-  const { data: activeMemberIds } = await supabase
-    .from("members")
-    .select("id")
-    .eq("status", "active");
+  const activeMemberIds = await memberRepo.identities({ status: "active" });
 
   const hoursArray: number[] = [];
-  activeMemberIds?.forEach(member => {
+  activeMemberIds.forEach(member => {
     hoursArray.push(hoursByMember.get(member.id) || 0);
   });
 
@@ -165,18 +115,10 @@ export default async function DashboardPage() {
   const avgHours = hoursArray.length > 0 ? totalHours / hoursArray.length : 0;
 
   // Weekly Attendance (last 8 weeks)
-  const eightWeeksAgo = new Date();
-  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56); // 8 weeks
-  const { data: weeklyAttendanceData } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, member_id")
-    .gte("join_time", eightWeeksAgo.toISOString())
-    .lte("join_time", now.toISOString());
-
   // Group by week - track both total attendance and unique members
   const weeklyAttendance = new Map<string, { count: number; uniqueMembers: Set<string> }>();
-  weeklyAttendanceData?.forEach((record) => {
-    const date = new Date(record.join_time);
+  recentAttendance.forEach((record) => {
+    const date = new Date(record.joinTime);
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay()); // Sunday
     weekStart.setHours(0, 0, 0, 0);
@@ -185,11 +127,11 @@ export default async function DashboardPage() {
     const existing = weeklyAttendance.get(weekKey);
     if (existing) {
       existing.count++;
-      existing.uniqueMembers.add(record.member_id);
+      existing.uniqueMembers.add(record.memberId);
     } else {
       weeklyAttendance.set(weekKey, {
         count: 1,
-        uniqueMembers: new Set([record.member_id])
+        uniqueMembers: new Set([record.memberId])
       });
     }
   });
@@ -203,18 +145,14 @@ export default async function DashboardPage() {
     .sort((a, b) => a.week.localeCompare(b.week));
 
   // Daily Writing Hours (last 30 days)
-  const { data: dailyAttendanceData } = await supabase
-    .from("prickle_attendance")
-    .select("join_time, leave_time")
-    .gte("join_time", thirtyDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  const dailyAttendanceData = last30DaysAttendance;
 
   // Group by day
   const dailyHours = new Map<string, number>();
-  dailyAttendanceData?.forEach((record) => {
-    const date = new Date(record.join_time);
+  dailyAttendanceData.forEach((record) => {
+    const date = new Date(record.joinTime);
     const dayKey = date.toISOString().split('T')[0];
-    const duration = (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / (1000 * 60 * 60);
+    const duration = (new Date(record.leaveTime).getTime() - new Date(record.joinTime).getTime()) / (1000 * 60 * 60);
     dailyHours.set(dayKey, (dailyHours.get(dayKey) || 0) + duration);
   });
 
@@ -226,24 +164,15 @@ export default async function DashboardPage() {
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
 
-  const { data: weeklyAttendees } = await supabase
-    .from("prickle_attendance")
-    .select("member_id")
-    .gte("join_time", sevenDaysAgo.toISOString())
-    .lte("join_time", now.toISOString());
+  const weeklyAttendees = recentAttendance.filter((a) => new Date(a.joinTime) >= sevenDaysAgo);
 
-  const uniqueWeeklyAttendees = new Set(weeklyAttendees?.map(a => a.member_id) || []).size;
+  const uniqueWeeklyAttendees = new Set(weeklyAttendees.map((a) => a.memberId)).size;
   const weeklyEngagementRate = activeMembers > 0
     ? Math.round((uniqueWeeklyAttendees / activeMembers) * 100)
     : 0;
 
   // Host Participation Rate: % of active members who have hosted (ever)
-  const { data: hostsEver } = await supabase
-    .from("prickles")
-    .select("host")
-    .not("host", "is", null);
-
-  const uniqueHosts = new Set(hostsEver?.map(p => p.host) || []).size;
+  const uniqueHosts = await repos.prickles.distinctHostCount();
   const hostParticipationRate = activeMembers > 0
     ? Math.round((uniqueHosts / activeMembers) * 100)
     : 0;
@@ -251,7 +180,8 @@ export default async function DashboardPage() {
   return (
     <div className="container mx-auto px-6 py-8">
         {/* Top Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="@container">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 @columns:grid-cols-5 gap-6 mb-8">
           <MetricCard
             label="Total Members"
             value={totalMembers}
@@ -289,6 +219,7 @@ export default async function DashboardPage() {
             description="Former paying members"
           />
         </div>
+        </div>
 
         {/* Hedgie Welcome */}
         <div className="bg-gradient-to-r from-plum-50 to-cream dark:from-plum-900/20 dark:to-slate-900 rounded-lg p-6 mb-8 flex items-center gap-6">
@@ -309,7 +240,8 @@ export default async function DashboardPage() {
         <DashboardCharts weeklyAttendance={weeklyAttendanceArray} dailyHours={dailyHoursArray} />
 
         {/* Engagement Insights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="@container">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6 mb-8">
           {/* Top Attendees */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
             <h2 className="text-xl font-bold mb-4">🌟 Top Attendees</h2>
@@ -321,8 +253,8 @@ export default async function DashboardPage() {
                       {idx + 1}
                     </div>
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors" title={member.legalName}>{member.name}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>
                   <div className="text-lg font-bold text-plum-600 dark:text-plum-400">
@@ -348,7 +280,7 @@ export default async function DashboardPage() {
             </p>
             <div className="space-y-3">
               {atRiskMembersList.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
+                <div className="text-center py-8 text-slate-600 dark:text-slate-400">
                   No at-risk members! 🎉
                 </div>
               ) : (
@@ -356,13 +288,14 @@ export default async function DashboardPage() {
                   <div key={idx} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
                     <Link href={`/admin/members/${member.id}`} className="hover:opacity-80 transition-opacity">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors">{member.name}</div>
-                      <div className="text-sm text-slate-500 dark:text-slate-400">{member.email}</div>
+                      <div className="text-sm text-slate-600 dark:text-slate-400">{member.email}</div>
                     </Link>
                   </div>
                 ))
               )}
             </div>
           </div>
+        </div>
         </div>
 
     </div>
@@ -376,7 +309,7 @@ function MetricCard({ label, value, description, highlighted }: { label: string;
         {value}
       </div>
       <div className="font-semibold text-slate-900 dark:text-slate-100 mb-1">{label}</div>
-      <div className="text-sm text-slate-500 dark:text-slate-400">{description}</div>
+      <div className="text-sm text-slate-600 dark:text-slate-400">{description}</div>
     </div>
   );
 }

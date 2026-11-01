@@ -53,11 +53,11 @@ describe("InstallAppPrompt", () => {
   it("stays out of the way once installed, and on other devices", () => {
     device({ ua: IPHONE_UA, standalone: true });
     const { unmount } = render(<InstallAppPrompt />);
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     unmount();
 
     device({ ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36" });
     render(<InstallAppPrompt />);
-    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SLACK_WORKSPACE_URL } from "@/lib/config";
 import { isNewcomer } from "@/lib/newcomer";
+import { createRepos } from "@/lib/data/repos";
 import { loadAttendedMemberIds, loadIntroChannelId, loadIntroducedMemberIds } from "@/lib/newcomer-signals";
 import { loadCalendarFeedPrickleIds } from "@/lib/calendar-feed";
 import { PICKER_HISTORY_MONTHS } from "@/lib/prickle-picker";
@@ -45,12 +46,12 @@ async function loadNewcomerSignals(
   now: Date
 ): Promise<Pick<OnboardingSignals, "isNewcomer" | "introUrl" | "hasIntroduced" | "hasAttendedPrickle" | "hasUpcomingPrickle">> {
   const none = { isNewcomer: false, introUrl: null, hasIntroduced: false, hasAttendedPrickle: false, hasUpcomingPrickle: false };
-  const { data: member } = await supabase.from("members").select("first_joined_at").eq("id", memberId).maybeSingle();
-  if (!isNewcomer(member?.first_joined_at as string | null | undefined, now)) return none;
+  const member = await createRepos(supabase).members.byId(memberId);
+  if (!isNewcomer(member?.firstJoinedAt, now)) return none;
 
   const [introduced, attended, channelId, upcoming] = await Promise.all([
     loadIntroducedMemberIds(supabase, [memberId]),
-    loadAttendedMemberIds(supabase, [memberId]),
+    loadAttendedMemberIds(createRepos(supabase).attendance, [memberId]),
     // bronze is admin-read-only; the intro channel's id is public to the workspace, so read just that.
     loadIntroChannelId(createServiceRoleClient()),
     loadCalendarFeedPrickleIds(supabase, memberId, now, now),
@@ -78,12 +79,13 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
 
   // Whether the tour shows depends only on the record, so check that first: a member who dismissed
   // or finished it skips the other twelve reads.
-  const { data: record } = await supabase
-    .from("member_onboarding")
-    .select("marked_steps, dismissed_at, completed_at, acknowledged_steps")
-    .eq("member_id", memberId)
-    .maybeSingle();
-  const recordData = (record as OnboardingRecord | null) ?? null;
+  // A failed read counts as no record: the tour is not worth failing the layout for.
+  const recordData: OnboardingRecord | null = await createRepos(supabase)
+    .memberProfile.onboardingOf(memberId)
+    .catch((error) => {
+      console.error("onboarding: failed to read the tour state", error);
+      return null;
+    });
   const idle = buildOnboardingState(NO_SIGNALS, recordData);
   // A finished tour may reopen for newly added steps, which only the real signals can tell.
   if (!idle.active && unseenStepIds(recordData).length === 0) return idle;
@@ -99,76 +101,74 @@ export const getOnboardingState = cache(async (memberId: string): Promise<Onboar
     hostedRecently,
     latestSchedule,
     hostVibes,
-    feedToken,
+    feedFetched,
     newcomer,
     bigSistersOn,
     birthday,
     slackStatus,
+    chatOn,
+    hostingOn,
   ] = await Promise.all([
     // Written only when the member saves their bio or socials in the Hub. members.bio isn't read:
     // it's usually Kajabi's copy, which they haven't necessarily looked at here.
-    supabase.from("member_profile_overrides").select("member_id").eq("member_id", memberId).maybeSingle(),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
-    supabase
-      .from("writing_projects")
-      .select("id")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("writing_goals").select("id", { count: "exact", head: true }).eq("member_id", memberId),
-    supabase
-      .from("prickle_commitments")
-      .select("id", { count: "exact", head: true })
-      .eq("member_id", memberId)
-      .eq("status", "active"),
-    supabase.from("calendar_feed_items").select("id", { count: "exact", head: true }).eq("member_id", memberId),
-    supabase.from("prickles").select("id", { count: "exact", head: true }).eq("host", memberId),
-    supabase
-      .from("prickles")
-      .select("id", { count: "exact", head: true })
-      .eq("host", memberId)
-      .gte("start_time", hostHistoryStart.toISOString()),
-    supabase
-      .from("prickle_schedules")
-      .select("month")
-      .eq("host_id", memberId)
-      .is("deleted_at", null)
-      .order("month", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("prickle_host_vibes").select("type_id", { count: "exact", head: true }).eq("host_id", memberId),
-    supabase.from("calendar_feed_tokens").select("first_fetched_at").eq("member_id", memberId).maybeSingle(),
+    createRepos(supabase).memberStatus.profileOverrideOf(memberId),
+    createRepos(supabase).memberProfile.askMeAbout(memberId).catch((error) => {
+      console.error("onboarding: failed to read ask-me-about", error);
+      return [] as string[];
+    }),
+    createRepos(supabase).writing.latestActiveProjectId(memberId),
+    createRepos(supabase).writing.goalCount(memberId),
+    // A failed count reads as none: the checklist still renders.
+    createRepos(supabase).prickleActivity.countActiveCommitments(memberId).catch((error) => {
+      console.error("onboarding: failed to count commitments", error);
+      return 0;
+    }),
+    // A failed read counts as none: the checklist still renders.
+    createRepos(supabase).calendarFeed.countItems(memberId).catch((error) => {
+      console.error("onboarding: failed to count calendar items", error);
+      return 0;
+    }),
+    createRepos(supabase).prickles.countHostedBy(memberId),
+    createRepos(supabase).prickles.countHostedBy(memberId, { since: hostHistoryStart.toISOString() }),
+    createRepos(supabase).prickleSchedules.latestMonthOf(memberId),
+    createRepos(supabase).prickles.hostVibeCount(memberId),
+    createRepos(supabase).calendarFeed.hasBeenFetched(memberId).catch((error) => {
+      console.error("onboarding: failed to read the calendar feed", error);
+      return false;
+    }),
     loadNewcomerSignals(supabase, memberId, now),
     // The Big Sister step is behind the big_sisters preview (this member's own flag).
     membersWithFeature(createServiceRoleClient(), "big_sisters", [memberId]).then((on) => on.has(memberId)),
-    supabase.from("members").select("birthday_month, birthday_day").eq("id", memberId).maybeSingle(),
+    createRepos(supabase).members.profile(memberId),
     // Same gate as the Slack panel in Settings (SettingsPage): the Slack app is configured.
     isSlackConnectConfigured() ? getSlackConnectionStatus(createServiceRoleClient(), memberId) : Promise.resolve(null),
+    // Chat needs the connection, so for someone who has it the Slack step can't be skipped.
+    membersWithFeature(createServiceRoleClient(), "chat", [memberId]).then((on) => on.has(memberId)),
+    // The hosting steps are behind the hosting preview (this member's own flag).
+    membersWithFeature(createServiceRoleClient(), "hosting", [memberId]).then((on) => on.has(memberId)),
   ]);
   const mentorships = bigSistersOn
-    ? await getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+    ? await getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
     : null;
-  const latestScheduleMonth = (latestSchedule.data?.month as string | undefined) ?? null;
+  const latestScheduleMonth = latestSchedule;
 
-  const topics = (askMeAbout.data?.topics as string[] | null) ?? [];
+  const topics = askMeAbout;
 
   return buildOnboardingState(
     {
-      hasHubProfile: override.data !== null || topics.length > 0,
-      latestProjectId: latestProject.data?.id ?? null,
-      hasGoal: (goals.count ?? 0) > 0,
-      hasPricklePlan: (commitments.count ?? 0) > 0 || (calendarItems.count ?? 0) > 0,
-      isHost: (hostedEver.count ?? 0) > 0 || latestScheduleMonth !== null,
+      hasHubProfile: override !== null || topics.length > 0,
+      latestProjectId: latestProject,
+      hasGoal: goals > 0,
+      hasPricklePlan: commitments > 0 || calendarItems > 0,
+      isHost: hostingOn && (hostedEver > 0 || latestScheduleMonth !== null),
       // Month strings are YYYY-MM-DD, so they compare as dates.
       hasHostingSchedule: latestScheduleMonth !== null && latestScheduleMonth >= currentMonth,
-      hostedRecently: (hostedRecently.count ?? 0) > 0,
-      hasHostVibe: (hostVibes.count ?? 0) > 0,
-      hasCalendarSynced: !!feedToken.data?.first_fetched_at,
-      hasBirthday: birthday.data?.birthday_month != null && birthday.data?.birthday_day != null,
+      hostedRecently: hostedRecently > 0,
+      hasHostVibe: hostVibes > 0,
+      hasCalendarSynced: feedFetched,
+      hasBirthday: birthday?.birthdayMonth != null && birthday?.birthdayDay != null,
       ...newcomer,
-      slackConnect: slackStatus ? { connected: slackStatus.connected } : null,
+      slackConnect: slackStatus ? { connected: slackStatus.connected && slackStatus.sharesReadState, required: chatOn } : null,
       bigSisterName: mentorships?.bigSister?.name ?? null,
     },
     recordData

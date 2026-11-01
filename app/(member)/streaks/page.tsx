@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos"
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { getCurrentUser } from "@/lib/auth"
@@ -6,7 +7,7 @@ import Link from "next/link"
 import { getEffectiveIdentity } from "@/lib/sudo"
 import { getUserTimezonePreference } from "@/lib/timezone"
 import { getMemberDisplayName } from "@/lib/member-display-name"
-import { getSlackDmLinksForMembers } from "@/lib/member-slack-links"
+import MemberHoverCard from "@/components/member/MemberHoverCard"
 
 export const metadata: Metadata = {
   title: "Streaks",
@@ -39,13 +40,13 @@ function StreakBadge({ current, longest }: { current: number; longest: number })
     <div className="flex items-center gap-6">
       <div className="text-center">
         <p className="text-3xl font-bold">{current}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
           {current === 1 ? "week" : "weeks"} current
         </p>
       </div>
       <div className="text-center">
-        <p className="text-3xl font-bold text-slate-400 dark:text-slate-500">{longest}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <p className="text-3xl font-bold text-slate-500 dark:text-slate-400">{longest}</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
           {longest === 1 ? "week" : "weeks"} best
         </p>
       </div>
@@ -66,7 +67,7 @@ function StreakRow({
   return (
     <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <span
-        className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
+        className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-600 dark:text-slate-400"}`}
       >
         {isActive && <span className="mr-1.5">🔥</span>}
         {label}
@@ -74,11 +75,11 @@ function StreakRow({
       <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
         <div className="w-12">
           <p className="text-sm font-bold">{current}w</p>
-          <p className="text-[10px] text-slate-400 leading-tight">current</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">current</p>
         </div>
         <div className="w-12">
-          <p className="text-sm font-bold text-slate-400 dark:text-slate-500">{longest}w</p>
-          <p className="text-[10px] text-slate-400 leading-tight">best</p>
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{longest}w</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">best</p>
         </div>
       </div>
     </div>
@@ -98,11 +99,11 @@ function formatShortDate(iso: string): string {
 function SisterStreakRow({
   s,
   prickleMap,
-  slackDmUrl,
+  photoUrl,
 }: {
   s: SisterStreak
   prickleMap: Map<string, PrickleInfo>
-  slackDmUrl?: string
+  photoUrl: string | null
 }) {
   const isActive = s.currentStreak > 0
   const sharedPrickles = s.sharedPrickleIds
@@ -114,47 +115,37 @@ function SisterStreakRow({
     <div className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className={`text-sm font-medium truncate ${isActive ? "" : "text-slate-500 dark:text-slate-400"}`}
-          >
-            {isActive && <span className="mr-1.5">🔥</span>}
-            {s.memberName}
+          {/* Fixed-width flame slot (empty when extinguished) keeps every avatar in one column. */}
+          <span aria-hidden="true" className="w-5 flex-shrink-0 text-center text-sm">
+            {isActive && "🔥"}
           </span>
-          {slackDmUrl && (
-            <Link data-track="streaks-message-on-slack"
-              href={slackDmUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-[#4A154B]/10 text-[#4A154B] hover:bg-[#4A154B]/20 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50 transition-colors flex-shrink-0"
-              title={`Message ${s.memberName} on Slack`}
-            >
-              <svg viewBox="0 0 54 54" className="w-3 h-3 flex-shrink-0" aria-hidden="true">
-                <g fill="none" fillRule="evenodd">
-                  <path d="M19.712.133a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386h5.376V5.52A5.381 5.381 0 0 0 19.712.133m0 14.365H5.376A5.381 5.381 0 0 0 0 19.884a5.381 5.381 0 0 0 5.376 5.387h14.336a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386" fill="#36C5F0"/>
-                  <path d="M53.76 19.884a5.381 5.381 0 0 0-5.376-5.386 5.381 5.381 0 0 0-5.376 5.386v5.387h5.376a5.381 5.381 0 0 0 5.376-5.387m-14.336 0V5.52A5.381 5.381 0 0 0 34.048.133a5.381 5.381 0 0 0-5.376 5.387v14.364a5.381 5.381 0 0 0 5.376 5.387 5.381 5.381 0 0 0 5.376-5.387" fill="#2EB67D"/>
-                  <path d="M34.048 54a5.381 5.381 0 0 0 5.376-5.387 5.381 5.381 0 0 0-5.376-5.386h-5.376v5.386A5.381 5.381 0 0 0 34.048 54m0-14.365h14.336a5.381 5.381 0 0 0 5.376-5.386 5.381 5.381 0 0 0-5.376-5.387H34.048a5.381 5.381 0 0 0-5.376 5.387 5.381 5.381 0 0 0 5.376 5.386" fill="#ECB22E"/>
-                  <path d="M0 34.249a5.381 5.381 0 0 0 5.376 5.386 5.381 5.381 0 0 0 5.376-5.386v-5.387H5.376A5.381 5.381 0 0 0 0 34.249m14.336 0v14.364A5.381 5.381 0 0 0 19.712 54a5.381 5.381 0 0 0 5.376-5.387V34.249a5.381 5.381 0 0 0-5.376-5.387 5.381 5.381 0 0 0-5.376 5.387" fill="#E01E5A"/>
-                </g>
-              </svg>
-            </Link>
-          )}
+          {/* 24px fits the row, which the stats on the right already make about 32px tall. */}
+          <MemberHoverCard
+            memberId={s.memberId}
+            name={s.memberName}
+            photoUrl={photoUrl}
+            avatarSize={24}
+            surface="streaks"
+            trackName="streaks-open-member"
+            nameClassName={`text-sm font-medium ${isActive ? "" : "text-slate-600 dark:text-slate-400"}`}
+          />
         </div>
         <div className="flex items-center gap-4 text-right flex-shrink-0 ml-4">
           <div className="w-12">
             <p className="text-sm font-bold">{s.currentStreak}w</p>
-            <p className="text-[10px] text-slate-400 leading-tight">current</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">current</p>
           </div>
           <div className="w-12">
-            <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
               {s.longestStreak}w
             </p>
-            <p className="text-[10px] text-slate-400 leading-tight">best</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">best</p>
           </div>
         </div>
       </div>
       {sharedPrickles.length > 0 && (
         <details className="mt-1">
-          <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
+          <summary className="text-xs text-slate-500 dark:text-slate-400 cursor-pointer select-none hover:text-slate-600 dark:hover:text-slate-300 w-fit">
             {sharedPrickles.length} shared {sharedPrickles.length === 1 ? "Prickle" : "Prickles"}
           </summary>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -185,44 +176,21 @@ export default async function StreaksPage() {
   const memberId = effectiveIdentity.memberId
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
-  // Paginate all of this member's attendance with prickle type info
-  const BATCH_SIZE = 1000
-  type MyRecord = {
-    prickle_id: string
-    join_time: string
-    prickles: { start_time: string; prickle_types: { name: string } | null } | null
-  }
-  let myAttendance: MyRecord[] = []
-  {
-    let offset = 0
-    let hasMore = true
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, join_time, prickles(start_time, prickle_types(name))")
-        .eq("member_id", memberId)
-        .range(offset, offset + BATCH_SIZE - 1)
-      if (batch && batch.length > 0) {
-        myAttendance = myAttendance.concat(batch as unknown as MyRecord[])
-        offset += batch.length
-        hasMore = batch.length === BATCH_SIZE
-      } else {
-        hasMore = false
-      }
-    }
-  }
+  // All of this member's attendance, with each prickle's type
+  const repos = createRepos(supabase)
+  const myAttendance = await repos.attendance.forMemberWithPrickles(memberId)
 
   // Overall streaks
-  const overall = computeStreaks(myAttendance.map((r) => r.join_time), new Date(), timeZone)
+  const overall = computeStreaks(myAttendance.map((r) => r.joinTime), new Date(), timeZone)
 
   // Prickle type streaks
   const rankedPrickleStreaks: PrickleStreak[] = computePrickleStreaks(
     myAttendance
-      .filter((r) => r.prickles?.prickle_types?.name && r.prickles?.start_time)
+      .filter((r) => r.prickle?.type?.name && r.prickle?.startTime)
       .map((r) => ({
-        prickleTypeName: r.prickles!.prickle_types!.name,
-        joinTime: r.join_time,
-        prickleStartTime: r.prickles!.start_time,
+        prickleTypeName: r.prickle!.type!.name,
+        joinTime: r.joinTime,
+        prickleStartTime: r.prickle!.startTime,
       })),
     new Date(),
     timeZone
@@ -232,44 +200,17 @@ export default async function StreaksPage() {
     STREAK_LIST_LIMIT
   )
 
-  // Sister streaks — fetch co-attendance in batches of 100 prickle IDs
-  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickle_id))]
-  type CoRecord = {
-    member_id: string
-    prickle_id: string
-    join_time: string
-    members: { name: string; display_name: string | null } | null
-  }
-  let coAttendance: CoRecord[] = []
-  const PRICKLE_BATCH = 100
-  for (let i = 0; i < myPrickleIds.length; i += PRICKLE_BATCH) {
-    const prickleBatch = myPrickleIds.slice(i, i + PRICKLE_BATCH)
-    let offset = 0
-    let hasMore = true
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .from("prickle_attendance")
-        .select("member_id, prickle_id, join_time, members:attendance_member(name, display_name)")
-        .in("prickle_id", prickleBatch)
-        .neq("member_id", memberId)
-        .range(offset, offset + BATCH_SIZE - 1)
-      if (batch && batch.length > 0) {
-        coAttendance = coAttendance.concat(batch as unknown as CoRecord[])
-        offset += batch.length
-        hasMore = batch.length === BATCH_SIZE
-      } else {
-        hasMore = false
-      }
-    }
-  }
+  // Sister streaks — everyone else at the prickles this member attended
+  const myPrickleIds = [...new Set(myAttendance.map((r) => r.prickleId))]
+  const coAttendance = await repos.attendance.coAttendees(memberId, myPrickleIds)
 
   const rankedSisterStreaks: SisterStreak[] = computeSisterStreaks(
-    myAttendance.map((r) => ({ prickleId: r.prickle_id, joinTime: r.join_time })),
+    myAttendance.map((r) => ({ prickleId: r.prickleId, joinTime: r.joinTime })),
     coAttendance.map((r) => ({
-      memberId: r.member_id,
-      memberName: r.members ? getMemberDisplayName(r.members) : "Unknown",
-      prickleId: r.prickle_id,
-      joinTime: r.join_time,
+      memberId: r.memberId,
+      memberName: r.name ? getMemberDisplayName({ name: r.name, display_name: r.displayName }) : "Unknown",
+      prickleId: r.prickleId,
+      joinTime: r.joinTime,
     })),
     new Date(),
     timeZone
@@ -279,19 +220,20 @@ export default async function StreaksPage() {
     STREAK_LIST_LIMIT
   )
 
-  // Look up Slack user IDs: prefer confirmed alias, fall back to email match
   // TODO: proactively send a Slack bot DM when a sister streak is at risk (no shared prickle yet this week)
-  // Other members' aliases/emails and bronze.slack_users are admin-only under RLS, so this is
-  // resolved server-side and only the resulting DM URLs come back.
-  const slackDmByMemberId = await getSlackDmLinksForMembers(sisterStreaks.map((s) => s.memberId))
+  // Photos come from the member directory (public fields), one query for the (at most 10) rows.
+  // The Message button lives in the hover card on each name, which resolves the Slack link itself.
+  const sisterIds = sisterStreaks.map((s) => s.memberId)
+  const photoRows = await createRepos(supabase).directory.byIds(sisterIds)
+  const photoByMemberId = new Map(photoRows.map((r) => [r.id, r.photo_url]))
 
   // Map prickle_id → display info for shared prickle links
   const prickleMap = new Map<string, PrickleInfo>()
   for (const r of myAttendance) {
-    if (r.prickles?.start_time && !prickleMap.has(r.prickle_id)) {
-      prickleMap.set(r.prickle_id, {
-        startTime: r.prickles.start_time,
-        typeName: r.prickles.prickle_types?.name ?? "Prickle",
+    if (r.prickle?.startTime && !prickleMap.has(r.prickleId)) {
+      prickleMap.set(r.prickleId, {
+        startTime: r.prickle.startTime,
+        typeName: r.prickle.type?.name ?? "Prickle",
       })
     }
   }
@@ -302,7 +244,7 @@ export default async function StreaksPage() {
 
       {/* Overall attendance streak */}
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4 mb-4">
-        <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+        <h2 className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">
           Your Attendance Streak
         </h2>
         <div className="flex items-center gap-3">
@@ -314,20 +256,21 @@ export default async function StreaksPage() {
           <StreakBadge current={overall.currentStreak} longest={overall.longestStreak} />
         </div>
         {overall.currentStreak === 0 && overall.longestStreak > 0 && (
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
             Attend a Prickle this week or next to start a new streak.
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="@container">
+        <div className="grid grid-cols-1 @pair:grid-cols-2 gap-4">
         {/* Prickle streaks */}
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
-          <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          <h2 className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
             Prickle Streaks
           </h2>
           {prickleStreaks.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               No Prickle streaks yet. Attend the same Prickle for 2+ consecutive weeks to start one.
             </p>
           ) : (
@@ -341,7 +284,7 @@ export default async function StreaksPage() {
                 />
               ))}
               {totalPrickleStreaks > prickleStreaks.length && (
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Top {prickleStreaks.length} of {totalPrickleStreaks}.
                 </p>
               )}
@@ -351,11 +294,11 @@ export default async function StreaksPage() {
 
         {/* Sister streaks */}
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-4">
-          <h2 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+          <h2 className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
             Sister Streaks
           </h2>
           {sisterStreaks.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               No sister streaks yet. Consistent co-attendance with another member over 2+
               consecutive weeks will show up here.
             </p>
@@ -366,17 +309,18 @@ export default async function StreaksPage() {
                   key={s.memberId}
                   s={s}
                   prickleMap={prickleMap}
-                  slackDmUrl={slackDmByMemberId.get(s.memberId)}
+                  photoUrl={photoByMemberId.get(s.memberId) ?? null}
                 />
               ))}
               {totalSisterStreaks > sisterStreaks.length && (
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Top {sisterStreaks.length} of {totalSisterStreaks}.
                 </p>
               )}
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

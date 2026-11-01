@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { startAutocapture } from "@/lib/analytics/autocapture";
 import { startImpressions } from "@/lib/analytics/impressions";
 import { flush, setTrackingEnabled, track, trackWhenEnabled } from "@/lib/analytics/client";
 import { readAttribution, stripAttribution } from "@/lib/notifications/attribution";
-import { CONSENT_CHANGE_EVENT, CONSENT_STORAGE_KEY, eventsAllowed } from "@/lib/analytics/consent";
+import { useEventsAllowed } from "@/lib/analytics/use-events-allowed";
 import { templateRoute } from "@/lib/analytics/route";
 
 /**
@@ -14,25 +14,9 @@ import { templateRoute } from "@/lib/analytics/route";
  * it: reports page views, clicks and which named controls were seen, and sends what is queued when the tab is hidden. Renders
  * nothing. Mounted once in app/layout.tsx.
  */
-export function AnalyticsEvents({ needsConsent }: { needsConsent: boolean }) {
+export function AnalyticsEvents({ needsConsent, optedOut = false }: { needsConsent: boolean; optedOut?: boolean }) {
   const pathname = usePathname();
-  const [allowed, setAllowed] = useState(false);
-
-  // Consent: re-read the banner's stored choice, and follow it when the visitor changes it.
-  useEffect(() => {
-    const read = () => {
-      let stored: string | null = null;
-      try {
-        stored = localStorage.getItem(CONSENT_STORAGE_KEY);
-      } catch {
-        // Blocked storage counts as no answer.
-      }
-      setAllowed(eventsAllowed(needsConsent, stored));
-    };
-    read();
-    window.addEventListener(CONSENT_CHANGE_EVENT, read);
-    return () => window.removeEventListener(CONSENT_CHANGE_EVENT, read);
-  }, [needsConsent]);
+  const allowed = useEventsAllowed(needsConsent, optedOut);
 
   useEffect(() => {
     setTrackingEnabled(allowed);

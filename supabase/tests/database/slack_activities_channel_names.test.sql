@@ -1,7 +1,7 @@
 -- pgTAP tests for 20261104000000_slack_activities_channel_names.sql: a message whose own
 -- channel_name is empty (every webhook message) gets the channel's name from bronze.slack_channels in
 -- the activity title and data, a name stored on the message still wins, and direct messages stay
--- nameless. Rolled back; run with `npm run test:pgtap`.
+-- nameless. Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

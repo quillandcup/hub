@@ -8,7 +8,7 @@ export default function GoalDisplay({ goal }: { goal: GoalRow }) {
     <div>
       {goal.title && <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{goal.title}</p>}
       {goal.description && (
-        <p className="text-xs italic text-slate-500 dark:text-slate-400 mb-1 whitespace-pre-line">{goal.description}</p>
+        <p className="text-xs italic text-slate-600 dark:text-slate-400 mb-1 whitespace-pre-line">{goal.description}</p>
       )}
       {goal.kind === "habit" ? (
         <HabitGoalCard

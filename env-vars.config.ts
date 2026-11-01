@@ -38,6 +38,12 @@ export type Destination =
   /** Synced via `gh secret set` (type "secret") or `gh variable set` (type "config"). */
   | { readonly kind: "github" }
   /**
+   * Synced via `gh secret set --app dependabot`. Workflows that Dependabot triggers read
+   * Dependabot secrets, not Actions secrets, so a secret they need goes here as well as
+   * under "github". Secrets only.
+   */
+  | { readonly kind: "github-dependabot" }
+  /**
    * Synced into Supabase Vault (`vault.decrypted_secrets`), read by SQL/PL-pgSQL/pg_cron.
    * `vaultName` is the name SQL code looks it up by, independent of this env var's name.
    */
@@ -78,9 +84,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "NEXT_PUBLIC_SUPABASE_URL",
     group: "Supabase",
-    description: "Supabase project URL. Public by design.",
+    description:
+      "Supabase project URL. Public by design. Also a GitHub variable: the main pipeline's publish job uploads the help screenshots to this project (see docs/DEMO_AND_HELP.md).",
     type: "config",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
   {
     name: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -93,9 +100,10 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SUPABASE_SERVICE_ROLE_KEY",
     group: "Supabase",
-    description: "Bypasses RLS. Server-only.",
+    description:
+      "Bypasses RLS. Server-only. Also a GitHub secret: the main pipeline's publish job uses it to upload the help screenshots to production storage (a prefix per build; nothing is overwritten).",
     type: "secret",
-    destinations: vercelAllEnvs,
+    destinations: [...vercelAllEnvs, { kind: "github" }],
   },
 
   // --- Zoom ----------------------------------------------------------------------------------
@@ -177,7 +185,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GOOGLE_CALENDAR_WEBHOOK_TOKEN",
     group: "Google Calendar",
     description:
-      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32` and pass it as `token` when creating the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means re-creating the channel with the new token.",
+      "Channel token Google echoes in X-Goog-Channel-Token on every push notification (/api/webhooks/calendar). Generate with `openssl rand -hex 32`. The nightly /api/reconcile/calendar passes it as the `token` when it opens or renews the watch channel (docs/WEBHOOK_SETUP.md). Deployed builds reject calendar webhooks while it is unset. Changing it means opening a new channel with the new token (mark the live calendar_watch_channels row stopped).",
     type: "secret",
     destinations: vercelAllEnvs,
   },
@@ -203,9 +211,18 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
   {
     name: "SLACK_BOT_TOKEN",
     group: "Slack",
-    description: "Slack bot OAuth token.",
+    description:
+      "Slack bot OAuth token. Once the app has moved to rotating tokens (SLACK_BOT_TOKEN_ROTATION) the live token is kept in Vault and this is only what the one-time exchange starts from.",
     type: "secret",
     destinations: vercelAllEnvs,
+  },
+  {
+    name: "SLACK_BOT_TOKEN_ROTATION",
+    group: "Slack",
+    description:
+      "Set to \"on\" when the Slack app has opted into token rotation and the bot's rotating token has been stored (docs/SECRET_ROTATION.md, \"Moving the bot to rotating tokens\"): the bot's token is then read from Vault and refreshed, not read from SLACK_BOT_TOKEN. Leave unset until then. Production only.",
+    type: "config",
+    destinations: [{ kind: "vercel", target: "production" }],
   },
   {
     name: "SLACK_SIGNING_SECRET",
@@ -414,12 +431,47 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     destinations: [{ kind: "github" }],
   },
   {
+    name: "SENTRY_CONFIG_TOKEN",
+    group: "Analytics & Monitoring",
+    description:
+      "Token of the `hub-iac` Sentry internal integration (Organization: Read & Write) that `pnpm sentry:config:push` and CI's push-sentry-config job use to apply sentry-config.yml. Not SENTRY_AUTH_TOKEN, the build token, which can't read organization settings. GitHub only.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+  {
     name: "ALERTS_EMAIL",
     group: "Analytics & Monitoring",
     description:
       "Engineering alerts address for this environment. The GitHub copy (from .env.prod) is what Checkly alerts at `checkly deploy` -- the monitors watch production. The Vercel copies are for app-side alerting per environment.",
     type: "config",
     destinations: [...vercelAllEnvs, { kind: "github" }],
+  },
+
+  // The nightly Mux end-to-end check (__checks__/mux-e2e.check.ts) uses a tiny standing test asset
+  // in a SEPARATE Mux environment, never production's keys. Unset = the stream checks aren't declared.
+  {
+    name: "MUX_CHECK_SIGNING_KEY_ID",
+    group: "Analytics & Monitoring",
+    description:
+      "ID of a Mux URL signing key in the separate Mux environment that holds the nightly check's test asset (docs/MUX_CONFIG.md). Passed to Checkly at `checkly deploy`; GitHub only, not Vercel.",
+    type: "config",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "MUX_CHECK_SIGNING_KEY_PRIVATE",
+    group: "Analytics & Monitoring",
+    description:
+      "Private half of MUX_CHECK_SIGNING_KEY_ID (base64-encoded PEM as Mux shows it). Only good for the test environment's one tiny asset, never production's videos. GitHub only.",
+    type: "secret",
+    destinations: [{ kind: "github" }],
+  },
+  {
+    name: "MUX_CHECK_PLAYBACK_ID",
+    group: "Analytics & Monitoring",
+    description:
+      "Signed playback ID of the nightly check's test asset, in the same separate Mux environment. GitHub only.",
+    type: "config",
+    destinations: [{ kind: "github" }],
   },
 
   ...Object.values(CRON_HEARTBEATS).map(
@@ -504,9 +556,9 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "GH_TOKEN_AUTO_MERGE",
     group: "GitHub Actions CI",
     description:
-      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only. Lets auto-merge.yml turn on auto-merge as a real user: a merge GitHub attributes to the workflow's own GITHUB_TOKEN doesn't trigger the push CI run on main (migrations, deploy, Slack manifest).",
+      "GitHub fine-grained token with Contents and Pull requests read/write on this repo only. Lets auto-merge.yml (Actions and Dependabot secrets, since Dependabot-triggered runs read only the latter) turn on auto-merge as a real user: a merge GitHub attributes to the workflow's own GITHUB_TOKEN doesn't trigger the push CI run on main (migrations, deploy, Slack manifest).",
     type: "secret",
-    destinations: [{ kind: "github" }],
+    destinations: [{ kind: "github" }, { kind: "github-dependabot" }],
   },
   {
     name: "DOCKERHUB_USERNAME",
@@ -530,7 +582,7 @@ export const ENV_VARS: readonly EnvVarSpec[] = [
     name: "RESEND_API_KEY",
     group: "Email (Resend)",
     description:
-      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`npm run config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
+      "Resend API key (sending access). The app sends member notification emails with it (lib/email.ts). The same key is Supabase Auth's SMTP password: the config push (`pnpm config:push` locally, and CI's push-migrations job on every push to main) reads it via config.toml's env(RESEND_API_KEY), and CI refuses to push config without it, since the push would otherwise overwrite production's SMTP password.",
     type: "secret",
     destinations: [...vercelAllEnvs, { kind: "github" }],
   },

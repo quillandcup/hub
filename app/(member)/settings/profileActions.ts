@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -115,20 +116,15 @@ async function loadKajabiProfileSnapshot(
   kajabiId: string,
   memberEmail: string
 ): Promise<KajabiProfileSnapshot> {
-  const { data: aliases, error: aliasError } = await service
-    .from("member_email_aliases")
-    .select("alias_email")
-    .eq("canonical_email", memberEmail)
-    .eq("active", true);
-  if (aliasError) throw aliasError;
-  const emails = [memberEmail, ...(aliases ?? []).map((a) => a.alias_email)].map((e) => e.toLowerCase());
+  const aliases = await createRepos(service).aliases.activeEmailsFor(memberEmail);
+  const emails = [memberEmail, ...aliases].map((e) => e.toLowerCase());
 
-  const [contactResult, customersResult] = await Promise.all([
-    service.schema("bronze").from("kajabi_contacts").select("data").eq("kajabi_contact_id", kajabiId).maybeSingle(),
-    service.schema("bronze").from("kajabi_customers").select("data, updated_at_kajabi").in("email", emails),
+  const billing = createRepos(service).billing;
+  const [contactData, customers] = await Promise.all([
+    billing.kajabiContactData(kajabiId),
+    billing.kajabiCustomerProfilesByEmail(emails),
   ]);
-  if (contactResult.error) throw contactResult.error;
-  if (customersResult.error) throw customersResult.error;
+  const contact = contactData as { attributes?: Record<string, string | null | undefined> } | null;
 
   type CustomerRow = {
     data: {
@@ -139,19 +135,19 @@ async function loadKajabiProfileSnapshot(
     } | null;
     updated_at_kajabi: string;
   };
-  const latestCustomer = ((customersResult.data ?? []) as CustomerRow[]).reduce<CustomerRow | null>(
+  const latestCustomer = (customers as CustomerRow[]).reduce<CustomerRow | null>(
     (latest, row) => (!latest || row.updated_at_kajabi > latest.updated_at_kajabi ? row : latest),
     null
   );
   const attrs = latestCustomer?.data?.attributes;
 
   return {
-    instagramHandle: nonBlank(contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]),
+    instagramHandle: nonBlank(contact?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE]),
     socialsInstagram: nonBlank(attrs?.socials?.instagram),
     kajabiDetails: {
       bio: attrs?.public_bio || null,
       instagram_url: resolveInstagramUrl(
-        contactResult.data?.data?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
+        contact?.attributes?.[INSTAGRAM_CUSTOM_FIELD_HANDLE],
         attrs?.socials?.instagram
       ),
       facebook_url: toSocialUrl(FACEBOOK_BASE_URL, attrs?.socials?.facebook),
@@ -160,29 +156,47 @@ async function loadKajabiProfileSnapshot(
   };
 }
 
+/** The member's own columns, as `{ data, error }` like the other loaders here (a failed read is an error, not "no member"). */
 async function loadMember(ctx: Ctx) {
-  return ctx.service
-    .from("members")
-    .select("email, kajabi_id, bio, instagram_url, facebook_url, twitter_url")
-    .eq("id", ctx.effectiveIdentity.memberId)
-    .single();
+  try {
+    const profile = await createRepos(ctx.service).members.profile(ctx.effectiveIdentity.memberId);
+    const data = profile && {
+      email: profile.email,
+      kajabi_id: profile.kajabiId,
+      bio: profile.bio,
+      instagram_url: profile.instagramUrl,
+      facebook_url: profile.facebookUrl,
+      twitter_url: profile.twitterUrl,
+    };
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: { message: err instanceof Error ? err.message : "Couldn't load your profile" } };
+  }
 }
 
 /** Read through the caller's own session, so RLS scopes it to their row (or an admin's sudo target). */
 async function loadOverride(ctx: Ctx) {
-  return ctx.supabase
-    .from("member_profile_overrides")
-    .select("bio, instagram_url, facebook_url, twitter_url")
-    .eq("member_id", ctx.effectiveIdentity.memberId)
-    .maybeSingle();
+  try {
+    return { data: await createRepos(ctx.supabase).memberStatus.profileOverrideOf(ctx.effectiveIdentity.memberId), error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 async function loadAskMeAbout(ctx: Ctx) {
-  return ctx.supabase
-    .from("member_ask_me_about")
-    .select("topics")
-    .eq("member_id", ctx.effectiveIdentity.memberId)
-    .maybeSingle();
+  try {
+    return { data: await createRepos(ctx.supabase).memberProfile.askMeAbout(ctx.effectiveIdentity.memberId), error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function loadRosterOptOut(ctx: Ctx) {
+  try {
+    return { data: (await createRepos(ctx.supabase).memberProfile.rosterOptOuts([ctx.effectiveIdentity.memberId])).size > 0, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 function toDetails(fields: ProfileFields): ProfileDetails {
@@ -203,7 +217,7 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     loadMember(ctx),
     loadOverride(ctx),
     loadAskMeAbout(ctx),
-    ctx.supabase.from("member_roster_opt_outs").select("member_id").eq("member_id", memberId).maybeSingle(),
+    loadRosterOptOut(ctx),
   ]);
   if (error || !member) return { error: error?.message ?? "Couldn't load your profile" };
   if (overrideError || askError || optOutError) {
@@ -237,9 +251,9 @@ export async function getProfileSettings(): Promise<ProfileSettings | { error: s
     kajabiLinked: member.kajabi_id != null,
     instagramUrl: effective.instagram_url,
     details: toDetails(effective),
-    askMeAbout: askRow?.topics ?? [],
+    askMeAbout: askRow ?? [],
     syncPending,
-    showInRoster: optOut === null,
+    showInRoster: !optOut,
   };
 }
 
@@ -254,12 +268,9 @@ async function setRosterVisibilityImpl(show: boolean): Promise<{ success: true }
   if (typeof show !== "boolean") return { error: "Invalid setting" };
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = show
-    ? await supabase.from("member_roster_opt_outs").delete().eq("member_id", effectiveIdentity.memberId)
-    : await supabase
-        .from("member_roster_opt_outs")
-        .upsert({ member_id: effectiveIdentity.memberId }, { onConflict: "member_id", ignoreDuplicates: true });
-  if (error) {
+  try {
+    await createRepos(supabase).memberProfile.setRosterVisible(effectiveIdentity.memberId, show);
+  } catch (error) {
     console.error("[profile] Saving roster visibility failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save that — please try again." };
   }
@@ -355,10 +366,9 @@ async function updateProfileDetailsImpl(input: ProfileDetailsInput): Promise<Upd
     return { success: true, syncPending: false };
   }
 
-  const { error } = await supabase
-    .from("member_profile_overrides")
-    .upsert({ member_id: effectiveIdentity.memberId, ...next, updated_by: user.id }, { onConflict: "member_id" });
-  if (error) {
+  try {
+    await createRepos(supabase).memberStatus.saveProfileOverride(effectiveIdentity.memberId, next, user.id);
+  } catch (error) {
     console.error("[profile] Saving profile overrides failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save your profile — please try again." };
   }
@@ -393,18 +403,14 @@ async function updateAskMeAboutImpl(input: string[]): Promise<UpdateProfileResul
     console.error("[profile] Failed to load ask-me-about for member", effectiveIdentity.memberId, loadError);
     return { error: "Couldn't load your profile" };
   }
-  const current = existing?.topics ?? [];
+  const current = existing ?? [];
   if (current.length === parsed.topics.length && current.every((t: string, i: number) => t === parsed.topics[i])) {
     return { success: true, syncPending: false };
   }
 
-  const { error } = await supabase
-    .from("member_ask_me_about")
-    .upsert(
-      { member_id: effectiveIdentity.memberId, topics: parsed.topics, updated_by: user.id },
-      { onConflict: "member_id" }
-    );
-  if (error) {
+  try {
+    await createRepos(supabase).memberProfile.saveAskMeAbout(effectiveIdentity.memberId, parsed.topics, user.id);
+  } catch (error) {
     console.error("[profile] Saving ask-me-about failed for member", effectiveIdentity.memberId, error);
     return { error: "Couldn't save your topics — please try again." };
   }
@@ -474,13 +480,9 @@ export async function updateInstagramHandle(input: string): Promise<UpdateProfil
   }
 
   if (overrideChanged) {
-    const { error: saveError } = await ctx.supabase
-      .from("member_profile_overrides")
-      .upsert(
-        { member_id: effectiveIdentity.memberId, instagram_url: nextOverride, updated_by: ctx.user.id },
-        { onConflict: "member_id" }
-      );
-    if (saveError) {
+    try {
+      await createRepos(ctx.supabase).memberStatus.saveProfileOverride(effectiveIdentity.memberId, { instagram_url: nextOverride }, ctx.user.id);
+    } catch (saveError) {
       console.error("[profile] Saving Instagram override failed for member", effectiveIdentity.memberId, saveError);
       return { error: "Couldn't save your Instagram — please try again." };
     }

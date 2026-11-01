@@ -86,28 +86,9 @@ describe('Calendar Processing Pagination', () => {
         .like('google_event_id', `${testRunPrefix}-%`)
     })
 
-    it('should verify pagination code exists in route', async () => {
-      // This is a code inspection test - verifies the actual route file
-      // contains the pagination pattern
-      const fs = await import('fs/promises')
-      const path = await import('path')
-
-      const routePath = path.join(
-        process.cwd(),
-        'app/api/process/calendar/route.ts'
-      )
-
-      const routeContent = await fs.readFile(routePath, 'utf-8')
-
-      // Verify pagination keywords exist in the file
-      expect(routeContent).toContain('while (hasMore)')
-      expect(routeContent).toContain('range(offset')
-      expect(routeContent).toContain('FETCH_BATCH_SIZE')
-
-      // Verify it fetches calendar_events with range
-      expect(routeContent).toContain('from("calendar_events")')
-      expect(routeContent).toMatch(/range\(offset,\s*offset\s*\+\s*FETCH_BATCH_SIZE\s*-\s*1\)/)
-    })
+    // The route reads calendar items through CalendarEventRepository.overlapping, which pages with a
+    // stable order; reading past 1000 items is in that repository's contract
+    // (tests/helpers/calendar-event-contract.ts) instead of a check of this file's text.
   })
 
   describe('performance patterns', () => {
@@ -130,20 +111,15 @@ describe('Calendar Processing Pagination', () => {
     })
 
     it('should batch database writes', async () => {
-      // Prevent regression where batching was removed
+      // Prevent regression where batching was removed: the route queues unmatched events through
+      // the repository, which writes and deletes them in chunks
       const fs = await import('fs/promises')
       const path = await import('path')
 
-      const routePath = path.join(
-        process.cwd(),
-        'app/api/process/calendar/route.ts'
-      )
+      const repoContent = await fs.readFile(path.join(process.cwd(), 'lib/data/unmatched-events.ts'), 'utf-8')
 
-      const routeContent = await fs.readFile(routePath, 'utf-8')
-
-      // Should have chunking function and batch inserts
-      expect(routeContent).toContain('chunk(')
-      expect(routeContent).toContain('CHUNK_SIZE')
+      expect(repoContent).toContain('chunk(')
+      expect(repoContent).toContain('ID_CHUNK')
     })
   })
 })

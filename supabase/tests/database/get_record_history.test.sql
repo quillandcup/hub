@@ -1,5 +1,5 @@
 -- pgTAP tests for get_record_history (20261029000000): one record's audit rows, newest first,
--- scoped to that entity, and admin-only. Rolled back. Run with `npm run test:pgtap`.
+-- scoped to that entity, and admin-only. Rolled back. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

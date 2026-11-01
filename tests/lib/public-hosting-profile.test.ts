@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
+// Everything else in this file keeps the real repositories over the fake client; the hosting
+// schedule test swaps in in-memory ones.
+let repoOverride: import("@/lib/data/repos").Repos | null = null;
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return { ...actual, createRepos: (db: never) => repoOverride ?? actual.createRepos(db) };
+});
 
 import { computePublicHostingSummary, type HostedPrickleRecord } from "@/lib/hosting-stats";
 import {
@@ -8,6 +15,9 @@ import {
   mapHostedPrickleAttendanceRows,
   type HostedPrickleAttendanceRow,
 } from "@/lib/hosted-prickles";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import type { Prickle } from "@/lib/data/prickles";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { groupHostedPricklesIntoSlots, getMemberHostingSchedule } from "@/lib/prickle-schedule";
 
 function record(overrides: Partial<HostedPrickleRecord>): HostedPrickleRecord {
@@ -83,6 +93,7 @@ function makeSupabaseMock(
         return obj;
       });
     }
+    obj.maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null })); // the Event type lookup: none to leave out
     obj.range = vi.fn(() => {
       const data = served ? [] : (tables[table] ?? []);
       served = true;
@@ -259,21 +270,38 @@ describe("groupHostedPricklesIntoSlots", () => {
 });
 
 describe("getMemberHostingSchedule", () => {
+  afterEach(() => {
+    repoOverride = null;
+  });
+
+  const prickle = (id: string, hostId: string | null, startTime: string): Prickle => ({
+    id,
+    typeId: "t1",
+    hostId,
+    title: null,
+    startTime,
+    endTime: startTime,
+    source: "calendar",
+    calendarEventId: null,
+  });
+
   it("scopes to the host's upcoming prickles within the window", async () => {
-    const mock = makeSupabaseMock({
-      prickles: [{ id: "p1", type_id: "t1", start_time: "2026-09-29T14:00:00.000Z", prickle_types: [{ name: "PP" }] }],
-    });
+    repoOverride = createInMemoryRepos(
+      new InMemoryDataset({
+        prickleTypes: [{ id: "t1", name: "PP", normalizedName: "pp", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
+        prickles: [
+          prickle("mine", "host", "2026-09-29T14:00:00.000Z"),
+          prickle("someone-elses", "other", "2026-09-29T15:00:00.000Z"),
+          prickle("already-started", "host", "2026-09-25T14:00:00.000Z"),
+          prickle("past-window", "host", "2026-10-31T00:00:01.000Z"),
+        ],
+      }),
+    );
     const now = new Date("2026-09-26T00:00:00.000Z");
-    const slots = await getMemberHostingSchedule(mock as any, "host", now, "America/New_York", 35);
+
+    const slots = await getMemberHostingSchedule({} as never, "host", now, "America/New_York", 35);
 
     expect(slots).toHaveLength(1);
-    expect(slots[0].typeName).toBe("PP");
-    expect(mock.calls).toContainEqual({ table: "prickles", method: "eq", args: ["host", "host"] });
-    expect(mock.calls).toContainEqual({ table: "prickles", method: "gte", args: ["start_time", now.toISOString()] });
-    expect(mock.calls).toContainEqual({
-      table: "prickles",
-      method: "lte",
-      args: ["start_time", "2026-10-31T00:00:00.000Z"],
-    });
+    expect(slots[0]).toMatchObject({ typeName: "PP", nextOccurrenceId: "mine", upcomingCount: 1 });
   });
 });

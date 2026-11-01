@@ -47,6 +47,7 @@ describe('Zoom Access', () => {
 
     const { data: inactive } = await supabase.from('members').insert({
       name: names.inactiveMember,
+      display_name: 'Zoomy Inactive',
       email: `zoom-access-inactive-${ts}@example.com`,
       joined_at: new Date().toISOString(),
       status: 'cancelled',
@@ -80,6 +81,12 @@ describe('Zoom Access', () => {
   it('includes inactive member with recent attendance in matched_inactive', async () => {
     const { matched_inactive } = await fetchZoomAccess()
     expect(matched_inactive.some((m: any) => m.member_id === inactiveMemberId)).toBe(true)
+  })
+
+  it('carries the display name beside the legal name', async () => {
+    const { matched_inactive } = await fetchZoomAccess()
+    const entry = matched_inactive.find((m: any) => m.member_id === inactiveMemberId)
+    expect(entry).toMatchObject({ member_name: names.inactiveMember, member_display_name: 'Zoomy Inactive' })
   })
 
   it('does not include active members in matched_inactive', async () => {

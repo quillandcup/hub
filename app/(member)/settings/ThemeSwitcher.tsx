@@ -48,7 +48,7 @@ export function ThemeSwitcher() {
         <option value="dark">Dark</option>
         <option value="system">System (Auto)</option>
       </select>
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
         {theme === "system"
           ? "Automatically matches your device's theme preference"
           : `Always use ${theme} mode`}

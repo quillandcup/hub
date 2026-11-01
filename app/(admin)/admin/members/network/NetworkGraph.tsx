@@ -2,10 +2,18 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { describeChat } from "@/lib/member-network";
+
+function matchesSearch(node: { name: string; legalName?: string }, term: string) {
+  const t = term.toLowerCase();
+  return node.name.toLowerCase().includes(t) || (node.legalName ?? "").toLowerCase().includes(t);
+}
 
 interface Node {
   id: string;
   name: string;
+  /** Legal name; searchable too. */
+  legalName?: string;
   email: string;
   totalPrickles: number;
   x?: number;
@@ -17,8 +25,14 @@ interface Node {
 interface Edge {
   source: string;
   target: string;
+  /** What the edge is drawn by: shared prickles plus weighted chat. */
   weight: number;
   normalizedWeight: number;
+  /** Shared prickles, chat (weighted), and chat by kind; absent on older callers. */
+  prickles?: number;
+  chat?: number;
+  chatByKind?: Record<string, number>;
+  chatPrivate?: number;
 }
 
 interface NetworkGraphProps {
@@ -39,6 +53,12 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
 
   const width = 1200;
   const height = 800;
+
+  // The SVG scales to its card (viewBox), so a screen pixel is not a graph unit: pointer movement is converted.
+  const unitsPerPixel = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect && rect.width > 0 ? width / rect.width : 1;
+  };
 
   // Initialize node positions
   useEffect(() => {
@@ -142,7 +162,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
 
   // Filter nodes and edges based on search/selection
   const filteredNodes = nodes.filter(node =>
-    node.name.toLowerCase().includes(searchTerm.toLowerCase())
+    matchesSearch(node, searchTerm)
   );
 
   const highlightedNodeIds = new Set<string>();
@@ -188,8 +208,9 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
     // Zoom towards mouse position
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const k = unitsPerPixel();
+      const mouseX = (e.clientX - rect.left) * k;
+      const mouseY = (e.clientY - rect.top) * k;
 
       const newX = mouseX - (mouseX - transform.x) * (newScale / transform.scale);
       const newY = mouseY - (mouseY - transform.y) * (newScale / transform.scale);
@@ -201,16 +222,18 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
   const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if ((e.target as SVGElement).tagName === 'svg' || (e.target as SVGElement).tagName === 'rect') {
       setIsPanning(true);
-      setPanStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
+      const k = unitsPerPixel();
+      setPanStart({ x: e.clientX * k - transform.x, y: e.clientY * k - transform.y });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPanning) {
+      const k = unitsPerPixel();
       setTransform({
         ...transform,
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y,
+        x: e.clientX * k - panStart.x,
+        y: e.clientY * k - panStart.y,
       });
     }
   };
@@ -260,14 +283,16 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="@container">
+        <div className="grid grid-cols-1 @columns:grid-cols-3 gap-6">
         {/* Graph */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow p-4">
+        <div className="@columns:col-span-2 bg-white dark:bg-slate-900 rounded-lg shadow p-4">
           <svg
             ref={canvasRef}
             width={width}
             height={height}
-            className="border border-slate-200 dark:border-slate-700 rounded"
+            viewBox={`0 0 ${width} ${height}`}
+            className="h-auto w-full border border-slate-200 dark:border-slate-700 rounded"
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -321,7 +346,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                         fill={isSelected ? "#b65a88" : isHighlighted ? "#c7779e" : "#64748b"}
                         stroke={isSelected ? "#733654" : "none"}
                         strokeWidth={isSelected ? 3 : 0}
-                        opacity={searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase()) ? 0.2 : 1}
+                        opacity={searchTerm && !matchesSearch(node, searchTerm) ? 0.2 : 1}
                       />
                       {(isSelected || isHighlighted) && (
                         <text
@@ -381,13 +406,21 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{otherNode.name}</span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {conn.weight} Prickles
+                          <span className="text-xs text-slate-600 dark:text-slate-400">
+                            {conn.prickles ?? conn.weight} Prickles
                           </span>
                         </div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {conn.normalizedWeight}% of attendance overlap
-                        </div>
+                        {(conn.prickles ?? conn.weight) > 0 && (
+                          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            {conn.normalizedWeight}% of attendance overlap
+                          </div>
+                        )}
+                        {conn.chatByKind && Object.keys(conn.chatByKind).length > 0 && (
+                          <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                            Chat: {describeChat(conn.chatByKind)}
+                            {conn.chatPrivate ? ` (${conn.chatPrivate} private)` : ""}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -414,6 +447,7 @@ export default function NetworkGraph({ nodes: initialNodes, edges }: NetworkGrap
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

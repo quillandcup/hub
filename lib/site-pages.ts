@@ -33,7 +33,7 @@ export interface SitePage {
   feature?: FeatureKey;
 }
 
-export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community"] as const;
+export const MEMBER_NAV_GROUPS = ["Home", "My Burrow", "Community", "Explore"] as const;
 export const ADMIN_NAV_GROUPS: { name: string; /** Rarely-used maintenance tooling, folded by default. */ collapsible?: boolean }[] = [
   { name: "Overview" },
   { name: "Member Programs" },
@@ -60,6 +60,7 @@ function tabPages<Id extends string>(
     audience: "member" as const,
     section,
     keywords: opts.keywords?.[id],
+    ...(id === "hosting" ? { feature: "hosting" as const } : {}),
   }));
 }
 
@@ -68,7 +69,7 @@ function settingsSections(): SitePage[] {
   const tabHref = (tab: (typeof SETTINGS_TAB_IDS)[number]) => (tab === SETTINGS_TAB_IDS[0] ? "/settings" : `/settings/${tab}`);
   const section = (tab: (typeof SETTINGS_TAB_IDS)[number]) => `${SETTINGS_TITLE} · ${SETTINGS_TAB_LABELS[tab]}`;
   return [
-    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords })),
+    ...SETTINGS_SECTIONS.map((s) => ({ title: s.title, href: `${tabHref(s.tab)}#${s.id}`, audience: "member" as const, section: section(s.tab), keywords: s.keywords, ...(s.tab === "hosting" ? { feature: "hosting" as const } : {}) })),
     ...NOTIFICATION_KINDS.map((k) => ({
       title: k.label,
       href: `${tabHref("notifications")}#notification-${k.id}`,
@@ -86,20 +87,21 @@ const admin = (page: Omit<SitePage, "audience">): SitePage => ({ ...page, audien
 export const SITE_PAGES: SitePage[] = [
   // Member sidebar
   member({ title: "Dashboard", href: "/dashboard", section: "Home", nav: { icon: "🏠" }, keywords: ["home"] }),
-  member({ title: "My Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["wip"] }),
-  member({ title: "My Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["sessions"] }),
+  member({ title: "Writing", href: "/projects", section: "My Burrow", nav: { icon: "📝", activeFor: ["/projects/"] }, keywords: ["my writing", "wip"] }),
+  member({ title: "Prickles", href: "/my-prickles", section: "My Burrow", nav: { icon: "🦔", activeFor: ["/prickles/"] }, keywords: ["my prickles", "sessions"] }),
   member({ title: "Courses", href: "/courses", section: "My Burrow", nav: { icon: "🎓", activeFor: ["/courses/"] }, keywords: ["ready writer", "lessons", "learn", "video"], feature: "courses" }),
   member({ title: "Streaks", href: "/streaks", section: "My Burrow", nav: { icon: "🔥" } }),
-  member({ title: "Members", href: "/members", section: "Community", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
+  member({ title: "Members", href: "/members", section: "Explore", nav: { icon: "👥" }, keywords: ["directory", "people"] }),
   member({ title: "Big Sisters", href: "/big-sisters", section: "Community", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "new member", "buddy"], feature: "big_sisters" }),
   member({ title: "Chat", href: "/chat", section: "Community", nav: { icon: "💬" }, keywords: ["messages", "slack", "dm"], feature: "chat" }),
   member({ title: "Wheel of Wonder", href: "/wheel-of-wonder", section: "Community", nav: { icon: "🎡" }, keywords: ["spin", "prompt"] }),
-  member({ title: "Bookshelf", href: "/bookshelf", section: "Community", nav: { icon: "🐚" }, keywords: ["library", "books"] }),
-  member({ title: "Events", href: "/events", section: "Community", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
+  member({ title: "Book Shelf", href: "/bookshelf", section: "Explore", nav: { icon: "🐚" }, keywords: ["bookshelf", "library", "books"] }),
+  member({ title: "Events", href: "/events", section: "Explore", nav: { icon: "📸" }, keywords: ["retreat", "meetup"], feature: "events" }),
+  member({ title: "Past events", href: "/events/past", section: "Explore", keywords: ["retreat", "history", "archive", "past"], feature: "events" }),
 
-  // Member pages the sidebar doesn't link
-  member({ title: "Network", href: "/network", section: "Community", keywords: ["graph", "connections"] }),
+  // Member pages the sidebar doesn't link (Hedgie Help is the question mark in the top bar)
   member({ title: "Notifications", href: "/notifications", section: "Inbox", keywords: ["inbox", "bell", "alerts"] }),
+  member({ title: "Hedgie Help", href: "/help", section: "Help", keywords: ["how to", "guide", "support", "docs"] }),
   member({ title: "Privacy", href: "/privacy", section: "Help", keywords: ["data", "policy", "who can see"] }),
 
   // Tabs
@@ -128,6 +130,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Work Queue", href: "/admin/work-queue", section: "Overview", nav: { icon: "✅" }, feature: "work_queue" }),
   admin({ title: "All Members", href: "/admin/members", section: "Community", nav: { icon: "👥" }, keywords: ["people"] }),
   admin({ title: "Outreach", href: "/admin/outreach", section: "Sales & Marketing", nav: { icon: "🎯" }, keywords: ["queue", "touches"] }),
+  admin({ title: "Prospects", href: "/admin/outreach/prospects", section: "Sales & Marketing", keywords: ["instagram", "find", "leads", "discover", "bot"] }),
   admin({ title: "Big Sisters", href: "/admin/mentorship", section: "Member Programs", nav: { icon: "👭" }, keywords: ["mentor", "mentorship", "trial", "onboarding", "conversion"], feature: "big_sisters" }),
   admin({ title: "Big Sister Volunteers", href: "/admin/mentorship/volunteers", section: "Member Programs", keywords: ["mentor", "available", "pool", "opt in"], feature: "big_sisters" }),
   admin({ title: "Big Sister Effectiveness", href: "/admin/mentorship/big-sisters", section: "Member Programs", keywords: ["mentor", "conversion", "trial", "trend", "quarter"], feature: "big_sisters" }),
@@ -139,6 +142,7 @@ export const SITE_PAGES: SitePage[] = [
   admin({ title: "Badges", href: "/admin/badges", section: "Community", nav: { icon: "🏅" } }),
   admin({ title: "Hosts", href: "/admin/hosts", section: "Accountability", nav: { icon: "🎙️" } }),
   admin({ title: "Events", href: "/admin/events", section: "Community", nav: { icon: "📸" }, feature: "events" }),
+  admin({ title: "Media", href: "/admin/media", section: "Community", nav: { icon: "🖼️" }, keywords: ["images", "photos", "covers", "library", "upload"] }),
   admin({ title: "Community Stats", href: "/admin/stats", section: "Analytics", nav: { icon: "✨" } }),
   admin({ title: "Prickle Insights", href: "/admin/insights/prickles", section: "Accountability", nav: { icon: "✍️" } }),
   admin({ title: "Slack Engagement", href: "/admin/insights/slack-engagement", section: "Analytics", nav: { icon: "💬" } }),
@@ -161,6 +165,7 @@ export const SITE_PAGES: SitePage[] = [
   // Admin pages reached by drilling in (mostly from the health check), not from the sidebar
   admin({ title: "Unmatched Calendar Events", href: "/admin/hygiene/unmatched-events", section: "System" }),
   admin({ title: "Prickles Missing Hosts", href: "/admin/data-health/missing-hosts", section: "System" }),
+  admin({ title: "Chat Gap-fills", href: "/admin/data-health/gap-fills", section: "System", keywords: ["slack", "webhook", "missed events", "catch-up"] }),
   admin({ title: "Unmatched Zoom Names", href: "/admin/hygiene/unmatched-zoom", section: "System" }),
   admin({ title: "Ambiguous Zoom Names", href: "/admin/hygiene/ambiguous-names", section: "System" }),
   admin({ title: "Unmatched Slack Users", href: "/admin/hygiene/unmatched-slack", section: "System" }),

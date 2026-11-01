@@ -33,10 +33,15 @@ function applyConsent(choice: ConsentChoice) {
   });
 }
 
-export function ConsentBanner({ needsConsent }: { needsConsent: boolean }) {
+export function ConsentBanner({ needsConsent, optedOut = false }: { needsConsent: boolean; optedOut?: boolean }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // Opted out of statistics (the switch on /privacy): Google Analytics stays denied and there is nothing to ask.
+    if (optedOut) {
+      applyConsent("denied");
+      return;
+    }
     if (!needsConsent) return;
 
     let stored: string | null = null;
@@ -52,7 +57,7 @@ export function ConsentBanner({ needsConsent }: { needsConsent: boolean }) {
     } else {
       setVisible(true);
     }
-  }, [needsConsent]);
+  }, [needsConsent, optedOut]);
 
   if (!visible) return null;
 

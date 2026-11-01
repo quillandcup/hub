@@ -1,6 +1,8 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers, SLACKBOT_USER_ID } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -11,52 +13,28 @@ export async function GET(request: NextRequest) {
   try {
     // Load reference data
     const [
-      { data: slackUsers },
-      { data: members },
-      { data: aliases },
-      { data: ignoredUsers },
+      slackUsers,
+      members,
+      aliases,
+      ignoredUserIds,
     ] = await Promise.all([
-      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name, display_name, is_bot").neq("user_id", SLACKBOT_USER_ID),
-      supabase.from("members").select("id, name, email"),
-      supabase.from("member_name_aliases").select("alias, member_id, source"),
-      supabase.from("ignored_slack_users").select("user_id"),
+      createRepos(supabase).slackUsers.list({ excludeSlackbot: true }),
+      createRepos(supabase).members.identities(),
+      createRepos(supabase).aliases.nameAliases(),
+      createRepos(supabase).slackWorkspace.ignoredUserIds(),
     ]);
 
-    // Paginate slack_messages to get complete activity counts per user
-    const slackMessages: { user_id: string }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema('bronze').from("slack_messages_meta")
-          .select("user_id")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          slackMessages.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // Complete activity counts per user (the repository pages through the table)
+    const messageCountByUser = await createRepos(supabase).slackMessages.messageCountsByUser();
 
     // Match users
     const userToMemberMap = await matchSlackUsersToMembers(
       slackUsers || [],
-      members || [],
-      aliases || []
+      members,
+      aliases || [],
+      await loadVerifiedSlackLinks(createServiceRoleClient())
     );
 
-    // Filter ignored users
-    const ignoredUserIds = new Set((ignoredUsers || []).map(u => u.user_id));
-
-    // Count messages per user
-    const messageCountByUser = new Map<string, number>();
-    for (const msg of slackMessages || []) {
-      messageCountByUser.set(msg.user_id, (messageCountByUser.get(msg.user_id) || 0) + 1);
-    }
 
     // Find unmatched users (not matched, not ignored, not bots)
     const unmatched = (slackUsers || [])

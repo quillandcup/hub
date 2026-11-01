@@ -1,14 +1,17 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
 
-// Days of Slack activity per reprocess_slack_activities_atomic call.
-const REBUILD_WINDOW_DAYS = 7;
+// Days of Slack activity per reprocess_slack_activities_atomic call. The whole call (delete plus
+// both inserts) is one statement under the API role's 8s timeout, and a week of a 30-day import
+// ran past it in prod, so a day it is (the chat projection does the same).
+const REBUILD_WINDOW_DAYS = 1;
 
 /**
  * Process Bronze layer (slack_messages, slack_reactions) into Silver layer (member_activities)
@@ -16,11 +19,11 @@ const REBUILD_WINDOW_DAYS = 7;
  * This endpoint:
  * 1. Loads reference data upfront (members, aliases, Slack users)
  * 2. Matches Slack users to members in memory
- * 3. Calls reprocess_slack_activities_atomic once per week of the range. Each
- *    call transforms that week's Bronze messages and reactions into
- *    member_activities, DELETEing the week's existing Slack activities and
+ * 3. Calls reprocess_slack_activities_atomic once per day of the range. Each
+ *    call transforms that day's Bronze messages and reactions into
+ *    member_activities, DELETEing the day's existing Slack activities and
  *    INSERTing fresh ones in a single transaction (reprocessable, and a
- *    failure leaves that week's old rows in place)
+ *    failure leaves that day's old rows in place)
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -47,39 +50,33 @@ export async function POST(request: NextRequest) {
 
     // STEP 1: Load reference data in parallel
     const [
-      { data: members },
-      { data: aliases },
-      { data: slackUsers },
+      members,
+      aliases,
+      slackUsers,
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email"),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
-      supabase.schema('bronze').from("slack_users").select("user_id, email, real_name"),
+      createRepos(supabase).members.identities(),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+      createRepos(supabase).slackUsers.list(),
     ]);
 
     // STEP 2: Match Slack users to members (in memory)
     const userToMemberMap = await matchSlackUsersToMembers(
-      slackUsers || [],
-      members || [],
-      aliases || []
+      slackUsers,
+      members,
+      aliases || [],
+      await loadVerifiedSlackLinks(supabase)
     );
 
     console.log(`Matched ${userToMemberMap.size} Slack users to members`);
 
     // STEP 3: Does nothing when Bronze has no Slack data in the range, so an
     // empty range never wipes existing activities.
-    const [{ data: anyMessage, error: messageCheckError }, { data: anyReaction, error: reactionCheckError }] = await Promise.all([
-      supabase.schema("bronze").from("slack_messages").select("message_ts")
-        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
-      supabase.schema("bronze").from("slack_reactions").select("message_ts")
-        .gte("occurred_at", fromDate).lte("occurred_at", toDate).is("deleted_at", null).limit(1),
-    ]);
-    if (messageCheckError) throw messageCheckError;
-    if (reactionCheckError) throw reactionCheckError;
+    const hasSlackData = await createRepos(supabase).slackMessages.hasLiveActivityBetween(fromDate, toDate);
 
     let messages = 0;
     let reactions = 0;
 
-    if ((anyMessage?.length ?? 0) > 0 || (anyReaction?.length ?? 0) > 0) {
+    if (hasSlackData) {
       // STEP 4: Transform + DELETE + INSERT, one week per call. Each call is one
       // transaction, so a failed week keeps its old rows; the weeks before it
       // are already rebuilt and the next run redoes them all. One call for the
@@ -105,12 +102,12 @@ export async function POST(request: NextRequest) {
           throw error;
         }
 
-        messages += result?.messages ?? 0;
-        reactions += result?.reactions ?? 0;
+        messages += (result as { messages?: number; reactions?: number } | null)?.messages ?? 0;
+        reactions += (result as { messages?: number; reactions?: number } | null)?.reactions ?? 0;
       }
 
       console.log(
-        `Processing complete: inserted ${messages} message activities, ${reactions} reaction activities in ${windows.length} weekly rebuilds`
+        `Processing complete: inserted ${messages} message activities, ${reactions} reaction activities in ${windows.length} daily rebuilds`
       );
     } else {
       console.log("No Slack data in Bronze for this range; leaving existing activities alone");

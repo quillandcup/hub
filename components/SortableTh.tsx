@@ -15,7 +15,7 @@ function SortIcon({ active, direction }: SortIconProps) {
   return <span className="ml-1 text-plum-500">{direction === "asc" ? "↑" : "↓"}</span>;
 }
 
-const DEFAULT_CELL_CLASS = "px-6 py-3 text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+const DEFAULT_CELL_CLASS = "px-6 py-3 text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider";
 
 interface SortableThProps {
   label: ReactNode;

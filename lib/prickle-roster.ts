@@ -1,3 +1,6 @@
+import { createRepos } from "@/lib/data/repos";
+import type { WeeklySlotMember } from "@/lib/data/calendar-feed";
+import type { SlotCommitment } from "@/lib/data/prickle-activity";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { localDateFor, normalizeTime, SCHEDULE_TIMEZONE, slotTimeForInstant } from "@/lib/commitments";
 import { getMemberDisplayName } from "@/lib/member-display-name";
@@ -42,28 +45,11 @@ export interface RosterPrickle {
   host_id?: string | null;
 }
 
-const BATCH_SIZE = 1000;
 // Keeps each `.in(...)` URL well under PostgREST's length limit.
-const ID_CHUNK = 200;
 
-async function fetchAll<T>(queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let offset = 0; ; offset += BATCH_SIZE) {
-    const { data } = await queryFn(offset, offset + BATCH_SIZE - 1);
-    rows.push(...(data ?? []));
-    if (!data || data.length < BATCH_SIZE) return rows;
-  }
-}
-
-function chunks<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += ID_CHUNK) out.push(items.slice(i, i + ID_CHUNK));
-  return out;
-}
-
-interface CommitmentSlotRow {
-  start_time_local: string;
-  prickle_commitments: { member_id: string; status: string; start_date: string; end_date: string } | { member_id: string; status: string; start_date: string; end_date: string }[] | null;
+function calendarReadFailed<T>(error: unknown): T[] {
+  console.error("prickle roster: failed to read calendar items", error);
+  return [];
 }
 
 export async function loadPrickleRoster(
@@ -78,80 +64,47 @@ export async function loadPrickleRoster(
   const startTimeLocal = normalizeTime(slot.startTimeLocal);
   const localDate = localDateFor(new Date(prickle.start_time), SCHEDULE_TIMEZONE);
 
-  const [committedRows, onceRows, weeklyRows] = await Promise.all([
+  const repos = createRepos(service);
+  const [committedRows, onceMemberIds, weeklyRows] = await Promise.all([
     typeId
-      ? fetchAll<CommitmentSlotRow>((from, to) =>
-          service
-            .from("prickle_commitment_slots")
-            .select("start_time_local, prickle_commitments!inner(member_id, status, start_date, end_date)")
-            .eq("type_id", typeId)
-            .eq("day_of_week", slot.dayOfWeek)
-            .eq("timezone", SCHEDULE_TIMEZONE)
-            .order("id")
-            .range(from, to)
-        )
-      : Promise.resolve([] as CommitmentSlotRow[]),
-    fetchAll<{ member_id: string }>((from, to) =>
-      service
-        .from("calendar_feed_items")
-        .select("member_id")
-        .eq("kind", "prickle")
-        .eq("prickle_id", prickle.id)
-        .order("id")
-        .range(from, to)
-    ),
+      ? repos.prickleActivity.slotCommitments({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE })
+      : Promise.resolve([] as SlotCommitment[]),
+    // A failed read lists nobody from the calendar rather than failing the page.
+    repos.calendarFeed.memberIdsWithPrickle(prickle.id).catch(calendarReadFailed<string>),
     typeId
-      ? fetchAll<{ member_id: string; start_time_local: string }>((from, to) =>
-          service
-            .from("calendar_feed_items")
-            .select("member_id, start_time_local")
-            .eq("kind", "slot")
-            .eq("type_id", typeId)
-            .eq("day_of_week", slot.dayOfWeek)
-            .eq("timezone", SCHEDULE_TIMEZONE)
-            .order("id")
-            .range(from, to)
-        )
-      : Promise.resolve([] as { member_id: string; start_time_local: string }[]),
+      ? repos.calendarFeed.weeklySlotMembers({ typeId, dayOfWeek: slot.dayOfWeek, timezone: SCHEDULE_TIMEZONE }).catch(calendarReadFailed<WeeklySlotMember>)
+      : Promise.resolve([] as WeeklySlotMember[]),
   ]);
 
   const reasonByMember = new Map<string, RosterReason>();
   for (const row of weeklyRows) {
-    if (normalizeTime(row.start_time_local) === startTimeLocal) reasonByMember.set(row.member_id, "calendar");
+    if (normalizeTime(row.startTimeLocal) === startTimeLocal) reasonByMember.set(row.memberId, "calendar");
   }
-  for (const row of onceRows) reasonByMember.set(row.member_id, "calendar");
+  for (const memberId of onceMemberIds) reasonByMember.set(memberId, "calendar");
   for (const row of committedRows) {
-    if (normalizeTime(row.start_time_local) !== startTimeLocal) continue;
-    const commitment = Array.isArray(row.prickle_commitments) ? row.prickle_commitments[0] : row.prickle_commitments;
-    if (!commitment || commitment.status !== "active") continue;
-    if (localDate < commitment.start_date || localDate > commitment.end_date) continue;
-    reasonByMember.set(commitment.member_id, "committed");
+    if (normalizeTime(row.startTimeLocal) !== startTimeLocal) continue;
+    if (row.status !== "active") continue;
+    if (localDate < row.startDate || localDate > row.endDate) continue;
+    reasonByMember.set(row.memberId, "committed");
   }
   if (prickle.host_id) reasonByMember.set(prickle.host_id, "host");
   if (reasonByMember.size === 0) return { entries: [], total: 0 };
 
   const memberIds = [...reasonByMember.keys()];
-  const [hidden, members] = await Promise.all([
-    Promise.all(
-      chunks(memberIds).map(async (ids) => (await service.from("member_roster_opt_outs").select("member_id").in("member_id", ids)).data ?? [])
-    ),
-    Promise.all(
-      chunks(memberIds).map(
-        async (ids) => (await service.from("members").select("id, name, display_name, status").in("id", ids)).data ?? []
-      )
-    ),
+  const [hiddenIds, members] = await Promise.all([
+    repos.memberProfile.rosterOptOuts(memberIds),
+    repos.members.byIds(memberIds),
   ]);
-  const hiddenIds = new Set(hidden.flat().map((r: { member_id: string }) => r.member_id));
 
   const entries: RosterEntry[] = [];
-  for (const m of members.flat() as { id: string; name: string; display_name: string | null; status: string }[]) {
+  for (const m of members) {
     if (m.status === "cancelled") continue;
     const isYou = m.id === viewerMemberId;
     const reason = reasonByMember.get(m.id)!;
     // The host is named on the page anyway, so opting out doesn't apply to hosting.
     const isHidden = hiddenIds.has(m.id) && reason !== "host";
     if (isHidden && !isYou) continue;
-    entries.push({ memberId: m.id, name: getMemberDisplayName(m), reason, isYou, hiddenFromOthers: isHidden });
+    entries.push({ memberId: m.id, name: getMemberDisplayName({ name: m.name, display_name: m.displayName }), reason, isYou, hiddenFromOthers: isHidden });
   }
 
   // The host, then you, then those who committed (a firmer sign-up), then alphabetically.

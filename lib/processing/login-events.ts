@@ -1,8 +1,9 @@
+import { createRepos } from "@/lib/data/repos";
+import type { NewActivity } from "@/lib/data/activities";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
 const PAGE_SIZE = 1000;
-const ID_CHUNK_SIZE = 200;
 
 async function fetchAllPages<T>(
   fetchPage: (start: number, end: number) => PromiseLike<{ data: unknown; error: unknown }>
@@ -56,21 +57,16 @@ export async function mirrorLoginEvents(
     return { sessionsSeen: 0, activitiesUpserted: 0 };
   }
 
-  const [members, { data: emailAliases, error: aliasesError }] = await Promise.all([
-    fetchAllPages<{ id: string; user_id: string | null; email: string | null }>((start, end) =>
-      supabase.from("members").select("id, user_id, email").order("id").range(start, end)
-    ),
-    supabase.from("member_email_aliases").select("*").eq("active", true),
-  ]);
-  if (aliasesError) throw aliasesError;
+  const repos = createRepos(supabase);
+  const [members, emailAliases] = await Promise.all([repos.members.list(), repos.aliases.emailAliases({ activeOnly: true })]);
 
   const memberIdByUserId = new Map<string, string>();
   const memberIdByEmail = new Map<string, string>();
   for (const m of members) {
-    if (m.user_id) memberIdByUserId.set(m.user_id, m.id);
+    if (m.userId) memberIdByUserId.set(m.userId, m.id);
     if (m.email) memberIdByEmail.set(m.email.toLowerCase(), m.id);
   }
-  const aliasMap = buildAliasMap(emailAliases ?? []);
+  const aliasMap = buildAliasMap(emailAliases);
 
   const activities = loginSessions
     .map((session) => {
@@ -80,16 +76,16 @@ export async function mirrorLoginEvents(
       if (!memberId) return null;
 
       return {
-        member_id: memberId,
-        activity_type: "hedgie_hub_login",
-        activity_category: "engagement",
+        memberId,
+        type: "hedgie_hub_login",
+        category: "engagement",
         title: "Logged into Hedgie Hub",
-        actor_kind: "member" as const,
-        engagement_value: 1,
-        occurred_at: session.created_at,
+        actorKind: "member",
+        engagementValue: 1,
+        occurredAt: session.created_at,
         source: "access_events",
-        related_id: session.session_id,
-      };
+        relatedId: session.session_id,
+      } satisfies NewActivity;
     })
     .filter((a): a is NonNullable<typeof a> => a !== null);
 
@@ -97,25 +93,15 @@ export async function mirrorLoginEvents(
     return { sessionsSeen: loginSessions.length, activitiesInserted: 0 };
   }
 
-  // Chunked so a long lookback doesn't overflow the request URL with ids.
-  const alreadyMirrored = new Set<string>();
-  for (let i = 0; i < activities.length; i += ID_CHUNK_SIZE) {
-    const { data: existing, error: existingError } = await supabase
-      .from("member_activities")
-      .select("related_id")
-      .eq("source", "access_events")
-      .in("related_id", activities.slice(i, i + ID_CHUNK_SIZE).map((a) => a.related_id));
-    if (existingError) throw existingError;
-    for (const e of existing ?? []) alreadyMirrored.add(e.related_id);
-  }
-  const newActivities = activities.filter((a) => !alreadyMirrored.has(a.related_id));
+  // The repository chunks the id lookup so a long lookback doesn't overflow the request URL.
+  const alreadyMirrored = await repos.activities.relatedIdsWritten("access_events", activities.map((a) => a.relatedId));
+  const newActivities = activities.filter((a) => !alreadyMirrored.has(a.relatedId));
 
   if (newActivities.length === 0) {
     return { sessionsSeen: loginSessions.length, activitiesInserted: 0 };
   }
 
-  const { error: insertError } = await supabase.from("member_activities").insert(newActivities);
-  if (insertError) throw insertError;
+  await repos.activities.recordMany(newActivities);
 
   return { sessionsSeen: loginSessions.length, activitiesInserted: newActivities.length };
 }

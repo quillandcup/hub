@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { spinWheel, type WheelSpinResponse, type WheelWinner } from "./actions";
+import { useTimeout } from "@/components/useTimeout";
+import {
+  introduceOnSlack,
+  spinWheel,
+  type WheelIntroduction,
+  type WheelSpinResponse,
+  type WheelWinner,
+} from "./actions";
 
 // Slot count for the idle (pre-spin) placeholder ring. Once real results
 // come back, the wheel shrinks to however many distinct real candidates are
@@ -105,7 +112,11 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [justRevealed, setJustRevealed] = useState(false);
   const [starterCopied, setStarterCopied] = useState(false);
+  const [introducing, setIntroducing] = useState(false);
+  const [introFallback, setIntroFallback] = useState<WheelIntroduction | null>(null);
 
+  const startRevealTimer = useTimeout();
+  const startCopiedTimer = useTimeout();
   const wheelRef = useRef<HTMLDivElement>(null);
   const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
   const slotsRef = useRef<SlotPhoto[]>(slots);
@@ -194,23 +205,36 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
           setPhase("revealed");
           setWinner(result.winner);
           setJustRevealed(true);
-          setTimeout(() => setJustRevealed(false), 900);
+          startRevealTimer(() => setJustRevealed(false), 900);
         }
       };
 
       animFrameRef.current = requestAnimationFrame(step);
     },
-    [applyRotation, setSlot]
+    [applyRotation, setSlot, startRevealTimer]
   );
 
   const handleCopyStarter = useCallback(async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setStarterCopied(true);
-      setTimeout(() => setStarterCopied(false), 2000);
+      startCopiedTimer(() => setStarterCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy starter text:", error);
     }
+  }, [startCopiedTimer]);
+
+  const handleMessageOnSlack = useCallback(async (memberId: string) => {
+    setIntroducing(true);
+    setErrorMessage(null);
+    const result = await introduceOnSlack(memberId);
+    setIntroducing(false);
+    if ("error" in result) {
+      setErrorMessage(result.error);
+      return;
+    }
+    if (!result.roomCreated) setIntroFallback(result);
+    window.location.href = result.url;
   }, []);
 
   const handleSpin = useCallback(async () => {
@@ -219,6 +243,7 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
     setErrorMessage(null);
     setWinner(null);
     setStarterCopied(false);
+    setIntroFallback(null);
     applyRotation(0);
 
     const result = await spinWheel();
@@ -236,7 +261,9 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
   }, [phase, applyRotation, runSpinAnimation]);
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    // The @container, full width (the page centers it in a flex row, where a container would shrink to nothing): the
+    // result buttons below follow the room the Wheel has, not the window.
+    <div className="@container flex w-full flex-col items-center gap-8">
       {confirmedConnectionCount > 0 && (
         <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium text-center">
           🎉 {confirmedConnectionCount} new connection{confirmedConnectionCount === 1 ? "" : "s"} made
@@ -306,34 +333,35 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
             Billie would like to (re)introduce {winner.memberName} to you!
           </h2>
 
-          {winner.roomCreated ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              I already broke the ice for you two — check the room!
-            </p>
-          ) : (
-            winner.starterText && (
-              <div className="mb-4 text-left">
-                <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Something to open with:</p>
-                <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                  <p className="text-sm text-slate-700 dark:text-slate-300 flex-1">{winner.starterText}</p>
-                  <button data-track="wheel-copy-starter"
-                    onClick={() => handleCopyStarter(winner.starterText!)}
-                    className="text-xs px-2 py-1 rounded font-medium text-plum-600 dark:text-plum-400 hover:bg-plum-50 dark:hover:bg-plum-900/20 transition-colors flex-shrink-0"
-                  >
-                    {starterCopied ? "Copied!" : "Copy"}
-                  </button>
-                </div>
+          {introFallback?.starterText ? (
+            <div className="mb-4 text-left">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                I couldn&apos;t start a chat for you two, so here&apos;s something to open with:
+              </p>
+              <div className="flex items-start gap-2 bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                <p className="text-sm text-slate-700 dark:text-slate-300 flex-1">{introFallback.starterText}</p>
+                <button data-track="wheel-copy-starter"
+                  onClick={() => handleCopyStarter(introFallback.starterText!)}
+                  className="text-xs px-2 py-1 rounded font-medium text-plum-600 dark:text-plum-400 hover:bg-plum-50 dark:hover:bg-plum-900/20 transition-colors flex-shrink-0"
+                >
+                  {starterCopied ? "Copied!" : "Copy"}
+                </button>
               </div>
-            )
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Billie will start a chat with you both and break the ice.
+            </p>
           )}
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <a data-track="wheel-message-on-slack"
-              href={winner.dmUrl}
-              className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+          <div className="flex flex-col gap-2 @pair:flex-row @pair:justify-center">
+            <button data-track="wheel-message-on-slack"
+              onClick={() => handleMessageOnSlack(winner.memberId)}
+              disabled={introducing}
+              className="px-5 py-2.5 rounded-lg font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
             >
-              Message on Slack →
-            </a>
+              {introducing ? "Opening Slack…" : "Message on Slack →"}
+            </button>
             <button data-track="wheel-spin-again"
               onClick={handleSpin}
               className="px-5 py-2.5 rounded-lg font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -358,17 +386,21 @@ export default function Wheel({ confirmedConnectionCount = 0 }: WheelProps) {
         </div>
       )}
 
+      {phase === "revealed" && errorMessage && (
+        <p className="text-sm text-red-600 dark:text-red-400 text-center">{errorMessage}</p>
+      )}
+
       {phase === "error" && errorMessage && (
         <div className="text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-sm">
           <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
         </div>
       )}
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 text-center max-w-sm">
+      <p className="text-xs text-slate-500 dark:text-slate-400 text-center max-w-sm">
         The Wheel of Wonder leans toward Hedgies who haven&apos;t connected much yet, so newer or
         quieter folks turn up as matches more often. Posting, reacting, and showing up to a
         Prickle is still the fastest way to build connections on your own.{" "}
-        <Link data-track="wheel-see-your-connections" href="/network" className="underline hover:text-slate-600 dark:hover:text-slate-300">
+        <Link data-track="wheel-see-your-connections" href="/streaks" className="underline hover:text-slate-600 dark:hover:text-slate-300">
           See your connections →
         </Link>
       </p>

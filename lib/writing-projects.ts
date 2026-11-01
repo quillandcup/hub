@@ -214,6 +214,14 @@ export function computeGoalProgress(input: GoalProgressInput): GoalProgress {
   };
 }
 
+/**
+ * A target goal whose end date passed before it reached its target. Shown only under "Past goals" on the
+ * project page: on the project list, dashboard and profile it would sit next to the project as a standing miss.
+ */
+export function isMissedGoal(goal: { kind: string; status?: string }): boolean {
+  return goal.kind === "target" && goal.status === "ended";
+}
+
 function daysBetween(fromIso: string, toIso: string): number {
   const from = new Date(`${fromIso}T00:00:00Z`).getTime();
   const to = new Date(`${toIso}T00:00:00Z`).getTime();
@@ -333,4 +341,14 @@ export function computeHabitGoalProgress(input: HabitProgressInput): HabitProgre
   const hitRatePercent = (hitPeriods.length / periodsTracked) * 100;
 
   return { currentStreak, longestStreak, typicalStreak, hitRatePercent };
+}
+
+/**
+ * Phases a project is done in: finished, published or given up. My Writing lists these apart from
+ * the ongoing projects, under "Past projects"; changing the status brings one back.
+ */
+export const PAST_PHASES = ["complete", "published", "abandoned"] as const satisfies readonly ProjectPhase[];
+
+export function isPastPhase(phase: string): boolean {
+  return (PAST_PHASES as readonly string[]).includes(phase);
 }

@@ -33,7 +33,7 @@ describe("MemberNotesCard", () => {
         subjectMemberId="m-pat"
         firstName="Pat"
         initialBody="old note"
-        initialUpdatedAt="2026-09-01T12:00:00Z"
+        initialUpdatedAt={new Date(2026, 8, 1, 12).toISOString()}
       />
     );
     expect(screen.getByRole("status")).toHaveTextContent("Last edited Sep 1, 2026");

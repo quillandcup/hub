@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
-import { useLessonCompletion } from "./LessonCompletion";
+import { courseImageUrl } from "@/lib/courses/image-urls";
+import { useLessonCompletion } from "@/components/courses/LessonCompletion";
 
 /**
  * Once the lesson is complete: "Great job! Keep going!" with a preview of the next lesson (its
@@ -25,21 +25,21 @@ export default function NextLessonPreview({ slug, next }: { slug: string; next: 
     );
   }
 
-  const thumbnail = safeUrl(next.thumbnail_url);
+  const thumbnail = courseImageUrl(next.thumbnail_url);
   return (
     <Link
       href={`/courses/${slug}/lessons/${next.id}`}
       data-track="lesson-next-preview"
       role="status"
       aria-label={`Great job! Keep going! Next lesson: ${next.title}`}
-      className="mt-3 flex items-center gap-4 rounded-lg bg-slate-100 p-3 transition hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+      className="@container mt-3 flex items-center gap-4 rounded-lg bg-slate-100 p-3 transition hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
     >
       {thumbnail ? (
         // Decorative (the title is beside it); a plain img so any Kajabi image host works.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbnail} alt="" className="aspect-video w-28 shrink-0 rounded object-cover sm:w-36" />
+        <img src={thumbnail} alt="" className="aspect-video w-28 shrink-0 rounded object-cover @pair:w-36" />
       ) : (
-        <span aria-hidden="true" className="aspect-video w-28 shrink-0 rounded bg-slate-300 dark:bg-slate-600 sm:w-36" />
+        <span aria-hidden="true" className="aspect-video w-28 shrink-0 rounded bg-slate-300 dark:bg-slate-600 @pair:w-36" />
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-slate-600 dark:text-slate-300">Great job! Keep going!</span>

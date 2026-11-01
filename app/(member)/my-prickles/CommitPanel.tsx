@@ -95,14 +95,14 @@ export default function CommitPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Make a commitment</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             Tick prickles in the table, or click them in the calendar. Pick as many weekly times as you like.
           </p>
         </div>
         <button data-track="commit-close"
           type="button"
           onClick={onClose}
-          className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 flex-shrink-0"
+          className="text-xs text-slate-600 hover:text-slate-700 dark:text-slate-400 flex-shrink-0"
         >
           Close
         </button>
@@ -118,7 +118,7 @@ export default function CommitPanel({
       )}
 
       {slots.length === 0 ? (
-        !saved && <p className="text-sm text-slate-500 dark:text-slate-400">Nothing picked yet.</p>
+        !saved && <p className="text-sm text-slate-600 dark:text-slate-400">Nothing picked yet.</p>
       ) : (
         <>
           <ul aria-label="Picked prickles" className="flex flex-wrap gap-2">
@@ -132,7 +132,7 @@ export default function CommitPanel({
                   type="button"
                   onClick={() => onRemove(s.key)}
                   aria-label={`Remove ${s.label}`}
-                  className="rounded-full px-1.5 text-slate-400 hover:text-rose-600"
+                  className="rounded-full px-1.5 text-slate-500 dark:text-slate-400 hover:text-rose-600"
                 >
                   ×
                 </button>
@@ -174,7 +174,7 @@ export default function CommitPanel({
             </button>
           </div>
 
-          {preview && <p className="text-xs text-slate-500 dark:text-slate-400">{preview}</p>}
+          {preview && <p className="text-xs text-slate-600 dark:text-slate-400">{preview}</p>}
         </>
       )}
 

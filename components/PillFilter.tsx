@@ -22,6 +22,7 @@ export function PillFilter<T extends string>({
   options,
   value,
   onChange,
+  onIntent,
   ariaLabel,
   variant = "pill",
   size = "md",
@@ -30,6 +31,8 @@ export function PillFilter<T extends string>({
   options: readonly PillOption<T>[];
   value: T;
   onChange: (id: T) => void;
+  /** Called when someone hovers or focuses a pill, before they choose it: a place to start loading what it shows. */
+  onIntent?: (id: T) => void;
   ariaLabel: string;
   variant?: "pill" | "segmented";
   size?: "sm" | "md";
@@ -52,6 +55,8 @@ export function PillFilter<T extends string>({
               type="button"
               aria-pressed={active}
               onClick={() => onChange(opt.id)}
+              onMouseEnter={() => onIntent?.(opt.id)}
+              onFocus={() => onIntent?.(opt.id)}
               className={`${sizeClass} transition-colors ${i > 0 ? "border-l border-slate-300 dark:border-slate-600" : ""} ${
                 active
                   ? "bg-plum-600 text-white"
@@ -77,6 +82,8 @@ export function PillFilter<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(opt.id)}
+            onMouseEnter={() => onIntent?.(opt.id)}
+            onFocus={() => onIntent?.(opt.id)}
             className={`${sizeClass} rounded-full border font-medium whitespace-nowrap transition-colors ${
               active
                 ? "bg-plum-600 border-plum-600 text-white dark:bg-plum-500 dark:border-plum-500"
@@ -96,7 +103,7 @@ function CountBadge({ count, active }: { count: number; active: boolean }) {
   return (
     <span
       className={`ml-1.5 inline-block min-w-[1.25rem] rounded-full px-1.5 text-xs tabular-nums ${
-        active ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+        active ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
       }`}
     >
       {count}

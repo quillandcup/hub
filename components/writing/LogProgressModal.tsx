@@ -12,15 +12,13 @@ const LOGGABLE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles");
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { defaultPrickleId, type PrickleOption } from "@/lib/prickle-writing";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
-import { checkinHref, type CheckinInput } from "@/lib/prickle-checkins";
-import { FeelingPicker, RatingPicker } from "@/components/writing/CheckinFields";
+import { checkinHref, EMPTY_CHECKIN, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
+import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 
-const EMPTY_CHECKIN: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
-
-type Checkout = Pick<CheckinInput, "sessionRating" | "feelingsAfter">;
+type Checkout = Partial<CheckinInput>;
 
 function checkoutOf(c: CheckinInput | null): Checkout {
-  return { sessionRating: c?.sessionRating ?? null, feelingsAfter: c?.feelingsAfter ?? [] };
+  return halfOf(c ?? EMPTY_CHECKIN, "checkout");
 }
 
 interface LogProgressModalProps {
@@ -85,7 +83,7 @@ export default function LogProgressModal({
 
   // The selected prickle's check-out, so logging from anywhere asks how it went. The check-in
   // lives in the check-in modal on Attendance History (linked below). Saved with the entry; hidden in sudo, where nobody
-  // records feelings on a member's behalf.
+  // records answers on a member's behalf.
   const [checkinFor, setCheckinFor] = useState<string | null>(null);
   const [savedCheckout, setSavedCheckout] = useState<Checkout>(checkoutOf(null));
   const [checkoutDraft, setCheckoutDraft] = useState<Checkout>(checkoutOf(null));
@@ -252,7 +250,7 @@ export default function LogProgressModal({
             ))}
           </select>
           {optionsLoadedFor === entryDate && prickleOptions.length === 0 && !selectedMissing && (
-            <p className="mt-1 text-xs text-slate-400">No prickles on this date.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No prickles on this date.</p>
           )}
         </div>
 
@@ -295,7 +293,7 @@ export default function LogProgressModal({
               className="flex-1 min-w-0 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
             />
           </div>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {mode === "delta"
               ? "Adds to your current total -- use this if you know how much you added today."
               : "Replaces your current total -- use this if you only know your new running total."}
@@ -304,7 +302,7 @@ export default function LogProgressModal({
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Note <span className="text-slate-400 font-normal">(optional)</span>
+            Note <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
           <input
             type="text"
@@ -318,7 +316,7 @@ export default function LogProgressModal({
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Tags <span className="text-slate-400 font-normal">(optional, comma-separated)</span>
+            Tags <span className="text-slate-500 dark:text-slate-400 font-normal">(optional, comma-separated)</span>
           </label>
           <input
             type="text"
@@ -336,7 +334,7 @@ export default function LogProgressModal({
           >
             <div className="flex items-baseline justify-between gap-3">
               <h3 id="log-progress-checkout" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Check out <span className="text-slate-400 font-normal">(optional)</span>
+                Check out <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
               </h3>
               {/* New tab, so following it doesn't lose what's typed here. */}
               <Link data-track="log-progress-edit-check-in"
@@ -348,17 +346,7 @@ export default function LogProgressModal({
                 Edit check-in ↗
               </Link>
             </div>
-            <RatingPicker
-              label="How did it go?"
-              value={checkoutDraft.sessionRating}
-              onChange={(sessionRating) => updateCheckout({ sessionRating })}
-            />
-            <FeelingPicker
-              label="Feeling now…"
-              selected={checkoutDraft.feelingsAfter}
-              onChange={(feelingsAfter) => updateCheckout({ feelingsAfter })}
-              readOnly={false}
-            />
+            <CheckinHalfFields half="checkout" value={{ ...EMPTY_CHECKIN, ...checkoutDraft }} onChange={updateCheckout} />
           </section>
         )}
 

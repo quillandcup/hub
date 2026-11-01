@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
 import { NextRequest, NextResponse } from "next/server";
@@ -21,12 +22,12 @@ export async function GET(request: NextRequest) {
     .filter(Boolean);
   if (ids.length === 0) return NextResponse.json({ members: {} });
 
-  const [{ data: members }, { data: emailAliases }] = await Promise.all([
-    supabase.from("members").select("id, email, kajabi_id, stripe_customer_id").in("id", ids),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+  const [members, emailAliases] = await Promise.all([
+    createRepos(supabase).members.byIds(ids),
+    createRepos(supabase).aliases.emailAliases(),
   ]);
 
-  if (!members?.length) return NextResponse.json({ members: {} });
+  if (members.length === 0) return NextResponse.json({ members: {} });
 
   // Per-member full email sets (canonical + all aliases pointing to it)
   const reverseAliasMap = buildReverseAliasMap(emailAliases ?? []);
@@ -40,47 +41,32 @@ export async function GET(request: NextRequest) {
     ...canonicalEmails,
     ...Array.from(memberEmailSets.values()).flatMap(s => Array.from(s)),
   ]));
-  const stripeIds = members.map(m => m.stripe_customer_id).filter((v): v is string => !!v);
+  const stripeIds = members.map(m => m.stripeCustomerId).filter((v): v is string => !!v);
 
+  const billing = createRepos(supabase).billing;
   const [
-    { data: kajabiCustomers },
-    { data: stripeActiveSubs },
-    { data: slackUsers },
+    kajabiCustomers,
+    stripeActiveSubs,
+    slackUsers,
   ] = await Promise.all([
-    supabase.schema("bronze").from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .in("email", canonicalEmails),
-    stripeIds.length > 0
-      ? supabase.schema("bronze").from("stripe_subscriptions")
-          .select("stripe_customer_id")
-          .in("stripe_customer_id", stripeIds)
-          .in("status", ["active", "trialing", "past_due"])
-      : Promise.resolve({ data: [] as { stripe_customer_id: string }[] }),
-    supabase.schema("bronze").from("slack_users")
-      .select("user_id, email")
-      .in("email", allEmails)
-      .eq("is_bot", false),
+    billing.kajabiCustomers({ emails: canonicalEmails }),
+    billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"], stripeIds),
+    createRepos(supabase).slackUsers.byEmails(allEmails, { excludeBots: true }),
   ]);
 
   // Active Kajabi purchases for found customers
-  const kajabiCustomerIds = (kajabiCustomers ?? []).map(c => c.kajabi_customer_id);
-  const { data: kajabiActivePurchases } = kajabiCustomerIds.length > 0
-    ? await supabase.schema("bronze").from("kajabi_purchases")
-        .select("kajabi_customer_id")
-        .in("kajabi_customer_id", kajabiCustomerIds)
-        .eq("status", "active")
-    : { data: [] as { kajabi_customer_id: string }[] };
+  const kajabiCustomerIds = kajabiCustomers.map(c => c.kajabi_customer_id);
+  const activePurchaseCustomers = await billing.activeKajabiPurchaseCustomerIds(kajabiCustomerIds);
 
   const kajabiCustomerByEmail = new Map<string, string>();
-  for (const c of kajabiCustomers ?? []) {
+  for (const c of kajabiCustomers) {
     kajabiCustomerByEmail.set(c.email.toLowerCase(), c.kajabi_customer_id);
   }
 
-  const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
-  const activeStripeCustomers = new Set((stripeActiveSubs ?? []).map(s => s.stripe_customer_id));
+  const activeStripeCustomers = new Set(stripeActiveSubs.map(s => s.stripe_customer_id));
 
   const slackUserByEmail = new Map<string, string>();
-  for (const u of slackUsers ?? []) {
+  for (const u of slackUsers) {
     if (u.email) slackUserByEmail.set(u.email.toLowerCase(), u.user_id);
   }
 
@@ -92,10 +78,10 @@ export async function GET(request: NextRequest) {
     const slackUserId = Array.from(emailSet).map(e => slackUserByEmail.get(e)).find(Boolean) ?? null;
 
     result[m.id] = {
-      kajabi_id: m.kajabi_id,
+      kajabi_id: m.kajabiId,
       kajabi_active_purchases: kajabiCustomerId && activePurchaseCustomers.has(kajabiCustomerId) ? 1 : 0,
-      stripe_customer_id: m.stripe_customer_id,
-      stripe_active_subscriptions: m.stripe_customer_id && activeStripeCustomers.has(m.stripe_customer_id) ? 1 : 0,
+      stripe_customer_id: m.stripeCustomerId,
+      stripe_active_subscriptions: m.stripeCustomerId && activeStripeCustomers.has(m.stripeCustomerId) ? 1 : 0,
       slack_user_id: slackUserId ?? null,
     };
   }

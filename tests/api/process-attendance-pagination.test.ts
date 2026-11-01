@@ -122,29 +122,13 @@ describe('Attendance Processing Pagination', () => {
       const routePath = path.join(process.cwd(), 'app/api/process/attendance/route.ts')
       const content = await fs.readFile(routePath, 'utf-8')
 
-      // Pagination loop must exist for zoom_attendees
-      expect(content).toContain('while (hasMore)')
-      expect(content).toContain('.range(offset, offset + BATCH - 1)')
-      expect(content).toContain('from("zoom_attendees")')
+      // zoom_attendees are read through the repository, which pages past 1000 rows (tests/api/data/zoom-repository.test.ts)
+      expect(content).toContain('zoom.attendeesOverlapping(')
+      expect(content).not.toContain('from("zoom_attendees")')
 
       // Must NOT use an unpaginated single-shot query for zoom_attendees
       // (the old pattern was: const { data: zoomAttendees } = await supabase...select("*")...order("join_time"))
       expect(content).not.toMatch(/const\s*\{\s*data:\s*zoomAttendees\s*[,}][\s\S]*from\("zoom_attendees"\)/)
-    })
-  })
-
-  describe('hygiene page pagination', () => {
-    it('should verify prickles are fetched with pagination in hygiene page', async () => {
-      const fs = await import('fs/promises')
-      const path = await import('path')
-      const pagePath = path.join(process.cwd(), 'app/(admin)/admin/hygiene/page.tsx')
-      const content = await fs.readFile(pagePath, 'utf-8')
-
-      // allPricklesForOverlap must be built via a pagination loop, not a single query
-      expect(content).toContain('allPricklesForOverlap.push(...batch)')
-
-      // The old single-shot pattern must be gone
-      expect(content).not.toMatch(/const\s*\{\s*data:\s*allPricklesForOverlap\s*\}\s*=\s*await\s+supabase/)
     })
   })
 })

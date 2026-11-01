@@ -1,18 +1,31 @@
 // @vitest-environment jsdom
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelSummary } from "@/lib/chat/load";
 
 let pathname = "/chat";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
+// Shows what the sidebar asked the router to prefetch.
+vi.mock("next/link", () => ({
+  default: ({ prefetch, children, ...props }: { prefetch?: boolean; children: React.ReactNode } & Record<string, unknown>) => (
+    <a {...props} data-prefetch={String(prefetch)}>
+      {children}
+    </a>
+  ),
+}));
+
 type Row = Record<string, unknown>;
 let onInsert: (payload: { new: Row }) => void = () => {};
+let onUpdate: (payload: { new: Row }) => void = () => {};
+const loadCounts = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/chat/load", () => ({ loadUnreadCounts: loadCounts }));
 const subscribe = vi.fn();
 const realtime: { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> } = {
-  on: vi.fn((_t: string, _f: unknown, cb: (p: { new: Row }) => void) => {
-    onInsert = cb;
+  on: vi.fn((_t: string, f: { event: string }, cb: (p: { new: Row }) => void) => {
+    if (f.event === "UPDATE") onUpdate = cb;
+    else onInsert = cb;
     return realtime;
   }),
   subscribe: vi.fn(() => {
@@ -50,6 +63,7 @@ const CHANNELS = [
 beforeEach(() => {
   pathname = "/chat";
   subscribe.mockClear();
+  loadCounts.mockReset();
   syncRead.mockReset();
   syncRead.mockResolvedValue(null);
 });
@@ -57,7 +71,8 @@ beforeEach(() => {
 const ME = "member-me";
 const insert = (extra: Row = {}) => ({ new: { channel_id: "1", thread_root_id: null, author_member_id: "member-gale", deleted_at: null, ...extra } });
 const flush = () => act(async () => {});
-const links = () => screen.getAllByRole("link").map((a) => a.textContent);
+// The conversation links; the privacy link under them is not one.
+const links = () => screen.getAllByRole("link").map((a) => a.textContent).filter((text) => text !== "Who can see this?");
 
 describe("ChatSidebar", () => {
   it("has a channel finder that is not the message search", () => {
@@ -93,6 +108,16 @@ describe("ChatSidebar", () => {
       expect(screen.getByRole("link", { name: "#writing-sprints, 99+ unread" })).toHaveTextContent("99+");
       expect(screen.getByRole("link", { name: "#general, 3 unread" })).toHaveClass("font-semibold");
       expect(screen.getByRole("link", { name: "Gale, Fern" })).not.toHaveClass("font-semibold");
+    });
+
+    it("remembers the open conversation in a cookie, and not the list", async () => {
+      document.cookie = "chat_last_channel=; max-age=0; path=/";
+      pathname = "/chat";
+      const { rerender } = render(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+      expect(document.cookie).not.toContain("chat_last_channel=1");
+      pathname = "/chat/2";
+      rerender(<ChatSidebar channels={CHANNELS} selfMemberId={ME} />);
+      expect(document.cookie).toContain("chat_last_channel=2");
     });
 
     it("shows no count on the conversation that is open, and clears one when it is opened", async () => {
@@ -139,6 +164,79 @@ describe("ChatSidebar", () => {
       expect(screen.getByRole("link", { name: "#general, 5 unread" })).toBeInTheDocument();
     });
 
+    describe("a message deleted after it was counted", () => {
+      const del = (extra: Row = {}) => ({ new: { channel_id: "1", thread_root_id: null, author_member_id: "member-gale", deleted_at: "2026-10-10T00:00:00Z", ...extra } });
+      const settle = () =>
+        act(async () => {
+          await vi.advanceTimersByTimeAsync(400);
+        });
+      beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+      afterEach(() => vi.useRealTimers());
+
+      it("takes the server's count once, however many events arrive", async () => {
+        pathname = "/chat/2";
+        loadCounts.mockResolvedValue({ "1": 1 });
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        act(() => onUpdate(del()));
+        await settle();
+        expect(loadCounts).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 1 unread" })).toBeInTheDocument();
+      });
+
+      it("drops the badge when the last unread message goes", async () => {
+        loadCounts.mockResolvedValue({});
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 1 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+      });
+
+      it("leaves the count alone when the deleted message was already read", async () => {
+        loadCounts.mockResolvedValue({ "1": 2 });
+        render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      });
+
+      it("ignores edits, your own, replies, the open conversation and ones you are not in", async () => {
+        pathname = "/chat/2";
+        render(<ChatSidebar channels={[...CHANNELS, channel("5", "#lurking", { joined: false })]} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del({ deleted_at: null })));
+        act(() => onUpdate(del({ author_member_id: ME })));
+        act(() => onUpdate(del({ thread_root_id: "m1" })));
+        act(() => onUpdate(del({ channel_id: "2" })));
+        act(() => onUpdate(del({ channel_id: "5" })));
+        await settle();
+        expect(loadCounts).not.toHaveBeenCalled();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+      });
+
+      it("keeps its numbers if the recount fails, and skips a conversation opened meanwhile", async () => {
+        loadCounts.mockRejectedValueOnce(new Error("offline"));
+        const { rerender } = render(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await flush();
+        act(() => onUpdate(del()));
+        await settle();
+        expect(screen.getByRole("link", { name: "#general, 2 unread" })).toBeInTheDocument();
+
+        loadCounts.mockResolvedValue({ "1": 1 });
+        act(() => onUpdate(del()));
+        pathname = "/chat/1";
+        rerender(<ChatSidebar channels={CHANNELS} unread={{ "1": 2 }} selfMemberId={ME} />);
+        await settle();
+        expect(screen.getByRole("link", { name: "#general" })).toBeInTheDocument();
+      });
+    });
+
     it("does not listen at all in sudo", async () => {
       render(<ChatSidebar channels={CHANNELS} unread={{}} selfMemberId={null} />);
       await flush();
@@ -174,5 +272,35 @@ describe("ChatSidebar", () => {
       await flush();
       expect(syncRead).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ChatSidebar prefetching", () => {
+  const prefetchOf = (name: string) => screen.getByRole("link", { name }).getAttribute("data-prefetch");
+
+  it("prefetches a conversation in full only once it is hovered, focused or touched", async () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(prefetchOf("#general")).toBe("undefined");
+    await userEvent.hover(screen.getByRole("link", { name: "#general" }));
+    expect(prefetchOf("#general")).toBe("true");
+    expect(prefetchOf("#writing-sprints")).toBe("undefined");
+    await act(async () => screen.getByRole("link", { name: "#writing-sprints" }).focus());
+    expect(prefetchOf("#writing-sprints")).toBe("true");
+  });
+
+  it("prefetches conversations with unread messages up front, but not the open one and not more than five", () => {
+    pathname = "/chat/1";
+    const many = Array.from({ length: 8 }, (_, i) => channel(String(i + 1), `#c${i + 1}`));
+    render(<ChatSidebar channels={many} unread={Object.fromEntries(many.map((c) => [c.id, 3]))} />);
+    const flags = many.map((c) => document.querySelector(`a[href="/chat/${c.id}"]`)?.getAttribute("data-prefetch"));
+    expect(flags[0]).toBe("undefined");
+    expect(flags.filter((f) => f === "true")).toHaveLength(5);
+  });
+});
+
+describe("ChatSidebar privacy link", () => {
+  it("links to the privacy page under the conversations", () => {
+    render(<ChatSidebar channels={CHANNELS} />);
+    expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
   });
 });

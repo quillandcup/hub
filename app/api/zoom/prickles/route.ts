@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -23,63 +24,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find all zoom_attendees records with this name
-    const { data: attendees, error: attendeesError } = await supabase
-      .schema('bronze').from("zoom_attendees")
-      .select("meeting_uuid")
-      .eq("name", zoomName);
-
-    if (attendeesError) {
+    // The distinct meetings (nulls left out) this name appeared in
+    let meetingUuids: string[];
+    try {
+      meetingUuids = await createRepos(supabase).zoom.meetingUuidsForName(zoomName);
+    } catch (attendeesError: any) {
       console.error("Error fetching attendees:", attendeesError);
       return NextResponse.json({ error: attendeesError.message }, { status: 500 });
     }
 
-    if (!attendees || attendees.length === 0) {
-      return NextResponse.json({ prickles: [] });
-    }
-
-    // Get unique meeting UUIDs (filter out nulls)
-    const meetingUuids = [...new Set(attendees.map(a => a.meeting_uuid).filter(uuid => uuid !== null))];
-
-    console.log(`Found ${attendees.length} attendee records for "${zoomName}"`);
-    console.log(`Unique meeting UUIDs: ${meetingUuids.length}`, meetingUuids.slice(0, 3));
+    console.log("Unique meeting UUIDs for Zoom name:", zoomName, meetingUuids.length, meetingUuids.slice(0, 3));
 
     if (meetingUuids.length === 0) {
-      console.log(`No valid meeting UUIDs for "${zoomName}"`);
+      console.log("No valid meeting UUIDs for Zoom name:", zoomName);
       return NextResponse.json({ prickles: [] });
     }
 
     // Fetch prickles for these meetings
-    const { data: prickles, error: pricklesError } = await supabase
-      .from("prickles")
-      .select(`
-        id,
-        start_time,
-        end_time,
-        zoom_meeting_uuid,
-        prickle_types (
-          name
-        )
-      `)
-      .in("zoom_meeting_uuid", meetingUuids)
-      .order("start_time", { ascending: false });
-
-    console.log(`Found ${prickles?.length || 0} prickles for "${zoomName}"`);
-
-    if (pricklesError) {
-      console.error("Error fetching prickles:", pricklesError);
-      return NextResponse.json({ error: pricklesError.message }, { status: 500 });
-    }
+    const prickles = await createRepos(supabase).prickles.byZoomMeetings(meetingUuids);
+    console.log("Prickles found for Zoom name:", zoomName, prickles.length);
 
     // Format the response
-    const formattedPrickles = prickles?.map((p: any) => ({
+    const formattedPrickles = prickles.map((p) => ({
       id: p.id,
-      start_time: p.start_time,
-      end_time: p.end_time,
-      type_name: Array.isArray(p.prickle_types)
-        ? p.prickle_types[0]?.name
-        : p.prickle_types?.name || "Unknown",
-    })) || [];
+      start_time: p.startTime,
+      end_time: p.endTime,
+      type_name: p.type?.name ?? "Unknown",
+    }));
 
     return NextResponse.json({ prickles: formattedPrickles });
   } catch (error: any) {

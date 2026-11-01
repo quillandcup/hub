@@ -1,9 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isValidTimeZone } from "@/lib/time-zone";
+import { isNavMode } from "@/lib/nav-mode";
 
 import { withAction } from "@/lib/analytics/server";
 export interface SessionRow {
@@ -124,22 +126,66 @@ async function updateTimezonePreferenceImpl(timezone: string) {
     return { error: "Not authenticated" };
   }
 
-  const { error } = await supabase
-    .from("user_profiles")
-    .update({ timezone_preference: timezone })
-    .eq("id", user.id);
-
-  if (error) {
-    return { error: error.message };
+  try {
+    await createRepos(supabase).profiles.setTimezonePreference(user.id, timezone);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your time zone" };
   }
 
   revalidatePath("/settings", "layout");
   return { success: true };
 }
 
+/** Saves (or, with null, turns off) the member's secondary time zone, shown beside their own on prickle times. */
+async function updateSecondaryTimezoneImpl(timezone: string | null) {
+  if (timezone !== null && !isValidTimeZone(timezone)) {
+    return { error: "Choose a valid time zone" };
+  }
+
+  const supabase = await createClient();
+
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { error: "Not authenticated" };
+  }
+
+  try {
+    await createRepos(supabase).profiles.setSecondaryTimezone(user.id, timezone);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your time zone" };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/** Saves how the member's sidebar behaves: pinned open, pinned closed, or auto-hide. */
+async function updateNavModeImpl(mode: string) {
+  if (!isNavMode(mode)) return { error: "Choose a valid sidebar mode" };
+
+  const user = await getCurrentUser();
+  if (!user) return { error: "Not authenticated" };
+
+  try {
+    await createRepos(await createClient()).profiles.setNavMode(user.id, mode);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't save your sidebar setting" };
+  }
+  return { success: true };
+}
+
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function updateTimezonePreference(...args: Parameters<typeof updateTimezonePreferenceImpl>): ReturnType<typeof updateTimezonePreferenceImpl> {
   return withAction("timezone_changed", () => updateTimezonePreferenceImpl(...args));
+}
+
+export async function updateNavMode(...args: Parameters<typeof updateNavModeImpl>): ReturnType<typeof updateNavModeImpl> {
+  return withAction("nav_mode_changed", () => updateNavModeImpl(...args));
+}
+
+export async function updateSecondaryTimezone(...args: Parameters<typeof updateSecondaryTimezoneImpl>): ReturnType<typeof updateSecondaryTimezoneImpl> {
+  return withAction("secondary_timezone_changed", () => updateSecondaryTimezoneImpl(...args));
 }
 
 export async function revokeSession(...args: Parameters<typeof revokeSessionImpl>): ReturnType<typeof revokeSessionImpl> {

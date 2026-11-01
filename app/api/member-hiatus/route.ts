@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { recomputeMemberStatus } from "@/lib/member-status";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -21,23 +22,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: hiatus, error } = await supabase
-      .from("member_hiatus_history")
-      .insert({
-        member_id,
-        start_date,
-        end_date: end_date || null,
-        reason: reason || null,
-        notes: notes || null,
-        created_by: user.id !== "service-role" ? user.id : null,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error creating member hiatus:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const hiatus = await createRepos(supabase).memberStatus.createHiatus({
+      member_id,
+      start_date,
+      end_date: end_date || null,
+      reason: reason || null,
+      notes: notes || null,
+      created_by: user.id !== "service-role" ? user.id : null,
+    });
 
     await recomputeMemberStatus(supabase, member_id);
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
@@ -9,6 +10,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 export interface MissingStripeRow {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
   kajabi_id: string | null;
 }
@@ -18,7 +20,7 @@ type SortColumn = "name" | "email" | "kajabi";
 function getSortValue(row: MissingStripeRow, column: SortColumn): SortValue {
   switch (column) {
     case "name":
-      return row.name.toLowerCase();
+      return getMemberDisplayName({ name: row.name, display_name: row.displayName }).toLowerCase();
     case "email":
       return row.email.toLowerCase();
     case "kajabi":
@@ -60,8 +62,11 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
                   href={`/admin/members/${member.id}`}
                   className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                 >
-                  {member.name}
+                  {getMemberDisplayName({ name: member.name, display_name: member.displayName })}
                 </Link>
+                {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                )}
               </td>
               <td className="px-6 py-3 text-sm text-slate-600 dark:text-slate-400">{member.email}</td>
               <td className="px-6 py-3">
@@ -75,7 +80,7 @@ export default function MissingStripeTable({ rows }: { rows: MissingStripeRow[] 
                     {member.kajabi_id}
                   </a>
                 ) : (
-                  <span className="text-xs text-slate-400">—</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">—</span>
                 )}
               </td>
             </tr>

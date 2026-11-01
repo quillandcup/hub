@@ -20,7 +20,9 @@ import {
   sendSlackSignInMessage,
   SLACK_SEND_LINK_ACTION_ID,
 } from "@/lib/slack-sign-in";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 // Webhook should respond quickly
 export const maxDuration = 60;
@@ -140,7 +142,7 @@ async function handleCheckinAnswer(payload: any, answer: CheckinAnswer) {
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
   const blocks = withSavedAnswer(payload.message?.blocks, answer);
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (channelId && messageTs && blocks && token) {
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text: payload.message?.text ?? "", blocks });
   }
@@ -161,7 +163,7 @@ async function handleDismiss(payload: any, half: CheckinHalfKind, prickleId: str
 
   const channelId = payload.channel?.id as string | undefined;
   const messageTs = payload.message?.ts as string | undefined;
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   if (channelId && messageTs && token) {
     const text = `Skipped this ${half === "checkin" ? "check-in" : "check-out"}.`;
     await new WebClient(token).chat.update({ channel: channelId, ts: messageTs, text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }] });
@@ -189,32 +191,25 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
   // Never trust the project id embedded in the action value alone -- verify it's still this
   // member's project before writing anything (same principle as assertOwnsProject in
   // app/(member)/projects/actions.ts).
-  const { data: project } = await supabase
-    .from("writing_projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("member_id", memberId)
-    .single();
-  if (!project) {
+  const writing = createRepos(supabase).writing;
+  const owns = await writing.ownsProject(memberId, projectId).catch(() => false);
+  if (!owns) {
     console.error("writing_quick_log: project not found or not owned by matched member", { projectId, memberId });
     return;
   }
 
-  const { data: entry, error: insertError } = await supabase
-    .from("writing_progress_entries")
-    .insert({
-      project_id: projectId,
-      member_id: memberId,
-      prickle_id: prickleId,
-      entry_date: new Date().toISOString().slice(0, 10),
+  let entryId: string;
+  try {
+    entryId = await writing.addEntry({
+      projectId,
+      memberId,
+      prickleId,
+      entryDate: new Date().toISOString().slice(0, 10),
       measure,
       mode: "delta",
       amount,
-    })
-    .select("id")
-    .single();
-
-  if (insertError || !entry) {
+    });
+  } catch (insertError) {
     console.error("writing_quick_log: failed to insert progress entry", insertError);
     return;
   }
@@ -222,20 +217,21 @@ async function handleWritingQuickLog(payload: any, action: any, { projectId, pri
   // Phase 1, item 11: same engagement signal as a manual log (see
   // app/(member)/projects/actions.ts logProgress) -- this is just a different entry point into
   // the same writing_progress_entries table.
-  const { error: activityError } = await supabase.from("member_activities").insert({
-    member_id: memberId,
-    activity_type: "writing_progress_logged",
-    activity_category: "writing",
-    title: "Logged writing progress",
-    related_id: entry.id,
-    engagement_value: 5,
-    occurred_at: new Date().toISOString(),
-    source: "writing_progress",
-  });
-  if (activityError) console.error("writing_quick_log: failed to insert member_activities row", activityError);
+  await createRepos(supabase)
+    .activities.record({
+      memberId,
+      type: "writing_progress_logged",
+      category: "writing",
+      title: "Logged writing progress",
+      relatedId: entryId,
+      engagementValue: 5,
+      occurredAt: new Date().toISOString(),
+      source: "writing_progress",
+    })
+    .catch((activityError) => console.error("writing_quick_log: failed to insert member_activities row", activityError));
 
   if (channelId && messageTs) {
-    const token = process.env.SLACK_BOT_TOKEN;
+    const token = await getSlackBotToken();
     if (token) {
       const slack = new WebClient(token);
       const measureLabel = MEASURE_LABELS[measure as WritingMeasure] ?? measure;

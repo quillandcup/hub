@@ -525,33 +525,44 @@ describe("window filtering", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Personal history (the member's own rated check-ins)
+// Personal history (the member's own checked-out check-ins)
 // ---------------------------------------------------------------------------
+
+function checkin(seriesKey: string, intentionMet: number, comingIn: Partial<PersonalCheckin> = {}): PersonalCheckin {
+  return { seriesKey, pleasantBefore: null, energyBefore: null, emotionBefore: null, need: null, intentionMet, ...comingIn };
+}
 
 describe("similarCheckins", () => {
   const checkins: PersonalCheckin[] = [
-    { seriesKey: "a", feelingsBefore: ["anxious"], need: null, sessionRating: 4 },
-    { seriesKey: "b", feelingsBefore: ["tired"], need: "company", sessionRating: 5 },
-    { seriesKey: "c", feelingsBefore: ["lonely"], need: null, sessionRating: 3 },
-    { seriesKey: "d", feelingsBefore: ["stuck"], need: null, sessionRating: 2 },
+    checkin("a", 4, { pleasantBefore: 2, energyBefore: 4 }), // tense
+    checkin("b", 5, { pleasantBefore: 4, energyBefore: 2, need: "company" }), // calm, wanting company
+    checkin("c", 3, { emotionBefore: "lonely" }), // sad core
+    checkin("d", 2, { pleasantBefore: 1, energyBefore: 1 }), // low
   ];
+  const noMood = { pleasant: null, energy: null, emotion: null };
 
-  it("matches a feeling in the same group", () => {
-    // Stressed and Anxious are both "wound up".
-    expect(similarCheckins(checkins, ["stressed"], null).map((c) => c.seriesKey)).toEqual(["a"]);
+  it("matches a mood within one point on both axes", () => {
+    expect(similarCheckins(checkins, { ...noMood, pleasant: 1, energy: 5 }, null).map((c) => c.seriesKey)).toEqual(["a"]);
+    expect(similarCheckins(checkins, { ...noMood, pleasant: 2, energy: 2 }, null).map((c) => c.seriesKey)).toEqual(["d"]);
   });
 
-  it("matches the same need regardless of feelings", () => {
-    expect(similarCheckins(checkins, ["motivated"], "company").map((c) => c.seriesKey)).toEqual(["b"]);
+  it("needs both axes to compare moods", () => {
+    expect(similarCheckins(checkins, { ...noMood, pleasant: 2 }, null)).toHaveLength(4);
   });
 
-  it("only matches an ungrouped feeling exactly", () => {
-    expect(similarCheckins(checkins, ["lonely"], null).map((c) => c.seriesKey)).toEqual(["c"]);
-    expect(similarCheckins(checkins, ["stuck"], null).map((c) => c.seriesKey)).toEqual(["d"]);
+  it("matches the same intention regardless of mood", () => {
+    expect(similarCheckins(checkins, { ...noMood, pleasant: 5, energy: 5 }, "company").map((c) => c.seriesKey)).toEqual(["b"]);
+  });
+
+  it("matches a feeling from the same core of the wheel", () => {
+    // Sleepy and lonely are both on the "sad" ring.
+    expect(similarCheckins(checkins, { ...noMood, emotion: "sleepy" }, null).map((c) => c.seriesKey)).toEqual(["c"]);
+    expect(similarCheckins(checkins, { ...noMood, emotion: "joyful" }, null)).toEqual([]);
   });
 
   it("counts every check-in when the member didn't say how they feel", () => {
-    expect(similarCheckins(checkins, [], null)).toHaveLength(4);
+    expect(similarCheckins(checkins, null, null)).toHaveLength(4);
+    expect(similarCheckins(checkins, noMood, null)).toHaveLength(4);
   });
 });
 
@@ -563,14 +574,16 @@ describe("personal history ranking", () => {
     candidate("c-sprint", sprintType.id, hostB.id, "2026-01-10T16:00:00Z"),
   ];
 
-  function rated(seriesKey: string, rating: number, feelings: PersonalCheckin["feelingsBefore"] = ["stressed"]) {
-    return { seriesKey, feelingsBefore: feelings, need: null, sessionRating: rating };
-  }
+  // Came in tense (unpleasant, high energy) unless said otherwise.
+  const tense = { pleasantBefore: 2, energyBefore: 4 };
+  const rated = (seriesKey: string, intentionMet: number, comingIn: Partial<PersonalCheckin> = tense) =>
+    checkin(seriesKey, intentionMet, comingIn);
+  const feelingTense = { mood: { pleasant: 2, energy: 5, emotion: null } };
 
-  it("ranks the series the member rated above their own average, when they felt similar", () => {
+  it("ranks the series that met the member's intention better than usual, when they felt similar", () => {
     const history = [rated(focusSeries, 5), rated(focusSeries, 5), rated(sprintSeries, 2), rated(sprintSeries, 2)];
     const result = getPrickleRecommendations(
-      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["anxious"] }), 8, history
+      upcoming, types, hosts, [], [], [], baseAnswers(feelingTense), 8, history
     );
     expect(result.map((r) => r.seriesKey)).toEqual([focusSeries, sprintSeries]);
     expect(result[0].personal).toEqual({ sessions: 2, avgRating: 5 });
@@ -578,15 +591,15 @@ describe("personal history ranking", () => {
   });
 
   it("ignores history from times the member felt differently", () => {
-    // Only "motivated" sessions loved the sprint; today they're stressed.
+    // The sprint only worked when they came in upbeat; today they're tense.
     const history = [
-      rated(sprintSeries, 5, ["motivated"]),
-      rated(sprintSeries, 5, ["motivated"]),
+      rated(sprintSeries, 5, { pleasantBefore: 5, energyBefore: 5 }),
+      rated(sprintSeries, 5, { pleasantBefore: 5, energyBefore: 5 }),
       rated(focusSeries, 3),
       rated(focusSeries, 3),
     ];
     const result = getPrickleRecommendations(
-      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+      upcoming, types, hosts, [], [], [], baseAnswers(feelingTense), 8, history
     );
     expect(result.find((r) => r.seriesKey === sprintSeries)!.personal).toBeNull();
     expect(result.find((r) => r.seriesKey === focusSeries)!.personal).toEqual({ sessions: 2, avgRating: 3 });
@@ -594,7 +607,7 @@ describe("personal history ranking", () => {
 
   it("needs at least two similar sessions before history counts", () => {
     const result = getPrickleRecommendations(
-      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, [rated(focusSeries, 5)]
+      upcoming, types, hosts, [], [], [], baseAnswers(feelingTense), 8, [rated(focusSeries, 5)]
     );
     expect(result.every((r) => r.personal === null)).toBe(true);
     expect(result[0].score).toBe(result[1].score);
@@ -604,7 +617,7 @@ describe("personal history ranking", () => {
     // Everything this member rates is low; the focus series is merely less low.
     const history = [rated(focusSeries, 3), rated(focusSeries, 3), rated(sprintSeries, 1), rated(sprintSeries, 1)];
     const result = getPrickleRecommendations(
-      upcoming, types, hosts, [], [], [], baseAnswers({ feelings: ["stressed"] }), 8, history
+      upcoming, types, hosts, [], [], [], baseAnswers(feelingTense), 8, history
     );
     expect(result[0].seriesKey).toBe(focusSeries);
   });

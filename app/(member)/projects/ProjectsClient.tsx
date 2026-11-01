@@ -5,16 +5,18 @@ import Link from "next/link";
 import NewProjectModal from "@/components/writing/NewProjectModal";
 import TrackbearImportModal from "@/components/writing/TrackbearImportModal";
 import LogProgressModal from "@/components/writing/LogProgressModal";
+import PastProjects from "./PastProjects";
 import GoalDisplay from "@/components/writing/GoalDisplay";
 import BookFormModal from "@/components/books/BookFormModal";
-import { MEASURE_LABELS, PHASE_LABELS } from "@/lib/writing-projects";
+import { MEASURE_LABELS, PHASE_LABELS, isMissedGoal } from "@/lib/writing-projects";
 import type { WritingProjectRow } from "./actions";
 
 interface ProjectsClientProps {
   initialProjects: WritingProjectRow[];
+  pastProjects?: WritingProjectRow[];
 }
 
-export default function ProjectsClient({ initialProjects }: ProjectsClientProps) {
+export default function ProjectsClient({ initialProjects, pastProjects = [] }: ProjectsClientProps) {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [logProgressFor, setLogProgressFor] = useState<string | null>(null);
@@ -28,10 +30,11 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
 
   if (initialProjects.length === 0 && !showNewProject) {
     return (
+      <>
       <div className="max-w-xl mx-auto text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
         <p className="text-4xl mb-3">📝</p>
         <h2 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">Track your first project</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm mx-auto">
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-sm mx-auto">
           Log words, pages, or time against a project and watch your progress add up.
         </p>
         <button
@@ -43,7 +46,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         >
           New project
         </button>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+        <p className="text-sm text-slate-600 dark:text-slate-400 mt-3">
           Already tracking in TrackBear?{" "}
           <button data-track="projects-import-your-projects"
             type="button"
@@ -56,6 +59,8 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
         <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
         <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />
       </div>
+      <PastProjects projects={pastProjects} />
+      </>
     );
   }
 
@@ -108,7 +113,7 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
                   >
                     {project.title}
                   </Link>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {PHASE_LABELS[project.phase] ?? project.phase}
                     {project.book && <span className="ml-2">📚 Published</span>}
                   </p>
@@ -145,9 +150,9 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
               </div>
             )}
 
-            {project.goals.length > 0 && (
+            {project.goals.some((goal) => !isMissedGoal(goal)) && (
               <div className="mt-4 space-y-3">
-                {project.goals.map((goal) => (
+                {project.goals.filter((goal) => !isMissedGoal(goal)).map((goal) => (
                   <GoalDisplay key={goal.id} goal={goal} />
                 ))}
               </div>
@@ -155,6 +160,8 @@ export default function ProjectsClient({ initialProjects }: ProjectsClientProps)
           </div>
         ))}
       </div>
+
+      <PastProjects projects={pastProjects} />
 
       <NewProjectModal isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={handleChanged} />
       <TrackbearImportModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={handleChanged} />

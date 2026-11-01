@@ -1,5 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { audienceChainError } from "@/lib/audience-rules";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * POST /api/prickle-types/create
@@ -9,12 +11,12 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  const prickles = createRepos(auth.supabase).prickles;
 
   try {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    const { name, description, purpose, soloTaskFriendly } = parsed;
+    const { name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed } = parsed;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -30,6 +32,26 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (listedInEvents !== undefined && typeof listedInEvents !== "boolean") {
+      return NextResponse.json(
+        { error: "listedInEvents must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (announcedPublicly !== undefined && typeof announcedPublicly !== "boolean") {
+      return NextResponse.json(
+        { error: "announcedPublicly must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (guestsAllowed !== undefined && typeof guestsAllowed !== "boolean") {
+      return NextResponse.json(
+        { error: "guestsAllowed must be a boolean" },
+        { status: 400 }
+      );
+    }
+    const chain = audienceChainError({ listed: listedInEvents ?? false, publicly: announcedPublicly ?? false, guests: guestsAllowed ?? false });
+    if (chain) return NextResponse.json({ error: chain }, { status: 400 });
     if (soloTaskFriendly !== undefined && typeof soloTaskFriendly !== "boolean") {
       return NextResponse.json(
         { error: "soloTaskFriendly must be a boolean" },
@@ -45,11 +67,7 @@ export async function POST(request: NextRequest) {
       .trim();
 
     // Check if normalized name already exists
-    const { data: existing } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", normalizedName)
-      .single();
+    const existing = await prickles.typeIdByNormalizedName(normalizedName);
 
     if (existing) {
       return NextResponse.json(
@@ -59,22 +77,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the prickle type
-    const { data: prickleType, error: insertError } = await supabase
-      .from("prickle_types")
-      .insert({
+    let prickleType;
+    try {
+      prickleType = await prickles.createType({
         name: name.trim(),
-        normalized_name: normalizedName,
+        normalizedName,
         description: description?.trim() || null,
-        ...(purpose !== undefined ? { purpose } : {}),
-        ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
-      })
-      .select()
-      .single();
-
-    if (insertError) {
+        purpose,
+        soloTaskFriendly,
+        listedInEvents,
+        announcedPublicly,
+        guestsAllowed,
+      });
+    } catch (insertError) {
       console.error("Error creating prickle type:", insertError);
       return NextResponse.json(
-        { error: insertError.message },
+        { error: (insertError as Error).message },
         { status: 500 }
       );
     }

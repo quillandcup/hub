@@ -1,5 +1,7 @@
+import { createRepos } from "@/lib/data/repos";
+import type { DeviceInfo } from "@/lib/device-label";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAll, inBatches } from "@/lib/courses/db";
 import { buildOutline, type OutlineLesson, type OutlineModule } from "@/lib/courses/outline";
 import { computePlaySessions, computeVideoWatchStats, type PlaySession, type VideoWatchStats, type ViewMarker, type WatchSegment } from "@/lib/courses/watch-stats";
 
@@ -43,36 +45,29 @@ export interface CourseWatchStats {
 
 /** Members who are staff (an admin's own member record), whose watching is test data. */
 async function loadStaffMemberIds(supabase: SupabaseClient): Promise<Set<string>> {
-  const { data: admins, error } = await supabase.from("user_profiles").select("id").eq("role", "admin");
-  if (error) throw new Error(`user_profiles read failed: ${error.message}`);
-  const ids = (admins ?? []).map((a) => a.id as string);
+  const ids = await createRepos(supabase).profiles.adminIds();
   const staff = new Set<string>();
-  for (const batch of inBatches(ids)) {
-    const { data, error: memberError } = await supabase.from("members").select("id").in("user_id", batch);
-    if (memberError) throw new Error(`members read failed: ${memberError.message}`);
-    for (const m of data ?? []) staff.add(m.id as string);
-  }
+  for (const memberId of (await createRepos(supabase).members.idsByUserId(ids)).values()) staff.add(memberId);
   return staff;
 }
 
 /**
- * The watch stats of a course's lessons (by the course's Kajabi id, like the admin course page),
+ * The watch stats of a course's lessons (by the course's Hub id, like the admin course page),
  * or of one lesson when `lessonId` is given. Null when the course isn't in the Hub (not published).
  * Staff viewing is left out unless `includeStaff`.
  */
 export async function loadCourseWatchStats(
   supabase: SupabaseClient,
-  kajabiId: string,
+  courseId: string,
   options: { includeStaff?: boolean; lessonId?: string; withSessions?: boolean; /** How many of the newest visits get a place (the page shows that many). */ sessionLimit?: number } = {}
 ): Promise<CourseWatchStats | null> {
-  const { data: course, error } = await supabase.from("courses").select("id, title, slug").eq("source", "kajabi").eq("source_key", kajabiId).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
+  const repos = createRepos(supabase);
+  const course = await repos.courses.courseById(courseId);
   if (!course) return null;
 
-  const [modules, rows] = await Promise.all([
-    fetchAll(supabase, "course_modules", "id, parent_id, title, position, state", (q) => q.eq("course_id", course.id)),
-    fetchAll(supabase, "course_lessons", "id, module_id, title, position, state, duration_seconds, video_id", (q) => q.eq("course_id", course.id)),
-  ]);
+  const [moduleRows, lessonRows] = await Promise.all([repos.courses.modulesOf([course.id], { includeHidden: true }), repos.courses.lessonsOf([course.id], { includeHidden: true })]);
+  const modules = moduleRows.map((m) => ({ id: m.id, parent_id: m.parent_id, title: m.title, position: m.position, state: m.state }));
+  const rows = lessonRows.map((l) => ({ id: l.id, module_id: l.module_id, title: l.title, position: l.position, state: l.state, duration_seconds: l.duration_seconds, video_id: l.video_id }));
   const videoOf = new Map<string, string | null>(rows.map((l) => [l.id as string, (l.video_id as string | null) ?? null]));
   const outline = buildOutline(modules as OutlineModule[], rows as OutlineLesson[]);
   const lessons = options.lessonId ? outline.lessons.filter((l) => l.id === options.lessonId) : outline.lessons;
@@ -84,27 +79,22 @@ export async function loadCourseWatchStats(
   const viewsByVideo = new Map<string, ViewMarker[]>();
   const staff = options.includeStaff ? new Set<string>() : await loadStaffMemberIds(supabase);
 
-  for (const batch of inBatches(videoIds)) {
-    const [videos, segments] = await Promise.all([
-      fetchAll(supabase, "videos", "id, duration_seconds, mux_playback_id, status", (q) => q.in("id", batch)),
-      fetchAll(supabase, "video_watch_segments", "member_id, session_id, video_id, kind, start_seconds, end_seconds, playback_rate, captions_language, visible, user_agent, started_at", (q) => q.in("video_id", batch)),
-    ]);
-    for (const v of videos) {
-      durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
-      playbackIds.set(v.id, v.status === "ready" ? (v.mux_playback_id ?? null) : null);
+  const [videos, segments] = await Promise.all([repos.courses.videosByIds(videoIds), repos.courseProgress.segmentsOfVideos(videoIds)]);
+  for (const v of videos) {
+    durations.set(v.id, v.duration_seconds === null ? null : Number(v.duration_seconds));
+    playbackIds.set(v.id, v.status === "ready" ? (v.mux_playback_id ?? null) : null);
+  }
+  for (const s of segments) {
+    if (staff.has(s.member_id)) continue;
+    if (s.kind === "viewed") {
+      const views = viewsByVideo.get(s.video_id) ?? [];
+      views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent, device: (s.device as DeviceInfo | null) ?? null });
+      viewsByVideo.set(s.video_id, views);
+      continue;
     }
-    for (const s of segments) {
-      if (staff.has(s.member_id)) continue;
-      if (s.kind === "viewed") {
-        const views = viewsByVideo.get(s.video_id) ?? [];
-        views.push({ memberId: s.member_id, sessionId: s.session_id, startedAt: s.started_at, userAgent: s.user_agent });
-        viewsByVideo.set(s.video_id, views);
-        continue;
-      }
-      const list = segmentsByVideo.get(s.video_id) ?? [];
-      list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
-      segmentsByVideo.set(s.video_id, list);
-    }
+    const list = segmentsByVideo.get(s.video_id) ?? [];
+    list.push({ memberId: s.member_id, sessionId: s.session_id, start: Number(s.start_seconds), end: Number(s.end_seconds), rate: Number(s.playback_rate), captions: s.captions_language, visible: s.visible, startedAt: s.started_at });
+    segmentsByVideo.set(s.video_id, list);
   }
 
   const statsByVideo = new Map<string, VideoWatchStats>();
@@ -122,17 +112,13 @@ export async function loadCourseWatchStats(
     if (options.withSessions) sessionsByVideo.set(videoId, computePlaySessions(segments, durations.get(videoId) ?? stats.durationSeconds, views));
   }
 
-  // Names for the session list (staff-only pages; the people who watched, by name).
+  // Names for the session list (staff-only pages; the people who watched, by the name they are known by).
   const names = new Map<string, string>();
   const userIds = new Map<string, string>();
   const memberIds = [...new Set([...sessionsByVideo.values()].flatMap((list) => list.map((x) => x.memberId)))];
-  for (const batch of inBatches(memberIds)) {
-    const { data, error: namesError } = await supabase.from("members").select("id, name, user_id").in("id", batch);
-    if (namesError) throw new Error(`members read failed: ${namesError.message}`);
-    for (const m of data ?? []) {
-      names.set(m.id as string, (m.name as string | null) ?? "Unknown member");
-      if (m.user_id) userIds.set(m.id as string, m.user_id as string);
-    }
+  for (const m of await createRepos(supabase).members.byIds(memberIds)) {
+    names.set(m.id, m.name ? getMemberDisplayName({ name: m.name, display_name: m.displayName }) : "Unknown member");
+    if (m.userId) userIds.set(m.id, m.userId);
   }
 
   // Where each shown visit came from: the member's latest located access event before it, in one call.

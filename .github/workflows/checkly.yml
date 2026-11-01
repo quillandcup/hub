@@ -10,7 +10,7 @@ on:
       - "lib/cron-heartbeats.ts"
       - "app.config.ts"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/checkly.yml"
   push:
     branches: [main]
@@ -20,7 +20,7 @@ on:
       - "lib/cron-heartbeats.ts"
       - "app.config.ts"
       - "package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/checkly.yml"
   # Manual deploy, e.g. to check a rotated CHECKLY_API_KEY: `gh workflow run checkly.yml --ref main`.
   workflow_dispatch:
@@ -43,14 +43,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6.1.0
       - uses: checkly/checkly-action@v1
         with:
           command: test
-          install-command: npm ci
+          install-command: pnpm install --frozen-lockfile
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
           ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
+          MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}
 
   checkly-deploy:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -65,9 +69,20 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - run: npm ci
-      - run: npx checkly deploy --force
+      - uses: pnpm/action-setup@v6.1.0
+      - run: pnpm install --frozen-lockfile
+      # `checkly deploy` prints each heartbeat's ping URL, and anyone holding one can mark that job
+      # healthy. The logs are public, so redact the secret part of the URL before it reaches them.
+      # This catches every URL, including a new heartbeat's first deploy, which can't be masked by
+      # value yet. `shell: bash` matters: GitHub's default is `bash -e`, without pipefail, so the pipe
+      # would hand the step sed's exit status and a failed deploy (the plan's monitor limit, say) would
+      # show as a pass. Explicit `bash` adds `-o pipefail`.
+      - run: pnpm exec checkly deploy --force 2>&1 | sed -E 's#(ping\.checklyhq\.com/)[0-9a-fA-F-]+#\1***#g'
+        shell: bash
         env:
           CHECKLY_API_KEY: ${{ secrets.CHECKLY_API_KEY }}
           CHECKLY_ACCOUNT_ID: ${{ vars.CHECKLY_ACCOUNT_ID }}
           ALERTS_EMAIL: ${{ vars.ALERTS_EMAIL }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_ID: ${{ vars.MUX_CHECK_SIGNING_KEY_ID }} # read by __checks__/config.ts
+          MUX_CHECK_SIGNING_KEY_PRIVATE: ${{ secrets.MUX_CHECK_SIGNING_KEY_PRIVATE }}
+          MUX_CHECK_PLAYBACK_ID: ${{ vars.MUX_CHECK_PLAYBACK_ID }}

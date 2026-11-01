@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { NextRequest, NextResponse } from "next/server";
@@ -21,41 +22,17 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
-    const { data: membershipOffers } = await supabase
-      .schema("bronze")
-      .from("kajabi_offers")
-      .select("kajabi_offer_id, name")
-      .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
+    const billing = createRepos(supabase).billing;
+    const membershipOffers = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
 
-    const offerNameById = new Map((membershipOffers ?? []).map((o) => [o.kajabi_offer_id, o.name]));
+    const offerNameById = new Map(membershipOffers.map((o) => [o.kajabi_offer_id, o.name]));
     const membershipOfferIds = [...offerNameById.keys()];
 
     if (membershipOfferIds.length === 0) {
       return NextResponse.json({ grants: [] });
     }
 
-    const purchases: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch, error } = await supabase
-          .schema("bronze")
-          .from("kajabi_purchases")
-          .select("kajabi_purchase_id, kajabi_customer_id, kajabi_offer_id, amount_in_cents, created_at_kajabi, deactivated_at, data")
-          .in("kajabi_offer_id", membershipOfferIds)
-          .is("deactivated_at", null)
-          .range(offset, offset + 999);
-        if (error) throw error;
-        if (batch && batch.length > 0) {
-          purchases.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const purchases: any[] = await billing.kajabiPurchaseRows({ offerIds: membershipOfferIds, stillActive: true });
 
     // A grant has no real transaction behind it — no money moved. Some historical
     // purchases may not have their transactions relationship populated at all
@@ -70,19 +47,12 @@ export async function GET(request: NextRequest) {
     }
 
     const customerIds = [...new Set(grantedPurchases.map((p) => p.kajabi_customer_id))];
-    const { data: kajabiCustomers } = await supabase
-      .schema("bronze")
-      .from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .in("kajabi_customer_id", customerIds);
-    const emailByCustomerId = new Map((kajabiCustomers ?? []).map((c) => [c.kajabi_customer_id, c.email]));
+    const kajabiCustomers = await billing.kajabiCustomers({ customerIds });
+    const emailByCustomerId = new Map(kajabiCustomers.map((c) => [c.kajabi_customer_id, c.email]));
 
     const emails = [...new Set([...emailByCustomerId.values()].filter(Boolean))];
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, name, email, status")
-      .in("email", emails);
-    const memberByEmail = new Map((members ?? []).map((m) => [m.email?.toLowerCase(), m]));
+    const members = await createRepos(supabase).members.byEmails(emails);
+    const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
     const grants = grantedPurchases.map((p) => {
       const email = emailByCustomerId.get(p.kajabi_customer_id) ?? null;
@@ -94,6 +64,7 @@ export async function GET(request: NextRequest) {
         created_at: p.created_at_kajabi,
         member_id: member?.id ?? null,
         member_name: member?.name ?? null,
+        member_display_name: member?.displayName ?? null,
         member_email: email,
         member_status: member?.status ?? null,
       };

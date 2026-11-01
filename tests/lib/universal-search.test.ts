@@ -1,3 +1,4 @@
+import { insertEvent } from "@/tests/helpers/event-db";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { getTestSupabaseAdminClient } from "../helpers/supabase";
 import { parseUniversal } from "@/lib/search/syntax";
@@ -11,6 +12,7 @@ import { universalSearch, type SearchContext } from "@/lib/search/universal";
 describe("universalSearch (local database)", () => {
   const supabase = getTestSupabaseAdminClient();
   const token = `unisearch${Date.now()}`;
+  const hiddenWord = `hiddenretreat${Date.now()}`;
   const made = { members: [] as string[], books: [] as string[], awards: [] as string[], events: [] as string[], prickles: [] as string[], types: [] as string[] };
   let hostId = "";
   let otherId = "";
@@ -26,6 +28,10 @@ describe("universalSearch (local database)", () => {
   const run = (input: string, over: Partial<SearchContext> = {}) =>
     universalSearch(ctx(over), parseUniversal(input), { skip: ["chat", "channels"] });
   /** Rows from a seeding insert, or the database's own error. */
+  const seededOne = <T,>(res: { data: T | null; error: { message: string } | null }): T => {
+    if (res.error || !res.data) throw new Error(res.error?.message ?? "no row returned");
+    return res.data;
+  };
   const seeded = <T,>(res: { data: T[] | null; error: { message: string } | null }): T[] => {
     if (res.error || !res.data) throw new Error(res.error?.message ?? "insert returned nothing");
     return res.data;
@@ -52,6 +58,15 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.books.push(...books.map((b) => b.id));
+    // A book and an award their owner deleted: the rows stay, and search never finds them.
+    const deletedAt = new Date().toISOString();
+    const deletedBooks = seeded(
+      await supabase
+        .from("member_books")
+        .insert({ member_id: hostId, title: `${token} Retired Chronicles`, description: "dragons", cover_url: "https://example.com/cover.png", purchase_url: "https://example.com/buy", published_date: "2026-03-06", deleted_at: deletedAt })
+        .select("id")
+    );
+    made.books.push(...deletedBooks.map((b) => b.id));
 
     const awards = seeded(
       await supabase
@@ -60,14 +75,26 @@ describe("universalSearch (local database)", () => {
         .select("id")
     );
     made.awards.push(...awards.map((a) => a.id));
-
-    const events = seeded(
+    const deletedAwards = seeded(
       await supabase
-        .from("events")
-        .insert({ slug: `${token}-retreat`, title: `${token} Retreat`, event_type: "other", location: "Lakeside", starts_at: "2026-05-01", ends_at: "2026-05-03" })
+        .from("member_awards")
+        .insert({ member_id: hostId, award_name: `${token} Retired Prize`, work_title: "A Poem", category: "Poetry", award_date: "2026-04-02", deleted_at: deletedAt })
         .select("id")
     );
+    made.awards.push(...deletedAwards.map((a) => a.id));
+
+    const events = [
+      seededOne(
+        await insertEvent(supabase, { slug: `${token}-retreat`, title: `${token} Retreat`, location: "Lakeside", starts_at: "2026-05-01", ends_at: "2026-05-03" })
+      ),
+    ];
     made.events.push(...events.map((e) => e.id));
+    // An event an admin hid: members never find it, admins still do.
+    const hidden = [
+      seededOne(await insertEvent(supabase, { slug: `${hiddenWord}-retreat`, title: `${hiddenWord} Retreat`, starts_at: "2020-05-01", ends_at: "2020-05-03" })),
+    ];
+    seeded(await supabase.from("community_events").update({ deleted_at: new Date().toISOString() }).eq("id", hidden[0].id).select("id"));
+    made.events.push(...hidden.map((e) => e.id));
     // Rows go away with the event and member (ON DELETE CASCADE).
     seeded(await supabase.from("event_attendees").insert({ event_id: events[0].id, member_id: otherId }).select("id"));
 
@@ -98,7 +125,7 @@ describe("universalSearch (local database)", () => {
   afterAll(async () => {
     await supabase.from("prickles").delete().in("id", made.prickles);
     await supabase.from("prickle_types").delete().in("id", made.types);
-    await supabase.from("events").delete().in("id", made.events);
+    await supabase.from("community_events").delete().in("id", made.events);
     await supabase.from("member_awards").delete().in("id", made.awards);
     await supabase.from("member_books").delete().in("id", made.books);
     await supabase.from("members").delete().in("id", made.members);
@@ -118,6 +145,49 @@ describe("universalSearch (local database)", () => {
 
     const byStatus = hitsOf(await run(`in:members ${token} status:cancelled`, { isActingAsAdmin: true }), "members");
     expect(byStatus.map((h) => h.id)).toEqual([otherId]);
+  });
+
+  it("finds a member by display name, legal name, email or nickname, showing the display name and only saying why when it isn't in it", async () => {
+    // Its own token: the shared one would add a third member to the paging test below.
+    const own = `dispname${Date.now()}`;
+    const { data, error } = await supabase
+      .from("members")
+      .insert({ name: `${own} Legalname`, display_name: `Penny${own}`, email: `${own}-penny@example.com`, joined_at: "2020-01-01", status: "active" })
+      .select("id")
+      .single();
+    if (error) throw error;
+    made.members.push(data.id);
+
+    const asAdmin = async (input: string) => hitsOf(await run(input, { isActingAsAdmin: true }), "members");
+    const asMember = async (input: string) => hitsOf(await run(input), "members");
+
+    // The display name explains itself: just the name.
+    const byDisplay = await asAdmin(`in:members Penny${own}`);
+    expect(byDisplay).toHaveLength(1);
+    expect(byDisplay[0]).toMatchObject({ id: data.id, title: `Penny${own}`, badge: "active", href: `/admin/members/${data.id}` });
+    expect(byDisplay[0].subtitle).toBeUndefined();
+
+    // The legal name, or the email, is the reason: that is what shows.
+    expect((await asAdmin(`in:members ${own} legalname`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: `${own} Legalname` });
+    expect((await asAdmin(`in:members ${own}-penny`))[0]).toMatchObject({ id: data.id, subtitle: `${own}-penny@example.com` });
+
+    // Members see the same name, never the email.
+    const byDisplayMember = await asMember(`in:members Penny${own}`);
+    expect(byDisplayMember.map((h) => h.title)).toEqual([`Penny${own}`]);
+    expect(byDisplayMember[0].subtitle).toBeUndefined();
+    expect((await asMember(`in:members ${own} legalname`))[0]).toMatchObject({ id: data.id, subtitle: `${own} Legalname` });
+
+    // A nickname finds them for staff and members alike; the hint says which one.
+    const { error: aliasError } = await supabase.from("member_name_aliases").insert([
+      { member_id: data.id, alias: `Nick${own}`, source: "zoom", active: true },
+      { member_id: data.id, alias: `Retired${own}`, source: "zoom", active: false },
+    ]);
+    if (aliasError) throw aliasError;
+    const hint = `also known as “Nick${own}”`;
+    expect((await asAdmin(`in:members nick${own}`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: hint });
+    expect((await asMember(`in:members nick${own}`))[0]).toMatchObject({ id: data.id, title: `Penny${own}`, subtitle: hint });
+    expect(await asAdmin(`in:members retired${own}`)).toEqual([]);
+    expect(await asMember(`in:members retired${own}`)).toEqual([]);
   });
 
   it("finds a prickle by its type's name or its host's name, titled like the detail page", async () => {
@@ -149,11 +219,23 @@ describe("universalSearch (local database)", () => {
     expect(hitsOf(await run(`in:books ${token} before:2026-01-01`), "books")).toHaveLength(0);
   });
 
+  it("never finds a book or award its owner deleted", async () => {
+    const books = hitsOf(await run(`in:books ${token} chronicles`), "books");
+    expect(books.map((b) => b.title)).toEqual([`${token} Chronicles`]);
+    const awards = hitsOf(await run(`in:awards ${token} prize`), "awards");
+    expect(awards.map((a) => a.title)).toEqual([`${token} Prize`]);
+  });
+
   it("finds awards and events", async () => {
     expect(hitsOf(await run(`in:awards ${token} poetry`), "awards")[0]).toMatchObject({ title: `${token} Prize`, subtitle: "A Poem · Poetry" });
     const event = hitsOf(await run(`in:events lakeside ${token}`), "events")[0];
     expect(event).toMatchObject({ title: `${token} Retreat`, href: `/events/${token}-retreat` });
     expect(hitsOf(await run(`in:events ${token}`, { isActingAsAdmin: true }), "events")[0].href).toMatch(/^\/admin\/events\//);
+  });
+
+  it("leaves a hidden event out for members and keeps it for admins", async () => {
+    expect(hitsOf(await run(`in:events ${hiddenWord}`), "events")).toHaveLength(0);
+    expect(hitsOf(await run(`in:events ${hiddenWord}`, { isActingAsAdmin: true }), "events").map((e) => e.title)).toEqual([`${hiddenWord} Retreat`]);
   });
 
   it("filters events by who attended (from:)", async () => {

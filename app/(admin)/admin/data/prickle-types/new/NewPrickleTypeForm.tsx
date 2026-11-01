@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AudienceChecks from "@/components/AudienceChecks";
 
 type PrickleTypePurpose = "writing" | "work" | "social" | "mixed";
 
@@ -18,6 +19,9 @@ export default function NewPrickleTypeForm() {
   const [description, setDescription] = useState("");
   const [purpose, setPurpose] = useState<PrickleTypePurpose>("writing");
   const [soloTaskFriendly, setSoloTaskFriendly] = useState(true);
+  const [listedInEvents, setListedInEvents] = useState(false);
+  const [announcedPublicly, setAnnouncedPublicly] = useState(false);
+  const [guestsAllowed, setGuestsAllowed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +46,9 @@ export default function NewPrickleTypeForm() {
           description: description.trim(),
           purpose,
           soloTaskFriendly,
+          listedInEvents,
+          announcedPublicly,
+          guestsAllowed,
         }),
       });
 
@@ -85,7 +92,7 @@ export default function NewPrickleTypeForm() {
             required
           />
           {name && (
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               Normalized name: <span className="font-mono">{normalizedName || "(empty)"}</span>
             </p>
           )}
@@ -121,7 +128,7 @@ export default function NewPrickleTypeForm() {
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Used by the Prickle Picker to filter recommendations by purpose.
           </p>
         </div>
@@ -137,12 +144,21 @@ export default function NewPrickleTypeForm() {
             />
             Good for bring-your-own-task time
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Can a hedgie zone out on an unrelated task (especially non-writing work) here? Turn this off for
             structured/participatory sessions (workshops, sprints, pitches, educational) and very chatty ones
             (Craft & Chat).
           </p>
         </div>
+
+        <AudienceChecks
+          value={{ listed: listedInEvents, publicly: announcedPublicly, guests: guestsAllowed }}
+          onChange={(next) => {
+            setListedInEvents(next.listed);
+            setAnnouncedPublicly(next.publicly);
+            setGuestsAllowed(next.guests);
+          }}
+        />
 
         {/* Actions */}
         <div className="flex gap-4">

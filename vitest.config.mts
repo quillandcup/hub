@@ -44,8 +44,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/setup.ts', './tests/setup-msw.ts', './tests/setup-jsdom.ts'],
-    // Only applies with --coverage (npm run test:unit:coverage / test:db:coverage).
+    // msw (tests/setup-msw.ts) is not here: the two files that use it import it, which registers its hooks. Starting
+    // its interceptors in every file cost setup time for nothing.
+    setupFiles: ['./tests/setup.ts', './tests/setup-jsdom.ts'],
+    // Only applies with --coverage (pnpm test:unit:coverage / test:db:coverage).
     // Each project writes to its own directory (see the scripts in package.json) so CI
     // can merge the two lcov files. 
     coverage: {
@@ -73,6 +75,10 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
+          // Unit tests run in a zone far from UTC and Eastern so a test (or code) that leans on the
+          // machine's zone fails here instead of passing in CI (UTC) and breaking on a laptop. To
+          // check another zone, run with UNIT_TEST_TZ=<zone> pnpm test:unit.
+          env: { TZ: process.env.UNIT_TEST_TZ ?? 'Pacific/Auckland' },
           include: [
             'tests/lib/**/*.test.ts',
             'tests/components/**/*.test.ts',
@@ -95,11 +101,21 @@ export default defineConfig({
             ...DB_EXCEPTIONS_UNDER_LIB,
             ...DB_ROOT_FILES,
           ],
-          exclude: [...UNIT_EXCEPTIONS_UNDER_API],
+          exclude: [...UNIT_EXCEPTIONS_UNDER_API, 'tests/api/smoke/**'],
           // See the file-level comment above -- these tests share one local Supabase
           // instance (and, for some, the same Next app server) using fixed fixture
           // identifiers, so running files in parallel causes flaky cross-file collisions.
           fileParallelism: false,
+        },
+      },
+      {
+        // The few tests that go over HTTP to the built app (`pnpm start`, or TEST_API_BASE_URL). A project of their
+        // own so CI can run the rest of the db suite while the production build is still running, and these after
+        // it. `pnpm test` still runs them with everything else.
+        extends: true,
+        test: {
+          name: 'smoke',
+          include: ['tests/api/smoke/**/*.test.ts'],
         },
       },
     ],

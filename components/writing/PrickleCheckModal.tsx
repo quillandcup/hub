@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
-import { FeelingPicker, NeedPicker, RatingPicker } from "@/components/writing/CheckinFields";
+import { CheckinHalfFields } from "@/components/writing/CheckinFields";
 import {
   getCheckModalData,
   saveCheckinHalf,
@@ -12,7 +12,7 @@ import {
 import { joinCredentials } from "@/lib/prickle-join";
 import { logProgress } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS } from "@/lib/writing-projects";
-import type { CheckinInput } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN as EMPTY, halfOf, type CheckinInput } from "@/lib/prickle-checkins";
 
 interface PrickleCheckModalProps {
   prickleId: string;
@@ -24,14 +24,12 @@ interface PrickleCheckModalProps {
   prefill?: CheckinInput | null;
 }
 
-const EMPTY: CheckinInput = { feelingsBefore: [], need: null, sessionRating: null, feelingsAfter: [] };
-
 const inputClass =
   "w-28 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm";
 
 /**
- * The check-in (feelings coming in, what they need) or check-out (how it went as stars, feeling
- * now, and how much they got done on each project) for one prickle, in a modal opened from the
+ * The check-in (mood coming in, the feeling named on the wheel, their intention) or check-out (did
+ * they get what they came for, mood now, the feeling, and how much they got done on each project) for one prickle, in a modal opened from the
  * attendance history rows. One prickle_checkins row underneath, also answered from the Slack
  * check-in/check-out DMs, which ask the same questions.
  */
@@ -79,13 +77,7 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
     setIsPending(true);
     // Answers first: an idempotent upsert, so a failure here leaves nothing half-saved (a retried
     // progress entry would duplicate).
-    const result = await saveCheckinHalf(
-      prickleId,
-      half,
-      isCheckout
-        ? { sessionRating: draft.sessionRating, feelingsAfter: draft.feelingsAfter }
-        : { feelingsBefore: draft.feelingsBefore, need: draft.need }
-    );
+    const result = await saveCheckinHalf(prickleId, half, halfOf(draft, half));
     if ("error" in result) {
       setIsPending(false);
       setError(result.error);
@@ -115,8 +107,8 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
 
   return (
     <Modal isOpen onClose={onClose} title={data ? `${title}: ${data.prickleTitle}` : title} maxWidth="lg">
-      {data === undefined && <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>}
-      {data === null && <p className="text-sm text-slate-500 dark:text-slate-400">Couldn&apos;t load this prickle.</p>}
+      {data === undefined && <p className="text-sm text-slate-600 dark:text-slate-400">Loading…</p>}
+      {data === null && <p className="text-sm text-slate-600 dark:text-slate-400">Couldn&apos;t load this prickle.</p>}
       {data && savedCheckin && data.join && (
         <div className="space-y-4">
           <p className="text-sm text-slate-600 dark:text-slate-400">Checked in. Ready to join?</p>
@@ -146,45 +138,32 @@ export default function PrickleCheckModal({ prickleId, half, onClose, onSaved, p
       )}
       {data && !savedCheckin && (
         <form onSubmit={handleSave} className="space-y-5">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {readOnly
               ? "Read-only while browsing as this member."
-              : "Optional. Over time it shows which prickles help most when you're feeling a certain way."}
+              : "Optional. Over time it shows which prickles help you most, depending on how you're feeling and what you need."}
           </p>
 
           {!isCheckout && (
-            <>
-              <FeelingPicker
-                label={data.hasStarted ? "Coming in, I was feeling…" : "Coming in, I'm feeling…"}
-                selected={draft.feelingsBefore}
-                onChange={(feelingsBefore) => setDraft((d) => ({ ...d, feelingsBefore }))}
-                readOnly={readOnly}
-              />
-              <NeedPicker
-                label={data.hasStarted ? "What I needed most from this session" : "What I need most from this session"}
-                value={draft.need}
-                onChange={(need) => setDraft((d) => ({ ...d, need }))}
-                readOnly={readOnly}
-              />
-            </>
+            <CheckinHalfFields
+              half="checkin"
+              value={draft}
+              onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+              readOnly={readOnly}
+              past={data.hasStarted}
+            />
           )}
 
           {isCheckout && !data.hasStarted && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Available once the prickle starts.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Available once the prickle starts.</p>
           )}
 
           {isCheckout && data.hasStarted && (
             <>
-              <RatingPicker
-                label="How did it go?"
-                value={draft.sessionRating}
-                onChange={(sessionRating) => setDraft((d) => ({ ...d, sessionRating }))}
-                readOnly={readOnly}
-              />
-              <FeelingPicker
-                label="Feeling now…"
-                selected={draft.feelingsAfter}
-                onChange={(feelingsAfter) => setDraft((d) => ({ ...d, feelingsAfter }))}
+              <CheckinHalfFields
+                half="checkout"
+                value={draft}
+                onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
                 readOnly={readOnly}
               />
 

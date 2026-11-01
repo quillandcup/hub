@@ -4,11 +4,41 @@
  * so a message looks the same whichever path stored it.
  */
 
-/** Plain messages (no subtype) plus these subtypes are kept; joins, leaves, topic changes etc. are not. */
-const KEPT_SUBTYPES = new Set(["file_share", "thread_broadcast"]);
+/**
+ * Notices Slack posts itself when someone changes a channel ("Ania renamed the channel from X to Y") or
+ * joins or leaves it ("Ania has joined the channel").
+ * Kept so the Hub chat shows them, but they are not something a member wrote: activity, engagement
+ * and the Wheel of Wonder leave them out. The same list is in chat_messages' system_subtype trigger
+ * (20261203000000_chat_system_messages.sql).
+ */
+export const SLACK_SYSTEM_SUBTYPES = [
+  'channel_name',
+  'channel_topic',
+  'channel_purpose',
+  'channel_archive',
+  'channel_unarchive',
+  'group_name',
+  'group_topic',
+  'group_purpose',
+  'group_archive',
+  'group_unarchive',
+  'channel_join',
+  'channel_leave',
+  'group_join',
+  'group_leave',
+] as const
+
+const SYSTEM_SUBTYPES = new Set<string>(SLACK_SYSTEM_SUBTYPES)
+
+export function isSlackSystemMessage(msg: { subtype?: string }): boolean {
+  return !!msg.subtype && SYSTEM_SUBTYPES.has(msg.subtype)
+}
+
+/** Plain messages (no subtype), these subtypes and Slack's channel notices (changes, joins, leaves) are kept. */
+const KEPT_SUBTYPES = new Set(['file_share', 'thread_broadcast'])
 
 export function isKeptSlackMessage(msg: { subtype?: string }): boolean {
-  return !msg.subtype || KEPT_SUBTYPES.has(msg.subtype);
+  return !msg.subtype || KEPT_SUBTYPES.has(msg.subtype) || isSlackSystemMessage(msg)
 }
 
 /**
@@ -110,4 +140,75 @@ export function slackUsersChangedForMembers(
   // A removed user leaves its bronze row in place (the import only upserts),
   // so only additions and changes can alter what members read.
   return fetched.some((u) => before.get(u.user_id) !== key(u));
+}
+
+/**
+ * What a message's Bronze text is. Slack's own text for someone added to a channel is "<@Ania> has joined the
+ * channel" with who added them only in `inviter`, so the notice says it ("<@Ania> was added to the channel by
+ * <@Cody>"); every other message keeps Slack's text. The raw event is kept whole in `raw_payload`.
+ */
+export function slackMessageText(msg: { subtype?: string; text?: string; user?: string; inviter?: string }): string {
+  if ((msg.subtype === 'channel_join' || msg.subtype === 'group_join') && msg.user && msg.inviter && msg.inviter !== msg.user) {
+    return `<@${msg.user}> was added to the channel by <@${msg.inviter}>`
+  }
+  return msg.text || ''
+}
+
+/**
+ * One Slack message as the Bronze rows it becomes: the message (unless it is some other notice) and one row
+ * per reaction user. Shared by the import and the chat's gap-fill, so a message
+ * looks the same whichever path stored it. User email and name are filled in by the caller.
+ */
+export function addSlackMessage(
+  msg: any,
+  channelId: string,
+  channelName: string,
+  channelType: string,
+  messages: any[],
+  reactions: any[]
+) {
+  // Skip the notices Slack posts that the chat doesn't show
+  if (!isKeptSlackMessage(msg)) {
+    return;
+  }
+
+  messages.push({
+    message_ts: msg.ts,
+    channel_id: channelId,
+    channel_name: channelName,
+    channel_type: channelType,
+    user_id: slackMessageUserId(msg),
+    user_email: '', // Will be filled from users map later
+    user_name: '', // Will be filled from users map later
+    text: slackMessageText(msg),
+    message_type: msg.subtype || 'message',
+    thread_ts: msg.thread_ts || null,
+    reply_count: msg.reply_count || 0,
+    reply_users_count: msg.reply_users_count || 0,
+    occurred_at: slackTsToIso(msg.ts),
+    edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
+    deleted_at: null,
+    files: msg.files ? msg.files : null,
+    raw_payload: msg
+  });
+
+  // Extract reactions
+  if (msg.reactions) {
+    for (const reaction of msg.reactions) {
+      for (const userId of reaction.users) {
+        reactions.push({
+          message_ts: msg.ts,
+          channel_id: channelId,
+          channel_name: channelName,
+          reaction: reaction.name,
+          user_id: userId,
+          user_email: '', // Will be filled later
+          user_name: '', // Will be filled later
+          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+          deleted_at: null,
+          raw_payload: reaction
+        });
+      }
+    }
+  }
 }

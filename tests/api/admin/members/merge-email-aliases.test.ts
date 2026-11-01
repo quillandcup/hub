@@ -6,10 +6,15 @@ vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: vi.fn(),
 }));
 
+vi.mock("@/lib/data/repos", () => import("@/tests/helpers/in-memory-members").then((m) => m.reposWithInMemoryMembers(() => [asMember(PRIMARY), asMember(SECONDARY)])));
+
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
 const PRIMARY = { id: "primary-1", name: "Wren Holloway", email: "wren@example.com", kajabi_id: "k1", stripe_customer_id: null, user_id: null };
 const SECONDARY = { id: "secondary-1", name: "Wren H", email: "Wren.Old@example.com", kajabi_id: null, stripe_customer_id: null, user_id: null };
+
+/** The fixture as the in-memory members repository holds it. */
+const asMember = (m: { id: string; name: string; email: string; kajabi_id: string | null; stripe_customer_id: string | null; user_id: string | null }) => ({ id: m.id, name: m.name, email: m.email, kajabiId: m.kajabi_id, stripeCustomerId: m.stripe_customer_id, userId: m.user_id });
 
 type Call = { table: string; op: string; payload?: unknown; options?: unknown; filters: [string, string, unknown][] };
 
@@ -31,6 +36,8 @@ function makeSupabaseMock(failOn?: { table: string; op: string }) {
       eq: (col: string, val: unknown) => (call.filters.push(["eq", col, val]), builder),
       in: (col: string, val: unknown) => (call.filters.push(["in", col, val]), builder),
       contains: (col: string, val: unknown) => (call.filters.push(["contains", col, val]), builder),
+      order: () => builder,
+      range: () => builder,
       single: () => {
         const id = call.filters.find(([, col]) => col === "id")?.[2];
         return Promise.resolve({ data: id === PRIMARY.id ? PRIMARY : id === SECONDARY.id ? SECONDARY : null, error: null });
@@ -44,7 +51,7 @@ function makeSupabaseMock(failOn?: { table: string; op: string }) {
     };
     return builder;
   });
-  return { from, calls };
+  return { from, calls, failOn };
 }
 
 function makeRequest() {

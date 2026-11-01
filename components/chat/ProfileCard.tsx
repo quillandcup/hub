@@ -23,7 +23,7 @@ export default function ProfileCard({ member }: { member: MemberCard }) {
         <MemberAvatar name={member.name} photoUrl={member.photoUrl} size={96} />
         <p className="text-lg font-semibold">{member.name}</p>
         {member.firstJoinedAt && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Hedgie since {monthYear(member.firstJoinedAt)}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Hedgie since {monthYear(member.firstJoinedAt)}</p>
         )}
       </div>
 
@@ -31,14 +31,14 @@ export default function ProfileCard({ member }: { member: MemberCard }) {
 
       {member.askMeAbout.length > 0 && (
         <section aria-label="Ask me about">
-          <h3 className="mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">Ask me about…</h3>
+          <h3 className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">Ask me about…</h3>
           <AskMeAboutTopics topics={member.askMeAbout} />
         </section>
       )}
 
       {member.badges.length > 0 && (
         <section aria-label="Badges">
-          <h3 className="mb-2 text-sm font-medium text-slate-500 dark:text-slate-400">Badges</h3>
+          <h3 className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">Badges</h3>
           <MemberBadgeChips badges={member.badges} />
         </section>
       )}

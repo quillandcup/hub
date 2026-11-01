@@ -26,6 +26,14 @@
     {
       "path": "/api/reconcile/logins",
       "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/reconcile/media",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/reconcile/retention",
+      "schedule": "0 4 * * *"
     }
   ]
 }

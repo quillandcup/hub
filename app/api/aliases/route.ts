@@ -1,5 +1,7 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -24,18 +26,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check every name first (all or nothing): one that is already someone's, or is another
+    // member's real name, would take that member's attendance.
+    const checks = await Promise.all(
+      matches.map((match: any) => findNameAliasConflict(match.memberId, match.zoomName))
+    );
+    const problems: string[] = [];
+    checks.forEach((checked, i) => {
+      if ("error" in checked) problems.push(checked.error);
+      else if (checked.conflict) problems.push(adminNameAliasConflictMessage(matches[i].zoomName, checked.conflict));
+    });
+    if (problems.length > 0) {
+      return NextResponse.json({ error: problems.join(" ") }, { status: 409 });
+    }
+
     // Insert aliases
-    const aliasesToInsert = matches.map((match: any) => ({
-      member_id: match.memberId,
-      alias: match.zoomName,
-    }));
-
-    const { data, error } = await supabase
-      .from("member_name_aliases")
-      .insert(aliasesToInsert)
-      .select();
-
-    if (error) {
+    let inserted: number;
+    try {
+      inserted = await createRepos(supabase).aliases.addNames(
+        matches.map((match: any) => ({ memberId: match.memberId, alias: match.zoomName, source: "zoom" }))
+      );
+    } catch (error) {
       console.error("Error inserting aliases:", error);
       throw error;
     }
@@ -46,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      inserted: data?.length || 0,
+      inserted,
     });
   } catch (error: any) {
     console.error("Error saving aliases:", error);

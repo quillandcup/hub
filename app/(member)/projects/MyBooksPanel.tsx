@@ -40,8 +40,8 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
   async function handleDelete(book: MyBookRow) {
     const projectTitle = book.projectId ? projectTitles[book.projectId] : undefined;
     const message = projectTitle
-      ? `Remove "${book.title}" from the Bookshelf? "${projectTitle}" will no longer be marked as published.`
-      : `Remove "${book.title}" from the Bookshelf?`;
+      ? `Remove "${book.title}" from the Book Shelf? "${projectTitle}" will no longer be marked as published.`
+      : `Remove "${book.title}" from the Book Shelf?`;
     if (!confirm(message)) return;
     setDeletingId(book.id);
     const result = await deleteBook(book.id);
@@ -56,7 +56,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">My Books</h2>
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">My Books</h2>
         <button data-track="project-books-add-a-book"
           type="button"
           onClick={() => setShowAdd(true)}
@@ -67,7 +67,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
       </div>
 
       {initialBooks.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           No books yet -- publishing a project adds one automatically, or add one by hand.
         </p>
       ) : (
@@ -76,7 +76,7 @@ export default function MyBooksPanel({ initialBooks, projectTitles }: MyBooksPan
             <li key={book.id} className="py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{book.title}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   {formatDate(book.publishedDate)} · <span className="capitalize">{book.format}</span>
                   {formatPrice(book.price) && ` · ${formatPrice(book.price)}`}
                   {book.projectId && projectTitles[book.projectId] && (

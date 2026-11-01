@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import Mux from "@mux/mux-node"
+import Mux from "@mux/ts"
 import { requireAdminPage } from "@/lib/admin-auth"
 import PlayerSpike from "./PlayerSpike"
 

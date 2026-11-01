@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 const setLessonComplete = vi.fn<(lessonId: string, complete: boolean) => Promise<{ error?: string }>>();
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: (...a: [string, boolean]) => setLessonComplete(...a) }));
 
-import { LessonCompletionProvider } from "@/app/(member)/courses/LessonCompletion";
+import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "@/app/(member)/courses/MarkCompleteButton";
 
 const ui = (over: { initiallyCompleted?: boolean; readOnlyReason?: string | null } = {}) => (

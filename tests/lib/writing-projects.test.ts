@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isMissedGoal,
   applyStartingBalance,
   computeCumulativeTotal,
   computeCumulativeSeries,
@@ -390,5 +391,14 @@ describe("derivePrickleHabitEntries", () => {
 
   it("returns an empty array with no attendance", () => {
     expect(derivePrickleHabitEntries([])).toEqual([]);
+  });
+});
+
+describe("isMissedGoal", () => {
+  it("is true only for a target goal that ended unmet", () => {
+    expect(isMissedGoal({ kind: "target", status: "ended" })).toBe(true);
+    expect(isMissedGoal({ kind: "target", status: "active" })).toBe(false);
+    expect(isMissedGoal({ kind: "target", status: "achieved" })).toBe(false);
+    expect(isMissedGoal({ kind: "habit" })).toBe(false);
   });
 });

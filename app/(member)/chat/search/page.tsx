@@ -1,8 +1,10 @@
+import { CHAT_LIST_HREF } from "@/lib/chat/last-channel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireChat } from "@/lib/chat/access";
-import { firstParam, isUuid, parseDay } from "@/lib/chat/format";
+import { firstParam, parseDay } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { chatTextContext, loadChatChannels } from "@/lib/chat/load";
 import { MAX_QUERY_LENGTH, SEARCH_PAGE_SIZE, searchChat } from "@/lib/chat/search";
 import { parseSearch } from "@/lib/chat/search-syntax";
@@ -49,7 +51,7 @@ export default async function ChatSearchPage({
   const supabase = await createClient();
   const all = await loadChatChannels(supabase, identity.memberId, identity.isSudo);
   const searchable = all.filter((c) => !(identity.isSudo && c.restricted));
-  let scope = isUuid(channelParam) ? searchable.filter((c) => c.id === channelParam) : searchable;
+  let scope = isId(channelParam, "chn") ? searchable.filter((c) => c.id === channelParam) : searchable;
   if (parsed.inChannel) {
     // in:#name (or the name of a group message); an unknown name searches nothing, as in Slack.
     const wanted = parsed.inChannel.toLowerCase();
@@ -77,7 +79,7 @@ export default async function ChatSearchPage({
   const linkTo = (n: number) => {
     const p = new URLSearchParams();
     p.set("q", q);
-    if (isUuid(channelParam)) p.set("channel", channelParam);
+    if (isId(channelParam, "chn")) p.set("channel", channelParam);
     if (author) p.set("author", author);
     if (firstParam(sp.from) && parseDay(sp.from)) p.set("from", firstParam(sp.from) as string);
     if (firstParam(sp.to) && parseDay(sp.to, 1)) p.set("to", firstParam(sp.to) as string);
@@ -104,7 +106,7 @@ export default async function ChatSearchPage({
           chatSearched
         />
       )}
-      <Link href="/chat" data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline md:hidden dark:text-plum-400">
+      <Link href={CHAT_LIST_HREF} data-track="chat-search-back" className="mb-2 inline-block text-sm text-plum-600 hover:underline @split:hidden dark:text-plum-400">
         ← Channels
       </Link>
       <h1 className="text-2xl font-bold mb-3">Search messages</h1>
@@ -123,10 +125,11 @@ export default async function ChatSearchPage({
             Search
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-4 text-sm">
+        <div className="@container">
+          <div className="grid gap-3 @pair:grid-cols-4 text-sm">
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">Channel</span>
-            <select data-track="chat-search-channel-filter" name="channel" defaultValue={isUuid(channelParam) ? channelParam : ""} className={inputClass}>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">Channel</span>
+            <select data-track="chat-search-channel-filter" name="channel" defaultValue={isId(channelParam, "chn") ? channelParam : ""} className={inputClass}>
               <option value="">All conversations</option>
               {searchable.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -136,17 +139,18 @@ export default async function ChatSearchPage({
             </select>
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">From (name)</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">From (name)</span>
             <input type="text" name="author" defaultValue={author} maxLength={100} className={inputClass} />
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">On or after</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">On or after</span>
             <input type="date" name="from" defaultValue={parseDay(sp.from) ? firstParam(sp.from) : ""} className={inputClass} />
           </label>
           <label className="block">
-            <span className="block text-xs text-slate-500 mb-0.5">On or before</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">On or before</span>
             <input type="date" name="to" defaultValue={parseDay(sp.to, 1) ? firstParam(sp.to) : ""} className={inputClass} />
           </label>
+        </div>
         </div>
         <div className="flex gap-4 text-sm">
           <label className="inline-flex items-center gap-1.5">
@@ -157,7 +161,7 @@ export default async function ChatSearchPage({
           </label>
         </div>
       </form>
-      <p className="-mt-3 mb-5 text-xs text-slate-500 dark:text-slate-400">
+      <p className="-mt-3 mb-5 text-xs text-slate-600 dark:text-slate-400">
         Slack search syntax works: <code>&quot;exact phrase&quot;</code>, <code>-word</code>, <code>word*</code>, <code>in:#channel</code>,{" "}
         <code>from:@name</code> or <code>from:me</code>, <code>before:</code>, <code>after:</code>, <code>on:</code>, <code>during:</code> (2026-10-09, 2026-10 or 2026),{" "}
         <code>has:file</code>, <code>has:link</code>, <code>has:reaction</code>, <code>is:thread</code>.
@@ -173,7 +177,7 @@ export default async function ChatSearchPage({
             <ul>
               {page.results.map((r, index) => (
                 <li key={r.message.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                  <p className="pt-3 text-xs text-slate-500 dark:text-slate-400">
+                  <p className="pt-3 text-xs text-slate-600 dark:text-slate-400">
                     <SearchHitLink
                       href={`/chat/${r.channel.id}`}
                       surface="chat_page"

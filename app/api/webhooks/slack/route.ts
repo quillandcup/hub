@@ -1,12 +1,14 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse, after } from "next/server";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { projectSlackActivity } from "@/lib/slack-activity-projection";
 import { CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD } from "@/lib/wheel-of-wonder";
 import { verifySlackSignature } from "@/lib/slack-signature";
 import { publishSlackHome } from "@/lib/slack-sign-in";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { projectChatMessage } from "@/lib/chat-projection";
-import { isKeptSlackMessage, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
+import { fillMessageGap, fillThreadIfRootMissing } from "@/lib/chat/gap-fill";
+import { isKeptSlackMessage, isSlackSystemMessage, slackMessageText, slackMessageUserId, slackTsToIso } from "@/lib/slack-messages";
 import {
   applySlackEmojiEvent,
   applySlackMembershipEvent,
@@ -15,6 +17,9 @@ import {
 } from "@/lib/slack-capture";
 import { isBeyondSlackHistory } from "@/lib/slack-deletions";
 import { clock } from "@/lib/clock";
+import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
+import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Webhook should respond quickly
@@ -137,44 +142,45 @@ async function processSlackEvent(event: any) {
   try {
     if (eventType === "member_joined_channel" || eventType === "member_left_channel") {
       await applySlackMembershipEvent(supabase, event);
+    } else if (eventType === "file_deleted") {
+      await applyFileDelete(supabase, event);
     } else if (eventType === "emoji_changed") {
       await applySlackEmojiEvent(supabase, event);
+      invalidateChatLookups();
     } else if (eventType === "message" && event.subtype === "message_changed") {
       await applyMessageEdit(supabase, event);
     } else if (eventType === "message" && event.subtype === "message_deleted") {
       await applyMessageDelete(supabase, event);
     } else if (eventType === "message" && !isKeptSlackMessage(event)) {
-      // Topic changes etc. aren't messages: the import skips these too. A
-      // "joined the channel" / "left the channel" notice isn't a message
-      // either, but it is membership history, so it's recorded as that.
-      const notice = slackMemberNoticeEvent(event, event.channel);
-      if (notice) await recordSlackMemberEvents(supabase, [notice]);
+      // Notices the chat doesn't show aren't messages: the import skips these too.
       return;
     } else if (eventType === "message") {
       // UPSERT message to Bronze layer
-      const { error } = await supabase.schema("bronze").from("slack_messages").upsert(
-        {
-          channel_id: event.channel,
-          message_ts: event.ts,
-          user_id: slackMessageUserId(event),
-          text: event.text,
-          message_type: event.subtype || "message",
-          thread_ts: event.thread_ts || null,
-          occurred_at: slackTsToIso(event.ts),
-          files: event.files ?? null,
-          raw_payload: event,
-        },
-        {
-          onConflict: "channel_id,message_ts",
-        }
-      );
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.upsertMessages([
+          {
+            channel_id: event.channel,
+            message_ts: event.ts,
+            user_id: slackMessageUserId(event),
+            text: slackMessageText(event),
+            message_type: event.subtype || "message",
+            thread_ts: event.thread_ts || null,
+            occurred_at: slackTsToIso(event.ts),
+            files: event.files ?? null,
+            raw_payload: event,
+          },
+        ]);
+      } catch (error) {
         console.error("Error upserting Slack message:", error);
         return;
       }
 
       console.log("Slack message upserted:", event.ts);
+
+      // A "joined the channel" / "left the channel" notice is shown as a line in the chat, and is also
+      // membership history, so it's recorded as that too.
+      const notice = slackMemberNoticeEvent(event, event.channel);
+      if (notice) await recordSlackMemberEvents(supabase, [notice]);
 
       // Wheel of Wonder: track messages toward a "confirmed connection"
       // (never counting the bot's own message — Slack message events carry
@@ -183,33 +189,29 @@ async function processSlackEvent(event: any) {
       // A message written in the Hub is posted by the bot, so it has a bot_id; its real author is
       // the member on the chat_messages row our post's metadata points at, and it counts.
       const hubAuthorMemberId = event.bot_id ? await hubMessageAuthor(supabase, event) : null;
-      if (!event.bot_id || hubAuthorMemberId) {
+      // A channel-change notice isn't a message anyone wrote, so it never counts as an exchange.
+      if (!isSlackSystemMessage(event) && (!event.bot_id || hubAuthorMemberId)) {
         await trackWheelExchange(supabase, event, hubAuthorMemberId);
       }
 
       // Trigger Silver processing asynchronously
-      triggerSlackProcessing(event.channel, event.ts);
+      triggerSlackProcessing(event.channel, event.ts, { threadTs: event.thread_ts });
     } else if (eventType === "reaction_added") {
       // UPSERT reaction to Bronze layer
-      const { error } = await supabase.schema("bronze").from("slack_reactions").upsert(
-        {
-          channel_id: event.item.channel,
-          message_ts: event.item.ts,
-          user_id: event.user,
-          reaction: event.reaction,
-          occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
-          // A reaction taken back and added again is live again.
-          deleted_at: null,
-          raw_payload: event,
-        },
-        {
-          // Note: Supabase doesn't support composite unique constraints in upsert
-          // We'll rely on the unique constraint to prevent duplicates
-          onConflict: "channel_id,message_ts,user_id,reaction",
-        }
-      );
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.upsertReactions([
+          {
+            channel_id: event.item.channel,
+            message_ts: event.item.ts,
+            user_id: event.user,
+            reaction: event.reaction,
+            occurred_at: new Date(parseFloat(event.event_ts) * 1000).toISOString(),
+            // A reaction taken back and added again is live again.
+            deleted_at: null,
+            raw_payload: event,
+          },
+        ]);
+      } catch (error) {
         console.error("Error upserting Slack reaction:", error);
         return;
       }
@@ -221,17 +223,12 @@ async function processSlackEvent(event: any) {
     } else if (eventType === "reaction_removed") {
       // Soft delete: the row stays, marked with when it was taken back. Silver
       // processing and the admin stats skip rows with deleted_at set.
-      const { error } = await supabase
-        .schema("bronze")
-        .from("slack_reactions")
-        .update({ deleted_at: new Date(parseFloat(event.event_ts) * 1000).toISOString() })
-        .eq("channel_id", event.item.channel)
-        .eq("message_ts", event.item.ts)
-        .eq("user_id", event.user)
-        .eq("reaction", event.reaction)
-        .is("deleted_at", null);
-
-      if (error) {
+      try {
+        await createRepos(supabase).slackMessages.markReactionRemoved(
+          { channel_id: event.item.channel, message_ts: event.item.ts, user_id: event.user, reaction: event.reaction },
+          new Date(parseFloat(event.event_ts) * 1000).toISOString()
+        );
+      } catch (error) {
         console.error("Error removing Slack reaction:", error);
         return;
       }
@@ -257,25 +254,20 @@ async function applyMessageEdit(supabase: SupabaseClient, event: any) {
   const message = event.message;
   if (!message?.ts) return;
 
-  const { error } = await supabase
-    .schema("bronze")
-    .from("slack_messages")
-    .update({
+  try {
+    await createRepos(supabase).slackMessages.editMessage(event.channel, message.ts, {
       text: message.text ?? "",
       edited_at: message.edited?.ts ? slackTsToIso(message.edited.ts) : null,
       reply_count: message.reply_count ?? 0,
       reply_users_count: message.reply_users_count ?? 0,
       files: message.files ?? null,
       raw_payload: message,
-    })
-    .eq("channel_id", event.channel)
-    .eq("message_ts", message.ts);
-
-  if (error) {
+    });
+  } catch (error) {
     console.error("Error applying Slack message edit:", error);
     return;
   }
-  triggerSlackProcessing(event.channel, message.ts);
+  triggerSlackProcessing(event.channel, message.ts, { threadTs: message.thread_ts });
 }
 
 /**
@@ -295,19 +287,25 @@ async function applyMessageDelete(supabase: SupabaseClient, event: any) {
     return;
   }
 
-  const { error } = await supabase
-    .schema("bronze")
-    .from("slack_messages")
-    .update({ deleted_at: slackTsToIso(event.event_ts ?? event.ts) })
-    .eq("channel_id", event.channel)
-    .eq("message_ts", deletedTs)
-    .is("deleted_at", null);
-
-  if (error) {
+  try {
+    await createRepos(supabase).slackMessages.markMessagesDeleted(event.channel, [deletedTs], slackTsToIso(event.event_ts ?? event.ts));
+  } catch (error) {
     console.error("Error applying Slack message delete:", error);
     return;
   }
-  triggerSlackProcessing(event.channel, deletedTs);
+  // A deleted message isn't there to fetch.
+  triggerSlackProcessing(event.channel, deletedTs, { fillGaps: false });
+}
+
+/**
+ * A file deleted in Slack: soft-delete its Bronze row and remove our copy. The nightly import
+ * finds the same files from the messages it fetches, so a missed event only delays this.
+ */
+async function applyFileDelete(supabase: SupabaseClient, event: any) {
+  const fileId = event.file_id ?? event.file?.id;
+  if (typeof fileId !== "string" || !fileId) return;
+  const result = await removeChatFileBytes(supabase, fileId, { ignoreReferences: true });
+  console.log("Slack file_deleted: %s", result);
 }
 
 /**
@@ -341,28 +339,17 @@ async function publishHomeTab(event: any, origin: string) {
  */
 async function hubMessageAuthor(supabase: any, event: any): Promise<string | null> {
   const messageId = event.metadata?.event_type === "hub_message" ? event.metadata.event_payload?.app_message_id : null;
-  if (typeof messageId !== "string" || !/^[0-9a-f-]{36}$/i.test(messageId)) return null;
-  const { data } = await supabase
-    .from("chat_messages")
-    .select("author_member_id")
-    .eq("id", messageId)
-    .eq("origin", "app")
-    .maybeSingle();
-  return data?.author_member_id ?? null;
+  if (typeof messageId !== "string" || !isId(messageId, "msg")) return null;
+  return createRepos(supabase).chat.appMessageAuthor(messageId);
 }
 
 async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: string | null = null) {
   try {
-    const { data: match, error: matchError } = await supabase
-      .from("wheel_of_wonder_matches")
-      .select(
-        "id, spinner_member_id, matched_member_id, spinner_slack_user_id, matched_slack_user_id, spinner_message_count, matched_message_count"
-      )
-      .eq("slack_channel_id", event.channel)
-      .eq("status", "proposed")
-      .maybeSingle();
-
-    if (matchError) {
+    const wheel = createRepos(supabase).wheelOfWonder;
+    let match;
+    try {
+      match = await wheel.proposedInChannel(event.channel);
+    } catch (matchError) {
       console.error("Error looking up Wheel of Wonder match for channel:", matchError);
       return;
     }
@@ -383,19 +370,15 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
       bothSidesParticipated &&
       spinnerMessageCount + matchedMessageCount >= CONNECTION_CONFIRMATION_MESSAGE_THRESHOLD;
 
-    const update: Record<string, unknown> = {
-      spinner_message_count: spinnerMessageCount,
-      matched_message_count: matchedMessageCount,
-    };
-    if (shouldConfirm) {
-      update.status = "confirmed";
-      update.confirmed_at = new Date().toISOString();
-      update.confirmed_by_member_id = isSpinner ? match.spinner_member_id : match.matched_member_id;
-    }
-
-    const { error: updateError } = await supabase.from("wheel_of_wonder_matches").update(update).eq("id", match.id);
-
-    if (updateError) {
+    try {
+      await wheel.recordExchange(match.id, {
+        spinnerMessageCount,
+        matchedMessageCount,
+        ...(shouldConfirm
+          ? { confirmed: { at: new Date().toISOString(), byMemberId: isSpinner ? match.spinner_member_id : match.matched_member_id } }
+          : {}),
+      });
+    } catch (updateError) {
       console.error("Error updating Wheel of Wonder match exchange:", updateError);
       return;
     }
@@ -409,15 +392,7 @@ async function trackWheelExchange(supabase: any, event: any, hubAuthorMemberId: 
 /**
  * Trigger Silver layer processing for Slack data
  */
-function triggerSlackProcessing(channelId: string, messageTs: string) {
-  const timestamp = new Date(parseFloat(messageTs) * 1000);
-  const from = new Date(timestamp);
-  from.setDate(from.getDate() - 1);
-  const to = new Date(timestamp);
-  to.setDate(to.getDate() + 1);
-
-  // Call the process/slack handler directly — avoids VERCEL_URL routing through
-  // Vercel deployment protection which blocks unauthenticated *.vercel.app requests.
+function triggerSlackProcessing(channelId: string, messageTs: string, opts: { threadTs?: string | null; fillGaps?: boolean } = {}) {
   // Wrapped in after() so Vercel keeps the function alive until processing
   // finishes; a bare floating promise can be cut off once the response is sent
   // (see docs/TODO.md Bug Fixes for the Slack webhook data-loss incident).
@@ -426,14 +401,32 @@ function triggerSlackProcessing(channelId: string, messageTs: string) {
       // Chat gets just this message (a constant-cost call, and what people are waiting to see), not the
       // windowed projection, which re-reads every message in the window and would grow with the day's traffic.
       const projectStarted = Date.now();
-      const projected = await projectChatMessage(createServiceRoleClient(), channelId, messageTs);
+      const service = createServiceRoleClient();
+      const projected = await projectChatMessage(service, channelId, messageTs);
       console.info(
         "[chat] projected one Slack message into chat in %dms%s",
         Date.now() - projectStarted,
-        projected ? "" : " (the chat has no such message, so nothing was attached to it)"
+        projected ? "" : " (the chat has no such message)"
       );
-      await triggerReprocessing("slack_messages", "bronze", { dateRange: { from, to }, exclude: ["chat"] });
-      console.log("Slack processing triggered successfully");
+
+      // The event refers to something the chat doesn't have: fetch it from Slack now (and its thread
+      // root, if it is a reply to one we lack) instead of waiting for the nightly import. Recorded in
+      // chat_gap_fills; a burst of events for one message is one fetch.
+      if (opts.fillGaps !== false) {
+        const filled = projected
+          ? opts.threadTs && opts.threadTs !== messageTs
+            ? await fillThreadIfRootMissing(service, { channelId, threadTs: opts.threadTs, source: "webhook" })
+            : null
+          : await fillMessageGap(service, { channelId, ts: messageTs, source: "webhook" });
+        if (filled?.claimed) {
+          console.info("[chat] gap-fill from a webhook event recovered %d messages and %d reactions%s", filled.messages, filled.reactions, filled.error ? ` (failed: ${filled.error})` : "");
+        }
+      }
+      // The member activities of this one message (and its reactions), not a rebuild of the day: that cost grows
+      // with the day's traffic, and concurrent events rebuilt the same rows at once and queued behind each other
+      // into the 8-second statement timeout. The windowed rebuild is left to imports and the nightly run.
+      const activities = await projectSlackActivity(service, channelId, messageTs);
+      if (activities) console.log("Slack activities projected: %d message, %d reactions", activities.messages, activities.reactions);
     } catch (error) {
       console.error("Error triggering Slack processing:", error);
     }

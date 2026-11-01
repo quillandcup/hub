@@ -1,4 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
 import { getHostEligibility } from "@/lib/host-eligibility";
 import type { MentorshipRow } from "@/lib/mentorship";
 
@@ -37,7 +38,9 @@ export function volunteerEligibilityMessage(eligibility: Exclude<VolunteerEligib
 
 export interface Volunteer {
   memberId: string;
+  /** Display name; the legal name is in `realName` when it differs. */
   name: string;
+  realName?: string;
   note: string | null;
   /** When they volunteered (the row's created_at). */
   volunteeredAt: string;
@@ -83,36 +86,11 @@ export function rankVolunteers(volunteers: Volunteer[], matches: MentorshipRow[]
     });
 }
 
-interface VolunteerDbRow {
-  member_id: string;
-  note: string | null;
-  created_at: string;
-  member: { name: string } | { name: string }[] | null;
-}
-
-/** Current volunteers (not withdrawn), with names. Paginated per CLAUDE.md. */
-export async function getVolunteers(supabase: SupabaseClient): Promise<Volunteer[]> {
-  const BATCH_SIZE = 1000;
-  const all: VolunteerDbRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("big_sister_volunteers")
-      .select("member_id, note, created_at, member:members(name)")
-      .is("deleted_at", null)
-      .order("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      all.push(...(batch as unknown as VolunteerDbRow[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all.map((r) => {
-    const member = Array.isArray(r.member) ? r.member[0] : r.member;
-    return { memberId: r.member_id, name: member?.name ?? "Unknown member", note: r.note, volunteeredAt: r.created_at };
+/** Current volunteers (not withdrawn), with names. */
+export async function getVolunteers(mentorships: MentorshipRepository): Promise<Volunteer[]> {
+  return (await mentorships.volunteers()).map((r) => {
+    const member = r.member;
+    const shown = member ? getMemberDisplayName(member) : "Unknown member";
+    return { memberId: r.member_id, name: shown, realName: member && shown !== member.name ? member.name : undefined, note: r.note, volunteeredAt: r.created_at };
   });
 }

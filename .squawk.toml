@@ -1,0 +1,35 @@
+# Squawk lints the migrations a change adds, starting from its recommended rule set.
+# Only the rules below are turned off, each with the reason. A rule that fails a migration
+# is not turned off to get it through: see CLAUDE.md, "Migrations: expand, then contract".
+#
+# The rules that matter most here are the ones that break the code still live while a deploy
+# rolls out (CI pushes migrations before the new code deploys): ban-drop-column, ban-drop-table,
+# ban-drop-function, ban-drop-constraint, renaming-column, renaming-table, renaming-object,
+# changing-column-type.
+
+# Supabase runs each migration file in one transaction.
+assume_in_transaction = true
+pg_version = "17.0"
+
+excluded_rules = [
+    # Reruns: a migration runs once and `supabase db push` records it, and a failure rolls
+    # the whole file back, so IF NOT EXISTS guards add nothing.
+    "prefer-robust-stmts",
+    # CREATE INDEX CONCURRENTLY can't run inside a transaction, so the migration can't comply.
+    "require-concurrent-index-creation",
+    "require-concurrent-index-deletion",
+    # A statement_timeout in a migration would kill the backfills some of them do.
+    "require-statement-timeout",
+    # Our primary keys are text ids (`new_id`), not serials; the int columns it flags are
+    # counts, sizes and durations.
+    "prefer-bigint-over-int",
+    "prefer-bigint-over-smallint",
+    # Table-scan locks: the largest production table has ~170k rows (read from prod on
+    # 2026-10-31), so a scan holds the lock for well under a second. Revisit when a table
+    # reaches the millions.
+    "adding-foreign-key-constraint",
+    "constraint-missing-not-valid",
+    "disallowed-unique-constraint",
+    "adding-not-nullable-field",
+    "adding-field-with-default",
+]

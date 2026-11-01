@@ -17,6 +17,7 @@ import {
 } from "@/lib/slack-engagement-stats"
 
 import { resolveDateRange } from "@/lib/stats-date-range"
+import { createRepos } from "@/lib/data/repos"
 import { requireAdminPage } from "@/lib/admin-auth"
 
 export const maxDuration = 60
@@ -25,8 +26,6 @@ export const metadata: Metadata = {
   title: "Slack Engagement",
 }
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>
-
 function formatDateLabel(dateStr: string, style: "long" | "short" = "long"): string {
   return new Date(dateStr + "T12:00:00Z").toLocaleDateString("en-US", {
     month: style === "long" ? "long" : "short",
@@ -34,90 +33,6 @@ function formatDateLabel(dateStr: string, style: "long" | "short" = "long"): str
     year: "numeric",
     timeZone: "UTC",
   })
-}
-
-async function fetchAllMessages(
-  supabase: SupabaseClient,
-  since: string,
-  until: string
-): Promise<SlackMessageRow[]> {
-  const rows: SlackMessageRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema("bronze")
-      .from("slack_messages_meta")
-      .select("channel_id, channel_name, occurred_at, deleted_at, user_id, thread_ts")
-      .gte("occurred_at", since)
-      .lte("occurred_at", until)
-      .is("deleted_at", null)
-      .order("occurred_at")
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as SlackMessageRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
-}
-
-async function fetchAllReactions(
-  supabase: SupabaseClient,
-  since: string,
-  until: string
-): Promise<SlackReactionRow[]> {
-  const rows: SlackReactionRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema("bronze")
-      .from("slack_reactions")
-      .select("channel_id, channel_name, occurred_at, deleted_at, user_id, reaction")
-      .gte("occurred_at", since)
-      .lte("occurred_at", until)
-      .is("deleted_at", null)
-      .order("occurred_at")
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as SlackReactionRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
-}
-
-async function fetchAllTimeMessageActivity(supabase: SupabaseClient): Promise<ChannelActivityRow[]> {
-  const rows: ChannelActivityRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema("bronze")
-      .from("slack_messages_meta")
-      .select("channel_id, occurred_at")
-      .is("deleted_at", null)
-      .order("occurred_at")
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as ChannelActivityRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
 }
 
 function StatCard({
@@ -136,7 +51,7 @@ function StatCard({
       <div className="text-3xl mb-2">{emoji}</div>
       <div className="text-4xl font-bold text-plum-600 dark:text-plum-400 tabular-nums">{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
-      {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</div>}
     </div>
   )
 }
@@ -166,19 +81,17 @@ export default async function SlackEngagementPage({
   const toLabel = to === todayDate ? "today" : formatDateLabel(to, "long")
   const sinceLabel = formatDateLabel(from, "short")
 
-  const [messages, reactions, { data: channelRows }, allTimeActivity] = await Promise.all([
-    fetchAllMessages(supabase, since, until),
-    fetchAllReactions(supabase, since, until),
-    supabase
-      .schema("bronze")
-      .from("slack_channels")
-      .select("channel_id, name, is_archived, is_private, is_mpim, member_count, created"),
-    fetchAllTimeMessageActivity(supabase),
+  const repos = createRepos(supabase)
+  const [messages, reactions, channelRows, allTimeActivity] = await Promise.all([
+    repos.slackMessages.liveMessagesBetween(since, until),
+    repos.slackMessages.liveReactionsBetween(since, until),
+    repos.slackWorkspace.channels(),
+    repos.slackMessages.liveMessageTimes(),
   ])
 
   // Group DMs count toward the totals, but they aren't channels: keep them (and
   // their names, which list the members) out of the per-channel tables.
-  const allConversations = (channelRows ?? []) as unknown as (SlackChannelRow & { is_mpim: boolean })[]
+  const allConversations = channelRows as unknown as (SlackChannelRow & { is_mpim: boolean })[]
   const groupDmIds = new Set(allConversations.filter((c) => c.is_mpim).map((c) => c.channel_id))
   const channels: SlackChannelRow[] = allConversations.filter((c) => !c.is_mpim)
   const channelMessages = messages.filter((m) => !groupDmIds.has(m.channel_id))
@@ -198,13 +111,14 @@ export default async function SlackEngagementPage({
     <div className="container mx-auto px-6 py-8 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Slack Engagement</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
           Quill &amp; Cup · {fromLabel} – {toLabel}
         </p>
         <DateRangeFilter from={from} to={to} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="💬"
           value={hero.totalMessages.toLocaleString()}
@@ -227,8 +141,10 @@ export default async function SlackEngagementPage({
           label="of messages were thread replies"
         />
       </div>
+      </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard emoji="📅" value={hero.busiestDay} label="busiest day (ET)" />
         <StatCard emoji="🕐" value={formatHour(hero.busiestHour)} label="busiest hour (ET)" />
         <StatCard
@@ -242,6 +158,7 @@ export default async function SlackEngagementPage({
           value={channelEngagement[0] ? `#${channelEngagement[0].name}` : "—"}
           label="most active channel"
         />
+      </div>
       </div>
 
       <SlackEngagementCharts

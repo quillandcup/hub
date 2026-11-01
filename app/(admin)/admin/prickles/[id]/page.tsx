@@ -1,3 +1,5 @@
+import { createRepos } from "@/lib/data/repos";
+import { attendeeRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -7,32 +9,21 @@ import type { Metadata } from "next";
 import PrickleDetails from "@/components/PrickleDetails";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { findUnmatchedZoomAttendees } from "@/lib/prickle-unmatched";
+import IgnoredZoomNames from "./IgnoredZoomNames";
 import AliasSearchForm from "@/app/(admin)/admin/hygiene/unmatched-zoom/AliasSearchForm";
 import { getScheduleSlot } from "@/lib/scheduled-prickle-stats";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
 import TestCheckinDMs from "./TestCheckinDMs";
+import ShowInEvents from "./ShowInEvents";
+import { updatePrickle } from "./actions";
+import { loadEventDecision } from "@/lib/prickle-event-decisions";
+import { getUserFeaturePreviews } from "@/lib/features.server";
 
 const getPrickle = cache(async (id: string) => {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      title,
-      description,
-      host:members(id, name),
-      start_time,
-      end_time,
-      source,
-      zoom_meeting_uuid,
-      type_id,
-      prickle_types:type_id(name, description, normalized_name)
-    `)
-    .eq("id", id)
-    .single();
-  return data;
+  return createRepos(supabase).prickles.byId(id);
 });
 
 export async function generateMetadata({
@@ -45,7 +36,7 @@ export async function generateMetadata({
 
   if (!prickle) return { title: "Prickle" };
 
-  return { title: formatPrickleTitle(prickle) };
+  return { title: prickleTitle(prickle) };
 }
 
 export default async function AdminPrickleDetailPage({
@@ -78,52 +69,41 @@ export default async function AdminPrickleDetailPage({
     );
   }
 
-  const { data: attendanceRecords } = await supabase
-    .from("prickle_attendance")
-    .select(`
-      id,
-      join_time,
-      leave_time,
-      confidence_score,
-      member_id,
-      members!inner(id, name, email)
-    `)
-    .eq("prickle_id", id)
-    .order("join_time", { ascending: true });
+  const attendeeList = await createRepos(supabase).attendance.attendeesOf(id, { includeEmail: true });
+  const attendanceRecords = attendeeList.map(attendeeRow);
 
-  const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-  const hostId = host?.id;
+  const hostId = prickle.host?.id;
   let hostMissing = false;
   let hostLate = false;
 
   if (hostId) {
     // Records are ordered by join_time, so the first match is the host's earliest join.
-    const hostAttendance = attendanceRecords?.find((a: any) => a.member_id === hostId);
-    const hostStatus = computeHostStatus(prickle.start_time, prickle.end_time, hostAttendance?.join_time ?? null);
+    const hostAttendance = attendanceRecords.find((a) => a.member_id === hostId);
+    const hostStatus = computeHostStatus(prickle.startTime, prickle.endTime, hostAttendance?.join_time ?? null);
     hostMissing = hostStatus === "missing";
     hostLate = hostStatus === "late";
   }
 
   const userTimezone = await getUserTimezonePreference();
 
-  const [zoomResult, membersResult, aliasesResult, ignoredResult, staffResult] = await Promise.all([
-    supabase.schema("bronze").from("zoom_attendees")
-      .select("name, email")
-      .lt("join_time", prickle.end_time)
-      .gt("leave_time", prickle.start_time),
-    supabase.from("members").select("id, name, email"),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
-    supabase.from("ignored_zoom_names").select("zoom_name"),
-    supabase.from("staff").select("name, email"),
+  const [zoomResult, membersResult, aliasesResult, ignoredResult, ignoredHereResult, staffResult] = await Promise.all([
+    createRepos(supabase).zoom.attendeeNamesOverlapping(prickle.startTime, prickle.endTime),
+    createRepos(supabase).members.identities(),
+    createRepos(supabase).aliases.nameAliases(),
+    createRepos(supabase).zoom.ignoredNames(),
+    createRepos(supabase).zoom.ignoredAppearancesOf(prickle.id),
+    createRepos(supabase).staff.all(),
   ]);
 
-  const members = membersResult.data || [];
-  const aliases = aliasesResult.data || [];
-  const ignoredNames = (ignoredResult.data || []).map((i: any) => i.zoom_name);
-  const staff = staffResult.data || [];
+  const members = membersResult;
+  const aliases = aliasesResult;
+  const ignoredHere = ignoredHereResult.map((i) => ({ zoomName: i.zoom_name, reason: i.reason }));
+  const ignoredNames = [...ignoredResult, ...ignoredHereResult.map((i) => i.zoom_name)];
+
+  const staff = staffResult;
 
   const unmatchedZoomAttendees = findUnmatchedZoomAttendees(
-    zoomResult.data || [],
+    zoomResult,
     members,
     aliases,
     ignoredNames,
@@ -134,29 +114,29 @@ export default async function AdminPrickleDetailPage({
   // not just the count within this prickle's time window.
   if (unmatchedZoomAttendees.length > 0) {
     const unmatchedNames = unmatchedZoomAttendees.map(a => a.zoomName);
-    const { data: historicalAttendees } = await supabase
-      .schema("bronze").from("zoom_attendees")
-      .select("name, meeting_uuid")
-      .in("name", unmatchedNames)
-      .not("meeting_uuid", "is", null);
-
-    if (historicalAttendees) {
-      const historicalMeetings = new Map<string, Set<string>>();
-      for (const a of historicalAttendees) {
-        if (!historicalMeetings.has(a.name)) historicalMeetings.set(a.name, new Set());
-        historicalMeetings.get(a.name)!.add(a.meeting_uuid);
-      }
-      for (const a of unmatchedZoomAttendees) {
-        a.appearances = historicalMeetings.get(a.zoomName)?.size ?? a.appearances;
-      }
+    const historicalMeetings = await createRepos(supabase).zoom.meetingCountsByName(unmatchedNames);
+    for (const a of unmatchedZoomAttendees) {
+      a.appearances = historicalMeetings.get(a.zoomName) ?? a.appearances;
     }
   }
 
-  const prickleTypeData = prickle.prickle_types as any;
-  const normalizedName = prickleTypeData?.normalized_name as string | undefined;
+  // The event that follows this prickle's calendar event, if it has one (events are behind a feature preview).
+  const eventsEnabled = (await getUserFeaturePreviews(user.id)).includes("events");
+  const eventFollowing =
+    eventsEnabled && prickle.calendarEventId
+      ? await createRepos(supabase).events.byCalendarEventId(prickle.calendarEventId)
+      : null;
+
+  // What an admin can change on a calendar prickle, and what they have already set by hand.
+  const calendarTypes = prickle.calendarEventId ? (await createRepos(supabase).prickles.types()).map((t) => ({ id: t.id, name: t.name })) : [];
+  const decision = prickle.calendarEventId
+    ? await loadEventDecision(supabase, prickle.calendarEventId)
+    : { resolved_title: null, resolved_description: null, resolved_guest_speaker: null, resolved_location: null };
+
+  const normalizedName = prickle.type?.normalizedName;
   let insightsSlotUrl: string | undefined;
   if (normalizedName) {
-    const slot = getScheduleSlot(prickle.start_time);
+    const slot = getScheduleSlot(prickle.startTime);
     insightsSlotUrl = `/admin/insights/prickles/${normalizedName}?group=schedule&slot=${encodeURIComponent(slot.sortKey)}`;
   }
 
@@ -175,19 +155,42 @@ export default async function AdminPrickleDetailPage({
         <div className="max-w-4xl mx-auto space-y-6">
           <PrickleDetails
             prickle={prickle}
-            attendanceRecords={attendanceRecords || []}
+            attendanceRecords={attendanceRecords}
             hostMissing={hostMissing}
             hostLate={hostLate}
             userTimezonePreference={userTimezone}
             memberBasePath="/admin/members"
             showMemberEmails={true}
             insightsSlotUrl={insightsSlotUrl}
+            edit={
+              prickle.calendarEventId
+                ? {
+                    types: calendarTypes,
+                    members: members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email })),
+                    overridden: {
+                      title: decision.resolved_title !== null,
+                      description: decision.resolved_description !== null,
+                      guestSpeaker: decision.resolved_guest_speaker !== null,
+                      location: decision.resolved_location !== null,
+                    },
+                    onSave: updatePrickle.bind(null, prickle.id),
+                  }
+                : undefined
+            }
           />
+          {eventsEnabled && prickle.calendarEventId && (
+            <ShowInEvents
+              calendarEventId={prickle.calendarEventId}
+              initial={eventFollowing ? { id: eventFollowing.id, slug: eventFollowing.slug, hidden: eventFollowing.hidden } : null}
+            />
+          )}
           <TestCheckinDMs prickleId={prickle.id} />
+          <IgnoredZoomNames prickleId={prickle.id} items={ignoredHere} />
           {unmatchedZoomAttendees.length > 0 && (
             <AliasSearchForm
               unmatchedAttendees={unmatchedZoomAttendees}
               allMembers={members}
+              prickleId={prickle.id}
             />
           )}
         </div>

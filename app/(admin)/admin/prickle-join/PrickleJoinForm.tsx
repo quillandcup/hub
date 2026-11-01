@@ -65,7 +65,7 @@ export default function PrickleJoinForm({
           <input type="checkbox" checked={startNow} onChange={(e) => setStartNow(e.target.checked)} />
           Start right now instead
         </label>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           A date applies from midnight that day ({timeZone}), judged by when each prickle starts, so a late-night prickle belongs to the day it
           begins. Earlier prickles, and calendar events for them, keep their old link.
         </p>

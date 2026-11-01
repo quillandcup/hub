@@ -20,7 +20,6 @@ vi.mock('next/navigation', () => ({
 import WorkQueueSections from '@/app/(admin)/admin/work-queue/WorkQueueSections'
 import AllPricklesTable from '@/app/(member)/my-prickles/AllPricklesTable'
 import AttendanceListTable from '@/components/AttendanceListTable'
-import MemberSlackActivityPanel from '@/app/(admin)/admin/members/[id]/MemberSlackActivityPanel'
 import UnmatchedEventsTable from '@/app/(admin)/admin/data/prickle-types/UnmatchedEventsTable'
 import MissingStripeTable from '@/app/(admin)/admin/hygiene/missing-member-data/MissingStripeTable'
 import PrickleTypesTable from '@/app/(admin)/admin/data/prickle-types/PrickleTypesTable'
@@ -124,31 +123,6 @@ describe('AttendanceListTable', () => {
   })
 })
 
-describe('MemberSlackActivityPanel', () => {
-  const activity = (id: string, channel: string, occurred: string) => ({
-    id,
-    activity_type: 'slack_message',
-    occurred_at: occurred,
-    description: `message ${id}`,
-    data: { channel_name: channel },
-  })
-  const activities = [
-    activity('1', 'writing', '2026-09-01T10:00:00Z'),
-    activity('2', 'announcements', '2026-09-20T10:00:00Z'),
-    activity('3', 'general', '2026-09-10T10:00:00Z'),
-  ]
-
-  it('defaults to newest first and sorts by Channel on click', async () => {
-    render(<MemberSlackActivityPanel slackActivities={activities} />)
-    const table = screen.getByRole('table')
-    expect(column(1, table)).toEqual(['#announcements', '#general', '#writing'])
-    await userEvent.click(within(table).getByText('Date'))
-    expect(column(1, table)).toEqual(['#writing', '#general', '#announcements'])
-    await userEvent.click(within(table).getByText('Channel'))
-    expect(column(1, table)).toEqual(['#announcements', '#general', '#writing'])
-  })
-})
-
 describe('UnmatchedEventsTable', () => {
   const group = (summary: string, count: number) => ({
     summary,
@@ -191,11 +165,41 @@ describe('server-page tables extracted into sortable client components', () => {
       description: null,
       purpose,
       solo_task_friendly: false,
+      listed_in_events: false,
+      announced_publicly: false,
+      guests_allowed: false,
     })
     render(<PrickleTypesTable rows={[type('1', 'Alpha', 'writing'), type('2', 'Beta', 'social')]} />)
     expect(firstColumn()).toEqual(['Alpha', 'Beta'])
     await userEvent.click(screen.getByText('Purpose'))
     expect(firstColumn()).toEqual(['Beta', 'Alpha'])
+  })
+
+  it('PrickleTypesTable sorts by Default host, people without one last', async () => {
+    const base = { description: null, purpose: 'writing', solo_task_friendly: false, listed_in_events: false, announced_publicly: false, guests_allowed: false }
+    const rows = [
+      { ...base, id: '1', name: 'Alpha', normalized_name: 'alpha', default_host_name: null },
+      { ...base, id: '2', name: 'Beta', normalized_name: 'beta', default_host_name: 'Zed Example' },
+      { ...base, id: '3', name: 'Gamma', normalized_name: 'gamma', default_host_name: 'Ada Example' },
+    ]
+    render(<PrickleTypesTable rows={rows} />)
+    await userEvent.click(screen.getByText('Default host'))
+    expect(firstColumn()).toEqual(['Gamma', 'Beta', 'Alpha'])
+  })
+
+  it('PrickleTypesTable sorts by each dimension, Yes first', async () => {
+    const base = { description: null, purpose: 'writing', solo_task_friendly: false, listed_in_events: false, announced_publicly: false, guests_allowed: false }
+    const rows = [
+      { ...base, id: '1', name: 'Alpha', normalized_name: 'alpha' },
+      { ...base, id: '2', name: 'Beta', normalized_name: 'beta', listed_in_events: true, announced_publicly: true, guests_allowed: true },
+    ]
+    render(<PrickleTypesTable rows={rows} />)
+    for (const column of ['In Events', 'Public', 'Guests']) {
+      await userEvent.click(screen.getByText(column))
+      expect(firstColumn()).toEqual(['Beta', 'Alpha'])
+      await userEvent.click(screen.getByText(column))
+      expect(firstColumn()).toEqual(['Alpha', 'Beta'])
+    }
   })
 
   it('AliasesTable sorts by alias count', async () => {

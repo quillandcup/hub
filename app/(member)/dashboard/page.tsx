@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
+import { createRepos } from "@/lib/data/repos"
 import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -8,6 +9,7 @@ import { getUserTimezonePreference } from "@/lib/timezone"
 import { getStarredGoals, getUnloggedRecentPrickles } from "../projects/actions"
 import UnloggedPricklesCard from "@/components/writing/UnloggedPricklesCard"
 import GoalDisplay from "@/components/writing/GoalDisplay"
+import { isMissedGoal } from "@/lib/writing-projects"
 import UpcomingPrickleRow from "@/components/UpcomingPrickleRow"
 import { loadDismissedCheckinIds } from "@/lib/prickle-checkin-dms"
 import { getRankedUpcomingPrickles } from "@/lib/upcoming-prickles"
@@ -17,6 +19,10 @@ import { getMyMentorships } from "@/lib/my-mentorship";
 import { getSlackDmLinksForMembers } from "@/lib/member-slack-links";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import BigSisterCards from "@/components/member/BigSisterCards";
+import ContinueWatchingCard from "@/components/courses/ContinueWatchingCard";
+import { getCoursesCaller } from "@/lib/courses/caller";
+import { loadContinueWatching } from "@/lib/courses/member";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -49,21 +55,17 @@ export default async function DashboardPage() {
     await getUserFeaturePreviews(user.id)
   )
 
-  const [ranked, starredGoals, { data: projectRows }, unlogged, checkins, mentorships] = await Promise.all([
+  const [ranked, starredGoalRows, projects, unlogged, checkins, mentorships] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getStarredGoals(),
-    supabase
-      .from("writing_projects")
-      .select("id, title")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
+    createRepos(supabase).writing.activeProjects(memberId),
     getUnloggedRecentPrickles(),
     getMyCheckins(),
     bigSistersOn
-      ? getMyMentorships(supabase, memberId, now.toISOString().slice(0, 10))
+      ? getMyMentorships(createRepos(supabase).mentorship, memberId, now.toISOString().slice(0, 10))
       : Promise.resolve({ bigSister: null, mentees: [] }),
   ])
+  const starredGoals = starredGoalRows.filter((goal) => !isMissedGoal(goal))
   // Only this member's own partners, since the Slack lookup uses the service role.
   const slackLinks = Object.fromEntries(
     await getSlackDmLinksForMembers(
@@ -72,7 +74,11 @@ export default async function DashboardPage() {
       )
     )
   )
-  const projects = projectRows ?? []
+  // Null when the courses flag is off for them, they have no open course, or nothing is in progress.
+  const coursesCaller = await getCoursesCaller()
+  const continueWatching = coursesCaller
+    ? await loadContinueWatching(createServiceRoleClient(), coursesCaller.scope)
+    : null
   // Only prompt members who track writing -- there's no progress to ask about otherwise.
   const unloggedPrickles =
     projects.length > 0
@@ -82,20 +88,22 @@ export default async function DashboardPage() {
   const displayedUpcoming = ranked.slice(0, MAX_UPCOMING_DISPLAY)
   const dismissedCheckins = await loadDismissedCheckinIds(supabase, memberId, displayedUpcoming.map((r) => r.prickle.id))
 
-  const firstName = effectiveIdentity.memberName?.split(" ")[0]
+  const firstName = (effectiveIdentity.memberDisplayName ?? effectiveIdentity.memberName)?.split(" ")[0]
 
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       <h1 className="text-3xl font-bold mb-2">Welcome back{firstName ? `, ${firstName}` : ""}</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
         Here&apos;s what&apos;s coming up in the next {UPCOMING_WINDOW_DAYS} days.
       </p>
 
       <BigSisterCards mentorships={mentorships} slackLinks={slackLinks} linkToPage />
 
+      {continueWatching && <ContinueWatchingCard item={continueWatching} />}
+
       {starredGoals.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Writing Goals
           </h2>
           <div className="space-y-4">
@@ -121,7 +129,7 @@ export default async function DashboardPage() {
 
       {upcoming.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 text-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.
           </p>
           <Link
@@ -134,7 +142,7 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Upcoming Prickles
           </h2>
           <div>

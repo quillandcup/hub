@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { CHANNEL_ADAPTERS, type ChannelId, type OutboundMessage } from "@/lib/channels";
 import { APP_URL } from "@/lib/config";
 import * as Sentry from "@sentry/nextjs";
@@ -52,23 +53,13 @@ export async function loadNotificationPreferences(
   kind: NotificationKindId,
   memberIds: string[]
 ): Promise<Map<string, NotificationPreferenceRow[]>> {
-  const byMember = new Map<string, NotificationPreferenceRow[]>();
-  for (let i = 0; i < memberIds.length; i += MEMBER_ID_CHUNK) {
-    const { data, error } = await supabase
-      .from("notification_preferences")
-      .select("member_id, kind, channel, enabled")
-      .eq("kind", kind)
-      .in("member_id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
+  try {
+    return await createRepos(supabase).notifications.preferencesForKind(kind, memberIds);
+  } catch (error) {
     // A missing row means "use defaults"; a failed lookup tells us nothing about opt-outs.
     // Abort before callers claim dedup records so the next scheduled run can try again.
-    if (error) throw new Error(`Loading ${kind} notification preferences failed: ${error.message}`);
-    for (const row of data ?? []) {
-      const rows = byMember.get(row.member_id) ?? [];
-      rows.push(row);
-      byMember.set(row.member_id, rows);
-    }
+    throw new Error(`Loading ${kind} notification preferences failed: ${(error as Error).message}`);
   }
-  return byMember;
 }
 
 export async function createNotifier(
@@ -148,10 +139,8 @@ export async function createNotifier(
 async function loadUserIds(supabase: any, memberIds: string[]): Promise<Map<string, string>> {
   const userIds = new Map<string, string>();
   try {
-    for (let i = 0; i < memberIds.length; i += MEMBER_ID_CHUNK) {
-      const { data, error } = await supabase.from("members").select("id, user_id").in("id", memberIds.slice(i, i + MEMBER_ID_CHUNK));
-      if (error) throw error;
-      for (const row of data ?? []) if (row.user_id) userIds.set(row.id, row.user_id);
+    for (const [memberId, userId] of await createRepos(supabase).members.userIdsByMemberId(memberIds)) {
+      if (userId) userIds.set(memberId, userId);
     }
   } catch (error) {
     console.error("[notifications] Loading user ids for the usage log failed", error instanceof Error ? error.message : error);

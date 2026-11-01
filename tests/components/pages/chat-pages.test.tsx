@@ -21,6 +21,10 @@ import {
   type FakeTables,
 } from "@/tests/helpers/server-page";
 
+let lastChannelCookie: string | undefined;
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "chat_last_channel" && lastChannelCookie ? { name, value: lastChannelCookie } : undefined) }),
+}));
 vi.mock("next/navigation", () => import("@/tests/helpers/server-page").then((m) => m.nextNavigationModule));
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
@@ -39,7 +43,19 @@ vi.mock("@/app/(member)/chat/actions", () => ({
   retryChatMessage: vi.fn(),
   toggleChatReaction: vi.fn(),
 }));
+vi.mock("@/app/(member)/chat/membership-actions", () => ({
+  addChatMembers: vi.fn(),
+  joinChatChannel: vi.fn(),
+  removeChatMember: vi.fn(),
+  searchMembersToAdd: vi.fn(async () => []),
+}));
 vi.mock("@/lib/chat/live", () => import("@/tests/helpers/chat-live").then((m) => m.chatLiveModule));
+// Opening a conversation schedules a catch-up with Slack after the response; it is checked in chat-gap-fill.test.ts.
+const afterCallbacks: (() => unknown)[] = [];
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => void afterCallbacks.push(cb) }));
+const catchUpChannel = vi.fn(async () => ({ claimed: false, messages: 0, reactions: 0 }));
+vi.mock("@/lib/chat/gap-fill", () => ({ catchUpChannel: (...a: unknown[]) => catchUpChannel(...(a as [])) }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => ({ service: true }) }));
 
 const EMPTY_CTX = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const EXAMPLE_VIEW = {
@@ -53,18 +69,23 @@ const EXAMPLE_VIEW = {
   body: "text",
   contentState: "ok" as const,
   hasFiles: false,
+  files: [],
   replyCount: 0,
   lastReplyAt: null,
   reactions: [],
   syncStatus: null,
   mine: false,
   fromHub: false,
+  system: false,
 };
 
+let staffRole = "member";
 let earnedBadges: unknown[] = [];
 let sudoMemberHasFlag = true;
 /** The member's read marker for a conversation (null = never read: counts from joining). */
 let readMarker: string | null = null;
+/** The member's read marker can't be read. */
+let markerError = false;
 let unread: { channel_id: string; unread: number }[] = [];
 vi.mock("@/lib/features.server", () => ({
   getUserFeaturePreviews: vi.fn(),
@@ -80,6 +101,7 @@ vi.mock("@/lib/chat/names", () => ({
   customEmojiFor: vi.fn(async () => ({})),
   slackUserPhotos: vi.fn(async () => ({})),
   slackUserMemberIds: vi.fn(async () => ({})),
+  slackUserHubNames: vi.fn(async () => ({})),
   slackChannelNames: vi.fn(async () => ({})),
 }));
 
@@ -88,10 +110,11 @@ const { loadOlderChat } = await import("@/app/(member)/chat/actions");
 const { getMemberBadges } = await import("@/lib/badges");
 const { default: ChatLayout } = await import("@/app/(member)/chat/layout");
 const { default: ChatIndexPage } = await import("@/app/(member)/chat/page");
-const { default: ChatChannelPage } = await import("@/app/(member)/chat/[id]/page");
-const { default: ChatMembersPage } = await import("@/app/(member)/chat/[id]/members/page");
+const { default: ChatChannelPage, generateMetadata: channelMetadata } = await import("@/app/(member)/chat/[id]/page");
+const { default: ChatMembersPage, generateMetadata: membersMetadata } = await import("@/app/(member)/chat/[id]/members/page");
 
-const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
+// Channels are 1-99, messages 100-899, members 900 and up; base58 has no 0, so it is written as A.
+const id = (n: number) => `${n < 100 ? "chn" : n < 900 ? "msg" : "mbr"}_${String(n).replace(/0/g, "A").padStart(12, "1")}`;
 const GENERAL = id(1);
 const HOSTS = id(2);
 const SECRET = id(3);
@@ -99,7 +122,8 @@ const QUIET = id(4);
 const GROUP = id(5);
 
 const channel = (cid: string, extra: Record<string, unknown>) => ({
-  id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null, ...extra,
+  id: cid, kind: "channel", visibility: "public", restricted: false, name: null, archived_at: null, slack_channel_id: null,
+  bridge_mode: "bridged", bridge_disabled: false, bridge_status: "ok", ...extra,
 });
 const CHANNELS = [
   channel(GENERAL, { name: "general", slack_channel_id: "C_GENERAL" }),
@@ -140,6 +164,7 @@ const fakeTables = (): FakeTables => ({
   chat_channel_members: (q) => {
     const channelId = eqArg(q, "channel_id") as string | undefined;
     if (channelId && eqArg(q, "member_id")) {
+      if (q.calls.some((c) => c.method === "select" && String(c.args[0]).includes("last_read_at")) && markerError) return { data: null, error: { message: "db down" } };
       return { data: JOINED.includes(channelId) ? [{ channel_id: channelId, last_read_at: readMarker, joined_at: "2026-01-01T00:00:00Z" }] : [] };
     }
     if (eqArg(q, "member_id")) return { data: JOINED.map((c) => ({ channel_id: c })) };
@@ -165,6 +190,7 @@ const fakeTables = (): FakeTables => ({
     const wanted = eqArg(q, "id");
     return { data: wanted ? rows.filter((r) => r.id === wanted) : rows };
   },
+  user_profiles: () => ({ data: { role: staffRole } }),
   member_ask_me_about: { data: { topics: ["cozy mysteries", "morning routines"] } },
   chat_messages: (q) => {
     if (q.calls.some((c) => c.method === "in" && c.args[0] === "thread_root_id")) return { data: replies };
@@ -181,29 +207,49 @@ async function renderChannel(cid: string, search: Record<string, string> = {}) {
 
 beforeEach(() => {
   resetServerPageMocks();
+  afterCallbacks.length = 0;
+  catchUpChannel.mockClear();
   sudoMemberHasFlag = true;
+  staffRole = "member";
   readMarker = null;
+  markerError = false;
   unread = [];
   earnedBadges = [];
   messages = [];
   reactions = [];
   replies = [];
+  lastChannelCookie = undefined;
   vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat"]);
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   fake = useFakeSupabase(fakeTables());
+});
+
+describe("chat page titles", () => {
+  it("names the conversation in the tab title", async () => {
+    expect(await channelMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "#general · Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: GENERAL }) })).toEqual({ title: "Members · #general · Chat" });
+    expect(await channelMetadata({ params: Promise.resolve({ id: GROUP }) })).toEqual({ title: "Gale Prickleton · Chat" });
+  });
+
+  it("falls back to Chat for an unknown or malformed id", async () => {
+    expect(await channelMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Chat" });
+    expect(await channelMetadata({ params: Promise.resolve({ id: id(50) }) })).toEqual({ title: "Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: "nope" }) })).toEqual({ title: "Members · Chat" });
+    expect(await membersMetadata({ params: Promise.resolve({ id: id(50) }) })).toEqual({ title: "Members · Chat" });
+  });
 });
 
 describe("chat shell", () => {
   it("is a 404 without the chat flag, on the layout and on every page", async () => {
     vi.mocked(getUserFeaturePreviews).mockResolvedValue([]);
     await expect(ChatLayout({ children: null })).rejects.toThrow("404");
-    await expect(ChatIndexPage()).rejects.toThrow("404");
+    await expect(ChatIndexPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("404");
     await expect(ChatChannelPage({ params: Promise.resolve({ id: GENERAL }), searchParams: Promise.resolve({}) })).rejects.toThrow("404");
   });
 
   it("sends signed-out visitors to login", async () => {
     signInAs(null);
-    await expectRedirect(ChatIndexPage, undefined, "/login");
+    await expectRedirect(ChatIndexPage, { searchParams: Promise.resolve({}) }, "/login");
   });
 
   it("lists public channels and the member's own conversations, and nothing else", async () => {
@@ -215,6 +261,11 @@ describe("chat shell", () => {
     expect(within(nav).getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", `/chat/${GROUP}`);
     expect(within(nav).queryByText("#secret")).not.toBeInTheDocument();
     expect(screen.getByText("content")).toBeInTheDocument();
+  });
+
+  it("links to the privacy page under the conversations", async () => {
+    render(await ChatLayout({ children: null }));
+    expect(screen.getByRole("link", { name: "Who can see this?" })).toHaveAttribute("href", "/privacy");
   });
 
   it("shows unread counts beside the conversations that have some, and none in sudo", async () => {
@@ -258,7 +309,17 @@ describe("the line between read and new", () => {
     await renderChannel(HOSTS);
     expect(line()).toBeInTheDocument();
     expect(line()!.nextElementSibling).toHaveAttribute("id", `m-${id(103)}`);
-    expect(line()!.previousElementSibling).toHaveAttribute("id", `m-${id(102)}`);
+    // The messages fall on different days, so the previous one sits in the section above.
+    const previous = document.getElementById(`m-${id(102)}`)!;
+    expect(previous.compareDocumentPosition(line()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws no line when the read marker can't be read", async () => {
+    messages = three();
+    readMarker = "2026-10-01T12:00:00Z";
+    markerError = true;
+    await renderChannel(HOSTS);
+    expect(line()).not.toBeInTheDocument();
   });
 
   it("is not drawn for a public channel the member is not in (no read marker to compare with)", async () => {
@@ -330,14 +391,16 @@ describe("channel page", () => {
     expect(within(first).getByText("world").tagName).toBe("STRONG");
     expect(within(first).getByText("@Gale Prickleton")).toBeInTheDocument();
     const chips = within(first).getAllByRole("listitem").map((li) => li.textContent);
-    expect(chips).toEqual(["🎉 2", "👀 1"]);
+    expect(chips.map((c) => c?.replace(/^.*reacted with :[a-z_]+:/, ""))).toEqual(["🎉 2", "👀 1"]);
+    expect(chips[0]).toContain("You (click to remove) and Gale Prickleton reacted with :tada:");
     expect(within(first).getByRole("link", { name: /2 replies/ })).toHaveAttribute("href", `/chat/${GENERAL}?thread=${id(101)}`);
     // The author's photo, and one avatar per distinct replier (Fern has no photo: initials).
     expect(first.querySelectorAll('img[src="https://photos.example.test/gale.jpg"]').length).toBeGreaterThanOrEqual(1);
     const stack = within(first).getByRole("link", { name: /2 replies/ }).querySelectorAll("[title]");
     expect([...stack].map((el) => el.getAttribute("title"))).toEqual(["Fern", "Gale Prickleton"]);
 
-    expect(within(document.getElementById(`m-${id(102)}`)!).getByText("This message was deleted.")).toBeInTheDocument();
+    expect(document.getElementById(`m-${id(102)}`)).toBeNull();
+    expect(screen.queryByText("This message was deleted.")).toBeNull();
     expect(within(document.getElementById(`m-${id(103)}`)!).getByText("You can't read this message.")).toBeInTheDocument();
 
     const fromApp = document.getElementById(`m-${id(104)}`)!;
@@ -423,12 +486,12 @@ describe("channel page", () => {
     it("offers reactions only with the chat_posting flag, and in a public channel the member hasn't joined", async () => {
       messages = [msg(1)];
       await renderChannel(GENERAL);
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
       cleanup();
 
       vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
       await renderChannel(GENERAL);
-      expect(screen.getByRole("button", { name: "Add reaction" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add reaction…" })).toBeInTheDocument();
     });
 
     it("offers no message box in a public channel the member hasn't joined, and nothing in sudo", async () => {
@@ -441,7 +504,7 @@ describe("channel page", () => {
       signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
       await renderChannel(HOSTS);
       expect(composer()).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add reaction…" })).not.toBeInTheDocument();
     });
 
     it("offers a reply box in a thread whose root is in Slack, and none while the root is still sending", async () => {
@@ -466,6 +529,41 @@ describe("channel page", () => {
       await renderChannel(HOSTS);
       expect(screen.getAllByText(/Slack didn't get this message/)).toHaveLength(2);
       expect(screen.getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+    });
+  });
+
+  describe("catching up with Slack on open", () => {
+    const runAfter = async () => {
+      for (const cb of afterCallbacks.splice(0)) await cb();
+    };
+
+    it("schedules a catch-up of the conversation after the response, from the open conversation", async () => {
+      messages = [msg(1)];
+      await renderChannel(HOSTS);
+      expect(catchUpChannel).not.toHaveBeenCalled(); // not before the page is sent
+
+      await runAfter();
+      expect(catchUpChannel).toHaveBeenCalledWith({ service: true }, { channelId: "C_HOSTS", source: "open" });
+    });
+
+    it("doesn't, on an older page or in sudo (and never for a restricted conversation viewed in sudo)", async () => {
+      messages = [msg(1)];
+      await renderChannel(HOSTS, { before: "2026-10-05T00:00:00Z" });
+      expect(afterCallbacks).toHaveLength(0);
+      cleanup();
+
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderChannel(GENERAL);
+      await renderChannel(QUIET);
+      expect(afterCallbacks).toHaveLength(0);
+    });
+
+    it("never lets a failed catch-up reach the reader", async () => {
+      messages = [msg(1)];
+      catchUpChannel.mockRejectedValueOnce(new Error("slack down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await renderChannel(HOSTS);
+      await expect(runAfter()).resolves.toBeUndefined();
     });
   });
 
@@ -551,7 +649,7 @@ describe("authors and members", () => {
     const profile = `/chat/${GENERAL}?profile=member-gale`;
     expect(first.getByRole("link", { name: "Gale Prickleton" })).toHaveAttribute("href", profile);
     expect(first.getAllByRole("link").filter((a) => !/thread=/.test(a.getAttribute("href")!)).every((a) => a.getAttribute("href") === profile)).toBe(true);
-    expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(document.getElementById(`m-${id(104)}`)!).queryByRole("link", { name: /Prickleton|Slack/ })).not.toBeInTheDocument();
   });
 
   it("shows a members link with the count in the channel header", async () => {
@@ -569,11 +667,96 @@ describe("authors and members", () => {
   it("404s the members page for a private conversation the member isn't in", async () => {
     await expect(ChatMembersPage({ params: Promise.resolve({ id: SECRET }) })).rejects.toThrow("404");
   });
+
+  describe("changing who is in a conversation (behind the chat_posting preview)", () => {
+    const membersPage = (cid: string) => ChatMembersPage({ params: Promise.resolve({ id: cid }) }).then((ui) => render(ui));
+    const on = () => vi.mocked(getUserFeaturePreviews).mockResolvedValue(["chat", "chat_posting"]);
+
+    it("shows no controls without the preview", async () => {
+      await membersPage(HOSTS);
+      expect(screen.queryByRole("button", { name: /Leave/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
+    });
+
+    it("lets a member leave and add people to a conversation they're in, but only staff remove others", async () => {
+      on();
+      await membersPage(HOSTS);
+      expect(screen.getByRole("button", { name: "Leave #hosts" })).toBeInTheDocument();
+      expect(screen.getByRole("searchbox", { name: "Add people" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+      cleanup();
+
+      staffRole = "admin";
+      await membersPage(GROUP);
+      expect(screen.getByText(/Slack doesn't allow changing who is in a group message/)).toBeInTheDocument();
+      cleanup();
+
+      await membersPage(HOSTS);
+      expect(screen.getAllByRole("button", { name: /^Remove / }).length).toBeGreaterThan(0);
+    });
+
+    it("offers to join a public channel the member isn't in, and no way to add people", async () => {
+      on();
+      await membersPage(GENERAL);
+      expect(screen.getByRole("button", { name: "Join #general" })).toBeInTheDocument();
+      expect(screen.queryByRole("searchbox", { name: "Add people" })).not.toBeInTheDocument();
+    });
+
+    it("explains a conversation that isn't bridged to Slack", async () => {
+      on();
+      CHANNELS[0].bridge_mode = "app_only";
+      try {
+        await membersPage(GENERAL);
+        expect(screen.getByText(/isn't connected to Slack/)).toBeInTheDocument();
+      } finally {
+        CHANNELS[0].bridge_mode = "bridged";
+      }
+    });
+
+    it("on the channel page, offers a join prompt in place of the message box for a public channel the member isn't in", async () => {
+      on();
+      await renderChannel(GENERAL);
+      expect(screen.getByRole("region", { name: "Join #general" })).toBeInTheDocument();
+      cleanup();
+
+      await renderChannel(HOSTS);
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
+    });
+
+    it("has no join prompt without the preview or in sudo", async () => {
+      await renderChannel(GENERAL);
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
+      cleanup();
+
+      on();
+      signInAs(MEMBER_USER, { ...MEMBER_IDENTITY, isSudo: true });
+      await renderChannel(GENERAL);
+      expect(screen.queryByRole("region", { name: /^Join #/ })).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("chat index", () => {
+  it("reopens the conversation last viewed", async () => {
+    lastChannelCookie = GENERAL;
+    await expectRedirect(ChatIndexPage, { searchParams: Promise.resolve({}) }, `/chat/${GENERAL}`);
+  });
+
+  it("shows the list when asked, or when the remembered conversation is gone or not readable", async () => {
+    lastChannelCookie = GENERAL;
+    render(await ChatIndexPage({ searchParams: Promise.resolve({ list: "1" }) }));
+    expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+    cleanup();
+    for (const value of [SECRET, "not-a-uuid"]) {
+      lastChannelCookie = value;
+      render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
+      expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
+      cleanup();
+    }
+  });
+
   it("explains the read-only mirror", async () => {
-    render(await ChatIndexPage());
+    render(await ChatIndexPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { name: "Chat" })).toBeInTheDocument();
     expect(screen.getByText(/read-only view of our Slack conversations/)).toBeInTheDocument();
   });

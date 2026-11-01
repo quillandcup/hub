@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 
 const PAGE_SIZE = 50;
@@ -16,28 +17,21 @@ export async function GET(request: NextRequest) {
   const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10) || 0);
   const status = searchParams.get("status");
 
-  let query = supabase
-    .from("feedback")
-    .select("*, member:members(name, email)", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-
-  if (status) query = query.eq("status", status);
-
-  const { data, error, count } = await query;
-  if (error) {
+  let result: Awaited<ReturnType<ReturnType<typeof createRepos>["adminWork"]["feedbackPage"]>>;
+  try {
+    result = await createRepos(supabase).adminWork.feedbackPage({ status: status || undefined, page, pageSize: PAGE_SIZE });
+  } catch (error) {
     console.error("Failed to load feedback:", error);
     return NextResponse.json({ error: "Failed to load feedback" }, { status: 500 });
   }
+  const { rows, total } = result;
 
-  const userIds = Array.from(new Set((data ?? []).map((row) => row.user_id)));
-  const { data: profiles } = userIds.length
-    ? await supabase.from("user_profiles").select("id, email").in("id", userIds)
-    : { data: [] };
-  const emailById = new Map((profiles ?? []).map((p) => [p.id, p.email as string]));
+  const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
+  const profiles = await createRepos(supabase).profiles.byIds(userIds);
+  const emailById = new Map(profiles.map((p) => [p.id, p.email]));
 
   const items = await Promise.all(
-    (data ?? []).map(async (row) => {
+    rows.map(async (row) => {
       let screenshotUrl: string | null = null;
       if (row.screenshot_path) {
         const { data: signed } = await supabase.storage
@@ -53,5 +47,5 @@ export async function GET(request: NextRequest) {
     })
   );
 
-  return NextResponse.json({ items, total: count ?? items.length, page, pageSize: PAGE_SIZE });
+  return NextResponse.json({ items, total, page, pageSize: PAGE_SIZE });
 }

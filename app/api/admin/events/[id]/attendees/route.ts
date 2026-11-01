@@ -23,7 +23,7 @@ export async function POST(
   const { error } = await supabase.rpc("add_event_attendee", {
     p_event_id: id,
     p_member_id: body.memberId,
-    p_admin_id: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
+    p_admin_id: (user.id !== "service-role" && user.id !== "cron" ? user.id : null) as string, // null: no admin (service role or cron)
   });
 
   if (error) {

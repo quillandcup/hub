@@ -1,4 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+
+// Members come from their repository; this test gives the function in-memory ones.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+
 import {
   HOST_ELIGIBILITY_MIN_MONTHS,
   fetchHostEligibilityByMember,
@@ -160,61 +170,41 @@ describe("hostEligibilityMessage", () => {
 });
 
 describe("fetchHostEligibilityByMember", () => {
-  function fakeSupabase(tables: Record<string, Record<string, unknown>[]>) {
-    return {
-      from: vi.fn((table: string) => ({
-        select: () => ({
-          in: (column: string, values: string[]) =>
-            Promise.resolve({ data: tables[table].filter((r) => values.includes(r[column] as string)), error: null }),
-        }),
-      })),
-    } as unknown as Parameters<typeof fetchHostEligibilityByMember>[0] & { from: ReturnType<typeof vi.fn> };
+  function useMembers(rows: { id: string; firstJoinedAt: string | null; mostRecentJoinedAt: string | null }[]) {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({ members: rows.map((r) => ({ ...r, name: r.id, email: `${r.id}@example.test` })) }),
+    );
+    return vi.spyOn(repos.members, "byIds");
   }
+  const client = {} as Parameters<typeof fetchHostEligibilityByMember>[0];
 
-  it("returns an empty map without querying when there are no ids", async () => {
-    const supabase = fakeSupabase({ members: [] });
-    expect((await fetchHostEligibilityByMember(supabase, [], at("2026-09-26"))).size).toBe(0);
-    expect(supabase.from).not.toHaveBeenCalled();
+  it("returns an empty map without reading members when there are no ids", async () => {
+    const byIds = useMembers([]);
+    expect((await fetchHostEligibilityByMember(client, [], at("2026-09-26"))).size).toBe(0);
+    expect(byIds).not.toHaveBeenCalled();
   });
 
-  it("computes eligibility per member from their first join", async () => {
-    const supabase = fakeSupabase({
-      members: [
-        { id: "new", first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
-        { id: "veteran", first_joined_at: "2021-01-01", most_recent_joined_at: "2021-01-01" },
-        { id: "rejoiner", first_joined_at: "2021-01-01", most_recent_joined_at: "2026-09-20" },
-        { id: "unknown", first_joined_at: null, most_recent_joined_at: null },
-      ],
-    });
+  it("computes eligibility per member from their first join, reading each member once", async () => {
+    const byIds = useMembers([
+      { id: "new", firstJoinedAt: "2026-09-10", mostRecentJoinedAt: "2026-09-10" },
+      { id: "veteran", firstJoinedAt: "2021-01-01", mostRecentJoinedAt: "2021-01-01" },
+      { id: "rejoiner", firstJoinedAt: "2021-01-01", mostRecentJoinedAt: "2026-09-20" },
+      { id: "unknown", firstJoinedAt: null, mostRecentJoinedAt: null },
+    ]);
 
-    const result = await fetchHostEligibilityByMember(
-      supabase,
-      ["new", "veteran", "rejoiner", "unknown", "new"],
-      at("2026-09-26")
-    );
+    const result = await fetchHostEligibilityByMember(client, ["new", "veteran", "rejoiner", "unknown", "new"], at("2026-09-26"));
 
     expect(result.get("new")).toEqual({ eligible: false, tenureStartDate: "2026-09-10", eligibleOn: "2026-10-10" });
     expect(result.get("veteran")?.eligible).toBe(true);
     expect(result.get("rejoiner")?.eligible).toBe(true);
     expect(result.get("unknown")).toEqual({ eligible: false, tenureStartDate: null, eligibleOn: null });
-    expect(supabase.from).toHaveBeenCalledTimes(1);
-    expect(supabase.from).toHaveBeenCalledWith("members");
+    expect(byIds).toHaveBeenCalledTimes(1);
+    expect(byIds).toHaveBeenCalledWith(["new", "veteran", "rejoiner", "unknown"]); // de-duplicated
   });
 
-  it("chunks large id lists", async () => {
-    const ids = Array.from({ length: 250 }, (_, i) => `m${i}`);
-    const supabase = fakeSupabase({
-      members: ids.map((id) => ({ id, first_joined_at: "2021-01-01", most_recent_joined_at: "2021-01-01" })),
-    });
-    const result = await fetchHostEligibilityByMember(supabase, ids, at("2026-09-26"));
-    expect(result.size).toBe(250);
-    expect(supabase.from).toHaveBeenCalledTimes(3);
-  });
-
-  it("throws when a query fails", async () => {
-    const supabase = {
-      from: () => ({ select: () => ({ in: () => Promise.resolve({ data: null, error: new Error("boom") }) }) }),
-    } as unknown as Parameters<typeof fetchHostEligibilityByMember>[0];
-    await expect(fetchHostEligibilityByMember(supabase, ["x"], at("2026-09-26"))).rejects.toThrow("boom");
+  it("throws when the members read fails", async () => {
+    useMembers([]);
+    vi.spyOn(repos.members, "byIds").mockRejectedValue(new Error("boom"));
+    await expect(fetchHostEligibilityByMember(client, ["x"], at("2026-09-26"))).rejects.toThrow("boom");
   });
 });

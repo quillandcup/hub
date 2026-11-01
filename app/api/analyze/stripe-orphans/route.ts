@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { buildReverseAliasMap, matchStripeCustomerToMember } from "@/lib/stripe-matching";
@@ -16,14 +17,15 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
+    const billing = createRepos(supabase).billing;
     const [
-      { data: stripeProducts },
-      { data: members },
-      { data: emailAliases },
+      stripeProducts,
+      members,
+      emailAliases,
     ] = await Promise.all([
-      supabase.schema("bronze").from("stripe_products").select("stripe_product_id").in("name", [...MEMBERSHIP_PRODUCT_NAMES]),
-      supabase.from("members").select("id, email, kajabi_id"),
-      supabase.from("member_email_aliases").select("canonical_email, alias_email"),
+      billing.stripeProductsByName([...MEMBERSHIP_PRODUCT_NAMES]),
+      createRepos(supabase).members.list(),
+      createRepos(supabase).aliases.emailAliases(),
     ]);
 
     const membershipProductIds = new Set(
@@ -35,46 +37,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Load all customers and subscriptions (paginated)
-    const stripeCustomers: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("stripe_customers")
-          .select("stripe_customer_id, email, data")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          stripeCustomers.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
-
-    const allSubscriptions: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("stripe_subscriptions")
-          .select("stripe_subscription_id, stripe_customer_id, status, created_at_stripe, data")
-          .eq("status", "active")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          allSubscriptions.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const stripeCustomers: any[] = await billing.stripeCustomersWithData();
+    const allSubscriptions: any[] = await billing.stripeSubscriptionsWithStatus("active");
 
     const customerMap = new Map(
       stripeCustomers.map((c) => [c.stripe_customer_id, c])
@@ -88,7 +52,7 @@ export async function GET(request: NextRequest) {
         })
       : allSubscriptions;
 
-    const reverseAliasMap = buildReverseAliasMap(emailAliases ?? []);
+    const reverseAliasMap = buildReverseAliasMap(emailAliases);
 
     const orphans: Array<{
       stripe_customer_id: string;

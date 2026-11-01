@@ -1,6 +1,6 @@
 # Source of truth for the Vercel project settings that live outside vercel.json. Applied by
 # scripts/vercel-config.ts (CI's push-vercel-config job after every production deploy that
-# changes this file or the script; `npm run vercel:config:diff` is the read-only preview).
+# changes this file or the script; `pnpm vercel:config:diff` is the read-only preview).
 # See docs/VERCEL_CONFIG.md.
 
 # Always-on tracing (https://vercel.com/docs/tracing/always-on-tracing).

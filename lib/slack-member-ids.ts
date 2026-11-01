@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { matchSlackUsersToMembers, type SlackUser } from "@/lib/slack-matching";
 import { normalizeName, type Member } from "@/lib/member-matching";
 import * as Sentry from "@sentry/nextjs";
@@ -9,42 +10,18 @@ import { sendOperationsAlert, type OperationsAlert } from "@/lib/operations-aler
  * service-role client.
  */
 
-const BATCH_SIZE = 1000;
-
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
-
 /** Full slackUserId -> memberId map, same 3-tier matching (alias > email > normalized name) Wheel of Wonder uses. */
 async function buildSlackUserIdToMemberIdMap(
   supabase: any,
   scope: { memberIds?: readonly string[]; slackUserId?: string }
 ): Promise<Map<string, string>> {
-  const [allMembersResult, aliases, slackUsersResult] = await Promise.all([
-    supabase.from("members").select("id, name, email"),
-    fetchAllPaginated<{ member_id: string; alias: string; source: "zoom" | "slack" }>((offset) =>
-      supabase.from("member_name_aliases").select("member_id, alias, source").range(offset, offset + BATCH_SIZE - 1)
-    ),
-    supabase.schema("bronze").from("slack_users").select("user_id, email, real_name"),
+  const [allMembers, aliases, slackUsers] = await Promise.all([
+    createRepos(supabase).members.identities(),
+    createRepos(supabase).aliases.nameAliases(),
+    createRepos(supabase).slackUsers.list(),
   ]);
 
-  const members = (allMembersResult.data ?? []) as Member[];
-  const slackUsers = (slackUsersResult.data ?? []) as SlackUser[];
+  const members: Member[] = allMembers;
   const matched = await matchSlackUsersToMembers(slackUsers, members, aliases);
   const safe = new Map<string, string>();
   const collisions: Extract<OperationsAlert, { type: "ambiguous_slack_member_match" }>["collisions"][number][] = [];
@@ -76,8 +53,9 @@ async function buildSlackUserIdToMemberIdMap(
     const emailMatches = userEmail
       ? members.filter((row) => row.email?.toLowerCase() === userEmail)
       : [];
-    const nameMatches = user.real_name
-      ? members.filter((row) => row.name && normalizeName(row.name) === normalizeName(user.real_name))
+    const realName = user.real_name;
+    const nameMatches = realName
+      ? members.filter((row) => row.name && normalizeName(row.name) === normalizeName(realName))
       : [];
     const candidates = manual.length ? manual.map((row) => row.member_id) : emailMatches.length
       ? emailMatches.map((row) => row.id) : nameMatches.map((row) => row.id);

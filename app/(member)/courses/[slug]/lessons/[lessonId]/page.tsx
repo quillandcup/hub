@@ -5,17 +5,17 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
 import { lessonContext, lessonSection, nextModuleLesson, type OutlineLesson } from "@/lib/courses/outline";
 import { createMuxClient, signPlaybackTokens } from "@/lib/mux";
+import { startSeconds } from "@/lib/courses/watch";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { courseTitle, lessonTitles } from "@/lib/courses/page-title";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import PageBanner from "@/components/PageBanner";
 import LessonSectionList from "../../../LessonSectionList";
 import LessonDownloads from "../../../LessonDownloads";
-import LessonPlayer, { type PlaybackTokens } from "../../../LessonPlayer";
-import { LessonCompletionProvider } from "../../../LessonCompletion";
+import LessonPlayer, { type PlaybackTokens } from "@/components/courses/LessonPlayer";
+import { LessonCompletionProvider } from "@/components/courses/LessonCompletion";
 import MarkCompleteButton from "../../../MarkCompleteButton";
 import NextLessonPreview from "../../../NextLessonPreview";
-import StaffProgressTools from "../../../StaffProgressTools";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; lessonId: string }> }): Promise<Metadata> {
   const { slug, lessonId } = await params;
@@ -39,10 +39,10 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
       href={`/courses/${slug}/lessons/${lesson.id}`}
       data-track={`lesson-${direction}-card`}
       className={`group block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-plum-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-plum-700 ${
-        direction === "next" ? "sm:text-right" : ""
+        direction === "next" ? "@pair:text-right" : ""
       }`}
     >
-      <span className="block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <span className="block text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">
         {direction === "previous" ? "← Previous" : "Next →"}
       </span>
       <span className="mt-1 block font-medium group-hover:text-plum-700 dark:group-hover:text-plum-300">{lesson.title}</span>
@@ -58,9 +58,9 @@ function NeighborCard({ slug, lesson, direction }: { slug: string; lesson: Outli
 function StepButtons({ slug, previous, next, hideOnWide }: { slug: string; previous: OutlineLesson | null; next: OutlineLesson | null; hideOnWide: boolean }) {
   const base = "rounded-lg px-4 py-2 text-sm font-medium";
   const enabled = "bg-plum-600 text-white hover:bg-plum-700";
-  const disabled = "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600";
+  const disabled = "cursor-not-allowed bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-600";
   return (
-    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "lg:hidden" : ""}`}>
+    <div className={`mt-3 flex items-center justify-between gap-3 ${hideOnWide ? "@outline:hidden" : ""}`}>
       {previous ? (
         <Link href={`/courses/${slug}/lessons/${previous.id}`} data-track="lesson-previous" aria-label={`Back: ${previous.title}`} className={`${base} ${enabled}`}>
           ← Back
@@ -88,11 +88,12 @@ export default async function LessonPage({
   searchParams,
 }: {
   params: Promise<{ slug: string; lessonId: string }>;
-  searchParams?: Promise<{ track?: string }>;
+  searchParams?: Promise<{ track?: string; t?: string }>;
 }) {
   const { slug, lessonId } = await params;
-  const trackPreview = (await searchParams)?.track === "1";
-  if (!isUuid(lessonId)) notFound();
+  const query = await searchParams;
+  const trackPreview = query?.track === "1";
+  if (!isId(lessonId, "les")) notFound();
   const caller = await requireCoursesPage();
   const result = await loadLessonView(createServiceRoleClient(), slug, lessonId, caller.scope);
 
@@ -118,7 +119,7 @@ export default async function LessonPage({
           tokens={tokens}
           posterUrl={lesson.thumbnail_url}
           lessonId={lesson.id}
-          resumeSeconds={resumeSeconds}
+          resumeSeconds={startSeconds(query?.t, resumeSeconds)}
           trackProgress={watchRecorded}
         />
       ) : (
@@ -155,14 +156,14 @@ export default async function LessonPage({
       {preview && (
         <PageBanner>
           {lesson.state === "hidden"
-            ? "Draft: this lesson is a draft in Kajabi, so members can't see it at all."
-            : "Preview: members see this lesson as “Coming soon” until it's published in Kajabi."}{" "}
+            ? "Draft: this lesson is a draft, so members can't see it at all."
+            : "Preview: members see this lesson as “Coming soon” until it's published."}{" "}
           {watchRecorded ? "Your watching is recorded (completion isn't)." : "Progress isn't tracked here."}
         </PageBanner>
       )}
 
-      <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
-        <nav aria-label="Breadcrumb" className="text-sm text-slate-500 dark:text-slate-400">
+      <div className="@container mx-auto w-full max-w-screen-2xl px-6 py-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-slate-600 dark:text-slate-400">
           <ol className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <li>
               <Link data-track="lesson-breadcrumb-course" href={`/courses/${view.course.slug}`} className="hover:underline">
@@ -186,29 +187,41 @@ export default async function LessonPage({
 
         {/* Completion is shared by the player (which sets it at ~90% watched), the button and the next-lesson card. */}
         <LessonCompletionProvider lessonId={lesson.id} initiallyCompleted={completed} readOnlyReason={readOnlyReason}>
-        <div className="mt-4 grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] @outline:grid-cols-[minmax(0,1fr)_22rem]">
           {/* The video and this section's lessons are one component: a dark panel flush against the player, the same height. */}
           {player && (
-            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 lg:col-span-2 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+            <div className="overflow-hidden rounded-2xl bg-neutral-900 shadow-lg ring-1 ring-black/5 dark:ring-white/10 @outline:col-span-2 @outline:grid @outline:grid-cols-[minmax(0,1fr)_22rem]">
               <div>{player}</div>
               {sectionList && (
-                <aside className="relative hidden lg:block">
+                <aside className="relative hidden @outline:block">
                   <div className="absolute inset-0 overflow-y-auto">{sectionList}</div>
                 </aside>
               )}
             </div>
           )}
 
-          <div className="lg:col-start-1">
+          <div className="@outline:col-start-1">
             <StepButtons slug={view.course.slug} previous={neighbors.previous} next={neighbors.next} hideOnWide={Boolean(player && sectionList)} />
-            {caller.scope.isAdminActing && video && (
-              <StaffProgressTools lessonId={lesson.id} lessonPath={`/courses/${view.course.slug}/lessons/${lesson.id}`} preview={preview} recording={watchRecorded} />
+            {/* Where the list isn't beside the video, it follows it, closed: the way around the section stays one tap away. */}
+            {sectionList && section && (
+              <details className="group mt-3 overflow-hidden rounded-2xl bg-neutral-900 @outline:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm font-semibold text-slate-100 [&::-webkit-details-marker]:hidden">
+                  <span>Lessons in this section</span>
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                    {section.lessons.length} {section.lessons.length === 1 ? "Lesson" : "Lessons"}
+                    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m5 8 5 5 5-5" />
+                    </svg>
+                  </span>
+                </summary>
+                {sectionList}
+              </details>
             )}
           </div>
 
           {/* The main action, title and text sit together in one bounded card below the video and its controls, like the Downloads
               card beside it (and Kajabi's). Once the lesson is complete, a preview of the next lesson follows the button. */}
-          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 lg:col-start-1 lg:row-start-3 lg:mr-8">
+          <article className="mt-6 rounded-xl border border-slate-200 bg-white p-6 @pair:p-8 dark:border-slate-800 dark:bg-slate-900 @outline:col-start-1 @outline:row-start-3 @outline:mr-8">
             <MarkCompleteButton />
             <NextLessonPreview slug={view.course.slug} next={nextLesson} />
 
@@ -221,13 +234,13 @@ export default async function LessonPage({
 
             <div className="mt-10 border-t border-slate-200 pt-6 dark:border-slate-800">
               {(neighbors.previous || neighbors.next) && (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 @pair:grid-cols-2">
                   {neighbors.previous ? <NeighborCard slug={view.course.slug} lesson={neighbors.previous} direction="previous" /> : <span />}
                   {neighbors.next ? <NeighborCard slug={view.course.slug} lesson={neighbors.next} direction="next" /> : <span />}
                 </div>
               )}
               <p className="mt-8 text-center text-sm">
-                <Link data-track="lesson-id-view-the-full-course-outline" href={`/courses/${view.course.slug}`} className="text-slate-500 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+                <Link data-track="lesson-id-view-the-full-course-outline" href={`/courses/${view.course.slug}`} className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
                   View the full course outline
                 </Link>
               </p>
@@ -237,8 +250,8 @@ export default async function LessonPage({
           {/* Downloads: beside the text on a wide screen, after it on a phone ("available below"). The section list stands in for
               the player panel when a lesson has no video. */}
           {(files.length > 0 || (!player && sectionList)) && (
-            <div className="mt-6 space-y-4 lg:col-start-2 lg:row-start-3">
-              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 lg:block">{sectionList}</div>}
+            <div className="mt-6 space-y-4 @outline:col-start-2 @outline:row-start-3">
+              {!player && sectionList && <div className="hidden overflow-hidden rounded-2xl bg-neutral-900 @outline:block">{sectionList}</div>}
               <LessonDownloads slug={view.course.slug} lessonId={lesson.id} files={files} />
             </div>
           )}

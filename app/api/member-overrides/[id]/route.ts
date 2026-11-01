@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
@@ -31,30 +32,7 @@ export async function PATCH(
     if (starts_at !== undefined) updates.starts_at = starts_at;
     if (expires_at !== undefined) updates.expires_at = expires_at;
 
-    const { data: override, error } = await supabase
-      .from("member_status_overrides")
-      .update(updates)
-      .eq("id", id)
-      .select(`
-        *,
-        member:members(id, name, email)
-      `)
-      .single();
-
-    if (error) {
-      console.error("Error updating member override:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    if (!override) {
-      return NextResponse.json(
-        { error: "Override not found" },
-        { status: 404 }
-      );
-    }
+    const override = await createRepos(supabase).memberStatus.updateStatusOverride(id, updates);
 
     return NextResponse.json({ override });
   } catch (error: any) {
@@ -78,18 +56,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const { error } = await supabase
-      .from("member_status_overrides")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Error deleting member override:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
+    await createRepos(supabase).memberStatus.deleteStatusOverride(id);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

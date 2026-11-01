@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/lib/admin-auth";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { loadCourseWatchStats } from "@/lib/courses/watch-stats-data";
 import { formatClock } from "@/lib/courses/watch-stats";
 import { createMuxClient, signThumbnailTokens } from "@/lib/mux";
-import EngagementChart from "../EngagementChart";
-import EngagementFrame from "../EngagementFrame";
+import EngagementPanel from "../EngagementPanel";
 import ViewerList from "../ViewerList";
 import TimeSeriesSection from "../TimeSeriesSection";
 import { ORG_TIMEZONE } from "@/lib/config";
@@ -27,11 +26,11 @@ function Tile({ label, value, definition, hint }: { label: string; value: string
     <details className="group rounded-lg bg-white p-4 shadow dark:bg-slate-900">
       <summary className="flex cursor-pointer list-none items-start justify-between gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500">
         <span>
-          <span className="block text-sm text-slate-500 dark:text-slate-400">{label}</span>
+          <span className="block text-sm text-slate-600 dark:text-slate-400">{label}</span>
           <span className="mt-1 block text-3xl font-semibold tabular-nums">{value}</span>
-          {hint && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{hint}</span>}
+          {hint && <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{hint}</span>}
         </span>
-        <span aria-hidden="true" className="mt-1 text-slate-400 transition group-open:rotate-180">
+        <span aria-hidden="true" className="mt-1 text-slate-500 dark:text-slate-400 transition group-open:rotate-180">
           &#9662;
         </span>
       </summary>
@@ -49,7 +48,7 @@ export default async function LessonWatchStatsPage({
 }) {
   await requireAdminPage();
   const { id, lessonId } = await params;
-  if (!isUuid(lessonId)) notFound();
+  if (!isId(lessonId, "les")) notFound();
   const query = await searchParams;
   const includeStaff = query.staff === "1";
   // How many visits to list; "Load more" asks for another page of them.
@@ -100,7 +99,7 @@ export default async function LessonWatchStatsPage({
 
   return (
     <div className="container mx-auto max-w-5xl px-6 py-8">
-      <Link href={`${base}${includeStaff ? "?staff=1" : ""}`} className="text-sm text-slate-500 hover:underline dark:text-slate-400">
+      <Link href={`${base}${includeStaff ? "?staff=1" : ""}`} className="text-sm text-slate-600 hover:underline dark:text-slate-400">
         ← Watch stats
       </Link>
       <h1 className="mt-2 text-3xl font-bold">{lesson.title}</h1>
@@ -123,7 +122,8 @@ export default async function LessonWatchStatsPage({
         </p>
       ) : (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="@container">
+            <div className="mt-6 grid gap-4 @pair:grid-cols-2 @columns:grid-cols-3">
             <Tile
               label="Engagement"
               value={percent(stats.engagementRate)}
@@ -151,7 +151,7 @@ export default async function LessonWatchStatsPage({
               label="Watched 90%+"
               value={`${stats.watchedMarkViewers} of ${stats.viewers}`}
               hint="covered at least 90% of it"
-              definition="Viewers who covered at least 90% of the video (Kajabi's mark for a lesson watched)."
+              definition="Viewers who covered at least 90% of the video."
             />
             <Tile
               label="Rewatched"
@@ -160,28 +160,24 @@ export default async function LessonWatchStatsPage({
               definition="Video time viewers replayed after already watching it: the time played minus the time covered. It leaves out two different members watching the same part."
             />
           </div>
+          </div>
 
           {series && <TimeSeriesSection series={series} preset={controls.preset} action={here} staff={includeStaff} />}
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
-            <h2 className="text-lg font-semibold">Heatmap</h2>
-            <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">Move over the video to see each moment and how many plays watched it.</p>
-            <EngagementFrame buckets={stats.buckets} durationSeconds={stats.durationSeconds} plays={stats.plays} playbackId={entry.playbackId} frames={frames} />
-          </div>
-
-          <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">Engagement</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600 dark:text-slate-300">
-              How many times each moment of the {formatClock(stats.durationSeconds)} video was watched, counting every rewind or replay. Where the solid line rises above the dashed one, someone watched that part more than once (one person watching twice is 2 times watched, 1 person). This isn&apos;t the play count: a play is one visit in which the video was played, however often it was rewound.
+              How each moment of the {formatClock(stats.durationSeconds)} video was watched, over its own frames. Move over it to see the frame from that moment and its counts.
             </p>
-            <EngagementChart buckets={stats.buckets} durationSeconds={stats.durationSeconds} />
+            <EngagementPanel buckets={stats.buckets} durationSeconds={stats.durationSeconds} totalPlays={stats.plays} playbackId={entry.playbackId} frames={frames} />
           </div>
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">
             <h2 className="text-lg font-semibold">How it was watched</h2>
-            <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+            <div className="@container">
+              <dl className="mt-3 grid gap-x-8 gap-y-3 text-sm @pair:grid-cols-2">
               <div>
-                <dt className="text-slate-500 dark:text-slate-400">Playback speed (share of time played)</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Playback speed (share of time played)</dt>
                 <dd className="mt-1">
                   <ul>
                     {stats.speeds.map((s) => (
@@ -195,15 +191,16 @@ export default async function LessonWatchStatsPage({
               </div>
               <div className="space-y-3">
                 <div>
-                  <dt className="text-slate-500 dark:text-slate-400">Captions on</dt>
+                  <dt className="text-slate-600 dark:text-slate-400">Captions on</dt>
                   <dd className="mt-1 tabular-nums">{percent(stats.captionsShare)} of the time played</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500 dark:text-slate-400">Played with the tab in the background</dt>
+                  <dt className="text-slate-600 dark:text-slate-400">Played with the tab in the background</dt>
                   <dd className="mt-1 tabular-nums">{percent(stats.backgroundShare)} of the time played</dd>
                 </div>
               </div>
             </dl>
+            </div>
           </div>
 
           <div className="mt-6 rounded-lg bg-white p-6 shadow dark:bg-slate-900">

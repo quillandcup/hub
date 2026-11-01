@@ -5,10 +5,15 @@ import MessageItem from "@/components/chat/MessageItem";
 import UnreadDivider from "@/components/chat/UnreadDivider";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import type { ChatMessageView } from "@/lib/chat/load";
-import { scrollParent } from "@/lib/chat/scroll";
+import { hashMessageId, scrollParent, scrollToHashMessage } from "@/lib/chat/scroll";
 import { loadOlderChat } from "@/app/(member)/chat/actions";
 import { subscribeListEvents } from "@/lib/chat/list-events";
 import { mergeChatContext } from "@/lib/chat/merge";
+import { groupByDay } from "@/lib/chat/days";
+import { ORG_TIMEZONE } from "@/lib/config";
+
+/** Most older pages loaded while looking for a linked message. */
+const MAX_HASH_PAGES = 30;
 
 const sortKey = (m: ChatMessageView) => Date.parse(m.createdAt);
 
@@ -28,6 +33,7 @@ export default function MessageList({
   firstUnreadId,
   canReact = false,
   showSent = true,
+  timeZone = ORG_TIMEZONE,
 }: {
   channelId: string;
   /** The server's current window, oldest first. */
@@ -42,6 +48,8 @@ export default function MessageList({
   /** Take part in the live conversation: show messages the viewer is sending right away and the
    *  newest messages as they are fetched (the newest page, not an older one). */
   showSent?: boolean;
+  /** The reader's time zone: decides which day a message belongs to and the times shown. */
+  timeZone?: string;
 }) {
   const [byId, setById] = useState(() => new Map(views.map((v) => [v.id, v])));
   const [context, setContext] = useState(ctx);
@@ -50,6 +58,9 @@ export default function MessageList({
   const [loadedCursor, setLoadedCursor] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Set when a page served from the client cache learns where the reader's marker really is.
+  const [unreadOverride, setUnreadOverride] = useState<{ id: string | null } | null>(null);
+  const unreadId = unreadOverride ? (unreadOverride.id ?? undefined) : firstUnreadId;
 
   if (views !== seen.views || ctx !== seen.ctx) {
     setSeen({ views, ctx });
@@ -79,6 +90,10 @@ export default function MessageList({
           next.delete(event.tempId);
           return next;
         });
+        return;
+      }
+      if (event.kind === "unread") {
+        setUnreadOverride({ id: event.firstUnreadId });
         return;
       }
       if (event.kind === "merge") {
@@ -142,6 +157,21 @@ export default function MessageList({
   useEffect(() => {
     loadRef.current = loadOlder;
   });
+  // A link to a message that is further back than the newest page: keep loading older pages until
+  // it shows up (or they run out), then take the reader to it.
+  const hashAttempts = useRef(0);
+  const hashDone = useRef(false);
+  useEffect(() => {
+    if (hashDone.current || !hashMessageId()) return;
+    if (scrollToHashMessage(top.current)) {
+      hashDone.current = true;
+      return;
+    }
+    if (!cursor || failed || loading || hashAttempts.current >= MAX_HASH_PAGES) return;
+    hashAttempts.current += 1;
+    void loadRef.current();
+  }, [byId, cursor, failed, loading]);
+
   useEffect(() => {
     const el = top.current;
     if (!el || !cursor || failed || typeof IntersectionObserver === "undefined") return;
@@ -157,7 +187,7 @@ export default function MessageList({
 
   return (
     <>
-      <div ref={top}>
+      <div ref={top} className={cursor ? "pt-2" : undefined}>
         {cursor && (
           <button
             type="button"
@@ -170,12 +200,24 @@ export default function MessageList({
           </button>
         )}
       </div>
-      {messages.length === 0 && <p className="py-3 text-sm text-slate-500">No messages here yet.</p>}
-      {messages.map((m) => (
-        <Fragment key={m.id}>
-          {m.id === firstUnreadId && <UnreadDivider />}
-          <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} />
-        </Fragment>
+      {messages.length === 0 && <p className="py-3 text-sm text-slate-600 dark:text-slate-400">No messages here yet.</p>}
+      {groupByDay(messages, timeZone, unreadId).map((day) => (
+        <section key={day.key} aria-label={day.label}>
+          {/* Each day's marker sticks to the top while its messages scroll; the next one pushes it off. */}
+          <div role="separator" aria-label={day.label} className="sticky top-0 z-10 flex items-center bg-canvas py-2 dark:bg-slate-950">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900">
+              {day.label}
+            </span>
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+          </div>
+          {day.items.map(({ message: m, compact }) => (
+            <Fragment key={m.id}>
+              {m.id === unreadId && <UnreadDivider />}
+              <MessageItem message={m} ctx={context} channelId={channelId} canReact={canReact} canEdit={canReact} compact={compact} timeZone={timeZone} />
+            </Fragment>
+          ))}
+        </section>
       ))}
     </>
   );

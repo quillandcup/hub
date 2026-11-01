@@ -14,22 +14,35 @@ import {
   buildSlackAuthorizeUrl,
   disconnectSlack,
   exchangeSlackCode,
+  getSlackConnectionStatus,
   getSlackUserToken,
   hasReadSyncScopes,
   SLACK_USER_SCOPES,
   isDeadTokenError,
   isSlackConnectConfigured,
   slackRedirectUri,
-  slackUserIsMember,
-  bindSlackIdentity,
+  linkSlackAccount,
 } from "@/lib/slack-connect";
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
 
 /** A Supabase stand-in: rpc by name, and single-row reads by table. */
-function fakeService(opts: { tokens?: Record<string, unknown> | null; rows?: Record<string, unknown> } = {}) {
+function fakeService(
+  opts: {
+    /** The connection row; a list is read one entry per call (the last repeating), to show it changing under a request. */
+    tokens?: Record<string, unknown> | null | (Record<string, unknown> | null)[];
+    rows?: Record<string, unknown>;
+    /** Whether this request wins the refresh lease; "error" makes claiming it fail. */
+    claim?: boolean | "error";
+  } = {}
+) {
+  let reads = 0;
   const rpc = vi.fn(async (name: string) => {
-    if (name === "slack_connection_tokens") return { data: opts.tokens ? [opts.tokens] : [], error: null };
+    if (name === "slack_connection_tokens") {
+      const row = Array.isArray(opts.tokens) ? opts.tokens[Math.min(reads++, opts.tokens.length - 1)] : opts.tokens;
+      return { data: row ? [row] : [], error: null };
+    }
+    if (name === "slack_token_refresh_claim") return opts.claim === "error" ? { data: null, error: new Error("db down") } : { data: opts.claim ?? true, error: null };
     return { data: null, error: null };
   });
   const from = (table: string) => {
@@ -62,7 +75,7 @@ describe("configuration and the authorize URL", () => {
     expect(url.origin + url.pathname).toBe("https://slack.com/oauth/v2/authorize");
     expect(url.searchParams.get("client_id")).toBe("client-1");
     expect(url.searchParams.get("user_scope")).toBe(
-      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write"
+      "chat:write,reactions:write,channels:read,groups:read,mpim:read,channels:write,groups:write,mpim:write,files:write"
     );
     expect(url.searchParams.get("redirect_uri")).toBe(`${APP_URL}/api/oauth/slack/callback`);
     expect(slackRedirectUri()).toBe(`${APP_URL}/api/oauth/slack/callback`);
@@ -99,45 +112,87 @@ describe("exchangeSlackCode", () => {
   });
 });
 
-describe("slackUserIsMember", () => {
-  it("accepts the Slack user already matched to the member, or the one their account signs in as", async () => {
-    expect(await slackUserIsMember(fakeService({ rows: { chat_slack_authors: { member_id: "m1" } } }), "U1", "m1", "auth-1")).toBe(true);
-    expect(await slackUserIsMember(fakeService({ rows: { slack_identities: { user_id: "auth-1" } } }), "U1", "m1", "auth-1")).toBe(true);
-  });
+describe("linkSlackAccount", () => {
+  const grant = { slackUserId: "U1", teamId: "T_TEAM", accessToken: "t", refreshToken: null, expiresAt: null, scopes: [] };
+  type Identity = { user_id?: string; slack_user_id?: string; linked_via: string };
 
-  it("refuses a Slack account matched to someone else, or to no one", async () => {
-    expect(await slackUserIsMember(fakeService({ rows: { chat_slack_authors: { member_id: "other" } } }), "U1", "m1", "auth-1")).toBe(false);
-    expect(await slackUserIsMember(fakeService(), "U1", "m1", "auth-1")).toBe(false);
-  });
-});
-
-describe("bindSlackIdentity", () => {
-  /** insert() resolves with `error`; reads come from `rows`. */
-  function bindService(rows: Record<string, unknown>, error: unknown = null) {
-    const insert = vi.fn(async () => ({ error }));
-    const from = (table: string) => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: rows[table] ?? null }) }) }),
-      insert,
-    });
-    return { service: { from } as never as import("@supabase/supabase-js").SupabaseClient, insert };
+  /** member_slack_connections and slack_identities, with the reads link needs and the writes it makes. */
+  function linkService(rows: { held?: unknown[]; bySlack?: Identity; byUser?: Identity; upsertError?: unknown } = {}) {
+    const deleted: Array<[string, unknown]> = [];
+    const upsert = vi.fn(async () => ({ error: rows.upsertError ?? null }));
+    const from = (table: string) => {
+      let column = "";
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.neq = () => chain;
+      chain.eq = (col: string) => {
+        column = col;
+        return chain;
+      };
+      chain.limit = async () => ({ data: rows.held ?? [] });
+      chain.maybeSingle = async () => ({ data: (column === "slack_user_id" ? rows.bySlack : rows.byUser) ?? null });
+      chain.delete = () => ({
+        eq: async (col: string, value: unknown) => {
+          deleted.push([`${table}.${col}`, value]);
+          return { error: null };
+        },
+      });
+      chain.upsert = upsert;
+      return chain;
+    };
+    return { service: { from } as never as import("@supabase/supabase-js").SupabaseClient, upsert, deleted };
   }
 
-  it("binds an unmatched Slack user to the signed-in account", async () => {
-    const { service, insert } = bindService({});
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(true);
-    expect(insert).toHaveBeenCalledWith({ slack_user_id: "U1", user_id: "auth-1", linked_via: "slack_connect" });
+  it("binds a Slack account nobody has claimed to the signed-in member, as the strongest kind of link", async () => {
+    const { service, upsert, deleted } = linkService();
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: true, replaced: [] });
+    expect(upsert).toHaveBeenCalledWith({ slack_user_id: "U1", user_id: "auth-1", linked_via: "slack_connect" }, { onConflict: "slack_user_id" });
+    expect(deleted).toEqual([]);
   });
 
-  it("refuses a Slack user matched to another member, without inserting", async () => {
-    const { service, insert } = bindService({ chat_slack_authors: { member_id: "other" } });
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
-    expect(insert).not.toHaveBeenCalled();
+  it("needs no name or email match: a sign-in binding to the same member is simply upgraded", async () => {
+    const { service, upsert } = linkService({ bySlack: { user_id: "auth-1", linked_via: "email_match" }, byUser: { slack_user_id: "U1", linked_via: "email_match" } });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: true, replaced: [] });
+    expect(upsert).toHaveBeenCalled();
   });
 
-  it("refuses when the insert conflicts (either side already bound elsewhere)", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const { service } = bindService({}, { code: "23505" });
-    expect(await bindSlackIdentity(service, "U1", "m1", "auth-1")).toBe(false);
+  it("replaces a guess that points at someone else, and says so", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { service, upsert, deleted } = linkService({
+      bySlack: { user_id: "auth-other", linked_via: "email_alias" },
+      byUser: { slack_user_id: "U_OLD", linked_via: "email_match" },
+    });
+    const result = await linkSlackAccount(service, grant, "m1", "auth-1");
+    expect(result).toEqual({ ok: true, replaced: ["email_alias (another account)", "email_match (another Slack user)"] });
+    expect(deleted).toEqual([["slack_identities.slack_user_id", "U1"], ["slack_identities.user_id", "auth-1"]]);
+    expect(upsert).toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("replaced"), expect.any(String), "m1");
+  });
+
+  it("refuses a Slack account from another workspace, before reading anything", async () => {
+    const { service, upsert } = linkService();
+    await expect(linkSlackAccount(service, { ...grant, teamId: "T_OTHER" }, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "wrong_workspace" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Slack account another member connected, whether or not their identity row exists", async () => {
+    const connected = linkService({ held: [{ member_id: "other" }] });
+    await expect(linkSlackAccount(connected.service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "taken" });
+    const linked = linkService({ bySlack: { user_id: "auth-other", linked_via: "slack_connect" } });
+    await expect(linkSlackAccount(linked.service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "taken" });
+    expect(connected.upsert).not.toHaveBeenCalled();
+    expect(linked.deleted).toEqual([]);
+  });
+
+  it("refuses a member who already connected a different Slack account", async () => {
+    const { service, upsert } = linkService({ byUser: { slack_user_id: "U_OLD", linked_via: "slack_connect" } });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).resolves.toEqual({ ok: false, reason: "other_account" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a write that fails, so nothing is stored for a half-made link", async () => {
+    const { service } = linkService({ upsertError: new Error("db down") });
+    await expect(linkSlackAccount(service, grant, "m1", "auth-1")).rejects.toThrow("db down");
   });
 });
 
@@ -191,6 +246,59 @@ describe("getSlackUserToken", () => {
   });
 });
 
+describe("refreshing without two requests doing it at once", () => {
+  useFakeClock(() => NOW);
+  const row = (extra: Record<string, unknown> = {}) => ({ slack_user_id: "U_FERN", access_token: "xoxp-live", refresh_token: "xoxe-old", expires_at: null, ...extra });
+  // About to expire (refreshing starts within five minutes) but still good for now.
+  const expiring = () => new Date(NOW + 4 * 60_000).toISOString();
+  const expired = () => new Date(NOW - 60_000).toISOString();
+  const fresh = () => new Date(NOW + 3 * 3600_000).toISOString();
+
+  it("refreshes under the lease and gives it back after", async () => {
+    access.mockResolvedValue({ ok: true, access_token: "xoxp-new", refresh_token: "xoxe-new", expires_in: 43200 });
+    const service = fakeService({ tokens: row({ expires_at: expiring() }) });
+    await getSlackUserToken(service, "m1");
+    expect(service.rpc).toHaveBeenCalledWith("slack_token_refresh_claim", { p_key: "member:m1", p_seconds: 60 });
+    expect(service.rpc).toHaveBeenCalledWith("slack_token_refresh_release", { p_key: "member:m1" });
+  });
+
+  it("uses the token it has, and doesn't refresh, when another request holds the lease and it hasn't expired yet", async () => {
+    const service = fakeService({ tokens: row({ expires_at: expiring() }), claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-live", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+  });
+
+  it("waits for the request that holds the lease when its own token has expired, then uses the refreshed one", async () => {
+    const service = fakeService({ tokens: [row({ expires_at: expired() }), row({ access_token: "xoxp-refreshed", expires_at: fresh() })], claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-refreshed", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+  });
+
+  it("gives up, without disconnecting the member, if the holder never finishes", async () => {
+    const service = fakeService({ tokens: row({ expires_at: expired() }), claim: false });
+    await expect(getSlackUserToken(service, "m1")).resolves.toBeNull();
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+  });
+
+  it("looks again once it holds the lease: another request may have refreshed (and spent the refresh token) before it", async () => {
+    const service = fakeService({ tokens: [row({ expires_at: expiring() }), row({ access_token: "xoxp-by-someone-else", expires_at: fresh() })] });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-by-someone-else", slackUserId: "U_FERN" });
+    expect(access).not.toHaveBeenCalled();
+  });
+
+  it("doesn't disconnect anyone because the lease couldn't be taken (a database problem), and uses a token that still works", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const service = fakeService({ tokens: row({ expires_at: expiring() }), claim: "error" });
+    await expect(getSlackUserToken(service, "m1")).resolves.toEqual({ token: "xoxp-live", slackUserId: "U_FERN" });
+    expect(service.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+
+    const gone = fakeService({ tokens: row({ expires_at: expired() }), claim: "error" });
+    await expect(getSlackUserToken(gone, "m1")).resolves.toBeNull();
+    expect(gone.rpc).not.toHaveBeenCalledWith("slack_connection_revoke", expect.anything());
+  });
+});
+
 describe("disconnectSlack and dead tokens", () => {
   it("revokes the stored connection", async () => {
     const service = fakeService({ tokens: { slack_user_id: "U", access_token: "xoxp", refresh_token: null, expires_at: null } });
@@ -210,5 +318,17 @@ describe("hasReadSyncScopes", () => {
     expect(hasReadSyncScopes([...SLACK_USER_SCOPES])).toBe(true);
     expect(hasReadSyncScopes(["chat:write", "reactions:write"])).toBe(false);
     expect(hasReadSyncScopes([])).toBe(false);
+  });
+});
+
+describe("getSlackConnectionStatus", () => {
+  const status = (row: Record<string, unknown> | null) =>
+    getSlackConnectionStatus({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }) }) } as never, "member-fern");
+
+  it("says never connected, connected with every scope, connected before the scopes it needs now, and revoked", async () => {
+    await expect(status(null)).resolves.toMatchObject({ connected: false, sharesReadState: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: true, sharesReadState: true, revoked: false, slackUserId: "U1" });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: null, scopes: ["chat:write"] })).resolves.toMatchObject({ connected: true, sharesReadState: false, revoked: false });
+    await expect(status({ slack_user_id: "U1", connected_at: "t", revoked_at: "2026-10-20T00:00:00Z", scopes: SLACK_USER_SCOPES })).resolves.toMatchObject({ connected: false, slackUserId: null, revoked: true });
   });
 });

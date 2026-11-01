@@ -1,11 +1,14 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import {
   computeGroupedPrickleStats,
+  pricklesWindowEnd,
   type PrickleWithHost,
   type AttendanceRow,
 } from "@/lib/scheduled-prickle-stats";
@@ -22,71 +25,21 @@ async function fetchPricklesForType(
   from?: string,
   to?: string
 ): Promise<PrickleWithHost[]> {
-  const BATCH = 1000;
-  const rows: PrickleWithHost[] = [];
-  let offset = 0;
-  let hasMore = true;
-  const now = new Date().toISOString();
-
-  while (hasMore) {
-    let query = supabase
-      .from("prickles")
-      .select("id, type_id, start_time, host:members(id, name)")
-      .eq("type_id", typeId)
-      .lte("start_time", now)
-      .range(offset, offset + BATCH - 1)
-      .order("start_time", { ascending: true });
-
-    if (from) query = query.gte("start_time", from);
-    if (to) query = query.lte("start_time", to + "T23:59:59Z");
-
-    const { data } = await query;
-
-    if (data && data.length > 0) {
-      rows.push(...(data as unknown as PrickleWithHost[]));
-      offset += data.length;
-      hasMore = data.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return rows;
+  const found = await createRepos(supabase).prickles.startingBetween({
+    from: from ?? new Date(0).toISOString(),
+    to: pricklesWindowEnd(to, new Date()),
+    inclusiveEnd: true,
+    typeIds: [typeId],
+  });
+  return found.map((p) => ({ id: p.id, type_id: p.typeId, start_time: p.startTime, host: p.host ? { id: p.host.id, name: p.host.name, display_name: p.host.displayName } : null }));
 }
 
 async function fetchAttendanceForPrickles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   prickleIds: string[]
 ): Promise<AttendanceRow[]> {
-  if (prickleIds.length === 0) return [];
-
-  const BATCH_IDS = 500;
-  const rows: AttendanceRow[] = [];
-
-  for (let i = 0; i < prickleIds.length; i += BATCH_IDS) {
-    const chunk = prickleIds.slice(i, i + BATCH_IDS);
-    const PAGE = 1000;
-    let offset = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data } = await supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id")
-        .in("prickle_id", chunk)
-        .range(offset, offset + PAGE - 1);
-
-      if (data && data.length > 0) {
-        rows.push(...data);
-        offset += data.length;
-        hasMore = data.length === PAGE;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
-
-  return rows;
+  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 // ---------------------------------------------------------------------------
@@ -114,12 +67,8 @@ function dateOffsetISO(days: number): string {
 
 const getPrickleType = cache(async (kind: string) => {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name")
-    .eq("normalized_name", kind)
-    .single();
-  return data;
+  const type = (await createRepos(supabase).prickles.types()).find((t) => t.normalizedName === kind);
+  return type ? { id: type.id, name: type.name, normalized_name: type.normalizedName } : null;
 });
 
 export async function generateMetadata({
@@ -157,13 +106,13 @@ export default async function PrickleKindInsightsPage({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [prickles, membersRaw] = await Promise.all([
+  const [prickles, members] = await Promise.all([
     fetchPricklesForType(supabase, prickleType.id, from, to),
-    supabase.from("members").select("id, name"),
+    createRepos(supabase).members.identities(),
   ]);
 
   const memberNameMap = new Map<string, string>(
-    (membersRaw.data ?? []).map((m) => [m.id, m.name])
+    members.map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })])
   );
 
   const prickleIds = prickles.map((p) => p.id);
@@ -240,7 +189,7 @@ export default async function PrickleKindInsightsPage({
                 max={today}
                 className="border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
-              <span className="text-slate-500">to</span>
+              <span className="text-slate-600 dark:text-slate-400">to</span>
               <input
                 type="date"
                 name="to"
@@ -285,7 +234,7 @@ export default async function PrickleKindInsightsPage({
               </Link>
             </div>
             {groupBy === "host" && (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Note: uses first listed host from calendar; multi-host sessions are a TODO
               </span>
             )}
@@ -293,7 +242,7 @@ export default async function PrickleKindInsightsPage({
         </div>
 
         {grouped.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-12 text-center text-slate-600 dark:text-slate-400">
             No sessions found
             {(from || to) && (
               <span>
@@ -313,7 +262,7 @@ export default async function PrickleKindInsightsPage({
         )}
 
         {prickles.length > 0 && (
-          <p className="text-xs text-slate-400 dark:text-slate-500 text-right">
+          <p className="text-xs text-slate-500 dark:text-slate-400 text-right">
             {prickles.length} session{prickles.length !== 1 ? "s" : ""} •{" "}
             {attendance.length} attendance record{attendance.length !== 1 ? "s" : ""}
           </p>

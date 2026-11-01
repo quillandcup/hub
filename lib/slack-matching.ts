@@ -1,4 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { Member, MemberAlias, normalizeName } from './member-matching';
+import { createRepos } from '@/lib/data/repos';
 
 // Slack's own system assistant account. Slack's API reports it with
 // is_bot: false (unlike real app/bot integrations), so the usual `is_bot`
@@ -11,19 +13,30 @@ export const SLACKBOT_USER_ID = 'USLACKBOT';
 export interface SlackUser {
   user_id: string;
   email: string | null;
-  real_name: string;
+  real_name: string | null;
 }
 
 export interface SlackMatchResult {
   slack_user_id: string;
   member_id: string | null;
-  match_method: 'manual_alias' | 'email' | 'normalized_name' | null;
+  match_method: 'verified_link' | 'manual_alias' | 'email' | 'normalized_name' | null;
+}
+
+/**
+ * Slack user id -> member id for members who connected Slack (member_slack_connections). That is
+ * proof, not a guess: they signed in to the Hub and to that Slack account. Kept after a disconnect,
+ * since the Slack id still belongs to them and so do its messages. Pass the result to
+ * matchSlackUsersToMembers, where it outranks every inference.
+ */
+export async function loadVerifiedSlackLinks(supabase: SupabaseClient): Promise<Map<string, string>> {
+  return createRepos(supabase).memberProfile.slackUserLinks();
 }
 
 /**
  * Matches Slack users to members
  *
  * Matching priority:
+ * 0. Verified link (the member connected that Slack account; `verified`)
  * 1. Manual alias (slack user_id → member_id in member_name_aliases)
  * 2. Email match (slack email = member email)
  * 3. Normalized name match
@@ -33,7 +46,8 @@ export interface SlackMatchResult {
 export async function matchSlackUsersToMembers(
   slackUsers: SlackUser[],
   members: Member[],
-  aliases: MemberAlias[]
+  aliases: MemberAlias[],
+  verified: Map<string, string> = new Map()
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
 
@@ -57,8 +71,13 @@ export async function matchSlackUsersToMembers(
   for (const slackUser of slackUsers) {
     let memberId: string | null = null;
 
-    // 1. Manual alias (highest priority)
-    if (slackAliasToMemberId.has(slackUser.user_id)) {
+    // 0. Verified link (highest priority)
+    if (verified.has(slackUser.user_id)) {
+      memberId = verified.get(slackUser.user_id)!;
+    }
+
+    // 1. Manual alias
+    if (!memberId && slackAliasToMemberId.has(slackUser.user_id)) {
       memberId = slackAliasToMemberId.get(slackUser.user_id)!;
     }
 

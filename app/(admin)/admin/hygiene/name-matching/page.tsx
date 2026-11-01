@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -21,48 +22,26 @@ export default async function NameMatchingReportPage() {
     redirect("/login");
   }
 
-  // Get active members with their attendance count, all members, and aliases in parallel
-  const [
-    { data: activeMembers },
-    { data: allMembers },
-    { data: aliases },
-  ] = await Promise.all([
-    supabase
-      .from("members")
-      .select(`
-        id,
-        name,
-        email,
-        prickle_attendance(id)
-      `)
-      .eq("status", "active")
-      .order("name"),
-    supabase
-      .from("members")
-      .select("id, name, email"),
-    supabase
-      .from("member_name_aliases")
-      .select("alias, member_id, source"),
+  // Active members, all members and aliases in parallel
+  const repos = createRepos(supabase);
+  const [activeMembers, allMembers, aliases] = await Promise.all([
+    repos.members.list({ status: "active", orderBy: "name" }),
+    repos.members.identities(),
+    createRepos(supabase).aliases.nameAliases(),
   ]);
+  const attendedIds = await repos.attendance.membersWhoAttended(activeMembers.map((m) => m.id));
 
   // Filter for members with zero attendance
   const membersWithNoAttendance = activeMembers
-    ?.filter(m => !m.prickle_attendance || m.prickle_attendance.length === 0)
-    .map(m => ({
-      id: m.id,
-      name: m.name,
-      email: m.email,
-    })) || [];
+    .filter((m) => !attendedIds.has(m.id))
+    .map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email }));
 
   // Get unmatched Zoom attendees - those that don't match any member
-  const { data: allZoomNames } = await supabase
-    .schema('bronze').from("zoom_attendees")
-    .select("name, email")
-    .order("name");
+  const allZoomNames = await repos.zoom.attendeesForMatching();
 
   // Count how many times each Zoom name appears
   const zoomNameCounts = new Map<string, { count: number; emails: Set<string> }>();
-  allZoomNames?.forEach(z => {
+  allZoomNames.forEach(z => {
     const existing = zoomNameCounts.get(z.name);
     if (existing) {
       existing.count++;
@@ -90,7 +69,7 @@ export default async function NameMatchingReportPage() {
     const matchResult = matchAttendeeToMember(
       zoomName,
       email,
-      allMembers || [],
+      allMembers,
       aliases || []
     );
 

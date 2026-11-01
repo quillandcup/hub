@@ -94,8 +94,23 @@ export const EVENTS = {
     option: optional(text(40)),
   },
 
-  /** A course lesson was marked complete or cleared (app/(member)/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
+  /** A course lesson was marked complete or cleared (components/courses/LessonCompletion.tsx): by the member's button, or automatically when the player reached the watched mark. */
   lesson_completion_changed: { completed: bool(), via: oneOf("button", "watched") },
+
+  /** Files were added to the chat composer (components/chat/Composer.tsx): `via` is how, `count` how many. */
+  chat_files_attached: { via: oneOf("picker", "paste", "drop"), count: int() },
+
+  /** A member cancelled the upload of a message's files while sending (components/chat/Composer.tsx): `count` files were attached. */
+  chat_upload_cancelled: { count: int() },
+
+  /** A reaction was chosen in the full emoji picker (components/chat/EmojiPicker.tsx): `via` is its Frequently used row, browsing a category, or search; `custom` whether it was a workspace emoji. */
+  chat_reaction_picked: { via: oneOf("recent", "browse", "search"), custom: bool() },
+
+  /**
+   * A member's profile-at-a-glance opened from their name (components/member/MemberHoverCard.tsx):
+   * `surface` is the page it was on, `has_message` whether the card offered a Message button.
+   */
+  member_hover_card_opened: { surface: oneOf("chat", "streaks", "big_sisters"), has_message: bool() },
 
   /**
    * A server action finished (lib/analytics/server.ts: `withAction`): `action` is which one, `ok`
@@ -123,6 +138,32 @@ export const EVENTS = {
   onair_join_clicked: { live: bool(), room_size: int() },
   onair_prickle_clicked: { room_size: int() },
   onair_member_clicked: { room_size: int() },
+
+  /** A help article (help/<slug>.md) was opened. `slug` is the file name, chosen by us, never typed by a member. */
+  help_article_viewed: { slug: text(60) },
+
+  // The media library picker (components/media/MediaPicker.tsx). `surface` is where it was opened,
+  // named by us; a title, tag, file name or search text never goes in.
+  media_picker_opened: { surface: oneOf("event_cover", "admin_library", "book_cover") },
+  /** An image was chosen: from the library (`searched` says a search was typed first) or by uploading it right there. */
+  media_picked: { surface: oneOf("event_cover", "admin_library", "book_cover"), from: oneOf("library", "upload", "event_photo"), searched: bool() },
+  media_cleared: { surface: oneOf("event_cover", "admin_library", "book_cover") },
+  /** An upload finished or failed. `converted` is a HEIC photo turned into JPEG, `duplicate` a file the library already had, `large` one sent through the signed URL. */
+  media_uploaded: { surface: oneOf("event_cover", "admin_library", "book_cover"), ok: bool(), converted: bool(), duplicate: bool(), large: bool() },
+  // The staff library (app/(admin)/admin/media). Which fields a save changed; never their values.
+  media_edited: { title: bool(), alt: bool(), tags: bool(), focal: bool(), fit: bool(), is_public: bool() },
+  /** A delete was attempted; `in_use` means it was refused because something still shows the image. */
+  media_deleted: { ok: bool(), in_use: bool() },
+
+  // Admin: managing events (app/(admin)/admin/events, the prickle page's "Events" card). `source` is where the
+  // schedule comes from: a calendar item, or a Hub session for an event made in the Hub. Answers: do admins
+  // edit events on the event page (the one place), and how often is one made by hand rather than from the calendar.
+  /** An admin saved the event's details. */
+  event_edited: { source: oneOf("calendar", "hub"), ok: bool() },
+  /** An admin made an event: from the create form (`hub_form`) or by showing a calendar item in Events (`calendar_item`). */
+  event_created: { from: oneOf("hub_form", "calendar_item"), ok: bool() },
+  /** A download was started: the original file, the Amazon ebook cover, or a custom size. */
+  media_downloaded: { kind: oneOf("original", "kdp_ebook", "custom") },
 } satisfies Record<string, Record<string, Spec>>;
 
 export type EventName = keyof typeof EVENTS;

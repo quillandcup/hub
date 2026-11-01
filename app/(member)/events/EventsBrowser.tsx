@@ -3,264 +3,168 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PillFilter, type PillOption } from "@/components/PillFilter";
-import { hostShortName } from "@/lib/formatters";
+import { locationDisplay } from "@/lib/location-display";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
+import EventArt from "@/components/EventArt";
+import { eventCoverUrl } from "@/lib/event-cover";
+import { EVENT_TYPE_LABELS, eventTier, type EventTier, type EventType } from "@/lib/events-filter";
+import { agendaWeeks, cleanEventTitle, eventDays, formatTimeSpan, type AgendaMonth } from "@/lib/events-agenda";
+import type { EventPrickle } from "@/lib/event-prickles";
 import {
-  EVENT_TYPE_LABELS,
-  countUpcoming,
-  groupEvents,
-  primaryFilterOf,
-  showsEducationalPrickles,
-  type EventFilter,
-  type EventType,
-  type PrimaryEventFilter,
-  type RetreatFilter,
-} from "@/lib/events-filter";
-import type { EducationalPrickle } from "@/lib/educational-prickles";
+  AgendaWeeks,
+  agendaItemOfEvent,
+  agendaItemOfPrickle,
+  fmtDateRange,
+  type EventRow,
+} from "./AgendaList";
 
-export interface EventRow {
-  id: string;
-  slug: string;
-  title: string;
-  event_type: string;
-  location: string | null;
-  starts_at: string;
-  ends_at: string;
-  focus: string | null;
-  cover_photo_id: string | null;
-}
+export type { EventRow };
 
-// Type-only (erased at compile time), so none of lib/educational-prickles.ts's server-side
+// Type-only (erased at compile time), so none of lib/event-prickles.ts's server-side
 // query code reaches the client bundle. Re-exported for existing importers.
-export type { EducationalPrickle };
+export type { EventPrickle };
 
-// How many educational prickles the "All" view highlights before linking to the full list.
-const EDUCATIONAL_PREVIEW_COUNT = 4;
+// What each highlighted tier is called as a section.
+const HIGHLIGHT_SECTIONS: { tier: EventTier; heading: string }[] = [
+  { tier: "special", heading: "Special events" },
+  { tier: "educational", heading: "Educational" },
+];
 
-const EMPTY_LABELS: Record<Exclude<EventFilter, "educational">, string> = {
-  all: "events",
-  retreats: "retreats",
-  in_person_retreat: "in-person retreats",
-  virtual_retreat: "virtual retreats",
-  other: "other events",
-};
-
-function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function fmtDateRange(start: string, end: string) {
-  return start === end ? fmtDate(start) : `${fmtDate(start)} – ${fmtDate(end)}`;
-}
-
-function fmtPrickleTime(iso: string, timeZone: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    timeZone,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-}
-
-/** Keep `?type=` in sync without a server round trip (the page already has all the data). */
-function syncUrl(filter: EventFilter) {
+/** Keep `?month=` in sync without a server round trip (the page already has all the data). */
+function syncUrl(month: string, firstMonth: string) {
   if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
-  if (filter === "all") url.searchParams.delete("type");
-  else url.searchParams.set("type", filter);
+  if (month === firstMonth) url.searchParams.delete("month");
+  else url.searchParams.set("month", month);
   window.history.replaceState(window.history.state, "", url.toString());
 }
 
 export default function EventsBrowser({
-  initialFilter,
+  initialMonth,
+  months,
   events,
-  educationalPrickles,
+  eventPrickles,
   today,
   timeZone,
 }: {
-  initialFilter: EventFilter;
+  initialMonth: string;
+  months: AgendaMonth[];
   events: EventRow[];
-  educationalPrickles: EducationalPrickle[];
+  eventPrickles: EventPrickle[];
   today: string;
   timeZone: string;
 }) {
-  const [filter, setFilterState] = useState<EventFilter>(initialFilter);
-  const setFilter = (next: EventFilter) => {
-    setFilterState(next);
-    syncUrl(next);
+  const [monthId, setMonthState] = useState(initialMonth);
+  const setMonth = (next: string) => {
+    setMonthState(next);
+    syncUrl(next, months[0].id);
   };
 
-  const primary = primaryFilterOf(filter);
-  const counts = countUpcoming(events, educationalPrickles.length, today);
-  const { upcoming, past } = groupEvents(events, filter, today);
+  const month = months.find((m) => m.id === monthId) ?? months[0];
+  const items = [...events.map((e) => agendaItemOfEvent(e, timeZone)), ...eventPrickles.map((p) => agendaItemOfPrickle(p, timeZone))];
+  const options: PillOption<string>[] = months.map((m) => ({ id: m.id, label: m.label, count: agendaWeeks(items, m, today).reduce((n, w) => n + w.days.reduce((k, d) => k + d.items.length, 0), 0) }));
+  const weeks = agendaWeeks(items, month, today);
 
-  const primaryOptions: PillOption<PrimaryEventFilter>[] = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "retreats", label: "Retreats", count: counts.retreats },
-    { id: "educational", label: "Educational prickles", count: counts.educational },
-    { id: "other", label: "Other events", count: counts.other },
-  ];
-  const retreatOptions: PillOption<RetreatFilter>[] = [
-    { id: "retreats", label: "All retreats" },
-    { id: "in_person_retreat", label: "In person", count: counts.in_person_retreat },
-    { id: "virtual_retreat", label: "Virtual", count: counts.virtual_retreat },
-  ];
+  const upcoming = events
+    .map((e) => ({ event: e, ...eventDays(e, timeZone) }))
+    .filter((e) => e.endDate >= today)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
 
   return (
     <div>
-      <PillFilter ariaLabel="Event type" options={primaryOptions} value={primary} onChange={setFilter} />
-      {primary === "retreats" && (
-        <PillFilter
-          ariaLabel="Retreat format"
-          size="sm"
-          className="mt-3"
-          options={retreatOptions}
-          value={filter as RetreatFilter}
-          onChange={setFilter}
-        />
-      )}
+      {HIGHLIGHT_SECTIONS.map(({ tier, heading }, sectionIndex) => {
+        const inTier = upcoming.filter((e) => eventTier(e.event) === tier);
+        if (inTier.length === 0) return null;
+        // One column keeps alternating across sections; two columns restart in each section.
+        const before = HIGHLIGHT_SECTIONS.slice(0, sectionIndex).reduce((n, s) => n + upcoming.filter((e) => eventTier(e.event) === s.tier).length, 0);
+        return (
+          <section key={tier} aria-label={heading} className="mb-8">
+            <SectionHeading>{heading}</SectionHeading>
+            <div className="@container">
+              <div className="grid grid-cols-1 @pair:grid-cols-2 gap-4">
+                {inTier.map(({ event, startDate, endDate, timed }, i) => (
+                  <EventCard key={event.id} event={event} startDate={startDate} endDate={endDate} timed={timed} timeZone={timeZone} artOnRight={(before + i) % 2 === 1} artOnRightPaired={i % 2 === 1} />
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      })}
 
-      <div className="mt-6">
-        {filter === "educational" ? (
-          <EducationalSection prickles={educationalPrickles} timeZone={timeZone} />
+      <section aria-label={`${month.label} at a glance`} className="mb-8">
+        <SectionHeading>{month.label} at a glance</SectionHeading>
+        <PillFilter ariaLabel="Month" options={options} value={monthId} onChange={setMonth} className="mb-2" />
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+          {month.first <= today && `Showing what's still to come in ${month.label}. `}
+          <Link data-track="events-open-past" href={month.first <= today ? `/events/past?month=${month.id}` : "/events/past"} className="text-plum-600 dark:text-plum-400 hover:underline">
+            See past events
+          </Link>
+        </p>
+        {weeks.length === 0 ? (
+          <p className="text-sm text-slate-600 dark:text-slate-400">Nothing scheduled in {month.label} yet.</p>
         ) : (
-          <>
-            {showsEducationalPrickles(filter) && educationalPrickles.length > 0 && (
-              <EducationalSection
-                prickles={educationalPrickles.slice(0, EDUCATIONAL_PREVIEW_COUNT)}
-                timeZone={timeZone}
-                highlighted
-                moreCount={Math.max(0, educationalPrickles.length - EDUCATIONAL_PREVIEW_COUNT)}
-                onSeeAll={() => setFilter("educational")}
-              />
-            )}
-            <EventGrid
-              heading="Upcoming"
-              events={upcoming}
-              empty={`No upcoming ${EMPTY_LABELS[filter]} scheduled yet.`}
-            />
-            <EventGrid heading="Past" events={past} empty={`No past ${EMPTY_LABELS[filter]} yet.`} />
-          </>
+          <AgendaWeeks weeks={weeks} timeZone={timeZone} />
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+    <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-3">
       {children}
     </h2>
   );
 }
 
-function EventGrid({ heading, events, empty }: { heading: string; events: EventRow[]; empty: string }) {
-  return (
-    <section className="mb-8">
-      <SectionHeading>{heading}</SectionHeading>
-      {events.length === 0 ? (
-        <p className="text-sm text-slate-500">{empty}</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function EventCard({ event }: { event: EventRow }) {
+/** A highlighted event: the picture to one side and the words beside it, so a title wraps little. */
+function EventCard({
+  event,
+  startDate,
+  endDate,
+  timed,
+  timeZone,
+  artOnRight,
+  artOnRightPaired,
+}: {
+  event: EventRow;
+  startDate: string;
+  endDate: string;
+  timed: boolean;
+  timeZone: string;
+  artOnRight: boolean;
+  artOnRightPaired: boolean;
+}) {
+  const withSecondary = useWithSecondaryTime();
+  const where = locationDisplay(event.location);
+  const needsSignUp = !!event.registration && event.registration !== "none";
+  const time = timed ? formatTimeSpan(event.start_time, event.end_time, timeZone) : "";
+  const when = [fmtDateRange(startDate, endDate), time && event.start_time ? withSecondary(time, event.start_time, timeZone) : time, where && !where.href ? where.text : null]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <Link data-track="events-event-location-event-focus"
       href={`/events/${event.slug}`}
-      className="block bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
+      className={`flex ${artOnRight ? "flex-row-reverse" : "flex-row"} ${artOnRightPaired ? "@pair:flex-row-reverse" : "@pair:flex-row"} bg-white dark:bg-slate-900 rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow`}
     >
-      <div className="aspect-video bg-slate-100 dark:bg-slate-800">
-        {event.cover_photo_id && (
-          // eslint-disable-next-line @next/next/no-img-element -- served via the private event-photos proxy route
-          <img
-            src={`/api/events/${event.id}/photos/${event.cover_photo_id}`}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        )}
+      <div className="w-28 flex-shrink-0 self-stretch overflow-hidden">
+        <EventArt
+          eventType={event.event_type}
+          icon={event.badge_icon}
+          coverUrl={eventCoverUrl(event)}
+          className="h-full min-h-28"
+        />
       </div>
-      <div className="p-4">
-        <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+      <div className="min-w-0 flex-1 p-4">
+        <p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           {EVENT_TYPE_LABELS[event.event_type as EventType] || event.event_type}
+          {needsSignUp ? " · Sign-up required" : ""}
         </p>
-        <h3 className="font-semibold mt-0.5">{event.title}</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          {fmtDateRange(event.starts_at, event.ends_at)}
-          {event.location ? ` · ${event.location}` : ""}
-        </p>
-        {event.focus && <p className="text-sm text-slate-500 dark:text-slate-500 mt-1">{event.focus}</p>}
+        <h3 className="font-semibold mt-0.5">{cleanEventTitle(event.title)}</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{when}</p>
+        {event.focus && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{event.focus}</p>}
       </div>
     </Link>
-  );
-}
-
-function EducationalSection({
-  prickles,
-  timeZone,
-  highlighted = false,
-  moreCount = 0,
-  onSeeAll,
-}: {
-  prickles: EducationalPrickle[];
-  timeZone: string;
-  highlighted?: boolean;
-  moreCount?: number;
-  onSeeAll?: () => void;
-}) {
-  return (
-    <section
-      aria-label="Upcoming educational prickles"
-      className={`mb-8 rounded-lg border p-4 ${
-        highlighted
-          ? "border-plum-200 bg-plum-50 dark:border-plum-900 dark:bg-plum-950/40"
-          : "border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-      }`}
-    >
-      <SectionHeading>Upcoming educational prickles</SectionHeading>
-      {prickles.length === 0 ? (
-        <p className="text-sm text-slate-500">No educational prickles on the calendar right now.</p>
-      ) : (
-        <ul>
-          {prickles.map((p) => (
-            <li key={p.id}>
-              <Link data-track="events-open-prickle"
-                href={`/prickles/${p.id}`}
-                className="flex items-center justify-between gap-4 py-2.5 border-b border-slate-200/70 dark:border-slate-800 last:border-0 -mx-2 px-2 rounded hover:bg-white/70 dark:hover:bg-slate-800/50"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{p.title || p.typeName}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {p.hostName ? `Hosted by ${hostShortName(p.hostName)}` : "No host listed"}
-                  </p>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0 text-right">
-                  {fmtPrickleTime(p.startTime, timeZone)}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-      {moreCount > 0 && onSeeAll && (
-        <button data-track="events-see-all-educational-prickles"
-          type="button"
-          onClick={onSeeAll}
-          className="mt-2 text-sm text-plum-600 dark:text-plum-400 hover:underline"
-        >
-          See all {prickles.length + moreCount} educational prickles →
-        </button>
-      )}
-    </section>
   );
 }

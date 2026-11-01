@@ -62,6 +62,8 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Move failed");
       onClose();
+      // Drop the cached render of this (source) member's pages before leaving.
+      router.refresh();
       router.push(`/admin/members/${moveTarget.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Move failed");
@@ -94,6 +96,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
         throw new Error(json.error || "Split failed");
       }
       onClose();
+      router.refresh();
       router.push(`/admin/members/${json.memberId}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Split failed");
@@ -115,11 +118,11 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
         </p>
 
         <div className="space-y-3">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
             New member name
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} mt-1.5 normal-case`} />
           </label>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
             New member email
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} mt-1.5 normal-case`} />
           </label>
@@ -127,7 +130,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
 
         {nameAliases.length > 0 && (
           <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            <legend className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
               Names that belong to the new member
             </legend>
             {nameAliases.map((a) => (
@@ -141,7 +144,7 @@ export default function SplitMemberModal({ member, nameAliases, emailAliases, is
 
         {emailAliases.length > 0 && (
           <fieldset className="space-y-1.5">
-            <legend className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+            <legend className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-1">
               Emails that belong to the new member
             </legend>
             {emailAliases.map((a) => (

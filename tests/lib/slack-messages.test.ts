@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   isKeptSlackMessage,
+  isSlackSystemMessage,
+  slackMessageText,
   slackMessageUserId,
   threadKey,
   threadsNeedingReplies,
@@ -12,12 +14,28 @@ describe('isKeptSlackMessage', () => {
     [{}, true],
     [{ subtype: 'file_share' }, true],
     [{ subtype: 'thread_broadcast' }, true],
-    [{ subtype: 'channel_join' }, false],
+    [{ subtype: 'channel_name' }, true],
+    [{ subtype: 'channel_archive' }, true],
+    [{ subtype: 'group_topic' }, true],
+    [{ subtype: 'channel_join' }, true],
+    [{ subtype: 'channel_leave' }, true],
+    [{ subtype: 'group_join' }, true],
+    [{ subtype: 'group_leave' }, true],
     [{ subtype: 'message_changed' }, false],
     [{ subtype: 'message_deleted' }, false],
     [{ subtype: 'bot_message' }, false],
   ])('%j -> %s', (msg, kept) => {
     expect(isKeptSlackMessage(msg)).toBe(kept)
+  })
+})
+
+describe('isSlackSystemMessage', () => {
+  it('is true for channel notices (changes, joins, leaves) only', () => {
+    expect(isSlackSystemMessage({ subtype: 'channel_purpose' })).toBe(true)
+    expect(isSlackSystemMessage({ subtype: 'channel_join' })).toBe(true)
+    expect(isSlackSystemMessage({ subtype: 'group_leave' })).toBe(true)
+    expect(isSlackSystemMessage({ subtype: 'file_share' })).toBe(false)
+    expect(isSlackSystemMessage({})).toBe(false)
   })
 })
 
@@ -114,5 +132,20 @@ describe('threadsNeedingReplies', () => {
       recentB,
       recentA,
     ])
+  })
+})
+
+describe('slackMessageText', () => {
+  it('says who added someone to a channel, which Slack only gives in `inviter`', () => {
+    expect(slackMessageText({ subtype: 'channel_join', user: 'U1', inviter: 'U9', text: '<@U1> has joined the channel' })).toBe('<@U1> was added to the channel by <@U9>')
+    expect(slackMessageText({ subtype: 'group_join', user: 'U1', inviter: 'U9', text: 'x' })).toBe('<@U1> was added to the channel by <@U9>')
+  })
+
+  it('keeps Slack\'s text for someone who joined on their own, a leave, and any other message', () => {
+    expect(slackMessageText({ subtype: 'channel_join', user: 'U1', text: '<@U1> has joined the channel' })).toBe('<@U1> has joined the channel')
+    expect(slackMessageText({ subtype: 'channel_join', user: 'U1', inviter: 'U1', text: '<@U1> has joined the channel' })).toBe('<@U1> has joined the channel')
+    expect(slackMessageText({ subtype: 'channel_leave', user: 'U1', text: '<@U1> has left the channel' })).toBe('<@U1> has left the channel')
+    expect(slackMessageText({ text: 'hello' })).toBe('hello')
+    expect(slackMessageText({})).toBe('')
   })
 })

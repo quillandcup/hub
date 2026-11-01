@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { createFakeSupabase, type FakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { InMemoryPrickleActivityRepository } from "@/lib/data/prickle-activity";
+import { checkinToRow, EMPTY_CHECKIN, type CheckinInput } from "@/lib/prickle-checkins";
+
+const checkinRow = (answers: Partial<CheckinInput>) => ({ id: "c1", member_id: "m1", prickle_id: "p1", ...checkinToRow({ ...EMPTY_CHECKIN, ...answers }) });
 
 // End-to-end through the real senders with Supabase, Slack and the calendar loader faked: what
 // matters here is how many DMs go out, not what the queries look like.
@@ -38,40 +43,72 @@ const goalRow = (id: string, memberId: string, projectId: string, measure: strin
   writing_projects: { title, archived_at: null },
 });
 
-/**
- * prickle_checkin_dm_log that behaves like its UNIQUE (prickle_id, member_id, kind) constraint;
- * a select returns the rows logged so far, filtered by `kind`.
- */
-function dmLog() {
-  const rows = new Map<string, { id: string; prickle_id: string; member_id: string; kind: string }>();
-  return (query: { calls: { method: string; args: unknown[] }[] }) => {
-    if (query.calls.some((c) => c.method === "delete")) {
-      for (const [key, row] of rows) {
-        if (query.calls.filter((c) => c.method === "eq").every((c) => row[c.args[0] as keyof typeof row] === c.args[1])) rows.delete(key);
-      }
-      return { data: [] };
-    }
-    const insert = query.calls.find((c) => c.method === "insert");
-    if (!insert) {
-      const kind = query.calls.find((c) => c.method === "eq" && c.args[0] === "kind")?.args[1];
-      return { data: [...rows.values()].filter((r) => !kind || r.kind === kind) };
-    }
-    const row = insert.args[0] as { prickle_id: string; member_id: string; kind: string };
-    const key = `${row.prickle_id}:${row.member_id}:${row.kind}`;
-    if (rows.has(key)) return { data: null, error: { code: "23505" } };
-    rows.set(key, { id: key, ...row });
-    return { data: [{ id: key }] };
-  };
-}
-
+// The prickles the route finds come from their repository, in memory here.
+const PROGRESS = { id: "t1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
 const PRICKLE = {
   id: "p1",
-  type_id: "t1",
-  host: "host",
-  start_time: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
-  end_time: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
-  prickle_types: { name: "Progress Prickle", purpose: "writing" },
+  typeId: PROGRESS.id,
+  hostId: "host",
+  title: null,
+  startTime: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+  endTime: new Date(Date.now() + 80 * 60 * 1000).toISOString(),
+  source: "calendar",
+  calendarEventId: null,
 };
+let dataset = new InMemoryDataset({ members: [{ id: "host", name: "Host Example" }], prickleTypes: [PROGRESS], prickles: [PRICKLE] });
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => {
+      const twins = actual.createInMemoryRepos(dataset);
+      const real = actual.createRepos(db);
+      // Check-ins still come from the fake client; the DM log (claims and releases) is the twin's.
+      const prickleActivity = new Proxy(real.prickleActivity, {
+        get: (target, prop) => {
+          const source = prop === "claimDm" || prop === "releaseDm" || prop === "claimedDmPairs" ? twins.prickleActivity : target;
+          const value = Reflect.get(source, prop);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+      return { ...real, prickles: twins.prickles, writing: twins.writing, prickleActivity };
+    },
+  };
+});
+
+/** Puts the goals (and the projects they sit on) in the in-memory dataset the writing repository reads. */
+function seedGoals(goals: ReturnType<typeof goalRow>[]) {
+  for (const g of goals) {
+    if (!dataset.writingProjects.some((p) => p.id === g.project_id)) {
+      dataset.writingProjects.push({
+        id: g.project_id, member_id: g.member_id, title: g.writing_projects.title, description: null, cover_asset_id: null, cover_url: null, external_id: null, phase: "drafting",
+        show_on_profile: false, created_at: "2026-01-01T00:00:00Z",
+      });
+    }
+    dataset.writingGoals.push({
+      id: g.id, member_id: g.member_id, project_id: g.project_id, title: null, description: null, external_id: null, goal_type: "target", habit_period: null, habit_threshold: null,
+      is_starred: false, measure: g.measure, show_on_profile: false, start_date: null, end_date: null, target_amount: 1000, archived_at: null, created_at: "2026-01-01T00:00:00Z",
+    });
+  }
+}
+
+/** A progress entry `memberId` already logged against `prickleId` in `projectId`. */
+function logEntry(memberId: string, prickleId: string, projectId: string, measure = "words") {
+  dataset.writingEntries.push({
+    id: `wpe_${dataset.writingEntries.length + 1}`,
+    member_id: memberId,
+    project_id: projectId,
+    prickle_id: prickleId,
+    entry_date: "2026-10-20",
+    measure,
+    mode: "delta",
+    amount: 100,
+    note: null,
+    tags: [],
+    external_id: null,
+    created_at: new Date().toISOString(),
+  });
+}
 
 function cronRequest() {
   return new NextRequest("http://localhost/api/internal/prickle-checkins", {
@@ -81,6 +118,7 @@ function cronRequest() {
 }
 
 beforeEach(() => {
+  dataset = new InMemoryDataset({ members: [{ id: "host", name: "Host Example" }], prickleTypes: [PROGRESS], prickles: [PRICKLE] });
   sendSlackDM.mockClear();
   sendEmail.mockClear();
   calendarPrickleIds.mockReset();
@@ -90,12 +128,10 @@ beforeEach(() => {
 
 describe("prickle check-in route", () => {
   function setup(goals: object[], extra: FakeTables = {}) {
+    seedGoals(goals as ReturnType<typeof goalRow>[]);
     fake = createFakeSupabase({
-      writing_goals: { data: goals },
-      prickles: { data: [PRICKLE] },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
@@ -127,34 +163,35 @@ describe("prickle check-in route", () => {
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("skips a member who already answered every check-in question", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: "company", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ pleasantBefore: 2, energyBefore: 2, need: "company" })] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
     expect(sendSlackDM).not.toHaveBeenCalled();
     // Not logged as sent, so clearing an answer before the window closes still gets the DM.
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("asks the check-in questions, starting from answers already saved", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: "company", session_rating: null, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ pleasantBefore: 4, need: "company" })] },
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
 
     await POST(cronRequest());
 
-    const [feelings, need] = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(feelings.block_id).toBe("prickle_checkin:p1:feelings_before");
-    expect(feelings.accessory.initial_options).toBeUndefined();
-    expect(need.block_id).toBe("prickle_checkin:p1:need");
-    expect(need.accessory.initial_option.value).toBe("company");
+    const blocks = sendSlackDM.mock.calls[0][0].blocks!;
+    const block = (field: string) => blocks.find((b: any) => b.block_id === `prickle_checkin:p1:${field}`);
+    expect(block("pleasant_before").elements.find((e: any) => e.style === "primary").value).toBe("4");
+    expect(block("energy_before").elements.some((e: any) => e.style === "primary")).toBe(false);
+    expect(block("emotion_before").accessory.initial_option).toBeUndefined();
+    expect(block("need").accessory.initial_option.value).toBe("company");
   });
 
   it("skips a member who turned check-ins off, without logging it", async () => {
@@ -188,19 +225,16 @@ describe("prickle check-in route", () => {
   });
 
   it("surfaces a failed claim release and keeps the notification deduplicated", async () => {
-    const log = dmLog();
     setup([goalRow("g1", "m1", "proj1", "words")], {
       notification_preferences: { data: [
         { member_id: "m1", kind: "prickle_checkin", channel: "slack", enabled: true },
         { member_id: "m1", kind: "prickle_checkin", channel: "in_app", enabled: false },
       ] },
-      prickle_checkin_dm_log: (query) => query.calls.some((c) => c.method === "delete")
-        ? { error: { message: "database unavailable" } }
-        : log(query),
     });
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     sendSlackDM.mockRejectedValueOnce(new Error("channel_not_found"));
     vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(InMemoryPrickleActivityRepository.prototype, "releaseDm").mockRejectedValueOnce(new Error("database unavailable"));
 
     await expect(POST(cronRequest())).rejects.toThrow(
       "Releasing prickle_checkin notification claim failed: database unavailable"
@@ -231,7 +265,7 @@ describe("prickle check-in route", () => {
     calendarPrickleIds.mockResolvedValue(new Set(["p1"]));
     await expect(POST(cronRequest())).rejects.toThrow("preferences failed: unavailable");
     expect(sendSlackDM).not.toHaveBeenCalled();
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("doesn't check in with the same member for the same prickle again on the next tick", async () => {
@@ -255,12 +289,18 @@ describe("prickle check-in route", () => {
   });
 
   it("sends check-outs for a recent prickle once its attendance has been imported", async () => {
+    // A writing prickle that ended ten minutes ago.
+    dataset = new InMemoryDataset({
+      members: [{ id: "host", name: "Host Example" }],
+      prickleTypes: [PROGRESS],
+      prickles: [{ ...PRICKLE, startTime: new Date(Date.now() - 70 * 60 * 1000).toISOString(), endTime: new Date(Date.now() - 10 * 60 * 1000).toISOString() }],
+    });
     setup([goalRow("g1", "m1", "proj1", "words")], {
       prickle_attendance: { data: [{ id: "a1", member_id: "m1", prickle_id: "p1" }] },
     });
 
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 1 });
-    expect(sendSlackDM.mock.calls[0][0].text).toBe("Checking out of Progress Prickle: how did it go?");
+    expect(sendSlackDM.mock.calls[0][0].text).toBe("Checking out of Progress Prickle: did you get what you came for?");
     // Later ticks see the log row and leave it alone.
     expect(await (await POST(cronRequest())).json()).toEqual({ checkins: 0, checkouts: 0 });
   });
@@ -283,6 +323,7 @@ describe("sendCheckoutDMs", () => {
     );
 
   function setup(goals: object[], extra: FakeTables = {}) {
+    seedGoals(goals as ReturnType<typeof goalRow>[]);
     fake = createFakeSupabase({
       // m1 left and rejoined: two attendance rows, still one check-out.
       prickle_attendance: {
@@ -291,10 +332,8 @@ describe("sendCheckoutDMs", () => {
           { id: "a2", member_id: "m1", prickle_id: "p1" },
         ],
       },
-      writing_goals: { data: goals },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
       feature_flags: { data: { enabled_globally: true } },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
@@ -327,9 +366,13 @@ describe("sendCheckoutDMs", () => {
     const { slackUserId, blocks } = sendSlackDM.mock.calls[0][0];
     expect(slackUserId).toBe("U-m1");
     expect(blocks!.map((b: any) => b.block_id)).toEqual([
-      undefined, // rating question
-      "prickle_checkin:p1:session_rating",
-      "prickle_checkin:p1:feelings_after",
+      undefined, // got-what-you-came-for question
+      "prickle_checkin:p1:intention_met",
+      undefined,
+      "prickle_checkin:p1:pleasant_after",
+      undefined,
+      "prickle_checkin:p1:energy_after",
+      "prickle_checkin:p1:emotion_after",
       "quick_log:p1:proj1:words",
       "quick_log:p1:proj2:scenes",
       "prickle_dismiss:checkout:p1",
@@ -349,7 +392,7 @@ describe("sendCheckoutDMs", () => {
     expect(await checkout()).toBe(0);
     expect(sendSlackDM).not.toHaveBeenCalled();
     // Turning them back on before the lookback ends still sends one.
-    expect(fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"))).toBe(false);
+    expect(dataset.checkinDmLog).toEqual([]);
   });
 
   it("still sends check-outs to a member who only turned check-ins off", async () => {
@@ -361,9 +404,9 @@ describe("sendCheckoutDMs", () => {
   });
 
   it("skips an attendee who answered both questions and logged every project", async () => {
+    logEntry("m1", "p1", "proj1");
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
-      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
     });
 
     expect(await checkout()).toBe(0);
@@ -371,9 +414,9 @@ describe("sendCheckoutDMs", () => {
   });
 
   it("still sends a fully answered check-out for a project not yet logged, asking only about that one", async () => {
+    logEntry("m1", "p1", "proj1");
     setup([goalRow("g1", "m1", "proj1", "words"), goalRow("g2", "m1", "proj2", "scenes", "Memoir")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: [], need: null, session_rating: 4, feelings_after: ["calm"] }] },
-      writing_progress_entries: { data: [{ id: "e1", member_id: "m1", prickle_id: "p1", project_id: "proj1", measure: "words" }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, pleasantAfter: 4, energyAfter: 3 })] },
     });
 
     expect(await checkout()).toBe(1);
@@ -384,13 +427,14 @@ describe("sendCheckoutDMs", () => {
 
   it("shows answers the attendee already saved", async () => {
     setup([goalRow("g1", "m1", "proj1", "words")], {
-      prickle_checkins: { data: [{ id: "c1", member_id: "m1", prickle_id: "p1", feelings_before: ["tired"], need: null, session_rating: 4, feelings_after: [] }] },
+      prickle_checkins: { data: [checkinRow({ intentionMet: 4, emotionAfter: "proud" })] },
     });
 
     await checkout();
-    const [, rating, feelingsAfter] = sendSlackDM.mock.calls[0][0].blocks!;
-    expect(rating.elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
-    expect(feelingsAfter.accessory.initial_options).toBeUndefined();
+    const blocks = sendSlackDM.mock.calls[0][0].blocks!;
+    const block = (field: string) => blocks.find((b: any) => b.block_id === `prickle_checkin:p1:${field}`);
+    expect(block("intention_met").elements.filter((e: any) => e.style === "primary").map((e: any) => e.value)).toEqual(["4"]);
+    expect(block("emotion_after").accessory.initial_option.value).toBe("proud");
   });
 
   it("doesn't prompt the same attendee twice for one prickle", async () => {
@@ -404,37 +448,49 @@ describe("sendCheckoutDMs", () => {
 
 describe("tryRecordCheckinDM", () => {
   it("is true only for the first record of a (prickle, member, kind)", async () => {
-    fake = createFakeSupabase({ prickle_checkin_dm_log: dmLog() });
+    fake = createFakeSupabase({});
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(true);
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(false);
     expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkout")).toBe(true);
     expect(await tryRecordCheckinDM(fake, "p1", "m2", "prickle_checkin")).toBe(true);
+    expect(dataset.checkinDmLog.map((r) => [r.prickle_id, r.member_id, r.kind])).toEqual([
+      ["p1", "m1", "prickle_checkin"],
+      ["p1", "m1", "prickle_checkout"],
+      ["p1", "m2", "prickle_checkin"],
+    ]);
+  });
+
+  it("is false, and logs, when the claim can't be recorded", async () => {
+    fake = createFakeSupabase({});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(InMemoryPrickleActivityRepository.prototype, "claimDm").mockRejectedValueOnce(new Error("database unavailable"));
+
+    expect(await tryRecordCheckinDM(fake, "p1", "m1", "prickle_checkin")).toBe(false);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("tryRecordCheckinDM failed for prickle=p1 member=m1"), expect.any(Error));
   });
 });
 
 describe("sendTestCheckinDM", () => {
   const PRICKLE_REF = { id: "p1", typeName: "Progress Prickle" };
-  const answered = {
-    id: "c1",
-    member_id: "m1",
-    prickle_id: "p1",
-    feelings_before: ["tired"],
+  const answered = checkinRow({
+    pleasantBefore: 2,
+    energyBefore: 1,
+    emotionBefore: "sleepy",
     need: "company",
-    session_rating: 4,
-    feelings_after: ["calm"],
-  };
+    intentionMet: 4,
+    pleasantAfter: 4,
+    energyAfter: 3,
+  });
 
   function setup(extra: FakeTables = {}) {
+    seedGoals([goalRow("g1", "m1", "proj1", "words", "Novel"), goalRow("g2", "m2", "proj2", "scenes", "Memoir")]);
     fake = createFakeSupabase({
-      writing_goals: { data: [goalRow("g1", "m1", "proj1", "words", "Novel"), goalRow("g2", "m2", "proj2", "scenes", "Memoir")] },
       members: { data: [{ id: "m1" }, { id: "m2" }] },
-      prickle_checkin_dm_log: dmLog(),
       ...extra,
     });
   }
 
-  const loggedAny = () =>
-    fake.queries.some((q) => q.table === "prickle_checkin_dm_log" && q.calls.some((c) => c.method === "insert"));
+  const loggedAny = () => dataset.checkinDmLog.length > 0;
 
   it("sends the check-in marked as a test, even when already answered, without logging it", async () => {
     setup({ prickle_checkins: { data: [answered] } });
@@ -445,8 +501,8 @@ describe("sendTestCheckinDM", () => {
     expect(dm.slackUserId).toBe("U-m1");
     expect(dm.text).toMatch(/^\[Test\] Ready for Progress Prickle/);
     expect(dm.blocks![0].elements[0].text).toMatch(/Test send/);
-    expect(dm.blocks![1].block_id).toBe("prickle_checkin:p1:feelings_before");
-    expect(dm.blocks![1].accessory.initial_options.map((o: any) => o.value)).toEqual(["tired"]);
+    const emotion = dm.blocks!.find((b: any) => b.block_id === "prickle_checkin:p1:emotion_before");
+    expect(emotion.accessory.initial_option.value).toBe("sleepy");
     expect(loggedAny()).toBe(false);
   });
 
@@ -456,10 +512,12 @@ describe("sendTestCheckinDM", () => {
     expect(await sendTestCheckinDM(fake, "m1", PRICKLE_REF, "prickle_checkout")).toEqual({ delivered: ["slack"] });
 
     const dm = sendSlackDM.mock.calls[0][0];
-    expect(dm.text).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(dm.text).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
     expect(dm.blocks!.map((b: any) => b.block_id).filter(Boolean)).toEqual([
-      "prickle_checkin:p1:session_rating",
-      "prickle_checkin:p1:feelings_after",
+      "prickle_checkin:p1:intention_met",
+      "prickle_checkin:p1:pleasant_after",
+      "prickle_checkin:p1:energy_after",
+      "prickle_checkin:p1:emotion_after",
       "quick_log:p1:proj1:words",
       "prickle_dismiss:checkout:p1",
     ]);
@@ -494,7 +552,7 @@ describe("sendTestCheckinDM", () => {
     });
     const email = sendEmail.mock.calls[0][0];
     expect(email.to).toBe("alice@example.com");
-    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: how did it go?");
+    expect(email.subject).toBe("[Test] Checking out of Progress Prickle: did you get what you came for?");
     expect(email.html).toContain("Unsubscribe from");
   });
 

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { buildMembershipTimeline } from "@/lib/membership-timeline";
@@ -23,54 +24,37 @@ export async function recomputeMemberStatus(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<MemberStatus | null> {
-  const { data: member } = await supabase
-    .from("members")
-    .select("id, email, staff_role, status")
-    .eq("id", memberId)
-    .single();
+  const member = await createRepos(supabase).members.byId(memberId);
   if (!member) return null;
 
   let status: MemberStatus;
 
-  if (member.staff_role) {
+  if (member.staffRole) {
     // Staff are always active regardless of subscription/hiatus state (see
     // reprocess_members_atomic's staff_role handling).
     status = "active";
   } else {
-    const [{ data: emailAliasRows }, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] =
-      await Promise.all([
-        supabase.from("member_email_aliases").select("alias_email").eq("member_id", memberId),
-        supabase
-          .from("member_hiatus_history")
-          .select("id, start_date, end_date, reason, notes")
-          .eq("member_id", memberId),
-        supabase
-          .from("member_program_enrollments")
-          .select("id, cohort:program_cohorts(starts_at, expires_at, program:programs(name))")
-          .eq("member_id", memberId),
-        supabase
-          .from("member_status_overrides")
-          .select("id, override_type, reason, starts_at, expires_at")
-          .eq("member_id", memberId),
-      ]);
+    const repos = createRepos(supabase);
+    const [emailAliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
+      repos.aliases.emailsOf(memberId),
+      repos.memberStatus.hiatusesOf(memberId),
+      repos.programs.enrollmentsOf(memberId),
+      repos.memberStatus.statusOverridesOf(memberId),
+    ]);
 
-    const allEmails = [member.email, ...(emailAliasRows ?? []).map((a: any) => a.alias_email)];
-    const { data: kajabiCustomers } = await supabase
-      .schema("bronze")
-      .from("kajabi_customers")
-      .select("kajabi_customer_id")
-      .in("email", allEmails);
-    const customerIds = (kajabiCustomers ?? []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
+    const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
+    const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
+    const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
     const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
 
-    const programOverrides = (enrollmentRows ?? []).map((row: any) => ({
-      id: row.id,
-      starts_at: row.cohort.starts_at,
-      expires_at: row.cohort.expires_at,
-      reason: row.cohort.program.name,
+    const programOverrides = enrollments.map((e) => ({
+      id: e.id,
+      starts_at: e.startsAt,
+      expires_at: e.expiresAt,
+      reason: e.programName,
     }));
 
-    const segments = buildMembershipTimeline(membershipHistory, hiatusRows ?? [], programOverrides, overrideRows ?? []);
+    const segments = buildMembershipTimeline(membershipHistory, hiatusRows, programOverrides, overrideRows);
     const now = Date.now();
     const current = segments.find(
       (s) => s.startDate.getTime() <= now && (s.endDate === null || s.endDate.getTime() > now)
@@ -84,7 +68,7 @@ export async function recomputeMemberStatus(
   }
 
   if (member.status !== status) {
-    await supabase.from("members").update({ status, updated_at: new Date().toISOString() }).eq("id", memberId);
+    await createRepos(supabase).members.setStatus(memberId, status).catch(() => {});
   }
   return status;
 }

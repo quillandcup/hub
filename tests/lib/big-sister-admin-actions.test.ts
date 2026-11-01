@@ -7,8 +7,8 @@ vi.mock("@/lib/mentorship-intro", () => ({ sendMatchIntroductions: mocks.introdu
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: mocks.service }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 import { addVolunteer, createMentorship, deleteMentorship, removeVolunteer, updateMentorship } from "@/app/(admin)/admin/mentorship/actions";
-const mentor = "00000000-0000-4000-a000-000000000001";
-const member = "00000000-0000-4000-a000-000000000002";
+const mentor = "mbr_AAAAAAAAAAA1";
+const member = "mbr_AAAAAAAAAAA2";
 const input = { mentorMemberId: mentor, newMemberId: member };
 const arrival = { memberId: member, arrivedOn: "2026-10-10", trialEndsOn: "2026-10-17", kind: "trial" };
 beforeEach(() => {

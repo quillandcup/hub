@@ -38,7 +38,7 @@ if [[ "$ENV" == "prod" ]]; then
   : "${BASE_URL:=$(node -p 'require("./app.config.ts").appConfig.appUrl')}"
 else
   ENV_FILE=".env.local"
-  : "${BASE_URL:=http://localhost:3000}"  # the local `npm run dev` server
+  : "${BASE_URL:=http://localhost:3000}"  # the local `pnpm dev` server
 fi
 BASE_URL="${BASE_URL%/}"
 

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -22,23 +23,11 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { data: lead, error } = await supabase
-      .from("outreach_leads")
-      .upsert(
-        {
-          member_id,
-          status,
-          updated_by: user.id !== "service-role" && user.id !== "cron" ? user.id : null,
-        },
-        { onConflict: "member_id" }
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      console.error("Error updating outreach lead:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const lead = await createRepos(supabase).outreach.setLeadStatus(
+      member_id,
+      status,
+      user.id !== "service-role" && user.id !== "cron" ? user.id : null
+    );
 
     return NextResponse.json({ lead });
   } catch (error: any) {

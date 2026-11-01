@@ -1,6 +1,8 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createStripeClient } from "@/lib/stripe/client";
 import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
 
 /**
  * Sync data from Stripe API
@@ -33,18 +35,14 @@ export async function POST(request: NextRequest) {
       name: customer.name,
       created_at_stripe: new Date(customer.created * 1000).toISOString(),
       imported_at: importTimestamp,
-      data: customer,
+      data: asJson(customer),
     }));
 
-    const { error: customersError } = await supabase
-      .schema("bronze")
-      .from("stripe_customers")
-      .upsert(customerRecords, { onConflict: "stripe_customer_id" });
-
-    if (customersError) {
-      console.error("Error upserting stripe_customers:", customersError);
-      throw new Error(`Customers import failed: ${customersError.message}`);
-    }
+    const billing = createRepos(supabase).billing;
+    await billing.upsertStripeCustomers(customerRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_customers:", error);
+      throw new Error(`Customers import failed: ${error.message}`);
+    });
 
     // 2. Fetch and import products
     console.log("Fetching products from Stripe API...");
@@ -55,18 +53,13 @@ export async function POST(request: NextRequest) {
       name: product.name,
       active: product.active,
       imported_at: importTimestamp,
-      data: product,
+      data: asJson(product),
     }));
 
-    const { error: productsError } = await supabase
-      .schema("bronze")
-      .from("stripe_products")
-      .upsert(productRecords, { onConflict: "stripe_product_id" });
-
-    if (productsError) {
-      console.error("Error upserting stripe_products:", productsError);
-      throw new Error(`Products import failed: ${productsError.message}`);
-    }
+    await billing.upsertStripeProducts(productRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_products:", error);
+      throw new Error(`Products import failed: ${error.message}`);
+    });
 
     // 3. Fetch and import subscriptions (all statuses to understand full picture)
     // Stripe's list endpoint excludes canceled subscriptions unless status is
@@ -78,26 +71,21 @@ export async function POST(request: NextRequest) {
 
     const subscriptionRecords = subscriptions.map(subscription => ({
       stripe_subscription_id: subscription.id,
-      stripe_customer_id: subscription.customer,
+      stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
       status: subscription.status,
       current_period_start: (subscription as any).current_period_start ? new Date((subscription as any).current_period_start * 1000).toISOString() : null,
       current_period_end: (subscription as any).current_period_end ? new Date((subscription as any).current_period_end * 1000).toISOString() : null,
       canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
       created_at_stripe: new Date(subscription.created * 1000).toISOString(),
-      pause_collection: subscription.pause_collection,
+      pause_collection: asJson(subscription.pause_collection),
       imported_at: importTimestamp,
-      data: subscription,
+      data: asJson(subscription),
     }));
 
-    const { error: subscriptionsError } = await supabase
-      .schema("bronze")
-      .from("stripe_subscriptions")
-      .upsert(subscriptionRecords, { onConflict: "stripe_subscription_id" });
-
-    if (subscriptionsError) {
-      console.error("Error upserting stripe_subscriptions:", subscriptionsError);
-      throw new Error(`Subscriptions import failed: ${subscriptionsError.message}`);
-    }
+    await billing.upsertStripeSubscriptions(subscriptionRecords).catch((error: Error) => {
+      console.error("Error upserting stripe_subscriptions:", error);
+      throw new Error(`Subscriptions import failed: ${error.message}`);
+    });
 
     results.stripe = {
       customers: customerRecords.length,

@@ -218,21 +218,9 @@ describe('Calendar Sync Idempotency', () => {
     expect(finalCheck).toHaveLength(2)
   })
 
-  it('should use bronze schema for update path (regression guard)', async () => {
-    // Before the fix, the update path called supabase.from("calendar_events").update()
-    // without .schema('bronze'). public.calendar_events doesn't exist, so every
-    // detected change silently failed — the sync always reported 0 updated events.
-    const fs = await import('fs/promises')
-    const path = await import('path')
-    const routePath = path.join(process.cwd(), 'app/api/import/calendar/route.ts')
-    const src = await fs.readFile(routePath, 'utf-8')
-
-    const totalUpdateCalls = (src.match(/from\("calendar_events"\)\.update\(/g) ?? []).length;
-    const bronzeUpdateCalls = (src.match(/schema\('bronze'\)\.from\("calendar_events"\)\.update\(/g) ?? []).length;
-
-    expect(totalUpdateCalls).toBeGreaterThan(0);
-    expect(bronzeUpdateCalls).toBe(totalUpdateCalls);
-  });
+  // The update path (a change in Google Calendar must reach the Bronze row, not silently miss because
+  // the table was looked up in `public`) is now in CalendarEventRepository, whose contract runs its
+  // updates against the real bronze table (tests/helpers/calendar-event-contract.ts).
 
   it('delete_stale_calendar_events() removes records no longer in Google Calendar', async () => {
     // This is the root-cause fix for ghost prickles: if an event is deleted from Google

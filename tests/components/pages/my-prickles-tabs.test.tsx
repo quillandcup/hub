@@ -22,6 +22,12 @@ vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
 
+const hostingOn = vi.fn(async () => true);
+vi.mock("@/lib/features.server", () => ({
+  getUserFeaturePreviews: vi.fn(async () => []),
+  effectiveMemberHasFeature: (key: string) => (key === "hosting" ? hostingOn() : Promise.resolve(false)),
+}));
+
 // My Prickles data dependencies and heavy client children.
 vi.mock("@/lib/upcoming-prickles", () => ({ PRIORITY: { none: 6 }, getRankedUpcomingPrickles: vi.fn(async () => []) }));
 vi.mock("@/lib/prickle-schedule", () => ({
@@ -85,6 +91,7 @@ beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   useFakeSupabase();
+  hostingOn.mockResolvedValue(true);
 });
 
 describe("My Prickles tabs that replaced standalone pages", () => {
@@ -102,6 +109,20 @@ describe("My Prickles tabs that replaced standalone pages", () => {
     expect(within(screen.getByRole("tabpanel")).getByTestId("history-calendar")).toHaveTextContent(
       `member: ${MEMBER_IDENTITY.memberId}`
     );
+  });
+});
+
+describe("My Prickles Hosting tab behind the hosting preview", () => {
+  it("hides the tab from members without the preview", async () => {
+    hostingOn.mockResolvedValue(false);
+    await renderServerRoute(MyPricklesIndex, routeProps());
+    expect(screen.queryByRole("tab", { name: "Hosting" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Attendance History" })).toBeInTheDocument();
+  });
+
+  it("sends /my-prickles/hosting to /my-prickles without the preview", async () => {
+    hostingOn.mockResolvedValue(false);
+    await expectRedirect(async () => (await renderTab(HostingRoute), null), undefined as never, "/my-prickles");
   });
 });
 

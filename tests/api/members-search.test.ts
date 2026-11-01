@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { InMemoryDataset, type MemberSeed } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { GET } from "@/app/api/members/route";
 
 vi.mock("@/lib/supabase/api-auth", () => ({
   requireAdmin: vi.fn(),
+}));
+// Members come from their repository, in memory here.
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
 }));
 
 import { requireAdmin } from "@/lib/supabase/api-auth";
@@ -12,103 +20,124 @@ function makeRequest(query = "") {
   return new NextRequest(`http://localhost/api/members${query}`);
 }
 
-function makeSupabaseMock(rows: unknown[] = []) {
-  const chain: any = {
-    select: vi.fn(() => chain),
-    order: vi.fn(() => chain),
-    or: vi.fn(() => chain),
-    ilike: vi.fn(() => chain),
-    limit: vi.fn(() => chain),
-    then: (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null }),
-  };
-  const from = vi.fn(() => chain);
-  return { supabase: { from } as any, chain, from };
-}
+const asAdmin = () => vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: false } as never);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  repos = createInMemoryRepos(new InMemoryDataset({ members: [] }));
 });
 
 describe("GET /api/members admin guard", () => {
-  it("returns 401 without a session and never queries members", async () => {
-    const { supabase, from } = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase, user: null, forbidden: true } as any);
+  it("returns 401 without a session and never reads members", async () => {
+    vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: null, forbidden: true } as never);
+    const search = vi.spyOn(repos.members, "search");
 
     const res = await GET(makeRequest("?search=al&limit=20"));
+
     expect(res.status).toBe(401);
-    expect(from).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 
-  it("returns 403 for a non-admin and never queries members", async () => {
-    const { supabase, from } = makeSupabaseMock();
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase, user: { id: "u1" }, forbidden: true } as any);
+  it("returns 403 for a non-admin and never reads members", async () => {
+    vi.mocked(requireAdmin).mockResolvedValue({ supabase: {} as never, user: { id: "u1" }, forbidden: true } as never);
+    const search = vi.spyOn(repos.members, "search");
 
     const res = await GET(makeRequest("?search=al&limit=20"));
+
     expect(res.status).toBe(403);
-    expect(from).not.toHaveBeenCalled();
+    expect(search).not.toHaveBeenCalled();
   });
 });
 
 describe("GET /api/members search + limit", () => {
-  function asAdmin(rows: unknown[] = []) {
-    const mock = makeSupabaseMock(rows);
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase: mock.supabase, user: { id: "u1" }, forbidden: false } as any);
-    return mock;
-  }
+  const people = [
+    { id: "m1", name: "Alice Example", email: "alice@example.test" },
+    { id: "m2", name: "Bob Example", email: "bob@example.test" },
+    { id: "m3", name: "Cleo Example", email: "cleo@alibi.test" },
+  ];
+  beforeEach(() => {
+    asAdmin();
+    repos = createInMemoryRepos(new InMemoryDataset({ members: people }));
+  });
 
-  it("filters by name/email ilike and applies the limit", async () => {
-    const rows = [{ id: "m1", name: "Alice", email: "alice@example.com" }];
-    const { chain } = asAdmin(rows);
-
+  it("finds members whose name or email contains the search, by name, with only id, name and email", async () => {
     const res = await GET(makeRequest("?search=ali&limit=20"));
+
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ members: rows });
-    expect(chain.or).toHaveBeenCalledWith("name.ilike.%ali%,email.ilike.%ali%");
-    expect(chain.limit).toHaveBeenCalledWith(20);
+    expect(await res.json()).toEqual({
+      members: [
+        { id: "m1", name: "Alice Example", displayName: null, matchedAlias: null, email: "alice@example.test" },
+        { id: "m3", name: "Cleo Example", displayName: null, matchedAlias: null, email: "cleo@alibi.test" },
+      ],
+    });
   });
 
-  it("clamps oversized limits", async () => {
-    const { chain } = asAdmin();
+  it("finds a member by display name and returns it next to the legal name", async () => {
+    repos = createInMemoryRepos(new InMemoryDataset({ members: [...people, { id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }] }));
+
+    const res = await GET(makeRequest("?search=penny&limit=20"));
+
+    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", matchedAlias: null, email: "pp@example.test" }]);
+  });
+
+  it("says which nickname matched when nothing shown for the member did", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", email: "pp@example.test" }],
+        nameAliases: [{ id: "nal_1", member_id: "m4", alias: "Quillfoot", source: "zoom", active: true }],
+      }),
+    );
+
+    const res = await GET(makeRequest("?search=quillfoot&limit=20"));
+
+    expect((await res.json()).members).toEqual([{ id: "m4", name: "Penelope Legal", displayName: "Penny Pen", matchedAlias: "Quillfoot", email: "pp@example.test" }]);
+  });
+
+  it("applies the limit, clamping oversized ones to 50", async () => {
+    const search = vi.spyOn(repos.members, "search");
+
+    expect((await (await GET(makeRequest("?search=example&limit=2"))).json()).members).toHaveLength(2);
     await GET(makeRequest("?search=a&limit=100000"));
-    expect(chain.limit).toHaveBeenCalledWith(50);
+
+    expect(search).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 50 }));
   });
 
-  it("does not apply a limit when none is requested (existing callers)", async () => {
-    const { chain } = asAdmin();
-    await GET(makeRequest());
-    expect(chain.limit).not.toHaveBeenCalled();
-    expect(chain.or).not.toHaveBeenCalled();
+  it("does not apply a limit or a search when none is requested (existing callers)", async () => {
+    const search = vi.spyOn(repos.members, "search");
+
+    const { members } = await (await GET(makeRequest())).json();
+
+    expect(members).toHaveLength(3);
+    expect(search).toHaveBeenCalledWith({ emailEquals: undefined, words: undefined, limit: undefined });
   });
 
   it("strips PostgREST filter syntax from the search term", async () => {
-    const { chain } = asAdmin();
+    const search = vi.spyOn(repos.members, "search");
+
     await GET(makeRequest(`?search=${encodeURIComponent("a,id.eq.x)")}&limit=20`));
-    const filter = chain.or.mock.calls[0][0] as string;
-    // Only the one comma separating the name/email clauses remains.
-    expect(filter.split(",")).toHaveLength(2);
-    expect(filter).not.toContain(")");
+
+    const { words } = search.mock.calls[0][0];
+    expect(words).toEqual(["a id.eq.x"]); // the separators became spaces
+    expect(words!.join("")).not.toMatch(/[,()]/);
   });
 });
 
 describe("GET /api/members?email= host eligibility", () => {
-  function asAdmin(rows: unknown[] = []) {
-    const mock = makeSupabaseMock(rows);
-    vi.mocked(requireAdmin).mockResolvedValue({ supabase: mock.supabase, user: { id: "u1" }, forbidden: false } as any);
-    return mock;
-  }
-
   beforeEach(() => {
+    asAdmin();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-26T16:00:00Z"));
     return () => vi.useRealTimers();
   });
+  const seed = (members: MemberSeed[]) => {
+    repos = createInMemoryRepos(new InMemoryDataset({ members }));
+  };
 
   it("adds host_eligibility (from first join) to exact-email lookups, without leaking the join dates", async () => {
-    const { chain } = asAdmin([
-      { id: "m1", name: "New Hedgie", email: "new@example.com", first_joined_at: "2026-09-10", most_recent_joined_at: "2026-09-10" },
-    ]);
+    seed([{ id: "m1", name: "New Hedgie", email: "new@example.com", firstJoinedAt: "2026-09-10", mostRecentJoinedAt: "2026-09-10" }]);
 
-    const res = await GET(makeRequest("?email=new@example.com"));
+    const res = await GET(makeRequest("?email=NEW@example.com")); // any case
+
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       members: [
@@ -120,33 +149,36 @@ describe("GET /api/members?email= host eligibility", () => {
         },
       ],
     });
-    expect(chain.select).toHaveBeenCalledWith("id, name, email, first_joined_at, most_recent_joined_at");
-    expect(chain.ilike).toHaveBeenCalledWith("email", "new@example.com");
+  });
+
+  it("looks the email up exactly, not as a substring or with wildcards", async () => {
+    seed([{ id: "m1", name: "Someone", email: "someone@example.com", firstJoinedAt: "2020-01-01", mostRecentJoinedAt: "2020-01-01" }]);
+
+    expect((await (await GET(makeRequest("?email=some"))).json()).members).toEqual([]);
+    expect((await (await GET(makeRequest("?email=%25@example.com"))).json()).members).toEqual([]);
   });
 
   it("treats a recent rejoiner who first joined years ago as eligible", async () => {
-    asAdmin([
-      { id: "m2", name: "Rejoiner", email: "back@example.com", first_joined_at: "2021-01-01", most_recent_joined_at: "2026-09-20" },
-    ]);
+    seed([{ id: "m2", name: "Rejoiner", email: "back@example.com", firstJoinedAt: "2021-01-01", mostRecentJoinedAt: "2026-09-20" }]);
+
     const body = await (await GET(makeRequest("?email=back@example.com"))).json();
-    expect(body.members[0].host_eligibility).toEqual({
-      eligible: true,
-      tenureStartDate: "2021-01-01",
-      eligibleOn: "2021-02-01",
-    });
+
+    expect(body.members[0].host_eligibility).toEqual({ eligible: true, tenureStartDate: "2021-01-01", eligibleOn: "2021-02-01" });
   });
 
   it("marks a member with no join dates as not eligible", async () => {
-    asAdmin([{ id: "m3", name: "Dateless", email: "x@example.com", first_joined_at: null, most_recent_joined_at: null }]);
+    seed([{ id: "m3", name: "Dateless", email: "x@example.com" }]);
+
     const body = await (await GET(makeRequest("?email=x@example.com"))).json();
+
     expect(body.members[0].host_eligibility).toEqual({ eligible: false, tenureStartDate: null, eligibleOn: null });
   });
 
-  it("leaves search lookups unchanged (no join dates selected, no eligibility)", async () => {
-    const rows = [{ id: "m1", name: "Alice", email: "alice@example.com" }];
-    const { chain } = asAdmin(rows);
+  it("leaves search lookups unchanged (no eligibility)", async () => {
+    seed([{ id: "m1", name: "Alice", email: "alice@example.com", firstJoinedAt: "2020-01-01" }]);
+
     const body = await (await GET(makeRequest("?search=ali"))).json();
-    expect(body).toEqual({ members: rows });
-    expect(chain.select).toHaveBeenCalledWith("id, name, email");
+
+    expect(body).toEqual({ members: [{ id: "m1", name: "Alice", displayName: null, matchedAlias: null, email: "alice@example.com" }] });
   });
 });

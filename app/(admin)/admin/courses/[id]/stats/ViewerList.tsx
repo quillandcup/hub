@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatCourseDateTime } from "@/lib/courses/format";
-import { describeDevice } from "@/lib/device-label";
+import { describeStoredDevice } from "@/lib/device-label";
 import { formatClock } from "@/lib/courses/watch-stats";
 import type { ViewSession } from "@/lib/courses/watch-stats-data";
 
@@ -38,8 +38,8 @@ export default function ViewerList({
       <ul className="space-y-3">
         {rows.map((s) => (
           <li key={s.sessionId} className="rounded-lg border border-slate-200 dark:border-slate-800">
-            <details className="group">
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 sm:flex-nowrap">
+            <details className="@container group">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2 p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-plum-500 @pair:flex-nowrap">
                 <span className="w-44 shrink-0 text-sm text-slate-600 dark:text-slate-300">{s.startedAt ? formatCourseDateTime(s.startedAt) : "Unknown time"}</span>
                 <span className="w-40 shrink-0 text-sm font-medium">
                   <Link href={`/admin/members/${s.memberId}`} className="text-plum-700 underline dark:text-plum-300">
@@ -58,20 +58,20 @@ export default function ViewerList({
                     <span className="rounded bg-slate-100 px-1.5 text-xs tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-300">{percent(s.coveredFraction)}</span>
                   </span>
                 </span>
-                <span aria-hidden="true" className="text-slate-400 transition group-open:rotate-180">
+                <span aria-hidden="true" className="text-slate-500 dark:text-slate-400 transition group-open:rotate-180">
                   &#9662;
                 </span>
               </summary>
               <dl className="grid grid-cols-[6rem_1fr] gap-y-1 border-t border-slate-100 p-3 text-sm dark:border-slate-800">
-                <dt className="text-slate-500 dark:text-slate-400">Device</dt>
-                <dd>{describeDevice(s.userAgent)}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Location</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Device</dt>
+                <dd>{describeStoredDevice(s.device, s.userAgent)}</dd>
+                <dt className="text-slate-600 dark:text-slate-400">Location</dt>
                 <dd>{s.location?.place ?? "Not recorded"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">IP</dt>
+                <dt className="text-slate-600 dark:text-slate-400">IP</dt>
                 <dd className="tabular-nums">{s.location?.ip ?? "Not recorded"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Played</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Played</dt>
                 <dd className="tabular-nums">{s.played ? `${formatClock(s.watchedSeconds)} of video time` : "Not played"}</dd>
-                <dt className="text-slate-500 dark:text-slate-400">Covered</dt>
+                <dt className="text-slate-600 dark:text-slate-400">Covered</dt>
                 <dd>{describeCoverage(s.intervals, durationSeconds)}</dd>
               </dl>
             </details>
@@ -83,7 +83,7 @@ export default function ViewerList({
           <Link href={more} data-track="admin-watch-stats-load-more" className="text-plum-700 underline dark:text-plum-300">
             Load more
           </Link>
-          <span className="ml-3 text-sm text-slate-500 dark:text-slate-400">
+          <span className="ml-3 text-sm text-slate-600 dark:text-slate-400">
             Showing {rows.length} of {sessions.length}
           </span>
         </p>

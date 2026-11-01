@@ -9,7 +9,8 @@ vi.mock("@/lib/config", () => ({ isProduction: true, SLACK_ALERTS_CHANNEL_ID: "C
 vi.mock("@/lib/email", () => ({ sendEmail }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-import { sendOperationsAlert } from "@/lib/operations-alerts";
+import appConfig from "../../app.config";
+import { sendOperationsAlert, sentrySectionSearchUrl } from "@/lib/operations-alerts";
 
 const failedDm = { type: "slack_dm_failed" as const, notificationKind: "prickle_checkin", memberId: "m1" };
 
@@ -55,5 +56,51 @@ describe("production operations alerts", () => {
     });
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(postMessage.mock.calls[0][0].text).toContain("1 ambiguous Slack member match(es) rejected");
+  });
+
+  it("names the job and lists each problem for a scheduled job that did not finish cleanly", async () => {
+    await sendOperationsAlert({ rpc: async () => ({ data: true, error: null }) }, {
+      type: "cron_partial_failure",
+      job: "reconcile-slack",
+      problems: ["Silver step chat failed: statement timeout", "capture: channel members: boom"],
+    });
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("reconcile-slack");
+    expect(text).toContain("Silver step chat failed: statement timeout");
+    expect(text).toContain("capture: channel members: boom");
+  });
+
+  it("names the section and calls a statement timeout one, with no member content", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "section_failed", section: "member page: activity feed", code: "57014", ms: 8012 });
+
+    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:section_failed:member page: activity feed" }));
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("timed out in the database");
+    expect(text).toContain("member page: activity feed");
+    expect(text).toContain(`<${sentrySectionSearchUrl("member page: activity feed")}|Sentry>`);
+    expect(sentrySectionSearchUrl("member page: activity feed")).toBe(
+      `https://${appConfig.sentry.org}.sentry.io/issues/?query=section%3A%22member+page%3A+activity+feed%22&statsPeriod=24h&sort=date`,
+    );
+  });
+
+  it("words a section failure by its code, or without one", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "section_failed", section: "a", code: "42501", ms: 5 });
+    await sendOperationsAlert(service, { type: "section_failed", section: "b", ms: 5 });
+
+    expect(postMessage.mock.calls[0][0].text).toContain('"a" failed (42501) after 5 ms');
+    expect(postMessage.mock.calls[1][0].text).toContain('"b" failed after 5 ms');
+  });
+
+  it("alerts a browser crash by route, with the untrusted message trimmed and escaped", async () => {
+    const service = { rpc: vi.fn(async () => ({ data: true, error: null })) };
+    await sendOperationsAlert(service, { type: "client_crash", route: "/admin/events/[id]", message: `Error: <b>a & b</b>\n${"x".repeat(500)}` });
+
+    expect(service.rpc).toHaveBeenCalledWith("rate_limit_hit", expect.objectContaining({ p_bucket: "operations_alert:client_crash:/admin/events/[id]" }));
+    const text = postMessage.mock.calls[0][0].text;
+    expect(text).toContain("/admin/events/[id] crashed in a member's or admin's browser");
+    expect(text).toContain("&lt;b&gt;a &amp; b&lt;/b&gt; xxx");
+    expect(text).not.toContain("x".repeat(201));
   });
 });

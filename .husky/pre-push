@@ -1,0 +1,4 @@
+# Pre-push hook: refuse to push to a branch whose pull request already merged (follow-ups go on a
+# new branch from main). Lets the push through when GitHub can't be reached. See
+# scripts/check-push-target.ts; ALLOW_MERGED_BRANCH_PUSH=1 overrides.
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-push-target.ts "$@"

@@ -1,5 +1,6 @@
 import { SERVER_ONLY_EVENTS, isEventName, validateProperties } from "@/lib/analytics/events";
 import { templateRoute } from "@/lib/analytics/route";
+import { parseDevice } from "@/lib/device";
 
 export const MAX_EVENTS_PER_REQUEST = 50;
 /** Older than this, an event's clock is more likely wrong than the event is real. */
@@ -61,7 +62,13 @@ export function parseBatch(
     const route = templateRoute(ctx.route);
     if (route) context.route = route;
     if (typeof ctx.viewport === "string" && VIEWPORTS.has(ctx.viewport)) context.viewport = ctx.viewport;
-    if (userAgent) context.user_agent = userAgent;
+    // The browser and device, parsed from the request's user agent; the raw string is not stored in the event.
+    const device = parseDevice(userAgent);
+    if (device?.browser) context.browser = device.browser;
+    if (device?.browser_version) context.browser_version = device.browser_version;
+    if (device?.os) context.os = device.os;
+    if (device?.os_version) context.os_version = device.os_version;
+    if (device?.device_type) context.device_type = device.device_type;
 
     rows.push({
       message_id: e.messageId,

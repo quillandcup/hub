@@ -35,29 +35,30 @@ Vercel values. `env-vars.config.ts` is the source of truth for which var goes wh
 
 | Secret | Create / rotate it at | Then |
 |---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` (and the public anon key) | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/api | `npm run env:sync` |
-| `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens | `npm run env:sync:github` |
-| `SUPABASE_DB_PASSWORD` | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/database -> Reset database password (`.env.prod` only) | `npm run env:sync:github`, then re-link the local CLI (see Supabase below) |
-| `ZOOM_CLIENT_SECRET` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials | `npm run env:sync` |
-| `ZOOM_WEBHOOK_SECRET_TOKEN` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/event-subscriptions | `npm run env:sync` |
-| `KAJABI_CLIENT_SECRET` | https://app.kajabi.com/admin/settings/public_api | `npm run env:sync` |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | https://console.cloud.google.com/iam-admin/serviceaccounts?project=quillandcup -> Keys | `npm run env:sync` |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | https://console.cloud.google.com/apis/credentials?project=quillandcup | `npm run env:sync` |
-| `SLACK_BOT_TOKEN` | https://app.slack.com/app-settings/T01NPHKSMA9/A0AS93BKT09/oauth (read the runbook first: rotating uninstalls the bot) | `npm run env:sync` |
-| `SLACK_SIGNING_SECRET` | https://api.slack.com/apps/A0AS93BKT09/general -> App Credentials -> Regenerate | `npm run env:sync` |
+| `SUPABASE_SERVICE_ROLE_KEY` (and the public anon key) | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/api | `pnpm env:sync` |
+| `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens | `pnpm env:sync:github` |
+| `SUPABASE_DB_PASSWORD` | https://supabase.com/dashboard/project/bxwtougjidectvjegdlr/settings/database -> Reset database password (`.env.prod` only) | `pnpm env:sync:github`, then re-link the local CLI (see Supabase below) |
+| `ZOOM_CLIENT_SECRET` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/credentials | `pnpm env:sync` |
+| `ZOOM_WEBHOOK_SECRET_TOKEN` | https://marketplace.zoom.us/develop/apps/gcFgx-76S8aaL4AiYqaHng/event-subscriptions | `pnpm env:sync` |
+| `KAJABI_CLIENT_SECRET` | https://app.kajabi.com/admin/settings/public_api | `pnpm env:sync` |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | https://console.cloud.google.com/iam-admin/serviceaccounts?project=quillandcup -> Keys | `pnpm env:sync` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | https://console.cloud.google.com/apis/credentials?project=quillandcup | `pnpm env:sync` |
+| `SLACK_BOT_TOKEN` | https://app.slack.com/app-settings/T01NPHKSMA9/A0AS93BKT09/oauth (read the runbook first: rotating uninstalls the bot) | `pnpm env:sync` |
+| `SLACK_SIGNING_SECRET` | https://api.slack.com/apps/A0AS93BKT09/general -> App Credentials -> Regenerate | `pnpm env:sync` |
 | `SLACK_CONFIG_REFRESH_TOKEN` | https://api.slack.com/apps -> "Your App Configuration Tokens" (below the app list) -> Generate Token; copy the refresh token | `gh secret set SLACK_CONFIG_REFRESH_TOKEN --repo quillandcup/hub` (never synced: CI rewrites it every run) |
-| `GH_TOKEN_SLACK_MANIFEST` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Secrets: Read and write** | `npm run env:sync:github` |
-| `GH_TOKEN_AUTO_MERGE` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Contents** and **Pull requests: Read and write** | `npm run env:sync:github` |
-| `STRIPE_API_KEY` | https://dashboard.stripe.com/apikeys | `npm run env:sync` |
-| `RESEND_API_KEY` | https://resend.com/api-keys | `npm run env:sync:github`, then the next push to main (or `npm run config:push`) updates Supabase's SMTP password |
-| `SENTRY_AUTH_TOKEN` | https://quillandcup.sentry.io/settings/auth-tokens/ | `npm run env:sync:github` |
-| `SENTRY_ALERTS_AUTH_TOKEN` (unused) | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ | No sync needed. Sentry's Slack integration requires a paid plan; app alerts use Billie Bot instead. The token can be removed locally. |
-| `CHECKLY_API_KEY` | https://app.checklyhq.com/settings/user/api-keys | `npm run env:sync:github` |
-| `CHECKLY_HEARTBEAT_*` | Each heartbeat monitor's ping URL, under https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks | `npm run env:sync` |
-| `VERCEL_TOKEN` | https://vercel.com/account/tokens (team-scoped, not project-scoped) | `npm run env:sync:github` |
-| `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | IDs, not credentials: https://vercel.com/quillandcup/hub/settings | `npm run env:sync:github` |
-| `SUDO_SECRET`, `CRON_SECRET` | Self-generated: `openssl rand -hex 32` | `npm run env:sync` |
-| `CRON_INTERNAL_SECRET` | Self-generated: `openssl rand -hex 32` | `npm run env:sync` and `npm run env:sync:vault` |
+| `GH_TOKEN_SLACK_MANIFEST` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Secrets: Read and write** | `pnpm env:sync:github` |
+| `GH_TOKEN_AUTO_MERGE` | https://github.com/settings/personal-access-tokens -> fine-grained, owner `quillandcup`, this repo only, **Contents** and **Pull requests: Read and write** | `pnpm env:sync:github` |
+| `STRIPE_API_KEY` | https://dashboard.stripe.com/apikeys | `pnpm env:sync` |
+| `RESEND_API_KEY` | https://resend.com/api-keys | `pnpm env:sync:github`, then the next push to main (or `pnpm config:push`) updates Supabase's SMTP password |
+| `SENTRY_AUTH_TOKEN` | https://quillandcup.sentry.io/settings/auth-tokens/ | `pnpm env:sync:github` |
+| `SENTRY_CONFIG_TOKEN` | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ (the `hub-iac` internal integration, Organization: Read & Write; a token from it) | `pnpm env:sync:github --only=SENTRY_CONFIG_TOKEN` |
+| `SENTRY_ALERTS_AUTH_TOKEN` (unused) | https://quillandcup.sentry.io/settings/developer-settings/hub-iac-45ec4c/ | No sync needed. Sentry's Slack integration requires a paid plan; app alerts use Billie Bot instead. It is a token of the same `hub-iac` integration that `SENTRY_CONFIG_TOKEN` now uses, so the line can be renamed to `SENTRY_CONFIG_TOKEN` locally instead of creating a new token. |
+| `CHECKLY_API_KEY` | https://app.checklyhq.com/settings/user/api-keys | `pnpm env:sync:github` |
+| `CHECKLY_HEARTBEAT_*` | Each heartbeat monitor's ping URL, under https://app.checklyhq.com/accounts/6d3ea8e9-8978-4a8b-9721-ef77984bd1f7/checks | `pnpm env:sync` |
+| `VERCEL_TOKEN` | https://vercel.com/account/tokens (team-scoped, not project-scoped) | `pnpm env:sync:github` |
+| `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | IDs, not credentials: https://vercel.com/quillandcup/hub/settings | `pnpm env:sync:github` |
+| `SUDO_SECRET`, `CRON_SECRET` | Self-generated: `openssl rand -hex 32` | `pnpm env:sync` |
+| `CRON_INTERNAL_SECRET` | Self-generated: `openssl rand -hex 32` | `pnpm env:sync` and `pnpm env:sync:vault` |
 | `GOOGLE_CALENDAR_WEBHOOK_TOKEN` | Self-generated; set when registering the watch channel (`WEBHOOK_SETUP.md`) | Vercel dashboard only (not in `env-vars.config.ts` yet) |
 
 Per-service gotchas (what breaks mid-rotation, how to verify it took) are in
@@ -72,7 +73,7 @@ Alert destinations are configured per system and environment:
 
 | System | Where it's configured | Status |
 |---|---|---|
-| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` reads `ALERTS_EMAIL` | Production address |
+| Checkly (uptime, SSL, cron heartbeats) | Code: `__checks__/alert-channels.ts` (`ALERTS_EMAIL`, plus `slack.alertsChannelName` in `app.config.ts` through the Checkly Slack app) | Production address and [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Hub app (failed Slack DMs, ambiguous member matches) | `lib/operations-alerts.ts` posts through Billie Bot; `ALERTS_EMAIL` is the fallback (see `docs/SLACK_OPERATIONS_ALERTS.md`) | [#hub-alerts](https://quillandcup.slack.com/archives/C0CA91G8LGH) |
 | Sentry (other error alerts) | Sentry UI; Slack integration requires Team plan | Not routed to Slack on the current plan |
 | Vercel (deploy failures) | Per-user notification settings; Vercel Alerts needs Observability Plus (not enabled) | Not routable per environment today |
@@ -112,7 +113,7 @@ The app's configuration is defined as code in `slack-app-manifest.yml` and pushe
 `push-slack-manifest` job in `.github/workflows/ci.yml` after each production deploy -- edit
 the manifest, not the dashboard (dashboard edits get overwritten on the next push to main).
 The job authenticates with an App Configuration Token: `SLACK_CONFIG_REFRESH_TOKEN`, a GitHub
-secret CI rewrites on every run. Setup, `npm run slack:manifest:diff` and recovery:
+secret CI rewrites on every run. Setup, `pnpm slack:manifest:diff` and recovery:
 `docs/SLACK_MANIFEST.md`.
 
 ---
@@ -131,7 +132,13 @@ Service account: `quill-cup-admin-portal@quillandcup.iam.gserviceaccount.com`
 Webhook URL: `https://hub.quillandcup.com/api/webhooks/calendar`
 Webhook token env var: `GOOGLE_CALENDAR_WEBHOOK_TOKEN`
 
-Note: Google Calendar webhooks are push notifications set up via API call (not a UI toggle). See `WEBHOOK_SETUP.md` for the `curl` command to register a watch channel.
+**Live sync (push notifications).** A Google Calendar edit reaches the Hub (`/admin/calendar`) in seconds, with no manual import. Nothing to set up by hand: the nightly `/api/reconcile/calendar` opens the push ("watch") channel with the service account and renews it before it expires (production only; the channel is recorded in `calendar_watch_channels`, since Google can't list channels). Each notification fetches only what changed since the last sync, deletions included, and refreshes the open calendar page. How it works and how to check it: `WEBHOOK_SETUP.md`, "Google Calendar Webhooks".
+
+- **Only the shared calendar above is synced.** An event created on someone's personal calendar (the default in Google Calendar) never reaches the Hub: check the calendar name in the event's details and move it to the shared one.
+- **Window.** Updates are kept for 90 days back to 90 days ahead; deletions are caught for any date.
+- **Clean up older deletions on demand:** open `/api/reconcile/calendar?cancelledSinceDays=30` as an admin (also runs the full sync).
+- **If the channel isn't opening:** the reconcile returns 500 with the reason, and skips its Checkly heartbeat. The domain of the webhook URL did not need verifying in the Cloud Console, but if Google ever rejects the address ("Unauthorized WebHook callback channel") that is the first thing to check.
+- Changing `GOOGLE_CALENDAR_WEBHOOK_TOKEN` means opening a new channel: mark the live `calendar_watch_channels` row stopped and run the reconcile (`WEBHOOK_SETUP.md`).
 
 ---
 
@@ -201,7 +208,7 @@ uses the separate Development project. CI needs it for `supabase db push` (migra
 straight to Postgres); everything else goes through the Management API with
 `SUPABASE_ACCESS_TOKEN`.
 
-After resetting the password, update `.env.prod`, run `npm run env:sync:github`, and re-link
+After resetting the password, update `.env.prod`, run `pnpm env:sync:github`, and re-link
 your local CLI (it saves the password it linked with, so plain `supabase` commands otherwise
 keep the old one):
 
@@ -210,7 +217,7 @@ npx dotenv -e .env.prod -- supabase link --project-ref bxwtougjidectvjegdlr
 npx dotenv -e .env.prod -- supabase migration list --linked   # auth error = still the old password
 ```
 
-The repo's `npm run db:push` / `config:diff` / `config:push` need no re-link: they load
+The repo's `pnpm db:push` / `config:diff` / `config:push` need no re-link: they load
 `.env.prod` on every run.
 
 ---
@@ -264,7 +271,7 @@ that should persist (dashboard edits get overwritten on the next `checkly deploy
 2. Merge. `.github/workflows/checkly.yml` runs `checkly deploy`, which creates the monitor.
 3. In the Checks page above, open the new monitor and copy its ping URL. Checkly assigns it on the
    first deploy.
-4. Put it in `.env.prod` as `<ENV_VAR>=<ping URL>`, then run `npm run env:sync` (production only).
+4. Put it in `.env.prod` as `<ENV_VAR>=<ping URL>`, then run `pnpm env:sync` (production only).
 
 Until step 4, the route skips its ping and Checkly alerts that the heartbeat is missing. The key in
 `CRON_HEARTBEATS` is the monitor's logical id, so renaming it replaces the monitor and its URL.
@@ -287,7 +294,7 @@ worth checking the Billing page above once the trial period ends.
 Secrets: `CHECKLY_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
 `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SENTRY_AUTH_TOKEN`, `RESEND_API_KEY`,
 `GH_TOKEN_SLACK_MANIFEST`, `GH_TOKEN_AUTO_MERGE`. Variables: `CHECKLY_ACCOUNT_ID`, `SUPABASE_PROJECT_ID`, `ALERTS_EMAIL`, `SLACK_APP_ID`.
-Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`npm run env:sync:github`) -- see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
+Secrets/variables synced from `.env.shared` plus `.env.prod` overrides via `scripts/sync-to-github.ts` (`pnpm env:sync:github`) see `env-vars.config.ts` at the repo root for the source-of-truth list of which vars go where.
 
 Two exceptions to the sync:
 

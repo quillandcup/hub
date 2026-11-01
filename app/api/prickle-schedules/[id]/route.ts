@@ -1,5 +1,7 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
+import type { Update } from "@/lib/data/db";
+import { createRepos } from "@/lib/data/repos";
 
 export async function PATCH(
   request: NextRequest,
@@ -32,7 +34,7 @@ export async function PATCH(
       return NextResponse.json({ error: "status must be one of: proposed, confirmed, declined" }, { status: 400 });
     }
 
-    const updates: Record<string, unknown> = {
+    const updates: Update<"prickle_schedules"> = {
       updated_by: user.id !== "service-role" ? user.id : null,
       updated_at: new Date().toISOString(),
     };
@@ -59,21 +61,12 @@ export async function PATCH(
       }
     }
 
-    const { data: schedule, error } = await supabase
-      .from("prickle_schedules")
-      .update(updates)
-      .eq("id", id)
-      .is("deleted_at", null)
-      .select(`
-        *,
-        member:members(id, name, email),
-        prickle_type:prickle_types(id, name)
-      `)
-      .single();
-
-    if (error) {
+    let schedule;
+    try {
+      schedule = await createRepos(supabase).prickleSchedules.updateLive(id, updates);
+    } catch (error) {
       console.error("Error updating prickle_schedule:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: (error as Error).message }, { status: 500 });
     }
     if (!schedule) return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
 
@@ -98,17 +91,14 @@ export async function DELETE(
 
     // Soft delete only -- prickle_schedules rows are never hard-deleted, to
     // preserve hosting history.
-    const { error } = await supabase
-      .from("prickle_schedules")
-      .update({
+    try {
+      await createRepos(supabase).prickleSchedules.update(id, {
         deleted_at: new Date().toISOString(),
         deleted_by: user.id !== "service-role" ? user.id : null,
-      })
-      .eq("id", id);
-
-    if (error) {
+      });
+    } catch (error) {
       console.error("Error soft-deleting prickle_schedule:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: (error as Error).message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

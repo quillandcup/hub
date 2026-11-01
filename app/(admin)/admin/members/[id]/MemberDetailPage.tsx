@@ -1,3 +1,7 @@
+import { parseSlackPageQuery } from "@/lib/slack-activity-table";
+import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
+import { attendedPrickleRow } from "@/lib/attendance-view";
 import { cache } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import { withMentionNames } from "@/lib/chat/names";
@@ -7,7 +11,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import MemberDetails from "./MemberDetails";
+import MemberDetails, { type MemberView } from "./MemberDetails";
 import MergeButton from "./MergeButton";
 import SplitButton from "./SplitButton";
 import { getUserTimezonePreference } from "@/lib/timezone";
@@ -19,18 +23,20 @@ import {
 } from "@/lib/member-engagement";
 import { getMemberBadges } from "@/lib/badges";
 import { MEMBER_TAB_LABELS, type MemberTabId } from "./tabs";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { tabTitle } from "@/lib/tab-routes";
 import { loadPushDevices } from "@/lib/channels/web-push";
 import { describeDevice } from "@/lib/device-label";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS } from "@/lib/activity-feed";
+import * as Sentry from "@sentry/nextjs";
+import { fetchActivityFeed, parseFeedFilters, MEMBER_DEFAULTS, type FeedPage, type ActivityFeedRow } from "@/lib/activity-feed";
+import { traced } from "@/lib/query-trace";
 import { parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 
 
 const getMemberRow = cache(async (id: string) => {
   const supabase = await createClient();
-  const { data } = await supabase.from("members").select("*").eq("id", id).single();
-  return data;
+  return createRepos(supabase).members.adminView(id);
 });
 
 /** generateMetadata for the member page (Overview) or one of its tab routes: the member's name, then the tab. */
@@ -38,7 +44,7 @@ export function memberTabMetadata(tab: MemberTabId) {
   return async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const { id } = await params;
     const member = await getMemberRow(id);
-    return { title: tabTitle({ record: member?.name ?? "Member" }, MEMBER_TAB_LABELS[tab], tab === "overview") };
+    return { title: tabTitle({ record: member ? getMemberDisplayName({ name: member.name, display_name: member.displayName }) : "Member" }, MEMBER_TAB_LABELS[tab], tab === "overview") };
   };
 }
 
@@ -54,7 +60,7 @@ export default async function MemberDetailPage({
 }: {
   id: string;
   tab: MemberTabId;
-  /** The Activity Log tab's ?page=&pageSize=. */
+  /** The tab's own query: the Activity Log's ?page=&pageSize=, the Slack tab's ?type=&channel=&sort=&page=. */
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const supabase = await createClient();
@@ -79,23 +85,7 @@ export default async function MemberDetailPage({
     .catch(() => []);
 
   // Fetch all attendance records for this member with prickle details
-  const { data: attendance } = await supabase
-    .from("prickle_attendance")
-    .select(`
-      id,
-      join_time,
-      leave_time,
-      confidence_score,
-      prickles(
-        id,
-        host:members(id, name),
-        start_time,
-        end_time,
-        prickle_types(name)
-      )
-    `)
-    .eq("member_id", id)
-    .order("join_time", { ascending: false });
+  const attendance = (await traced("member page: attendance", () => createRepos(supabase).attendance.forMemberWithPrickles(id), { memberId: id })).map(attendedPrickleRow);
 
   // Compute real engagement metrics from member_activities — the mirror of
   // this member's prickle attendance (unbounded, for lastAttendedAt/
@@ -105,86 +95,55 @@ export default async function MemberDetailPage({
   // attendanceRecords panel below.
   const now = new Date();
   const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data: allPrickleAttended }, { data: recentActivities }] = await Promise.all([
-    supabase
-      .from("member_activities")
-      .select("member_id, occurred_at")
-      .eq("member_id", id)
-      .eq("activity_type", "prickle_attended"),
-    supabase
-      .from("member_activities")
-      .select("member_id, activity_type, engagement_value, occurred_at")
-      .eq("member_id", id)
-      .gte("occurred_at", thirtyDaysAgoIso),
-  ]);
-  const activitiesForMetrics: EngagementActivityRow[] = recentActivities ?? [];
+  const [allPrickleAttended, recentActivities] = await traced(
+    "member page: engagement activities",
+    () =>
+      Promise.all([
+        createRepos(supabase).activities.prickleAttendances(id),
+        createRepos(supabase).activities.engagementSince(id, thirtyDaysAgoIso),
+      ]),
+    { memberId: id }
+  );
+  const activitiesForMetrics: EngagementActivityRow[] = recentActivities;
 
-  const metrics =
-    computeMemberEngagementMetrics(allPrickleAttended ?? [], [id], now, activitiesForMetrics).get(id) ?? null;
-  const member = {
+  const metrics = computeMemberEngagementMetrics(allPrickleAttended, [id], now, activitiesForMetrics).get(id) ?? null;
+  const member: MemberView = {
     ...memberRow,
-    member_metrics: metrics
+    metrics: metrics
       ? {
-          last_attended_at: metrics.lastAttendedAt,
-          prickles_last_30_days: metrics.pricklesLast30Days,
-          total_prickles: metrics.totalPrickles,
-          engagement_score: metrics.engagementScore,
+          lastAttendedAt: metrics.lastAttendedAt,
+          pricklesLast30Days: metrics.pricklesLast30Days,
+          totalPrickles: metrics.totalPrickles,
+          engagementScore: metrics.engagementScore,
         }
       : null,
-    member_engagement: metrics
-      ? {
-          risk_level: metrics.riskLevel,
-          engagement_tier: metrics.engagementTier,
-        }
-      : null,
+    engagement: metrics ? { riskLevel: metrics.riskLevel } : null,
   };
 
   // Fetch member name aliases
-  const { data: aliases } = await supabase
-    .from("member_name_aliases")
-    .select("alias")
-    .eq("member_id", id)
-    .order("alias");
-
-  // Fetch full alias rows for the Identity panel (pen name selection) — the
-  // header chip display above only needs the alias text.
-  const { data: nameAliasRows } = await supabase
-    .from("member_name_aliases")
-    .select("id, alias, source, active")
-    .eq("member_id", id)
-    .order("created_at", { ascending: false });
-
-  // Fetch email aliases
-  const { data: emailAliases } = await supabase
-    .from("member_email_aliases")
-    .select("id, alias_email, source, active")
-    .eq("member_id", id)
-    .order("alias_email");
+  const [allNames, aliasEmails] = await Promise.all([createRepos(supabase).aliases.namesOf(id), createRepos(supabase).aliases.emailsOf(id)]);
+  // The header chips only need the alias text, by name.
+  const aliases = allNames.map((a) => ({ alias: a.alias })).sort((a, b) => (a.alias < b.alias ? -1 : a.alias > b.alias ? 1 : 0));
+  // The Identity panel (pen name selection) needs the full rows, newest first.
+  const nameAliasRows = allNames.map(({ id, alias, source, active }) => ({ id, alias, source, active }));
+  const emailAliases = aliasEmails
+    .map(({ id, alias_email, source, active }) => ({ id, alias_email, source, active }))
+    .sort((a, b) => (a.alias_email < b.alias_email ? -1 : a.alias_email > b.alias_email ? 1 : 0));
 
   // Fetch hiatus history — member_hiatus_history is the live source of
   // truth for hiatus tracking.
-  const { data: hiatusRows } = await supabase
-    .from("member_hiatus_history")
-    .select("id, start_date, end_date, reason, notes")
-    .eq("member_id", id)
-    .order("start_date", { ascending: false });
-  const hiatusHistory = hiatusRows || [];
+  const hiatusHistory = await createRepos(supabase).memberStatus.hiatusesOf(id);
 
   // Fetch program-cohort enrollments (180 Program, Self-Editing Academy, ...)
   // — a program-only member (no real Kajabi subscription, see
   // supabase/migrations/20260903000000_create_program_cohort_tracking.sql)
   // has empty membershipHistory/hiatusHistory, so without this the timeline
   // below shows nothing at all for them.
-  const { data: enrollmentRows } = await supabase
-    .from("member_program_enrollments")
-    .select("id, cohort:program_cohorts(starts_at, expires_at, program:programs(name))")
-    .eq("member_id", id)
-    .order("created_at", { ascending: false });
-  const programOverrides = (enrollmentRows || []).map((row: any) => ({
-    id: row.id,
-    starts_at: row.cohort.starts_at,
-    expires_at: row.cohort.expires_at,
-    reason: row.cohort.program.name,
+  const programOverrides = (await createRepos(supabase).programs.enrollmentsOf(id)).map((e) => ({
+    id: e.id,
+    starts_at: e.startsAt,
+    expires_at: e.expiresAt,
+    reason: e.programName,
   }));
 
   // Fetch status overrides (gift/direct_stripe/special — see
@@ -193,67 +152,77 @@ export default async function MemberDetailPage({
   // own, so without this the timeline shows a gap during an active gifted
   // membership (e.g. a lifetime membership granted in exchange for an
   // acquisition).
-  const { data: statusOverrideRows } = await supabase
-    .from("member_status_overrides")
-    .select("id, override_type, reason, starts_at, expires_at")
-    .eq("member_id", id)
-    .order("starts_at", { ascending: false });
-  const statusOverrides = statusOverrideRows || [];
+  const statusOverrides = await createRepos(supabase).memberStatus.statusOverridesOf(id);
 
   // Fetch Kajabi membership history — query all customer IDs across primary + alias emails
   const allEmails = [member.email, ...(emailAliases || []).map((a: any) => a.alias_email)];
-  const { data: kajabiCustomers } = await supabase
-    .schema("bronze")
-    .from("kajabi_customers")
-    .select("kajabi_customer_id")
-    .in("email", allEmails);
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
 
-  const customerIds = (kajabiCustomers || []).map((c: any) => c.kajabi_customer_id).filter(Boolean);
-  const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
+  const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
+  const membershipHistory = await traced("member page: membership history", () => fetchMembershipHistory(supabase, customerIds), { memberId: id });
 
-  // Fetch Slack activities
-  const { data: slackActivities } = await supabase
-    .from("member_activities")
-    .select("*")
-    .eq("member_id", id)
-    .eq("source", "slack")
-    .order("occurred_at", { ascending: false })
-    .limit(50);
+  // The Slack tab pages on the server (?type=&channel=&sort=&dir=&page=&pageSize=). Loaded for every
+  // tab, like the Activity Log: tabs switch on the client without a server round trip, so a visit
+  // that opened on another tab has to arrive with the Slack data already in hand.
+  const thirtyDaysAgo = new Date(clock.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const activities = createRepos(supabase).activities;
+  const slackQuery = parseSlackPageQuery(searchParams);
+  const [slackSummary, slackPage, slackChannels] = await Promise.all([
+    traced("member page: slack summary", () => activities.slackSummary(id, thirtyDaysAgo), { memberId: id }),
+    traced("member page: slack page", () => activities.slackPage(id, slackQuery), { memberId: id }),
+    traced("member page: slack channels", () => activities.slackChannels(id), { memberId: id }),
+  ]);
 
   // The Activity Log tab: the same feed as /admin/activity narrowed to this member (their own
   // activity, what staff did for or as them, changes to their record), Everything by default.
   // Its filters are the URL's ?view=&days=&nosystem=&noslack=&kinds=&sudo=.
   const activityFilters = { ...parseFeedFilters(searchParams, MEMBER_DEFAULTS), memberId: id };
-  const feedPage = await fetchActivityFeed(supabase, {
-    ...activityFilters,
-    page: parsePageParam(searchParams.page),
-    pageSize: parsePageSizeParam(searchParams.pageSize),
-  });
-  const activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
+  // A failing feed (traced has already alerted and tagged the section) shows as a message on the
+  // Activity Log tab instead of taking the whole member page down.
+  let activityFeed: (FeedPage & { rows: ActivityFeedRow[] }) | null = null;
+  try {
+    const feedPage = await traced(
+      "member page: activity feed",
+      () =>
+        fetchActivityFeed(supabase, {
+          ...activityFilters,
+          page: parsePageParam(searchParams.page),
+          pageSize: parsePageSizeParam(searchParams.pageSize),
+        }),
+      { memberId: id, days: String(activityFilters.days), view: activityFilters.view }
+    );
+    activityFeed = { ...feedPage, rows: await withReactionEmoji(feedPage.rows) };
+  } catch (error) {
+    Sentry.captureException(error);
+  }
 
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
-  const [earnedBadges, { data: awardableBadgeTypes }, { data: rawAwards }] = await Promise.all([
-    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.first_joined_at),
-    supabase.from("badge_types").select("id, name, icon").eq("is_automatic", false).is("event_id", null).order("name"),
-    supabase
-      .from("member_badges")
-      .select("id, badge_type_id, occurred_at, note, event_id, badge_types(name, icon), events(title, slug)")
-      .eq("member_id", id)
-      .order("occurred_at", { ascending: false }),
+  const badges = createRepos(supabase).badges;
+  const [earnedBadges, awardableBadgeTypes, rawAwards] = await Promise.all([
+    getMemberBadges(supabase, id, metrics?.totalPrickles ?? 0, memberRow.firstJoinedAt),
+    badges.manualTypes(),
+    badges.awardsWithDetails(id),
   ]);
 
-  const awards = (rawAwards ?? []).map((row: any) => ({
-    id: row.id,
-    badgeTypeId: row.badge_type_id,
-    badgeTypeName: row.badge_types?.name ?? "Badge",
-    badgeTypeIcon: row.badge_types?.icon ?? "🏅",
-    occurredAt: row.occurred_at,
-    note: row.note,
-    eventId: row.event_id,
-    eventTitle: row.events?.title ?? null,
-    eventSlug: row.events?.slug ?? null,
+  // The address of each event a badge is linked to (admin event pages are at the slug).
+  const eventIds = [...new Set(earnedBadges.flatMap((b) => (b.badgeType.event_id ? [b.badgeType.event_id] : [])))];
+  const eventSlugs: Record<string, string> = {};
+  for (const event of await Promise.all(eventIds.map((eventId) => createRepos(supabase).events.byId(eventId).catch(() => null)))) {
+    if (event) eventSlugs[event.id] = event.slug;
+  }
+
+  const awards = rawAwards.map((a) => ({
+    id: a.id,
+    badgeTypeId: a.badgeTypeId,
+    badgeTypeName: a.badgeTypeName ?? "Badge",
+    badgeTypeIcon: a.badgeTypeIcon ?? "🏅",
+    occurredAt: a.occurredAt,
+    note: a.note,
+    eventId: a.eventId,
+    eventTitle: a.eventTitle,
+    eventSlug: a.eventSlug,
   }));
 
   return (
@@ -265,7 +234,10 @@ export default async function MemberDetailPage({
           </Link>
           <div className="mt-2">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold">{member.name}</h1>
+              <h1 className="text-2xl font-bold">{getMemberDisplayName({ name: member.name, display_name: member.displayName })}</h1>
+              {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                <span className="text-sm text-slate-500 dark:text-slate-400">{member.name}</span>
+              )}
               {aliases && aliases.length > 0 && (
                 <div className="flex items-center gap-2">
                   <div className="flex flex-wrap gap-1.5">
@@ -280,7 +252,7 @@ export default async function MemberDetailPage({
                   </div>
                   <div className="group relative inline-block">
                     <svg
-                      className="w-4 h-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
+                      className="w-4 h-4 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-help"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -314,11 +286,11 @@ export default async function MemberDetailPage({
               />
             </div>
             <div className="mt-1 flex flex-col gap-1">
-              {(member.kajabi_id || member.stripe_customer_id) && (
+              {(member.kajabiId || member.stripeCustomerId) && (
                 <div className="flex items-center gap-3 text-xs">
-                  {member.kajabi_id && (
+                  {member.kajabiId && (
                     <a
-                      href={`https://app.kajabi.com/admin/contacts/${member.kajabi_id}`}
+                      href={`https://app.kajabi.com/admin/contacts/${member.kajabiId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
@@ -329,12 +301,12 @@ export default async function MemberDetailPage({
                       Kajabi
                     </a>
                   )}
-                  {member.kajabi_id && member.stripe_customer_id && (
+                  {member.kajabiId && member.stripeCustomerId && (
                     <span className="text-slate-300 dark:text-slate-600">|</span>
                   )}
-                  {member.stripe_customer_id && (
+                  {member.stripeCustomerId && (
                     <a
-                      href={`https://dashboard.stripe.com/customers/${member.stripe_customer_id}`}
+                      href={`https://dashboard.stripe.com/customers/${member.stripeCustomerId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-plum-600 hover:text-plum-700 dark:text-plum-400 dark:hover:text-plum-300 hover:underline"
@@ -350,7 +322,7 @@ export default async function MemberDetailPage({
             </div>
           </div>
           <div className="absolute top-4 right-6">
-            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={member.name} />
+            <RecordHistoryButton entityType="member" entityId={member.id} includeMemberRows label={getMemberDisplayName({ name: member.name, display_name: member.displayName })} />
           </div>
         </div>
       </header>
@@ -366,17 +338,27 @@ export default async function MemberDetailPage({
           key={tab}
           initialTab={tab}
           member={member}
-          attendanceRecords={attendance || []}
+          attendanceRecords={attendance}
           hiatusHistory={hiatusHistory || []}
           activityFeed={activityFeed}
           activityFilters={activityFilters}
-          slackActivities={await withReactionEmoji(await withMentionNames(slackActivities || []))}
+          slackSummary={slackSummary}
+          slackPage={{
+            rows: await withReactionEmoji(await withMentionNames(slackPage.rows)),
+            total: slackPage.total,
+            page: slackPage.page,
+            pageSize: slackQuery.pageSize,
+            kind: slackQuery.kind,
+            channel: slackQuery.channel,
+            channels: slackChannels,
+          }}
           userTimezonePreference={userTimezone}
           membershipHistory={membershipHistory}
           programOverrides={programOverrides}
           statusOverrides={statusOverrides}
           earnedBadges={earnedBadges}
-          awardableBadgeTypes={awardableBadgeTypes ?? []}
+          eventSlugs={eventSlugs}
+          awardableBadgeTypes={awardableBadgeTypes}
           awards={awards}
           nameAliases={nameAliasRows ?? []}
           emailAliases={emailAliases ?? []}

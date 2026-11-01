@@ -19,7 +19,7 @@ export type Environment = 'development' | 'preview' | 'production';
  * Current environment
  * - 'production': Production deployment (main branch, custom domain)
  * - 'preview': Preview deployment (feature branches, PR previews)
- * - 'development': Local development (npm run dev)
+ * - 'development': Local development (pnpm dev)
  */
 export const environment: Environment =
   (process.env.VERCEL_ENV as Environment) || 'development';
@@ -55,6 +55,9 @@ export const ORG_TIMEZONE = appConfig.orgTimezone;
 
 /** Where members are told to email for help. */
 export const SUPPORT_EMAIL = appConfig.supportEmail;
+
+/** Whether book covers are served to visitors who aren't signed in (app.config.ts `bookshelfPublic`). */
+export const BOOKSHELF_PUBLIC: boolean = appConfig.bookshelfPublic;
 
 /** Slack workspace URL, no trailing slash, for links that open a channel. */
 export const SLACK_WORKSPACE_URL = appConfig.slack.workspaceUrl.replace(/\/+$/, "");

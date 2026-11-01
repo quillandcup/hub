@@ -1,5 +1,6 @@
 'use server'
 
+import { createRepos } from "@/lib/data/repos";
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireAdminAction } from '@/lib/admin-auth'
@@ -17,18 +18,19 @@ type SudoEvent = 'sudo_started' | 'sudo_ended'
  * like the other append-only mirrors. The page visits in between come from access_events.
  */
 async function logSudoEvent(supabase: Awaited<ReturnType<typeof createClient>>, adminId: string, memberId: string, type: SudoEvent) {
-  const { error } = await supabase.from('member_activities').insert({
-    member_id: memberId,
-    activity_type: type,
-    activity_category: 'admin',
-    title: type === 'sudo_started' ? 'Started viewing as this member' : 'Stopped viewing as this member',
-    actor_kind: 'staff',
-    actor_user_id: adminId,
-    engagement_value: 0, // staff action, not the member's engagement
-    occurred_at: new Date().toISOString(),
-    source: 'sudo',
-  })
-  if (error) console.error(`Error logging ${type} to member_activities:`, error)
+  await createRepos(supabase)
+    .activities.record({
+      memberId,
+      type,
+      category: 'admin',
+      title: type === 'sudo_started' ? 'Started viewing as this member' : 'Stopped viewing as this member',
+      actorKind: 'staff',
+      actorUserId: adminId,
+      engagementValue: 0, // staff action, not the member's engagement
+      occurredAt: new Date().toISOString(),
+      source: 'sudo',
+    })
+    .catch((error) => console.error(`Error logging ${type} to member_activities:`, error))
 }
 
 /**
@@ -46,11 +48,7 @@ export async function startSudo(memberId: string, landingUrl?: string) {
   if (!auth.ok) throw new Error(auth.error)
   const { user, supabase } = auth
 
-  const { data: member } = await supabase
-    .from('members')
-    .select('id')
-    .eq('id', memberId)
-    .single()
+  const member = await createRepos(supabase).members.byId(memberId)
 
   if (!member) throw new Error('Member not found')
 

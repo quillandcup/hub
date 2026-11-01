@@ -1,8 +1,36 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import { loadLiveRoom } from "@/lib/live-room";
 import { createFakeSupabase, type FakeTables } from "@/tests/helpers/server-page";
 
+// The prickle running now comes from its repository, in memory here; the rest from the fake client.
+let dataset = new InMemoryDataset();
+vi.mock("@/lib/data/repos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos");
+  return {
+    ...actual,
+    createRepos: (db: Parameters<typeof actual.createRepos>[0]) => ({ ...actual.createRepos(db), prickles: actual.createInMemoryRepos(dataset).prickles }),
+  };
+});
+
 const NOW = new Date("2026-10-19T15:00:00Z");
+const WRITING = { id: "pt1", name: "Writing", normalizedName: "writing", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false };
+const runningPrickle = (extra: object = {}) => ({
+  id: "p1",
+  typeId: WRITING.id,
+  hostId: null,
+  title: null,
+  startTime: new Date(NOW.getTime() - 3_600_000).toISOString(),
+  endTime: new Date(NOW.getTime() + 3_600_000).toISOString(),
+  source: "calendar",
+  calendarEventId: null,
+  ...extra,
+});
+
+beforeEach(() => {
+  dataset = new InMemoryDataset();
+});
+
 const at = (minutesAgo: number) => new Date(NOW.getTime() - minutesAgo * 60_000).toISOString();
 
 const event = (id: string, key: string, name: string, kind: "joined" | "left", minutesAgo: number, host = "h1") => ({
@@ -48,6 +76,11 @@ describe("loadLiveRoom", () => {
   });
 
   it("lists members by display name (one per member across devices), counts guests, and names the running prickle and its host", async () => {
+    dataset = new InMemoryDataset({
+      members: [{ id: "m-alice", name: "Alice Quill", displayName: "Ali" }],
+      prickleTypes: [WRITING],
+      prickles: [runningPrickle({ title: "Morning Writing", hostId: "m-alice" })],
+    });
     const room = await loadLiveRoom(
       createFakeSupabase(
         tables({
@@ -58,9 +91,6 @@ describe("loadLiveRoom", () => {
               event("e3", "k3", "Someone Unknown", "joined", 10),
               event("e4", "k4", "Bea Cup", "joined", 5),
             ],
-          },
-          prickles: {
-            data: [{ id: "p1", title: "Morning Writing", host: [{ id: "m-alice", name: "Alice Quill" }], prickle_types: { name: "Writing" } }],
           },
         })
       ),
@@ -73,7 +103,7 @@ describe("loadLiveRoom", () => {
       { memberId: "m-bea", name: "Bea Cup" },
     ]);
     expect(room.guests).toBe(2 - 1 + 0 + 0 === 1 ? 1 : 1);
-    expect(room.prickle).toEqual({ id: "p1", title: "Morning Writing", hostName: "Alice Quill" });
+    expect(room.prickle).toEqual({ id: "p1", title: "Morning Writing", hostName: "Ali" });
   });
 
   it("has no prickle for a Pop-Up Prickle, and falls back to the type name without a title", async () => {
@@ -81,10 +111,8 @@ describe("loadLiveRoom", () => {
     const pup = await loadLiveRoom(createFakeSupabase(tables(events)), NOW);
     expect(pup.prickle).toBeNull();
 
-    const untitled = await loadLiveRoom(
-      createFakeSupabase(tables({ ...events, prickles: { data: [{ id: "p2", title: null, host: null, prickle_types: [{ name: "Writing" }] }] } })),
-      NOW
-    );
+    dataset = new InMemoryDataset({ prickleTypes: [WRITING], prickles: [runningPrickle({ id: "p2" })] });
+    const untitled = await loadLiveRoom(createFakeSupabase(tables(events)), NOW);
     expect(untitled.prickle).toEqual({ id: "p2", title: "Writing", hostName: null });
   });
 

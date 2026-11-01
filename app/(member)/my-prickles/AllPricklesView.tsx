@@ -8,6 +8,7 @@ import AllPricklesTable, { type TableCalendarContext } from "./AllPricklesTable"
 import AllPricklesCalendar from "./AllPricklesCalendar";
 import CommitPanel from "./CommitPanel";
 import { PillFilter } from "@/components/PillFilter";
+import { useSecondaryTimezone } from "@/components/SecondaryTimezone";
 
 type ViewMode = "table" | "calendar";
 
@@ -36,10 +37,11 @@ export default function AllPricklesView({
   calendar?: Omit<TableCalendarContext, "timeZone">;
 }) {
   const router = useRouter();
+  const secondaryZone = useSecondaryTimezone();
   const [view, setView] = useState<ViewMode>("table");
 
   // Committable slots = the recurring schedule rows (each has an upcoming occurrence).
-  const slotOptions = useMemo(() => buildSlotOptions(rows), [rows]);
+  const slotOptions = useMemo(() => buildSlotOptions(rows, timeZone, secondaryZone), [rows, timeZone, secondaryZone]);
   const optionByKey = useMemo(() => new Map(slotOptions.map((o) => [o.key, o])), [slotOptions]);
   const selectable = useMemo(() => new Set(optionByKey.keys()), [optionByKey]);
 
@@ -70,10 +72,10 @@ export default function AllPricklesView({
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
             All Prickles
           </h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             The full recurring weekly schedule — also known as Prickle Times. Times shown in your timezone.
           </p>
         </div>
@@ -104,7 +106,7 @@ export default function AllPricklesView({
       )}
 
       {view === "table" ? (
-        <AllPricklesTable rows={rows} selection={selection} calendar={calendar ? { ...calendar, timeZone } : undefined} />
+        <AllPricklesTable rows={rows} timeZone={timeZone} selection={selection} calendar={calendar ? { ...calendar, timeZone } : undefined} />
       ) : (
         <AllPricklesCalendar
           instances={instances}

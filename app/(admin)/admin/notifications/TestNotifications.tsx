@@ -57,7 +57,7 @@ export default function TestNotifications() {
               <tr key={kind.id} className="border-b border-slate-100 align-top last:border-0 dark:border-slate-800">
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-900 dark:text-slate-100">{kind.label}</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">{kind.category}</div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">{kind.category}</div>
                 </td>
                 {CHANNELS.map((channel) => {
                   const status = statuses[cellKey(kind.id, channel.id)];
@@ -99,7 +99,7 @@ export default function TestNotifications() {
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-slate-600 dark:text-slate-400">
         Goes to your own accounts, whatever your notification settings. Outside production, Slack and email are redirected to
         the dev address. A check-in or check-out is about the next prickle (or the latest), and answering a sample is saved as
         your own. Big Sister introductions send both versions, to the new member and to the Big Sister.

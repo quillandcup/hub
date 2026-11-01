@@ -1,14 +1,15 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { fetchAllRows, chunk } from "@/lib/supabase/paginate";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/data/database.types";
 
 export const maxDuration = 60;
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createServiceClient(url, key, {
+  return createServiceClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
@@ -38,19 +39,13 @@ export async function POST(
   const { id: segmentId } = await params;
   const supabase = getServiceClient();
 
-  const { data: segment } = await supabase.from("segments").select("id, name").eq("id", segmentId).single();
+  const repos = createRepos(supabase);
+  const segment = await repos.segments.byId(segmentId).catch(() => null);
   if (!segment) return NextResponse.json({ error: "Segment not found" }, { status: 404 });
 
-  const memberLinks = await fetchAllRows<{ member_id: string }>((from, to) =>
-    supabase.from("segment_members").select("member_id").eq("segment_id", segmentId).range(from, to)
-  );
-  const memberIds = memberLinks.map((m) => m.member_id);
+  const memberIds = await repos.segments.memberIds(segmentId);
 
-  let segmentMembers: { id: string; email: string }[] = [];
-  for (const idBatch of chunk(memberIds, 500)) {
-    const { data } = await supabase.from("members").select("id, email").in("id", idBatch);
-    segmentMembers = segmentMembers.concat(data ?? []);
-  }
+  const segmentMembers = await repos.members.byIds(memberIds);
 
   // GoTrue's admin listUsers doesn't support filtering by email, so pull the
   // full user list once (mirrors the pattern in GET /api/admin/users) and
@@ -76,11 +71,7 @@ export async function POST(
 
     // Best-effort link, matching POST /api/admin/users — only sets it if
     // the member doesn't already have a linked auth user.
-    await supabase
-      .from("members")
-      .update({ user_id: data.user.id })
-      .eq("id", member.id)
-      .is("user_id", null);
+    await repos.members.linkAuthUser(member.id, data.user.id, { onlyIfUnlinked: true }).catch(() => {});
 
     results.push({ email, status: "invited" });
   }

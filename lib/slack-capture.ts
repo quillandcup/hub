@@ -1,7 +1,9 @@
 import type { WebClient } from "@slack/web-api";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clock } from "@/lib/clock";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
+import { createRepos } from "@/lib/data/repos";
+import type { SlackFile, SlackFileChange } from "@/lib/data/slack-messages";
+import type { SlackMemberEvent } from "@/lib/data/slack-workspace";
 
 /**
  * The parts of the Slack import that capture more than messages: group DMs the
@@ -89,16 +91,7 @@ export interface MembershipSyncResult {
 // Membership history (bronze.slack_channel_member_events)
 // ---------------------------------------------------------------------------
 
-export interface SlackMemberEvent {
-  channel_id: string;
-  user_id: string;
-  event: "joined" | "left";
-  occurred_at: string;
-  source: "history_notice" | "webhook" | "member_list";
-  inviter_user_id?: string | null;
-  slack_ts?: string | null;
-  raw_payload?: unknown;
-}
+export type { SlackMemberEvent };
 
 const JOIN_NOTICES = new Set(["channel_join", "group_join"]);
 const LEAVE_NOTICES = new Set(["channel_leave", "group_leave"]);
@@ -130,45 +123,7 @@ export function slackMemberNoticeEvent(
 
 /** Append membership events. Each source is idempotent: a repeat is ignored. */
 export async function recordSlackMemberEvents(supabase: SupabaseClient, events: SlackMemberEvent[]): Promise<void> {
-  // One statement can't carry the same key twice.
-  const unique = new Map<string, SlackMemberEvent>();
-  for (const e of events) unique.set(`${e.channel_id}|${e.user_id}|${e.event}|${e.occurred_at}|${e.source}`, e);
-  const rows = [...unique.values()].map((e) => ({
-    channel_id: e.channel_id,
-    user_id: e.user_id,
-    event: e.event,
-    occurred_at: e.occurred_at,
-    source: e.source,
-    inviter_user_id: e.inviter_user_id ?? null,
-    slack_ts: e.slack_ts ?? null,
-    raw_payload: e.raw_payload ?? {},
-  }));
-  for (let i = 0; i < rows.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_member_events")
-      .upsert(rows.slice(i, i + WRITE_BATCH), {
-        onConflict: "channel_id,user_id,event,occurred_at,source",
-        ignoreDuplicates: true,
-      });
-    if (error) throw error;
-  }
-}
-
-/** The latest recorded event per channel and user: whether the log has them in or out. */
-async function loadLastMemberEvents(supabase: SupabaseClient): Promise<Map<string, Map<string, "joined" | "left">>> {
-  const rows: { channel_id: string; user_id: string; event: "joined" | "left" }[] = await fetchAllBronzeRows(
-    supabase,
-    "slack_channel_member_events",
-    "channel_id, user_id, event",
-    (q) => q.order("occurred_at").order("id")
-  );
-  const last = new Map<string, Map<string, "joined" | "left">>();
-  for (const row of rows) {
-    if (!last.has(row.channel_id)) last.set(row.channel_id, new Map());
-    last.get(row.channel_id)!.set(row.user_id, row.event);
-  }
-  return last;
+  await createRepos(supabase).slackWorkspace.recordMemberEvents(events);
 }
 
 /**
@@ -250,10 +205,8 @@ export async function syncChannelMembers(
   await Promise.all(Array.from({ length: MEMBERS_CONCURRENCY }, worker));
   if (fetched.size === 0) return result;
 
-  const stored: { channel_id: string; user_id: string; left_at: string | null; first_seen_at: string }[] =
-    await fetchAllBronzeRows(supabase, "slack_channel_members", "channel_id, user_id, left_at, first_seen_at", (q) =>
-      q.order("channel_id").order("user_id")
-    );
+  const workspace = createRepos(supabase).slackWorkspace;
+  const stored = await workspace.memberships();
   const storedByChannel = new Map<string, Map<string, string | null>>();
   const firstSeenByChannel = new Map<string, Map<string, string>>();
   for (const row of stored) {
@@ -269,7 +222,7 @@ export async function syncChannelMembers(
   // now, record what the member list implies. Notices from this run's channel
   // history must be recorded before this is called, so an announced join or
   // leave keeps its exact time and isn't doubled by an inferred one.
-  const lastEventByChannel = await loadLastMemberEvents(supabase);
+  const lastEventByChannel = await workspace.lastMemberEvents();
   const inferred: SlackMemberEvent[] = [];
   for (const [channelId, members] of fetched) {
     inferred.push(
@@ -302,21 +255,9 @@ export async function syncChannelMembers(
     result.left += gone.length;
   }
 
-  for (let i = 0; i < toUpsert.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .upsert(toUpsert.slice(i, i + WRITE_BATCH), { onConflict: "channel_id,user_id" });
-    if (error) throw error;
-  }
+  await workspace.upsertMemberships(toUpsert);
   for (const { channel_id, user_ids } of toMarkLeft) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .update({ left_at: importTimestamp, imported_at: importTimestamp })
-      .eq("channel_id", channel_id)
-      .in("user_id", user_ids);
-    if (error) throw error;
+    await workspace.markMembersLeft(channel_id, user_ids, importTimestamp);
   }
 
   result.channelsSynced = fetched.size;
@@ -355,27 +296,12 @@ export async function syncCustomEmoji(
     return { emoji: 0, removed: 0, skipped: "missing_scope" };
   }
 
+  const workspace = createRepos(supabase).slackWorkspace;
   const rows = Object.entries(emoji).map(([name, value]) => ({ ...toCustomEmojiRow(name, value), imported_at: importTimestamp }));
-  for (let i = 0; i < rows.length; i += WRITE_BATCH) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_custom_emoji")
-      .upsert(rows.slice(i, i + WRITE_BATCH), { onConflict: "name" });
-    if (error) throw error;
-  }
+  await workspace.upsertEmoji(rows);
 
-  const stored: { name: string }[] = await fetchAllBronzeRows(supabase, "slack_custom_emoji", "name", (q) =>
-    q.is("deleted_at", null).order("name")
-  );
-  const gone = stored.map((r) => r.name).filter((name) => !(name in emoji));
-  for (let i = 0; i < gone.length; i += 100) {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_custom_emoji")
-      .update({ deleted_at: importTimestamp, imported_at: importTimestamp })
-      .in("name", gone.slice(i, i + 100));
-    if (error) throw error;
-  }
+  const gone = (await workspace.liveEmojiNames()).filter((name) => !(name in emoji));
+  await workspace.markEmojiRemoved(gone, importTimestamp);
 
   return { emoji: rows.length, removed: gone.length, skipped: null };
 }
@@ -410,24 +336,11 @@ export async function applySlackMembershipEvent(
     },
   ]);
 
+  const workspace = createRepos(supabase).slackWorkspace;
   if (event.type === "member_joined_channel") {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .upsert(
-        { channel_id: event.channel, user_id: event.user, left_at: null, imported_at: now },
-        { onConflict: "channel_id,user_id" }
-      );
-    if (error) throw error;
+    await workspace.upsertMemberships([{ channel_id: event.channel, user_id: event.user, left_at: null, imported_at: now }]);
   } else if (event.type === "member_left_channel") {
-    const { error } = await supabase
-      .schema("bronze")
-      .from("slack_channel_members")
-      .update({ left_at: now, imported_at: now })
-      .eq("channel_id", event.channel)
-      .eq("user_id", event.user)
-      .is("left_at", null);
-    if (error) throw error;
+    await workspace.markMemberLeft(event.channel, event.user, now);
   }
 }
 
@@ -441,16 +354,9 @@ export async function applySlackEmojiEvent(
   event: { subtype?: string; name?: string; value?: string; names?: string[]; old_name?: string; new_name?: string }
 ): Promise<void> {
   const now = new Date(clock.now()).toISOString();
-  const table = () => supabase.schema("bronze").from("slack_custom_emoji");
-  const add = async (name: string, value: string) => {
-    const { error } = await table().upsert({ ...toCustomEmojiRow(name, value), imported_at: now }, { onConflict: "name" });
-    if (error) throw error;
-  };
-  const remove = async (names: string[]) => {
-    if (names.length === 0) return;
-    const { error } = await table().update({ deleted_at: now, imported_at: now }).in("name", names).is("deleted_at", null);
-    if (error) throw error;
-  };
+  const workspace = createRepos(supabase).slackWorkspace;
+  const add = (name: string, value: string) => workspace.upsertEmoji([{ ...toCustomEmojiRow(name, value), imported_at: now }]);
+  const remove = (names: string[]) => workspace.markEmojiRemoved(names, now);
 
   if (event.subtype === "add" && event.name && event.value) {
     await add(event.name, event.value);
@@ -547,30 +453,14 @@ export async function copySlackFiles(
 
   const seen = slackFilesFromMessages(messages);
   result.seen = seen.length;
-  for (let i = 0; i < seen.length; i += WRITE_BATCH) {
-    // ignoreDuplicates: never overwrite a row that already has its storage_path.
-    const { error } = await storage
-      .schema("bronze")
-      .from("slack_files")
-      .upsert(seen.slice(i, i + WRITE_BATCH).map((f) => ({ ...f, imported_at: importTimestamp })), {
-        onConflict: "file_id",
-        ignoreDuplicates: true,
-      });
-    if (error) throw error;
-  }
+  const bronze = createRepos(storage).slackMessages;
+  // Never overwrites a row that already has its storage_path.
+  await bronze.recordFiles(seen.map((f) => ({ ...f, imported_at: importTimestamp })));
 
-  const pending: (SlackFileRow & { copy_error: string | null })[] = await fetchAllBronzeRows(
-    storage,
-    "slack_files",
-    "file_id, channel_id, message_ts, name, mimetype, size_bytes, copy_error, raw_payload",
-    (q) => q.is("storage_path", null).order("message_ts").order("file_id")
-  );
+  const pending = await bronze.filesWithoutCopy();
   const todo = pending.filter((f) => !f.copy_error?.startsWith("skipped:"));
 
-  const mark = async (fileId: string, fields: Record<string, unknown>) => {
-    const { error } = await storage.schema("bronze").from("slack_files").update(fields).eq("file_id", fileId);
-    if (error) throw error;
-  };
+  const mark = (fileId: string, fields: SlackFileChange) => bronze.updateFile(fileId, fields);
 
   let remaining = todo.length;
   for (const file of todo) {
@@ -617,4 +507,75 @@ export async function copySlackFiles(
 
   result.pending = remaining + result.failed;
   return result;
+}
+
+export type EnsuredSlackFile = { ok: true; path: string; mimetype: string | null } | { ok: false; reason: string };
+
+/**
+ * The stored copy of one file, made now if the import hasn't got to it yet (a file shared a minute
+ * ago, which the Hub shows before the nightly copy). Records the file in Bronze first when the
+ * webhook didn't (asking Slack for it), then copies it like `copySlackFiles` does.
+ */
+export async function ensureSlackFileCopied(
+  storage: SupabaseClient,
+  botToken: string,
+  ref: { fileId: string; channelId: string; messageTs: string },
+  download: typeof fetch = fetch
+): Promise<EnsuredSlackFile> {
+  const files = createRepos(storage).slackMessages;
+  // The copy's bookkeeping is best effort here: a failed note must not turn a served file into an error.
+  const note = (fileId: string, change: SlackFileChange) => files.updateFile(fileId, change).catch(() => undefined);
+
+  let row: (SlackFile & { copied_at?: string | null }) | null = await files.fileById(ref.fileId);
+  if (row?.deleted_at) return { ok: false, reason: "skipped: deleted" };
+  if (row?.storage_path) return { ok: true, path: row.storage_path, mimetype: row.mimetype };
+
+  if (!row) {
+    const info = await download(`https://slack.com/api/files.info?file=${encodeURIComponent(ref.fileId)}`, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    const json: any = info.ok ? await info.json().catch(() => null) : null;
+    if (!json?.ok || !json.file) return { ok: false, reason: json?.error ?? `files.info failed with HTTP ${info.status}` };
+    const [fresh] = slackFilesFromMessages([{ channel_id: ref.channelId, message_ts: ref.messageTs, files: [json.file] }]);
+    try {
+      await files.recordFiles([{ ...fresh, imported_at: new Date(clock.now()).toISOString() }]);
+    } catch (error) {
+      return { ok: false, reason: (error as Error).message };
+    }
+    row = { ...fresh, storage_path: null, copy_error: null, deleted_at: null };
+  }
+
+  const file = row as SlackFileRow & { storage_path: string | null; copy_error: string | null };
+  const skip = slackFileSkipReason(file);
+  if (skip) {
+    await note(file.file_id, { copy_error: skip });
+    return { ok: false, reason: skip };
+  }
+
+  try {
+    const response = await download(file.raw_payload.url_private_download || file.raw_payload.url_private, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    });
+    if (!response.ok) throw new Error(`download failed with HTTP ${response.status}`);
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.startsWith("text/html") && !(file.mimetype ?? "").startsWith("text/html")) {
+      throw new Error("Slack returned a sign-in page instead of the file");
+    }
+    const body = await response.arrayBuffer();
+    if (body.byteLength > MAX_SLACK_FILE_BYTES) {
+      await note(file.file_id, { copy_error: "skipped: larger than 20 MB" });
+      return { ok: false, reason: "skipped: larger than 20 MB" };
+    }
+    const path = slackFileStoragePath(file);
+    const { error: uploadError } = await storage.storage
+      .from(SLACK_FILES_BUCKET)
+      .upload(path, body, { contentType: file.mimetype || "application/octet-stream", upsert: true });
+    if (uploadError) throw uploadError;
+    await note(file.file_id, { storage_path: path, copied_at: new Date(clock.now()).toISOString(), copy_error: null });
+    return { ok: true, path, mimetype: file.mimetype };
+  } catch (error: any) {
+    const reason = String(error?.message ?? error).slice(0, 300);
+    await note(file.file_id, { copy_error: reason });
+    return { ok: false, reason };
+  }
 }

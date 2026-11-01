@@ -167,6 +167,30 @@ describe("mentor and period stats", () => {
   });
 });
 
+describe("toMentorshipRows names", () => {
+  it("shows display names, with the legal name kept beside it only when it differs", () => {
+    const [result] = toMentorshipRows(
+      [
+        {
+          id: "x",
+          mentor_member_id: "m1",
+          new_member_id: "t1",
+          started_on: "2026-03-01",
+          trial_ends_on: null,
+          kind: "direct",
+          status: "matched",
+          outcome_note: null,
+          mentor: { id: "m1", name: "Ada Example", display_name: "Ada E", status: "active", first_joined_at: null, most_recent_joined_at: null },
+          new_member: { id: "t1", name: "Bo Example", display_name: null, status: "active", first_joined_at: null, most_recent_joined_at: null },
+        },
+      ],
+      "2026-03-15"
+    );
+    expect(result).toMatchObject({ mentorName: "Ada E", mentorRealName: "Ada Example", newMemberName: "Bo Example" });
+    expect(result.newMemberRealName).toBeUndefined();
+  });
+});
+
 describe("toMentorshipRows", () => {
   it("joins names, derives the outcome and whether the 30 days are still running", () => {
     const [result] = toMentorshipRows(
@@ -200,8 +224,8 @@ describe("toMentorshipRows", () => {
 });
 
 describe("parseMatchInput", () => {
-  const A = "11111111-1111-4111-8111-111111111111";
-  const B = "22222222-2222-4222-8222-222222222222";
+  const A = "mbr_AAAAAAAAAAA1";
+  const B = "mbr_AAAAAAAAAAA2";
 
   it("accepts two different members", () => {
     expect(parseMatchInput({ mentorMemberId: A, newMemberId: B })).toEqual({

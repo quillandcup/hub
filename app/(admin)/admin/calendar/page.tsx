@@ -1,11 +1,17 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import CalendarWeekView from "@/components/CalendarWeekView";
 import CalendarKeyboardNav from "@/components/CalendarKeyboardNav";
+import LiveRefresh from "@/components/LiveRefresh";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { computeHostStatus } from "@/lib/hosting-stats";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { orgWeek } from "@/lib/org-week";
+import { formatDateOnly } from "@/lib/formatters";
+import { clock } from "@/lib/clock";
 
 export const metadata: Metadata = {
   title: "Prickle Calendar",
@@ -22,118 +28,63 @@ export default async function CalendarPage({
   // Await searchParams in Next.js 15
   const params = await searchParams;
 
-  // Get week from URL param or default to the current week
-  let weekStart: Date;
-  if (params.week) {
-    // Parse week from URL (format: YYYY-MM-DD) and normalize to Sunday
-    // Use local timezone parsing to avoid UTC shift issues
-    const [year, month, day] = params.week.split('-').map(Number);
-    const paramDate = new Date(year, month - 1, day); // month is 0-indexed
-    const dayOfWeek = paramDate.getDay(); // 0 = Sunday
-    weekStart = new Date(paramDate);
-    weekStart.setDate(paramDate.getDate() - dayOfWeek); // Adjust to Sunday
-    weekStart.setHours(0, 0, 0, 0);
-  } else {
-    // Default to the current week, starting on Sunday
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday
-    weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - dayOfWeek); // This Sunday
-    weekStart.setHours(0, 0, 0, 0);
-  }
+  // The week (Sunday to Sunday) in the org's zone, from the URL param or the current one
+  const week = orgWeek(params.week, new Date(clock.now()));
+  const prevWeekParam = week.prev;
+  const nextWeekParam = week.next;
 
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
-  weekEnd.setHours(0, 0, 0, 0);
-
-  // Calculate prev/next week dates for navigation
-  const prevWeek = new Date(weekStart);
-  prevWeek.setDate(weekStart.getDate() - 7);
-  const nextWeek = new Date(weekStart);
-  nextWeek.setDate(weekStart.getDate() + 7);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Format dates for URL params (YYYY-MM-DD)
-  const formatWeekParam = (date: Date) => date.toISOString().split("T")[0];
-  const prevWeekParam = formatWeekParam(prevWeek);
-  const nextWeekParam = formatWeekParam(nextWeek);
-
-  // Disable next button if it would go into the future (beyond current week)
-  const isNextDisabled = nextWeek.getTime() > today.getTime();
-
-  // Fetch prickles for the current week with attendance counts and host
-  const { data: prickles, error: pricklesError } = await supabase
-    .from("prickles")
-    .select(`
-      id,
-      host:members(id, name),
-      start_time,
-      end_time,
-      type_id,
-      prickle_types:type_id(name),
-      prickle_attendance(id, member_id, join_time)
-    `)
-    .gte("start_time", weekStart.toISOString())
-    .lt("start_time", weekEnd.toISOString())
-    .order("start_time", { ascending: true });
-
-  if (pricklesError) {
-    console.error("Error fetching prickles:", pricklesError);
-    throw pricklesError;
+  // The week's prickles (type and host joined in) and who attended each
+  const repos = createRepos(supabase);
+  const prickles = await repos.prickles.startingBetween({ from: week.startInstant.toISOString(), to: week.endInstant.toISOString(), includeEventType: true });
+  const attendanceByPrickle = new Map<string, { memberId: string; joinTime: string }[]>();
+  for (const link of await repos.attendance.forPrickles(prickles.map((p) => p.id))) {
+    attendanceByPrickle.set(link.prickleId, [...(attendanceByPrickle.get(link.prickleId) ?? []), link]);
   }
 
   // Zoom attendance is imported after the fact. If a meeting at or after a prickle's start is
   // already in, that prickle's data is in too, so 0 attendees means nobody came.
-  const { data: latestMeeting } = await supabase
-    .schema("bronze")
-    .from("zoom_meetings")
-    .select("start_time")
-    .order("start_time", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const latestMeetingStart = await repos.zoom.latestMeetingStart().catch(() => null); // a failed read shows as no data, as before
+
+  // Calendar events waiting to be matched to a prickle type never show up above, so point at the queue
+  const unmatchedCount = await repos.unmatchedEvents.countPending().catch(() => 0);
 
   // Get user's timezone preference
   const userTimezone = await getUserTimezonePreference();
 
+  // Which of the week's prickles have an event (shown in Events, or hidden from members)
+  const calendarEventIds = prickles.flatMap((p) => (p.calendarEventId ? [p.calendarEventId] : []));
+  const eventByCalendarEvent = await repos.events.visibilityByCalendarEvent(calendarEventIds);
+
   // Transform the data to include attendance count and host attendance status
-  const pricklesWithCount = prickles?.map((prickle: any) => {
-    // Handle host as array or object (Supabase foreign key can return either)
-    const host = Array.isArray(prickle.host) ? prickle.host[0] : prickle.host;
-    const hostId = host?.id;
+  const pricklesWithCount = prickles.map((prickle) => {
+    const attendance = attendanceByPrickle.get(prickle.id) ?? [];
+    const hostId = prickle.hostId;
     let hostMissing = false;
     let hostLate = false;
 
     if (hostId) {
       // A host can leave/rejoin (multiple attendance rows per prickle), so punctuality is judged
       // by their earliest join_time, not just whichever record comes back first.
-      const hostAttendanceRecords = (prickle.prickle_attendance ?? []).filter(
-        (a: any) => a.member_id === hostId
-      );
-      const earliestJoinTime =
-        hostAttendanceRecords.length > 0
-          ? hostAttendanceRecords.reduce(
-              (min: string, a: any) => (a.join_time < min ? a.join_time : min),
-              hostAttendanceRecords[0].join_time
-            )
-          : null;
-      const punctuality = computeHostStatus(prickle.start_time, prickle.end_time, earliestJoinTime);
+      const hostJoins = attendance.filter((a) => a.memberId === hostId).map((a) => a.joinTime);
+      const earliestJoinTime = hostJoins.length > 0 ? hostJoins.reduce((min, t) => (t < min ? t : min)) : null;
+      const punctuality = computeHostStatus(prickle.startTime, prickle.endTime, earliestJoinTime);
       hostMissing = punctuality === "missing";
       hostLate = punctuality === "late";
     }
 
     return {
       id: prickle.id,
-      host: host?.name || null,
-      host_id: hostId,
-      start_time: prickle.start_time,
-      end_time: prickle.end_time,
-      prickle_type: prickle.prickle_types?.name || "Unknown",
-      attendance_count: new Set(prickle.prickle_attendance?.map((a: any) => a.member_id) || []).size,
+      host: prickle.host ? getMemberDisplayName({ name: prickle.host.name, display_name: prickle.host.displayName }) : "",
+      host_id: hostId ?? undefined,
+      start_time: prickle.startTime,
+      end_time: prickle.endTime,
+      prickle_type: prickle.type?.name || "Unknown",
+      attendance_count: new Set(attendance.map((a) => a.memberId)).size,
       host_missing: hostMissing,
       host_late: hostLate,
+      in_events: prickle.calendarEventId ? eventByCalendarEvent.get(prickle.calendarEventId) : undefined,
     };
-  }) || [];
+  });
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -143,7 +94,16 @@ export default async function CalendarPage({
           <div>
             <h1 className="text-2xl font-bold">Prickle Calendar</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Week of {weekStart.toLocaleDateString()} - Color intensity shows attendance levels
+              Week of {formatDateOnly(week.start)} - Color intensity shows attendance levels
+              {unmatchedCount > 0 && (
+                <Link
+                  href="/admin/hygiene/unmatched-events"
+                  data-track="admin-calendar-unmatched-events"
+                  className="ml-4 text-amber-700 dark:text-amber-400 hover:underline"
+                >
+                  {unmatchedCount} unmatched calendar {unmatchedCount === 1 ? "event" : "events"} waiting to be released →
+                </Link>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -162,41 +122,43 @@ export default async function CalendarPage({
             >
               ← Previous
             </Link>
-            {isNextDisabled ? (
-              <span
-                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed"
-                aria-disabled="true"
-              >
-                Next →
-              </span>
-            ) : (
-              <Link
-                href={`/admin/calendar?week=${nextWeekParam}`}
-                className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-              >
-                Next →
-              </Link>
-            )}
+            <Link
+              href={`/admin/calendar?week=${nextWeekParam}`}
+              title="Next week (n)"
+              className="px-3 py-2 rounded-lg transition-colors bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+            >
+              Next →
+            </Link>
           </div>
         </div>
       </div>
+      {/* The calendar sync (a Google edit, within seconds) adds, moves or removes prickles: show them without a reload. */}
+      <LiveRefresh
+        table="prickles"
+        within={{ column: "start_time", from: week.startInstant.toISOString(), to: week.endInstant.toISOString() }}
+      />
       <CalendarKeyboardNav
         prevHref={`/admin/calendar?week=${prevWeekParam}`}
-        nextHref={isNextDisabled ? null : `/admin/calendar?week=${nextWeekParam}`}
+        nextHref={`/admin/calendar?week=${nextWeekParam}`}
         todayHref="/admin/calendar"
       />
-      <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+      {/* The scroller bleeds to the screen edges on a phone and carries no padding of its own: the calendar's sticky
+          time column sticks at a scroller's content edge, so padding on the scroller leaves a gap beside it. The
+          page margin is on the box inside. */}
+      <div className="overflow-x-auto -mx-6 sm:mx-0">
+        <div className="px-6 sm:px-0">
         <CalendarWeekView
           prickles={pricklesWithCount}
           weekStartDate={{
-            year: weekStart.getFullYear(),
-            month: weekStart.getMonth(),
-            day: weekStart.getDate()
+            year: Number(week.start.slice(0, 4)),
+            month: Number(week.start.slice(5, 7)) - 1,
+            day: Number(week.start.slice(8, 10)),
           }}
           userTimezonePreference={userTimezone}
           prickleBasePath="/admin/prickles"
-          attendanceDataThrough={latestMeeting?.start_time ?? null}
+          attendanceDataThrough={latestMeetingStart}
         />
+        </div>
       </div>
     </div>
   );

@@ -117,6 +117,30 @@ describe('admin members paging (admin_members_page / admin_member_filter_counts)
   const keyOf = (row: { name: string }) => row.name.replace(`${token} `, '')
   const keys = async (args: Parameters<typeof page>[0]) => (await page(args)).map(keyOf)
 
+  describe('display names', () => {
+    it('returns display_name, sorts by it and searches both names', async () => {
+      const dnToken = `${token}dn`
+      const { data: inserted, error } = await supabase
+        .from('members')
+        .insert([
+          { name: `${dnToken} Zed Legal`, display_name: `${dnToken} Alpha Shown`, email: `${dnToken}-1@example.com`, joined_at: '2020-01-01', status: 'active' },
+          { name: `${dnToken} Mid Legal`, email: `${dnToken}-2@example.com`, joined_at: '2020-01-01', status: 'active' },
+        ])
+        .select('id')
+      if (error) throw error
+      try {
+        const byDisplay = await page({ search: dnToken })
+        expect(byDisplay.map((r) => r.display_name)).toEqual([`${dnToken} Alpha Shown`, null])
+        const onlyLegal = await page({ search: 'Zed Legal' })
+        expect(onlyLegal.some((r) => r.name === `${dnToken} Zed Legal`)).toBe(true)
+        const onlyShown = await page({ search: 'Alpha Shown' })
+        expect(onlyShown.some((r) => r.name === `${dnToken} Zed Legal`)).toBe(true)
+      } finally {
+        await supabase.from('members').delete().in('id', inserted!.map((r) => r.id))
+      }
+    })
+  })
+
   describe('engagement metrics', () => {
     it('match computeMemberEngagementMetrics', async () => {
       const rows = await page({})

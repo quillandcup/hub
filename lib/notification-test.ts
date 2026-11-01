@@ -1,4 +1,5 @@
 import { CHANNEL_ADAPTERS, CHANNELS, type ChannelId, type OutboundMessage } from "@/lib/channels";
+import { createRepos } from "@/lib/data/repos";
 import { bigSisterMessageForMentor, bigSisterMessageForNewMember } from "@/lib/mentorship-intro";
 import { loadIntroChannelId } from "@/lib/newcomer-signals";
 import { introNudgeMessage, prickleNudgeMessage } from "@/lib/member-reminders";
@@ -31,14 +32,8 @@ const TEST_PREFIX = "[Test] ";
 
 /** The prickle a check-in or check-out sample is about: the next one, else the latest, else a stand-in. */
 async function samplePrickle(supabase: any, now: Date) {
-  const select = "id, start_time, end_time, prickle_types:type_id(name)";
-  const upcoming = await supabase.from("prickles").select(select).gte("start_time", now.toISOString()).order("start_time").limit(1);
-  const latest = upcoming.data?.length
-    ? upcoming
-    : await supabase.from("prickles").select(select).order("start_time", { ascending: false }).limit(1);
-  const row = latest.data?.[0];
-  const type = Array.isArray(row?.prickle_types) ? row.prickle_types[0] : row?.prickle_types;
-  if (row && type?.name) return { id: row.id as string, typeName: type.name as string, startTime: row.start_time as string, endTime: row.end_time as string };
+  const prickle = await createRepos(supabase).prickles.nextOrMostRecent(now.toISOString());
+  if (prickle?.type?.name) return { id: prickle.id, typeName: prickle.type.name, startTime: prickle.startTime, endTime: prickle.endTime };
   return { id: "sample", typeName: "Sprint Prickle", startTime: now.toISOString(), endTime: new Date(now.getTime() + 60 * 60 * 1000).toISOString() };
 }
 
@@ -48,27 +43,34 @@ const marked = (message: OutboundMessage): OutboundMessage => ({
   title: message.title ? TEST_PREFIX + message.title : undefined,
 });
 
-/** The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters). */
-export async function sampleMessages(supabase: any, kind: NotificationKindId, now = new Date()): Promise<OutboundMessage[]> {
+/**
+ * The sample messages for one kind: usually one, two when it goes to two different people (Big Sisters).
+ * Marked as tests by default (the admin test send); `{ test: false }` gives them as a member receives them,
+ * which is what the notification mockups in demo/ draw.
+ */
+export async function sampleMessages(
+  supabase: any,
+  kind: NotificationKindId,
+  now = new Date(),
+  { test = true }: { test?: boolean } = {},
+): Promise<OutboundMessage[]> {
+  const mark = (message: OutboundMessage) => (test ? marked(message) : message);
   switch (kind) {
     case "prickle_checkin":
       return [
         checkinMessage(await samplePrickle(supabase, now), null, {
-          test: true,
+          test,
           join: joinAt(await loadPrickleJoinSettings(supabase), now),
         }),
       ];
     case "prickle_checkout":
-      return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test: true })];
+      return [checkoutMessage(await samplePrickle(supabase, now), null, [], { test })];
     case "intro_nudge":
-      return [marked(introNudgeMessage(await loadIntroChannelId(supabase)))];
+      return [mark(introNudgeMessage(await loadIntroChannelId(supabase)))];
     case "prickle_nudge":
-      return [marked(prickleNudgeMessage("first"))];
+      return [mark(prickleNudgeMessage("first"))];
     case "big_sister_match":
-      return [
-        marked(bigSisterMessageForNewMember("Marlow", "sample")),
-        marked(bigSisterMessageForMentor("Marlow", "Linden", "sample")),
-      ];
+      return [mark(bigSisterMessageForNewMember("Marlow", "sample")), mark(bigSisterMessageForMentor("Marlow", "Linden", "sample"))];
   }
 }
 

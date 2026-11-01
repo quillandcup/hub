@@ -305,4 +305,33 @@ describe("MemberIdentityPanel", () => {
     expect(screen.getByRole("link", { name: "View that member" })).toHaveAttribute("href", "/admin/members/member-2");
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("reactivates an inactive pen name, and offers it only on inactive ones", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ aliases }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <MemberIdentityPanel
+        memberId="member-1"
+        name="Erica Haraldsen"
+        displayName="Edy Hackett"
+        hasKajabiId={true}
+        email="edy@example.com"
+        emailAliases={[]}
+        nameAliases={[
+          { id: "alias-1", alias: "Edy Hackett", source: "admin", active: true },
+          { id: "alias-2", alias: "Old Zoom Name", source: "zoom", active: false },
+        ]}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Reactivate pen name Edy Hackett" })).not.toBeInTheDocument();
+    // An inactive name can't be picked as the default: its chip is disabled, and Reactivate is the way back.
+    expect(screen.getByText("Old Zoom Name").closest("button")).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Reactivate pen name Old Zoom Name" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ nameAlias: { id: "alias-2", active: true } });
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
 });

@@ -4,14 +4,20 @@ import { after } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { sendChatMessageToSlack } from "@/lib/chat/slack-post";
 import { syncReactionToSlack } from "@/lib/chat/slack-react";
 import { pullReadFromSlack, pushReadToSlack } from "@/lib/chat/slack-read";
-import { deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
+import { removeChatFileBytes } from "@/lib/chat/file-cleanup";
+import { deleteChatFileInSlack, deleteChatMessageInSlack, updateChatMessageInSlack } from "@/lib/chat/slack-edit";
 import { getSlackConnectionStatus } from "@/lib/slack-connect";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
+import { PENDING_FILE_PREFIX } from "@/lib/chat/files";
+import { MAX_CHAT_FILES, MAX_CHAT_FILE_BYTES, isOwnStagingPath, newStagingPath, type StagedUpload } from "@/lib/chat/staging";
+import { SLACK_FILES_BUCKET } from "@/lib/slack-capture";
+import { clock } from "@/lib/clock";
 import {
   buildMessageViews,
   chatTextContext,
@@ -26,21 +32,7 @@ import {
 import type { ChatTextContext } from "@/components/chat/ChatText";
 
 import { withAction } from "@/lib/analytics/server";
-/**
- * Who is calling a chat action: the signed-in member with chat on, or null (signed out, no member
- * record, chat off). Actions are directly callable endpoints, so each one checks for itself rather
- * than trusting the page that offers it; unlike the pages they answer "nothing" instead of redirecting.
- */
-async function chatCaller(): Promise<{ userId: string; identity: EffectiveIdentity } | null> {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  // Neither needs the other's answer, so ask together.
-  const [identity, ownFeatures] = await Promise.all([getEffectiveIdentity(user), getUserFeaturePreviews(user.id)]);
-  if (!identity) return null;
-  if (!(await effectiveMemberHasFeature("chat", identity, ownFeatures))) return null;
-  return { userId: user.id, identity };
-}
-
+import { chatCaller, postingCaller } from "@/lib/chat/caller";
 /**
  * The signed-in member has seen a conversation through `through` (the time of the newest message
  * they had on screen): moves their own read marker forward (the `chat_mark_read` function can only
@@ -51,7 +43,7 @@ async function chatCaller(): Promise<{ userId: string; identity: EffectiveIdenti
  * admin never marks things read for the member they are looking at.
  */
 export async function markChatRead(channelId: string, through: string): Promise<void> {
-  if (!isUuid(channelId)) return;
+  if (!isId(channelId, "chn")) return;
   if (Number.isNaN(Date.parse(through))) return;
   const caller = await chatCaller();
   if (!caller || caller.identity.isSudo) return;
@@ -76,7 +68,7 @@ export async function markChatRead(channelId: string, through: string): Promise<
 export async function syncChatReadFromSlack(openChannelId: string | null): Promise<Record<string, number> | null> {
   const caller = await chatCaller();
   if (!caller || caller.identity.isSudo) return null;
-  const exceptChannelId = openChannelId && isUuid(openChannelId) ? openChannelId : null;
+  const exceptChannelId = openChannelId && isId(openChannelId, "chn") ? openChannelId : null;
   const pulled = await pullReadFromSlack(createServiceRoleClient(), caller.identity.memberId, { exceptChannelId }).catch((e) => {
     console.error("pullReadFromSlack failed:", e);
     return false;
@@ -99,7 +91,7 @@ export interface OlderChat {
  * Null when it can't be loaded (no access, bad cursor).
  */
 export async function loadOlderChat(channelId: string, before: string): Promise<OlderChat | null> {
-  if (!isUuid(channelId) || Number.isNaN(Date.parse(before))) return null;
+  if (!isId(channelId, "chn") || Number.isNaN(Date.parse(before))) return null;
   const caller = await chatCaller();
   if (!caller) return null;
   const { identity } = caller;
@@ -122,10 +114,12 @@ export async function loadOlderChat(channelId: string, before: string): Promise<
  * rest are untouched), plus the messages in `alsoMessageIds` (ones whose reactions changed, wherever they
  * are in the list). Same access rules as the page and `loadOlderChat`; the text context carries
  * just the names found in these messages (the list merges it into what it already has), so the
- * channel list isn't read again. Null when it can't be loaded, and the caller refreshes the page.
+ * channel list isn't read again. `withReadMarker` also returns where the member has read up to now (for a
+ * page that came from the client cache, whose unread line is out of date). Null when it can't be loaded,
+ * and the caller refreshes the page.
  */
-export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = []): Promise<OlderChat | null> {
-  if (!isUuid(channelId)) return null;
+export async function loadLatestChat(channelId: string, alsoMessageIds: string[] = [], withReadMarker = false): Promise<LatestChat | null> {
+  if (!isId(channelId, "chn")) return null;
   const started = performance.now();
   const caller = await chatCaller();
   if (!caller) return null;
@@ -137,10 +131,17 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
   if (!channel || (identity.isSudo && channel.restricted)) return null;
   const afterChannel = performance.now();
 
-  const wanted = [...new Set(alsoMessageIds.filter(isUuid))].slice(0, 50);
-  const [page, extra] = await Promise.all([
+  const markerQuery = async (): Promise<string | null | undefined> => {
+    if (!withReadMarker) return undefined;
+    if (identity.isSudo) return null;
+    // A failed read shows no marker, as it always has.
+    return createRepos(supabase).chat.readMarker(channel.id, identity.memberId).catch(() => null);
+  };
+  const wanted = [...new Set(alsoMessageIds.filter((m) => isId(m, "msg")))].slice(0, 50);
+  const [page, extra, readMarker] = await Promise.all([
     loadMessages(supabase, channel.id, {}),
     loadMessagesByIds(supabase, channel.id, wanted),
+    markerQuery(),
   ]);
   const afterMessages = performance.now();
   // The newest page, plus any other messages asked for (ones whose reactions changed), once each.
@@ -157,7 +158,12 @@ export async function loadLatestChat(channelId: string, alsoMessageIds: string[]
     Math.round(afterMessages - afterChannel),
     Math.round(done - afterMessages)
   );
-  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore };
+  return { views, ctx: chatTextContext(rendered, []), olderBefore: page.olderBefore, readMarker };
+}
+
+export interface LatestChat extends OlderChat {
+  /** Where the member has read up to (null: nowhere, or sudo). Only when asked for. */
+  readMarker?: string | null;
 }
 
 export interface ThreadChat {
@@ -172,7 +178,7 @@ export interface ThreadChat {
  * access, or the root is gone), and the caller refreshes the page.
  */
 export async function loadThreadChat(channelId: string, threadRootId: string): Promise<ThreadChat | null> {
-  if (!isUuid(channelId) || !isUuid(threadRootId)) return null;
+  if (!isId(channelId, "chn") || !isId(threadRootId, "msg")) return null;
   const caller = await chatCaller();
   if (!caller) return null;
   const { identity } = caller;
@@ -201,14 +207,56 @@ const POST_ERRORS: Record<string, string> = {
   empty: "Write something first.",
   too_long: "That message is too long (4,000 characters at most).",
   bad_thread: "That thread can't be replied to.",
+  bad_files: "Those files can't be sent.",
 };
 
-/** Posting is its own preview on top of chat, and never happens in sudo (read-only). */
-async function postingCaller() {
-  const caller = await chatCaller();
-  if (!caller || caller.identity.isSudo) return null;
-  if (!(await effectiveMemberHasFeature("chat_posting", caller.identity, await getUserFeaturePreviews(caller.userId)))) return null;
-  return caller;
+export type PrepareUploadsResult = { ok: true; uploads: { path: string; token: string }[] } | { ok: false; error: string };
+
+/**
+ * Places for the browser to put attachments: one signed upload per file, in the member's own folder
+ * of the private bucket (the file goes straight to Storage; a server action can't take a big body).
+ * Same gate as posting, and the same limits the send checks again.
+ */
+export async function prepareChatUploads(files: { name: string; size: number }[]): Promise<PrepareUploadsResult> {
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+  if (!Array.isArray(files) || files.length === 0 || files.length > MAX_CHAT_FILES) {
+    return { ok: false, error: `Attach up to ${MAX_CHAT_FILES} files at a time.` };
+  }
+  if (files.some((f) => typeof f?.name !== "string" || !f.name || !(f.size >= 0) || f.size > MAX_CHAT_FILE_BYTES)) {
+    return { ok: false, error: `Files can be up to ${MAX_CHAT_FILE_BYTES / (1024 * 1024)} MB each.` };
+  }
+  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const uploads: { path: string; token: string }[] = [];
+  for (const f of files) {
+    const path = newStagingPath(caller.identity.memberId, f.name, clock.now(), crypto.randomUUID());
+    const { data, error } = await bucket.createSignedUploadUrl(path);
+    if (error || !data) {
+      console.error("createSignedUploadUrl failed:", error?.message);
+      return { ok: false, error: "Couldn't start the upload. Try again." };
+    }
+    uploads.push({ path, token: data.token });
+  }
+  return { ok: true, uploads };
+}
+
+/**
+ * The files JSON for chat_post_message from what the browser says it uploaded: only the member's own
+ * staged paths, and only ones that are really in the bucket, with their real size. Null if anything is off.
+ */
+async function stagedFilesFor(memberId: string, uploads: StagedUpload[]): Promise<Record<string, unknown>[] | null> {
+  if (!Array.isArray(uploads) || uploads.length > MAX_CHAT_FILES) return null;
+  const bucket = createServiceRoleClient().storage.from(SLACK_FILES_BUCKET);
+  const files: Record<string, unknown>[] = [];
+  for (const u of uploads) {
+    if (typeof u?.path !== "string" || typeof u.name !== "string" || !u.name || !isOwnStagingPath(memberId, u.path)) return null;
+    const slash = u.path.lastIndexOf("/");
+    const { data } = await bucket.list(u.path.slice(0, slash), { search: u.path.slice(slash + 1), limit: 5 });
+    const size = (data?.find((o) => o.name === u.path.slice(slash + 1))?.metadata as { size?: number } | undefined)?.size;
+    if (typeof size !== "number" || size > MAX_CHAT_FILE_BYTES) return null;
+    files.push({ id: `${PENDING_FILE_PREFIX}${crypto.randomUUID()}`, name: u.name.slice(0, 200), mimetype: typeof u.mimetype === "string" ? u.mimetype.slice(0, 100) : "application/octet-stream", size, staged: u.path });
+  }
+  return files;
 }
 
 /**
@@ -218,15 +266,28 @@ async function postingCaller() {
  * else as the bot under their name and photo). If Slack is down the message stays in the Hub
  * marked failed, and the member can retry it; the nightly chat run retries too.
  */
-async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string): Promise<SendChatResult> {
-  if (!isUuid(channelId) || (threadRootId !== undefined && !isUuid(threadRootId))) return { ok: false, error: "Something went wrong." };
-  if (!(await postingCaller())) return { ok: false, error: "Posting isn't available to you yet." };
+async function sendChatMessageImpl(channelId: string, body: string, threadRootId?: string, uploads: StagedUpload[] = []): Promise<SendChatResult> {
+  if (!isId(channelId, "chn") || (threadRootId !== undefined && !isId(threadRootId, "msg"))) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
+  // Messages are posted as the member, with their own Slack token, and there is no bot fallback: without a
+  // connection nothing would reach Slack, so say so now instead of saving a message that can only fail.
+  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings to post: your messages are posted as you." };
+  }
+
+  let files: Record<string, unknown>[] | null = null;
+  if (uploads.length > 0) {
+    files = await stagedFilesFor(caller.identity.memberId, uploads);
+    if (!files) return { ok: false, error: POST_ERRORS.bad_files };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("chat_post_message", {
     p_channel_id: channelId,
     p_body: body,
-    p_thread_root_id: threadRootId ?? null,
+    p_thread_root_id: (threadRootId ?? null) as string, // null when absent (the generated type has no null)
+    ...(files ? { p_files: files } : {}),
   });
   if (error || !data) {
     const reason = /chat_post: (\w+)/.exec(error?.message ?? "")?.[1];
@@ -259,29 +320,20 @@ const REACT_ERRORS: Record<string, string> = {
 
 /**
  * The signed-in member adds their reaction to a message, or takes it back if they already have
- * it. A member who connected Slack has the reaction sent to Slack as them; otherwise it stays in
- * the Hub (the bot can't react under a member's name). Same gate as posting.
+ * it. It is sent to Slack as them, so it needs their Slack connection. Same gate as posting.
  */
 async function toggleChatReactionImpl(messageId: string, emoji: string): Promise<ToggleReactionResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Reacting isn't available to you yet." };
 
   const supabase = await createClient();
 
-  // A reaction the member made in Slack can only be taken back in Slack, as them: without a connection
-  // the Hub would hide it until the next sync brought it back, so say what to do instead.
-  const { data: inSlack } = await supabase
-    .from("chat_reactions")
-    .select("id")
-    .eq("message_id", messageId)
-    .eq("emoji", emoji)
-    .eq("member_id", caller.identity.memberId)
-    .not("slack_user_id", "is", null)
-    .is("deleted_at", null)
-    .limit(1);
-  if (inSlack?.length && !(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
-    return { ok: false, error: "You reacted in Slack. Connect Slack in Settings to take it back from here." };
+  // Reactions go to Slack as the member (their own token; the bot can't react under a name), and there is no
+  // Hub-only fallback: without a connection one would be hidden here and never reach Slack, and a reaction
+  // the member made in Slack could not be taken back from here. So say what to do instead.
+  if (!(await getSlackConnectionStatus(createServiceRoleClient(), caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings to react: your reactions are sent as you." };
   }
 
   const { data, error } = await supabase.rpc("chat_toggle_reaction", { p_message_id: messageId, p_emoji: emoji });
@@ -305,21 +357,21 @@ async function toggleChatReactionImpl(messageId: string, emoji: string): Promise
 
 /** The author sends one of their own failed messages to Slack again. */
 export async function retryChatMessage(messageId: string): Promise<SendChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Posting isn't available to you yet." };
 
   // Under the caller's RLS, so only a message they can see; the author check is on top.
   const supabase = await createClient();
-  const { data: row } = await supabase
-    .from("chat_messages")
-    .select("author_member_id, origin, slack_sync_status")
-    .eq("id", messageId)
-    .maybeSingle();
+  const row = await createRepos(supabase).chat.retryState(messageId).catch(() => null);
   if (!row || row.origin !== "app" || row.author_member_id !== caller.identity.memberId || row.slack_sync_status === "sent") {
     return { ok: false, error: "That message can't be retried." };
   }
-  const result = await sendChatMessageToSlack(createServiceRoleClient(), messageId);
+  const service = createServiceRoleClient();
+  if (!(await getSlackConnectionStatus(service, caller.identity.memberId)).connected) {
+    return { ok: false, error: "Connect Slack in Settings, then retry: your messages are posted as you." };
+  }
+  const result = await sendChatMessageToSlack(service, messageId);
   return result === "failed" ? { ok: false, error: "Slack didn't take it. Try again in a moment." } : { ok: true, id: messageId };
 }
 
@@ -345,7 +397,7 @@ const changeError = (error: { message?: string } | null, verb: "edit" | "delete"
  * Same gate as posting.
  */
 async function editChatMessageImpl(messageId: string, body: string): Promise<ChangeChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Editing isn't available to you yet." };
 
@@ -365,7 +417,7 @@ async function editChatMessageImpl(messageId: string, body: string): Promise<Cha
 
 /** The author deletes one of their own messages written in the Hub: in Slack first, then the Hub (a tombstone, the text kept). */
 async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResult> {
-  if (!isUuid(messageId)) return { ok: false, error: "Something went wrong." };
+  if (!isId(messageId, "msg")) return { ok: false, error: "Something went wrong." };
   const caller = await postingCaller();
   if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
 
@@ -375,6 +427,25 @@ async function deleteChatMessageImpl(messageId: string): Promise<ChangeChatResul
   const supabase = await createClient();
   const { error } = await supabase.rpc("chat_delete_message", { p_message_id: messageId });
   if (error) return { ok: false, error: changeError(error, "delete") };
+  return { ok: true };
+}
+
+/** The author removes one attachment from their own Hub message: in Slack first, then the Hub's file list. */
+async function deleteChatFileImpl(messageId: string, fileId: string): Promise<ChangeChatResult> {
+  if (!isId(messageId, "msg") || !fileId || fileId.startsWith(PENDING_FILE_PREFIX)) return { ok: false, error: "Something went wrong." };
+  const caller = await postingCaller();
+  if (!caller) return { ok: false, error: "Deleting isn't available to you yet." };
+
+  const service = createServiceRoleClient();
+  const inSlack = await deleteChatFileInSlack(service, { messageId, memberId: caller.identity.memberId, fileId });
+  if (!inSlack.ok) return inSlack;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("chat_delete_file", { p_message_id: messageId, p_file_id: fileId });
+  if (error) return { ok: false, error: changeError(error, "delete") };
+
+  // Last, once nothing lists the file any more: a failure here only leaves bytes for the sweep.
+  await removeChatFileBytes(service, fileId);
   return { ok: true };
 }
 
@@ -393,4 +464,8 @@ export async function editChatMessage(...args: Parameters<typeof editChatMessage
 
 export async function deleteChatMessage(...args: Parameters<typeof deleteChatMessageImpl>): ReturnType<typeof deleteChatMessageImpl> {
   return withAction("chat_message_deleted", () => deleteChatMessageImpl(...args));
+}
+
+export async function deleteChatFile(...args: Parameters<typeof deleteChatFileImpl>): ReturnType<typeof deleteChatFileImpl> {
+  return withAction("chat_file_deleted", () => deleteChatFileImpl(...args));
 }

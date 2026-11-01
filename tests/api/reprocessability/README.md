@@ -8,17 +8,23 @@ These tests verify that all Silver layer processing routes follow the **DELETE +
 
 1. Start the dev server in one terminal:
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 2. Run the tests in another terminal:
    ```bash
-   npm test -- tests/api/reprocessability/
+   pnpm test tests/api/reprocessability/
    ```
 
 ## What These Tests Verify
 
 Each test suite verifies that its corresponding route is fully reprocessable:
+
+### Member interactions (`/api/process/member-interactions`)
+- ✓ Creates interactions (who talked with whom) from the chat tables on the first run
+- ✓ Removes interactions whose source is gone (a deleted message) and carries changed sources over
+- ✓ Replaces its date range (a stray row in range goes, one outside stays) and rebuilds several weeks one at a time
+- ✓ Is idempotent, with no duplicates
 
 ### Members (`/api/process/members`)
 - ✓ Creates members from Bronze on first process
@@ -55,19 +61,19 @@ If UPSERT was used, the orphan would remain, failing the test.
 
 ```bash
 # Members only
-npm test -- tests/api/reprocessability/members-reprocessability.test.ts
+pnpm test tests/api/reprocessability/members-reprocessability.test.ts
 
 # Calendar only
-npm test -- tests/api/reprocessability/calendar-reprocessability.test.ts
+pnpm test tests/api/reprocessability/calendar-reprocessability.test.ts
 
 # Attendance only
-npm test -- tests/api/reprocessability/attendance-reprocessability.test.ts
+pnpm test tests/api/reprocessability/attendance-reprocessability.test.ts
 ```
 
 ## Troubleshooting
 
 **Tests fail with "fetch failed" or connection errors:**
-- Ensure `npm run dev` is running on port 3000
+- Ensure `pnpm dev` is running on port 3000
 - Check that the database is accessible (local Supabase or remote)
 
 **Tests fail with authentication errors:**

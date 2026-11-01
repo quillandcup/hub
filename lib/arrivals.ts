@@ -1,9 +1,10 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 import { fetchMembershipHistory } from "@/lib/kajabi/membership-history";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipTimeline, type TimelineSegment } from "@/lib/membership-timeline";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import { fetchTrialWindows, pickTrialWindow } from "@/lib/trial-window";
 
 // Who just arrived: the new members who each get a big sister. Nobody types a start date. An
@@ -22,7 +23,9 @@ export type ArrivalKind = "trial" | "direct" | "program";
 
 export interface Arrival {
   memberId: string;
+  /** Display name; the legal name is in `memberRealName` when it differs. */
   memberName: string;
+  memberRealName?: string;
   /** YYYY-MM-DD: the sign-up, or the cohort's start. */
   arrivedOn: string;
   kind: ArrivalKind;
@@ -65,6 +68,7 @@ export function mergeArrivals(candidates: Arrival[]): Arrival[] {
 interface Candidate {
   memberId: string;
   memberName: string;
+  memberRealName?: string;
   email: string;
   arrivedOn: string;
   from: "membership" | "program";
@@ -73,12 +77,8 @@ interface Candidate {
 
 /** Membership subscription purchases created on or after `sinceDate`, as candidates by member. */
 async function membershipCandidates(supabase: SupabaseClient, sinceDate: string): Promise<Candidate[]> {
-  const purchases = (await fetchAllBronzeRows(
-    supabase,
-    "kajabi_purchases",
-    "kajabi_customer_id, kajabi_offer_id, created_at_kajabi",
-    (q) => q.gte("created_at_kajabi", `${sinceDate}T00:00:00Z`)
-  )) as { kajabi_customer_id: string | null; kajabi_offer_id: string | null; created_at_kajabi: string | null }[];
+  const billing = createRepos(supabase).billing;
+  const purchases = await billing.kajabiPurchases({ createdSince: `${sinceDate}T00:00:00Z` });
   if (purchases.length === 0) return [];
 
   const offerIds = [...new Set(purchases.map((p) => p.kajabi_offer_id).filter((id): id is string => !!id))];
@@ -86,13 +86,9 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
   if (offerIds.length === 0 || customerIds.length === 0) return [];
 
   const [offers, customers, aliasRows] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_offers", "kajabi_offer_id, name, data", (q) =>
-      q.in("kajabi_offer_id", offerIds)
-    ),
-    fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id, email", (q) =>
-      q.in("kajabi_customer_id", customerIds)
-    ),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+    billing.kajabiOffersByIds(offerIds),
+    billing.kajabiCustomers({ customerIds }),
+    createRepos(supabase).aliases.emailAliases(),
   ]);
 
   // The same first two tests as isRealMembershipStint: a subscription offer that is the membership
@@ -102,7 +98,7 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
       .filter((o) => o.data?.attributes?.subscription === true && isMembershipOffer(o.name ?? ""))
       .map((o) => o.kajabi_offer_id)
   );
-  const aliasMap = buildAliasMap(aliasRows.data ?? []);
+  const aliasMap = buildAliasMap(aliasRows);
   const emailByCustomer = new Map<string, string>();
   for (const c of customers as { kajabi_customer_id: string; email: string | null }[]) {
     if (c.email) emailByCustomer.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));
@@ -120,51 +116,28 @@ async function membershipCandidates(supabase: SupabaseClient, sinceDate: string)
 
   const emails = [...startByEmail.keys()];
   const found: Candidate[] = [];
-  const CHUNK = 200;
-  for (let i = 0; i < emails.length; i += CHUNK) {
-    const { data: members } = await supabase
-      .from("members")
-      .select("id, name, email, staff_role")
-      .in("email", emails.slice(i, i + CHUNK));
-    for (const m of (members ?? []) as { id: string; name: string; email: string; staff_role: string | null }[]) {
-      const arrivedOn = startByEmail.get(m.email.toLowerCase());
-      if (arrivedOn && !m.staff_role) {
-        found.push({ memberId: m.id, memberName: m.name, email: m.email, arrivedOn, from: "membership", programName: null });
-      }
+  for (const m of await createRepos(supabase).members.byEmails(emails)) {
+    const arrivedOn = startByEmail.get(m.email.toLowerCase());
+    if (arrivedOn && !m.staffRole) {
+      found.push({ memberId: m.id, memberName: getMemberDisplayName({ name: m.name, display_name: m.displayName }), memberRealName: m.displayName?.trim() && m.displayName.trim() !== m.name ? m.name : undefined, email: m.email, arrivedOn, from: "membership", programName: null });
     }
   }
   return found;
 }
 
-interface EnrollmentRow {
-  member_id: string;
-  program_cohorts: { starts_at: string; programs: { name: string; includes_membership: boolean } | { name: string; includes_membership: boolean }[] };
-  members: { id: string; name: string; email: string; staff_role: string | null } | { id: string; name: string; email: string; staff_role: string | null }[] | null;
-}
-
 /** Cohorts of programs that include membership that started in [sinceDate, today], by enrolled member. */
 async function programCandidates(supabase: SupabaseClient, sinceDate: string, today: string): Promise<Candidate[]> {
-  const { data } = await supabase
-    .from("member_program_enrollments")
-    .select(
-      "member_id, program_cohorts!inner(starts_at, programs!inner(name, includes_membership)), members(id, name, email, staff_role)"
-    )
-    .gte("program_cohorts.starts_at", sinceDate)
-    .lte("program_cohorts.starts_at", today)
-    .eq("program_cohorts.programs.includes_membership", true);
-
   const found: Candidate[] = [];
-  for (const row of (data ?? []) as unknown as EnrollmentRow[]) {
-    const member = Array.isArray(row.members) ? row.members[0] : row.members;
-    const program = Array.isArray(row.program_cohorts.programs) ? row.program_cohorts.programs[0] : row.program_cohorts.programs;
+  for (const { member, startsOn, programName } of await createRepos(supabase).programs.membershipArrivals(sinceDate, today)) {
     if (!member || member.staff_role) continue;
     found.push({
       memberId: member.id,
-      memberName: member.name,
+      memberName: getMemberDisplayName(member),
+      memberRealName: getMemberDisplayName(member) !== member.name ? member.name : undefined,
       email: member.email,
-      arrivedOn: row.program_cohorts.starts_at.slice(0, 10),
+      arrivedOn: startsOn.slice(0, 10),
       from: "program",
-      programName: program?.name ?? null,
+      programName,
     });
   }
   return found;
@@ -178,42 +151,27 @@ async function programCandidates(supabase: SupabaseClient, sinceDate: string, to
  */
 async function wasAlreadyMember(supabase: SupabaseClient, c: Candidate): Promise<boolean> {
   const cutoff = dayMs(c.arrivedOn) - MS_PER_DAY;
-  const [{ data: aliasRows }, { data: hiatusRows }, { data: enrollmentRows }, { data: overrideRows }] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email").eq("member_id", c.memberId),
-    supabase.from("member_hiatus_history").select("id, start_date, end_date, reason, notes").eq("member_id", c.memberId),
-    supabase
-      .from("member_program_enrollments")
-      .select("cohort:program_cohorts(starts_at, expires_at, program:programs(name, includes_membership))")
-      .eq("member_id", c.memberId),
-    supabase
-      .from("member_status_overrides")
-      .select("override_type, reason, starts_at, expires_at")
-      .eq("member_id", c.memberId),
+  const repos = createRepos(supabase);
+  const [aliasRows, hiatusRows, enrollments, overrideRows] = await Promise.all([
+    repos.aliases.emailsOf(c.memberId),
+    repos.memberStatus.hiatusesOf(c.memberId),
+    repos.programs.enrollmentsOf(c.memberId),
+    repos.memberStatus.statusOverridesOf(c.memberId),
   ]);
 
-  const emails = [c.email, ...((aliasRows ?? []) as { alias_email: string }[]).map((a) => a.alias_email)];
-  const kajabiCustomers = await fetchAllBronzeRows(supabase, "kajabi_customers", "kajabi_customer_id", (q) =>
-    q.in("email", emails)
-  );
-  const customerIds = (kajabiCustomers as { kajabi_customer_id: string | null }[])
-    .map((k) => k.kajabi_customer_id)
-    .filter((id): id is string => !!id);
+  const emails = [c.email, ...aliasRows.map((a) => a.alias_email)];
+  const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails });
+  const customerIds = kajabiCustomers.map((k) => k.kajabi_customer_id).filter((id): id is string => !!id);
   const stints = (await fetchMembershipHistory(supabase, customerIds)).filter(
     (s) => Date.parse(s.created_at_kajabi) < cutoff
   );
 
-  type Cohort = { starts_at: string; expires_at: string; program: { name: string; includes_membership: boolean } | { name: string; includes_membership: boolean }[] | null };
-  const programs = ((enrollmentRows ?? []) as unknown as { cohort: Cohort | Cohort[] | null }[]).flatMap((e) => {
-    const cohort = Array.isArray(e.cohort) ? e.cohort[0] : e.cohort;
-    const program = cohort && (Array.isArray(cohort.program) ? cohort.program[0] : cohort.program);
-    if (!cohort || !program?.includes_membership || dayMs(cohort.starts_at) >= cutoff) return [];
-    return [{ starts_at: cohort.starts_at, expires_at: cohort.expires_at, reason: program.name }];
-  });
-  const overrides = ((overrideRows ?? []) as { override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[]).filter(
-    (o) => dayMs(o.starts_at) < cutoff
-  );
+  const programs = enrollments
+    .filter((e) => e.includesMembership && dayMs(e.startsAt) < cutoff)
+    .map((e) => ({ starts_at: e.startsAt, expires_at: e.expiresAt, reason: e.programName }));
+  const overrides = overrideRows.filter((o) => dayMs(o.starts_at) < cutoff);
 
-  const segments = buildMembershipTimeline(stints, hiatusRows ?? [], programs, overrides);
+  const segments = buildMembershipTimeline(stints, hiatusRows, programs, overrides);
   return wasMemberAt(segments, cutoff);
 }
 
@@ -249,12 +207,12 @@ export async function getArrivals(supabase: SupabaseClient, sinceDate: string, t
   return mergeArrivals(
     arriving.map((c): Arrival => {
       if (c.from === "program") {
-        return { memberId: c.memberId, memberName: c.memberName, arrivedOn: c.arrivedOn, kind: "program", trialEndsOn: null, programName: c.programName };
+        return { memberId: c.memberId, memberName: c.memberName, memberRealName: c.memberRealName, arrivedOn: c.arrivedOn, kind: "program", trialEndsOn: null, programName: c.programName };
       }
       const trial = pickTrialWindow(windows.get(c.memberId) ?? [], c.arrivedOn);
       return {
         memberId: c.memberId,
-        memberName: c.memberName,
+        memberName: c.memberName, memberRealName: c.memberRealName,
         arrivedOn: c.arrivedOn,
         kind: trial ? "trial" : "direct",
         trialEndsOn: trial?.end ?? null,

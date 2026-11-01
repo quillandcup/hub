@@ -6,14 +6,13 @@ import {
   updateProjectDetails,
   setStartingBalances,
   updateProjectCover,
+  deleteProject,
   type WritingProjectRow,
 } from "@/app/(member)/projects/actions";
 import { MEASURE_LABELS, WRITING_MEASURES, type WritingMeasure } from "@/lib/writing-projects";
-import {
-  describeBookCoverRequirements,
-  validateBookCoverDimensions,
-  validateBookCoverFile,
-} from "@/lib/bookCover";
+import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
+import MediaPicker from "@/components/media/MediaPicker";
+import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface ProjectDetailsModalProps {
   isOpen: boolean;
@@ -29,82 +28,29 @@ const STARTING_BALANCE_MEASURES = WRITING_MEASURES.filter((m) => m !== "prickles
   "prickles"
 >[];
 
-/** Reads the pixel dimensions of an image file in the browser, without uploading it. */
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Couldn't read that image file"));
-    };
-    img.src = objectUrl;
-  });
-}
-
 export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project }: ProjectDetailsModalProps) {
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [coverUrl, setCoverUrl] = useState(project.coverUrl ?? "");
-  const [coverError, setCoverError] = useState<string | null>(null);
-  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverAsset, setCoverAsset] = useState<CoverAsset | null>(null);
   const [startingBalances, setStartingBalancesState] = useState<Record<string, string>>(
     Object.fromEntries(STARTING_BALANCE_MEASURES.map((m) => [m, project.startingBalances[m]?.toString() ?? ""]))
   );
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCoverFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file after a failed attempt
-    if (!file) return;
-
-    setCoverError(null);
-
-    const fileError = validateBookCoverFile(file);
-    if (fileError) {
-      setCoverError(fileError);
+  async function handleDelete() {
+    const alsoRemains = project.book ? " The book on your Book Shelf stays." : "";
+    if (!confirm(`Delete "${project.title}" with its goals and progress? You can't get it back.${alsoRemains}`)) return;
+    setError(null);
+    setIsPending(true);
+    const result = await deleteProject(project.id);
+    if ("error" in result) {
+      setIsPending(false);
+      setError(result.error);
       return;
     }
-
-    let dimensions: { width: number; height: number };
-    try {
-      dimensions = await readImageDimensions(file);
-    } catch {
-      setCoverError("Couldn't read that image file");
-      return;
-    }
-    const dimensionError = validateBookCoverDimensions(dimensions.width, dimensions.height);
-    if (dimensionError) {
-      setCoverError(dimensionError);
-      return;
-    }
-
-    setIsUploadingCover(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/bookshelf/cover", { method: "POST", body });
-      const json = await res.json();
-      if (!res.ok) {
-        setCoverError(json.error ?? "Upload failed, try again");
-        return;
-      }
-      const result = await updateProjectCover(project.id, json.url);
-      if ("error" in result) {
-        setCoverError(result.error);
-        return;
-      }
-      setCoverUrl(json.url);
-    } catch {
-      setCoverError("Upload failed, try again");
-    } finally {
-      setIsUploadingCover(false);
-    }
+    window.location.href = "/projects";
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -156,7 +102,7 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Description <span className="text-slate-400 font-normal">(optional)</span>
+            Description <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
           <textarea
             value={description}
@@ -168,47 +114,45 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Cover image <span className="text-slate-400 font-normal">(optional)</span>
+            Cover image <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
-          <div className="flex items-start gap-3">
-            {coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element -- local preview of an uploaded file, not optimizable by next/image
-              <img
-                src={coverUrl}
-                alt="Cover preview"
-                className="w-16 h-24 object-cover rounded border border-slate-200 dark:border-slate-700 flex-shrink-0"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                onChange={handleCoverFileChange}
-                disabled={isUploadingCover}
-                className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
-              />
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {isUploadingCover ? "Uploading..." : describeBookCoverRequirements()}
-              </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                Uses the same spec your published book cover will need, so you won&apos;t have to re-upload at publish time.
-              </p>
-              {coverError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{coverError}</p>}
-            </div>
-          </div>
+          <MediaPicker
+            own
+            shape="cover"
+            noun="cover"
+            alt="Cover preview"
+            surface="book_cover"
+            preview="book_cover_shelf"
+            removable={false}
+            value={coverAssetIdOf(coverUrl)}
+            onChange={async (id, picked) => {
+              if (!id || !picked) return;
+              const url = bookCoverUrlFor(id);
+              const result = await updateProjectCover(project.id, url);
+              if ("error" in result) return result.error;
+              setCoverUrl(url);
+              setCoverAsset(picked);
+            }}
+          >
+            <BookCoverDetails
+              url={coverUrl}
+              asset={coverAsset}
+              hint="It's the cover your published book will use, so you won't have to upload it again at publish time."
+            />
+          </MediaPicker>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Starting balance <span className="text-slate-400 font-normal">(optional)</span>
+            Starting balance <span className="text-slate-500 dark:text-slate-400 font-normal">(optional)</span>
           </label>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
             How much you already had before tracking this project here.
           </p>
           <div className="grid grid-cols-2 gap-2">
             {STARTING_BALANCE_MEASURES.map((measure) => (
               <div key={measure}>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-0.5">
+                <label className="block text-xs text-slate-600 dark:text-slate-400 mb-0.5">
                   {MEASURE_LABELS[measure]}
                 </label>
                 <input
@@ -240,10 +184,21 @@ export default function ProjectDetailsModal({ isOpen, onClose, onSaved, project 
           </button>
           <button data-track="project-details-save-changes"
             type="submit"
-            disabled={isPending || isUploadingCover}
+            disabled={isPending}
             className="px-4 py-2 text-sm bg-plum-600 text-white rounded-lg hover:bg-plum-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isPending ? "Saving..." : "Save changes"}
+          </button>
+        </div>
+
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-4">
+          <button data-track="project-delete"
+            type="button"
+            onClick={handleDelete}
+            disabled={isPending}
+            className="text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+          >
+            Delete project
           </button>
         </div>
       </form>

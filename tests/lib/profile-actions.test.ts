@@ -73,7 +73,7 @@ function makeUserClient({
     if (table === "member_roster_opt_outs") {
       return {
         select: () => ({
-          eq: () => ({ maybeSingle: async () => ({ data: rosterOptedOut ? { member_id: "member-1" } : null, error: null }) }),
+          in: async () => ({ data: rosterOptedOut ? [{ member_id: "member-1" }] : [], error: null }),
         }),
         upsert: rosterUpsert,
         delete: () => ({ eq: rosterDeleteEq }),
@@ -101,7 +101,11 @@ function makeServiceClient({
   const upsert = vi.fn(async () => ({ error: bronzeUpsertError }));
   const membersUpdate = vi.fn();
   const membersUpsert = vi.fn();
-  const membersEq = vi.fn(() => ({ single: async () => ({ data: member, error: null }) }));
+  const membersEq = vi.fn(() => ({
+    single: async () => ({ data: member, error: null }),
+    // The members repository reads with maybeSingle.
+    maybeSingle: async () => ({ data: member, error: null }),
+  }));
   const from = vi.fn((table: string) => {
     if (table === "members") return { select: () => ({ eq: membersEq }), update: membersUpdate, upsert: membersUpsert };
     if (table === "member_email_aliases") {
@@ -124,9 +128,14 @@ function makeServiceClient({
       if (table === "kajabi_customers") {
         return {
           select: () => ({
-            in: async () => ({
-              data: [{ updated_at_kajabi: "2026-01-01T00:00:00Z", data: { attributes: customerAttributes } }],
-              error: null,
+            // The billing repository pages through a stable order.
+            in: () => ({
+              order: () => ({
+                range: async () => ({
+                  data: [{ updated_at_kajabi: "2026-01-01T00:00:00Z", data: { attributes: customerAttributes } }],
+                  error: null,
+                }),
+              }),
             }),
           }),
         };

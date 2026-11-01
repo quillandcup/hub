@@ -1,13 +1,14 @@
 "use server";
 
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
 
 // Don't re-send more often than this, so the public login form can't be used to flood an
 // invitee's inbox.
 const RESEND_COOLDOWN_MS = 60_000;
 
 function getServiceClient() {
-  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  return createServiceClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

@@ -45,16 +45,12 @@ describe("ReactionBar", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
-  it("adds a reaction from the picker, which closes after a choice", async () => {
-    vi.mocked(toggleChatReaction).mockResolvedValue({ ok: true, active: true });
-    render(<ReactionBar channelId="c1" messageId="m1" reactions={[]} custom={{}} canReact />);
-
-    expect(screen.queryByRole("list", { name: "Pick a reaction" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Add reaction" }));
-    await userEvent.click(screen.getByRole("button", { name: "React with :heart:" }));
-
-    await waitFor(() => expect(toggleChatReaction).toHaveBeenCalledWith("m1", "heart"));
-    expect(screen.queryByRole("list", { name: "Pick a reaction" })).not.toBeInTheDocument();
+  it("has no add-reaction button of its own, even with no reactions or for a viewer who can react", () => {
+    const { container } = render(<ReactionBar channelId="c1" messageId="m1" reactions={[]} custom={{}} canReact />);
+    expect(container).toBeEmptyDOMElement();
+    cleanup();
+    render(<ReactionBar channelId="c1" messageId="m1" reactions={REACTIONS} custom={{}} canReact />);
+    expect(screen.queryByRole("button", { name: "Add reaction" })).not.toBeInTheDocument();
   });
 
   it("shows why a reaction was refused and doesn't refresh", async () => {
@@ -64,5 +60,34 @@ describe("ReactionBar", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("This conversation is archived.");
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReactionBar hover card", () => {
+  it("names who reacted, with the viewer first and the shortcode, and drops the browser title", () => {
+    render(
+      <ReactionBar
+        channelId="c1"
+        messageId="m1"
+        reactions={[
+          { emoji: "tada", count: 2, mine: true, reactors: ["Bo & <Co>"] },
+          { emoji: "eyes", count: 2, mine: false, reactors: ["Ada", "Bo"] },
+        ]}
+        custom={{}}
+        canReact={false}
+      />
+    );
+    expect(screen.getByText("You (click to remove) and Bo & <Co> reacted with :tada:")).toBeInTheDocument();
+    expect(screen.getByText("Ada and Bo reacted with :eyes:")).toBeInTheDocument();
+  });
+});
+
+describe("reactorsSentence", () => {
+  it("names who reacted, counting people without names and the viewer", async () => {
+    const { reactorsSentence } = await import("@/components/chat/ReactionBar");
+    expect(reactorsSentence({ emoji: "tada", count: 1, mine: true })).toBe("You (click to remove) reacted with :tada:");
+    expect(reactorsSentence({ emoji: "tada", count: 3, mine: true, reactors: ["Bo & <Co>"] })).toBe("You (click to remove), Bo & <Co> and 1 more reacted with :tada:");
+    expect(reactorsSentence({ emoji: "eyes", count: 2, mine: false })).toBe("2 people reacted with :eyes:");
+    expect(reactorsSentence({ emoji: "eyes", count: 0, mine: false })).toBe(" reacted with :eyes:");
   });
 });

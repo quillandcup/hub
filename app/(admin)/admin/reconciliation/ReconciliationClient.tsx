@@ -6,6 +6,9 @@ import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateInZone } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 interface ReconciliationSummary {
   total_members: number;
@@ -19,6 +22,7 @@ interface ReconciliationSummary {
 interface MemberReconciliation {
   member_id: string;
   member_name: string;
+  member_display_name?: string | null;
   member_email: string;
   expected_kajabi_state: string;
   actual_kajabi_state: string;
@@ -62,6 +66,7 @@ interface StripeOrphanData {
 interface ZoomInactiveMember {
   member_id: string;
   member_name: string;
+  member_display_name?: string | null;
   member_status: string;
   prickle_count: number;
 }
@@ -77,12 +82,23 @@ interface KajabiGrant {
   created_at: string | null;
   member_id: string | null;
   member_name: string | null;
+  member_display_name?: string | null;
   member_email: string | null;
   member_status: string | null;
 }
 
 interface KajabiGrantsData {
   grants: KajabiGrant[];
+}
+
+// Reconciliation is about billing records, so the legal name stays visible under the display name.
+function shownName(name: string, displayName?: string | null): string {
+  return getMemberDisplayName({ name, display_name: displayName });
+}
+
+function LegalName({ name, displayName }: { name: string; displayName?: string | null }) {
+  if (shownName(name, displayName) === name) return null;
+  return <div className="text-xs text-gray-500 dark:text-gray-400">{name}</div>;
 }
 
 type MemberSortColumn = "member" | "expected" | "actual" | "stripe" | "slack" | "override" | "status";
@@ -104,7 +120,7 @@ function orphanSortValue(o: StripeOrphan, column: OrphanSortColumn): SortValue {
 function grantSortValue(g: KajabiGrant, column: GrantSortColumn): SortValue {
   switch (column) {
     case "member":
-      return (g.member_name ?? g.member_email)?.toLowerCase() ?? null;
+      return (g.member_name ? shownName(g.member_name, g.member_display_name) : g.member_email)?.toLowerCase() ?? null;
     case "offer":
       return g.offer_name.toLowerCase();
     case "amount":
@@ -115,13 +131,14 @@ function grantSortValue(g: KajabiGrant, column: GrantSortColumn): SortValue {
 }
 
 function zoomSortValue(m: ZoomInactiveMember, column: ZoomSortColumn): SortValue {
-  return column === "member" ? m.member_name.toLowerCase() : m.prickle_count;
+  return column === "member" ? shownName(m.member_name, m.member_display_name).toLowerCase() : m.prickle_count;
 }
 
 const EMPTY: never[] = [];
 const HEADER_CLASS = "px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300";
 
 export default function ReconciliationClient() {
+  const timeZone = useTimeZone();
   const [data, setData] = useState<ReconciliationData | null>(null);
   const [slackData, setSlackData] = useState<SlackData | null>(null);
   const [stripeOrphanData, setStripeOrphanData] = useState<StripeOrphanData | null>(null);
@@ -137,7 +154,7 @@ export default function ReconciliationClient() {
     (m: MemberReconciliation, column: MemberSortColumn): SortValue => {
       switch (column) {
         case "member":
-          return m.member_name.toLowerCase();
+          return shownName(m.member_name, m.member_display_name).toLowerCase();
         case "expected":
           return m.expected_kajabi_state;
         case "actual":
@@ -189,18 +206,7 @@ export default function ReconciliationClient() {
     resetKey: String(filterDiscrepancies),
   });
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  const fetchAll = async () => {
-    setLoading(true);
-    setError(null);
-    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchKajabiGrants(), fetchZoomAccess()]);
-    setLoading(false);
-  };
-
-  const fetchReconciliation = async () => {
+  const fetchReconciliation = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/subscription-reconciliation");
       const result = await response.json();
@@ -210,14 +216,14 @@ export default function ReconciliationClient() {
       console.error("Error fetching reconciliation:", err);
       setError(err.message);
     }
-  };
+  }, []);
 
   const handleOverrideSaved = () => {
     setEditingMemberId(null);
     fetchReconciliation();
   };
 
-  const fetchSlackData = async () => {
+  const fetchSlackData = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/slack-reconciliation");
       const result = await response.json();
@@ -226,9 +232,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Slack reconciliation:", err);
     }
-  };
+  }, []);
 
-  const fetchStripeOrphans = async () => {
+  const fetchStripeOrphans = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/stripe-orphans");
       const result = await response.json();
@@ -237,9 +243,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Stripe orphans:", err);
     }
-  };
+  }, []);
 
-  const fetchKajabiGrants = async () => {
+  const fetchKajabiGrants = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/kajabi-grants");
       const result = await response.json();
@@ -248,9 +254,9 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Kajabi grants:", err);
     }
-  };
+  }, []);
 
-  const fetchZoomAccess = async () => {
+  const fetchZoomAccess = useCallback(async () => {
     try {
       const response = await fetch("/api/analyze/zoom-access");
       const result = await response.json();
@@ -259,7 +265,18 @@ export default function ReconciliationClient() {
     } catch (err: any) {
       console.error("Error fetching Zoom access:", err);
     }
-  };
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    await Promise.all([fetchReconciliation(), fetchSlackData(), fetchStripeOrphans(), fetchKajabiGrants(), fetchZoomAccess()]);
+    setLoading(false);
+  }, [fetchReconciliation, fetchSlackData, fetchStripeOrphans, fetchKajabiGrants, fetchZoomAccess]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   if (loading) {
     return (
@@ -320,7 +337,8 @@ export default function ReconciliationClient() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
+      <div className="@container">
+        <div className="grid grid-cols-2 @cards:grid-cols-3 @columns:grid-cols-7 gap-4 mb-6">
         <div className="p-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded">
           <div className="text-2xl font-bold dark:text-white">{data.summary.total_members}</div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Members</div>
@@ -367,6 +385,7 @@ export default function ReconciliationClient() {
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">Discrepancies</div>
         </div>
+      </div>
       </div>
 
       {/* Filter Toggle */}
@@ -462,7 +481,8 @@ export default function ReconciliationClient() {
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium dark:text-white">{member.member_name}</div>
+                      <div className="font-medium dark:text-white">{shownName(member.member_name, member.member_display_name)}</div>
+                      <LegalName name={member.member_name} displayName={member.member_display_name} />
                       <div className="text-sm text-gray-600 dark:text-gray-400">
                         {member.member_email}
                       </div>
@@ -601,7 +621,7 @@ export default function ReconciliationClient() {
                         <div className="max-w-md">
                           <MemberOverrideForm
                             memberId={member.member_id}
-                            memberName={member.member_name}
+                            memberName={shownName(member.member_name, member.member_display_name)}
                             existing={
                               member.override_id
                                 ? {
@@ -687,7 +707,7 @@ export default function ReconciliationClient() {
                       {o.email ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
+                      {o.created_at ? formatDateInZone(o.created_at, timeZone) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -752,7 +772,8 @@ export default function ReconciliationClient() {
                           href={`/admin/members/${g.member_id}`}
                           className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                         >
-                          {g.member_name}
+                          {shownName(g.member_name ?? "", g.member_display_name)}
+                          {g.member_name && <LegalName name={g.member_name} displayName={g.member_display_name} />}
                         </a>
                       ) : (
                         <span className="font-medium dark:text-white">{g.member_email ?? "—"}</span>
@@ -763,7 +784,7 @@ export default function ReconciliationClient() {
                       {(g.amount_in_cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                      {g.created_at ? new Date(g.created_at).toLocaleDateString() : "—"}
+                      {g.created_at ? formatDateInZone(g.created_at, timeZone) : "—"}
                     </td>
                   </tr>
                 ))}
@@ -803,7 +824,10 @@ export default function ReconciliationClient() {
               <tbody className="divide-y divide-gray-200 dark:divide-slate-700 bg-white dark:bg-slate-900">
                 {zoomSort.rows.map((m) => (
                   <tr key={m.member_id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
-                    <td className="px-4 py-3 font-medium dark:text-white">{m.member_name}</td>
+                    <td className="px-4 py-3 font-medium dark:text-white">
+                      {shownName(m.member_name, m.member_display_name)}
+                      <LegalName name={m.member_name} displayName={m.member_display_name} />
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.prickle_count}</td>
                   </tr>
                 ))}

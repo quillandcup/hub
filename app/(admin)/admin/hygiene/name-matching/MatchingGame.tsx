@@ -1,6 +1,8 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useState } from "react";
+import { useTimeout } from "@/components/useTimeout";
 
 interface UnmatchedAttendee {
   zoomName: string;
@@ -11,6 +13,7 @@ interface UnmatchedAttendee {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -29,6 +32,7 @@ export default function MatchingGame({
   membersWithNoAttendance: Member[];
 }) {
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const startClearTimer = useTimeout();
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
@@ -58,7 +62,7 @@ export default function MatchingGame({
           {
             zoomName: draggedItem,
             memberId: member.id,
-            memberName: member.name,
+            memberName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
             memberEmail: member.email,
           },
         ]);
@@ -93,7 +97,7 @@ export default function MatchingGame({
       setSaveResult(`✓ Saved ${data.inserted} aliases!`);
 
       // Clear matches after successful save
-      setTimeout(() => {
+      startClearTimer(() => {
         setMatches([]);
         setSaveResult(null);
       }, 2000);
@@ -139,11 +143,11 @@ export default function MatchingGame({
                     <span className="font-mono text-plum-600 dark:text-plum-400">
                       {match.zoomName}
                     </span>
-                    <span className="mx-2 text-slate-400">→</span>
+                    <span className="mx-2 text-slate-500 dark:text-slate-400">→</span>
                     <span className="font-semibold text-slate-900 dark:text-slate-100">
                       {match.memberName}
                     </span>
-                    <span className="text-slate-500 text-xs ml-2">
+                    <span className="text-slate-600 dark:text-slate-400 text-xs ml-2">
                       ({match.memberEmail})
                     </span>
                   </div>
@@ -176,7 +180,7 @@ export default function MatchingGame({
 
           <div className="divide-y divide-slate-200 dark:divide-slate-800 max-h-[600px] overflow-y-auto">
             {availableZoomNames.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">
                 All matched! 🎉
               </div>
             ) : (
@@ -194,7 +198,7 @@ export default function MatchingGame({
                     {attendee.appearances} appearances
                   </div>
                   {attendee.emails.length > 0 && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
                       {attendee.emails.join(", ")}
                     </div>
                   )}
@@ -218,7 +222,7 @@ export default function MatchingGame({
 
           <div className="divide-y divide-slate-200 dark:divide-slate-800 max-h-[600px] overflow-y-auto">
             {availableMembers.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">
                 All matched! 🎉
               </div>
             ) : (
@@ -234,8 +238,11 @@ export default function MatchingGame({
                   }`}
                 >
                   <div className="font-semibold text-slate-900 dark:text-slate-100">
-                    {member.name}
+                    {getMemberDisplayName({ name: member.name, display_name: member.displayName })}
                   </div>
+                  {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                  )}
                   <div className="text-sm text-slate-600 dark:text-slate-400">
                     {member.email}
                   </div>

@@ -79,7 +79,10 @@ export default function BadgeRecipientsTable({
                 >
                   {recipient.memberName}
                 </Link>
-                <div className="text-sm text-slate-500 dark:text-slate-400">{recipient.memberEmail}</div>
+                {recipient.memberRealName && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{recipient.memberRealName}</div>
+                )}
+                <div className="text-sm text-slate-600 dark:text-slate-400">{recipient.memberEmail}</div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                 {recipient.levelName}
@@ -87,7 +90,7 @@ export default function BadgeRecipientsTable({
               <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">
                 {recipient.occurrences}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                 {recipient.firstAwardedAt ?? "—"}
               </td>
             </tr>

@@ -1,7 +1,8 @@
+import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { createClient } from "@/lib/supabase/server";
 import { buildAliasMap } from "@/lib/email-aliases";
 import { groupByCanonical, type ConflictGroup, type ConflictEntry } from "@/lib/external-conflicts";
-import { SLACKBOT_USER_ID } from "@/lib/slack-matching";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -17,19 +18,7 @@ export default async function ExternalConflictsPage() {
   await requireAdminPage();
   const supabase = await createClient();
 
-  const paginate = async <T,>(
-    queryFn: (from: number, to: number) => PromiseLike<{ data: T[] | null }>
-  ): Promise<T[]> => {
-    const rows: T[] = [];
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await queryFn(offset, offset + 999);
-      if (data?.length) { rows.push(...data); offset += data.length; hasMore = data.length === 1000; }
-      else hasMore = false;
-    }
-    return rows;
-  };
+  const billing = createRepos(supabase).billing;
 
   const [
     emailAliases,
@@ -38,33 +27,29 @@ export default async function ExternalConflictsPage() {
     slackUsers,
     members,
     stripeActiveSubs,
-    kajabiActivePurchases,
+    activePurchaseCustomers,
     kajabiCustomers,
   ] = await Promise.all([
-    supabase.from("member_email_aliases").select("alias_email, canonical_email").then(r => r.data ?? []),
-    paginate((from, to) => supabase.schema("bronze").from("kajabi_contacts")
-      .select("kajabi_contact_id, email, name").range(from, to)),
-    paginate((from, to) => supabase.schema("bronze").from("stripe_customers")
-      .select("stripe_customer_id, email, name").range(from, to)),
-    paginate((from, to) => supabase.schema("bronze").from("slack_users")
-      .select("user_id, email, real_name, display_name").eq("is_bot", false).neq("user_id", SLACKBOT_USER_ID).range(from, to)),
-    supabase.from("members").select("id, name, email").then(r => r.data ?? []),
-    supabase.schema("bronze").from("stripe_subscriptions")
-      .select("stripe_customer_id, status")
-      .in("status", ["active", "trialing", "past_due"]).then(r => r.data ?? []),
-    supabase.schema("bronze").from("kajabi_purchases")
-      .select("kajabi_customer_id").eq("status", "active").then(r => r.data ?? []),
-    paginate((from, to) => supabase.schema("bronze").from("kajabi_customers")
-      .select("kajabi_customer_id, email").range(from, to)),
+    createRepos(supabase).aliases.emailAliases(),
+    billing.kajabiContacts(),
+    billing.stripeCustomers(),
+    createRepos(supabase).slackUsers.list({ excludeSlackbot: true, excludeBots: true }),
+    createRepos(supabase).members.identities(),
+    billing.stripeSubscriptionStatuses(["active", "trialing", "past_due"]),
+    billing.activeKajabiPurchaseCustomerIds(),
+    billing.kajabiCustomers(),
   ]);
 
   const aliasMap = buildAliasMap(emailAliases ?? []);
 
   // Member and Kajabi customer lookups
   const memberByEmail = new Map<string, { id: string; name: string }>();
-  for (const m of members ?? []) memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: m.name });
+  // Reconciliation against Kajabi/Stripe: the display name leads, the legal name follows when it differs.
+  for (const m of members) {
+    const shown = getMemberDisplayName({ name: m.name, display_name: m.displayName });
+    memberByEmail.set(m.email.toLowerCase(), { id: m.id, name: shown === m.name ? shown : `${shown} (${m.name})` });
+  }
 
-  const activePurchaseCustomers = new Set((kajabiActivePurchases ?? []).map(p => p.kajabi_customer_id));
   const activeSubsByStripeCustomer = new Map<string, number>();
   for (const s of stripeActiveSubs ?? []) {
     activeSubsByStripeCustomer.set(s.stripe_customer_id, (activeSubsByStripeCustomer.get(s.stripe_customer_id) ?? 0) + 1);
@@ -121,7 +106,7 @@ export default async function ExternalConflictsPage() {
     <div className="p-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-4">
-          <Link href="/admin/hygiene" className="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+          <Link href="/admin/hygiene" className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300">
             ← Data Hygiene
           </Link>
         </div>
@@ -234,7 +219,7 @@ export default async function ExternalConflictsPage() {
                 renderEntry={(entry) => (
                   <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
                     {entry.externalId}
-                    {entry.name && <span className="ml-1 text-slate-400 dark:text-slate-500">({entry.name})</span>}
+                    {entry.name && <span className="ml-1 text-slate-500 dark:text-slate-400">({entry.name})</span>}
                   </span>
                 )}
               />
@@ -293,7 +278,7 @@ function ConflictRow({
               {group.memberName ?? group.canonicalEmail}
             </span>
           )}
-          <p className="text-xs text-slate-500 dark:text-slate-400">{group.canonicalEmail}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">{group.canonicalEmail}</p>
         </div>
         <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold flex-shrink-0">
           {group.entries.length} accounts
@@ -303,7 +288,7 @@ function ConflictRow({
         {group.entries.map((entry, i) => (
           <div key={i} className="flex items-center gap-3 text-xs">
             <span className="text-slate-300 dark:text-slate-600">•</span>
-            <span className="text-slate-500 dark:text-slate-400 min-w-[180px] truncate">{entry.email}</span>
+            <span className="text-slate-600 dark:text-slate-400 min-w-[180px] truncate">{entry.email}</span>
             {renderEntry(entry)}
           </div>
         ))}

@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createDirectClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/data/database.types";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest } from "next/server";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
 import { getCurrentUser, type AuthUser } from "@/lib/auth";
@@ -26,7 +28,7 @@ export async function createApiAuth(request: NextRequest) {
     authHeader && cronSecret && serviceRoleKey && authHeader === `Bearer ${cronSecret}`;
 
   if (isServiceRole || isCron) {
-    const supabase = createDirectClient(
+    const supabase = createDirectClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       serviceRoleKey!,
       { auth: { autoRefreshToken: false, persistSession: false } }
@@ -68,11 +70,6 @@ export async function requireAdmin(request: NextRequest) {
   if (auth.user.id === "service-role" || auth.user.id === "cron") {
     return { ...auth, forbidden: false as const };
   }
-  const { data: profile } = await auth.supabase
-    .from("user_profiles")
-    .select("role")
-    .eq("id", auth.user.id)
-    .single();
-  if (profile?.role !== "admin") return { ...auth, forbidden: true as const };
+  if (!(await createRepos(auth.supabase).profiles.isAdmin(auth.user.id))) return { ...auth, forbidden: true as const };
   return { ...auth, forbidden: false as const };
 }

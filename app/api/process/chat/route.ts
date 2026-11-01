@@ -1,17 +1,27 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { NextRequest, NextResponse } from "next/server";
-import { matchSlackUsersToMembers } from "@/lib/slack-matching";
+import { loadVerifiedSlackLinks, matchSlackUsersToMembers } from "@/lib/slack-matching";
 import { splitIntoWindows } from "@/lib/processing/date-windows";
 import { retryUnsentChatMessages } from "@/lib/chat/slack-post";
+import { sweepDeletedFileBytes } from "@/lib/chat/file-cleanup";
+import { purgeStagedChatFiles } from "@/lib/chat/staging";
+import { clock } from "@/lib/clock";
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
 
 // Extend timeout for processing large batches
 export const maxDuration = 300; // 5 minutes
 
-// Days of Slack history per project_slack_chat_messages call. A week keeps each call well
-// under Postgres's 8s statement timeout (same lesson as the Slack activity rebuild).
-const PROJECTION_WINDOW_DAYS = 7;
+// Days of Slack history per project_slack_chat_messages call. A week still hit Postgres's 8s
+// statement timeout on a 90-day import in prod (thousands of reaction and content rows rewritten
+// per call), so a day keeps each call well under it.
+const PROJECTION_WINDOW_DAYS = 1;
 const BATCH_SIZE = 1000;
+
+/** What the reprocess functions report (their jsonb result, as the generated types see it: any JSON). */
+type ReprocessCounts = { messages?: number; reactions?: number };
+type ChannelCounts = { channels?: number; members?: number };
 
 /**
  * Process Bronze Slack data into the chat mirror (chat_channels, chat_channel_members,
@@ -19,7 +29,7 @@ const BATCH_SIZE = 1000;
  *
  * 1. Matches Slack users to members in memory (same matching as /api/process/slack)
  * 2. Projects channels and membership (cheap, whole workspace) in one call
- * 3. Projects messages, contents, threads and reactions one week per call
+ * 3. Projects messages, contents, threads and reactions one day per call
  *
  * Re-runnable: everything is an UPSERT on the Slack keys and Bronze's soft deletes carry
  * over, so chat ids stay stable. Nothing is deleted. Message content is service role only
@@ -42,32 +52,13 @@ export async function POST(request: NextRequest) {
     console.log(`Projecting Slack chat from ${fromDate} to ${toDate}`);
 
     // STEP 1: Load reference data upfront (members and aliases can exceed 1000 rows)
-    const members: { id: string; name: string; email: string }[] = [];
-    const aliases: { alias: string; member_id: string; source: "zoom" | "slack" }[] = [];
-    for (let offset = 0; ; offset += BATCH_SIZE) {
-      const [{ data: m, error: me }, { data: a, error: ae }] = await Promise.all([
-        supabase.from("members").select("id, name, email").range(offset, offset + BATCH_SIZE - 1),
-        supabase
-          .from("member_name_aliases")
-          .select("alias, member_id, source")
-          .eq("active", true)
-          .range(offset, offset + BATCH_SIZE - 1),
-      ]);
-      if (me) throw me;
-      if (ae) throw ae;
-      members.push(...(m ?? []));
-      aliases.push(...(a ?? []));
-      if ((m?.length ?? 0) < BATCH_SIZE && (a?.length ?? 0) < BATCH_SIZE) break;
-    }
-    const { data: slackUsers, error: usersError } = await supabase
-      .schema("bronze")
-      .from("slack_users")
-      .select("user_id, email, real_name");
-    if (usersError) throw usersError;
+    const members = await createRepos(supabase).members.identities();
+    const aliases = await createRepos(supabase).aliases.nameAliases({ activeOnly: true });
+    const slackUsers = await createRepos(supabase).slackUsers.list();
 
     // STEP 2: Match Slack users to members (in memory)
     const userMemberMap = Object.fromEntries(
-      await matchSlackUsersToMembers(slackUsers ?? [], members, aliases)
+      await matchSlackUsersToMembers(slackUsers, members, aliases, await loadVerifiedSlackLinks(supabase))
     );
 
     // STEP 3: Channels and membership
@@ -79,7 +70,7 @@ export async function POST(request: NextRequest) {
       throw channelError;
     }
 
-    // STEP 4: Messages, one week per call. Each call is one transaction, so a failed week
+    // STEP 4: Messages, one day per call. Each call is one transaction, so a failed week
     // changes nothing and the next run redoes it.
     let messages = 0;
     let reactions = 0;
@@ -97,12 +88,12 @@ export async function POST(request: NextRequest) {
         );
         throw error;
       }
-      messages += result?.messages ?? 0;
-      reactions += result?.reactions ?? 0;
+      messages += (result as ReprocessCounts | null)?.messages ?? 0;
+      reactions += (result as ReprocessCounts | null)?.reactions ?? 0;
     }
 
     console.log(
-      `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} weekly windows`
+      `Chat projection complete: ${messages} messages, ${reactions} reactions in ${windows.length} daily windows`
     );
 
     // The outbox: Hub-written messages Slack never took. After the projection, so one whose
@@ -112,11 +103,29 @@ export async function POST(request: NextRequest) {
       return { sent: 0, failed: 0, expired: 0 };
     });
 
+    // Attachments nobody sent.
+    const purgedStaged = await purgeStagedChatFiles(supabase, clock.now()).catch((error) => {
+      console.error("Error purging staged chat files:", error);
+      return 0;
+    });
+
+    // Deleted files whose bytes are still in the bucket (a removal that failed earlier).
+    const sweptFiles = await sweepDeletedFileBytes(supabase).catch((error) => {
+      console.error("Error sweeping deleted chat file bytes:", error);
+      return { removed: 0, failed: 1 };
+    });
+    if (sweptFiles.removed > 0 || sweptFiles.failed > 0) {
+      console.log(`Deleted chat files swept: ${sweptFiles.removed} removed, ${sweptFiles.failed} failed`);
+    }
+
+    invalidateChatLookups();
     return NextResponse.json({
       success: true,
       processed: {
-        channels: channelResult?.channels ?? 0,
-        members: channelResult?.members ?? 0,
+        purgedStaged,
+        sweptFiles,
+        channels: (channelResult as ChannelCounts | null)?.channels ?? 0,
+        members: (channelResult as ChannelCounts | null)?.members ?? 0,
         messages,
         reactions,
         outboxSent: outbox.sent,

@@ -43,7 +43,14 @@ export default function CalendarScrollContainer({
   }, [prickleStartTimes, timezone]);
 
   return (
-    <div ref={ref} className="overflow-auto" style={{ maxHeight: "calc(100vh - 220px)" }}>
+    <div
+      ref={ref}
+      role="region"
+      aria-label="Week calendar"
+      tabIndex={0}
+      className="overflow-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-plum-500"
+      style={{ maxHeight: "calc(100vh - 220px)" }}
+    >
       {children}
     </div>
   );

@@ -12,7 +12,7 @@ On a push to main that changes the file or `scripts/vercel-config.ts`, after the
 VERCEL_TOKEN=... VERCEL_ORG_ID=team_... VERCEL_PROJECT_ID=prj_... npx tsx scripts/vercel-config.ts diff
 ```
 
-Read-only (`npm run vercel:config:diff` does the same, but needs those three in `.env.prod`/`.env.shared`; `VERCEL_TOKEN` must be a team-scoped token). A `-` line is something live that the file doesn't have: a push would remove it.
+Read-only (`pnpm vercel:config:diff` does the same, but needs those three in `.env.prod`/`.env.shared`; `VERCEL_TOKEN` must be a team-scoped token). A `-` line is something live that the file doesn't have: a push would remove it.
 
 ## Notes
 

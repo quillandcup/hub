@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { isMembershipOffer } from "@/lib/membership";
 import { buildMembershipStints, fetchStripeTrialInfoByEmail, isRealMembershipStint } from "@/lib/kajabi/membership-history";
@@ -6,7 +7,6 @@ import { buildMembersRunAliasMap, partitionEmailConflicts, resolveEmail as resol
 import { toKajabiPhotoUrl } from "@/lib/member-avatar";
 import { NextRequest, NextResponse, after } from "next/server";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { INSTAGRAM_CUSTOM_FIELD_HANDLE, resolveInstagramUrl, toSocialUrl } from "@/lib/kajabi/profile-fields";
 import { applyProfileOverride, type ProfileOverride } from "@/lib/member-profile-overrides";
@@ -38,44 +38,8 @@ export const maxDuration = 300;
  * 3. Applies business logic
  * 4. Regenerates members table (UPSERT pattern to preserve UUIDs)
  */
-// fetchAllBronzeRows (imported above from lib/supabase/bronze-pagination) paginates
-// past Supabase's default 1000-row cap so large Bronze tables (e.g. kajabi_contacts,
-// kajabi_purchases, stripe_customers) don't get silently truncated. See CLAUDE.md
-// "Database Query Limits". It's shared with lib/kajabi/membership-history.ts so every
-// Bronze read in this pipeline goes through the same paginated fetch.
-
-// Same pagination as fetchAllBronzeRows, for public-schema (Local/Silver)
-// tables that can also grow past 1000 rows — used here for `members` and
-// `member_status_overrides`.
-async function fetchAllPublicRows(
-  supabase: SupabaseClient,
-  table: string,
-  columns: string = "*",
-  filter?: (query: any) => any
-): Promise<any[]> {
-  const BATCH_SIZE = 1000;
-  let allRows: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase.from(table).select(columns);
-    if (filter) query = filter(query);
-    const { data: batch, error } = await query.range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allRows = allRows.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allRows;
-}
+// Bronze reads (billing, Slack users) page past Supabase's default 1000-row cap inside their
+// repositories in lib/data/. See CLAUDE.md "Database Query Limits".
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -87,46 +51,43 @@ export async function POST(request: NextRequest) {
     // STEP 1: Load Bronze data + Local data.
     // kajabi_contacts, kajabi_customers, kajabi_purchases, kajabi_offers, and
     // stripe_customers can each exceed Supabase's default 1000-row cap, so
-    // they're paginated in parallel loops (fetchAllBronzeRows/fetchAllPublicRows).
-    // staff and member_email_aliases are small Local-layer tables and are not
-    // expected to approach that limit.
+    // they're paginated in parallel loops (inside the repositories).
+    // staff is a small Local-layer table and is not expected to approach that limit;
+    // the email aliases are paginated by their repository.
     const [
       contacts,
       customers,
       purchases,
       offers,
       slackUsers,
-      { data: staffMembers, error: staffError },
-      { data: emailAliases, error: aliasesError },
+      staffMembers,
+      emailAliases,
       stripeCustomers,
       existingMembers,
       hiatusHistory,
       joinDateOverrides,
       profileOverrides,
     ] = await Promise.all([
-      fetchAllBronzeRows(supabase, "kajabi_contacts"),
-      fetchAllBronzeRows(supabase, "kajabi_customers"),
-      fetchAllBronzeRows(supabase, "kajabi_purchases"),
-      fetchAllBronzeRows(supabase, "kajabi_offers"),
-      fetchAllBronzeRows(supabase, "slack_users", "email, image_url"),
-      supabase.from("staff").select("*"),
-      supabase.from("member_email_aliases").select("alias_email, member_id").eq("active", true),
-      fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email"),
-      fetchAllPublicRows(supabase, "members", "id, email, kajabi_id, name"),
-      fetchAllPublicRows(supabase, "member_hiatus_history", "member_id, start_date, end_date"),
-      fetchAllPublicRows(supabase, "member_join_date_overrides", "member_id, first_joined_at"),
-      fetchAllPublicRows(supabase, "member_profile_overrides", "member_id, bio, instagram_url, facebook_url, twitter_url"),
+      createRepos(supabase).billing.kajabiContactRows() as Promise<any[]>,
+      createRepos(supabase).billing.kajabiCustomerRows() as Promise<any[]>,
+      createRepos(supabase).billing.kajabiPurchaseRows() as Promise<any[]>,
+      createRepos(supabase).billing.kajabiOfferRows() as Promise<any[]>,
+      createRepos(supabase).slackUsers.list(),
+      createRepos(supabase).staff.all(),
+      createRepos(supabase).aliases.emailOwners(),
+      createRepos(supabase).billing.stripeCustomers(),
+      createRepos(supabase).members.list().then((rows) => rows.map((m) => ({ id: m.id, email: m.email, kajabi_id: m.kajabiId, name: m.name }))),
+      createRepos(supabase).memberStatus.allHiatuses(),
+      createRepos(supabase).memberStatus.joinDateOverrides(),
+      createRepos(supabase).memberStatus.profileOverrides(),
     ]);
-
-    if (staffError) throw staffError;
-    if (aliasesError) throw aliasesError;
 
     // Email alias resolution. Aliases point at a member (member_id); each
     // resolves to the email that member will have after this run — their
     // Kajabi contact's current email — not members.email, which is last
     // run's. See buildMembersRunAliasMap.
     const { aliasMap, runEmailByMemberId } = buildMembersRunAliasMap({
-      aliases: emailAliases || [],
+      aliases: emailAliases,
       members: existingMembers || [],
       contacts: contacts || [],
     });
@@ -152,7 +113,7 @@ export async function POST(request: NextRequest) {
       offers_count: offers?.length || 0,
       slack_users_count: slackUsers?.length || 0,
       staff_count: staffMembers?.length || 0,
-      email_aliases_count: emailAliases?.length || 0,
+      email_aliases_count: emailAliases.length,
       stripe_customers_count: stripeCustomers?.length || 0,
       existing_members_count: existingMembers?.length || 0,
       hiatus_history_count: hiatusHistory?.length || 0,
@@ -538,7 +499,7 @@ export async function POST(request: NextRequest) {
     // resolveEmail() (staffByEmail, above) — this just persists the result
     // as a real FK so other code (e.g. the admin Users page) can join on an
     // id instead of re-deriving the relationship by email every time.
-    const freshMembers = await fetchAllPublicRows(supabase, "members", "id, email, name");
+    const freshMembers = (await createRepos(supabase).members.identities()).map(({ id, email, name }) => ({ id, email, name }));
     if (staffMembers && staffMembers.length > 0) {
       const memberIdByEmail = new Map(freshMembers.map((m: any) => [resolveEmail(m.email), m.id]));
       const staffUpdates: { id: string; member_id: string | null }[] = [];
@@ -549,9 +510,7 @@ export async function POST(request: NextRequest) {
         }
       }
       if (staffUpdates.length > 0) {
-        await Promise.all(
-          staffUpdates.map((u) => supabase.from("staff").update({ member_id: u.member_id }).eq("id", u.id))
-        );
+        await createRepos(supabase).staff.linkMembers(staffUpdates);
       }
     }
 
@@ -580,21 +539,13 @@ export async function POST(request: NextRequest) {
     // gift overrides and program-cohort enrollments (applied inside the RPC)
     // are reflected -- the in-memory allMembers list is pre-override.
     const statuses = ["active", "on_hiatus", "cancelled", "lead"] as const;
-    const counts = await Promise.all(
-      statuses.map((status) =>
-        supabase.from("members").select("id", { count: "exact", head: true }).eq("status", status)
-      )
-    );
+    const statusCounts = await createRepos(supabase).members.countsByStatus();
     const statusBreakdown: Record<(typeof statuses)[number], number> = {
-      active: 0,
-      on_hiatus: 0,
-      cancelled: 0,
-      lead: 0,
+      active: statusCounts.get("active") ?? 0,
+      on_hiatus: statusCounts.get("on_hiatus") ?? 0,
+      cancelled: statusCounts.get("cancelled") ?? 0,
+      lead: statusCounts.get("lead") ?? 0,
     };
-    statuses.forEach((status, i) => {
-      if (counts[i].error) throw counts[i].error;
-      statusBreakdown[status] = counts[i].count ?? 0;
-    });
 
     return NextResponse.json({
       success: true,

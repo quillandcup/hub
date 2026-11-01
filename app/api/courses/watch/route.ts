@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
+import { recordLessonWatched } from "@/lib/courses/activity";
 import { parseWatchBatch } from "@/lib/courses/watch";
+import { createRepos } from "@/lib/data/repos";
 import { userAgentForStorage } from "@/lib/device-label";
+import { deviceForStorage } from "@/lib/device";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -33,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (caller.identity.isSudo) return NextResponse.json({ saved: 0, reason: "sudo" });
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("course_id, state, video_id").eq("id", batch.lessonId).maybeSingle();
+  const lesson = await createRepos(service).courses.lessonById(batch.lessonId);
   // Members only get open lessons; staff acting as themselves can also record a preview of an unreleased one (their own rows).
   const openToCaller = lesson?.state === "open" || caller.scope.isAdminActing;
   if (!lesson || !openToCaller || !lesson.video_id) return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
@@ -41,25 +44,28 @@ export async function POST(request: NextRequest) {
   if (!canOpenLessons(access)) return NextResponse.json({ error: "No access to this course" }, { status: 403 });
 
   const supabase = await createClient();
+  const progress = createRepos(supabase).courseProgress;
   const memberId = caller.identity.memberId;
+  const videoId = lesson.video_id; // narrowed above; kept for the closures below
 
   // The player appeared: one "viewed" marker per player session (its client id is the session id, so a resend is ignored).
   if (batch.viewed) {
-    const { error } = await supabase.from("video_watch_segments").upsert(
-      {
-        client_segment_id: batch.sessionId,
-        member_id: memberId,
-        video_id: lesson.video_id,
-        session_id: batch.sessionId,
-        kind: "viewed",
-        start_seconds: 0,
-        end_seconds: 0,
-        user_agent: userAgentForStorage(request.headers.get("user-agent")),
-      },
-      { onConflict: "member_id,client_segment_id", ignoreDuplicates: true }
-    );
-    if (error) {
-      console.error("video_watch_segments viewed marker failed:", error.message);
+    try {
+      await progress.saveSegments([
+        {
+          client_segment_id: batch.sessionId,
+          member_id: memberId,
+          video_id: videoId,
+          session_id: batch.sessionId,
+          kind: "viewed",
+          start_seconds: 0,
+          end_seconds: 0,
+          user_agent: userAgentForStorage(request.headers.get("user-agent")),
+          device: deviceForStorage(request.headers.get("user-agent")),
+        },
+      ]);
+    } catch (error) {
+      console.error("video_watch_segments viewed marker failed:", error instanceof Error ? error.message : error);
       return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
     }
   }
@@ -67,34 +73,45 @@ export async function POST(request: NextRequest) {
   // Each segment carries the player's own id, so a resend of a save that already arrived is ignored (stored once).
   let saved = 0;
   if (batch.segments.length > 0) {
-    const { data, error } = await supabase.from("video_watch_segments").upsert(
-      batch.segments.map((s) => ({
-        client_segment_id: s.id,
-        member_id: memberId,
-        video_id: lesson.video_id,
-        session_id: batch.sessionId,
-        start_seconds: s.start,
-        end_seconds: s.end,
-        playback_rate: s.rate,
-        captions_language: s.captions,
-        visible: s.visible,
-      })),
-      { onConflict: "member_id,client_segment_id", ignoreDuplicates: true }
-    ).select("id");
-    if (error) {
-      console.error("video_watch_segments insert failed:", error.message);
+    try {
+      saved = await progress.saveSegments(
+        batch.segments.map((s) => ({
+          client_segment_id: s.id,
+          member_id: memberId,
+          video_id: videoId,
+          session_id: batch.sessionId,
+          start_seconds: s.start,
+          end_seconds: s.end,
+          playback_rate: s.rate,
+          captions_language: s.captions,
+          visible: s.visible,
+        }))
+      );
+    } catch (error) {
+      console.error("video_watch_segments insert failed:", error instanceof Error ? error.message : error);
       return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
     }
-    saved = data?.length ?? 0;
+  }
+
+  // New stretches may have tipped today's watching over the line that counts as having watched the
+  // lesson: log it for the Activity Log and engagement. Members' open lessons only (not a staff preview).
+  if (saved > 0 && lesson.state === "open") {
+    await recordLessonWatched(supabase, {
+      memberId,
+      lessonId: batch.lessonId,
+      courseId: lesson.course_id,
+      lessonTitle: lesson.title,
+      videoId: lesson.video_id,
+      lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds),
+    });
   }
 
   if (batch.position !== null) {
-    // Only the position: an upsert writes the columns it is given, so completed_at is left alone.
-    const { error } = await supabase
-      .from("lesson_progress")
-      .upsert({ member_id: memberId, lesson_id: batch.lessonId, last_position_seconds: batch.position }, { onConflict: "member_id,lesson_id" });
-    if (error) {
-      console.error("lesson_progress position upsert failed:", error.message);
+    // Only the position: completed_at is left alone.
+    try {
+      await progress.savePosition(memberId, batch.lessonId, batch.position);
+    } catch (error) {
+      console.error("lesson_progress position upsert failed:", error instanceof Error ? error.message : error);
       return NextResponse.json({ error: "Couldn't save your progress" }, { status: 500 });
     }
   }

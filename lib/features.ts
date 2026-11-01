@@ -1,4 +1,4 @@
-export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'message_privacy' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses';
+export type FeatureKey = 'member_overrides' | 'hedgieversaries' | 'work_queue' | 'program_cohorts' | 'events' | 'slack_admin_sign_in' | 'browser_notifications' | 'chat' | 'chat_posting' | 'big_sisters' | 'intro_reminders' | 'prickle_reminders' | 'courses' | 'hosting';
 
 export interface FeaturePreview {
   key: FeatureKey;
@@ -31,11 +31,6 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'events',
     name: 'Events',
     description: 'Retreats and other events, with metadata and a photo gallery imported from Google Photos',
-  },
-  {
-    key: 'message_privacy',
-    name: 'Privacy Page',
-    description: 'Member-facing /privacy page explaining what staff can see: Slack and Hub chat, how course videos are watched, and where members connect from. The chat part describes the planned chat bridge; keep off until that ships',
   },
   {
     key: 'slack_admin_sign_in',
@@ -76,5 +71,10 @@ export const FEATURE_PREVIEWS: FeaturePreview[] = [
     key: 'courses',
     name: 'Courses',
     description: 'Courses in the Hub (The Ready Writer first): a Courses page with progress, the course outline, and lesson pages with video, text and mark-complete. Members see only the courses they have access to; staff see all of them. Keep off until launch day',
+  },
+  {
+    key: 'hosting',
+    name: 'Hosting',
+    description: 'Hosting for members: the Hosting tab in My Prickles (stats, monthly slot requests), the host vibe settings, and the hosting steps of the Getting started tour. Hidden until the change of process is agreed with the staff who run it; staff-side host tools are unaffected',
   },
 ];

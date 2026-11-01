@@ -9,6 +9,14 @@ name: CI
 # to production, deploys, and then pushes slack-app-manifest.yml to the Slack app if
 # it changed.
 #
+# Docs-only changes skip all of that. The `changes` job lists the files the change touches
+# (scripts/docs-only.ts) and, when every one is documentation, the jobs below are skipped at
+# the job level: a skipped job reports as passing, so the required checks are satisfied and
+# auto-merge still works. The decision comes from the files, not from the commit message; a
+# `[skip ci]` in a message would skip the whole workflow instead, leaving the required checks
+# pending (the PR can't merge) and, on main, skipping the deploy with no verification at all.
+# On main a skipped run also skips push-migrations and deploy, since there is nothing to ship.
+#
 # Why the migration push exists: nobody was reliably running `supabase db push`
 # after a merge -- new code has 500'd in prod waiting on a table/column that
 # was never migrated in. This job makes that step automatic instead of
@@ -41,9 +49,6 @@ env:
   # Pinned (not "latest") so the local stack's container image set -- and this
   # cache key, if caching is revisited -- is reproducible across runs.
   SUPABASE_CLI_VERSION: 2.117.0
-  # Pinned so `vercel build`/`vercel deploy` behavior in the deploy job below
-  # doesn't shift out from under CI on an unannounced CLI release.
-  VERCEL_CLI_VERSION: 60.0.0
   # Supabase CLI's well-known local demo keys (see tests/setup.ts) -- fixed,
   # public, and the same for every `supabase start` on every machine. Not
   # secrets. Only valid against the ephemeral local stack this job starts;
@@ -53,6 +58,42 @@ env:
   LOCAL_SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 jobs:
+  # Whether the change is documentation only. Bare Node (24 strips types), so no `npm ci`.
+  # workflow_dispatch is a manual redeploy: always the full run. Any failure to work it out
+  # (an unfetchable base, an empty diff) answers false, so nothing is skipped by accident.
+  changes:
+    name: Detect docs-only change
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.docs.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+
+      # A failed fetch leaves FETCH_HEAD at the checked-out commit, so the diff is empty and the
+      # answer is false (run everything); it must not fail this job.
+      - name: Fetch the comparison commit
+        if: github.event_name != 'workflow_dispatch'
+        continue-on-error: true
+        run: git fetch --no-tags --depth=1 origin "$BASE"
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.base_ref || github.event.before }}
+
+      - name: Check whether only docs changed
+        id: docs
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/docs-only.ts FETCH_HEAD
+          fi
+        env:
+          EVENT: ${{ github.event_name }}
+
   # The Supabase CLI rejects a migration numbered at or below the latest already on main,
   # which used to surface only in push-migrations, minutes into a main run. This runs in
   # parallel with the tests and fails within seconds: on pull requests against the base
@@ -61,18 +102,24 @@ jobs:
   # migration that merged below one production already has fails here on every run until
   # it is renumbered. See scripts/check-migration-order.ts.
   check-migrations:
-    name: Check migration numbering
+    name: Check migrations
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Skipped on workflow_dispatch (manual redeploy, nothing new to compare), but the job
       # still succeeds so push-migrations, which needs it, still runs.
@@ -84,7 +131,18 @@ jobs:
 
       - name: Check migration numbering
         if: github.event_name != 'workflow_dispatch'
-        run: npm run check:migrations -- FETCH_HEAD
+        run: pnpm check:migrations FETCH_HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CHECK_OPEN_PRS: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+
+      # Old code runs against the new schema while a deploy rolls out, so a migration that
+      # drops or renames something the old code reads breaks production. Squawk fails on
+      # those (see .squawk.toml); only migrations this change adds are linted.
+      - name: Lint new migrations for deploy-breaking changes
+        if: github.event_name != 'workflow_dispatch'
+        run: git diff --name-only --diff-filter=A FETCH_HEAD -- 'supabase/migrations/*.sql' | xargs -r pnpm exec squawk
 
       # Only on main (and manual redeploys): pull request runs don't get the production
       # credentials.
@@ -98,7 +156,7 @@ jobs:
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_ID"
           supabase migration list --linked > "$RUNNER_TEMP/migration-list.json"
-          npm run check:migrations -- --applied "$RUNNER_TEMP/migration-list.json"
+          pnpm check:migrations --applied "$RUNNER_TEMP/migration-list.json"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -106,17 +164,23 @@ jobs:
 
   test-unit:
     name: Test (unit)
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Next.js 16 removed linting from `next build` entirely (it used to run
       # as part of the "Production build" step in test-db below, gated by
@@ -124,7 +188,7 @@ jobs:
       # this is now the only thing that lints the codebase. Placed in the
       # fast unit job (no Supabase/Docker needed) for quick feedback.
       - name: Run lint
-        run: npm run lint
+        run: pnpm lint
 
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
@@ -133,7 +197,7 @@ jobs:
       # Runs the unit suite once, with v8 coverage. The coverage floors are on the unit and db
       # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
       - name: Run unit test suite (with coverage)
-        run: npm run test:unit:coverage
+        run: pnpm test:unit:coverage
 
       - name: Upload coverage report
         if: ${{ !cancelled() }}
@@ -145,17 +209,23 @@ jobs:
 
   test-db:
     name: Test (db) & build
+    needs: changes
+    # !cancelled() keeps these running if `changes` itself fails: only an explicit `true` skips.
+    if: ${{ !cancelled() && needs.changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - uses: supabase/setup-cli@v1
         with:
@@ -196,7 +266,7 @@ jobs:
       # on 2026-10-09 and blocked the migration push and deploy). continue-on-error because
       # runs without our secrets (Dependabot, forks) must still try anonymously.
       # DOCKERHUB_USERNAME is a GitHub variable, DOCKERHUB_TOKEN a secret; both come from
-      # env-vars.config.ts via `npm run env:sync:github`.
+      # env-vars.config.ts via `pnpm env:sync:github`.
       - name: Log in to Docker Hub
         continue-on-error: true
         uses: docker/login-action@v4
@@ -221,11 +291,17 @@ jobs:
       # above -- the build only needs the Supabase URL/key env vars present
       # (baked in / read at runtime), not a live database.
       #
-      # `npm run build` (package.json) now runs `next build --turbopack`
+      # Backgrounded the same way, so the db tests start as soon as Supabase is up instead of after the build:
+      # only the HTTP smoke tests need the built app, and they run last ("Wait for the production build"). The
+      # wrapper records the build's exit code to /tmp/build.exit.
+      #
+      # `pnpm build` (package.json) now runs `next build --turbopack`
       # directly, matching what Vercel's production deploys use -- so this
       # step no longer needs to forward the flag itself.
       - name: Production build
-        run: npm run build
+        run: |
+          nohup sh -c 'pnpm build; echo $? > /tmp/build.exit' > /tmp/build.log 2>&1 &
+          disown
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.LOCAL_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
@@ -272,13 +348,55 @@ jobs:
           supabase status || true
           exit 1
 
+      # lib/data/database.types.ts is generated from the migrated schema (`pnpm types:gen`). A
+      # migration without regenerated types leaves the typed repositories checking against the old
+      # schema, so regenerate here and fail on any difference. `types:gen` runs the CLI version
+      # pinned in package.json (tests/lib/supabase-cli-version.test.ts keeps it equal to
+      # SUPABASE_CLI_VERSION above): the generator's formatting differs between versions.
+      - name: Check the generated database types are current
+        run: pnpm types:check
+
+      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
+      # counts them; the few HTTP smoke tests need the built app and run at the end (they add no coverage:
+      # the server is a separate process). The coverage job below merges this with the unit run and checks
+      # the floors. This runs while the production build is still going.
+      - name: Run db test suite (with coverage)
+        run: pnpm test:db:coverage
+
+      - name: Upload db coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-db
+          path: coverage/db
+          retention-days: 14
+
+      # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
+      # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
+      - name: Run pgTAP test suite
+        run: pnpm test:pgtap
+
+      # The build above finished or is finishing; fail the job with its log if it failed.
+      - name: Wait for the production build
+        run: |
+          for i in $(seq 1 300); do
+            [ -f /tmp/build.exit ] && break
+            sleep 2
+          done
+          if [ "$(cat /tmp/build.exit 2>/dev/null)" != "0" ]; then
+            echo "The production build failed, or did not finish in time"
+            cat /tmp/build.log
+            exit 1
+          fi
+          tail -n 40 /tmp/build.log
+
       # Most tests/api/** call route handlers in-process (tests/helpers/api-fetch.ts) so their
       # coverage is counted. Only tests/api/smoke/ goes over HTTP, to the built app started here,
       # to cover Next's own routing, proxy and body parsing. Locally those tests use a server
       # already running on :3000 (TEST_API_BASE_URL overrides).
       - name: Start app server
         run: |
-          npm run start > /tmp/next-server.log 2>&1 &
+          pnpm start > /tmp/next-server.log 2>&1 &
           echo $! > /tmp/next-server.pid
           ready=""
           for i in $(seq 1 60); do
@@ -300,24 +418,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.LOCAL_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.LOCAL_SUPABASE_SERVICE_ROLE_KEY }}
 
-      # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
-      # counts them; only the few HTTP smoke tests use the app server above. The coverage job
-      # below merges this with the unit run and checks the floors.
-      - name: Run db test suite (with coverage)
-        run: npm run test:db:coverage
-
-      - name: Upload db coverage report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-db
-          path: coverage/db
-          retention-days: 14
-
-      # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
-      # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.
-      - name: Run pgTAP test suite
-        run: npm run test:pgtap
+      - name: Run HTTP smoke tests
+        run: pnpm test:smoke
 
       - name: Stop app server
         if: always()
@@ -343,12 +445,15 @@ jobs:
         with:
           fetch-depth: 0 # the new-lines check diffs against the PR's base branch
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - uses: actions/download-artifact@v8
         with:
@@ -376,7 +481,7 @@ jobs:
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -qx 'skip-patch-coverage'; then
             export PATCH_COVERAGE_SKIP=1
           fi
-          npx tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
+          pnpm exec tsx scripts/coverage-report.ts --suite unit=coverage/unit --suite db=coverage/db --patch-base "origin/$BASE_REF"
 
   push-migrations:
     name: Push migrations to production
@@ -385,7 +490,7 @@ jobs:
     # buckets (and the build, which test-db also runs) passing; the event/ref
     # check keeps it off pull_request runs. workflow_dispatch on main is the
     # manual redeploy (`gh workflow run ci.yml --ref main`), e.g. after
-    # `npm run env:sync` changes production env vars.
+    # `pnpm env:sync` changes production env vars.
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -440,74 +545,17 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
 
+  # The deploy itself is in deploy.yml, shared with help-screenshots.yml (which redeploys the commit already in
+  # production after publishing a new help screenshot set).
   deploy:
     name: Build and deploy to production
     needs: push-migrations
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-
-      # `cache: npm` here caches npm's download cache (~/.npm) keyed on
-      # package-lock.json -- `vercel build` below runs its own `npm install`
-      # internally (not `npm ci`, and there's no way to skip that install
-      # step), so this is what actually speeds it up. No explicit `npm ci`
-      # step needed in this job.
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: ".nvmrc"
-          cache: npm
-
-      - run: npm install -g "vercel@$VERCEL_CLI_VERSION"
-
-      # `vercel build` populates/reads the same .next/cache that `next build`
-      # does (see Next.js's CI build caching docs), so this is what makes a
-      # --prebuilt deploy fast instead of a cold build every push -- it's the
-      # local equivalent of the remote build cache the deploy-hook path got
-      # for free from Vercel's own infrastructure.
-      - name: Cache Next.js build cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
-
-      # Pulls the linked project's real production env vars/settings (this is
-      # what makes vercel.json's git.deploymentEnabled.main:false safe --
-      # production only ever ships via this explicit, CI-tested path, never
-      # an implicit git-triggered build).
-      #
-      # VERCEL_TOKEN is read from the env automatically -- deliberately not
-      # passed as `--token=`, which would leak it into this runner's process
-      # listing (`ps`, etc.) for the life of the command.
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      # Builds the exact commit that test-unit/test-db/push-migrations just
-      # passed -- unlike the old deploy-hook trigger, there's no gap where
-      # Vercel might build a different HEAD than the one CI validated.
-      - name: Build project artifacts
-        run: vercel build --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          # Source map upload (next.config.ts). A GitHub secret rather than a Vercel var:
-          # `vercel pull` above only gets a "[SENSITIVE]" placeholder for Vercel Secrets.
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-      # Uploads the local build output as-is instead of triggering another
-      # remote build -- and unlike the old curl to the deploy hook, this step
-      # actually fails the job (and the workflow) if the deploy doesn't
-      # succeed, rather than reporting green the instant Vercel accepts the
-      # webhook.
-      - name: Deploy prebuilt artifacts to production
-        run: vercel deploy --prebuilt --prod
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    permissions:
+      contents: write # moves the `production` tag
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      ref: ${{ github.sha }}
 
   # slack-app-manifest.yml is the source of truth for the Slack app (Billie Bot): its
   # description, scopes, slash commands, event subscriptions and request URLs. The push
@@ -520,44 +568,56 @@ jobs:
   # No `cancel-in-progress` on main (see `concurrency` above), so runs queue instead of
   # being killed between rotating the Slack token and saving its replacement.
   #
-  # Only pushes when the push to main changed the manifest or the script. Every run spends
+  # Only pushes when the manifest or the script differs from the last commit it was pushed for
+  # (the `slack-manifest-pushed` tag, moved at the end of a successful push). Every run spends
   # the stored refresh token, and a run reads its secrets when it's queued: a run queued
   # while an earlier one was rotating gets the old, already-spent token and fails with
   # invalid_refresh_token. Skipping the push when nothing changed makes that collision rare.
-  # workflow_dispatch (and a push whose previous commit can't be fetched) always pushes.
+  # Comparing with the last *pushed* commit, not with the commit before this push, matters on a
+  # busy main: only the newest waiting run survives (see `concurrency` above), so a run for the
+  # push that changed the manifest is often cancelled, and a later run, whose own push changed
+  # nothing, must still pick the change up. With no tag yet, or on workflow_dispatch, it pushes
+  # (the script skips the update when the live app already matches).
   push-slack-manifest:
     name: Push Slack app manifest
     needs: deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: write # moves the `slack-manifest-pushed` tag
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check whether the manifest changed
+      - name: Check whether the manifest changed since it was last pushed
         id: manifest
         run: |
-          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
-            echo "No previous commit to compare against: pushing the manifest."
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual run: pushing the manifest."
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif git diff --quiet "$BEFORE" HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
-            echo "slack-app-manifest.yml and scripts/slack-manifest.ts are unchanged: skipping the push."
+          elif ! git fetch --quiet --depth=1 origin "+refs/tags/slack-manifest-pushed:refs/tags/slack-manifest-pushed"; then
+            echo "The manifest has never been pushed from CI: pushing it."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet slack-manifest-pushed HEAD -- slack-app-manifest.yml scripts/slack-manifest.ts; then
+            echo "slack-app-manifest.yml and scripts/slack-manifest.ts match the last push: skipping."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
+            echo "They differ from the last push: pushing the manifest."
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          BEFORE: ${{ github.event.before }}
+
+      - uses: pnpm/action-setup@v6.1.0
+
 
       - uses: actions/setup-node@v7
         if: steps.manifest.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
         if: steps.manifest.outputs.changed == 'true'
 
-      # Calls scripts/slack-manifest.ts directly rather than `npm run slack:manifest:push`,
+      # Calls scripts/slack-manifest.ts directly rather than `pnpm slack:manifest:push`,
       # which wraps it in dotenv for the local .env files.
       - name: Push Slack app manifest
         if: steps.manifest.outputs.changed == 'true'
@@ -566,12 +626,20 @@ jobs:
             echo "SLACK_CONFIG_REFRESH_TOKEN, GH_TOKEN_SLACK_MANIFEST (secrets) and SLACK_APP_ID (variable) must all be set -- see docs/SLACK_MANIFEST.md."
             exit 1
           fi
-          npx tsx scripts/slack-manifest.ts push
+          pnpm exec tsx scripts/slack-manifest.ts push
         env:
           SLACK_APP_ID: ${{ vars.SLACK_APP_ID }}
           SLACK_CONFIG_REFRESH_TOKEN: ${{ secrets.SLACK_CONFIG_REFRESH_TOKEN }}
           # A fine-grained token with Secrets write: the job's GITHUB_TOKEN can't set secrets.
           GH_TOKEN: ${{ secrets.GH_TOKEN_SLACK_MANIFEST }}
+
+      # Remember what was pushed, so a later run compares with this and not with its own push. Only after
+      # the push succeeded; a failed one leaves the tag where it was and the next run tries again.
+      - name: Mark this commit as pushed
+        if: steps.manifest.outputs.changed == 'true'
+        run: |
+          git tag --force slack-manifest-pushed "$GITHUB_SHA"
+          git push --force origin refs/tags/slack-manifest-pushed
 
   # vercel-project-config.yml is the source of truth for the Vercel project settings that
   # vercel.json can't express (today: always-on tracing sampling rules). The push REPLACES
@@ -602,19 +670,68 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
 
+      - uses: pnpm/action-setup@v6.1.0
+
+
       - uses: actions/setup-node@v7
         if: steps.config.outputs.changed == 'true'
         with:
           node-version-file: ".nvmrc"
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
         if: steps.config.outputs.changed == 'true'
 
       - name: Push Vercel project config
         if: steps.config.outputs.changed == 'true'
-        run: npx tsx scripts/vercel-config.ts push
+        run: pnpm exec tsx scripts/vercel-config.ts push
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # sentry-config.yml is the source of truth for the Sentry organization's data-scrubbing settings. Change the
+  # file, not the Settings page. See docs/SENTRY_CONFIG.md.
+  #
+  # Only runs when the push to main changed the file or the script; a push whose previous commit can't be
+  # fetched always applies it. Needs the SENTRY_CONFIG_TOKEN secret (pnpm env:sync:github).
+  push-sentry-config:
+    name: Push Sentry config
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check whether the config changed
+        id: config
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "push" ] || ! git fetch --quiet --depth=1 origin "$BEFORE"; then
+            echo "No previous commit to compare against: pushing the config."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- sentry-config.yml scripts/sentry-config.ts; then
+            echo "sentry-config.yml and scripts/sentry-config.ts are unchanged: skipping the push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BEFORE: ${{ github.event.before }}
+
+      - uses: pnpm/action-setup@v6.1.0
+
+
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.changed == 'true'
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        if: steps.config.outputs.changed == 'true'
+
+      - name: Push Sentry config
+        if: steps.config.outputs.changed == 'true'
+        run: pnpm exec tsx scripts/sentry-config.ts push
+        env:
+          SENTRY_CONFIG_TOKEN: ${{ secrets.SENTRY_CONFIG_TOKEN }}

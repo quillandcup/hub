@@ -25,7 +25,10 @@ export default function SidePanel({
   title,
   closeHref,
   children,
+  id,
 }: {
+  /** Element id, so a composer elsewhere can name this panel as a place files may be dropped. */
+  id?: string;
   title: string;
   closeHref: string;
   children: React.ReactNode;
@@ -90,10 +93,11 @@ export default function SidePanel({
 
   return (
     <aside
+      id={id}
       ref={panel}
       aria-label={title}
       style={{ "--chat-panel-width": `${width}px` } as React.CSSProperties}
-      className="relative flex h-full min-h-0 shrink-0 flex-col border-l border-slate-200 bg-canvas dark:border-slate-800 dark:bg-slate-950 max-md:absolute max-md:inset-0 max-md:z-20 md:w-[var(--chat-panel-width)] md:min-w-[20rem] md:max-w-[60%]"
+      className="flex h-full min-h-0 shrink-0 flex-col border-l border-slate-200 bg-canvas dark:border-slate-800 dark:bg-slate-950 absolute inset-0 z-20 @split:relative @split:inset-auto @split:z-auto @split:w-[var(--chat-panel-width)] @split:min-w-[20rem] @split:max-w-[60%]"
     >
       <div
         role="separator"
@@ -126,7 +130,7 @@ export default function SidePanel({
           drag.current = null;
           setDragging(false);
         }}
-        className={`absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none transition-colors hover:bg-plum-300/60 focus-visible:bg-plum-400/70 focus-visible:outline-none max-md:hidden ${
+        className={`absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none transition-colors hover:bg-plum-300/60 focus-visible:bg-plum-400/70 focus-visible:outline-none hidden @split:block ${
           dragging ? "bg-plum-400/70" : ""
         }`}
       />
@@ -137,7 +141,7 @@ export default function SidePanel({
           data-track="chat-side-panel-close"
           scroll={false}
           aria-label={`Close ${title.toLowerCase()}`}
-          className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+          className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
           ✕
         </Link>

@@ -1,30 +1,12 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseDateOnly } from "@/lib/member-tenure";
+import type { AttendanceRepository } from "@/lib/data/attendance";
+import type { MentorshipRepository } from "@/lib/data/mentorship";
+import { createRepos } from "@/lib/data/repos";
 
-export interface BadgeType {
-  id: string;
-  key: string;
-  name: string;
-  description: string | null;
-  icon: string;
-  category: string;
-  has_levels: boolean;
-  is_automatic: boolean;
-  program_id: string | null;
-  /** The events row a retreat badge commemorates (see badge_types.event_id), if linked. */
-  event_id?: string | null;
-  /** That event's slug, for linking to its member-facing /events/[slug] page. Only populated by
-   * getMemberBadges. */
-  event_slug?: string | null;
-}
-
-export interface BadgeLevel {
-  id: string;
-  badge_type_id: string;
-  level: number;
-  name: string;
-  threshold: number | null;
-}
+export type { BadgeType, BadgeLevel } from "@/lib/data/badges";
+import type { BadgeType, BadgeLevel } from "@/lib/data/badges";
 
 export interface EarnedBadge {
   badgeType: BadgeType;
@@ -311,24 +293,8 @@ export async function getHostedQuarterCount(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<number> {
-  const quarters = new Set<string>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("start_time")
-      .eq("host", memberId)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { start_time: string }[]) quarters.add(quarterKey(row.start_time));
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const hosted = await createRepos(supabase).prickles.hostedStartTimes({ hostId: memberId });
+  const quarters = new Set(hosted.map((h) => quarterKey(h.startTime)));
   return quarters.size;
 }
 
@@ -337,16 +303,14 @@ export async function getPublishedBookCount(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<number> {
-  const { count } = await supabase
-    .from("member_books")
-    .select("id", { count: "exact", head: true })
-    .eq("member_id", memberId);
-  return count ?? 0;
+  return createRepos(supabase).books.countLive(memberId);
 }
 
 export interface BadgeRecipient {
   memberId: string;
+  /** Display name; `memberRealName` is the legal name when it differs. */
   memberName: string;
+  memberRealName?: string;
   memberEmail: string;
   levelName: string;
   level: number | null;
@@ -359,6 +323,7 @@ export interface BadgeRecipient {
 export interface RecipientMember {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
   firstJoinedAt: string | null;
 }
@@ -376,6 +341,11 @@ export interface BulkAutomaticMetrics {
   mentorshipByMember?: Map<string, MentorshipCount>;
 }
 
+function recipientNames(member: RecipientMember): { memberName: string; memberRealName?: string } {
+  const memberName = getMemberDisplayName({ name: member.name, display_name: member.displayName });
+  return memberName === member.name ? { memberName } : { memberName, memberRealName: member.name };
+}
+
 function pushLeveledRecipient(
   recipients: BadgeRecipient[],
   member: RecipientMember,
@@ -386,7 +356,7 @@ function pushLeveledRecipient(
   if (!level) return;
   recipients.push({
     memberId: member.id,
-    memberName: member.name,
+    ...recipientNames(member),
     memberEmail: member.email,
     levelName: level.name,
     level: level.level,
@@ -451,7 +421,7 @@ export function computeBadgeRecipients(
           if (!badge) continue;
           recipients.push({
             memberId,
-            memberName: member.name,
+            ...recipientNames(member),
             memberEmail: member.email,
             levelName: badge.levelName,
             level: badge.level,
@@ -468,7 +438,7 @@ export function computeBadgeRecipients(
           if (!isFoundingHedgie(member.firstJoinedAt)) continue;
           recipients.push({
             memberId: member.id,
-            memberName: member.name,
+            ...recipientNames(member),
             memberEmail: member.email,
             levelName: badgeType.name,
             level: null,
@@ -504,7 +474,7 @@ export function computeBadgeRecipients(
             const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
             recipients.push({
               memberId,
-              memberName: member.name,
+              ...recipientNames(member),
               memberEmail: member.email,
               levelName: level?.name ?? badgeType.name,
               level: level?.level ?? null,
@@ -532,7 +502,7 @@ export function computeBadgeRecipients(
       const level = badgeType.has_levels ? deriveLevel(levels, occurrences) : null;
       recipients.push({
         memberId,
-        memberName: member.name,
+        ...recipientNames(member),
         memberEmail: member.email,
         levelName: level?.name ?? badgeType.name,
         level: level?.level ?? null,
@@ -552,26 +522,10 @@ export function computeBadgeRecipients(
  * -- the bulk counterpart to getHostedQuarterCount, one paginated scan instead of N. */
 async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise<Map<string, number>> {
   const quartersByMember = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("host, start_time")
-      .not("host", "is", null)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { host: string; start_time: string }[]) {
-        const quarters = quartersByMember.get(row.host) ?? new Set<string>();
-        quarters.add(quarterKey(row.start_time));
-        quartersByMember.set(row.host, quarters);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
+  for (const { hostId, startTime } of await createRepos(supabase).prickles.hostedStartTimes()) {
+    const quarters = quartersByMember.get(hostId) ?? new Set<string>();
+    quarters.add(quarterKey(startTime));
+    quartersByMember.set(hostId, quarters);
   }
   const countsByMember = new Map<string, number>();
   for (const [memberId, quarters] of quartersByMember) countsByMember.set(memberId, quarters.size);
@@ -583,89 +537,27 @@ async function getHostedQuarterCountsByMember(supabase: SupabaseClient): Promise
 async function getPublishedBookCountsByMember(
   supabase: SupabaseClient
 ): Promise<Map<string, number>> {
-  const countsByMember = new Map<string, number>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_books")
-      .select("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { member_id: string }[]) {
-        countsByMember.set(row.member_id, (countsByMember.get(row.member_id) ?? 0) + 1);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return countsByMember;
+  return createRepos(supabase).books.liveCountsByMember();
 }
 
-/** Distinct prickle_id count attended by a single member, from `prickle_attendance` -- the
- * per-member counterpart to getAttendedPrickleCountsByMember, for pages that only need one
- * member's count rather than a bulk scan. Mirrors the DISTINCT-prickle_id rule in CLAUDE.md (a
- * member can have multiple attendance rows per prickle from leaving/rejoining). */
+/** Distinct prickles attended by a single member -- the per-member counterpart to
+ * getAttendedPrickleCountsByMember, for pages that only need one member's count rather than a
+ * bulk scan. Distinct, not records: a member can have several attendance records per prickle
+ * from leaving/rejoining (CLAUDE.md). */
 export async function getAttendedPrickleCount(
-  supabase: SupabaseClient,
+  attendance: AttendanceRepository,
   memberId: string
 ): Promise<number> {
-  const prickleIds = new Set<string>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("prickle_id")
-      .eq("member_id", memberId)
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { prickle_id: string }[]) {
-        prickleIds.add(row.prickle_id);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return prickleIds.size;
+  return (await attendance.attendedPrickleIds(memberId)).size;
 }
 
-/** Distinct prickle_id count attended per member, from `prickle_attendance` -- the bulk
- * counterpart to the per-member total_sessions figure, one paginated scan instead of N. Mirrors
- * the DISTINCT-prickle_id rule in CLAUDE.md (a member can have multiple attendance rows per
- * prickle from leaving/rejoining). */
+/** Distinct prickles attended per member -- the bulk counterpart to the per-member
+ * total_sessions figure, one paginated scan instead of N. */
 async function getAttendedPrickleCountsByMember(
-  supabase: SupabaseClient
+  attendance: AttendanceRepository
 ): Promise<Map<string, number>> {
-  const prickleIdsByMember = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id, prickle_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as { member_id: string; prickle_id: string }[]) {
-        const prickleIds = prickleIdsByMember.get(row.member_id) ?? new Set<string>();
-        prickleIds.add(row.prickle_id);
-        prickleIdsByMember.set(row.member_id, prickleIds);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
   const countsByMember = new Map<string, number>();
-  for (const [memberId, prickleIds] of prickleIdsByMember) {
+  for (const [memberId, prickleIds] of await attendance.attendedPrickleIdsByMember()) {
     countsByMember.set(memberId, prickleIds.size);
   }
   return countsByMember;
@@ -673,15 +565,9 @@ async function getAttendedPrickleCountsByMember(
 
 /** Big Sister matches per mentor, from mentorship_counts(). Goes through that function because
  * members can't read `mentorships` (it names the mentees); it returns only ids and counts. */
-export async function getMentorshipCounts(supabase: SupabaseClient): Promise<Map<string, MentorshipCount>> {
-  const { data } = await supabase.rpc("mentorship_counts");
+export async function getMentorshipCounts(mentorships: MentorshipRepository): Promise<Map<string, MentorshipCount>> {
   const counts = new Map<string, MentorshipCount>();
-  for (const row of (data ?? []) as {
-    member_id: string;
-    mentored_count: number;
-    first_started_on: string;
-    last_started_on: string;
-  }[]) {
+  for (const row of await mentorships.counts()) {
     counts.set(row.member_id, {
       count: row.mentored_count,
       firstStartedOn: row.first_started_on,
@@ -689,10 +575,6 @@ export async function getMentorshipCounts(supabase: SupabaseClient): Promise<Map
     });
   }
   return counts;
-}
-
-interface EnrollmentCohortRow {
-  program_cohorts: { program_id: string; expires_at: string } | null;
 }
 
 /** Programs `memberId` has completed -- one entry per program_id with at least one enrolled
@@ -703,17 +585,11 @@ export async function getProgramCompletions(
   supabase: SupabaseClient,
   memberId: string
 ): Promise<Map<string, ProgramCompletion>> {
-  const { data } = await supabase
-    .from("member_program_enrollments")
-    .select("program_cohorts(program_id, expires_at)")
-    .eq("member_id", memberId);
-
   const today = new Date().toISOString().slice(0, 10);
   const completions = new Map<string, ProgramCompletion>();
-  for (const row of (data ?? []) as unknown as EnrollmentCohortRow[]) {
-    const cohort = row.program_cohorts;
-    if (!cohort || cohort.expires_at > today) continue;
-    mergeCompletion(completions, cohort.program_id, cohort.expires_at);
+  for (const e of await createRepos(supabase).programs.enrollmentsOf(memberId)) {
+    if (e.expiresAt > today) continue;
+    mergeCompletion(completions, e.programId, e.expiresAt);
   }
   return completions;
 }
@@ -725,29 +601,18 @@ async function getProgramCompletionsByProgram(
 ): Promise<Map<string, Map<string, ProgramCompletion>>> {
   const today = new Date().toISOString().slice(0, 10);
   const byProgram = new Map<string, Map<string, ProgramCompletion>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_program_enrollments")
-      .select("member_id, program_cohorts(program_id, expires_at)")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      for (const row of batch as unknown as (EnrollmentCohortRow & { member_id: string })[]) {
-        const cohort = row.program_cohorts;
-        if (!cohort || cohort.expires_at > today) continue;
-        const byMember = byProgram.get(cohort.program_id) ?? new Map<string, ProgramCompletion>();
-        mergeCompletion(byMember, row.member_id, cohort.expires_at);
-        byProgram.set(cohort.program_id, byMember);
-      }
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
+  for (const e of await createRepos(supabase).programs.allEnrollmentCohorts()) {
+    if (e.expiresAt > today) continue;
+    const byMember = byProgram.get(e.programId) ?? new Map<string, ProgramCompletion>();
+    mergeCompletion(byMember, e.memberId, e.expiresAt);
+    byProgram.set(e.programId, byMember);
   }
   return byProgram;
+}
+
+/** The awards of one badge type in the shape the recipient math reads (member, when, note). */
+async function legacyAwardsOf(supabase: SupabaseClient, badgeTypeId: string) {
+  return (await createRepos(supabase).badges.awardsOfType(badgeTypeId)).map((a) => ({ member_id: a.memberId, occurred_at: a.occurredAt, note: a.note }));
 }
 
 /**
@@ -762,24 +627,20 @@ export async function getBadgeRecipients(
   badgeType: BadgeType,
   levels: BadgeLevel[]
 ): Promise<BadgeRecipient[]> {
-  const { data: memberRows } = await supabase
-    .from("members")
-    .select("id, name, email, first_joined_at")
-    .order("name");
-  const members: RecipientMember[] = (
-    (memberRows ?? []) as { id: string; name: string; email: string; first_joined_at: string | null }[]
-  ).map((m) => ({ id: m.id, name: m.name, email: m.email, firstJoinedAt: m.first_joined_at }));
+  const members: RecipientMember[] = (await createRepos(supabase).members.list({ orderBy: "name" })).map((m) => ({
+    id: m.id,
+    name: m.name,
+    displayName: m.displayName,
+    email: m.email,
+    firstJoinedAt: m.firstJoinedAt,
+  }));
 
   if (!badgeType.is_automatic) {
-    const { data: awards } = await supabase
-      .from("member_badges")
-      .select("member_id, occurred_at, note")
-      .eq("badge_type_id", badgeType.id);
     return computeBadgeRecipients(
       badgeType,
       levels,
       members,
-      (awards ?? []) as { member_id: string; occurred_at: string; note: string | null }[],
+      await legacyAwardsOf(supabase, badgeType.id),
       {
         attendedPrickleCountsByMember: new Map(),
         hostedQuarterCountsByMember: new Map(),
@@ -799,7 +660,7 @@ export async function getBadgeRecipients(
   let mentorshipByMember = new Map<string, MentorshipCount>();
   switch (badgeType.key) {
     case "prickle_milestones":
-      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(supabase);
+      attendedPrickleCountsByMember = await getAttendedPrickleCountsByMember(createRepos(supabase).attendance);
       break;
     case "hostess":
       hostedQuarterCountsByMember = await getHostedQuarterCountsByMember(supabase);
@@ -808,23 +669,15 @@ export async function getBadgeRecipients(
       publishedBookCountsByMember = await getPublishedBookCountsByMember(supabase);
       break;
     case "hedgie_mentor": {
-      mentorshipByMember = await getMentorshipCounts(supabase);
-      const { data: awards } = await supabase
-        .from("member_badges")
-        .select("member_id, occurred_at, note")
-        .eq("badge_type_id", badgeType.id);
-      legacyAwards = (awards ?? []) as typeof legacyAwards;
+      mentorshipByMember = await getMentorshipCounts(createRepos(supabase).mentorship);
+      legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
       break;
     }
     // founding_hedgie needs no query -- it's a pure function of members.firstJoinedAt.
     default:
       if (badgeType.program_id) {
         programCompletionsByProgramId = await getProgramCompletionsByProgram(supabase);
-        const { data: awards } = await supabase
-          .from("member_badges")
-          .select("member_id, occurred_at, note")
-          .eq("badge_type_id", badgeType.id);
-        legacyAwards = (awards ?? []) as typeof legacyAwards;
+        legacyAwards = await legacyAwardsOf(supabase, badgeType.id);
       }
   }
 
@@ -837,8 +690,6 @@ export async function getBadgeRecipients(
   });
 }
 
-type BadgeTypeWithEvent = BadgeType & { event: { slug: string } | { slug: string }[] | null };
-
 /** Fetches every badge_type + badge_levels once (shared across all members on a page), this
  * member's manual award rows, and the query-backed automatic metrics (hosted quarters,
  * published books), then merges them into their earned badges. */
@@ -848,42 +699,28 @@ export async function getMemberBadges(
   totalPricklesAttended: number,
   firstJoinedAt: string | null
 ): Promise<EarnedBadge[]> {
-  const [
-    { data: badgeTypes },
-    { data: levels },
-    { data: awards },
-    hostedQuarterCount,
-    publishedBookCount,
-    programCompletions,
-    mentorshipCounts,
-  ] =
-    await Promise.all([
-      supabase.from("badge_types").select("*, event:events(slug)").order("category").order("name"),
-      supabase.from("badge_levels").select("*").order("level"),
-      supabase
-        .from("member_badges")
-        .select("badge_type_id, occurred_at, note")
-        .eq("member_id", memberId),
-      getHostedQuarterCount(supabase, memberId),
-      getPublishedBookCount(supabase, memberId),
-      getProgramCompletions(supabase, memberId),
-      getMentorshipCounts(supabase),
-    ]);
+  const badges = createRepos(supabase).badges;
+  const [badgeTypes, levels, awards, hostedQuarterCount, publishedBookCount, programCompletions, mentorshipCounts] = await Promise.all([
+    badges.types(),
+    badges.levels(),
+    badges.awardsOf(memberId),
+    getHostedQuarterCount(supabase, memberId),
+    getPublishedBookCount(supabase, memberId),
+    getProgramCompletions(supabase, memberId),
+    getMentorshipCounts(createRepos(supabase).mentorship),
+  ]);
 
   const levelsByBadgeType = new Map<string, BadgeLevel[]>();
-  for (const level of (levels ?? []) as BadgeLevel[]) {
+  for (const level of levels) {
     const list = levelsByBadgeType.get(level.badge_type_id) ?? [];
     list.push(level);
     levelsByBadgeType.set(level.badge_type_id, list);
   }
 
   return computeEarnedBadges(
-    ((badgeTypes ?? []) as BadgeTypeWithEvent[]).map(({ event, ...badgeType }) => ({
-      ...badgeType,
-      event_slug: (Array.isArray(event) ? event[0]?.slug : event?.slug) ?? null,
-    })),
+    badgeTypes,
     levelsByBadgeType,
-    (awards ?? []) as { badge_type_id: string; occurred_at: string; note: string | null }[],
+    awards.map((a) => ({ badge_type_id: a.badgeTypeId, occurred_at: a.occurredAt, note: a.note })),
     {
       totalPricklesAttended,
       firstJoinedAt,

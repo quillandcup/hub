@@ -10,13 +10,16 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/sudo", () => ({ getEffectiveIdentity: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/timezone", () => ({ getUserTimezonePreference: vi.fn(async () => "America/New_York") }));
+vi.mock("@/lib/timezone", () => ({
+  getUserTimezonePreference: vi.fn(async () => "America/New_York"),
+  getUserSecondaryTimezone: vi.fn(async () => null),
+}));
 
 import { cancelCommitment, createCommitment, getMyCommitments } from "@/app/(member)/my-prickles/commitment-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { getUserTimezonePreference } from "@/lib/timezone";
+import { getUserSecondaryTimezone, getUserTimezonePreference } from "@/lib/timezone";
 
 const IDENTITY = { memberId: "member-1", memberName: "Member One", memberEmail: "m1@example.com", isSudo: false };
 const SUDO_IDENTITY = { memberId: "sudo-target", memberName: "Target", memberEmail: "t@example.com", isSudo: true };
@@ -51,16 +54,25 @@ function makeSupabaseMock({
   activityError = undefined as string | undefined,
 } = {}) {
   const rpc = vi.fn().mockResolvedValue(rpcError ? { data: null, error: rpcError } : { data: "new-c", error: null });
-  const updateEqEq = vi.fn().mockResolvedValue({ error: null });
+  // The final filter of an update: awaited as is, or followed by .select() to learn whether a row changed.
+  const updateEqEq = vi.fn(() => {
+    const done = Promise.resolve({ data: [{ id: "c1" }], error: null });
+    return Object.assign(done, { select: () => done });
+  });
   const commitmentUpdate = vi.fn(() => ({ eq: vi.fn(() => ({ eq: updateEqEq })), in: vi.fn(() => ({ eq: updateEqEq })) }));
   const activityInsert = vi.fn().mockResolvedValue(activityError ? { error: { message: activityError } } : { error: null });
 
   const from = vi.fn((table: string) => {
     if (table === "prickles") return chain({ data: prickles });
+    if (table === "prickle_types") {
+      const c = chain({ data: [] });
+      c.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null }); // no Event type to leave out
+      return c;
+    }
     if (table === "prickle_attendance") return chain({ data: attendance });
     if (table === "prickle_commitments") {
       const c = chain({ data: commitments });
-      c.single = vi.fn().mockResolvedValue({ data: existingRow });
+      c.maybeSingle = vi.fn().mockResolvedValue({ data: existingRow });
       return { ...c, update: commitmentUpdate };
     }
     if (table === "member_activities") return { insert: activityInsert };
@@ -228,7 +240,10 @@ describe("createCommitment", () => {
     const mock = makeSupabaseMock({ rpcError: { message: "permission denied", code: "42501" } });
     vi.mocked(createClient).mockResolvedValue(mock as never);
 
-    expect(await createCommitment(VALID_INPUT)).toEqual({ error: "permission denied" });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // The database's own wording is logged, not shown.
+    expect(await createCommitment(VALID_INPUT)).toEqual({ error: "Failed to save commitment" });
   });
 });
 
@@ -269,6 +284,13 @@ describe("getMyCommitments", () => {
       [3, "07:00", "America/New_York"],
     ]);
     expect(inLondon.title).toMatch(/^Progress Prickle · Mon, Wed · 12 PM GMT\+1$/);
+
+    // A secondary time zone adds its reading to the title and each slot label.
+    vi.mocked(getUserTimezonePreference).mockResolvedValueOnce("Europe/London");
+    vi.mocked(getUserSecondaryTimezone).mockResolvedValueOnce(ET);
+    const [withSecondary] = await getMyCommitments();
+    expect(withSecondary.title).toMatch(/^Progress Prickle · Mon, Wed · 12 PM GMT\+1 \(7:00 AM ET\)$/);
+    expect(withSecondary.slots.every((s) => s.label.endsWith("(7:00 AM ET)"))).toBe(true);
   });
 });
 

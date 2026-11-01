@@ -1,20 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import {
   addBook,
+  getMyPenNameOptions,
   updateBook,
   type BookFormat,
   type BookInput,
   type MyBookRow,
 } from "@/app/(member)/bookshelf/actions";
 import { publishProject } from "@/app/(member)/projects/actions";
-import {
-  describeBookCoverRequirements,
-  validateBookCoverDimensions,
-  validateBookCoverFile,
-} from "@/lib/bookCover";
+import type { PenNameOptions } from "@/lib/book-pen-name";
+import BookCoverDetails, { type CoverAsset } from "@/components/books/BookCoverDetails";
+import MediaPicker from "@/components/media/MediaPicker";
+import TagInput from "@/components/TagInput";
+import { MAX_GENRE_LENGTH, MAX_GENRES } from "@/lib/book-genres";
+import { bookCoverUrlFor, coverAssetIdOf } from "@/lib/bookCover";
 
 interface BookFormModalProps {
   isOpen: boolean;
@@ -33,23 +35,6 @@ interface BookFormModalProps {
   initialCoverUrl?: string;
 }
 
-/** Reads the pixel dimensions of an image file in the browser, without uploading it. */
-function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Couldn't read that image file"));
-    };
-    img.src = objectUrl;
-  });
-}
-
 export default function BookFormModal({
   isOpen,
   onClose,
@@ -63,59 +48,32 @@ export default function BookFormModal({
   const [title, setTitle] = useState(book?.title ?? projectTitle ?? "");
   const [description, setDescription] = useState(book?.description ?? initialDescription ?? "");
   const [coverUrl, setCoverUrl] = useState(book?.coverUrl ?? initialCoverUrl ?? "");
-  const [coverError, setCoverError] = useState<string | null>(null);
-  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [coverAsset, setCoverAsset] = useState<CoverAsset | null>(book?.coverAsset ?? null);
   const [purchaseUrl, setPurchaseUrl] = useState(book?.purchaseUrl ?? "");
   const [publishedDate, setPublishedDate] = useState(book?.publishedDate ?? "");
   const [price, setPrice] = useState(book?.price != null ? String(book.price) : "");
-  const [genre, setGenre] = useState(book?.genre ?? "");
+  const [genres, setGenres] = useState<string[]>(book?.genres ?? []);
   const [format, setFormat] = useState<BookFormat>(book?.format ?? "print");
+  const [penName, setPenName] = useState(book?.penName ?? "");
+  const [penNameOptions, setPenNameOptions] = useState<PenNameOptions | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCoverFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file after a failed attempt
-    if (!file) return;
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    getMyPenNameOptions().then((options) => {
+      if (!cancelled) setPenNameOptions(options);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
-    setCoverError(null);
-
-    const fileError = validateBookCoverFile(file);
-    if (fileError) {
-      setCoverError(fileError);
-      return;
-    }
-
-    let dimensions: { width: number; height: number };
-    try {
-      dimensions = await readImageDimensions(file);
-    } catch {
-      setCoverError("Couldn't read that image file");
-      return;
-    }
-    const dimensionError = validateBookCoverDimensions(dimensions.width, dimensions.height);
-    if (dimensionError) {
-      setCoverError(dimensionError);
-      return;
-    }
-
-    setIsUploadingCover(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/bookshelf/cover", { method: "POST", body });
-      const json = await res.json();
-      if (!res.ok) {
-        setCoverError(json.error ?? "Upload failed, try again");
-        return;
-      }
-      setCoverUrl(json.url);
-    } catch {
-      setCoverError("Upload failed, try again");
-    } finally {
-      setIsUploadingCover(false);
-    }
-  }
+  // A name the book already carries stays selectable even if the alias was switched off since.
+  const penNameChoices = penNameOptions
+    ? [...penNameOptions.others, ...(penName && !penNameOptions.others.includes(penName) ? [penName] : [])]
+    : [];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -128,8 +86,9 @@ export default function BookFormModal({
       purchaseUrl,
       publishedDate,
       price: price.trim() === "" ? null : Number(price),
-      genre,
+      genres,
       format,
+      penName,
     };
 
     setIsPending(true);
@@ -197,6 +156,22 @@ export default function BookFormModal({
           />
         </div>
 
+        {penNameChoices.length > 0 && penNameOptions && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Published as</label>
+            <select data-track="book-form-pen-name" aria-label="Published as"
+              value={penName}
+              onChange={(e) => setPenName(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+            >
+              <option value="">{penNameOptions.defaultName}</option>
+              {penNameChoices.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex gap-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Format</label>
@@ -226,15 +201,16 @@ export default function BookFormModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Genre (optional)
+          <label htmlFor="book-genres" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Genre / Tropes
           </label>
-          <input
-            type="text"
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="Romance, Fantasy, Mystery..."
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
+          <TagInput
+            id="book-genres"
+            tags={genres}
+            onChange={setGenres}
+            placeholder="e.g. romance, fantasy, cozy mystery"
+            maxTags={MAX_GENRES}
+            maxTagLength={MAX_GENRE_LENGTH}
           />
         </div>
 
@@ -254,29 +230,23 @@ export default function BookFormModal({
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             Cover image *
           </label>
-          <div className="flex items-start gap-3">
-            {coverUrl && (
-              // eslint-disable-next-line @next/next/no-img-element -- local preview of an uploaded file, not optimizable by next/image
-              <img
-                src={coverUrl}
-                alt="Cover preview"
-                className="w-16 h-24 object-cover rounded border border-slate-200 dark:border-slate-700 flex-shrink-0"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                onChange={handleCoverFileChange}
-                disabled={isUploadingCover}
-                className="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
-              />
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {isUploadingCover ? "Uploading..." : describeBookCoverRequirements()}
-              </p>
-              {coverError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{coverError}</p>}
-            </div>
-          </div>
+          <MediaPicker
+            own
+            shape="cover"
+            noun="cover"
+            alt="Cover preview"
+            surface="book_cover"
+            preview="book_cover_shelf"
+            removable={false}
+            value={coverAssetIdOf(coverUrl)}
+            onChange={(id, picked) => {
+              if (!id || !picked) return;
+              setCoverUrl(bookCoverUrlFor(id));
+              setCoverAsset(picked);
+            }}
+          >
+            <BookCoverDetails url={coverUrl} asset={coverAsset} />
+          </MediaPicker>
         </div>
 
         <div>
@@ -304,7 +274,7 @@ export default function BookFormModal({
           </button>
           <button data-track="book-form-save"
             type="submit"
-            disabled={isPending || isUploadingCover || !coverUrl}
+            disabled={isPending || !coverUrl}
             className="px-4 py-2 bg-plum-600 hover:bg-plum-700 disabled:bg-plum-400 text-white rounded-lg text-sm font-medium"
           >
             {isPending ? pendingLabel : submitLabel}

@@ -10,7 +10,7 @@ import { POST } from '@/app/api/webhooks/slack/route'
  *  - edits/deletes (`message_changed`/`message_deleted`, which carry no
  *    `user`) failed slack_messages.user_id NOT NULL and were lost,
  *  - bot/app posts (bot_id, no user) failed the same way,
- *  - joins/leaves were stored although the import skips them.
+ *  - joins/leaves were stored although the import skips them (they are kept now, as system lines).
  */
 // after() callbacks run in the background in production. Track them so send() can wait for them:
 // a late one would otherwise land in the next test, after its vi.clearAllMocks().
@@ -25,11 +25,9 @@ vi.mock('next/server', async (importOriginal) => {
   }
 })
 
-vi.mock('@/lib/processing/trigger', () => ({
-  triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
-}))
+vi.mock('@/lib/slack-activity-projection', () => ({ projectSlackActivity: vi.fn(() => Promise.resolve({ messages: 0, reactions: 0 })) }))
 
-import { triggerReprocessing } from '@/lib/processing/trigger'
+import { projectSlackActivity } from '@/lib/slack-activity-projection'
 
 const channelId = `CSUBTYPES${Date.now()}`
 const nowSec = Math.floor(Date.now() / 1000)
@@ -104,7 +102,7 @@ describe('Slack webhook: message subtypes', () => {
     expect(stored[0]).toMatchObject({ message_ts: originalTs, user_id: 'UAUTHOR', text: 'final draft', deleted_at: null })
     expect(new Date(stored[0].edited_at!).toISOString()).toBe(new Date(parseFloat(editTs) * 1000).toISOString())
     expect(errorSpy).not.toHaveBeenCalledWith('Error upserting Slack message:', expect.anything())
-    expect(triggerReprocessing).toHaveBeenCalledWith('slack_messages', 'bronze', expect.anything())
+    expect(projectSlackActivity).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String))
   })
 
   it('ignores an edit to a message we never stored (the nightly import brings it in)', async () => {
@@ -136,7 +134,7 @@ describe('Slack webhook: message subtypes', () => {
     expect(row.text).toBe('first draft')
     expect(new Date(row.deleted_at!).toISOString()).toBe(new Date(parseFloat(deleteTs) * 1000).toISOString())
     expect(await rows()).toHaveLength(1)
-    expect(triggerReprocessing).toHaveBeenCalled()
+    expect(projectSlackActivity).toHaveBeenCalled()
   })
 
   it('keeps the first deleted_at if a delete is delivered twice', async () => {
@@ -171,7 +169,7 @@ describe('Slack webhook: message subtypes', () => {
 
     const [row] = await rows()
     expect(row).toMatchObject({ message_ts: oldTs, text: 'from the archive', deleted_at: null })
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
   })
 
   it('stores a bot/app post under its bot_id, like the import does', async () => {
@@ -190,13 +188,21 @@ describe('Slack webhook: message subtypes', () => {
     expect((await rows()).map((r) => r.message_type)).toEqual(['file_share', 'thread_broadcast'])
   })
 
-  it.each(['channel_join', 'channel_leave', 'channel_topic', 'bot_message'])('skips %s, which the import skips too', async (subtype) => {
-    await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'has joined the channel' })
+  it.each(['channel_name', 'channel_topic', 'channel_purpose', 'channel_archive', 'channel_unarchive', 'channel_join', 'channel_leave'])(
+    'stores the %s notice Slack posts itself, so the chat can show it',
+    async (subtype) => {
+      await send({ type: 'message', subtype, ts: `${nowSec - 30}.000001`, user: 'UAUTHOR', text: 'changed the channel' })
+      expect(await rows()).toMatchObject([{ message_type: subtype, user_id: 'UAUTHOR', text: 'changed the channel' }])
+    }
+  )
+
+  it.each(['bot_message'])('skips %s, which the import skips too', async (subtype) => {
+    await send({ type: 'message', subtype, ts: `${nowSec - 20}.000001`, user: 'UAUTHOR', text: 'something' })
     expect(await rows()).toEqual([])
-    expect(triggerReprocessing).not.toHaveBeenCalled()
+    expect(projectSlackActivity).not.toHaveBeenCalled()
   })
 
-  it('records a join or leave notice as membership history instead of a message', async () => {
+  it('shows a join or leave notice as a message and also records it as membership history', async () => {
     const events = () =>
       supabase
         .schema('bronze')
@@ -206,7 +212,7 @@ describe('Slack webhook: message subtypes', () => {
         .order('occurred_at')
     const joinTs = `${nowSec - 40}.000001`
     const leaveTs = `${nowSec - 20}.000001`
-    // The skip tests above send notices too, which are recorded as history.
+    // The tests above send notices too, which are recorded as history.
     await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     try {
       await send({ type: 'message', subtype: 'channel_join', ts: joinTs, user: 'UAUTHOR', inviter: 'UINVITER', text: 'has joined the channel' })
@@ -217,7 +223,10 @@ describe('Slack webhook: message subtypes', () => {
         { user_id: 'UAUTHOR', event: 'joined', source: 'history_notice', inviter_user_id: 'UINVITER', slack_ts: joinTs },
         { user_id: 'UAUTHOR', event: 'left', source: 'history_notice', inviter_user_id: null, slack_ts: leaveTs },
       ])
-      expect(await rows()).toEqual([])
+      expect(await rows()).toMatchObject([
+        { message_type: 'channel_join', user_id: 'UAUTHOR', text: '<@UAUTHOR> was added to the channel by <@UINVITER>' },
+        { message_type: 'channel_leave', user_id: 'UAUTHOR', text: 'has left the channel' },
+      ])
     } finally {
       await supabase.schema('bronze').from('slack_channel_member_events').delete().eq('channel_id', channelId)
     }

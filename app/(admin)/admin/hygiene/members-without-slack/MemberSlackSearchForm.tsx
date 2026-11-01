@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useBlurDelay } from "@/lib/hooks/useBlurDelay";
 
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -14,7 +16,7 @@ interface SlackUser {
   email: string | null;
   real_name: string | null;
   display_name: string | null;
-  is_deleted?: boolean;
+  is_deleted?: boolean | null;
 }
 
 function SlackUserSearch({
@@ -74,7 +76,7 @@ function SlackUserSearch({
               <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">
                 {user.real_name || user.display_name || user.user_id}
                 {user.is_deleted && (
-                  <span className="ml-1.5 text-xs font-normal text-slate-400">(deactivated)</span>
+                  <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">(deactivated)</span>
                 )}
               </div>
               {user.email && <div className="text-xs text-gray-600 dark:text-slate-400">{user.email}</div>}
@@ -141,14 +143,17 @@ export default function MemberSlackSearchForm({
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {members.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">All active members are linked to Slack! 🎉</div>
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">All active members are linked to Slack! 🎉</div>
           ) : (
             members.map((member) => (
               <div key={member.id} className="p-3">
                 <div className="grid grid-cols-[300px_1fr] gap-4 items-start">
                   <div>
-                    <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{member.name}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">{member.email}</div>
+                    <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">{getMemberDisplayName({ name: member.name, display_name: member.displayName })}</div>
+                    {getMemberDisplayName({ name: member.name, display_name: member.displayName }) !== member.name && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{member.name}</div>
+                    )}
+                    <div className="text-xs text-slate-600 dark:text-slate-400">{member.email}</div>
                     {errors[member.id] && (
                       <div className="text-xs text-red-600 dark:text-red-400 mt-1">{errors[member.id]}</div>
                     )}

@@ -1,7 +1,10 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription } from "@/lib/prickle-types";
+import { parsePrickleFromSummary, normalizePrickleType, prickleTitleFromSummary, plainTextDescription, assignHostAndSpeaker, typeIdByAlias } from "@/lib/prickle-types";
 import { matchAttendeeToMember } from "@/lib/member-matching";
+import { calendarTitle, ensureCalendarEvents, hasEventTag, matchTypeId, reconcileAutomaticEvents } from "@/lib/calendar-events";
+import { clock } from "@/lib/clock";
 
 // Extend timeout for processing large batches of events
 export const maxDuration = 300; // 5 minutes
@@ -13,15 +16,6 @@ function normalizeName(name: string): string {
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-// Helper to chunk array for batch processing
-function chunk<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
 }
 
 /**
@@ -67,47 +61,36 @@ export async function POST(request: NextRequest) {
     // STEP 1a: Fetch all calendar events that overlap the date range
     // Use overlap logic (start < rangeEnd AND end > rangeStart) to catch events
     // that span across date boundaries
-    const FETCH_BATCH_SIZE = 1000;
-    let allEvents: any[] = [];
-    let offset = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data: batch, error: fetchError } = await supabase
-        .schema('bronze').from("calendar_events")
-        .select("*")
-        .lt("start_time", toDateTime)
-        .gt("end_time", fromDateTime)
-        .order("start_time")
-        .range(offset, offset + FETCH_BATCH_SIZE - 1);
-
-      if (fetchError) throw fetchError;
-
-      if (batch && batch.length > 0) {
-        allEvents = allEvents.concat(batch);
-        offset += batch.length;
-        hasMore = batch.length === FETCH_BATCH_SIZE;
-      } else {
-        hasMore = false;
-      }
-    }
+    const allEvents = await createRepos(supabase).calendarEvents.overlapping(fromDateTime, toDateTime);
 
     // STEP 1b: Load all reference data in parallel
     const [
-      { data: members },
-      { data: aliases },
-      { data: prickleTypes },
-      { data: resolvedUnmatchedEvents },
+      members,
+      aliases,
+      loadedTypes,
+      resolvedUnmatchedEvents,
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email").eq("status", "active"),
-      supabase.from("member_name_aliases").select("alias, member_id, source").eq("active", true),
-      supabase.from("prickle_types").select("id, name, normalized_name, default_host_id"),
+      createRepos(supabase).members.identities({ status: "active" }),
+      createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+      createRepos(supabase).prickles.types(),
       // Load previously resolved/ignored unmatched events to apply learned decisions
-      supabase
-        .from("unmatched_calendar_events")
-        .select("calendar_event_id, resolved_type_id, status")
-        .in("status", ["resolved", "ignored"]),
+      createRepos(supabase).unmatchedEvents.decisions().catch((decisionsError) => {
+        // As before, a failed load doesn't stop the run (the decisions just aren't applied this time).
+        console.error("Error loading unmatched event decisions:", decisionsError);
+        return [];
+      }),
     ]);
+
+    // The shape the matching helpers (matchTypeId) and the loop below read.
+    const prickleTypes = loadedTypes.map((t) => ({
+      id: t.id,
+      name: t.name,
+      normalized_name: t.normalizedName,
+      default_host_id: t.defaultHostId ?? null,
+      summary_aliases: t.summaryAliases ?? [],
+      names_guest_speaker: t.namesGuestSpeaker ?? false,
+      listed_in_events: t.listedInEvents,
+    }));
 
     if (!allEvents || allEvents.length === 0) {
       return NextResponse.json({
@@ -117,14 +100,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`Loaded ${allEvents.length} events, ${members?.length || 0} members, ${prickleTypes?.length || 0} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
+    console.log(`Loaded ${allEvents.length} events, ${members.length} members, ${prickleTypes.length} types, ${resolvedUnmatchedEvents?.length || 0} user decisions (resolved/ignored)`);
 
     // Build lookup maps for fast matching
     const membersByEmail = new Map(
-      members?.map((m) => [m.email.toLowerCase(), m]) || []
+      members.map((m) => [m.email.toLowerCase(), m])
     );
     const membersByNormalizedName = new Map(
-      members?.map((m) => [normalizeName(m.name), m]) || []
+      members.map((m) => [normalizeName(m.name), m])
     );
     // Build alias map with lowercase keys for case-insensitive matching
     // Aliases are disambiguation rules and should be flexible
@@ -132,21 +115,39 @@ export async function POST(request: NextRequest) {
       aliases?.map((a) => [a.alias.trim().toLowerCase(), a.member_id]) || []
     );
     const typeByNormalizedName = new Map(
-      prickleTypes?.map((t) => [t.normalized_name, t.id]) || []
+      prickleTypes.map((t) => [t.normalized_name, t.id])
     );
-    // Map calendar_event_id → { status, resolved_type_id } for user decisions
+    const eventTypeId = typeByNormalizedName.get("event") ?? null;
+    // Map calendar_event_id → { status, resolved_type_id, resolved_host_id } for user decisions
     const userDecisionByEventId = new Map(
-      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, { status: r.status, typeId: r.resolved_type_id }]) || []
+      resolvedUnmatchedEvents?.map((r) => [r.calendar_event_id, {
+        status: r.status,
+        typeId: r.resolved_type_id,
+        hostId: r.resolved_host_id,
+        title: r.resolved_title,
+        description: r.resolved_description,
+        guestSpeaker: r.resolved_guest_speaker,
+        location: r.resolved_location,
+      }]) || []
     );
 
     // STEP 2: Process events in memory
+    // Upcoming calendar events that get an event (see ensureCalendarEvents): those of a prickle type listed in
+    // Events, and any tagged #event in their Google Calendar description.
+    const listedCalendarEventIds = new Set<string>(); // to make an event for: tagged (any time), listed type (upcoming)
+    const qualifyingCalendarEventIds = new Set<string>(); // with a reason to have one: tagged, or of a listed type, past or not
     const pricklesToInsert: any[] = [];
     const unmatchedEvents: any[] = [];
     let skippedNoSummary = 0;
     let autoResolvedCount = 0;
     let ignoredCount = 0;
 
+    const now = clock.now();
     for (const event of allEvents) {
+      if (hasEventTag(event.description)) {
+        listedCalendarEventIds.add(event.id);
+        qualifyingCalendarEventIds.add(event.id);
+      }
       if (!event.summary) {
         skippedNoSummary++;
         continue;
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest) {
 
       // Match host to member ID
       let hostId: string | null = null;
+      let matchedHostName: string | null = null;
       // For unmatched events, suggest the extracted host first (e.g., "Kristin" from "w/Kristin")
       // Fall back to calendar organizer if no host extracted
       let suggestedHostName = extractedHostName || event.creator_name || event.organizer_name || null;
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
         const match = matchAttendeeToMember(
           hostNameToMatch,
           hostEmailToMatch,
-          members || [],
+          members,
           aliases || [],
           [],
           true // Skip email matching - we only have the name from event title
@@ -179,8 +181,9 @@ export async function POST(request: NextRequest) {
 
         if (match && 'member_id' in match) {
           hostId = match.member_id;
+          matchedHostName = members.find((m) => m.id === match.member_id)?.name ?? null;
           // Update suggested name to matched member's name
-          const matchedMember = members?.find(m => m.id === match.member_id);
+          const matchedMember = members.find(m => m.id === match.member_id);
           if (matchedMember) {
             suggestedHostName = matchedMember.name;
           }
@@ -201,34 +204,13 @@ export async function POST(request: NextRequest) {
         typeId = userDecision.typeId;
         autoResolvedCount++;
       } else {
-        // Match to prickle type using normalization
-        if (!rawType) {
-          // No type extracted - default to Progress Prickle
-          typeId = typeByNormalizedName.get("progress") || null;
-        } else {
-          // Normalize the extracted type and look up by normalized_name
-          const normalizedType = normalizePrickleType(rawType);
-
-          // If normalization resulted in empty (e.g., just "Prickle"), default to Progress
-          if (!normalizedType || normalizedType === "") {
-            typeId = typeByNormalizedName.get("progress") || null;
-          } else {
-            typeId = typeByNormalizedName.get(normalizedType) || null;
-          }
-
-          // If exact match failed, try partial match (e.g., "Midnight Open Table" contains "Open Table")
-          if (!typeId && prickleTypes) {
-            const summaryLower = event.summary.toLowerCase();
-            for (const type of prickleTypes) {
-              const typeNameLower = type.name.toLowerCase();
-              if (summaryLower.includes(typeNameLower)) {
-                typeId = type.id;
-                break;
-              }
-            }
-          }
-        }
+        // Match to a prickle type by the title's type part, the cleaned title, an alias or a contained name
+        typeId = matchTypeId(event.summary, prickleTypes);
       }
+
+      // An item tagged #event that matches no prickle type is still an event: a prickle of the Event type
+      // (a retreat), which the event then stands on. Anything else unmatched goes to the review queue.
+      if (!typeId && hasEventTag(event.description) && eventTypeId) typeId = eventTypeId;
 
       if (!typeId) {
         // Type extracted but not in prickle_types table - queue for admin review
@@ -245,17 +227,31 @@ export async function POST(request: NextRequest) {
       // Add to upsert list — calendar_event_id is the conflict key, so existing prickle UUIDs survive reprocessing
       // Keep the host's own name for the prickle (NULL when it's just "{Type}" / "{Type} Prickle"),
       // without the "w/Host" tail; the calendar description comes along as plain text.
-      const matchedType = prickleTypes?.find(t => t.id === typeId);
+      const matchedType = prickleTypes.find(t => t.id === typeId);
+      if (matchedType?.listed_in_events) {
+        qualifyingCalendarEventIds.add(event.id);
+        if (new Date(event.end_time).getTime() >= now) listedCalendarEventIds.add(event.id);
+      }
 
-      // Use default host if no host was extracted from "w/Name" pattern
-      const finalHostId = hostId || matchedType?.default_host_id || null;
+      // "w/Name" is the host, except for types led by a guest speaker (educational): the type's default host runs those
+      const { hostId: finalHostId, guestSpeaker } = assignHostAndSpeaker({
+        typedName: extractedHostName,
+        memberId: hostId,
+        memberName: matchedHostName,
+        defaultHostId: matchedType?.default_host_id ?? null,
+        namesGuestSpeaker: matchedType?.names_guest_speaker ?? false,
+        hostOverrideId: userDecision?.hostId ?? null,
+      });
 
       pricklesToInsert.push({
         calendar_event_id: event.id,
         type_id: typeId,
-        title: matchedType ? prickleTitleFromSummary(event.summary, matchedType.name) : event.summary,
-        description: plainTextDescription(event.description),
+        // What an admin set by hand (type and host above, text here) wins over what the calendar says.
+        title: userDecision?.title ?? (matchedType?.id === eventTypeId ? calendarTitle(event.summary) : matchedType ? prickleTitleFromSummary(event.summary, matchedType.name, matchedType.summary_aliases) : event.summary),
+        description: userDecision?.description ?? plainTextDescription(event.description),
         host: finalHostId,
+        guest_speaker: userDecision?.guestSpeaker ?? guestSpeaker,
+        location: userDecision?.location ?? (event.location?.trim() || null),
         start_time: event.start_time,
         end_time: event.end_time,
         source: "calendar",
@@ -285,19 +281,11 @@ export async function POST(request: NextRequest) {
     // Batch the deletes to avoid .in() limits with >1000 calendar_event_ids
     const calendarEventIds = allEvents.map(e => e.id);
     if (calendarEventIds.length > 0) {
-      const DELETE_BATCH = 100; // Reduced from 500 to avoid "URI too long" errors
-      for (let i = 0; i < calendarEventIds.length; i += DELETE_BATCH) {
-        const batch = calendarEventIds.slice(i, i + DELETE_BATCH);
-        const { error: deleteError } = await supabase
-          .from("unmatched_calendar_events")
-          .delete()
-          .in("calendar_event_id", batch)
-          .eq("status", "pending");
-
-        if (deleteError) {
-          console.error("Error deleting unmatched events batch:", deleteError);
-          // Don't throw - this is cleanup, not critical
-        }
+      try {
+        await createRepos(supabase).unmatchedEvents.deletePendingForCalendarEvents(calendarEventIds);
+      } catch (deleteError) {
+        console.error("Error deleting unmatched events:", deleteError);
+        // Don't throw - this is cleanup, not critical
       }
     }
 
@@ -306,22 +294,24 @@ export async function POST(request: NextRequest) {
 
     // Queue unmatched events in batches
     if (unmatchedEvents.length > 0) {
-      const CHUNK_SIZE = 100;
-      const unmatchedChunks = chunk(unmatchedEvents, CHUNK_SIZE);
-      const unmatchedResults = await Promise.all(
-        unmatchedChunks.map((batch) =>
-          supabase.from("unmatched_calendar_events").upsert(batch, {
-            onConflict: "calendar_event_id",
-          })
-        )
-      );
-      queuedForReview = unmatchedResults.filter((r) => !r.error).length * CHUNK_SIZE;
-      // Adjust for last chunk
-      const lastChunkResult = unmatchedResults[unmatchedResults.length - 1];
-      if (!lastChunkResult.error) {
-        queuedForReview = queuedForReview - CHUNK_SIZE + (unmatchedEvents.length % CHUNK_SIZE || CHUNK_SIZE);
+      try {
+        // Chunks of 100 run in parallel inside the repository.
+        await createRepos(supabase).unmatchedEvents.queue(unmatchedEvents);
+        queuedForReview = unmatchedEvents.length;
+      } catch (queueError) {
+        // A failed chunk doesn't stop the run (as before); it is only not counted.
+        console.error("Error queuing unmatched events:", queueError);
       }
     }
+
+    // STEP 5: Prickles made in the Hub (source hub) are projected from hub_sessions, so reprocessing keeps them.
+    await createRepos(supabase).hubSessions.project();
+
+    // STEP 6: Events stand on prickles, so they follow the calendar through them; only new ones need making.
+    const eventsCreated = await ensureCalendarEvents(supabase, [...listedCalendarEventIds]);
+    // The automatic events whose reason has gone (the tag taken out, the type un-listed, the calendar item deleted)
+    // are taken away. The prickle types are loaded above (a failed load stops the run), so every type that is listed counts.
+    const eventsRemoved = await reconcileAutomaticEvents(supabase, allEvents.map((e) => e.id), qualifyingCalendarEventIds);
 
     console.log(`Completed: processed ${pricklesToInsert.length}, queued ${queuedForReview}`);
 
@@ -334,6 +324,8 @@ export async function POST(request: NextRequest) {
       skipped: skippedNoSummary,
       autoResolved: autoResolvedCount,
       ignored: ignoredCount,
+      eventsCreated,
+      eventsRemoved,
     });
   } catch (error: any) {
     console.error("Error processing calendar events:", error);

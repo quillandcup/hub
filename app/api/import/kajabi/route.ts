@@ -1,9 +1,11 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createKajabiClient, toKajabiContactBronzeRecord } from "@/lib/kajabi/client";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { syncKajabiCourses } from "@/lib/courses/sync";
 import { NextRequest, NextResponse } from "next/server";
+import { asJson } from "@/lib/data/json";
 
 /**
  * Sync data from Kajabi API
@@ -52,15 +54,11 @@ export async function POST(request: NextRequest) {
       // 1. Contacts (all people in Kajabi)
       const contactRecords = contacts.map((contact) => toKajabiContactBronzeRecord(contact, importTimestamp));
 
-      const { error: contactsError } = await supabase
-        .schema("bronze")
-        .from("kajabi_contacts")
-        .upsert(contactRecords, { onConflict: "kajabi_contact_id" });
-
-      if (contactsError) {
-        console.error("Error upserting kajabi_contacts:", contactsError);
-        throw new Error(`Contacts import failed: ${contactsError.message}`);
-      }
+      const billing = createRepos(supabase).billing;
+      await billing.upsertKajabiContacts(contactRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_contacts:", error);
+        throw new Error(`Contacts import failed: ${error.message}`);
+      });
 
       // 2. Customers (people who made purchases)
       const customerRecords = customers.map(customer => ({
@@ -70,18 +68,13 @@ export async function POST(request: NextRequest) {
         created_at_kajabi: customer.attributes.created_at,
         updated_at_kajabi: customer.attributes.updated_at,
         imported_at: importTimestamp,
-        data: customer,
+        data: asJson(customer),
       }));
 
-      const { error: customersError } = await supabase
-        .schema("bronze")
-        .from("kajabi_customers")
-        .upsert(customerRecords, { onConflict: "kajabi_customer_id" });
-
-      if (customersError) {
-        console.error("Error upserting kajabi_customers:", customersError);
-        throw new Error(`Customers import failed: ${customersError.message}`);
-      }
+      await billing.upsertKajabiCustomers(customerRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_customers:", error);
+        throw new Error(`Customers import failed: ${error.message}`);
+      });
 
       // 3. Purchases (subscription records)
       const purchaseRecords = purchases.map(purchase => ({
@@ -95,18 +88,13 @@ export async function POST(request: NextRequest) {
         effective_start_at: purchase.attributes.effective_start_at,
         deactivated_at: purchase.attributes.deactivated_at,
         imported_at: importTimestamp,
-        data: purchase,
+        data: asJson(purchase),
       }));
 
-      const { error: purchasesError } = await supabase
-        .schema("bronze")
-        .from("kajabi_purchases")
-        .upsert(purchaseRecords, { onConflict: "kajabi_purchase_id" });
-
-      if (purchasesError) {
-        console.error("Error upserting kajabi_purchases:", purchasesError);
-        throw new Error(`Purchases import failed: ${purchasesError.message}`);
-      }
+      await billing.upsertKajabiPurchases(purchaseRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_purchases:", error);
+        throw new Error(`Purchases import failed: ${error.message}`);
+      });
 
       // 4. Offers (products/subscriptions offered)
       const offerRecords = offers.map(offer => ({
@@ -115,18 +103,13 @@ export async function POST(request: NextRequest) {
         status: offer.attributes.status,
         trial_period_days: offer.attributes.trial_period_days,
         imported_at: importTimestamp,
-        data: offer,
+        data: asJson(offer),
       }));
 
-      const { error: offersError } = await supabase
-        .schema("bronze")
-        .from("kajabi_offers")
-        .upsert(offerRecords, { onConflict: "kajabi_offer_id" });
-
-      if (offersError) {
-        console.error("Error upserting kajabi_offers:", offersError);
-        throw new Error(`Offers import failed: ${offersError.message}`);
-      }
+      await billing.upsertKajabiOffers(offerRecords).catch((error: Error) => {
+        console.error("Error upserting kajabi_offers:", error);
+        throw new Error(`Offers import failed: ${error.message}`);
+      });
 
       console.log("Bronze import complete. Triggering Silver processing...");
       const processingResults = await triggerReprocessing("kajabi_contacts", "bronze");

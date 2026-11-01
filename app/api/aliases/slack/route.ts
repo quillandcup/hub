@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -21,39 +22,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify member exists
-    const { data: member } = await supabase
-      .from("members")
-      .select("id")
-      .eq("id", member_id)
-      .single();
+    const member = await createRepos(supabase).members.byId(member_id);
 
     if (!member) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
     // Verify Slack user exists
-    const { data: slackUser } = await supabase
-      .schema('bronze').from("slack_users")
-      .select("user_id")
-      .eq("user_id", slack_user_id)
-      .single();
+    const slackUser = await createRepos(supabase).slackUsers.byId(slack_user_id);
 
     if (!slackUser) {
       return NextResponse.json({ error: "Slack user not found" }, { status: 404 });
     }
 
     // Insert alias (or update if already exists)
-    const { error } = await supabase
-      .from("member_name_aliases")
-      .upsert({
-        member_id,
-        alias: slack_user_id,
-        source: "slack",
-      }, {
-        onConflict: "alias",
-      });
-
-    if (error) throw error;
+    await createRepos(supabase).aliases.upsertName(member_id, slack_user_id, "slack");
 
     return NextResponse.json({
       success: true,

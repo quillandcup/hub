@@ -11,9 +11,10 @@ import MemberAvatar from "./MemberAvatar"
 import WelcomeBackBanner from "./WelcomeBackBanner"
 import { parseDateOnly } from "@/lib/member-tenure"
 import { getProfileWriting } from "@/app/(member)/projects/actions"
-import { MEASURE_LABELS } from "@/lib/writing-projects"
+import { MEASURE_LABELS, isMissedGoal } from "@/lib/writing-projects"
 import GoalDisplay from "@/components/writing/GoalDisplay"
 import { getMemberBadges, getAttendedPrickleCount } from "@/lib/badges"
+import { createRepos } from "@/lib/data/repos"
 import MemberBadgeChips from "@/components/member/MemberBadgeChips"
 import MemberSocialLinks from "@/components/member/MemberSocialLinks"
 import AskMeAboutTopics from "@/components/member/AskMeAboutTopics"
@@ -43,14 +44,7 @@ function formatLastPrickle(iso: string, now: Date, timeZone: string): string {
 
 const getMember = cache(async (id: string) => {
   const supabase = await createClient()
-  const { data } = await supabase
-    .from("member_directory")
-    .select(
-      "id, name, display_name, joined_at, first_joined_at, most_recent_joined_at, total_active_months, photo_url, bio, instagram_url, facebook_url, twitter_url"
-    )
-    .eq("id", id)
-    .single()
-  return data
+  return createRepos(supabase).directory.byId(id)
 })
 
 export async function generateMetadata({
@@ -81,7 +75,8 @@ export default async function MemberProfilePage({
 
   if (!member) notFound()
 
-  const writing = await getProfileWriting(id)
+  const profileWriting = await getProfileWriting(id)
+  const writing = { ...profileWriting, goals: profileWriting.goals.filter((goal) => !isMissedGoal(goal)) }
 
   // Everything below is Tier 3 (visible to all): the profile shows the same thing to the member
   // themselves as it shows to any other member, per docs -- no account info, engagement scores,
@@ -89,31 +84,14 @@ export default async function MemberProfilePage({
   // Private notes (Tier 1: author only) are skipped on your own profile and in sudo, where RLS
   // would resolve the admin as the author -- see app/(member)/members/[id]/noteActions.ts.
   const showNotes = member.id !== effectiveIdentity.memberId && !effectiveIdentity.isSudo
-  const [{ data: booksData }, { data: awardsData }, tzPref, { data: askMeAboutRow }, { data: noteRow }] = await Promise.all([
-    supabase
-      .from("member_books")
-      .select("id, title, cover_url, purchase_url, published_date")
-      .eq("member_id", id)
-      .order("published_date", { ascending: false }),
-    supabase
-      .from("member_awards")
-      .select("id, award_name, category, work_title, award_date, url")
-      .eq("member_id", id)
-      .order("award_date", { ascending: false }),
+  const [booksData, awards, tzPref, askMeAbout, noteRow] = await Promise.all([
+    createRepos(supabase).books.ofMember(id),
+    createRepos(supabase).awards.ofMember(id),
     getUserTimezonePreference(),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", id).maybeSingle(),
-    showNotes
-      ? supabase
-          .from("member_notes")
-          .select("body, updated_at")
-          .eq("author_member_id", effectiveIdentity.memberId)
-          .eq("subject_member_id", id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    createRepos(supabase).memberProfile.askMeAbout(id),
+    showNotes ? createRepos(supabase).memberProfile.noteAbout(effectiveIdentity.memberId, id) : Promise.resolve(null),
   ])
-  const askMeAbout: string[] = askMeAboutRow?.topics ?? []
-  const books = booksData ?? []
-  const awards = awardsData ?? []
+  const books = booksData
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref
 
   // Total prickles attended feeds the Badges section below. Computed live from prickle_attendance (distinct prickle_id, per CLAUDE.md) rather
@@ -123,20 +101,12 @@ export default async function MemberProfilePage({
   // member's upcoming calendar prickles grouped into recurring slots in the viewer's timezone.
   // "Last prickle" is the member's most recent join, shown in the header instead of stats.
   const now = new Date()
-  const [totalPricklesAttended, hostedRecords, hostingSlots, { data: lastAttendance }] = await Promise.all([
-    getAttendedPrickleCount(supabase, id),
+  const [totalPricklesAttended, hostedRecords, hostingSlots, lastPrickleAt] = await Promise.all([
+    getAttendedPrickleCount(createRepos(supabase).attendance, id),
     fetchHostedPrickleRecords(supabase, id, { now, includeAttendeeCounts: true }),
     getMemberHostingSchedule(supabase, id, now, timeZone, HOSTING_SCHEDULE_WINDOW_DAYS),
-    supabase
-      .from("prickle_attendance")
-      .select("join_time")
-      .eq("member_id", id)
-      .lte("join_time", now.toISOString())
-      .order("join_time", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    createRepos(supabase).attendance.lastJoinTime(id, { before: now.toISOString() }),
   ])
-  const lastPrickleAt: string | null = lastAttendance?.join_time ?? null
   const hostingSummary = computePublicHostingSummary(hostedRecords)
 
   const earnedBadges = await getMemberBadges(
@@ -190,14 +160,14 @@ export default async function MemberProfilePage({
         <div>
           <h1 className="text-3xl font-bold">{displayName}</h1>
           {firstJoinedDate && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               Hedgie since {formatMonthYear(firstJoinedDate)}
               {totalActiveMonths > 0 && <span className="mx-1.5">·</span>}
               {totalActiveMonths > 0 && <span>{hedgieversaryLabel}</span>}
             </p>
           )}
           {lastPrickleAt && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
               Last prickle {formatLastPrickle(lastPrickleAt, now, timeZone)}
             </p>
           )}
@@ -229,7 +199,7 @@ export default async function MemberProfilePage({
 
       {askMeAbout.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Ask me about…</h2>
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Ask me about…</h2>
           <AskMeAboutTopics topics={askMeAbout} />
         </div>
       )}
@@ -256,7 +226,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {earnedBadges.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Badges
           </h2>
           <MemberBadgeChips badges={earnedBadges} bigSistersEnabled={bigSistersEnabled} />
@@ -266,7 +236,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all -- only projects and goals the member opted in via "Show on my profile" */}
       {(writing.projects.length > 0 || writing.goals.length > 0) && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Writing Progress
           </h2>
           {writing.projects.length > 0 && (
@@ -276,12 +246,12 @@ export default async function MemberProfilePage({
                   {project.headline ? (
                     <>
                       <span className="text-3xl font-bold">{project.headline.total.toLocaleString()}</span>
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className="text-slate-600 dark:text-slate-400">
                         {MEASURE_LABELS[project.headline.measure].toLowerCase()} on {project.title}
                       </span>
                     </>
                   ) : (
-                    <span className="text-slate-500 dark:text-slate-400">{project.title}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{project.title}</span>
                   )}
                 </li>
               ))}
@@ -291,7 +261,7 @@ export default async function MemberProfilePage({
             <div className={`space-y-4 ${writing.projects.length > 0 ? "mt-6" : ""}`}>
               {writing.goals.map((goal) => (
                 <div key={goal.id}>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">{goal.projectTitle}</p>
                   <GoalDisplay goal={goal} />
                 </div>
               ))}
@@ -303,7 +273,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {books.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Published Books
           </h2>
           <ul className="space-y-3">
@@ -332,7 +302,7 @@ export default async function MemberProfilePage({
                     ) : (
                       <p className="text-sm font-medium">{book.title}</p>
                     )}
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                       {formatMonthYear(parseDateOnly(book.published_date))}
                     </p>
                   </div>
@@ -346,7 +316,7 @@ export default async function MemberProfilePage({
       {/* Tier 3: visible to all */}
       {awards.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 mb-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
             Awards
           </h2>
           <ul className="space-y-3">
@@ -357,13 +327,13 @@ export default async function MemberProfilePage({
                   <p className="text-sm font-medium">
                     🏆 {award.award_name}
                     {award.category && (
-                      <span className="font-normal text-slate-500 dark:text-slate-400">
+                      <span className="font-normal text-slate-600 dark:text-slate-400">
                         {" "}
                         — {award.category}
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     for &ldquo;{award.work_title}&rdquo; · {formatMonthYear(parseDateOnly(award.award_date))}
                     {safeAwardUrl && (
                       <>

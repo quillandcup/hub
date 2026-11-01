@@ -45,8 +45,9 @@ export default function Modal({
           <div className="flex items-center justify-between gap-4">
             <h3 className="text-xl font-bold flex-1 truncate">{title}</h3>
             <button
+              type="button"
               onClick={onClose}
-              className="text-2xl leading-none text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 flex-shrink-0"
+              className="text-2xl leading-none text-slate-500 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-300 flex-shrink-0"
               aria-label="Close"
             >
               ✕

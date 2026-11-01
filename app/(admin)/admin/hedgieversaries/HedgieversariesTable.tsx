@@ -10,6 +10,7 @@ import { parseDateOnly, milestoneLabel } from "@/lib/member-tenure";
 export interface HedgieversaryRow {
   id: string;
   name: string;
+  legalName?: string;
   email: string;
   firstJoinedAt: string;
   mostRecentJoinedAt: string | null;
@@ -69,7 +70,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
             <SortableTh label="First Joined" active={sortColumn === "firstJoinedAt"} direction={sortDirection} onClick={() => handleSort("firstJoinedAt")} />
             <SortableTh label="Most Recent Joined" active={sortColumn === "mostRecentJoinedAt"} direction={sortDirection} onClick={() => handleSort("mostRecentJoinedAt")} />
             <SortableTh label="Total Active Months" active={sortColumn === "totalActiveMonths"} direction={sortDirection} onClick={() => handleSort("totalActiveMonths")} />
-            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               Hiatus
             </th>
           </tr>
@@ -86,6 +87,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                   <Link
                     href={`/admin/members/${row.id}`}
                     className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
+                    title={row.legalName && row.legalName !== row.name ? row.legalName : undefined}
                   >
                     {row.name}
                   </Link>
@@ -99,7 +101,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
                       </span>
                     </span>
                   ) : (
-                    <span className="text-sm text-slate-400 dark:text-slate-500">TBD (on hiatus)</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">TBD (on hiatus)</span>
                   )}
                   {row.recentDate && row.recentMilestoneMonths != null && (
                     <div className="mt-1">
@@ -148,7 +150,7 @@ export default function HedgieversariesTable({ rows, asOf }: { rows: Hedgieversa
       </table>
       <DataTablePager table={table} itemLabel="members" />
       {rows.length === 0 && (
-        <div className="p-12 text-center text-slate-500 dark:text-slate-400">No members to show yet.</div>
+        <div className="p-12 text-center text-slate-600 dark:text-slate-400">No members to show yet.</div>
       )}
     </div>
   );

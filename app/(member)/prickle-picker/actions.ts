@@ -1,5 +1,8 @@
 "use server";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { createRepos } from "@/lib/data/repos";
+import type { PrickleDetail } from "@/lib/data/prickles";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
@@ -17,16 +20,17 @@ import {
   type PickerRecommendation,
   type PurposePreference,
   type TimeOfDay,
+  type MoodNow,
   type Vibe,
+  type PrickleTypePurpose,
   type VibePreference,
   PICKER_HISTORY_MONTHS as HISTORY_MONTHS,
 } from "@/lib/prickle-picker";
 import { getHostVibeTypes } from "@/lib/host-vibes";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { validateCheckin, type Feeling, type Need } from "@/lib/prickle-checkins";
+import { EMPTY_CHECKIN, validateCheckin, type Emotion, type Need } from "@/lib/prickle-checkins";
 
 import { withAction } from "@/lib/analytics/server";
-const BATCH_SIZE = 1000;
 const DEFAULT_TIMEZONE = ORG_TIMEZONE;
 const FALLBACK_WINDOW_DAYS = 14;
 
@@ -37,88 +41,36 @@ export interface WizardAnswers {
   vibe: VibePreference;
   purpose: PurposePreference;
   withMemberIds: string[];
-  /** "How are you feeling?" step; both optional. */
-  feelings?: Feeling[];
+  /** "How are you feeling?" step; all optional. */
+  mood?: MoodNow;
   need?: Need | null;
 }
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-async function fetchAllPaginated<T>(
-  queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>
-): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
-
 async function fetchAttendanceForPrickleIds(
   supabase: SupabaseClient,
   prickleIds: string[]
 ): Promise<HistoricalAttendanceRow[]> {
-  if (prickleIds.length === 0) return [];
-
-  const CHUNK = 500;
-  const rows: HistoricalAttendanceRow[] = [];
-
-  for (let i = 0; i < prickleIds.length; i += CHUNK) {
-    const idsChunk = prickleIds.slice(i, i + CHUNK);
-    const chunkRows = await fetchAllPaginated<HistoricalAttendanceRow>((offset) =>
-      supabase
-        .from("prickle_attendance")
-        .select("prickle_id, member_id")
-        .in("prickle_id", idsChunk)
-        .range(offset, offset + BATCH_SIZE - 1)
-    );
-    rows.push(...chunkRows);
-  }
-
-  return rows;
-}
-
-interface RawRatedCheckin {
-  feelings_before: string[] | null;
-  need: string | null;
-  session_rating: number;
-  prickles: { type_id: string | null; host: string | null } | { type_id: string | null; host: string | null }[];
+  const links = await createRepos(supabase).attendance.forPrickles(prickleIds);
+  return links.map((l) => ({ prickle_id: l.prickleId, member_id: l.memberId }));
 }
 
 /**
- * Every check-in the member rated, keyed to its prickle's series -- the personal history the
+ * Every check-in where the member said whether they got what they came for, keyed to its prickle's series -- the personal history the
  * picker weighs against how they feel now. All time, not just HISTORY_MONTHS: check-ins are
  * sparse and a series' character changes slowly.
  */
 async function fetchMyRatedCheckins(supabase: SupabaseClient, memberId: string): Promise<PersonalCheckin[]> {
-  const rows = await fetchAllPaginated<RawRatedCheckin>((offset) =>
-    supabase
-      .from("prickle_checkins")
-      .select("feelings_before, need, session_rating, prickles!inner(type_id, host)")
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .not("session_rating", "is", null)
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return rows.map((r) => {
-    const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-    return {
-      seriesKey: seriesKeyFor(prickle?.type_id ?? null, prickle?.host ?? null),
-      feelingsBefore: (r.feelings_before ?? []) as Feeling[],
-      need: (r.need ?? null) as Need | null,
-      sessionRating: r.session_rating,
-    };
-  });
+  const rows = await createRepos(supabase).prickleActivity.ratedCheckinsOf(memberId);
+  return rows.map((r) => ({
+    seriesKey: seriesKeyFor(r.typeId, r.hostId),
+    pleasantBefore: r.pleasantBefore,
+    energyBefore: r.energyBefore,
+    emotionBefore: (r.emotionBefore ?? null) as Emotion | null,
+    need: (r.need ?? null) as Need | null,
+    intentionMet: r.intentionMet,
+  }));
 }
 
 /**
@@ -137,11 +89,21 @@ export async function getWizardRecommendations(
   const effectiveIdentity = await getEffectiveIdentity(user);
   if (!effectiveIdentity) return { error: "No member record" };
 
-  const feelings = answers.feelings ?? [];
+  const mood: MoodNow = {
+    pleasant: answers.mood?.pleasant ?? null,
+    energy: answers.mood?.energy ?? null,
+    emotion: answers.mood?.emotion ?? null,
+  };
   const need = answers.need ?? null;
-  // Same rules as a saved check-in's "coming in" answers (known keys, at most 2 feelings).
-  const feelingsError = validateCheckin({ feelingsBefore: feelings, need, sessionRating: null, feelingsAfter: [] });
-  if (feelingsError) return { error: feelingsError };
+  // Same rules as a saved check-in's "coming in" answers.
+  const moodError = validateCheckin({
+    ...EMPTY_CHECKIN,
+    pleasantBefore: mood.pleasant,
+    energyBefore: mood.energy,
+    emotionBefore: mood.emotion,
+    need,
+  });
+  if (moodError) return { error: moodError };
 
   const timezonePref = await getUserTimezonePreference();
   const timezone = timezonePref === "browser" ? DEFAULT_TIMEZONE : timezonePref;
@@ -156,45 +118,22 @@ export async function getWizardRecommendations(
   const historyStart = new Date(now);
   historyStart.setMonth(historyStart.getMonth() - HISTORY_MONTHS);
 
-  const [typesResult, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
-    supabase.from("prickle_types").select("id, name, purpose, solo_task_friendly"),
-    fetchAllPaginated<PickerHost>((offset) =>
-      supabase.from("member_directory").select("id, name").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<CandidatePrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, host_id:host, start_time")
-        .gte("start_time", windowStart)
-        .lte("start_time", fallbackWindowEnd)
-        .order("start_time")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<CandidatePrickle>((offset) =>
-      supabase
-        .from("prickles")
-        .select("id, type_id, host_id:host, start_time")
-        .gte("start_time", historyStart.toISOString())
-        .lt("start_time", windowStart)
-        .order("start_time")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<HostVibeRow>((offset) =>
-      supabase
-        .from("prickle_host_vibes")
-        .select("type_id, host_id, vibe, notes")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+  const prickleRepo = createRepos(supabase).prickles;
+  const toCandidates = (rows: PrickleDetail[]): CandidatePrickle[] =>
+    rows.filter((p) => p.type?.normalizedName !== "event").map((p) => ({ id: p.id, type_id: p.typeId, host_id: p.hostId, start_time: p.startTime }));
+
+  const [types, membersResult, candidates, historical, vibesResult, myCheckins] = await Promise.all([
+    prickleRepo.types(),
+    createRepos(supabase).directory.all().then((rows): PickerHost[] => rows.map((m) => ({ id: m.id, name: getMemberDisplayName(m) }))),
+    prickleRepo.startingBetween({ from: windowStart, to: fallbackWindowEnd, inclusiveEnd: true }).then(toCandidates),
+    prickleRepo.startingBetween({ from: historyStart.toISOString(), to: windowStart }).then(toCandidates),
+    // The vibe column is plain text with a check constraint; HostVibeRow narrows it to the Vibe union.
+    createRepos(supabase).prickles.hostVibes().then((rows) => rows as HostVibeRow[]),
     fetchMyRatedCheckins(supabase, effectiveIdentity.memberId),
   ]);
 
-  if (typesResult.error) return { error: typesResult.error.message };
-
   const typesMap = new Map<string, PickerPrickleType>(
-    (typesResult.data ?? []).map((t) => [
-      t.id,
-      { id: t.id, name: t.name, purpose: t.purpose, soloTaskFriendly: t.solo_task_friendly },
-    ])
+    types.map((t) => [t.id, { id: t.id, name: t.name, purpose: t.purpose as PrickleTypePurpose, soloTaskFriendly: t.soloTaskFriendly }])
   );
   const hostsMap = new Map<string, PickerHost>(membersResult.map((m) => [m.id, m]));
 
@@ -217,7 +156,7 @@ export async function getWizardRecommendations(
       purpose: answers.purpose,
       withMemberIds: answers.withMemberIds,
       timezone,
-      feelings,
+      mood,
       need,
     },
     undefined,
@@ -256,19 +195,15 @@ export async function getHostedVibes(): Promise<HostedVibeInfo[]> {
   const typeIds = [...typeNameById.keys()];
   if (typeIds.length === 0) return [];
 
-  const { data: vibes } = await supabase
-    .from("prickle_host_vibes")
-    .select("type_id, vibe, notes")
-    .eq("host_id", effectiveIdentity.memberId)
-    .in("type_id", typeIds);
+  const vibes = await createRepos(supabase).prickles.hostVibes({ hostId: effectiveIdentity.memberId, typeIds });
 
-  const vibeByTypeId = new Map((vibes ?? []).map((v) => [v.type_id, v]));
+  const vibeByTypeId = new Map(vibes.map((v) => [v.type_id, v]));
 
   return typeIds
     .map((typeId) => ({
       typeId,
       typeName: typeNameById.get(typeId) ?? "Prickle",
-      vibe: vibeByTypeId.get(typeId)?.vibe ?? "balanced",
+      vibe: (vibeByTypeId.get(typeId)?.vibe ?? "balanced") as Vibe,
       notes: vibeByTypeId.get(typeId)?.notes ?? "",
     }))
     .sort((a, b) => a.typeName.localeCompare(b.typeName));
@@ -298,19 +233,17 @@ async function saveHostVibeImpl(
     return { error: "You can only tag prickle types you host" };
   }
 
-  const { error } = await supabase.from("prickle_host_vibes").upsert(
-    {
-      type_id: typeId,
-      host_id: effectiveIdentity.memberId,
+  try {
+    await createRepos(supabase).prickles.saveHostVibe({
+      typeId,
+      hostId: effectiveIdentity.memberId,
       vibe,
       notes: notes.trim() || null,
-      updated_by: user.id,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "type_id,host_id" }
-  );
-
-  if (error) return { error: error.message };
+      updatedBy: user.id,
+    });
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
 
   revalidatePath("/settings", "layout");
   return { success: true };

@@ -31,12 +31,28 @@ describe("parseBatch", () => {
           session_id: SESSION,
           event: "onair_join_clicked",
           properties: { live: true, room_size: 2 },
-          context: { route: "/dashboard", viewport: "lg", user_agent: "UA" },
+          context: { route: "/dashboard", viewport: "lg" },
           occurred_at: "2026-11-13T11:59:58.000Z",
         },
       ],
       rejected: [],
     });
+  });
+
+  it("keeps the parsed browser and device in the context, and never the raw user agent", () => {
+    const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+    const result = parseBatch(batch([event()]), RECEIVED, iphone);
+    if ("error" in result) throw new Error(result.error);
+    expect(result.rows[0].context).toEqual({
+      route: "/dashboard",
+      viewport: "lg",
+      browser: "Safari",
+      browser_version: "17.5",
+      os: "iOS",
+      os_version: "17.5",
+      device_type: "phone",
+    });
+    expect(JSON.stringify(result.rows[0])).not.toContain("iPhone; CPU");
   });
 
   it("moves a skewed client clock onto the server's", () => {

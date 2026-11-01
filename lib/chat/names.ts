@@ -1,6 +1,8 @@
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { createRepos } from "@/lib/data/repos";
 import { safeUrl } from "@/lib/url";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
+import { cachedLookup } from "@/lib/chat/lookup-cache";
 import { mentionedChannelIds, mentionedUserIds, mentionsToPlainText } from "@/lib/chat/render";
 
 /**
@@ -23,25 +25,21 @@ function chunks<T>(items: T[]): T[][] {
  * name they go by in Slack, else their Hub name, else their Slack real name. (A mention reads as it
  * does in Slack; the Hub's legal-style name only fills in when nothing else is set.)
  */
-export async function slackUserNames(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserNamesUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const names: Record<string, string> = {};
   if (ids.length === 0) return names;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
 
   for (const batch of chunks(ids)) {
-    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
-      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      service.schema("bronze").from("slack_users").select("user_id, display_name, real_name, name").in("user_id", batch),
-    ]);
+    const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
 
-    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const memberIds = [...new Set(authors.values())];
     const memberNames = new Map<string, { name: string; displayName: string | null }>();
     if (memberIds.length > 0) {
-      const { data: members } = await service.from("member_directory").select("id, name, display_name").in("id", memberIds);
-      for (const m of members ?? []) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
+      for (const m of await repos.directory.byIds(memberIds)) memberNames.set(m.id, { name: m.name, displayName: m.display_name });
     }
-    const memberBySlackUser = new Map((authors ?? []).map((a) => [a.slack_user_id as string, memberNames.get(a.member_id)]));
+    const memberBySlackUser = new Map([...authors].map(([slackUserId, memberId]) => [slackUserId, memberNames.get(memberId)]));
     for (const u of slackUsers ?? []) {
       const member = memberBySlackUser.get(u.user_id);
       names[u.user_id] = member?.displayName || u.display_name || member?.name || u.real_name || u.name || "";
@@ -54,34 +52,49 @@ export async function slackUserNames(userIds: string[]): Promise<Record<string, 
   return names;
 }
 
-/** Slack user id -> Hub member id, for the people we have matched, so a mention can link to a profile. */
-export async function slackUserMemberIds(userIds: string[]): Promise<Record<string, string>> {
+/**
+ * Slack user id -> the person's Hub name (their chosen display name, else their name), for the people we have
+ * matched. A notice about someone joining or leaving names them as the Hub does everywhere else, not by the
+ * short name they go by in Slack ("Cody" for Cody Ray).
+ */
+async function slackUserHubNamesUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
   for (const batch of chunks(ids)) {
-    const { data } = await service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch);
-    for (const a of data ?? []) out[a.slack_user_id] = a.member_id;
+    const authors = await repos.chat.memberIdsBySlackUser(batch);
+    const memberIds = [...new Set(authors.values())];
+    if (memberIds.length === 0) continue;
+    const members = await repos.directory.byIds(memberIds);
+    const byMember = new Map(members.map((m) => [m.id, m.display_name || m.name]));
+    for (const [slackUserId, memberId] of authors) {
+      const name = byMember.get(memberId);
+      if (name) out[slackUserId] = name;
+    }
+  }
+  return out;
+}
+
+/** Slack user id -> Hub member id, for the people we have matched, so a mention can link to a profile. */
+async function slackUserMemberIdsUncached(userIds: string[]): Promise<Record<string, string>> {
+  const ids = [...new Set(userIds)];
+  const out: Record<string, string> = {};
+  if (ids.length === 0) return out;
+  const chat = createRepos(createServiceRoleClient()).chat;
+  for (const batch of chunks(ids)) {
+    for (const [slackUserId, memberId] of await chat.memberIdsBySlackUser(batch)) out[slackUserId] = memberId;
   }
   return out;
 }
 
 /** Slack channel id -> name for public channels, for <#C123> links whose text carries no name. */
-export async function slackChannelNames(channelIds: string[]): Promise<Record<string, string>> {
+async function slackChannelNamesUncached(channelIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(channelIds)];
   const out: Record<string, string> = {};
   if (ids.length === 0) return out;
-  const service = createServiceRoleClient();
-  for (const batch of chunks(ids)) {
-    const { data } = await service
-      .schema("bronze")
-      .from("slack_channels")
-      .select("channel_id, name")
-      .in("channel_id", batch)
-      .eq("is_private", false);
-    for (const c of data ?? []) if (c.name) out[c.channel_id] = c.name;
-  }
+  const names = await createRepos(createServiceRoleClient()).slackWorkspace.publicChannelNames(ids);
+  for (const [id, name] of names) out[id] = name;
   return out;
 }
 
@@ -90,29 +103,25 @@ export async function slackChannelNames(channelIds: string[]): Promise<Record<st
  * photo, else the real (uploaded) photo from their Slack profile. Others are left out, and the
  * chat shows initials.
  */
-export async function slackUserPhotos(userIds: string[]): Promise<Record<string, string>> {
+async function slackUserPhotosUncached(userIds: string[]): Promise<Record<string, string>> {
   const ids = [...new Set(userIds)];
   const photos: Record<string, string> = {};
   if (ids.length === 0) return photos;
-  const service = createServiceRoleClient();
+  const repos = createRepos(createServiceRoleClient());
 
   for (const batch of chunks(ids)) {
-    const [{ data: authors }, { data: slackUsers }] = await Promise.all([
-      service.from("chat_slack_authors").select("slack_user_id, member_id").in("slack_user_id", batch),
-      service.schema("bronze").from("slack_users").select("user_id, image_url").in("user_id", batch),
-    ]);
-    const memberIds = [...new Set((authors ?? []).map((a) => a.member_id))];
+    const [authors, slackUsers] = await Promise.all([repos.chat.memberIdsBySlackUser(batch), repos.slackUsers.byIds(batch)]);
+    const memberIds = [...new Set(authors.values())];
     const memberPhotos = new Map<string, string>();
     if (memberIds.length > 0) {
-      const { data: members } = await service.from("member_directory").select("id, photo_url").in("id", memberIds);
-      for (const m of members ?? []) {
+      for (const m of await repos.directory.byIds(memberIds)) {
         const url = safeUrl(m.photo_url);
         if (url) memberPhotos.set(m.id, url);
       }
     }
-    for (const a of authors ?? []) {
-      const url = memberPhotos.get(a.member_id);
-      if (url) photos[a.slack_user_id] = url;
+    for (const [slackUserId, memberId] of authors) {
+      const url = memberPhotos.get(memberId);
+      if (url) photos[slackUserId] = url;
     }
     for (const u of slackUsers ?? []) {
       const url = safeUrl(u.image_url);
@@ -126,46 +135,37 @@ export async function slackUserPhotos(userIds: string[]): Promise<Record<string,
 export async function slackAuthorIdsByTs(slackChannelId: string, messageTs: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (messageTs.length === 0) return out;
-  const service = createServiceRoleClient();
-  for (const batch of chunks(messageTs)) {
-    const { data } = await service
-      .schema("bronze")
-      .from("slack_messages")
-      .select("message_ts, user_id")
-      .eq("channel_id", slackChannelId)
-      .in("message_ts", batch);
-    for (const row of data ?? []) out[row.message_ts] = row.user_id;
-  }
+  const authors = await createRepos(createServiceRoleClient()).slackMessages.authorsByTs(slackChannelId, messageTs);
+  for (const [ts, userId] of authors) out[ts] = userId;
   return out;
 }
 
 const ALIAS_DEPTH = 5;
+
+export const slackUserNames = cachedLookup("slack-user-names", slackUserNamesUncached);
+export const slackUserHubNames = cachedLookup("slack-user-hub-names", slackUserHubNamesUncached);
+export const slackUserMemberIds = cachedLookup("slack-user-member-ids", slackUserMemberIdsUncached);
+export const slackChannelNames = cachedLookup("slack-channel-names", slackChannelNamesUncached);
+export const slackUserPhotos = cachedLookup("slack-user-photos", slackUserPhotosUncached);
+export const customEmojiFor = cachedLookup("custom-emoji", customEmojiUncached);
 
 /**
  * Custom emoji by name, for the names a page shows. bronze.slack_custom_emoji is admin-read only
  * under RLS, but the emoji are public workspace decoration, so this returns just name -> image
  * (aliases followed, to a custom image or a standard emoji). Names that are not custom are left out.
  */
-export async function customEmojiFor(names: string[]): Promise<Record<string, CustomEmoji>> {
+async function customEmojiUncached(names: string[]): Promise<Record<string, CustomEmoji>> {
   let wanted = [...new Set(names)];
   const rows = new Map<string, { image_url: string | null; alias_for: string | null }>();
   if (wanted.length === 0) return {};
-  const service = createServiceRoleClient();
+  const workspace = createRepos(createServiceRoleClient()).slackWorkspace;
 
   // Aliases point at other names, which may be custom too: fetch until nothing new turns up.
   for (let depth = 0; depth < ALIAS_DEPTH && wanted.length > 0; depth++) {
     const next = new Set<string>();
-    for (const batch of chunks(wanted)) {
-      const { data } = await service
-        .schema("bronze")
-        .from("slack_custom_emoji")
-        .select("name, image_url, alias_for")
-        .in("name", batch)
-        .is("deleted_at", null);
-      for (const r of data ?? []) {
-        rows.set(r.name, r);
-        if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
-      }
+    for (const r of await workspace.emojiByNames(wanted)) {
+      rows.set(r.name, r);
+      if (r.alias_for && !rows.has(r.alias_for)) next.add(r.alias_for);
     }
     wanted = [...next];
   }

@@ -28,6 +28,8 @@ export type ListEvent =
   | { kind: "drop"; channelId: string; threadRootId?: string; tempId: string }
   /** The newest messages as the server has them now (newer data wins, by id). */
   | { kind: "merge"; channelId: string; views: ChatMessageView[]; ctx: ChatTextContext }
+  /** Where the unread line belongs now (a page from the client cache had it where it was when cached). */
+  | { kind: "unread"; channelId: string; firstUnreadId: string | null }
   /** An open thread as the server has it now: the root first, then its replies (newer data wins, by id). */
   | { kind: "merge-thread"; channelId: string; threadRootId: string; views: ChatMessageView[]; ctx: ChatTextContext };
 
@@ -84,11 +86,16 @@ export function optimisticView(opts: {
     body: opts.body,
     contentState: "ok",
     hasFiles: false,
+    files: [],
     replyCount: 0,
     lastReplyAt: null,
     reactions: [],
     syncStatus: "pending",
     mine: true,
     fromHub: true,
+    system: false,
   };
 }
+
+/** Fired on window by a message's menu to start editing or deleting it; MessageBody listens. */
+export const MESSAGE_CHANGE_EVENT = "chat-message-change";

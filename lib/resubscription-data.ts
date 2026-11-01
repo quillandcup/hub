@@ -1,7 +1,7 @@
+import { createRepos } from "@/lib/data/repos";
 import { MEMBERSHIP_PRODUCT_NAMES } from "@/lib/membership";
 import { detectResubscriptions } from "@/lib/resubscription-detection";
 import { buildReverseAliasMap, getMemberEmails } from "@/lib/stripe-matching";
-import type { MemberEmailAlias } from "@/lib/member-matching";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface ResubscribingMember {
@@ -28,18 +28,13 @@ export interface ResubscriptionsData {
 export async function fetchResubscriptionsData(
   supabase: SupabaseClient
 ): Promise<ResubscriptionsData> {
-  const BATCH = 1000;
+  const billing = createRepos(supabase).billing;
 
   // Fetch membership offer IDs
-  const { data: membershipOffers } = await supabase
-    .schema("bronze")
-    .from("kajabi_offers")
-    .select("kajabi_offer_id")
-    .in("name", [...MEMBERSHIP_PRODUCT_NAMES]);
+  const membershipOffers = await billing.kajabiOffersByName([...MEMBERSHIP_PRODUCT_NAMES]);
+  const offerIds = membershipOffers.map((o) => o.kajabi_offer_id);
 
-  const offerIds = membershipOffers?.map((o: any) => o.kajabi_offer_id) ?? [];
-
-  // Fetch all membership purchases (paginated)
+  // Fetch all membership purchases (paginated; every purchase when no membership offer is known)
   type Purchase = {
     kajabi_purchase_id: string;
     kajabi_customer_id: string;
@@ -49,93 +44,16 @@ export async function fetchResubscriptionsData(
     status: string | null;
   };
 
-  const allPurchases: Purchase[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .schema("bronze")
-      .from("kajabi_purchases")
-      .select("kajabi_purchase_id, kajabi_customer_id, effective_start_at, created_at_kajabi, deactivated_at, status")
-      .range(offset, offset + BATCH - 1);
-
-    if (offerIds.length > 0) {
-      query = query.in("kajabi_offer_id", offerIds);
-    }
-
-    const { data: batch } = await query;
-    if (batch && batch.length > 0) {
-      allPurchases.push(...(batch as Purchase[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allPurchases = (await billing.kajabiPurchases(offerIds.length > 0 ? { offerIds } : {})) as Purchase[];
 
   // Fetch customer info: email → customer_id lookup
-  type Customer = { kajabi_customer_id: string; email: string };
-  const allCustomers: Customer[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .schema("bronze")
-      .from("kajabi_customers")
-      .select("kajabi_customer_id, email")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      allCustomers.push(...(batch as Customer[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allCustomers = await billing.kajabiCustomers();
 
   // Fetch silver members
-  type Member = { id: string; name: string; email: string; status: string };
-  const allMembers: Member[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("members")
-      .select("id, name, email, status")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      allMembers.push(...(batch as Member[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const allMembers = await createRepos(supabase).members.list();
 
   // Fetch email aliases and build the standard reverse alias map
-  const emailAliases: MemberEmailAlias[] = [];
-  offset = 0;
-  hasMore = true;
-
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_email_aliases")
-      .select("canonical_email, alias_email")
-      .range(offset, offset + BATCH - 1);
-
-    if (batch && batch.length > 0) {
-      emailAliases.push(...(batch as MemberEmailAlias[]));
-      offset += batch.length;
-      hasMore = batch.length === BATCH;
-    } else {
-      hasMore = false;
-    }
-  }
+  const emailAliases = await createRepos(supabase).aliases.emailAliases();
 
   const reverseAliasMap = buildReverseAliasMap(emailAliases);
 

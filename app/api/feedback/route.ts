@@ -2,9 +2,11 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { randomUUID } from "crypto";
 import { WebClient } from "@slack/web-api";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity, type EffectiveIdentity } from "@/lib/sudo";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
+import { getSlackBotToken } from "@/lib/slack-bot-token";
 
 const FEEDBACK_TYPES = ["bug", "data", "idea"] as const;
 type FeedbackType = (typeof FEEDBACK_TYPES)[number];
@@ -63,9 +65,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: row, error: insertError } = await supabase
-    .from("feedback")
-    .insert({
+  let row: Awaited<ReturnType<ReturnType<typeof createRepos>["adminWork"]["addFeedback"]>>;
+  try {
+    row = await createRepos(supabase).adminWork.addFeedback({
       id,
       user_id: user.id,
       member_id: effectiveIdentity?.memberId ?? null,
@@ -75,11 +77,8 @@ export async function POST(request: NextRequest) {
       message,
       screenshot_path: screenshotPath,
       user_agent: userAgent,
-    })
-    .select()
-    .single();
-
-  if (insertError || !row) {
+    });
+  } catch (insertError) {
     console.error("Feedback insert failed:", insertError);
     return NextResponse.json({ error: "Failed to save feedback" }, { status: 500 });
   }
@@ -109,7 +108,7 @@ async function notifySlack(params: {
   user: { id: string; email?: string | null };
   effectiveIdentity: EffectiveIdentity | null;
 }) {
-  const token = process.env.SLACK_BOT_TOKEN;
+  const token = await getSlackBotToken();
   const channel = process.env.SLACK_FEEDBACK_CHANNEL_ID;
   if (!token || !channel) return;
 

@@ -1,12 +1,12 @@
 -- pgTAP tests for prickle_checkins (20261003000000, 20261003140000): the member and admins read,
 -- only the member writes, nobody but a cascade hard-deletes, and the CHECKs on the option keys.
 -- Runs in one transaction that is rolled back, so it leaves the shared local DB untouched.
--- Run with `npm run test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
+-- Run with `pnpm test:pgtap` (scripts/test-pgtap.sh; CI runs it in the test-db job).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
 
-SELECT plan(14);
+SELECT plan(16);
 
 -- Alice and Bob are regular members, Dana an admin. Fixed ids nothing else uses.
 INSERT INTO auth.users (id, instance_id, aud, role, email) VALUES
@@ -28,8 +28,8 @@ INSERT INTO public.prickles (id, start_time, end_time, source) VALUES
   ('00000000-0000-4000-a000-00000000d1f1', '2026-01-05T15:00:00Z', '2026-01-05T16:00:00Z', 'calendar');
 
 -- Bob's existing check-in: Alice must not see or change it; Dana (admin) can see but not change it.
-INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before, need) VALUES
-  ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', ARRAY['lonely'], 'company');
+INSERT INTO public.prickle_checkins (member_id, prickle_id, emotion_before, need) VALUES
+  ('00000000-0000-4000-a000-00000000d102', '00000000-0000-4000-a000-00000000d1f1', 'lonely', 'company');
 
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;
@@ -39,9 +39,10 @@ SET LOCAL ROLE authenticated;
 -- As Alice: writes her own check-in, sees only hers, can't touch Bob's.
 SELECT set_config('request.jwt.claims',
   '{"sub": "00000000-0000-4000-a000-00000000d1a1", "email": "checkin-alice@example.test", "role": "authenticated"}', true);
-INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before, need, session_rating, feelings_after)
+INSERT INTO public.prickle_checkins (member_id, prickle_id, pleasant_before, energy_before, emotion_before, need,
+                                    intention_met, pleasant_after, energy_after, emotion_after)
 VALUES ('00000000-0000-4000-a000-00000000d101', '00000000-0000-4000-a000-00000000d1f1',
-        ARRAY['stressed', 'tired'], 'company', 4, ARRAY['calm']);
+        2, 4, 'anxious', 'company', 4, 4, 3, 'hopeful');
 INSERT INTO result SELECT 'alice_sees', jsonb_agg(member_id) FROM public.prickle_checkins
   WHERE prickle_id = '00000000-0000-4000-a000-00000000d1f1';
 UPDATE public.prickle_checkins SET need = 'momentum'
@@ -121,18 +122,18 @@ SELECT throws_ok(
 RESET ROLE;
 
 SELECT throws_ok(
-  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_before)
-    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', ARRAY['hangry'])$$,
+  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, emotion_before)
+    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 'hangry')$$,
   '23514',
   NULL,
-  'unknown feelings are rejected'
+  'a feeling not on the wheel is rejected before'
 );
 SELECT throws_ok(
-  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, feelings_after)
-    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', ARRAY['calm', 'content', 'curious'])$$,
+  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, emotion_after)
+    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 'meh')$$,
   '23514',
   NULL,
-  'more than two feelings are rejected'
+  'a feeling not on the wheel is rejected after'
 );
 SELECT throws_ok(
   $$INSERT INTO public.prickle_checkins (member_id, prickle_id, need)
@@ -142,11 +143,18 @@ SELECT throws_ok(
   'unknown needs are rejected'
 );
 SELECT throws_ok(
-  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, session_rating)
+  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, pleasant_before)
     VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 6)$$,
   '23514',
   NULL,
-  'ratings outside 1-5 are rejected'
+  'mood outside 1-5 is rejected'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, intention_met)
+    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 0)$$,
+  '23514',
+  NULL,
+  'got-what-you-came-for outside 1-5 is rejected'
 );
 SELECT throws_ok(
   $$INSERT INTO public.prickle_checkins (member_id, prickle_id)
@@ -154,6 +162,11 @@ SELECT throws_ok(
   '23514',
   NULL,
   'an empty check-in is rejected (clearing soft-deletes the row instead)'
+);
+SELECT lives_ok(
+  $$INSERT INTO public.prickle_checkins (member_id, prickle_id, emotion_before)
+    VALUES ('00000000-0000-4000-a000-00000000d104', '00000000-0000-4000-a000-00000000d1f1', 'sad')$$,
+  'a core feeling on its own is a valid check-in'
 );
 
 DELETE FROM public.prickles WHERE id = '00000000-0000-4000-a000-00000000d1f1';

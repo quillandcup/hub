@@ -1,6 +1,6 @@
 import { customEmojiFor } from "@/lib/chat/names";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
-import { reactionName, type ReactionRow } from "@/lib/activity-feed";
+import { dataObject, reactionName, type ReactionRow } from "@/lib/activity-feed";
 
 /**
  * What a reaction on a Slack activity row looks like: a Unicode emoji or the workspace's custom
@@ -21,7 +21,7 @@ export async function withReactionEmoji<T extends ActivityLike>(rows: T[]): Prom
     const name = reactionName(row);
     if (!name) return row;
     const emoji: ReactionEmojiValue | null = custom[name] ?? custom[name.toLowerCase()] ?? standard(name);
-    return emoji ? { ...row, data: { ...(row.data ?? {}), reaction_emoji: emoji } } : row;
+    return emoji ? { ...row, data: { ...(dataObject(row.data) ?? {}), reaction_emoji: emoji } } : row;
   });
 }
 

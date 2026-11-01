@@ -3,7 +3,12 @@ import type { ReactNode } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { TimezoneProvider } from '@/components/Timezone'
 import MembersTable, { type MemberRow } from '@/app/(admin)/admin/members/MembersTable'
+
+vi.mock('@/app/(admin)/admin/members/BulkMergeMemberModal', () => ({
+  default: ({ members }: { members: unknown[] }) => <pre data-testid="merge-members">{JSON.stringify(members)}</pre>,
+}))
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -102,5 +107,58 @@ describe('MembersTable churn risk', () => {
     const noData: MemberRow = { id: 'n', name: 'Nora', email: 'n@example.com', status: 'active', member_metrics: null, member_engagement: null } as MemberRow
     render(<MembersTable members={[noData]} />)
     expect(screen.getByText('low')).toBeTruthy()
+  })
+})
+
+describe('MembersTable last attended', () => {
+  it('shows the date in the viewer\'s zone from the provider', () => {
+    const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T20:00:00Z' } }
+    render(
+      <TimezoneProvider zone="Pacific/Auckland">
+        <MembersTable members={[row]} />
+      </TimezoneProvider>
+    )
+    expect(screen.getByText('3/2/2024')).toBeTruthy()
+  })
+
+  it('falls back to the org timezone without a provider, not the host zone', () => {
+    // 03:00 UTC on Mar 1 is still Feb 29 in Eastern time.
+    const row = { ...members[0], member_metrics: { ...members[0].member_metrics!, last_attended_at: '2024-03-01T03:00:00Z' } }
+    render(<MembersTable members={[row]} />)
+    expect(screen.getByText('2/29/2024')).toBeTruthy()
+  })
+})
+
+describe('MembersTable display names', () => {
+  const withDisplay: MemberRow[] = [
+    { ...members[0], id: 'z', name: 'Zelda Example', display_name: 'Ada E' },
+    { ...members[1], id: 'm', name: 'Mary Example', display_name: null },
+  ]
+
+  it('shows the display name as the link with the legal name beneath it', () => {
+    render(<MembersTable members={withDisplay} />)
+    expect(screen.getByRole('link', { name: 'Ada E' })).toHaveAttribute('href', '/admin/members/z')
+    expect(screen.getByText('Zelda Example')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select Ada E')).toBeInTheDocument()
+    // No display name: just the legal name, once.
+    expect(screen.getAllByText('Mary Example')).toHaveLength(1)
+  })
+
+  it('sorts by the displayed name', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByText('Name'))
+    expect(renderedNames()).toEqual(['Ada E', 'Mary Example'])
+  })
+
+  it('hands the selected members, with display names, to the bulk merge', async () => {
+    render(<MembersTable members={withDisplay} />)
+    await userEvent.click(screen.getByLabelText('Select Ada E'))
+    await userEvent.click(screen.getByLabelText('Select Mary Example'))
+    await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+    const passed = JSON.parse(screen.getByTestId('merge-members').textContent!)
+    expect(passed).toEqual([
+      expect.objectContaining({ id: 'z', name: 'Zelda Example', display_name: 'Ada E' }),
+      expect.objectContaining({ id: 'm', name: 'Mary Example' }),
+    ])
   })
 })

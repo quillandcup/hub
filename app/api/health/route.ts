@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises";
 import { connect as tcpConnect } from "node:net";
 import { connect as tlsConnect } from "node:tls";
 import { NextResponse, type NextRequest } from "next/server";
+import type { Database } from "@/lib/data/database.types";
 
 // Public endpoint for external uptime monitors (e.g. UptimeRobot, BetterStack).
 // No auth required -- see the isPublic check in lib/supabase/middleware.ts.
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   // in this header; capturing it separates time spent inside Supabase from
   // time spent getting there and back.
   let upstreamMs: number | undefined;
-  const supabase = createServiceClient(url, key, {
+  const supabase = createServiceClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
     global: {
       fetch: async (...args: Parameters<typeof fetch>) => {

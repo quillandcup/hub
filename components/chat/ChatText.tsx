@@ -2,12 +2,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { parseSlackText, type Block, type Inline } from "@/lib/chat/render";
 import { unicodeEmoji, type CustomEmoji } from "@/lib/chat/emoji";
+import { baseName, toneOf, tonedUnicode } from "@/lib/chat/skin-tone";
 
 export interface ChatTextContext {
   /** Slack user id -> display name, for <@U123> mentions. */
   userNames: Record<string, string>;
   /** Slack user id -> Hub member id, so a mention of a matched person links to their profile. */
   userMembers: Record<string, string>;
+  /** Slack user id -> Hub name, for the people named in notices; otherwise `userNames` is what a mention shows. */
+  hubNames?: Record<string, string>;
   /** Slack channel id -> Hub chat channel id, for <#C123> links to channels we mirror. */
   channelIds: Record<string, string>;
   /** Slack channel id -> channel name; the text's own label is often just "channel". */
@@ -18,14 +21,16 @@ export interface ChatTextContext {
 
 /** A Slack emoji: the workspace's custom image, else the Unicode emoji, else the :shortcode: as typed. */
 export function Emoji({ name, custom }: { name: string; custom: Record<string, CustomEmoji> }) {
-  const key = name.toLowerCase().replace(/::skin-tone-\d$/, "");
+  const key = baseName(name);
+  const tone = toneOf(name);
   const c = custom[key];
   if (c && "url" in c) {
+    // Lazy: a picker lists thousands of custom emoji and only the ones scrolled near should load.
     // eslint-disable-next-line @next/next/no-img-element -- small remote Slack emoji images; no sizing to optimise
-    return <img src={c.url} alt={`:${key}:`} title={`:${key}:`} className="inline-block h-[1.25em] w-[1.25em] align-text-bottom" />;
+    return <img src={c.url} alt={`:${key}:`} title={`:${key}:`} loading="lazy" decoding="async" className="inline-block h-[1.25em] w-[1.25em] align-text-bottom" />;
   }
   const text = c?.text ?? unicodeEmoji(key);
-  return <span title={`:${key}:`}>{text ?? `:${name}:`}</span>;
+  return <span title={`:${key}:`}>{text ? (tone && !c ? tonedUnicode(text, tone) : text) : `:${name}:`}</span>;
 }
 
 /** Links stand out from the text: a lighter plum on dark backgrounds, medium weight, underlined. */

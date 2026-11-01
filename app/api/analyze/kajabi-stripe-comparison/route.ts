@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -17,30 +18,18 @@ export async function GET(request: NextRequest) {
   const { supabase } = auth;
 
   try {
+    const billing = createRepos(supabase).billing;
     // 1. Get Kajabi subscription purchases (the two membership offers)
-    const { data: kajabiPurchases } = await supabase
-      .schema('bronze')
-      .from('kajabi_purchases')
-      .select('*, data')
-      .in('kajabi_offer_id', ['2148128038', '2148293442']);
+    const kajabiPurchases = await billing.kajabiPurchaseRows({ offerIds: ['2148128038', '2148293442'] });
 
     // 2. Get Kajabi customers
-    const { data: kajabiCustomers } = await supabase
-      .schema('bronze')
-      .from('kajabi_customers')
-      .select('*');
+    const kajabiCustomers = await billing.kajabiCustomerRows();
 
     // 3. Get Stripe subscriptions
-    const { data: stripeSubscriptions } = await supabase
-      .schema('bronze')
-      .from('stripe_subscriptions')
-      .select('*');
+    const stripeSubscriptions = await billing.stripeSubscriptionRows();
 
     // 4. Get Stripe customers
-    const { data: stripeCustomers } = await supabase
-      .schema('bronze')
-      .from('stripe_customers')
-      .select('*');
+    const stripeCustomers = await billing.stripeCustomers();
 
     // Build lookup maps
     const kajabiCustomerMap = new Map(
@@ -54,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Group subscriptions by email for comparison
     const kajabiByEmail = new Map<string, any[]>();
     kajabiPurchases?.forEach(purchase => {
-      const customer = kajabiCustomerMap.get(purchase.kajabi_customer_id);
+      const customer = purchase.kajabi_customer_id ? kajabiCustomerMap.get(purchase.kajabi_customer_id) : undefined;
       if (customer?.email) {
         const email = customer.email.toLowerCase();
         if (!kajabiByEmail.has(email)) {

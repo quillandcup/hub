@@ -13,7 +13,7 @@ Member engagement platform for Quill & Cup — giving members visibility into th
 
 ```bash
 # 1. Install dependencies (also installs git hooks via husky)
-npm install
+pnpm install
 
 # 2. Start Docker Desktop (open the app)
 
@@ -21,11 +21,11 @@ npm install
 supabase start
 
 # 4. Start Next.js
-npm run dev
+pnpm dev
 ```
 
 **Git Hooks Installed:**
-- `pre-commit` - Runs `npm run build` to catch TypeScript errors before committing (managed by [husky](https://typicode.github.io/husky/), see `.husky/pre-commit`)
+- `pre-commit` - Runs `pnpm build` to catch TypeScript errors before committing (managed by [husky](https://typicode.github.io/husky/), see `.husky/pre-commit`)
 - Skip temporarily with: `git commit --no-verify`
 
 ### Test Auth Flow

@@ -1,11 +1,13 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createClient as createServiceClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import type { Database } from "@/lib/data/database.types";
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createServiceClient(url, key, {
+  return createServiceClient<Database>(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
@@ -16,29 +18,8 @@ function getServiceClient() {
 // frontend offer every unlinked member as a link target. Paginate to avoid
 // silently truncating to the first 1000 rows.
 async function fetchAllMembers(supabase: SupabaseClient) {
-  const allMembers: { id: string; name: string; email: string; user_id: string | null }[] = [];
-  let offset = 0;
-  const BATCH_SIZE = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data: batch, error } = await supabase
-      .from("members")
-      .select("id, name, email, user_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) throw error;
-
-    if (batch && batch.length > 0) {
-      allMembers.push(...batch);
-      offset += batch.length;
-      hasMore = batch.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allMembers;
+  const members = await createRepos(supabase).members.list();
+  return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
 }
 
 export async function GET(request: NextRequest) {
@@ -50,15 +31,15 @@ export async function GET(request: NextRequest) {
 
   const [
     { data: listData, error: listError },
-    { data: profiles },
-    { data: previews },
-    { data: allStaff },
+    profiles,
+    previews,
+    allStaff,
     allMembers,
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ perPage: 1000 }),
-    supabase.from("user_profiles").select("id, email, role, created_at"),
-    supabase.from("user_feature_previews").select("user_id, feature_key"),
-    supabase.from("staff").select("id, name, email, role, member_id"),
+    createRepos(supabase).profiles.all(),
+    createRepos(supabase).featureFlags.allPreviews(),
+    createRepos(supabase).staff.all(),
     fetchAllMembers(supabase),
   ]);
 
@@ -66,13 +47,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: listError.message }, { status: 500 });
   }
 
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
   const featureMap = new Map<string, string[]>();
-  for (const row of previews ?? []) {
-    if (!featureMap.has(row.user_id)) featureMap.set(row.user_id, []);
-    featureMap.get(row.user_id)!.push(row.feature_key);
+  for (const row of previews) {
+    if (!featureMap.has(row.userId)) featureMap.set(row.userId, []);
+    featureMap.get(row.userId)!.push(row.featureKey);
   }
-  const staffByMemberId = new Map((allStaff ?? []).filter((s) => s.member_id).map((s) => [s.member_id, s]));
+  const staffByMemberId = new Map(allStaff.filter((s) => s.member_id).map((s) => [s.member_id, s]));
   const memberByUserId = new Map((allMembers ?? []).filter((m) => m.user_id).map((m) => [m.user_id, m]));
 
   const users = (listData?.users ?? []).map((u) => {
@@ -123,11 +104,9 @@ export async function POST(request: NextRequest) {
   // (app/api/process/members) or manual admin linking, leaving it null for
   // an ordinary invited member indefinitely. Best-effort: a missing member
   // row (e.g. inviting a staff-only email) is not an error here.
-  await supabase
-    .from("members")
-    .update({ user_id: data.user.id })
-    .eq("email", data.user.email)
-    .is("user_id", null);
+  if (data.user.email) {
+    await createRepos(supabase).members.linkAuthUserByEmail(data.user.email, data.user.id).catch(() => {});
+  }
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } });
 }

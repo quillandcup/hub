@@ -1,7 +1,8 @@
-import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import { createRepos } from "@/lib/data/repos";
+import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
 import { getMemberDisplayName } from "@/lib/member-display-name";
 import { joinAt, loadPrickleJoinSettings, type PrickleJoin } from "@/lib/prickle-join";
-import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
+import { loadImportedHostIds, pairIntervals, type ParticipantEventRow } from "@/lib/zoom-presence";
 
 /**
  * Who's on the Prickle link right now, for the "On air" light in the member header.
@@ -11,7 +12,6 @@ import { fetchAllPaginated, loadImportedHostIds, pairIntervals, type Participant
 
 /** Events older than this are ignored: a lost "left" webhook must not leave someone "in the room" for good. */
 export const LIVE_WINDOW_MS = 12 * 60 * 60 * 1000;
-const BATCH_SIZE = 1000;
 
 type LiveEvent = Pick<
   ParticipantEventRow,
@@ -65,15 +65,7 @@ export interface LiveRoom {
 /** Reads participant events, so it needs the service role client (the table is service role only). */
 export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promise<LiveRoom> {
   const [events, hostIds, settings] = await Promise.all([
-    fetchAllPaginated<any>((offset) =>
-      supabase
-        .schema("bronze")
-        .from("zoom_participant_events")
-        .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
-        .gte("event_time", new Date(now.getTime() - LIVE_WINDOW_MS).toISOString())
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).zoom.participantEventsSince(new Date(now.getTime() - LIVE_WINDOW_MS).toISOString()),
     loadImportedHostIds(supabase, now),
     loadPrickleJoinSettings(supabase),
   ]);
@@ -84,34 +76,13 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   );
   if (open.length === 0) return { live: false, count: 0, members: [], guests: 0, prickle: null, join };
 
-  const [members, aliases, emailAliases, prickleRows] = await Promise.all([
-    fetchAllPaginated<Member & { display_name: string | null }>((offset) =>
-      supabase.from("members").select("id, name, email, display_name").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberAlias>((offset) =>
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias, source")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberEmailAlias>((offset) =>
-      supabase
-        .from("member_email_aliases")
-        .select("alias_email, canonical_email")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    supabase
-      .from("prickles")
-      .select("id, title, host:prickle_host(id, name), prickle_types:type_id(name)")
-      .lte("start_time", now.toISOString())
-      .gt("end_time", now.toISOString())
-      .order("start_time")
-      .limit(1)
-      .then((r: any) => r.data ?? []),
+  const [members, aliases, emailAliases, running] = await Promise.all([
+    createRepos(supabase)
+      .members.identities()
+      .then((rows) => rows.map((m) => ({ id: m.id, name: m.name, email: m.email, display_name: m.displayName }))),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
+    createRepos(supabase).prickles.inProgressAt(now.toISOString()),
   ]);
 
   const byId = new Map(members.map((m) => [m.id, m]));
@@ -130,15 +101,12 @@ export async function loadLiveRoom(supabase: any, now: Date = new Date()): Promi
   }
   inRoom.sort((a, b) => a.name.localeCompare(b.name));
 
-  const row = prickleRows[0];
-  const host = Array.isArray(row?.host) ? row.host[0] : row?.host;
-  const type = Array.isArray(row?.prickle_types) ? row.prickle_types[0] : row?.prickle_types;
   return {
     live: true,
     count: inRoom.length + guests,
     members: inRoom,
     guests,
-    prickle: row ? { id: row.id, title: row.title || type?.name || "Prickle", hostName: host?.name ?? null } : null,
+    prickle: running ? { id: running.id, title: running.title || running.type?.name || "Prickle", hostName: running.host ? getMemberDisplayName({ name: running.host.name, display_name: running.host.displayName }) : null } : null,
     join,
   };
 }

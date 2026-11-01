@@ -3,15 +3,15 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import MemberSearch from "@/components/MemberSearch";
-import { parseDateOnly } from "@/lib/member-tenure";
 import type { VolunteerSuggestion } from "@/lib/big-sister-volunteers";
 import { addVolunteer, removeVolunteer } from "./actions";
+import { formatDateOnly } from "@/lib/formatters";
 
-const TH = "px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider";
+const TH = "px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider";
 const TD = "px-6 py-3 text-sm text-slate-600 dark:text-slate-400";
 
 function formatDay(dateOnly: string): string {
-  return parseDateOnly(dateOnly.slice(0, 10)).toLocaleDateString();
+  return formatDateOnly(dateOnly.slice(0, 10));
 }
 
 /** The volunteer pool: who's offered to be a Big Sister, in the order to consider them, with a way
@@ -58,7 +58,8 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
           Members add themselves on the Big Sisters page. Use this when someone tells you they&apos;re up for it.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="@container">
+          <div className="grid grid-cols-1 @cards:grid-cols-2 gap-4">
           <MemberSearch
             members={members}
             selectedMemberId={picked?.id ?? null}
@@ -74,6 +75,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
             aria-label="Note"
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
           />
+        </div>
         </div>
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button
@@ -107,7 +109,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {volunteers.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
                     No volunteers yet.
                   </td>
                 </tr>
@@ -118,6 +120,7 @@ export default function VolunteersPanel({ volunteers }: { volunteers: VolunteerS
                     <Link href={`/admin/members/${v.memberId}`} className="text-plum-600 dark:text-plum-400 hover:underline">
                       {v.name}
                     </Link>
+                    {v.realName && <div className="text-xs font-normal text-slate-500 dark:text-slate-400">{v.realName}</div>}
                   </td>
                   <td className={TD}>{v.openLoad}</td>
                   <td className={TD}>{v.totalMatches}</td>

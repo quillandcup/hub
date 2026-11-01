@@ -10,6 +10,11 @@ features:
   app_home:
     home_tab_enabled: true
     messages_tab_enabled: true
+    # Members can't write to the bot in its Messages tab (it only answers buttons and /hub).
+    # Set in the dashboard before the manifest owned the config; a push removes anything not listed.
+    messages_tab_read_only_enabled: true
+    # Also set in the dashboard, kept as it was (not documented in Slack's manifest reference).
+    agent_tasks_enabled: true
   slash_commands:
     - command: /hub
       url: https://hub.quillandcup.com/api/webhooks/slack/commands
@@ -23,6 +28,10 @@ oauth_config:
       - channels:read
       - channels:join
       - channels:write.invites
+      # Removing people (conversations.kick) from the Hub's members page: public and private channels. Adding
+      # them needs only the .invites scopes. lib/chat/slack-membership.ts
+      - channels:manage
+      - groups:write
       - groups:history
       - groups:read
       - groups:write.invites
@@ -61,6 +70,8 @@ oauth_config:
       - channels:write
       - groups:write
       - mpim:write
+      # Files the member sends from the Hub post as them (lib/chat/slack-upload.ts).
+      - files:write
   # Where Slack sends a member back after they approve (app/api/oauth/slack/callback).
   redirect_urls:
     - https://hub.quillandcup.com/api/oauth/slack/callback
@@ -80,6 +91,8 @@ settings:
       # Reactions
       - reaction_added
       - reaction_removed
+      # A file deleted in Slack: we remove our copy
+      - file_deleted
       # Who is in each conversation, and custom emoji
       - member_joined_channel
       - member_left_channel
@@ -95,7 +108,9 @@ settings:
       # - user_change
   org_deploy_enabled: false
   socket_mode_enabled: false
-  token_rotation_enabled: false
+  # Bot and user tokens last 12 hours and are refreshed by the Hub (lib/slack-bot-token.ts, lib/slack-connect.ts,
+  # docs/SECRET_ROTATION.md "Moving the bot to rotating tokens"). Opting in can't be undone.
+  token_rotation_enabled: true
   # Opting in to rotating app-level tokens can't be undone; keep it off explicitly.
   app_level_token_rotation_enabled: false
   is_mcp_enabled: false

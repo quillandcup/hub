@@ -6,10 +6,13 @@
  * Chat reuses searchChat (full text, via search_chat_messages). Word matching is `ilike` on the
  * few fields each kind shows: these tables are small. A prickle's title is its own only when the host named it; otherwise it is computed.
  */
+import { memberMatchHint } from "@/lib/search/member-match-hint";
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { prickleTitle } from "@/lib/domain/prickle";
 import { searchChat, SEARCH_PAGE_SIZE } from "@/lib/chat/search";
 import { mentionsToPlainText } from "@/lib/chat/render";
+import { eventDisplayName } from "@/lib/event-name";
 import type { ChannelSummary } from "@/lib/chat/load";
 import { KIND_LABELS, type KindResults, type SearchHit } from "@/lib/search/kinds";
 import type { FeatureKey } from "@/lib/features";
@@ -37,27 +40,11 @@ export interface SearchContext {
   stages?: Record<string, number>;
 }
 
-/** One word as a quoted PostgREST ilike pattern, with its wildcards and separators neutralized. */
-const pattern = (word: string) => `"%${word.replace(/[\\%_,()"]/g, " ").trim()}%"`;
-
-/** Adds one AND-ed `.or(field ilike word, ...)` per word. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function matchEach<T extends { or: (f: string) => any }>(query: T, words: string[], fields: string[]): T {
-  let out = query;
-  for (const w of words) out = out.or(fields.map((f) => `${f}.ilike.${pattern(w)}`).join(","));
-  return out;
-}
-
 /** Directory ids of members whose name contains `typed`; "me" is the viewer. null = no such filter. */
 async function memberIdsNamed(ctx: SearchContext, typed: string | undefined): Promise<string[] | null> {
   if (!typed) return null;
   if (typed.toLowerCase() === "me") return ctx.viewerMemberId ? [ctx.viewerMemberId] : [];
-  const { data } = await ctx.supabase
-    .from("member_directory")
-    .select("id")
-    .or(`name.ilike.${pattern(typed)},display_name.ilike.${pattern(typed)}`)
-    .limit(50);
-  return (data ?? []).map((m) => m.id as string);
+  return createRepos(ctx.supabase).directory.idsMatching(typed, 50);
 }
 
 const page = (ctx: SearchContext) => ({ limit: ctx.limit ?? 5, offset: ctx.offset ?? 0 });
@@ -110,30 +97,44 @@ async function searchMembers(ctx: SearchContext, q: UniversalQuery): Promise<Kin
 
   if (staff) {
     // Full members table: email and status are searchable and shown.
-    let query = ctx.supabase.from("members").select("id, name, email, status, joined_at");
-    query = matchEach(query, words, ["name", "email"]);
-    if (q.email) query = query.ilike("email", pattern(q.email).replace(/^"|"$/g, ""));
-    if (q.status) query = query.eq("status", q.status);
-    const { data } = await query.order("name").range(offset, offset + limit);
+    const data = await createRepos(ctx.supabase).members.search({
+      words,
+      emailContains: q.email || undefined,
+      status: q.status || undefined,
+      limit: limit + 1, // one extra, to know if there are more
+      offset,
+    });
     const { rows, hasMore } = finish(data, limit);
     return {
       kind: "members",
       hasMore,
       hits: rows.map((m) => ({
-        kind: "members", id: m.id, title: m.name, subtitle: m.email, badge: m.status, href: `/admin/members/${m.id}`,
+        kind: "members", id: m.id, title: m.displayName?.trim() || m.name,
+        subtitle: memberMatchHint(words, { ...m, aliasFor: () => m.matchedAlias ?? undefined }) ?? (q.email ? m.email : undefined), badge: m.status, href: `/admin/members/${m.id}`,
       })),
     };
   }
 
-  let query = ctx.supabase.from("member_directory").select("id, name, display_name, photo_url, bio");
-  query = matchEach(query, words, ["name", "display_name", "bio"]);
-  const { data } = await query.order("name").range(offset, offset + limit);
+  // Nicknames count as names: one lookup per word, since members can't read each other's aliases directly.
+  const aliasesByWord = new Map(
+    await Promise.all(
+      words.map(async (w) => {
+        const { data: found } = await ctx.supabase.rpc("search_member_aliases", { p_term: w });
+        return [w, new Map(((found ?? []) as { member_id: string; alias: string }[]).map((a) => [a.member_id, a.alias]))] as const;
+      }),
+    ),
+  );
+  const data = await createRepos(ctx.supabase).directory.searchWords(
+    words.map((w) => ({ text: w, alsoIds: [...aliasesByWord.get(w)!.keys()] })),
+    { offset, limit: limit + 1 }, // one extra, to know if there are more
+  );
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "members",
     hasMore,
     hits: rows.map((m) => ({
-      kind: "members", id: m.id, title: m.display_name || m.name, subtitle: m.display_name ? m.name : (m.bio ?? undefined),
+      kind: "members", id: m.id, title: m.display_name || m.name,
+      subtitle: memberMatchHint(words, { name: m.name, displayName: m.display_name, alsoShown: [m.bio], aliasFor: (w) => aliasesByWord.get(w)?.get(m.id) }) ?? (m.display_name ? undefined : (m.bio ?? undefined)),
       imageUrl: m.photo_url, href: `/members/${m.id}`,
     })),
   };
@@ -144,44 +145,29 @@ async function searchPrickles(ctx: SearchContext, q: UniversalQuery): Promise<Ki
   const words = matchWords(q);
   // A prickle is named for its type and host ("Monday Progress Prickle with Jenn P") unless the host
   // gave it a title of its own ("Tiny Things Practice Workshop"), so each word must match the type's
-  // name, the host's name or the title.
-  const [hosts, perWord] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
-    words.map(async (w) => {
-      const [types, named] = await Promise.all([
-        ctx.supabase.from("prickle_types").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(50),
-        ctx.supabase.from("member_directory").select("id").ilike("name", pattern(w).replace(/^"|"$/g, "")).limit(100),
-      ]);
-      return { typeIds: (types.data ?? []).map((t) => t.id as string), hostIds: (named.data ?? []).map((m) => m.id as string) };
-    })
+  // name, the host's name, the title or the guest speaker.
+  const [hosts, wordHosts] = await Promise.all([memberIdsNamed(ctx, q.from), Promise.all(
+    words.map(async (w) => ({ text: w, hostIds: await createRepos(ctx.supabase).directory.idsMatching(w, 100) }))
   )]);
   if (hosts && hosts.length === 0) return { kind: "prickles", hits: [], hasMore: false };
 
-  let query = ctx.supabase
-    .from("prickles")
-    .select("id, title, start_time, host:prickle_host(id, name), prickle_types:type_id(name)");
-  if (hosts) query = query.in("host", hosts);
-  for (const [i, w] of perWord.entries()) {
-    // One .or() per word: PostgREST ANDs separate filters.
-    const ors = [
-      `title.ilike.${pattern(words[i])}`,
-      w.typeIds.length ? `type_id.in.(${w.typeIds.join(",")})` : null,
-      w.hostIds.length ? `host.in.(${w.hostIds.join(",")})` : null,
-    ].filter(Boolean);
-    query = query.or(ors.join(","));
-  }
-  if (q.after) query = query.gte("start_time", q.after);
-  if (q.before) query = query.lt("start_time", q.before);
-  const { data } = await query.order("start_time", { ascending: false }).range(offset, offset + limit);
-  const { rows, hasMore } = finish(data, limit);
+  const found = await createRepos(ctx.supabase).prickles.search({
+    words: wordHosts,
+    hostIds: hosts ?? undefined,
+    after: q.after || undefined,
+    before: q.before || undefined,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
+  const { rows, hasMore } = finish(found, limit);
   const base = ctx.isActingAsAdmin ? "/admin/prickles" : "/prickles";
   return {
     kind: "prickles",
     hasMore,
     hits: rows.map((p) => ({
-      kind: "prickles", id: p.id as string,
-      // PostgREST types an embedded single row as an array here; formatPrickleTitle accepts either.
-      title: formatPrickleTitle(p as unknown as Parameters<typeof formatPrickleTitle>[0]),
-      date: p.start_time as string, href: `${base}/${p.id}`,
+      kind: "prickles", id: p.id,
+      title: prickleTitle(p),
+      date: p.startTime, href: `${base}/${p.id}`,
     })),
   };
 }
@@ -190,19 +176,20 @@ async function searchBooks(ctx: SearchContext, q: UniversalQuery): Promise<KindR
   const { limit, offset } = page(ctx);
   const authors = await memberIdsNamed(ctx, q.from);
   if (authors && authors.length === 0) return { kind: "books", hits: [], hasMore: false };
-  let query = ctx.supabase.from("member_books").select("id, title, description, cover_url, published_date, author:book_member(id, name)");
-  query = matchEach(query, matchWords(q), ["title", "description"]);
-  if (authors) query = query.in("member_id", authors);
-  if (q.after) query = query.gte("published_date", q.after.slice(0, 10));
-  if (q.before) query = query.lt("published_date", q.before.slice(0, 10));
-  const { data } = await query.order("published_date", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).books.search({
+    words: matchWords(q),
+    authorIds: authors,
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "books",
     hasMore,
     hits: rows.map((b) => {
-      const author = Array.isArray(b.author) ? b.author[0] : b.author;
-      return { kind: "books", id: b.id, title: b.title, subtitle: author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
+      return { kind: "books", id: b.id, title: b.title, subtitle: b.pen_name ?? b.author?.name, imageUrl: b.cover_url, date: b.published_date, href: "/bookshelf" };
     }),
   };
 }
@@ -211,12 +198,14 @@ async function searchAwards(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   const { limit, offset } = page(ctx);
   const winners = await memberIdsNamed(ctx, q.from);
   if (winners && winners.length === 0) return { kind: "awards", hits: [], hasMore: false };
-  let query = ctx.supabase.from("member_awards").select("id, award_name, category, work_title, award_date");
-  query = matchEach(query, matchWords(q), ["award_name", "category", "work_title"]);
-  if (winners) query = query.in("member_id", winners);
-  if (q.after) query = query.gte("award_date", q.after.slice(0, 10));
-  if (q.before) query = query.lt("award_date", q.before.slice(0, 10));
-  const { data } = await query.order("award_date", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).awards.search({
+    words: matchWords(q),
+    memberIds: winners,
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   return {
     kind: "awards",
@@ -232,27 +221,22 @@ async function searchEvents(ctx: SearchContext, q: UniversalQuery): Promise<Kind
   const { limit, offset } = page(ctx);
   // `from:` on an event means who attended it.
   const attendees = await memberIdsNamed(ctx, q.from);
-  let attendedIds: string[] | null = null;
-  if (attendees) {
-    const { data } = attendees.length
-      ? await ctx.supabase.from("event_attendees").select("event_id").in("member_id", attendees).limit(1000)
-      : { data: [] };
-    attendedIds = [...new Set((data ?? []).map((r) => r.event_id as string))];
-    if (attendedIds.length === 0) return { kind: "events", hits: [], hasMore: false };
-  }
-  let query = ctx.supabase.from("events").select("id, slug, title, event_type, location, starts_at, focus");
-  query = matchEach(query, matchWords(q), ["title", "location", "focus", "description"]);
-  if (attendedIds) query = query.in("id", attendedIds);
-  if (q.after) query = query.gte("starts_at", q.after.slice(0, 10));
-  if (q.before) query = query.lt("starts_at", q.before.slice(0, 10));
-  const { data } = await query.order("starts_at", { ascending: false }).range(offset, offset + limit);
+  const data = await createRepos(ctx.supabase).events.search({
+    words: matchWords(q),
+    attendedBy: attendees,
+    includeHidden: ctx.isActingAsAdmin, // hidden events are for admins only
+    after: q.after,
+    before: q.before,
+    limit: limit + 1, // one extra, to know if there are more
+    offset,
+  });
   const { rows, hasMore } = finish(data, limit);
   const base = ctx.isActingAsAdmin ? "/admin/events" : "/events";
   return {
     kind: "events",
     hasMore,
     hits: rows.map((e) => ({
-      kind: "events", id: e.id, title: e.title, subtitle: e.location ?? e.focus ?? undefined, date: e.starts_at,
+      kind: "events", id: e.id, title: eventDisplayName(e.title, e.speakers, e.host_name), subtitle: e.location ?? e.focus ?? undefined, date: e.starts_at,
       href: `${base}/${ctx.isActingAsAdmin ? e.id : e.slug}`,
     })),
   };

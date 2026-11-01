@@ -1,4 +1,6 @@
-import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import { createRepos } from "@/lib/data/repos";
+import { matchAttendeeToMember, type MemberAlias, type MemberEmailAlias } from "@/lib/member-matching";
+import type { Json } from "@/lib/data/database.types";
 
 /**
  * Live Zoom presence from the participant joined/left webhooks (bronze.zoom_participant_events,
@@ -8,24 +10,6 @@ import { matchAttendeeToMember, type Member, type MemberAlias, type MemberEmailA
  * the meeting ends remains the source of truth.
  */
 
-const BATCH_SIZE = 1000;
-
-export async function fetchAllPaginated<T>(queryFn: (offset: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  let all: T[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await queryFn(offset);
-    if (data && data.length > 0) {
-      all = all.concat(data);
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return all;
-}
 
 export interface ParticipantEventRow {
   meeting_uuid: string;
@@ -37,7 +21,7 @@ export interface ParticipantEventRow {
   participant_email: string | null;
   event_time: string;
   leave_reason: string | null;
-  raw_payload: unknown;
+  raw_payload: Json;
 }
 
 const PARTICIPANT_EVENTS: Record<string, "joined" | "left"> = {
@@ -149,16 +133,7 @@ const IMPORTED_HOSTS_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
  * "Secondary Zoom rooms").
  */
 export async function loadImportedHostIds(supabase: any, now: Date): Promise<Set<string>> {
-  const rows = await fetchAllPaginated<any>((offset) =>
-    supabase
-      .schema("bronze")
-      .from("zoom_meetings")
-      .select("id, host_id:data->>host_id")
-      .gte("start_time", new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString())
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1)
-  );
-  return new Set(rows.map((r) => r.host_id).filter((h): h is string => !!h));
+  return createRepos(supabase).zoom.importedHostIds(new Date(now.getTime() - IMPORTED_HOSTS_LOOKBACK_MS).toISOString());
 }
 
 /**
@@ -172,42 +147,15 @@ export async function loadPresenceByMember(
   since: Date,
   now: Date = new Date()
 ): Promise<Map<string, PresenceInterval[]>> {
-  const [allEvents, hostIds] = await Promise.all([
-    fetchAllPaginated<any>((offset) =>
-      supabase
-        .schema("bronze")
-        .from("zoom_participant_events")
-        .select("id, meeting_uuid, host_id, participant_key, participant_name, participant_email, event, event_time")
-        .gte("event_time", since.toISOString())
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    loadImportedHostIds(supabase, now),
-  ]);
+  const [allEvents, hostIds] = await Promise.all([createRepos(supabase).zoom.participantEventsSince(since.toISOString()), loadImportedHostIds(supabase, now)]);
   const events = allEvents.filter((e) => e.host_id && hostIds.has(e.host_id));
   const result = new Map<string, PresenceInterval[]>();
   if (events.length === 0) return result;
 
   const [members, aliases, emailAliases] = await Promise.all([
-    fetchAllPaginated<Member>((offset) =>
-      supabase.from("members").select("id, name, email").order("id").range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberAlias>((offset) =>
-      supabase
-        .from("member_name_aliases")
-        .select("member_id, alias, source")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
-    fetchAllPaginated<MemberEmailAlias>((offset) =>
-      supabase
-        .from("member_email_aliases")
-        .select("alias_email, canonical_email")
-        .eq("active", true)
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1)
-    ),
+    createRepos(supabase).members.identities(),
+    createRepos(supabase).aliases.nameAliases({ activeOnly: true }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
 
   // One match per participant (name/email), not per event.

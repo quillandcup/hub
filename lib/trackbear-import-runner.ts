@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WritingRepository } from "@/lib/data/writing";
 import {
   planTrackbearImport,
   type ExistingImports,
@@ -14,7 +14,6 @@ import {
  */
 
 const BATCH_SIZE = 500;
-const PAGE_SIZE = 1000;
 const COVER_CONCURRENCY = 4;
 const UPDATE_CONCURRENCY = 50;
 
@@ -26,21 +25,15 @@ export interface TrackbearImportResult {
   issues: ImportIssue[];
 }
 
-/** Copies one TrackBear cover into Hub storage; returns the new public URL. Injected so tests don't hit the network. */
+/**
+ * Copies one TrackBear cover into the member's media library; returns the URL it is shown at and the library image
+ * (null for a cover that isn't one). `title` names the image (the project's). Injected so tests don't hit the network.
+ */
 export type CoverCopier = (
   coverFilename: string,
-  memberId: string
-) => Promise<{ url: string; resizedFrom: string | null } | { error: string }>;
-
-async function selectAllPages<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await fetchPage(offset, offset + PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) return rows;
-  }
-}
+  memberId: string,
+  title?: string
+) => Promise<{ url: string; assetId: string | null } | { error: string }>;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -48,39 +41,34 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-async function loadExistingImports(supabase: SupabaseClient, memberId: string): Promise<ExistingImports> {
-  const [projects, entries, goals] = await Promise.all([
-    selectAllPages<{ id: string; external_id: string }>((from, to) =>
-      supabase
-        .from("writing_projects")
-        .select("id, external_id")
-        .eq("member_id", memberId)
-        .like("external_id", "trackbear:%")
-        .order("id")
-        .range(from, to)
-    ),
-    selectAllPages<{ external_id: string }>((from, to) =>
-      supabase
-        .from("writing_progress_entries")
-        .select("external_id")
-        .eq("member_id", memberId)
-        .like("external_id", "trackbear:%")
-        .order("id")
-        .range(from, to)
-    ),
-    selectAllPages<{ external_id: string; title: string | null; description: string | null }>((from, to) =>
-      supabase
-        .from("writing_goals")
-        .select("external_id, title, description")
-        .eq("member_id", memberId)
-        .like("external_id", "trackbear:%")
-        .order("id")
-        .range(from, to)
-    ),
+/** Runs a repository call, putting what was being done in front of the database's message. */
+async function step<T>(what: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw new Error(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function loadExistingImports(writing: WritingRepository, memberId: string): Promise<ExistingImports> {
+  const [projects, entryExternalIds, goals, balances] = await Promise.all([
+    writing.importedProjects(memberId),
+    writing.importedEntryExternalIds(memberId),
+    writing.importedGoals(memberId),
+    writing.startingBalances(memberId),
   ]);
+  const externalIdByProjectId = new Map(projects.map((p) => [p.id, p.external_id]));
+  const startingBalanceMeasures = new Map<string, Set<string>>();
+  for (const b of balances) {
+    const externalId = externalIdByProjectId.get(b.project_id);
+    if (!externalId) continue;
+    if (!startingBalanceMeasures.has(externalId)) startingBalanceMeasures.set(externalId, new Set());
+    startingBalanceMeasures.get(externalId)!.add(b.measure);
+  }
   return {
+    startingBalanceMeasures,
     projectIdsByExternalId: new Map(projects.map((p) => [p.external_id, p.id])),
-    entryExternalIds: new Set(entries.map((e) => e.external_id)),
+    entryExternalIds: new Set(entryExternalIds),
     goalExternalIds: new Set(goals.map((g) => g.external_id)),
     goalExternalIdsMissingDetails: new Set(
       goals.filter((g) => g.title === null && g.description === null).map((g) => g.external_id)
@@ -89,24 +77,23 @@ async function loadExistingImports(supabase: SupabaseClient, memberId: string): 
 }
 
 export async function runTrackbearImport(
-  supabase: SupabaseClient,
+  writing: WritingRepository,
   memberId: string,
   data: TrackbearData,
   copyCover: CoverCopier
 ): Promise<TrackbearImportResult> {
-  const existing = await loadExistingImports(supabase, memberId);
+  const existing = await loadExistingImports(writing, memberId);
   const plan = planTrackbearImport(data, existing);
   const issues = [...plan.issues];
   const created = { projects: 0, entries: 0, goals: 0, startingBalances: 0, covers: 0 };
 
-  // 1. Projects. ignoreDuplicates (ON CONFLICT DO NOTHING) covers a concurrent double-submit;
-  // returned rows are only the ones this call actually inserted.
+  // 1. Projects. Rows that already exist are skipped (ON CONFLICT DO NOTHING) to cover a
+  // concurrent double-submit; the ones returned are only the ones this call actually inserted.
   const projectIds = new Map(existing.projectIdsByExternalId);
   const insertedProjectIds = new Set<string>();
   for (const batch of chunk(plan.newProjects, BATCH_SIZE)) {
-    const { data: rows, error } = await supabase
-      .from("writing_projects")
-      .upsert(
+    const rows = await step("Failed to create projects", () =>
+      writing.importProjects(
         batch.map((p) => ({
           member_id: memberId,
           external_id: p.externalId,
@@ -115,12 +102,10 @@ export async function runTrackbearImport(
           phase: p.phase,
           show_on_profile: p.showOnProfile,
           created_at: p.createdAt,
-        })),
-        { onConflict: "member_id,external_id", ignoreDuplicates: true }
+        }))
       )
-      .select("id, external_id");
-    if (error) throw new Error(`Failed to create projects: ${error.message}`);
-    for (const row of rows ?? []) {
+    );
+    for (const row of rows) {
       projectIds.set(row.external_id, row.id);
       insertedProjectIds.add(row.external_id);
     }
@@ -128,7 +113,7 @@ export async function runTrackbearImport(
   created.projects = insertedProjectIds.size;
   // Rows skipped by ON CONFLICT (a concurrent import won the race) still need their ids.
   if (insertedProjectIds.size < plan.newProjects.length) {
-    const refreshed = await loadExistingImports(supabase, memberId);
+    const refreshed = await loadExistingImports(writing, memberId);
     for (const [externalId, id] of refreshed.projectIdsByExternalId) projectIds.set(externalId, id);
   }
 
@@ -137,26 +122,33 @@ export async function runTrackbearImport(
   const freshProjects = plan.newProjects.filter((p) => insertedProjectIds.has(p.externalId));
 
   // 2. Starting balances
-  const balanceRows = freshProjects.flatMap((p) =>
-    p.startingBalances.map((b) => ({
-      project_id: projectIds.get(p.externalId)!,
+  const balanceRows = [
+    ...freshProjects.flatMap((p) =>
+      p.startingBalances.map((b) => ({
+        project_id: projectIds.get(p.externalId)!,
+        member_id: memberId,
+        measure: b.measure,
+        amount: b.amount,
+      }))
+    ),
+    // Projects imported earlier that have no balance for a measure yet.
+    ...plan.startingBalanceBackfills.map((b) => ({
+      project_id: projectIds.get(b.projectExternalId)!,
       member_id: memberId,
       measure: b.measure,
       amount: b.amount,
-    }))
-  );
+    })),
+  ];
   if (balanceRows.length > 0) {
-    const { error } = await supabase.from("writing_project_starting_balances").insert(balanceRows);
-    if (error) throw new Error(`Failed to save starting balances: ${error.message}`);
+    await step("Failed to save starting balances", () => writing.importStartingBalances(balanceRows));
     created.startingBalances = balanceRows.length;
   }
 
   // 3. Progress entries -- batched, batches in parallel.
   const entryResults = await Promise.all(
-    chunk(plan.newEntries, BATCH_SIZE).map(async (batch) => {
-      const { data: rows, error } = await supabase
-        .from("writing_progress_entries")
-        .upsert(
+    chunk(plan.newEntries, BATCH_SIZE).map((batch) =>
+      step("Failed to save progress entries", () =>
+        writing.importEntries(
           batch.map((e) => ({
             member_id: memberId,
             project_id: projectIds.get(e.projectExternalId)!,
@@ -168,21 +160,17 @@ export async function runTrackbearImport(
             note: e.note,
             tags: e.tags,
             created_at: e.createdAt,
-          })),
-          { onConflict: "member_id,external_id", ignoreDuplicates: true }
+          }))
         )
-        .select("id");
-      if (error) throw new Error(`Failed to save progress entries: ${error.message}`);
-      return rows?.length ?? 0;
-    })
+      )
+    )
   );
   created.entries = entryResults.reduce((a, b) => a + b, 0);
 
   // 4. Goals
   for (const batch of chunk(plan.newGoals, BATCH_SIZE)) {
-    const { data: rows, error } = await supabase
-      .from("writing_goals")
-      .upsert(
+    created.goals += await step("Failed to save goals", () =>
+      writing.importGoals(
         batch.map((g) => ({
           member_id: memberId,
           project_id: projectIds.get(g.projectExternalId)!,
@@ -199,34 +187,23 @@ export async function runTrackbearImport(
           description: g.description,
           show_on_profile: g.showOnProfile,
           created_at: g.createdAt,
-        })),
-        { onConflict: "member_id,external_id", ignoreDuplicates: true }
-      )
-      .select("id");
-    if (error) throw new Error(`Failed to save goals: ${error.message}`);
-    created.goals += rows?.length ?? 0;
-  }
-
-  // 4b. Goals imported before Hub goals had titles/descriptions/show-on-profile. The null checks
-  // keep this from overwriting details the member has since added in Hub.
-  const updated = { goalDetails: 0 };
-  for (const batch of chunk(plan.goalDetailBackfills, UPDATE_CONCURRENCY)) {
-    const results = await Promise.all(
-      batch.map((g) =>
-        supabase
-          .from("writing_goals")
-          .update({ title: g.title, description: g.description, show_on_profile: g.showOnProfile })
-          .eq("member_id", memberId)
-          .eq("external_id", g.externalId)
-          .is("title", null)
-          .is("description", null)
-          .select("id")
+        }))
       )
     );
-    for (const { data: rows, error } of results) {
-      if (error) throw new Error(`Failed to update goals: ${error.message}`);
-      updated.goalDetails += rows?.length ?? 0;
-    }
+  }
+
+  // 4b. Goals imported before Hub goals had titles/descriptions/show-on-profile. The repository
+  // only touches goals with neither, so details the member has since added in Hub stay.
+  const updated = { goalDetails: 0 };
+  for (const batch of chunk(plan.goalDetailBackfills, UPDATE_CONCURRENCY)) {
+    const counts = await Promise.all(
+      batch.map((g) =>
+        step("Failed to update goals", () =>
+          writing.backfillGoalDetails(memberId, g.externalId, { title: g.title, description: g.description, show_on_profile: g.showOnProfile })
+        )
+      )
+    );
+    updated.goalDetails += counts.reduce((a, b) => a + b, 0);
   }
 
   // 5. Covers -- best-effort network copies, a few at a time; a failure is reported, not fatal.
@@ -234,29 +211,23 @@ export async function runTrackbearImport(
   for (const batch of chunk(withCovers, COVER_CONCURRENCY)) {
     await Promise.all(
       batch.map(async (project) => {
-        const result = await copyCover(project.coverFilename!, memberId);
+        const result = await copyCover(project.coverFilename!, memberId, project.title);
         if ("error" in result) {
           issues.push({ severity: "dropped", kind: "project", label: project.title, detail: `Cover: ${result.error}` });
           return;
         }
-        const { error } = await supabase
-          .from("writing_projects")
-          .update({ cover_url: result.url })
-          .eq("id", projectIds.get(project.externalId)!)
-          .eq("member_id", memberId);
-        if (error) {
-          issues.push({ severity: "dropped", kind: "project", label: project.title, detail: `Cover: ${error.message}` });
+        try {
+          await writing.updateProject(memberId, projectIds.get(project.externalId)!, { cover_url: result.url, cover_asset_id: result.assetId });
+        } catch (error) {
+          issues.push({
+            severity: "dropped",
+            kind: "project",
+            label: project.title,
+            detail: `Cover: ${error instanceof Error ? error.message : String(error)}`,
+          });
           return;
         }
         created.covers++;
-        if (result.resizedFrom) {
-          issues.push({
-            severity: "changed",
-            kind: "project",
-            label: project.title,
-            detail: `Cover resized from ${result.resizedFrom} to Hub's 145×215 cover size.`,
-          });
-        }
       })
     );
   }

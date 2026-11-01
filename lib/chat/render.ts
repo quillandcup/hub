@@ -131,3 +131,54 @@ export function mentionsToPlainText(text: string, names: { userNames: Record<str
     .replace(/<@([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `@${names.userNames[id] ?? label ?? "someone"}`)
     .replace(/<#([A-Z0-9]+)(?:\|([^>]*))?>/g, (_, id: string, label?: string) => `#${names.channelNames[id] ?? label ?? "channel"}`);
 }
+
+/** What the edit box shows for a message's Slack text, and how to turn what is typed back into Slack's. */
+export interface EditableText {
+  text: string;
+  /** What each shown name stands for in Slack's text (`@Ania Ray` -> `<@U123>`). */
+  tokens: Map<string, string>;
+}
+
+/**
+ * Slack's text as the edit box should show it: `<@U123>` as `@Ania Ray`, `<#C1|general>` as `#general`, a labelled
+ * link as its label, `<!here>` as `@here`, and `&amp;` `&lt;` `&gt;` as the characters. Anything the box can't say
+ * by name stays Slack's own markup. The tokens are what `fromEditableText` needs to put the markup back.
+ */
+export function toEditableText(
+  body: string,
+  names: { userNames: Record<string, string>; channelNames: Record<string, string> },
+  opts: { plain?: boolean } = {}
+): EditableText {
+  const tokens = new Map<string, string>();
+  const shown = (label: string, token: string): string => {
+    // Two different things with one name (two people called Sam) get told apart, so each still maps to its own markup.
+    const base = decodeEntities(label);
+    let name = base;
+    for (let n = 2; tokens.has(name) && tokens.get(name) !== token; n++) name = `${base} (${n})`;
+    tokens.set(name, token);
+    return name;
+  };
+  // A message written in the Hub is plain text that only carries mention and channel tokens: nothing else is
+  // Slack markup, so nothing else is turned into a name or decoded.
+  const text = body.replace(/<([^<>]+)>/g, (whole, inner: string) => {
+    const [target, label] = [inner.split("|")[0], inner.includes("|") ? inner.slice(inner.indexOf("|") + 1) : undefined];
+    if (/^@[A-Z0-9]+$/.test(target)) return shown(`@${names.userNames[target.slice(1)] ?? label ?? "someone"}`, whole);
+    if (/^#[A-Z0-9]+$/.test(target)) return shown(`#${names.channelNames[target.slice(1)] ?? label ?? "channel"}`, whole);
+    if (opts.plain) return whole;
+    if (target.startsWith("!")) return shown(label ?? `@${target.slice(1).split("^")[0]}`, whole);
+    if (/^(https?:|mailto:)/i.test(target)) return shown(label ?? decodeEntities(target), whole);
+    return shown(whole, whole);
+  });
+  return { text: opts.plain ? text : decodeEntities(text), tokens };
+}
+
+/** The reverse of `toEditableText`: escape what was typed for Slack (not for `plain`), then put each shown name back as its markup. */
+export function fromEditableText(typed: string, tokens: Map<string, string>, opts: { plain?: boolean } = {}): string {
+  const escape = (s: string) => (opts.plain ? s : s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+  let out = escape(typed);
+  // Longest first, so "@Sam Lee" isn't half-replaced by "@Sam".
+  for (const [shown, token] of [...tokens].sort((a, b) => b[0].length - a[0].length)) {
+    out = out.split(escape(shown)).join(token);
+  }
+  return out;
+}

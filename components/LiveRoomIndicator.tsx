@@ -74,7 +74,7 @@ export default function LiveRoomIndicator() {
         aria-expanded={open}
         aria-haspopup="dialog"
         title={room.live ? "On air: Hedgies are at the table" : "Off air: nobody is at the table"}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        className="flex items-center gap-2 whitespace-nowrap px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
         <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
           {room.live && <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 motion-safe:animate-ping" />}
@@ -111,9 +111,9 @@ export default function LiveRoomIndicator() {
                 )}
               </p>
               {room.prickle?.hostName && (
-                <p className="text-slate-500 dark:text-slate-400">Hosted by {room.prickle.hostName}</p>
+                <p className="text-slate-600 dark:text-slate-400">Hosted by {room.prickle.hostName}</p>
               )}
-              <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
+              <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">{label}</p>
               <ul className="mt-1 space-y-0.5 max-h-48 overflow-y-auto">
                 {room.members.map((m) => (
                   <li key={m.memberId}>
@@ -131,7 +131,7 @@ export default function LiveRoomIndicator() {
                   </li>
                 ))}
                 {room.guests > 0 && (
-                  <li className="text-slate-500 dark:text-slate-400">
+                  <li className="text-slate-600 dark:text-slate-400">
                     {room.guests} {room.guests === 1 ? "guest" : "guests"}
                   </li>
                 )}
@@ -140,7 +140,7 @@ export default function LiveRoomIndicator() {
           ) : (
             <>
               <p className="font-semibold text-slate-900 dark:text-slate-100">Nobody is at the table</p>
-              <p className="mt-1 text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-slate-600 dark:text-slate-400">
                 Open the room to start a Pop-Up Prickle (PUP). Whoever joins next sees it light up.
               </p>
             </>
@@ -158,14 +158,14 @@ export default function LiveRoomIndicator() {
                 {room.live ? "Join on Zoom" : "Start a PUP on Zoom"}
               </a>
               {(room.join.meetingId || room.join.passcode) && (
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 text-center">
                   {room.join.meetingId && <p>Meeting ID: {room.join.meetingId}</p>}
                   {room.join.passcode && <p>Passcode: {room.join.passcode}</p>}
                 </div>
               )}
             </>
           ) : (
-            <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">No Zoom link is set up yet.</p>
+            <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">No Zoom link is set up yet.</p>
           )}
         </div>
       )}

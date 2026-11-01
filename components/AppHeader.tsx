@@ -1,10 +1,11 @@
 import MobileMenuButton from "@/components/MobileMenuButton";
 import SearchPalette from "@/components/search/SearchPalette";
 import LiveRoomIndicator from "@/components/LiveRoomIndicator";
+import HelpMenu from "@/components/HelpMenu";
 import { InAppNotificationBanner, InAppNotificationBell } from "@/components/InAppNotifications";
 
 // The top bar shared by the member and admin layouts, so everything in it lines up the same way
-// in both: hamburger, search, On air light, notification bell, then `children` (the user menu).
+// in both: hamburger, search, On air light, help, notification bell, then `children` (the user menu).
 // The bell and the banner under the bar show only inside InAppNotifications.
 export default function AppHeader({
   resultsPath,
@@ -21,6 +22,7 @@ export default function AppHeader({
         <MobileMenuButton />
         <SearchPalette resultsPath={resultsPath} isAdmin={isAdmin} />
         <LiveRoomIndicator />
+        <HelpMenu />
         <InAppNotificationBell />
         {children}
       </header>

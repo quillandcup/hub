@@ -1,3 +1,4 @@
+import { createRepos } from '@/lib/data/repos'
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/service';
@@ -20,40 +21,29 @@ import type { FeatureKey } from '@/lib/features';
  * same user's flags on one request.
  */
 export const getUserFeaturePreviews = cache(async (userId: string): Promise<FeatureKey[]> => {
-  const supabase = await createClient();
+  const repos = createRepos(await createClient());
 
-  const [{ data: globalFlags }, { data: previews }, { data: member }] = await Promise.all([
-    supabase.from('feature_flags').select('feature_key').eq('enabled_globally', true),
-    supabase.from('user_feature_previews').select('feature_key').eq('user_id', userId),
-    supabase.from('members').select('id').eq('user_id', userId).maybeSingle(),
+  const [globalKeys, previewKeys, member] = await Promise.all([
+    repos.featureFlags.globallyEnabledKeys(),
+    repos.featureFlags.previewKeys(userId),
+    repos.members.byUserId(userId),
   ]);
 
-  const enabled = new Set<string>();
-  for (const row of globalFlags ?? []) enabled.add(row.feature_key);
-  for (const row of previews ?? []) enabled.add(row.feature_key);
+  const enabled = new Set<string>([...globalKeys, ...previewKeys]);
 
   if (member?.id) {
-    const [{ data: segmentLinks }, { data: memberSegments }] = await Promise.all([
-      supabase.from('feature_flag_segments').select('feature_key, segment_id'),
-      supabase.from('segment_members').select('segment_id').eq('member_id', member.id),
+    const [segmentLinks, memberSegments] = await Promise.all([
+      repos.featureFlags.segmentLinks(),
+      repos.segments.segmentIdsForMember(member.id),
     ]);
-    const memberSegmentIds = new Set((memberSegments ?? []).map((row) => row.segment_id));
-    for (const row of segmentLinks ?? []) {
-      if (memberSegmentIds.has(row.segment_id)) enabled.add(row.feature_key);
+    const memberSegmentIds = new Set(memberSegments);
+    for (const link of segmentLinks) {
+      if (memberSegmentIds.has(link.segmentId)) enabled.add(link.featureKey);
     }
   }
 
   return Array.from(enabled) as FeatureKey[];
 });
-
-// Keeps each `.in(...)` URL well under PostgREST's length limit.
-const ID_CHUNK = 200;
-
-function chunks<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += ID_CHUNK) out.push(items.slice(i, i + ID_CHUNK));
-  return out;
-}
 
 /**
  * Which of these members have `key` on, by the same rules as getUserFeaturePreviews, in a few
@@ -66,38 +56,28 @@ export async function membersWithFeature(supabase: any, key: FeatureKey, memberI
   const unique = [...new Set(memberIds)];
   if (unique.length === 0) return enabled;
 
-  const [{ data: flag }, memberBatches, { data: segmentLinks }] = await Promise.all([
-    supabase.from('feature_flags').select('enabled_globally').eq('feature_key', key).maybeSingle(),
-    Promise.all(chunks(unique).map((ids) => supabase.from('members').select('id, user_id').in('id', ids))),
-    supabase.from('feature_flag_segments').select('segment_id').eq('feature_key', key),
+  const repos = createRepos(supabase);
+  const [isGlobal, userIdByMember, segmentLinks] = await Promise.all([
+    repos.featureFlags.isGloballyEnabled(key),
+    repos.members.userIdsByMemberId(unique),
+    repos.featureFlags.segmentLinks(key),
   ]);
-  const withAccounts: { id: string; user_id: string }[] = memberBatches
-    .flatMap((r: any) => r.data ?? [])
-    .filter((m: any) => m.user_id);
-  if (flag?.enabled_globally) return new Set(withAccounts.map((m) => m.id));
+  const withAccounts: { id: string; user_id: string }[] = [...userIdByMember]
+    .filter((entry): entry is [string, string] => entry[1] !== null)
+    .map(([id, user_id]) => ({ id, user_id }));
+  if (isGlobal) return new Set(withAccounts.map((m) => m.id));
 
   const memberByUser = new Map(withAccounts.map((m) => [m.user_id, m.id]));
-  const accountMemberIds = withAccounts.map((m) => m.id);
-  const segmentIds = (segmentLinks ?? []).map((row: any) => row.segment_id);
-  const [previewBatches, segmentBatches] = await Promise.all([
-    Promise.all(
-      chunks([...memberByUser.keys()]).map((ids) =>
-        supabase.from('user_feature_previews').select('user_id').eq('feature_key', key).in('user_id', ids)
-      )
-    ),
-    segmentIds.length === 0
-      ? Promise.resolve([])
-      : Promise.all(
-          chunks(accountMemberIds).map((ids) =>
-            supabase.from('segment_members').select('member_id').in('segment_id', segmentIds).in('member_id', ids)
-          )
-        ),
+  const segmentIds = segmentLinks.map((link) => link.segmentId);
+  const [previewUserIds, segmentMemberIds] = await Promise.all([
+    repos.featureFlags.userIdsWithPreview(key, [...memberByUser.keys()]),
+    repos.segments.memberIdsInSegments(segmentIds, withAccounts.map((m) => m.id)),
   ]);
-  for (const row of previewBatches.flatMap((r: any) => r.data ?? [])) {
-    const memberId = memberByUser.get(row.user_id);
+  for (const userId of previewUserIds) {
+    const memberId = memberByUser.get(userId);
     if (memberId) enabled.add(memberId);
   }
-  for (const row of (segmentBatches as any[]).flatMap((r: any) => r.data ?? [])) enabled.add(row.member_id);
+  for (const memberId of segmentMemberIds) enabled.add(memberId);
   return enabled;
 }
 
@@ -111,8 +91,7 @@ export async function membersWithFeatureForOutreach(
   key: FeatureKey,
   memberIds: string[]
 ): Promise<Set<string>> {
-  const { data: flag } = await supabase.from('feature_flags').select('enabled_globally').eq('feature_key', key).maybeSingle();
-  if (flag?.enabled_globally) return new Set(memberIds);
+  if (await createRepos(supabase).featureFlags.isGloballyEnabled(key)) return new Set(memberIds);
   return membersWithFeature(supabase, key, memberIds);
 }
 
@@ -128,4 +107,17 @@ export async function effectiveMemberHasFeature(
 ): Promise<boolean> {
   if (!identity.isSudo) return ownFeatures.includes(key);
   return (await membersWithFeature(createServiceRoleClient(), key, [identity.memberId])).has(identity.memberId);
+}
+
+/**
+ * Whether `key` is switched on for everyone (the global switch only, not segments or previews), for
+ * what a signed-out visitor may see: nothing public may depend on a flag that only some members have.
+ * Pass a service-role client.
+ */
+export async function isFeatureOnForEveryone(supabase: any, key: FeatureKey): Promise<boolean> {
+  try {
+    return await createRepos(supabase).featureFlags.isGloballyEnabled(key);
+  } catch (error) {
+    throw new Error(`feature_flags read failed: ${error instanceof Error ? error.message : error}`);
+  }
 }

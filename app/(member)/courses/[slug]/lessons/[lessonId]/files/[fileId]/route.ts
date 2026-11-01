@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCoursesCaller } from "@/lib/courses/caller";
 import { loadLessonView } from "@/lib/courses/member";
 import { COURSE_FILES_BUCKET } from "@/lib/courses/files";
+import { createRepos } from "@/lib/data/repos";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { isUuid } from "@/lib/chat/format";
+import { isId } from "@/lib/ids";
 
 /** How long the link a member is sent to stays valid: long enough to start the download. */
 const SIGNED_URL_SECONDS = 60;
@@ -16,7 +17,7 @@ const SIGNED_URL_SECONDS = 60;
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string; lessonId: string; fileId: string }> }) {
   const { slug, lessonId, fileId } = await params;
-  if (!isUuid(lessonId) || !isUuid(fileId)) return new NextResponse("Not found", { status: 404 });
+  if (!isId(lessonId, "les") || !isId(fileId, "file")) return new NextResponse("Not found", { status: 404 });
 
   const caller = await getCoursesCaller();
   if (!caller) return new NextResponse("Not found", { status: 404 });
@@ -25,7 +26,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const lesson = await loadLessonView(supabase, slug, lessonId, caller.scope);
   if (lesson.kind !== "ok") return new NextResponse("Not found", { status: 404 });
 
-  const { data: file } = await supabase.from("course_lesson_files").select("filename, storage_path").eq("id", fileId).eq("lesson_id", lessonId).maybeSingle();
+  const file = await createRepos(supabase).courses.lessonFile(lessonId, fileId);
   if (!file) return new NextResponse("Not found", { status: 404 });
 
   const { data, error } = await supabase.storage.from(COURSE_FILES_BUCKET).createSignedUrl(file.storage_path, SIGNED_URL_SECONDS, { download: file.filename });

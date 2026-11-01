@@ -1,5 +1,7 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -35,6 +37,7 @@ export default function MemberAttendanceView({
   memberBasePath = "/admin/members",
   prickleBasePath = "/prickles",
 }: MemberAttendanceViewProps) {
+  const withSecondary = useWithSecondaryTime();
   const router = useRouter();
 
   const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export default function MemberAttendanceView({
         case "duration":
           return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
         case "host":
-          return record.prickles?.host?.name?.toLowerCase() ?? null;
+          return record.prickles?.host ? getMemberDisplayName(record.prickles.host).toLowerCase() : null;
       }
     },
     [timezone]
@@ -261,7 +264,7 @@ export default function MemberAttendanceView({
                           {formatDate(joinTime)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                          {formatTime(joinTime)} - {formatTime(leaveTime)}
+                          {withSecondary(`${formatTime(joinTime)} - ${formatTime(leaveTime)}`, joinTime, timezone)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {durationMinutes} min
@@ -273,7 +276,7 @@ export default function MemberAttendanceView({
                               className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {prickle.host.name}
+                              {getMemberDisplayName(prickle.host)}
                             </Link>
                           ) : (
                             "None"
@@ -360,7 +363,7 @@ export default function MemberAttendanceView({
                                 </div>
                               ))}
                               {attendance.length > 3 && (
-                                <div className="text-xs text-slate-500 dark:text-slate-400 px-1.5">
+                                <div className="text-xs text-slate-600 dark:text-slate-400 px-1.5">
                                   +{attendance.length - 3} more
                                 </div>
                               )}
@@ -402,17 +405,17 @@ export default function MemberAttendanceView({
                                 {prickle.prickle_types?.name || "Unknown"}
                               </div>
                               <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                                {formatTime(joinTime)} - {formatTime(leaveTime)} ({durationMinutes} min)
+                                {withSecondary(`${formatTime(joinTime)} - ${formatTime(leaveTime)}`, joinTime, timezone)} ({durationMinutes} min)
                               </div>
                               {prickle.host && (
-                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                                   Host:{" "}
                                   <Link data-track="attendance-list-open-host"
                                     href={`${memberBasePath}/${prickle.host.id}`}
                                     className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    {prickle.host.name}
+                                    {getMemberDisplayName(prickle.host)}
                                   </Link>
                                 </div>
                               )}
@@ -427,7 +430,7 @@ export default function MemberAttendanceView({
 
               {selectedDay && selectedDayAttendance.length === 0 && (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                  <p className="text-center text-slate-500 dark:text-slate-400">
+                  <p className="text-center text-slate-600 dark:text-slate-400">
                     No attendance recorded for {formatDate(selectedDay)}
                   </p>
                 </div>
@@ -436,7 +439,7 @@ export default function MemberAttendanceView({
           )}
         </div>
       ) : (
-        <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+        <div className="p-12 text-center text-slate-600 dark:text-slate-400">
           No attendance records for this member
         </div>
       )}

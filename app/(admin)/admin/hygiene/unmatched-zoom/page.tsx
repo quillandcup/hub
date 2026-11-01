@@ -1,7 +1,9 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import AliasSearchForm from "./AliasSearchForm";
 import { computeUnmatchedZoomNames } from "@/lib/unmatched-zoom-names";
+import { loadIgnoredAppearances } from "@/lib/ignored-zoom-appearances";
 import { requireAdminPage } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
@@ -14,43 +16,27 @@ export default async function AliasSearchPage() {
 
   // Get members, aliases, ignored names, and staff in parallel; paginate zoom_attendees separately
   const [
-    { data: allMembers },
-    { data: aliases },
-    { data: ignoredNames },
-    { data: staffMembers },
+    allMembers,
+    aliases,
+    ignoredNames,
+    staffMembers,
   ] = await Promise.all([
-    supabase.from("members").select("id, name, email").order("name"),
-    supabase.from("member_name_aliases").select("alias, member_id, source"),
-    supabase.from("ignored_zoom_names").select("zoom_name"),
-    supabase.from("staff").select("name, email"),
+    createRepos(supabase).members.identities(),
+    createRepos(supabase).aliases.nameAliases(),
+    createRepos(supabase).zoom.ignoredNames(),
+    createRepos(supabase).staff.all(),
   ]);
 
-  // Paginate zoom_attendees — table exceeds 1000 rows
-  const allZoomNames: { name: string; email: string | null; meeting_uuid: string }[] = [];
-  {
-    const BATCH = 1000;
-    let offset = 0, hasMore = true;
-    while (hasMore) {
-      const { data: batch } = await supabase
-        .schema('bronze').from("zoom_attendees")
-        .select("name, email, meeting_uuid")
-        .range(offset, offset + BATCH - 1);
-      if (batch && batch.length > 0) {
-        allZoomNames.push(...batch);
-        offset += batch.length;
-        hasMore = batch.length === BATCH;
-      } else {
-        hasMore = false;
-      }
-    }
-  }
+  // The repository pages through zoom_attendees (the table exceeds 1000 rows)
+  const allZoomNames = await createRepos(supabase).zoom.attendeesForMatching();
 
   const unmatchedZoomAttendees = computeUnmatchedZoomNames(
     allZoomNames || [],
     allMembers || [],
     aliases || [],
-    (ignoredNames || []).map((i) => i.zoom_name),
-    staffMembers || []
+    ignoredNames,
+    staffMembers,
+    await loadIgnoredAppearances(supabase)
   ).sort((a, b) => b.appearances - a.appearances);
 
   return (
@@ -61,7 +47,7 @@ export default async function AliasSearchPage() {
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
           Create aliases to match Zoom names to members using search
         </p>
-        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+        <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
           Showing all unmatched Zoom names from your data.
           Check for trailing spaces, typos, or unusual characters.
         </p>

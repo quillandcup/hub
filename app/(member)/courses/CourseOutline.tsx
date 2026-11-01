@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { formatDuration, unreleasedLabel, type Outline, type OutlineLesson, type OutlineNode } from "@/lib/courses/outline";
 
 interface Props {
@@ -17,10 +17,10 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
   const duration = formatDuration(lesson.duration_seconds);
   // Not released yet: "Coming soon", or (only staff ever get these) a Kajabi draft.
   const comingSoon = lesson.state !== "open";
-  const thumbnail = safeUrl(lesson.thumbnail_url);
+  const thumbnail = courseImageUrl(lesson.thumbnail_url);
   const content = (
     <>
-      <span aria-hidden="true" className="aspect-video w-24 shrink-0 overflow-hidden rounded bg-plum-50 sm:w-32 dark:bg-slate-800">
+      <span aria-hidden="true" className="aspect-video w-24 shrink-0 overflow-hidden rounded bg-plum-50 @pair:w-32 dark:bg-slate-800">
         {thumbnail && (
           // Decorative (the title is beside it); a plain img so any Kajabi image host works.
           // eslint-disable-next-line @next/next/no-img-element
@@ -30,11 +30,11 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
       <span className="min-w-0 flex-1">
         <span className={`block text-sm ${current ? "font-semibold" : "font-medium"}`}>{lesson.title}</span>
         {completed && <span className="sr-only"> (completed)</span>}
-        {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-500 dark:text-slate-400">{lesson.excerpt}</span>}
+        {lesson.excerpt && <span className="mt-0.5 line-clamp-2 block text-xs text-slate-600 dark:text-slate-400">{lesson.excerpt}</span>}
         {comingSoon ? (
-          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
+          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(lesson.state)}</span>
         ) : (
-          duration && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{duration}</span>
+          duration && <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{duration}</span>
         )}
       </span>
       <span
@@ -49,7 +49,7 @@ function LessonRow({ slug, lesson, completed, canOpen, current, previewComingSoo
   );
   const base = "flex items-center gap-3 rounded-lg p-2";
   if ((comingSoon && !previewComingSoon) || !canOpen) {
-    return <li className={`${base} text-slate-500 dark:text-slate-400`}>{content}</li>;
+    return <li className={`${base} text-slate-600 dark:text-slate-400`}>{content}</li>;
   }
   return (
     <li>
@@ -73,7 +73,7 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
       <Heading className={`flex items-center gap-2 ${depth === 0 ? "text-lg font-semibold" : "text-base font-semibold"}`}>
         {node.module.title}
         {comingSoon && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(node.module.state)}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-400">{unreleasedLabel(node.module.state)}</span>
         )}
       </Heading>
       <ul className="mt-2 space-y-1">
@@ -105,7 +105,7 @@ function ModuleNode({ node, depth, ...rest }: { node: OutlineNode; depth: number
 /** A course's modules, weeks and lessons: checkmarks, durations, and "Coming soon" for unreleased ones. */
 export default function CourseOutline({ slug, outline, completed, canOpen, currentLessonId, previewComingSoon }: Props) {
   return (
-    <nav aria-label="Course outline" className="space-y-4">
+    <nav aria-label="Course outline" className="@container space-y-4">
       {outline.loose.length > 0 && (
         <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           {outline.loose.map((lesson) => (

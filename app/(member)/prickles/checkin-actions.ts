@@ -5,9 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
-import { checkinFromRow, validateCheckin, writeCheckin, type CheckinInput } from "@/lib/prickle-checkins";
+import {
+  EMPTY_CHECKIN,
+  validateCheckin,
+  withHalf,
+  type CheckinInput,
+} from "@/lib/prickle-checkins";
 import { resolveAnsweredCheckinNotifications } from "@/lib/prickle-checkin-dms";
-import { formatPrickleTitle } from "@/lib/formatters";
+import { prickleTitle as nameOfPrickle } from "@/lib/domain/prickle";
+import { createRepos } from "@/lib/data/repos";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { localDateOf } from "@/lib/prickle-writing";
@@ -28,17 +34,14 @@ export async function getMyCheckin(prickleId: string): Promise<CheckinInput | nu
   if (!identity) return null;
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_checkins")
-    .select("feelings_before, need, session_rating, feelings_after")
-    .eq("member_id", identity.memberId)
-    .eq("prickle_id", prickleId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  return data ? checkinFromRow(data) : null;
+  // A failed read shows as no check-in, like before; the page still renders.
+  return createRepos(supabase)
+    .prickleActivity.checkinOf(identity.memberId, prickleId)
+    .catch((error) => {
+      console.error("[prickle-checkins] Loading check-in failed", { prickleId, error });
+      return null;
+    });
 }
-
-const CHECKINS_BATCH = 1000;
 
 /** Every check-in the effective member has saved, by prickle id (paginated: it grows with every prickle). */
 export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
@@ -48,18 +51,13 @@ export async function getMyCheckins(): Promise<Record<string, CheckinInput>> {
   if (!identity) return {};
 
   const supabase = await createClient();
-  const result: Record<string, CheckinInput> = {};
-  for (let offset = 0; ; offset += CHECKINS_BATCH) {
-    const { data } = await supabase
-      .from("prickle_checkins")
-      .select("id, prickle_id, feelings_before, need, session_rating, feelings_after")
-      .eq("member_id", identity.memberId)
-      .is("deleted_at", null)
-      .order("id")
-      .range(offset, offset + CHECKINS_BATCH - 1);
-    for (const row of data ?? []) result[row.prickle_id] = checkinFromRow(row);
-    if ((data?.length ?? 0) < CHECKINS_BATCH) return result;
-  }
+  const checkins = await createRepos(supabase)
+    .prickleActivity.checkinsOf(identity.memberId)
+    .catch((error) => {
+      console.error("[prickle-checkins] Loading check-ins failed", error);
+      return new Map<string, CheckinInput>();
+    });
+  return Object.fromEntries(checkins);
 }
 
 /** One project the check-out asks "how much did you get done?" about. */
@@ -102,51 +100,30 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
 
   const supabase = await createClient();
   const memberId = identity.memberId;
-  const [prickleResult, checkin, projectsResult, goalsResult, recentResult, loggedResult, tzPref] = await Promise.all([
-    supabase
-      .from("prickles")
-      .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
-      .eq("id", prickleId)
-      .maybeSingle(),
+  const repos = createRepos(supabase);
+  const [prickle, checkin, projectRows, goalRows, recentRows, loggedRows, tzPref] = await Promise.all([
+    repos.prickles.byId(prickleId),
     getMyCheckin(prickleId),
-    supabase
-      .from("writing_projects")
-      .select("id, title")
-      .eq("member_id", memberId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
-    supabase.from("writing_goals").select("project_id, measure").eq("member_id", memberId).is("archived_at", null),
-    supabase
-      .from("writing_progress_entries")
-      .select("project_id, measure")
-      .eq("member_id", memberId)
-      .order("created_at", { ascending: false })
-      .limit(RECENT_ENTRIES),
-    supabase
-      .from("writing_progress_entries")
-      .select("project_id, measure, mode, amount")
-      .eq("member_id", memberId)
-      .eq("prickle_id", prickleId)
-      .order("created_at", { ascending: true }),
+    repos.writing.activeProjects(memberId),
+    repos.writing.activeGoalMeasures(memberId),
+    repos.writing.recentEntryMeasures(memberId, RECENT_ENTRIES),
+    repos.writing.entriesForPrickle(memberId, prickleId),
     getUserTimezonePreference(),
   ]);
-  const prickle = prickleResult.data;
   if (!prickle) return null;
 
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
-  const prickleTitle = formatPrickleTitle(prickle as Parameters<typeof formatPrickleTitle>[0]);
+  const prickleTitle = nameOfPrickle(prickle);
   const byProject = <T extends { project_id: string }>(rows: T[] | null) => {
     const map = new Map<string, T[]>();
     for (const row of rows ?? []) map.set(row.project_id, [...(map.get(row.project_id) ?? []), row]);
     return map;
   };
-  const goals = byProject(goalsResult.data as { project_id: string; measure: WritingMeasure }[] | null);
-  const recent = byProject(recentResult.data as { project_id: string; measure: WritingMeasure }[] | null);
-  const logged = byProject(
-    loggedResult.data as { project_id: string; measure: WritingMeasure; mode: "delta" | "set_total"; amount: number }[] | null
-  );
+  const goals = byProject(goalRows.filter((g) => g.project_id !== null) as { project_id: string; measure: WritingMeasure }[]);
+  const recent = byProject(recentRows as { project_id: string; measure: WritingMeasure }[]);
+  const logged = byProject(loggedRows as { project_id: string; measure: WritingMeasure; mode: "delta" | "set_total"; amount: number }[]);
 
-  const projects = (projectsResult.data ?? []).map((p) => {
+  const projects = projectRows.map((p) => {
     const measure = progressMeasureFor(
       (goals.get(p.id) ?? []).map((g) => g.measure),
       (recent.get(p.id) ?? []).map((e) => e.measure)
@@ -162,11 +139,11 @@ export async function getCheckModalData(prickleId: string): Promise<CheckModalDa
 
   return {
     prickleTitle,
-    entryDate: localDateOf(prickle.start_time, timeZone),
-    hasStarted: new Date(prickle.start_time).getTime() <= Date.now(),
+    entryDate: localDateOf(prickle.startTime, timeZone),
+    hasStarted: new Date(prickle.startTime).getTime() <= Date.now(),
     checkin,
     canEdit: !identity.isSudo,
-    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.start_time),
+    join: joinAt(await loadPrickleJoinSettings(supabase), prickle.startTime),
     projects,
   };
 }
@@ -187,7 +164,7 @@ export async function getCheckinForLogging(
 
 /**
  * Save (or, when every answer is cleared, soft-delete) the signed-in member's check-in for a prickle.
- * Refused in sudo: a check-in is the member's own feelings, so nobody records them on someone's
+ * Refused in sudo: a check-in is the member's own answers, so nobody records them on someone's
  * behalf (RLS also keeps writes owner-only, resolving the member from the session).
  */
 async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<SaveCheckinResult> {
@@ -202,7 +179,9 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
   if (validationError) return { error: validationError };
 
   const supabase = await createClient();
-  const error = await writeCheckin(supabase, identity.memberId, prickleId, input);
+  const error = await createRepos(supabase)
+    .prickleActivity.saveCheckin(identity.memberId, prickleId, input, "web")
+    .then(() => null, (e: unknown) => e);
   if (error) {
     console.error("[prickle-checkins] Saving check-in failed", { member: identity.memberId, prickleId, error });
     return { error: "Couldn't save your check-in — please try again." };
@@ -217,8 +196,8 @@ async function saveCheckinImpl(prickleId: string, input: CheckinInput): Promise<
 export type CheckinHalf = "checkin" | "checkout";
 
 /**
- * Saves one half of the check-in (check-in: feelings coming in + need; check-out: rating + feelings
- * after), merged into what's saved now so the other half, answered meanwhile in Slack or another
+ * Saves one half of the check-in (check-in: mood, feeling and intention; check-out: got what they
+ * came for, mood and feeling), merged into what's saved now so the other half, answered meanwhile in Slack or another
  * tab, isn't overwritten.
  */
 async function saveCheckinHalfImpl(
@@ -227,17 +206,8 @@ async function saveCheckinHalfImpl(
   answers: Partial<CheckinInput>
 ): Promise<SaveCheckinResult> {
   if (half !== "checkin" && half !== "checkout") return { error: "Invalid check-in" };
-  const latest = (await getMyCheckin(prickleId)) ?? {
-    feelingsBefore: [],
-    need: null,
-    sessionRating: null,
-    feelingsAfter: [],
-  };
-  const merged: CheckinInput =
-    half === "checkin"
-      ? { ...latest, feelingsBefore: answers.feelingsBefore ?? [], need: answers.need ?? null }
-      : { ...latest, sessionRating: answers.sessionRating ?? null, feelingsAfter: answers.feelingsAfter ?? [] };
-  return saveCheckinImpl(prickleId, merged);
+  const latest = (await getMyCheckin(prickleId)) ?? EMPTY_CHECKIN;
+  return saveCheckinImpl(prickleId, withHalf(latest, half, answers ?? {}));
 }
 
 /** The check-in/out modal lives on My Prickles' history tab; the prickle page shows a summary. */

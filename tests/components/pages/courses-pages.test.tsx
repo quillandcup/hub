@@ -24,7 +24,7 @@ vi.mock("@/lib/courses/member", async (importOriginal) => ({
 
 const signPlaybackTokens = vi.fn();
 vi.mock("@/lib/mux", () => ({ createMuxClient: () => ({}), signPlaybackTokens: (...a: unknown[]) => signPlaybackTokens(...a) }));
-vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
+vi.mock("@/components/courses/LessonPlayer", () => ({
   default: ({ playbackId, posterUrl, lessonId, resumeSeconds, trackProgress }: { playbackId: string; posterUrl?: string | null; lessonId?: string; resumeSeconds?: number; trackProgress?: boolean }) => (
     <div data-testid="player" data-poster={posterUrl ?? ""} data-lesson={lessonId} data-resume={resumeSeconds} data-tracking={String(trackProgress)}>
       {playbackId}
@@ -33,15 +33,15 @@ vi.mock("@/app/(member)/courses/LessonPlayer", () => ({
 }));
 vi.mock("@/app/(member)/courses/actions", () => ({ setLessonComplete: vi.fn(async () => ({})), clearMyLessonProgress: vi.fn(async () => ({})) }));
 
-import LessonPlayerMock from "@/app/(member)/courses/LessonPlayer";
+import LessonPlayerMock from "@/components/courses/LessonPlayer";
 import CoursesPage from "@/app/(member)/courses/page";
 import CoursePage, { generateMetadata as generateCourseMetadata } from "@/app/(member)/courses/[slug]/page";
 import ModulePage, { generateMetadata as generateModuleMetadata } from "@/app/(member)/courses/[slug]/modules/[moduleId]/page";
 import LessonPage, { generateMetadata as generateLessonMetadata } from "@/app/(member)/courses/[slug]/lessons/[lessonId]/page";
 
-const LESSON_A = "11111111-1111-4111-8111-111111111111";
-const LESSON_B = "22222222-2222-4222-8222-222222222222";
-const LESSON_SOON = "33333333-3333-4333-8333-333333333333";
+const LESSON_A = "les_AAAAAAAAAAA1";
+const LESSON_B = "les_AAAAAAAAAAA2";
+const LESSON_SOON = "les_AAAAAAAAAAA3";
 
 const mod: OutlineModule = { id: "mod", parent_id: null, title: "Month 1", position: 1, state: "open" };
 const lesson = (id: string, title: string, position: number, state: "open" | "coming_soon" | "hidden" = "open"): OutlineLesson => ({
@@ -93,6 +93,31 @@ describe("/courses", () => {
     expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_A}`);
     expect(screen.getByText("Access ended January 15, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View progress" })).toHaveAttribute("href", "/courses/old");
+  });
+});
+
+describe("a draft course, previewed by staff", () => {
+  const params = () => ({ params: Promise.resolve({ slug: "the-ready-writer" }) });
+  it("is marked as a draft in the list and on its own page, and a published one is not", async () => {
+    loadCourseList.mockResolvedValue([
+      { course: { ...course, is_draft: true }, access: { kind: "admin" }, progress: courseProgress(outline, new Set()) },
+      { course: { ...course, id: "c2", slug: "live", title: "Live Course", is_draft: false }, access: { kind: "admin" }, progress: courseProgress(outline, new Set()) },
+    ]);
+    await renderServerPage(CoursesPage, {});
+    expect(screen.getAllByText("Draft: only staff see this")).toHaveLength(1);
+
+    const completed = new Set<string>();
+    const view = (isDraft: boolean) => ({ course: { ...course, is_draft: isDraft }, access: { kind: "admin" }, outline, completed, progress: courseProgress(outline, completed) });
+    loadCourseView.mockResolvedValue(view(true));
+    await renderServerPage(CoursePage, params());
+    expect(screen.getByText(/This course is a draft: only staff can see it/)).toBeInTheDocument();
+  });
+
+  it("has no draft banner once published", async () => {
+    const completed = new Set<string>();
+    loadCourseView.mockResolvedValue({ course: { ...course, is_draft: false }, access: { kind: "admin" }, outline, completed, progress: courseProgress(outline, completed) });
+    await renderServerPage(CoursePage, params());
+    expect(screen.queryByText(/This course is a draft/)).not.toBeInTheDocument();
   });
 });
 
@@ -161,6 +186,23 @@ describe("/courses/[slug]", () => {
     expect(within(nav).queryByRole("link", { name: /Revision/ })).not.toBeInTheDocument();
     expect(within(nav).getByText("Coming soon")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}`);
+  });
+
+  it("puts the course's hero banner behind the title under a dark overlay, and keeps the plain band without one", async () => {
+    const completed = new Set<string>();
+    const view = (hero: string | null) => ({ course: { ...course, hero_url: hero }, access: { kind: "open", endsAt: null }, outline, completed, progress: courseProgress(outline, completed) });
+
+    loadCourseView.mockResolvedValue(view("/api/courses/image/hero/crs_AAAAAAAAAAA1"));
+    const { container } = await renderServerPage(CoursePage, params());
+    const banner = container.querySelector("header img");
+    expect(banner).toHaveAttribute("src", "/api/courses/image/hero/crs_AAAAAAAAAAA1");
+    expect(banner).toHaveAttribute("alt", "");
+    expect(container.querySelector("header [class*='bg-black']")).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: course.title })).toBeInTheDocument();
+
+    loadCourseView.mockResolvedValue(view("javascript:alert(1)"));
+    const plain = await renderServerPage(CoursePage, params());
+    expect(plain.container.querySelector("header img")).toBeNull();
   });
 
   it("opens the coming-soon lessons in the outline for staff", async () => {
@@ -280,10 +322,13 @@ describe("/courses/[slug]/modules/[moduleId] drafts", () => {
     loadCourseView.mockResolvedValue({ course, access: { kind: "admin" }, outline: drafted, completed: new Set(), progress: courseProgress(drafted, new Set()) });
     await renderServerPage(ModulePage, params());
 
-    expect(screen.getByRole("status")).toHaveTextContent("Draft: this module is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this module is a draft, so members can't see it at all.");
     expect(screen.getByRole("link", { name: "Secret plot twist" })).toBeInTheDocument();
   });
 });
+
+/** The section list beside the video (or standing in for it); the one in the closed "Lessons in this section" panel is a second copy. */
+const sectionList = () => screen.getAllByRole("navigation", { name: "Lessons in this section" }).find((nav) => !nav.closest("details"))!;
 
 describe("/courses/[slug]/lessons/[lessonId]", () => {
   const params = (lessonId = LESSON_B) => ({ params: Promise.resolve({ slug: "the-ready-writer", lessonId }) });
@@ -399,7 +444,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).toHaveClass("@outline:hidden");
       // Still in the page for smaller screens, where the list is hidden and they're the way to move around.
       expect(screen.getByRole("link", { name: "Back: Welcome" })).toBeInTheDocument();
     });
@@ -409,14 +454,14 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo({ view: { course, access: { kind: "open", endsAt: null }, outline: looseOutline, completed: new Set(), progress: courseProgress(looseOutline, new Set()) } });
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@outline:hidden");
     });
 
     it("keeps Back and Next when the lesson has no video (the list isn't beside a player then)", async () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("lg:hidden");
+      expect(screen.getByRole("link", { name: "Back: Welcome" }).parentElement).not.toHaveClass("@outline:hidden");
     });
 
     it("puts Mark complete below the Back / Next row", async () => {
@@ -449,17 +494,34 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       const aside = section.closest("aside")!;
-      expect(aside).toHaveClass("relative", "hidden", "lg:block");
+      expect(aside).toHaveClass("relative", "hidden", "@outline:block");
       expect(aside.parentElement).toContainElement(screen.getByTestId("player")); // the player and the list share one container
+    });
+
+    it("repeats the list in a closed panel under the video, which goes away once the list sits beside it", async () => {
+      withVideo();
+      await renderServerPage(LessonPage, params());
+
+      const details = screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")!;
+      expect(details).not.toHaveAttribute("open");
+      expect(details).toHaveClass("@outline:hidden");
+      expect(within(details).getByRole("navigation", { name: "Lessons in this section" })).toBeInTheDocument();
+    });
+
+    it("has the closed panel for a lesson with no video too", async () => {
+      loadLessonView.mockResolvedValue(ok({ video: null }));
+      await renderServerPage(LessonPage, params());
+
+      expect(screen.getByText("Lessons in this section", { selector: "summary span" }).closest("details")).toHaveClass("@outline:hidden");
     });
 
     it("lists the module's lessons with number, check or marker, aligned thumbnail and title, and nothing from other modules", async () => {
       withVideo();
       const { container } = await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByRole("heading", { name: "Month 1" })).toBeInTheDocument();
       expect(within(section).getByText("3 Lessons")).toBeInTheDocument();
       expect(within(section).getByRole("link", { name: /Welcome \(completed\)/ })).toBeInTheDocument();
@@ -471,7 +533,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       withVideo();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByText("Revision")).toBeInTheDocument();
       expect(within(section).queryByRole("link", { name: /Revision/ })).not.toBeInTheDocument();
       expect(within(section).queryByText(/Coming soon/)).not.toBeInTheDocument();
@@ -481,17 +543,17 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       loadLessonView.mockResolvedValue(ok());
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
-      expect(section.closest("div.hidden")).toHaveClass("lg:block");
+      const section = sectionList();
+      expect(section.closest("div.hidden")).toHaveClass("@outline:block");
     });
   });
 
   describe("Next Module and the next-lesson card", () => {
     const twoModules = buildOutline(
       [mod, { id: "mod2", parent_id: null, title: "Week 2", position: 2, state: "open" }],
-      [lesson(LESSON_A, "Welcome", 1), lesson(LESSON_B, "Voice", 2), { ...lesson("44444444-4444-4444-8444-444444444444", "Next week", 1), module_id: "mod2" }]
+      [lesson(LESSON_A, "Welcome", 1), lesson(LESSON_B, "Voice", 2), { ...lesson("les_AAAAAAAAAAA4", "Next week", 1), module_id: "mod2" }]
     );
-    const NEXT_WEEK = "44444444-4444-4444-8444-444444444444";
+    const NEXT_WEEK = "les_AAAAAAAAAAA4";
     const inTwoModules = (over: Record<string, unknown> = {}) => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       loadLessonView.mockResolvedValue(
@@ -507,7 +569,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       inTwoModules();
       await renderServerPage(LessonPage, params());
 
-      const section = screen.getByRole("navigation", { name: "Lessons in this section" });
+      const section = sectionList();
       expect(within(section).getByRole("link", { name: "Next Module" })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${NEXT_WEEK}`);
     });
 
@@ -553,7 +615,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     await renderServerPage(LessonPage, params());
 
     const card = screen.getByRole("region", { name: "Downloads" });
-    expect(card.parentElement).toHaveClass("lg:col-start-2", "lg:row-start-3");
+    expect(card.parentElement).toHaveClass("@outline:col-start-2", "@outline:row-start-3");
     expect(within(card).getByRole("link", { name: /Tracker_Sheet\.pdf/ })).toHaveAttribute("href", `/courses/the-ready-writer/lessons/${LESSON_B}/files/f1`);
     const text = screen.getByRole("heading", { level: 1, name: "Voice" });
     expect(Boolean(text.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true); // after the text in reading order
@@ -616,7 +678,20 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", "Progress isn't tracked for lessons members can't open yet");
     // Staff can open coming-soon lessons from the section list too.
-    expect(within(screen.getByRole("navigation", { name: "Lessons in this section" })).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
+    expect(within(sectionList()).getByRole("link", { name: /Revision/ })).toBeInTheDocument();
+  });
+
+  it("doesn't name Kajabi in a preview or draft banner (members and most staff don't know it)", async () => {
+    caller.scope.isAdminActing = true;
+    loadLessonView.mockResolvedValue(ok({ preview: true }));
+    const soon = await renderServerPage(LessonPage, params());
+    expect(screen.getByRole("status")).toHaveTextContent("until it's published.");
+    expect(soon.container.textContent).not.toMatch(/kajabi/i);
+    soon.unmount();
+
+    loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Voice", 2, "hidden"), body_html: "" } }));
+    const draft = await renderServerPage(LessonPage, params());
+    expect(draft.container.textContent).not.toMatch(/kajabi/i);
   });
 
   it("tells staff a draft lesson is a draft, not 'coming soon', and keeps its progress untracked", async () => {
@@ -624,7 +699,7 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
     loadLessonView.mockResolvedValue(ok({ preview: true, lesson: { ...lesson(LESSON_B, "Voice", 2, "hidden"), body_html: "<p>Draft text</p>" } }));
     await renderServerPage(LessonPage, params());
 
-    expect(screen.getByRole("status")).toHaveTextContent("Draft: this lesson is a draft in Kajabi, so members can't see it at all.");
+    expect(screen.getByRole("status")).toHaveTextContent("Draft: this lesson is a draft, so members can't see it at all.");
     expect(screen.getByRole("status")).not.toHaveTextContent("Coming soon");
     expect(screen.getByRole("button", { name: "Mark as complete" })).toBeDisabled();
     expect(screen.getByText("Draft text")).toBeInTheDocument();
@@ -641,6 +716,17 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       expect(screen.getByTestId("player")).toHaveAttribute("data-lesson", LESSON_B);
       expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "125");
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
+    });
+
+    it("starts at the second a shared link asks for (?t=), over the saved position, and ignores a bad one", async () => {
+      signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      loadLessonView.mockResolvedValue(withVideo());
+      await renderServerPage(LessonPage, { ...params(), searchParams: Promise.resolve({ t: "95" }) });
+      expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "95");
+      cleanup();
+
+      await renderServerPage(LessonPage, { ...params(), searchParams: Promise.resolve({ t: "soon" }) });
+      expect(screen.getByTestId("player")).toHaveAttribute("data-resume", "125");
     });
 
     it("keys the player by lesson, so moving between lessons gets a fresh player and tracker", async () => {
@@ -670,10 +756,9 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "true");
       expect(screen.getByRole("status")).toHaveTextContent("Your watching is recorded (completion isn't).");
-      expect(screen.getByRole("link", { name: "Stop recording my watching" })).toBeInTheDocument();
     });
 
-    it("keeps a preview off by default, with the toggle offered", async () => {
+    it("keeps a preview off by default", async () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
       caller.scope.isAdminActing = true;
       loadLessonView.mockResolvedValue(withVideo({ preview: true }));
@@ -681,7 +766,6 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
 
       expect(screen.getByTestId("player")).toHaveAttribute("data-tracking", "false");
       expect(screen.getByRole("status")).toHaveTextContent("Progress isn't tracked here.");
-      expect(screen.getByRole("link", { name: "Record my watching in this preview" })).toHaveAttribute("href", expect.stringContaining("?track=1"));
     });
 
     it("never records in sudo, even with ?track=1", async () => {
@@ -694,18 +778,12 @@ describe("/courses/[slug]/lessons/[lessonId]", () => {
       expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
     });
 
-    it("shows the staff tools only to staff acting as themselves, with clear but no toggle on an open lesson", async () => {
+    it("leaves the staff tools to the admin course page, even for staff acting as themselves", async () => {
       signPlaybackTokens.mockResolvedValue({ playback: "p", poster: "t", storyboard: "s" });
+      caller.scope.isAdminActing = true;
       loadLessonView.mockResolvedValue(withVideo());
       await renderServerPage(LessonPage, params());
       expect(screen.queryByLabelText("Staff tools")).not.toBeInTheDocument();
-      cleanup();
-
-      caller.scope.isAdminActing = true;
-      await renderServerPage(LessonPage, params());
-      expect(screen.getByLabelText("Staff tools")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Clear my progress for this lesson" })).toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /Record my watching/ })).not.toBeInTheDocument();
     });
 
     it("leaves tracking off in sudo and in a staff preview, which leave no viewing history", async () => {

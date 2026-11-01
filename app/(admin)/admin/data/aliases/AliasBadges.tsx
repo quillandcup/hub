@@ -37,7 +37,7 @@ export default function AliasBadges({ aliases }: { aliases: { id: string; alias:
             disabled={removingId === alias.id}
             aria-label={`Remove alias ${alias.alias}`}
             title="Remove alias"
-            className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+            className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
           >
             ×
           </button>

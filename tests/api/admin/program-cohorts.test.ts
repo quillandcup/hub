@@ -19,7 +19,7 @@ describe('Program Cohorts API', () => {
   beforeAll(async () => {
     const { data: member } = await supabase
       .from('members')
-      .insert({ name: 'Program Cohorts Test Member', email: testEmail, joined_at: '2023-01-01', status: 'lead' })
+      .insert({ name: 'Program Cohorts Test Member', display_name: 'Pat Example', email: testEmail, joined_at: '2023-01-01', status: 'lead' })
       .select('id')
       .single()
     memberId = member!.id
@@ -119,6 +119,14 @@ describe('Program Cohorts API', () => {
     expect(body.cohorts[0].member_program_enrollments[0].member.email).toBe(testEmail)
   })
 
+  it('GET /api/admin/programs/[id] shows an expired, non-active member by display name with the legal name beside it', async () => {
+    await supabase.from('program_cohorts').update({ starts_at: '2020-01-01', expires_at: '2020-07-01' }).eq('id', cohortId)
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${programId}`, { headers: getTestAuthHeaders() })
+    const body = await response.json()
+    const row = body.leakage.find((l: any) => l.member_id === memberId)
+    expect(row).toMatchObject({ member_name: 'Pat Example', member_real_name: 'Program Cohorts Test Member' })
+  })
+
   it('DELETE /api/admin/program-cohorts/[id] removes the cohort (and its enrollment)', async () => {
     const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${cohortId}`, {
       method: 'DELETE',
@@ -137,5 +145,39 @@ describe('Program Cohorts API', () => {
     })
     expect(response.ok).toBe(true)
     programId = ''
+  })
+
+  const missing = '00000000-0000-4000-8000-000000000000'
+
+  it('GET /api/admin/programs/[id] answers 404 for a program that does not exist', async () => {
+    const response = await apiFetch(`${baseUrl}/api/admin/programs/${missing}`, { headers: getTestAuthHeaders() })
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toBe('Program not found')
+  })
+
+  it('GET /api/admin/program-cohorts/[id]/kajabi-matches answers 404 for a cohort that does not exist', async () => {
+    const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${missing}/kajabi-matches`, { headers: getTestAuthHeaders() })
+    expect(response.status).toBe(404)
+    expect((await response.json()).error).toBe('Cohort not found')
+  })
+
+  it('lists the cohort of a program for Kajabi matching, without the members already in it', async () => {
+    const program = await (await apiFetch(`${baseUrl}/api/admin/programs`, {
+      method: 'POST',
+      headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `Matching Program ${ts}`, slug: `matching-program-${ts}`, kajabi_offer_names: [] }),
+    })).json()
+    try {
+      const cohort = await (await apiFetch(`${baseUrl}/api/admin/program-cohorts`, {
+        method: 'POST',
+        headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program_id: program.program.id, name: 'Matching Cohort', starts_at: '2030-01-01', expires_at: '2030-03-01' }),
+      })).json()
+      const response = await apiFetch(`${baseUrl}/api/admin/program-cohorts/${cohort.cohort.id}/kajabi-matches`, { headers: getTestAuthHeaders() })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ candidates: [], offerNamesConfigured: false })
+    } finally {
+      await supabase.from('programs').delete().eq('id', program.program.id)
+    }
   })
 })

@@ -1,10 +1,15 @@
 "use client";
 
 import EntitySearch from "@/components/EntitySearch";
+import { memberSearchItem } from "@/lib/member-search-item";
 
 interface Member {
   id: string;
   name: string;
+  /** The name the community knows them by; the list shows it first and still finds the legal name. */
+  displayName?: string | null;
+  /** Shown beside members who are not "active". */
+  status?: string;
   email: string;
 }
 
@@ -31,7 +36,7 @@ export default function MemberSearch({
 }: MemberSearchProps) {
   return (
     <EntitySearch
-      items={members.map((m) => ({ id: m.id, name: m.name, detail: m.email }))}
+      items={members.map(memberSearchItem)}
       selectedId={selectedMemberId}
       selectedName={selectedMemberName}
       onSelect={(item) => onSelect(item ? (members.find((m) => m.id === item.id) ?? null) : null)}

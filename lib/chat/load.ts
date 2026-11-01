@@ -1,10 +1,14 @@
+import type { StageTimer } from "@/lib/chat/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emojiNamesIn, mentionedChannelIds, mentionedUserIds } from "@/lib/chat/render";
-import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
+import { customEmojiFor, slackAuthorIdsByTs, slackChannelNames, slackUserHubNames, slackUserMemberIds, slackUserNames, slackUserPhotos } from "@/lib/chat/names";
 import type { CustomEmoji } from "@/lib/chat/emoji";
 import type { ChatTextContext } from "@/components/chat/ChatText";
 import { safeUrl } from "@/lib/url";
+import { parseChatFiles, type ChatFile } from "@/lib/chat/files";
 import { getAttendedPrickleCount, getMemberBadges, type EarnedBadge } from "@/lib/badges";
+import { createRepos } from "@/lib/data/repos";
+import type { ChannelRecord } from "@/lib/data/chat";
 
 /**
  * What the chat pages read. Everything goes through the caller's own Supabase client, so RLS
@@ -31,39 +35,32 @@ export interface ChannelSummary {
   slackChannelId: string | null;
 }
 
-interface ChannelRow {
-  id: string;
-  kind: ChannelSummary["kind"];
-  visibility: ChannelSummary["visibility"];
-  restricted: boolean;
-  name: string | null;
-  archived_at: string | null;
-  slack_channel_id: string | null;
-}
-
-const CHANNEL_COLUMNS = "id, kind, visibility, restricted, name, archived_at, slack_channel_id";
 
 export async function loadChatChannels(
   supabase: SupabaseClient,
   memberId: string,
-  isSudo: boolean
+  isSudo: boolean,
+  timer?: StageTimer
 ): Promise<ChannelSummary[]> {
-  const [{ data: memberships }, { data: channels }] = await Promise.all([
-    supabase.from("chat_channel_members").select("channel_id").eq("member_id", memberId).is("left_at", null),
-    supabase.from("chat_channels").select(CHANNEL_COLUMNS).order("name"),
+  const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
+  const chat = createRepos(supabase).chat;
+  // A failed read lists nothing, as it always has.
+  const [joined, channels] = await Promise.all([
+    t("memberships", chat.joinedChannelIds(memberId).catch(() => new Set<string>())),
+    t("channels", chat.listChannels().catch((): ChannelRecord[] => [])),
   ]);
-  const joined = new Set((memberships ?? []).map((m) => m.channel_id as string));
+  timer?.mark("stage1");
 
   // Direct messages and group DMs are hidden in sudo (like a member's private notes).
-  const visible = ((channels ?? []) as ChannelRow[]).filter(
+  const visible = channels.filter(
     (c) => (c.visibility === "public" || joined.has(c.id)) && !(isSudo && c.kind !== "channel")
   );
 
-  const dmLabels = await groupDmLabels(
-    supabase,
-    visible.filter((c) => c.kind !== "channel").map((c) => c.id),
-    memberId
-  );
+  const dmIds = visible.filter((c) => c.kind !== "channel").map((c) => c.id);
+  timer?.note("visible", visible.length);
+  timer?.note("dms", dmIds.length);
+  const dmLabels = await groupDmLabels(supabase, dmIds, memberId, timer);
+  timer?.mark("dmLabels");
 
   const summaries = visible.map(
     (c): ChannelSummary => ({
@@ -82,15 +79,13 @@ export async function loadChatChannels(
 }
 
 /** "Fern, Gale" for each group DM: the other people in it. */
-async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string) {
+async function groupDmLabels(supabase: SupabaseClient, channelIds: string[], memberId: string, timer?: StageTimer) {
   const labels = new Map<string, string>();
   if (channelIds.length === 0) return labels;
-  const { data: rows } = await supabase
-    .from("chat_channel_members")
-    .select("channel_id, member_id")
-    .in("channel_id", channelIds)
-    .is("left_at", null);
-  const others = (rows ?? []).filter((r) => r.member_id !== memberId);
+  const rows = await createRepos(supabase).chat.activeMembersOf(channelIds).catch(() => []);
+  timer?.mark("dmMembers");
+  const others = rows.filter((r) => r.member_id !== memberId);
+  timer?.note("dmPeople", others.length);
   const names = await memberProfiles(supabase, others.map((r) => r.member_id as string));
   for (const channelId of channelIds) {
     const list = others
@@ -116,10 +111,8 @@ export async function memberProfiles(
   memberIds: string[]
 ): Promise<Map<string, { name: string; photoUrl: string | null }>> {
   const profiles = new Map<string, { name: string; photoUrl: string | null }>();
-  const ids = [...new Set(memberIds)];
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase.from("member_directory").select("id, name, display_name, photo_url").in("id", ids.slice(i, i + 200));
-    for (const m of data ?? []) profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
+  for (const m of await createRepos(supabase).directory.byIds(memberIds)) {
+    profiles.set(m.id, { name: m.display_name || m.name, photoUrl: safeUrl(m.photo_url) });
   }
   return profiles;
 }
@@ -143,16 +136,12 @@ export interface MemberCard {
 
 /** One member's card from member_directory and their "Ask me about…" topics (both readable by any member). */
 export async function loadMemberCard(supabase: SupabaseClient, memberId: string): Promise<MemberCard | null> {
-  const [{ data: m }, { data: topics }] = await Promise.all([
-    supabase
-      .from("member_directory")
-      .select("id, name, display_name, photo_url, bio, first_joined_at, total_active_months, instagram_url, facebook_url, twitter_url")
-      .eq("id", memberId)
-      .maybeSingle(),
-    supabase.from("member_ask_me_about").select("topics").eq("member_id", memberId).maybeSingle(),
+  const [m, topics] = await Promise.all([
+    createRepos(supabase).directory.byId(memberId),
+    createRepos(supabase).memberProfile.askMeAbout(memberId),
   ]);
   if (!m) return null;
-  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(supabase, memberId), m.first_joined_at ?? null);
+  const badges = await getMemberBadges(supabase, memberId, await getAttendedPrickleCount(createRepos(supabase).attendance, memberId), m.first_joined_at ?? null);
   return {
     id: m.id,
     name: m.display_name || m.name,
@@ -160,7 +149,7 @@ export async function loadMemberCard(supabase: SupabaseClient, memberId: string)
     bio: m.bio || null,
     firstJoinedAt: m.first_joined_at ?? null,
     totalActiveMonths: m.total_active_months ?? 0,
-    askMeAbout: topics?.topics ?? [],
+    askMeAbout: topics,
     instagramUrl: safeUrl(m.instagram_url),
     facebookUrl: safeUrl(m.facebook_url),
     twitterUrl: safeUrl(m.twitter_url),
@@ -176,22 +165,8 @@ export interface ChannelPerson {
 
 /** Who is in a conversation now (matched members only, A to Z), under RLS. Paged past the 1000-row cap. */
 export async function loadChannelMembers(supabase: SupabaseClient, channelId: string): Promise<ChannelPerson[]> {
-  const memberIds: string[] = [];
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("chat_channel_members")
-      .select("member_id")
-      .eq("channel_id", channelId)
-      .is("left_at", null)
-      .order("member_id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    memberIds.push(...(batch ?? []).map((r) => r.member_id as string));
-    offset += batch?.length ?? 0;
-    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
-  }
+  // A failed read lists nobody, as it always has.
+  const memberIds = await createRepos(supabase).chat.activeMembersOf([channelId]).then((rows) => rows.map((r) => r.member_id)).catch(() => []);
   const profiles = await memberProfiles(supabase, memberIds);
   return memberIds
     .flatMap((memberId) => {
@@ -213,18 +188,13 @@ export async function loadChannelForMember(
   isSudo: boolean
 ): Promise<ChannelSummary | null> {
   // The channel and the member's place in it don't depend on each other, so read them together.
-  const [{ data: row }, { data: membership }] = await Promise.all([
-    supabase.from("chat_channels").select(CHANNEL_COLUMNS).eq("id", channelId).maybeSingle(),
-    supabase
-      .from("chat_channel_members")
-      .select("channel_id")
-      .eq("channel_id", channelId)
-      .eq("member_id", memberId)
-      .is("left_at", null)
-      .maybeSingle(),
+  // (A failed read of either is "not there", as it always has been.)
+  const chat = createRepos(supabase).chat;
+  const [channel, membership] = await Promise.all([
+    chat.channelRecord(channelId).catch(() => null),
+    chat.activeMembership(channelId, memberId).then((m) => m !== null).catch(() => false),
   ]);
-  if (!row) return null;
-  const channel = row as ChannelRow;
+  if (!channel) return null;
   if (isSudo && channel.kind !== "channel") return null;
   if (channel.visibility === "private" && !membership) return null;
 
@@ -253,13 +223,15 @@ export interface MessageRow {
   reply_count: number;
   last_reply_at: string | null;
   has_files: boolean;
+  /** The Slack subtype of a notice Slack posted itself (a channel rename, say); null for a message someone wrote. */
+  system_subtype?: string | null;
   /** The outbox state of a message written in the Hub; null for Slack-origin rows. */
   slack_sync_status?: "pending" | "sent" | "failed" | null;
-  chat_message_contents: { body: string } | { body: string }[] | null;
+  chat_message_contents: { body: string; files?: unknown } | { body: string; files?: unknown }[] | null;
 }
 
-const MESSAGE_COLUMNS =
-  "id, author_member_id, slack_ts, origin, created_at, edited_at, deleted_at, reply_count, last_reply_at, has_files, slack_sync_status, chat_message_contents(body)";
+/** The message reads here have always shown an empty list rather than an error page when the database fails: keep that. */
+export const ignoringErrors = <T,>(rows: Promise<T[]>): Promise<T[]> => rows.catch(() => []);
 
 export interface MessagePage {
   /** Oldest first. */
@@ -274,21 +246,12 @@ export async function loadMessages(
   channelId: string,
   opts: { before?: string | null; threadRootId?: string | null } = {}
 ): Promise<MessagePage> {
+  const { chat } = createRepos(supabase);
   if (opts.threadRootId) {
-    const { data } = await supabase
-      .from("chat_messages")
-      .select(MESSAGE_COLUMNS)
-      .eq("channel_id", channelId)
-      .eq("thread_root_id", opts.threadRootId)
-      .order("created_at", { ascending: true })
-      .limit(THREAD_LIMIT);
-    return { messages: (data ?? []) as MessageRow[], olderBefore: null };
+    return { messages: await ignoringErrors(chat.threadMessages(channelId, opts.threadRootId, THREAD_LIMIT)), olderBefore: null };
   }
 
-  let query = supabase.from("chat_messages").select(MESSAGE_COLUMNS).eq("channel_id", channelId).is("thread_root_id", null);
-  if (opts.before) query = query.lt("created_at", opts.before);
-  const { data } = await query.order("created_at", { ascending: false }).limit(MESSAGE_PAGE_SIZE + 1);
-  const rows = (data ?? []) as MessageRow[];
+  const rows = await ignoringErrors(chat.channelMessages(channelId, { before: opts.before, limit: MESSAGE_PAGE_SIZE + 1 }));
   const hasOlder = rows.length > MESSAGE_PAGE_SIZE;
   const page = rows.slice(0, MESSAGE_PAGE_SIZE).reverse();
   return { messages: page, olderBefore: hasOlder && page.length > 0 ? page[0].created_at : null };
@@ -300,30 +263,20 @@ export async function loadMessages(
  */
 export async function loadMessagesByIds(supabase: SupabaseClient, channelId: string, ids: string[]): Promise<MessageRow[]> {
   if (ids.length === 0) return [];
-  const { data } = await supabase
-    .from("chat_messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("channel_id", channelId)
-    .is("thread_root_id", null)
-    .in("id", ids);
-  return (data ?? []) as MessageRow[];
+  return ignoringErrors(createRepos(supabase).chat.topLevelMessagesByIds(channelId, ids));
 }
 
 /** One message by id (a thread's root), under RLS. */
 export async function loadMessage(supabase: SupabaseClient, channelId: string, messageId: string): Promise<MessageRow | null> {
-  const { data } = await supabase
-    .from("chat_messages")
-    .select(MESSAGE_COLUMNS)
-    .eq("channel_id", channelId)
-    .eq("id", messageId)
-    .maybeSingle();
-  return (data as MessageRow | null) ?? null;
+  return createRepos(supabase).chat.messageById(channelId, messageId).catch(() => null);
 }
 
 export interface ReactionSummary {
   emoji: string;
   count: number;
   mine: boolean;
+  /** Names of the other people who reacted (the viewer is `mine`, not listed); may be fewer than count - 1 for unnamed Slack people. */
+  reactors?: string[];
 }
 
 export type ContentState = "ok" | "deleted" | "hidden";
@@ -348,6 +301,8 @@ export interface ChatMessageView {
   /** "deleted" = removed in Slack (a tombstone); "hidden" = this viewer can't read it. */
   contentState: ContentState;
   hasFiles: boolean;
+  /** The files to show under the message (empty when it has none, or Slack never gave us any). */
+  files: ChatFile[];
   replyCount: number;
   lastReplyAt: string | null;
   reactions: ReactionSummary[];
@@ -357,6 +312,8 @@ export interface ChatMessageView {
   mine: boolean;
   /** Written in the Hub (not projected from Slack): the only kind its author can edit or delete from here. */
   fromHub: boolean;
+  /** A notice Slack posted itself ("… renamed the channel"): shown as a quiet line, not a post. */
+  system: boolean;
 }
 
 export interface ChatMessages {
@@ -365,6 +322,8 @@ export interface ChatMessages {
   userNames: Record<string, string>;
   /** Slack user id -> Hub member id for matched people, so mentions can link to a profile. */
   userMembers: Record<string, string>;
+  /** Slack user id -> Hub name, for the people named in notices (joins, leaves, renames). */
+  hubNames?: Record<string, string>;
   /** Slack channel id -> name for <#C123> links in the bodies (public channels). */
   channelNames: Record<string, string>;
   /** Custom emoji used in the bodies and reactions, by shortcode. */
@@ -376,6 +335,7 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
   return {
     userNames: rendered.userNames,
     userMembers: rendered.userMembers,
+    hubNames: rendered.hubNames,
     customEmoji: rendered.customEmoji,
     // Names of channels the member is in (private ones included) win over the public-name lookup.
     channelNames: {
@@ -386,10 +346,10 @@ export function chatTextContext(rendered: Omit<ChatMessages, "views">, channels:
   };
 }
 
-const bodyOf = (row: MessageRow): string | null => {
-  const c = Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
-  return c?.body ?? null;
-};
+const contentOf = (row: MessageRow) =>
+  Array.isArray(row.chat_message_contents) ? row.chat_message_contents[0] : row.chat_message_contents;
+
+const bodyOf = (row: MessageRow): string | null => contentOf(row)?.body ?? null;
 
 interface ReplyAuthor {
   memberId: string | null;
@@ -405,84 +365,104 @@ async function loadReplyAuthors(supabase: SupabaseClient, rootIds: string[]): Pr
   const out = new Map<string, ReplyAuthor[]>();
   if (rootIds.length === 0) return out;
   const seen = new Map<string, Set<string>>();
-  const BATCH_SIZE = 1000;
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("chat_messages")
-      .select("thread_root_id, author_member_id, slack_ts")
-      .in("thread_root_id", rootIds)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(offset, offset + BATCH_SIZE - 1);
-    for (const r of batch ?? []) {
-      const list = out.get(r.thread_root_id) ?? [];
-      const ids = seen.get(r.thread_root_id) ?? new Set<string>();
-      // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
-      const key = r.author_member_id ?? `ts:${r.slack_ts}`;
-      if (list.length < REPLY_CANDIDATES && !ids.has(key)) {
-        ids.add(key);
-        list.push({ memberId: r.author_member_id, slackTs: r.slack_ts });
-        out.set(r.thread_root_id, list);
-        seen.set(r.thread_root_id, ids);
-      }
+  for (const r of await ignoringErrors(createRepos(supabase).chat.replyAuthorRows(rootIds))) {
+    const list = out.get(r.thread_root_id) ?? [];
+    const ids = seen.get(r.thread_root_id) ?? new Set<string>();
+    // A Slack-only replier is keyed by message ts here; their user id is looked up afterwards.
+    const key = r.author_member_id ?? `ts:${r.slack_ts}`;
+    if (list.length < REPLY_CANDIDATES && !ids.has(key)) {
+      ids.add(key);
+      list.push({ memberId: r.author_member_id, slackTs: r.slack_ts });
+      out.set(r.thread_root_id, list);
+      seen.set(r.thread_root_id, ids);
     }
-    offset += batch?.length ?? 0;
-    hasMore = (batch?.length ?? 0) === BATCH_SIZE;
   }
   return out;
+}
+
+/** Every live reaction on these messages, all pages; a database error is an error, not an empty list (that would read as "everyone took theirs back"). */
+export function loadReactionRows(supabase: SupabaseClient, messageIds: string[]) {
+  return createRepos(supabase).chat.reactionRows(messageIds);
 }
 
 /** Messages with their authors' names, reactions and body state, ready to render. */
 export async function buildMessageViews(
   supabase: SupabaseClient,
   channel: Pick<ChannelSummary, "slackChannelId">,
-  rows: MessageRow[],
-  viewerMemberId: string
+  allRows: MessageRow[],
+  viewerMemberId: string,
+  timer?: StageTimer
 ): Promise<ChatMessages> {
-  if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, channelNames: {}, customEmoji: {} };
+  // A deleted message is not shown at all. Exception: a deleted thread root that still has
+  // live replies stays as a row with no content (the UI shows a tombstone), so its replies link
+  // keeps the thread reachable (reply_count only counts live replies).
+  const rows = allRows.filter((r) => !r.deleted_at || r.reply_count > 0);
+  if (rows.length === 0) return { views: [], userNames: {}, userMembers: {}, hubNames: {}, channelNames: {}, customEmoji: {} };
 
   const matched = rows.filter((r) => r.author_member_id).map((r) => r.author_member_id as string);
   const unmatched = rows.filter((r) => !r.author_member_id && r.slack_ts).map((r) => r.slack_ts as string);
   const threadRoots = rows.filter((r) => r.reply_count > 0).map((r) => r.id);
 
-  const [profiles, slackAuthorByTs, { data: reactionRows }, replies] = await Promise.all([
-    memberProfiles(supabase, matched),
-    channel.slackChannelId && unmatched.length > 0
-      ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
-      : Promise.resolve({} as Record<string, string>),
-    supabase
-      .from("chat_reactions")
-      .select("message_id, emoji, member_id")
-      .in("message_id", rows.map((r) => r.id))
-      .is("deleted_at", null),
-    loadReplyAuthors(supabase, threadRoots),
-  ]);
-
-  // Repliers with no matched member: who wrote them, by Slack ts.
-  const unmatchedReplyTs = [...replies.values()].flat().filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
-  const replySlackAuthors =
-    channel.slackChannelId && unmatchedReplyTs.length > 0
-      ? await slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs)
-      : ({} as Record<string, string>);
-  const replyProfiles = await memberProfiles(supabase, [...replies.values()].flat().flatMap((a) => (a.memberId ? [a.memberId] : [])));
-
-  // One batch for every Slack name and photo needed: unmatched authors and repliers plus people mentioned in the text.
+  // Lookups that need only the rows are started with the first batch: mention names, notices,
+  // channel links and the emoji used in the bodies. The batches below reuse them.
   const mentioned = rows.flatMap((r) => mentionedUserIds(bodyOf(r) ?? ""));
-  const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors)];
+  // People named in a notice (a join, a leave) are shown by their Hub name; elsewhere a mention reads as in Slack.
+  const mentionedInNotices = rows.flatMap((r) => (r.system_subtype ? mentionedUserIds(bodyOf(r) ?? "") : []));
+  const bodyEmojiNames = rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? ""));
+
+  const t = <T,>(name: string, work: PromiseLike<T>): PromiseLike<T> => (timer ? timer.time(name, work) : work);
+  timer?.note("rows", rows.length);
+  timer?.note("roots", threadRoots.length);
+  timer?.note("unmatched", unmatched.length);
+
+  const [profiles, slackAuthorByTs, reactionRows, replies, userMembers, hubNames, channelNames] = await Promise.all([
+    t("b1.profiles", memberProfiles(supabase, matched)),
+    t(
+      "b1.slackAuthors",
+      channel.slackChannelId && unmatched.length > 0
+        ? slackAuthorIdsByTs(channel.slackChannelId, unmatched)
+        : Promise.resolve({} as Record<string, string>)
+    ),
+    t("b1.reactions", loadReactionRows(supabase, rows.map((r) => r.id))),
+    t("b1.replyAuthors", loadReplyAuthors(supabase, threadRoots)),
+    t("b1.userMembers", slackUserMemberIds(mentioned)),
+    t("b1.hubNames", slackUserHubNames(mentionedInNotices)),
+    t("b1.channelNames", slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? "")))),
+  ]);
+  timer?.mark("views.batch1");
+
+  const replyList = [...replies.values()].flat();
+  const reactorMemberIds = [...new Set((reactionRows ?? []).flatMap((r) => (r.member_id && r.member_id !== viewerMemberId ? [r.member_id as string] : [])))];
+  const reactorSlackIds = [...new Set((reactionRows ?? []).flatMap((r) => (!r.member_id && r.slack_user_id ? [r.slack_user_id as string] : [])))];
   const emojiNames = [
-    ...rows.flatMap((r) => emojiNamesIn(bodyOf(r) ?? "")),
+    ...bodyEmojiNames,
     ...(reactionRows ?? []).map((r) => String(r.emoji).replace(/::skin-tone-\d$/, "").toLowerCase()),
   ];
-  const [userNames, userMembers, channelNames, slackPhotos, customEmoji] = await Promise.all([
-    slackUserNames([...slackIds, ...mentioned]),
-    slackUserMemberIds(mentioned),
-    slackChannelNames(rows.flatMap((r) => mentionedChannelIds(bodyOf(r) ?? ""))),
-    slackUserPhotos(slackIds),
-    customEmojiFor(emojiNames),
+  // Repliers with no matched member: who wrote them, by Slack ts.
+  const unmatchedReplyTs = replyList.filter((a) => !a.memberId && a.slackTs).map((a) => a.slackTs as string);
+
+  // Two independent chains run together: the repliers' and reactors' Hub profiles (one lookup), and
+  // the Slack side (replier authors by ts, then every Slack name, photo and emoji in one batch).
+  const [otherProfiles, slackSide] = await Promise.all([
+    t("b2.profiles", memberProfiles(supabase, [...replyList.flatMap((a) => (a.memberId ? [a.memberId] : [])), ...reactorMemberIds])),
+    (async () => {
+      const replySlackAuthors =
+        channel.slackChannelId && unmatchedReplyTs.length > 0
+          ? await t("b2.replySlackAuthors", slackAuthorIdsByTs(channel.slackChannelId, unmatchedReplyTs))
+          : ({} as Record<string, string>);
+      const slackIds = [...Object.values(slackAuthorByTs), ...Object.values(replySlackAuthors), ...reactorSlackIds];
+      const [userNames, slackPhotos, customEmoji] = await Promise.all([
+        t("b2.userNames", slackUserNames([...slackIds, ...mentioned])),
+        t("b2.photos", slackUserPhotos(slackIds)),
+        t("b2.emoji", customEmojiFor(emojiNames)),
+      ]);
+      return { replySlackAuthors, userNames, slackPhotos, customEmoji };
+    })(),
   ]);
+  const replyProfiles = otherProfiles;
+  const reactorProfiles = otherProfiles;
+  const { replySlackAuthors, userNames, slackPhotos, customEmoji } = slackSide;
+  timer?.mark("views.profilesAndNames");
 
   const slackPerson = (slackUserId: string | undefined): Person => ({
     name: (slackUserId ? userNames[slackUserId] : undefined) ?? (slackUserId?.startsWith("B") ? "Slack app" : "Someone on Slack"),
@@ -499,9 +479,13 @@ export async function buildMessageViews(
       counted.add(key);
     }
     const byEmoji = reactionsByMessage.get(r.message_id) ?? new Map<string, ReactionSummary>();
-    const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji as string, count: 0, mine: false };
+    const entry = byEmoji.get(r.emoji) ?? { emoji: r.emoji as string, count: 0, mine: false, reactors: [] };
     entry.count++;
     if (r.member_id === viewerMemberId) entry.mine = true;
+    else {
+      const name = r.member_id ? reactorProfiles.get(r.member_id)?.name : r.slack_user_id ? userNames[r.slack_user_id] : undefined;
+      if (name) entry.reactors?.push(name);
+    }
     byEmoji.set(r.emoji, entry);
     reactionsByMessage.set(r.message_id, byEmoji);
   }
@@ -532,13 +516,15 @@ export async function buildMessageViews(
       body: contentState === "ok" ? body : null,
       contentState,
       hasFiles: row.has_files,
+      files: contentState === "ok" ? parseChatFiles(contentOf(row)?.files) : [],
       replyCount: row.reply_count,
       lastReplyAt: row.last_reply_at,
       reactions: [...(reactionsByMessage.get(row.id)?.values() ?? [])].sort((a, b) => b.count - a.count),
       syncStatus: row.slack_sync_status === "pending" || row.slack_sync_status === "failed" ? row.slack_sync_status : null,
       mine: row.author_member_id === viewerMemberId,
       fromHub: row.origin === "app",
+      system: Boolean(row.system_subtype),
     };
   });
-  return { views, userNames, userMembers, channelNames, customEmoji };
+  return { views, userNames, userMembers, hubNames, channelNames, customEmoji };
 }

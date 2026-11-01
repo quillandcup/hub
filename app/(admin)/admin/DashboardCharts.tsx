@@ -26,7 +26,7 @@ function InfoTooltip({ text }: { text: string }) {
     <div className="relative inline-block ml-2">
       <button
         type="button"
-        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+        className="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
       >
@@ -59,7 +59,8 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div className="@container">
+      <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6 mb-8">
       {/* Weekly Total Attendance */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
         <div className="flex items-center mb-4">
@@ -136,6 +137,7 @@ export default function DashboardCharts({ weeklyAttendance, dailyHours }: Dashbo
           </AreaChart>
         </ResponsiveContainer>
       </div>
+    </div>
     </div>
   );
 }

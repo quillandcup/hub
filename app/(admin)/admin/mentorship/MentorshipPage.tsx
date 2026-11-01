@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
@@ -20,6 +21,7 @@ import EffectivenessPanel from "./EffectivenessPanel";
 import MatchesPanel from "./MatchesPanel";
 import VolunteersPanel from "./VolunteersPanel";
 import { MENTORSHIP_BASE_PATH, MENTORSHIP_TAB_LABELS, MENTORSHIP_TITLE, type MentorshipTab } from "./tabs";
+import { isId } from "@/lib/ids";
 
 /** Shared by the base page and each tab's route (lib/tab-routes.ts). Callers have already run
  * requireAdminPage(). Behind the `big_sisters` feature preview. */
@@ -38,8 +40,8 @@ export default async function MentorshipPage({
   const today = todayKey(new Date());
   const since = new Date(Date.parse(`${today}T00:00:00Z`) - MENTORSHIP_DAYS * 86_400_000).toISOString().slice(0, 10);
   const [rows, volunteers, arrivals] = await Promise.all([
-    getMentorships(supabase, today),
-    getVolunteers(supabase),
+    getMentorships(createRepos(supabase).mentorship, today),
+    getVolunteers(createRepos(supabase).mentorship),
     getArrivals(supabase, since, today),
   ]);
   const ranked = rankVolunteers(volunteers, rows);
@@ -49,10 +51,8 @@ export default async function MentorshipPage({
   const load = openLoadByMentor(rows);
 
   const prefillId = prefill?.newMemberId;
-  const { data: prefillMember } =
-    prefillId && /^[0-9a-f-]{36}$/i.test(prefillId)
-      ? await supabase.from("members").select("id, name, email").eq("id", prefillId).maybeSingle()
-      : { data: null };
+  const prefillMember =
+    prefillId && isId(prefillId, "mbr") ? await createRepos(supabase).members.byId(prefillId) : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">

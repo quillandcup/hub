@@ -69,7 +69,7 @@ export default function HostingCalendarPicker({ month, onPick, selectedSlot }: P
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
+        <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
           Click an open slot to fill in the fields below. Dashed blocks are other hedgies&apos; proposed or confirmed
           slots — times shown in Eastern.
         </p>
@@ -93,11 +93,11 @@ export default function HostingCalendarPicker({ month, onPick, selectedSlot }: P
       </div>
 
       {loading ? (
-        <div className="h-40 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-lg">
+        <div className="h-40 flex items-center justify-center text-sm text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-lg">
           Loading calendar…
         </div>
       ) : (
-        <div className="max-h-[500px] overflow-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+        <div role="region" aria-label="Week calendar" tabIndex={0} className="max-h-[500px] overflow-auto border border-slate-200 dark:border-slate-700 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-plum-500">
           <CalendarWeekView
             prickles={context.prickles}
             proposedSlots={context.proposedSlots}

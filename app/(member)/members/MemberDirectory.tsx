@@ -31,8 +31,8 @@ export default function MemberDirectory({
   }
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+    <div className="@container">
+      <div className="flex flex-col @pair:flex-row @pair:items-center gap-3 mb-6">
         <label htmlFor="directory-search" className="sr-only">
           Search members
         </label>
@@ -43,24 +43,20 @@ export default function MemberDirectory({
           onChange={(e) => search(e.target.value)}
           placeholder="Search names, projects, topics, bios…"
           autoComplete="off"
-          className="w-full sm:max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
+          className="w-full @pair:max-w-md px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-sm"
         />
-        <p className="text-sm text-slate-500 dark:text-slate-400" aria-live="polite">
-          {query.trim()
-            ? `${results.length} of ${entries.length} ${entries.length === 1 ? "Hedgie" : "Hedgies"}`
-            : `${entries.length} ${entries.length === 1 ? "Hedgie" : "Hedgies"}`}
-        </p>
       </div>
 
       {results.length === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           No one matches &ldquo;{query}&rdquo;.{" "}
           <button type="button" onClick={() => search("")} data-track="directory-clear-search" className="underline">
             Clear search
           </button>
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        <div className="@container">
+          <ul className="grid gap-4 @pair:grid-cols-2">
           {results.map((entry) => (
             <li
               key={entry.id}
@@ -77,11 +73,11 @@ export default function MemberDirectory({
                     {entry.displayName}
                   </Link>
                   {entry.id === viewerMemberId && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(you)</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(you)</span>
                   )}
                   {entry.myNote && (
                     <span
-                      className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0"
+                      className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0"
                       title="You have a private note about this member"
                       aria-label="You have a private note about this member"
                     >
@@ -92,18 +88,18 @@ export default function MemberDirectory({
 
                 {entry.projects.length > 0 && (
                   <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-                    <span className="text-slate-400 dark:text-slate-500">Working on </span>
+                    <span className="text-slate-500 dark:text-slate-400">Working on </span>
                     {entry.projects.join(", ")}
                   </p>
                 )}
 
                 {entry.bio && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{entry.bio}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">{entry.bio}</p>
                 )}
 
                 {entry.topics.length > 0 && (
                   <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <span className="text-xs text-slate-400 dark:text-slate-500 mr-0.5">Ask me about</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 mr-0.5">Ask me about</span>
                     {entry.topics.map((topic) => (
                       <button
                         key={topic}
@@ -122,6 +118,7 @@ export default function MemberDirectory({
             </li>
           ))}
         </ul>
+        </div>
       )}
     </div>
   )

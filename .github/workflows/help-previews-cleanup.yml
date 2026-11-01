@@ -1,0 +1,44 @@
+# Removes a pull request's help screenshots from the `help-previews` branch when the PR closes (merged or
+# not). ci.yml's "Help screenshot preview" job puts them there under pr-<number>/. The review comment keeps
+# its text; its pictures stop loading, which is fine once the PR is done. Same-repo PRs only, as in ci.yml.
+name: Clean up help previews
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Remove the PR's screenshots
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Remove pr-${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          if ! git ls-remote --exit-code --heads "$remote" help-previews > /dev/null 2>&1; then
+            echo "No help-previews branch; nothing to clean up."
+            exit 0
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git clone --quiet --depth 1 --branch help-previews "$remote" /tmp/previews
+          cd /tmp/previews
+          git rm -r -q --ignore-unmatch "pr-${PR}"
+          if git diff --cached --quiet; then
+            echo "pr-${PR} has no screenshots; nothing to clean up."
+            exit 0
+          fi
+          git commit --quiet -m "pr-${PR}: closed, remove screenshots"
+          for attempt in 1 2 3; do
+            git push --quiet origin help-previews && break
+            git pull --quiet --rebase origin help-previews
+          done

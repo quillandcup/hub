@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -13,26 +14,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get all active members
-    const members: { id: string; name: string; email: string; status: string }[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("members")
-          .select("id, name, email, status")
-          .eq("status", "active")
-          .order("name")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          members.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    const members = await createRepos(supabase).members.list({ status: "active", orderBy: "name" });
 
     if (members.length === 0) {
       return NextResponse.json({
@@ -41,33 +23,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get all attendance records with prickle info
-    const attendance: any[] = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .from("prickle_attendance")
-          .select(`
-            member_id,
-            prickle_id,
-            prickles!inner(
-              id,
-              start_time
-            )
-          `)
-          .order("prickle_id")
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          attendance.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // Every attendance record (the prickle always exists, so no join is needed).
+    const attendance = (await createRepos(supabase).attendance.list()).map((record) => ({
+      member_id: record.memberId,
+      prickle_id: record.prickleId,
+    }));
 
     if (attendance.length === 0) {
       return NextResponse.json({

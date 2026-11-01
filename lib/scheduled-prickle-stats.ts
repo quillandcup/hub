@@ -1,4 +1,5 @@
 import { ORG_TIMEZONE } from "@/lib/config";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 export interface PrickleType {
   id: string;
   name: string;
@@ -11,8 +12,21 @@ export interface Prickle {
   start_time: string;
 }
 
+/** A host; the stats show them by display name (falling back to the legal name). */
+export interface PrickleHost {
+  id: string;
+  name: string;
+  display_name?: string | null;
+}
+
 export interface PrickleWithHost extends Prickle {
-  host: { id: string; name: string } | { id: string; name: string }[] | null;
+  host: PrickleHost | PrickleHost[] | null;
+}
+
+/** The end of the window of prickles to count: the end of day `to` (YYYY-MM-DD), never later than `now`, since prickles that haven't happened have no attendance. */
+export function pricklesWindowEnd(to: string | undefined, now: Date): string {
+  const requested = to ? new Date(`${to}T23:59:59Z`) : null;
+  return (requested && requested < now ? requested : now).toISOString();
 }
 
 export interface AttendanceRow {
@@ -229,8 +243,8 @@ export function computeGroupedPrickleStats(
         sortKey = "zzz-no-host";
         label = "No Host Assigned";
       } else {
-        sortKey = host.name.toLowerCase();
-        label = host.name;
+        label = getMemberDisplayName(host);
+        sortKey = label.toLowerCase();
       }
     }
 
@@ -257,7 +271,7 @@ export function computeGroupedPrickleStats(
       return {
         id: p.id,
         startTime: p.start_time,
-        hostName: host?.name ?? null,
+        hostName: host ? getMemberDisplayName(host) : null,
         attendeeNames,
         attendeeCount: attendeeIds.size,
       };

@@ -12,6 +12,8 @@ const COURSE = `test-cm-${ts}`
 const SLUG = `cm-course-${ts}`
 const MEDIA = `${COURSE}-media`
 const MEDIA_DRAFT = `${COURSE}-media-draft`
+const PICK_X = `${COURSE}-media-pick-x`
+const PICK_Y = `${COURSE}-media-pick-y`
 
 const mux = vi.hoisted(() => ({ created: 0, ready: false }))
 vi.mock('@/lib/mux', () => ({
@@ -36,7 +38,7 @@ describe('/api/process/course-media', () => {
 
   async function cleanup() {
     await supabase.from('courses').delete().eq('source_key', COURSE)
-    await supabase.from('videos').delete().in('source_key', [MEDIA, MEDIA_DRAFT])
+    await supabase.from('videos').delete().in('source_key', [MEDIA, MEDIA_DRAFT, PICK_X, PICK_Y])
     await bronze.from('kajabi_course_lessons').delete().eq('course_kajabi_id', COURSE)
     await bronze.from('kajabi_courses').delete().eq('kajabi_id', COURSE)
   }
@@ -106,7 +108,7 @@ describe('/api/process/course-media', () => {
     const publish = await apiFetch(`${getTestApiBaseUrl()}/api/process/courses`, {
       method: 'POST',
       headers: { ...getTestAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ course: SLUG }),
+      body: JSON.stringify({ course: SLUG, publish: true }),
     })
     expect(publish.status).toBe(200)
 
@@ -157,6 +159,43 @@ describe('/api/process/course-media', () => {
     expect(again.upload.uploaded).toEqual([])
     expect(again.upload.alreadyInMux).toBe(1)
     expect(mux.created).toBe(created)
+  })
+
+  it('refuses an empty or malformed list of picked videos instead of reading it as "all"', async () => {
+    for (const mediaIds of [[], 'all', [1], ['']]) {
+      const response = await post({ course: SLUG, action: 'upload_drafts', mediaIds })
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toMatch(/mediaIds/)
+    }
+  })
+
+  it('uploads exactly the draft videos picked and leaves the others for later', async () => {
+    const draftLesson = (n: string, mediaId: string, position: number) => ({
+      kajabi_id: `${COURSE}-draft-${n}`,
+      course_kajabi_id: COURSE,
+      position,
+      title: `Draft ${n}`,
+      publishing_option: 'draft',
+      video_media_id: mediaId,
+      video_duration_seconds: 60,
+      video_source: { download_url: `https://kajabi.test/${n}?sig=1`, download_url_expires_at: new Date(Date.now() + 5 * 86_400_000).toISOString() },
+    })
+    await bronze.from('kajabi_course_lessons').insert([draftLesson('x', PICK_X, 3), draftLesson('y', PICK_Y, 4)])
+    const video = async (key: string) => (await supabase.from('videos').select('id').eq('source_key', key).maybeSingle()).data
+
+    const response = await post({ course: SLUG, action: 'upload_drafts', mediaIds: [PICK_X] })
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.upload.uploaded.map((u: { mediaId: string }) => u.mediaId)).toEqual([PICK_X])
+    expect(body.upload.notAvailable).toEqual([])
+    expect(await video(PICK_X)).not.toBeNull()
+    // The draft that wasn't picked is untouched, even though it is as uploadable as the one that was.
+    expect(await video(PICK_Y)).toBeNull()
+
+    // A pick the action doesn't cover (a visible lesson's video) is reported, not uploaded.
+    const reported = await (await post({ course: SLUG, action: 'upload_drafts', mediaIds: [MEDIA] })).json()
+    expect(reported.upload.uploaded).toEqual([])
+    expect(reported.upload.notAvailable).toEqual([MEDIA])
   })
 
   it('"refresh" only brings statuses up to date', async () => {

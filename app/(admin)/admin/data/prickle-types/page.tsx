@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import Link from "next/link";
 import type { Metadata } from "next";
 import PrickleTypesTable from "./PrickleTypesTable";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { createRepos } from "@/lib/data/repos";
 
 export const metadata: Metadata = {
   title: "Prickle Types",
@@ -13,10 +15,24 @@ export default async function PrickleTypesPage() {
   const supabase = await createClient();
 
   // Fetch all prickle types
-  const { data: prickleTypes } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly")
-    .order("name");
+  const repos = createRepos(supabase);
+  const prickleTypes = (await repos.prickles.types()).map((t) => ({
+    id: t.id,
+    name: t.name,
+    normalized_name: t.normalizedName,
+    description: t.description ?? null,
+    purpose: t.purpose,
+    solo_task_friendly: t.soloTaskFriendly,
+    listed_in_events: t.listedInEvents,
+    announced_publicly: t.announcedPublicly,
+    guests_allowed: t.guestsAllowed,
+    default_host_id: t.defaultHostId ?? null,
+    summary_aliases: t.summaryAliases ?? [],
+  }));
+
+  const hostIds = [...new Set(prickleTypes.map((t) => t.default_host_id).filter((id): id is string => !!id))];
+  const hostNames = new Map((await repos.members.byIds(hostIds)).map((m) => [m.id, getMemberDisplayName({ name: m.name, display_name: m.displayName })]));
+  const rows = prickleTypes.map((t) => ({ ...t, default_host_name: t.default_host_id ? (hostNames.get(t.default_host_id) ?? null) : null }));
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -31,7 +47,7 @@ export default async function PrickleTypesPage() {
       {/* Prickle Types List */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="text-xl font-bold">All Types ({prickleTypes?.length || 0})</h2>
+          <h2 className="text-xl font-bold">All Types ({prickleTypes.length})</h2>
           <Link
             href="/admin/data/prickle-types/new"
             className="px-4 py-2 bg-plum-600 hover:bg-plum-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -39,7 +55,7 @@ export default async function PrickleTypesPage() {
             + Add Type
           </Link>
         </div>
-        <PrickleTypesTable rows={prickleTypes ?? []} />
+        <PrickleTypesTable rows={rows} />
       </div>
     </div>
   );

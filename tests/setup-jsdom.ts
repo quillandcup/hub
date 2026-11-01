@@ -1,9 +1,12 @@
-import '@testing-library/jest-dom/vitest'
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
 
-// Safe to run for every test file (node-environment tests never render, so
-// cleanup() is a no-op for them) — avoids per-environment setupFiles wiring.
-afterEach(() => {
-  cleanup()
-})
+// Only jsdom files render, so only they load Testing Library (react-dom is slow to import, and importing it in
+// every one of the ~500 unit files was a large part of the suite's setup time). Node-environment files have
+// nothing to clean up.
+if (typeof document !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest')
+  const { cleanup } = await import('@testing-library/react')
+  afterEach(() => {
+    cleanup()
+  })
+}

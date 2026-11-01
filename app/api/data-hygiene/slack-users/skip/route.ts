@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -28,20 +29,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert into ignored users
-    const { error } = await supabase
-      .from("ignored_slack_users")
-      .insert({
-        user_id: slack_user_id,
-        reason: reason || 'non_member',
-      });
-
-    if (error) {
-      // If duplicate, that's fine (already ignored)
-      if (error.code !== '23505') {
-        throw error;
-      }
-    }
+    // Already ignored is fine
+    await createRepos(supabase).slackWorkspace.ignoreUser(slack_user_id, reason || 'non_member');
 
     return NextResponse.json({
       success: true,

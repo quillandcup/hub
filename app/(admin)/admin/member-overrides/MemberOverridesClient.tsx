@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import RecordHistoryButton from "@/components/RecordHistoryButton";
 import Link from "next/link";
 import MemberOverrideForm, { type MemberOverrideFields } from "@/components/MemberOverrideForm";
 import MemberSearch from "@/components/MemberSearch";
-import { parseDateOnly } from "@/lib/member-tenure";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateOnly } from "@/lib/formatters";
 
 interface Member {
   id: string;
   name: string;
+  display_name?: string | null;
   email: string;
 }
 
@@ -30,7 +32,7 @@ type SortColumn = "member" | "type" | "reason" | "starts" | "expires";
 function getSortValue(override: MemberOverride, column: SortColumn): SortValue {
   switch (column) {
     case "member":
-      return override.member.name.toLowerCase();
+      return getMemberDisplayName(override.member).toLowerCase();
     case "type":
       return override.override_type;
     case "reason":
@@ -66,15 +68,7 @@ export default function MemberOverridesClient() {
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
-  useEffect(() => {
-    fetchOverrides();
-    fetch("/api/members")
-      .then((res) => res.json())
-      .then((body) => setAllMembers(body.members || []))
-      .catch(() => {});
-  }, []);
-
-  const fetchOverrides = async () => {
+  const fetchOverrides = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/member-overrides");
@@ -91,7 +85,16 @@ export default function MemberOverridesClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchOverrides();
+    fetch("/api/members")
+      .then((res) => res.json())
+      .then((body) => setAllMembers(body.members || []))
+      .catch(() => {});
+  }, [fetchOverrides]);
+
 
   const handleEdit = (override: MemberOverride) => {
     setEditingOverride(override);
@@ -230,7 +233,7 @@ export default function MemberOverridesClient() {
           ) : (
             <MemberOverrideForm
               memberId={resolvedMember.id}
-              memberName={resolvedMember.name}
+              memberName={getMemberDisplayName(resolvedMember)}
               existing={editingOverride}
               onSaved={handleSaved}
               onCancel={handleCancel}
@@ -298,8 +301,11 @@ export default function MemberOverridesClient() {
                       href={`/admin/members/${override.member_id}`}
                       className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                     >
-                      {override.member.name}
+                      {getMemberDisplayName(override.member)}
                     </Link>
+                    {getMemberDisplayName(override.member) !== override.member.name && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{override.member.name}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -323,11 +329,11 @@ export default function MemberOverridesClient() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                    {parseDateOnly(override.starts_at).toLocaleDateString()}
+                    {formatDateOnly(override.starts_at)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                     {override.expires_at
-                      ? parseDateOnly(override.expires_at).toLocaleDateString()
+                      ? formatDateOnly(override.expires_at)
                       : "Never"}
                   </td>
                   <td className="px-4 py-3">

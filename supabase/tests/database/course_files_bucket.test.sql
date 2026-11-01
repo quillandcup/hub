@@ -1,6 +1,6 @@
 -- pgTAP tests for 20261112000500_course_files_bucket.sql: lesson downloads live in a private bucket
 -- that no API user can reach directly (the lesson page checks access, then signs a short-lived link).
--- Rolled back; run with `npm run test:pgtap`.
+-- Rolled back; run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;

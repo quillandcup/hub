@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { track } from "@/lib/analytics/client";
 import { SortableTh } from "@/components/SortableTh";
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
+import { formatDateOnly } from "@/lib/formatters";
+import EventAudienceFields from "@/components/EventAudienceFields";
+import { DEFAULT_AUDIENCE } from "@/lib/event-audience";
+import { EVENT_TYPE_OPTIONS } from "@/lib/events-filter";
+import MediaPicker from "@/components/media/MediaPicker";
 
 interface EventRow {
   id: string;
@@ -16,13 +22,8 @@ interface EventRow {
   starts_at: string;
   ends_at: string;
   photo_count: number;
+  deleted_at: string | null;
 }
-
-const EVENT_TYPES = [
-  { value: "in_person_retreat", label: "In-Person Retreat" },
-  { value: "virtual_retreat", label: "Virtual Retreat" },
-  { value: "other", label: "Other" },
-];
 
 function slugify(title: string): string {
   return title
@@ -33,7 +34,7 @@ function slugify(title: string): string {
 }
 
 function fmtDate(d: string) {
-  return new Date(`${d}T00:00:00`).toLocaleDateString();
+  return formatDateOnly(d);
 }
 
 const emptyForm = {
@@ -42,11 +43,17 @@ const emptyForm = {
   location: "",
   starts_at: "",
   ends_at: "",
+  start_clock: "",
+  end_clock: "",
+  host_name: "",
+  speakers: null as string | null,
   focus: "",
   description: "",
   agenda: "",
   results: "",
   google_photos_album_url: "",
+  image_id: null as string | null,
+  ...DEFAULT_AUDIENCE,
 };
 
 type SortColumn = "title" | "dates" | "location" | "photos";
@@ -78,11 +85,7 @@ export default function EventsClient() {
   });
   const { sortColumn, sortDirection, handleSort } = table;
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/admin/events");
@@ -94,7 +97,12 @@ export default function EventsClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,26 +116,30 @@ export default function EventsClient() {
           ...formData,
           slug: slugify(formData.title),
           location: formData.location || null,
+          host_name: formData.host_name || null,
           focus: formData.focus || null,
           description: formData.description || null,
           agenda: formData.agenda || null,
           results: formData.results || null,
           google_photos_album_url: formData.google_photos_album_url || null,
+          image_id: formData.image_id,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to create event");
+      track("event_created", { from: "hub_form", ok: true });
       setShowForm(false);
       setFormData(emptyForm);
       fetchEvents();
     } catch (err: any) {
+      track("event_created", { from: "hub_form", ok: false });
       setError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <p className="text-slate-500">Loading...</p>;
+  if (loading) return <p className="text-slate-600 dark:text-slate-400">Loading...</p>;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
@@ -148,7 +160,8 @@ export default function EventsClient() {
 
       {showForm && (
         <form onSubmit={handleSubmit} className="mb-6 p-4 border border-gray-200 dark:border-slate-700 rounded bg-gray-50 dark:bg-slate-800 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="@container">
+            <div className="grid grid-cols-1 @pair:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Title</label>
               <input
@@ -167,7 +180,7 @@ export default function EventsClient() {
                 onChange={(e) => setFormData({ ...formData, event_type: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded"
               >
-                {EVENT_TYPES.map((t) => (
+                {EVENT_TYPE_OPTIONS.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
@@ -195,6 +208,19 @@ export default function EventsClient() {
               />
             </div>
             <div>
+              <label htmlFor="new-event-start-clock" className="block text-sm font-medium mb-1 dark:text-gray-200">Start time</label>
+              <input id="new-event-start-clock" type="time" value={formData.start_clock} onChange={(e) => setFormData({ ...formData, start_clock: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+            </div>
+            <div>
+              <label htmlFor="new-event-end-clock" className="block text-sm font-medium mb-1 dark:text-gray-200">End time</label>
+              <input id="new-event-end-clock" type="time" value={formData.end_clock} onChange={(e) => setFormData({ ...formData, end_clock: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+            </div>
+            <p className="@pair:col-span-2 -mt-1 text-xs text-slate-600 dark:text-slate-400">Dates in Eastern time. Leave both times empty for an all-day event.</p>
+            <div>
+              <label htmlFor="new-event-host" className="block text-sm font-medium mb-1 dark:text-gray-200">Host</label>
+              <input id="new-event-host" type="text" value={formData.host_name} onChange={(e) => setFormData({ ...formData, host_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 rounded" />
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1 dark:text-gray-200">Location (optional)</label>
               <input
                 type="text"
@@ -213,7 +239,13 @@ export default function EventsClient() {
                 placeholder="https://photos.app.goo.gl/..."
               />
             </div>
+            <div className="@pair:col-span-2">
+              <label className="block text-sm font-medium mb-1 dark:text-gray-200">Cover image (optional)</label>
+              <MediaPicker value={formData.image_id} onChange={(image_id) => setFormData({ ...formData, image_id })} surface="event_cover" disabled={saving} />
+            </div>
           </div>
+          </div>
+          <EventAudienceFields value={formData} onChange={(audience) => setFormData({ ...formData, ...audience })} />
           <div>
             <label className="block text-sm font-medium mb-1 dark:text-gray-200">Focus (short blurb, optional)</label>
             <input
@@ -312,13 +344,14 @@ export default function EventsClient() {
                 <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link
-                      href={`/admin/events/${event.id}`}
+                      href={`/admin/events/${event.slug}`}
                       className="font-medium text-plum-600 dark:text-plum-400 hover:underline"
                     >
                       {event.title}
                     </Link>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {EVENT_TYPES.find((t) => t.value === event.event_type)?.label || event.event_type}
+                      {EVENT_TYPE_OPTIONS.find((t) => t.value === event.event_type)?.label || event.event_type}
+                      {event.deleted_at ? " · Removed" : ""}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm">

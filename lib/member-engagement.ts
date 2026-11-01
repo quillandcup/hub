@@ -8,7 +8,7 @@
 export interface EngagementActivityRow {
   member_id: string;
   activity_type: string;
-  engagement_value: number;
+  engagement_value: number | null;
   occurred_at: string;
 }
 
@@ -67,7 +67,7 @@ export function computeMemberEngagementMetrics(
     }
     activityPointsLast30.set(
       record.member_id,
-      (activityPointsLast30.get(record.member_id) ?? 0) + record.engagement_value
+      (activityPointsLast30.get(record.member_id) ?? 0) + (record.engagement_value ?? 0)
     );
   }
 

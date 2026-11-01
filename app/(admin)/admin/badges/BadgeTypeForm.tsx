@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import EmojiIconField from "@/components/EmojiIconField";
 
-type Category = "milestone" | "community" | "course" | "retreat" | "special";
+export type Category = "milestone" | "community" | "course" | "retreat" | "special";
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: "milestone", label: "Milestone" },
@@ -215,14 +216,7 @@ export default function BadgeTypeForm({
           </div>
           <div>
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Icon</label>
-            <input
-              type="text"
-              value={icon}
-              onChange={(e) => setIcon(e.target.value)}
-              placeholder="🏅"
-              className="w-20 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-center text-lg"
-              maxLength={4}
-            />
+            <EmojiIconField value={icon} onChange={setIcon} />
           </div>
         </div>
 
@@ -271,7 +265,7 @@ export default function BadgeTypeForm({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               When set, this badge is granted by attendance instead -- manual award/revoke is disabled, and
               adding/removing an attendee on the event page grants/revokes it automatically.
             </p>
@@ -295,7 +289,7 @@ export default function BadgeTypeForm({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               When set, this badge is computed automatically -- manual award/revoke is disabled. A member
               earns it once a cohort they&apos;re enrolled in (Admin → Programs) ends.
             </p>
@@ -312,7 +306,7 @@ export default function BadgeTypeForm({
             />
             Has levels (e.g. Bronze/Silver/Gold, or 1x/5x/10x)
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
             Each time a member is awarded this badge, it counts as one occurrence. Their displayed
             level is the highest threshold their occurrence count has reached.
           </p>
@@ -337,12 +331,12 @@ export default function BadgeTypeForm({
                   draggable
                   onDragStart={() => setDragKey(level.key)}
                   onDragEnd={() => setDragKey(null)}
-                  className="text-slate-400 dark:text-slate-500 cursor-grab active:cursor-grabbing select-none px-1"
+                  className="text-slate-500 dark:text-slate-400 cursor-grab active:cursor-grabbing select-none px-1"
                   title="Drag to reorder"
                 >
                   ⠿
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 w-6">#{level.level}</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400 w-6">#{level.level}</span>
                 <input
                   type="text"
                   value={level.name}

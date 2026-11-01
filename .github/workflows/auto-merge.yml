@@ -17,26 +17,41 @@ name: Auto-merge
 # by GITHUB_TOKEN doesn't trigger the push CI run on main (no migrations, deploy or
 # Slack manifest push). Rotate it before it expires, see docs/SECRET_ROTATION.md.
 #
-# Skipped for drafts, for forks (their GITHUB_TOKEN can't write) and for
-# Dependabot, which has its own stricter workflow (dependabot-auto-merge.yml:
-# patch/minor only). Needs the repo-level "Allow auto-merge" setting
+# Skipped for drafts and for forks (their GITHUB_TOKEN can't write). Dependabot PRs get
+# the stricter rule: only patch/minor version bumps are enabled, majors are far more likely
+# to carry breaking changes and always need a human. That is a deliberate safety choice, not
+# something to make configurable. Dependabot runs read Dependabot secrets, not Actions
+# secrets, so `pnpm env:sync:github` also writes GH_TOKEN_AUTO_MERGE as a Dependabot secret
+# (env-vars.config.ts); without it those PRs fall back to GITHUB_TOKEN, whose merges don't
+# trigger the push CI run on main. Needs the repo-level "Allow auto-merge" setting
 # (Settings -> General -> Pull Requests); without it `gh pr merge --auto` fails.
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   auto-merge:
     if: |
       !github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]'
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        if: github.actor == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
       - name: Enable auto-merge
+        if: |
+          github.actor != 'dependabot[bot]' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
         run: |
           if [ "$EVENT_ACTION" = "synchronize" ]; then
             opted_out=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/timeline" --jq '.[] | select(.event == "auto_merge_disabled") | .event')
@@ -51,4 +66,4 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           EVENT_ACTION: ${{ github.event.action }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN_AUTO_MERGE || secrets.GITHUB_TOKEN }}

@@ -1,0 +1,58 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { createRepos } from "@/lib/data/repos";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect, notFound } from "next/navigation";
+import { getUserFeaturePreviews } from "@/lib/features.server";
+import { getImportSessionCookie } from "@/lib/google-photos-picker/import-session-cookie";
+import ImportPhotosClient from "./ImportPhotosClient";
+import { requireAdminPage } from "@/lib/admin-auth";
+import { isId } from "@/lib/ids";
+
+export const metadata: Metadata = {
+  title: "Import Photos",
+};
+
+export default async function ImportPhotosPage({ params }: { params: Promise<{ slug: string }> }) {
+  await requireAdminPage();
+  const { slug } = await params;
+  const supabase = await createClient();
+
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const enabledFeatures = await getUserFeaturePreviews(user.id);
+  if (!enabledFeatures.includes("events")) redirect("/admin");
+
+  const events = createRepos(supabase).events;
+  const event = await events.bySlug(slug);
+  if (!event && isId(slug, "evt")) {
+    // The sign-in with Google comes back with the event's id: go to its address.
+    const byId = await events.byId(slug);
+    if (byId) redirect(`/admin/events/${byId.slug}/import-photos`);
+  }
+  if (!event) notFound();
+
+  const session = await getImportSessionCookie(event.id);
+  if (!session) {
+    redirect(`/admin/events/${event.slug}?photo_import_error=no_session`);
+  }
+
+  return (
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="container mx-auto px-6 py-4">
+          <Link href={`/admin/events/${event.slug}`} className="text-sm text-plum-600 dark:text-plum-400 hover:underline">
+            ← {event.title}
+          </Link>
+          <h1 className="text-2xl font-bold mt-1">Import Photos from Google Photos</h1>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-6 py-8 max-w-2xl">
+        <ImportPhotosClient eventId={event.id} slug={event.slug} pickerUri={session.pickerUri} />
+      </main>
+    </div>
+  );
+}

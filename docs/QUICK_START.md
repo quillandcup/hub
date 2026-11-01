@@ -16,7 +16,7 @@ This guide gets you up and running with the Hedgie Hub in different environments
    ```bash
    git clone <repository-url>
    cd hub
-   npm install
+   pnpm install
    ```
 
 2. **Install Vercel CLI**
@@ -36,7 +36,7 @@ This guide gets you up and running with the Hedgie Hub in different environments
 
 5. **Start development server**
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 6. **Open browser**
@@ -52,7 +52,7 @@ That's it! You're now running Hedgie Hub locally with development Supabase.
 
 | Environment | Trigger | Database | URL |
 |-------------|---------|----------|-----|
-| **Development** | `npm run dev` | Dev Supabase | http://localhost:3000 |
+| **Development** | `pnpm dev` | Dev Supabase | http://localhost:3000 |
 | **Preview** | Push to feature branch | Dev Supabase | `https://hub-*.vercel.app` |
 | **Production** | Push to main branch | Prod Supabase | Custom domain + `https://quillandcup-admin.vercel.app` |
 
@@ -116,15 +116,15 @@ git push origin feature/my-feature
 ```bash
 # Use development environment (default)
 vercel env pull .env.local --environment=development
-npm run dev
+pnpm dev
 
 # Test with preview environment
 vercel env pull .env.local --environment=preview
-npm run dev
+pnpm dev
 
 # Test with production environment (use carefully!)
 vercel env pull .env.local --environment=production
-npm run dev
+pnpm dev
 ```
 
 ---
@@ -142,15 +142,15 @@ cat .env.local | grep SUPABASE
 vercel env pull .env.local --environment=development
 
 # Restart dev server
-npm run dev
+pnpm dev
 ```
 
 ### "Module not found" errors
 
 **Solution**: Reinstall dependencies
 ```bash
-rm -rf node_modules package-lock.json
-npm install
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
 ```
 
 ### Preview deployment using production database
@@ -191,10 +191,10 @@ cat .env.local | grep NEXT_PUBLIC_SUPABASE_URL
 
 ```bash
 # Development
-npm run dev                              # Start dev server
-npm run build                           # Build for production
-npm run lint                            # Run linter
-npm test                                # Run tests
+pnpm dev                              # Start dev server
+pnpm build                           # Build for production
+pnpm lint                            # Run linter
+pnpm test                                # Run tests
 
 # Vercel CLI
 vercel                                  # Deploy preview

@@ -1,12 +1,19 @@
 "use server";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { createRepos } from "@/lib/data/repos";
+import { BookExistsError } from "@/lib/data/books";
 import { dismissCheckout } from "@/lib/prickle-checkin-dms";
 import { createClient } from "@/lib/supabase/server";
+import type { ProjectPatch } from "@/lib/data/writing";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
 import { safeUrl } from "@/lib/url";
 import { validateBookInput } from "@/lib/bookValidation";
+import { cleanGenres } from "@/lib/book-genres";
+import { resolvePenName } from "@/lib/book-pen-name";
+import { releaseReplacedCover, resolveBookCover } from "@/lib/book-cover-assets";
 import { notifyStaffNewBook } from "@/lib/slack";
 import { getMyBooks, type BookInput, type MyBookRow } from "@/app/(member)/bookshelf/actions";
 import {
@@ -29,7 +36,7 @@ import { computePrickleStreaks, seriesKeyFor } from "@/lib/streaks";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { DAY_NAMES, formatScheduleLabel, getMonthStart, getNextMonthStart } from "@/lib/prickle-schedules";
 import { ORG_TIMEZONE } from "@/lib/config";
-import { checkinFromRow, checkoutAnswered } from "@/lib/prickle-checkins";
+import { checkoutAnswered } from "@/lib/prickle-checkins";
 import {
   formatPrickleLabel,
   localDateOf,
@@ -153,27 +160,22 @@ async function fetchWritingPrickleAttendance(
   memberId: string,
   timeZone: string
 ): Promise<PrickleAttendanceRow[]> {
-  const { data } = await supabase
-    .from("prickle_attendance")
-    .select("prickles!inner(id, start_time, prickle_types!inner(purpose))")
-    .eq("member_id", memberId)
-    .eq("prickles.prickle_types.purpose", "writing");
+  const attended = await createRepos(supabase).attendance.forMemberWithPrickles(memberId, { purpose: "writing" });
 
-  return ((data ?? []) as any[])
-    .map((r) => {
-      const prickle = Array.isArray(r.prickles) ? r.prickles[0] : r.prickles;
-      if (!prickle?.id || !prickle?.start_time) return null;
-      return {
-        prickleId: prickle.id as string,
+  return attended.flatMap((record) => {
+    if (!record.prickle) return [];
+    return [
+      {
+        prickleId: record.prickle.id,
         localDate: new Intl.DateTimeFormat("en-CA", {
           timeZone,
           year: "numeric",
           month: "2-digit",
           day: "2-digit",
-        }).format(new Date(prickle.start_time as string)),
-      };
-    })
-    .filter((r): r is PrickleAttendanceRow => r !== null);
+        }).format(new Date(record.prickle.startTime)),
+      },
+    ];
+  });
 }
 
 export async function getMyProjects(): Promise<WritingProjectRow[]> {
@@ -181,39 +183,38 @@ export async function getMyProjects(): Promise<WritingProjectRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projects }, { data: entries }, { data: goals }, { data: startingBalances }, attendance, books] =
-    await Promise.all([
-      supabase
-        .from("writing_projects")
-        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("writing_progress_entries")
-        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-        .eq("member_id", effectiveIdentity.memberId),
-      supabase
-        .from("writing_goals")
-        .select(GOAL_SELECT_COLUMNS)
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null),
-      supabase
-        .from("writing_project_starting_balances")
-        .select("project_id, measure, amount")
-        .eq("member_id", effectiveIdentity.memberId),
-      getMyPrickleAttendance(),
-      getMyBooks(),
-    ]);
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, goals, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummaries(memberId),
+    writing.projectEntries(memberId),
+    writing.projectGoals(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
 
-  return buildProjectRows(
-    projects ?? [],
-    entries ?? [],
-    (goals ?? []) as unknown as RawGoal[],
-    startingBalances ?? [],
-    attendance,
-    books
-  );
+  // A goal can be project-less; buildProjectRows only ever matches goals to a project by id.
+  return buildProjectRows(projects, entries, goals as RawGoal[], startingBalances, attendance, books);
+}
+
+/** The member's projects in a past phase (complete, published, abandoned), with their totals (goals aren't loaded: the list is read-only). */
+export async function getMyPastProjects(): Promise<WritingProjectRow[]> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return [];
+  const { supabase, effectiveIdentity } = ctx;
+
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projects, entries, startingBalances, attendance, books] = await Promise.all([
+    writing.pastProjectSummaries(memberId),
+    writing.projectEntries(memberId),
+    writing.startingBalances(memberId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
+
+  return buildProjectRows(projects, entries, [], startingBalances, attendance, books);
 }
 
 export async function getProject(
@@ -223,48 +224,24 @@ export async function getProject(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: projectRow }, { data: entryRows }, { data: goalRows }, { data: startingBalances }, attendance, books] =
-    await Promise.all([
-      supabase
-        .from("writing_projects")
-        .select("id, title, phase, created_at, show_on_profile, cover_url, description")
-        .eq("id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .single(),
-      supabase
-        .from("writing_progress_entries")
-        .select(`id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}`)
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .order("entry_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("writing_goals")
-        .select(GOAL_SELECT_COLUMNS)
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId)
-        .is("archived_at", null),
-      supabase
-        .from("writing_project_starting_balances")
-        .select("project_id, measure, amount")
-        .eq("project_id", projectId)
-        .eq("member_id", effectiveIdentity.memberId),
-      getMyPrickleAttendance(),
-      getMyBooks(),
-    ]);
+  const { writing } = createRepos(supabase);
+  const memberId = effectiveIdentity.memberId;
+  const [projectRow, entryRows, goalRows, startingBalances, attendance, books] = await Promise.all([
+    writing.projectSummary(memberId, projectId),
+    writing.projectEntriesWithPrickles(memberId, projectId),
+    writing.projectGoals(memberId, projectId),
+    writing.startingBalances(memberId, projectId),
+    getMyPrickleAttendance(),
+    getMyBooks(),
+  ]);
 
   if (!projectRow) return { error: "Project not found" };
 
-  const [project] = buildProjectRows(
-    [projectRow],
-    entryRows ?? [],
-    (goalRows ?? []) as unknown as RawGoal[],
-    startingBalances ?? [],
-    attendance,
-    books
-  );
+  const [project] = buildProjectRows([projectRow], entryRows.map(({ prickle: _, ...e }) => e), goalRows as RawGoal[], startingBalances, attendance, books);
   const timeZone = await viewerTimeZone();
-  const entries: EntryRow[] = ((entryRows ?? []) as unknown as RawEntry[]).map((e) => toEntryRow(e, timeZone));
+  const entries: EntryRow[] = entryRows.map(({ prickle, ...e }) =>
+    toEntryRow({ ...e, prickle: prickle && { id: prickle.id, start_time: prickle.start_time, host: prickle.host, prickle_types: prickle.type } }, timeZone)
+  );
 
   return { project, entries };
 }
@@ -302,20 +279,24 @@ interface RawEntry {
 interface RawEmbeddedPrickle {
   id: string;
   start_time: string;
-  host: { name: string | null } | { name: string | null }[] | null;
+  host: { name: string | null; display_name: string | null } | { name: string | null; display_name: string | null }[] | null;
   prickle_types: { name: string | null } | { name: string | null }[] | null;
 }
 
 /** Embeds the entry's prickle with what formatPrickleLabel needs. */
-const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name), prickle_types:type_id(name))";
+const ENTRY_PRICKLE_EMBED = "prickle:prickles(id, start_time, host:prickle_host(name, display_name), prickle_types:type_id(name))";
 
 function one<T>(ref: T | T[] | null | undefined): T | null {
   return (Array.isArray(ref) ? ref[0] : ref) ?? null;
 }
 
+function hostDisplayName(host: { name: string | null; display_name: string | null } | null): string | null {
+  return host?.name ? getMemberDisplayName({ name: host.name, display_name: host.display_name }) : null;
+}
+
 function labelForPrickle(p: RawEmbeddedPrickle, timeZone: string): string {
   return formatPrickleLabel(
-    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: one(p.host)?.name ?? null },
+    { startTime: p.start_time, typeName: one(p.prickle_types)?.name ?? null, hostName: hostDisplayName(one(p.host)) },
     timeZone
   );
 }
@@ -487,16 +468,15 @@ async function createProjectImpl(
   if (!trimmed) return { error: "Title is required" };
   if (!PHASES.includes(phase)) return { error: "Invalid phase" };
 
-  const { data, error } = await supabase
-    .from("writing_projects")
-    .insert({ member_id: effectiveIdentity.memberId, title: trimmed, phase })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to create project" };
+  let id: string;
+  try {
+    id = await createRepos(supabase).writing.createProject(effectiveIdentity.memberId, trimmed, phase);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to create project") };
+  }
 
   revalidatePath("/projects", "layout");
-  return { success: true, id: data.id };
+  return { success: true, id };
 }
 
 export async function updateProjectDetails(
@@ -510,13 +490,11 @@ export async function updateProjectDetails(
   const trimmedTitle = fields.title.trim();
   if (!trimmedTitle) return { error: "Title is required" };
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ title: trimmedTitle, description: fields.description.trim() || null })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, {
+    title: trimmedTitle,
+    description: fields.description.trim() || null,
+  });
+  if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -534,13 +512,18 @@ export async function updateProjectCover(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ cover_url: coverUrl })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
+  const repos = createRepos(supabase);
+  let patch: ProjectPatch = { cover_url: null, cover_asset_id: null };
+  if (coverUrl !== null) {
+    const cover = await resolveBookCover(repos.media, effectiveIdentity.memberId, coverUrl);
+    if ("error" in cover) return cover;
+    patch = { cover_url: cover.url, cover_asset_id: cover.assetId };
+  }
+  const previous = await repos.writing.coverAssetOf(effectiveIdentity.memberId, projectId).catch(() => null);
 
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, patch);
+  if (failure) return failure;
+  await releaseReplacedCover(repos.media, effectiveIdentity.memberId, previous, patch.cover_asset_id ?? null);
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -564,27 +547,15 @@ export async function setStartingBalances(
   const toSet = STARTING_BALANCE_MEASURES.filter(isSet);
   const toClear = STARTING_BALANCE_MEASURES.filter((m) => !isSet(m));
 
-  if (toSet.length > 0) {
-    const { error: upsertError } = await supabase.from("writing_project_starting_balances").upsert(
-      toSet.map((measure) => ({
-        project_id: projectId,
-        member_id: effectiveIdentity.memberId,
-        measure,
-        amount: balances[measure]!,
-      })),
-      { onConflict: "project_id,measure" }
+  try {
+    await createRepos(supabase).writing.replaceStartingBalances(
+      effectiveIdentity.memberId,
+      projectId,
+      toSet.map((measure) => ({ measure, amount: balances[measure]! })),
+      toClear
     );
-    if (upsertError) return { error: upsertError.message };
-  }
-
-  if (toClear.length > 0) {
-    const { error: deleteError } = await supabase
-      .from("writing_project_starting_balances")
-      .delete()
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .in("measure", toClear);
-    if (deleteError) return { error: deleteError.message };
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save starting balances") };
   }
 
   revalidatePath("/projects", "layout");
@@ -600,16 +571,38 @@ export async function toggleProjectVisibility(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ show_on_profile: showOnProfile })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { show_on_profile: showOnProfile });
+  if (failure) return failure;
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  return { success: true };
+}
+
+/**
+ * Deletes a project, with its goals and entries. A soft delete: nothing shows it to the member or
+ * anyone else and it counts toward nothing, but the row stays until they ask us to remove it
+ * (/privacy). A book published from it stays on the bookshelf.
+ */
+async function deleteProjectImpl(projectId: string): Promise<{ success: true } | { error: string }> {
+  const ctx = await requireIdentity();
+  if ("error" in ctx) return ctx;
+  const { supabase, effectiveIdentity } = ctx;
+
+  const writing = createRepos(supabase).writing;
+  const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, projectId);
+  if (ownershipError) return { error: ownershipError };
+
+  try {
+    await writing.deleteProject(effectiveIdentity.memberId, projectId);
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to delete project") };
+  }
+
+  revalidatePath("/projects", "layout");
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/members/${effectiveIdentity.memberId}`);
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -628,13 +621,8 @@ export async function updateProjectPhase(
 
   if (!MANUALLY_SETTABLE_PHASES.includes(phase)) return { error: "Invalid phase" };
 
-  const { error } = await supabase
-    .from("writing_projects")
-    .update({ phase })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase });
+  if (failure) return failure;
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${projectId}`);
@@ -657,13 +645,27 @@ async function assertOwnsProject(
   memberId: string,
   projectId: string
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("writing_projects")
-    .select("id")
-    .eq("id", projectId)
-    .eq("member_id", memberId)
-    .single();
-  return data ? null : "Project not found";
+  const owns = await createRepos(supabase).writing.ownsProject(memberId, projectId).catch(() => false);
+  return owns ? null : "Project not found";
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+/** Saves fields of the member's project; returns the failure to hand back, or null when it saved. */
+async function saveProject(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  memberId: string,
+  projectId: string,
+  patch: ProjectPatch
+): Promise<{ error: string } | null> {
+  try {
+    await createRepos(supabase).writing.updateProject(memberId, projectId, patch);
+    return null;
+  } catch (error) {
+    return { error: errorMessage(error, "Failed to save project") };
+  }
 }
 
 /**
@@ -685,31 +687,34 @@ async function publishProjectImpl(
   const validationError = validateBookInput(book);
   if (validationError) return { error: validationError };
 
-  const { error: insertError } = await supabase.from("member_books").insert({
-    member_id: effectiveIdentity.memberId,
-    project_id: projectId,
-    title: book.title.trim(),
-    description: book.description?.trim() || null,
-    cover_url: safeUrl(book.coverUrl),
-    purchase_url: safeUrl(book.purchaseUrl),
-    published_date: book.publishedDate,
-    price: book.price ?? null,
-    genre: book.genre?.trim() || null,
-    format: book.format,
-  });
+  const pen = await resolvePenName(supabase, effectiveIdentity.memberId, book.penName);
+  if ("error" in pen) return pen;
 
-  if (insertError) {
-    if (insertError.code === "23505") return { error: "This project has already been published." };
-    return { error: insertError.message };
+  const cover = await resolveBookCover(createRepos(supabase).media, effectiveIdentity.memberId, book.coverUrl);
+  if ("error" in cover) return cover;
+
+  try {
+    await createRepos(supabase).books.add({
+      member_id: effectiveIdentity.memberId,
+      project_id: projectId,
+      title: book.title.trim(),
+      description: book.description?.trim() || null,
+      cover_url: cover.url,
+      cover_asset_id: cover.assetId,
+      purchase_url: safeUrl(book.purchaseUrl)!,
+      published_date: book.publishedDate,
+      price: book.price ?? null,
+      genres: cleanGenres(book.genres),
+      format: book.format,
+      pen_name: pen.penName,
+    });
+  } catch (error) {
+    if (error instanceof BookExistsError) return { error: "This project has already been published." };
+    return { error: errorMessage(error, "Failed to publish") };
   }
 
-  const { error: updateError } = await supabase
-    .from("writing_projects")
-    .update({ phase: "published" })
-    .eq("id", projectId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (updateError) return { error: updateError.message };
+  const failure = await saveProject(supabase, effectiveIdentity.memberId, projectId, { phase: "published" });
+  if (failure) return failure;
 
   // Fire-and-forget: a Slack outage must never block the publish from succeeding.
   notifyStaffNewBook({
@@ -761,39 +766,40 @@ async function logProgressImpl(
   const ownershipError = await assertOwnsProject(supabase, effectiveIdentity.memberId, input.projectId);
   if (ownershipError) return { error: ownershipError };
 
-  const { data, error } = await supabase
-    .from("writing_progress_entries")
-    .insert({
-      project_id: input.projectId,
-      member_id: effectiveIdentity.memberId,
-      entry_date: input.entryDate,
+  let entryId: string;
+  try {
+    entryId = await createRepos(supabase).writing.addEntry({
+      projectId: input.projectId,
+      memberId: effectiveIdentity.memberId,
+      entryDate: input.entryDate,
       measure: input.measure,
-      mode: input.mode,
+      mode: input.mode as "delta" | "set_total",
       amount: input.amount,
       note: input.note?.trim() || null,
       tags: normalizeTags(input.tags),
-      prickle_id: input.prickleId ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to log progress" };
+      prickleId: input.prickleId ?? null,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to log progress" };
+  }
+  const data = { id: entryId };
 
   // Phase 1, item 11: every progress entry is also an engagement signal -- see the identical
   // insert in app/api/webhooks/slack/interactions/route.ts's writing_quick_log flow, which
   // is a different entry point into the same writing_progress_entries table. Best-effort: a
   // failure here must never fail the entry that was already successfully saved.
-  const { error: activityError } = await supabase.from("member_activities").insert({
-    member_id: effectiveIdentity.memberId,
-    activity_type: "writing_progress_logged",
-    activity_category: "writing",
-    title: "Logged writing progress",
-    related_id: data.id,
-    engagement_value: 5,
-    occurred_at: new Date().toISOString(),
-    source: "writing_progress",
-  });
-  if (activityError) console.error("logProgress: failed to insert member_activities row", activityError);
+  await createRepos(supabase)
+    .activities.record({
+      memberId: effectiveIdentity.memberId,
+      type: "writing_progress_logged",
+      category: "writing",
+      title: "Logged writing progress",
+      relatedId: data.id,
+      engagementValue: 5,
+      occurredAt: new Date().toISOString(),
+      source: "writing_progress",
+    })
+    .catch((activityError) => console.error("logProgress: failed to insert member_activities row", activityError));
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
@@ -820,11 +826,8 @@ export async function updateEntry(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_progress_entries")
-    .select("id, project_id, member_id, prickle_id")
-    .eq("id", entryId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Entry not found" };
@@ -839,22 +842,19 @@ export async function updateEntry(
   });
   if (validationError) return { error: validationError };
 
-  const updates: Record<string, unknown> = {};
-  if (patch.entryDate !== undefined) updates.entry_date = patch.entryDate;
-  if (patch.measure !== undefined) updates.measure = patch.measure;
-  if (patch.mode !== undefined) updates.mode = patch.mode;
-  if (patch.amount !== undefined) updates.amount = patch.amount;
-  if (patch.note !== undefined) updates.note = patch.note.trim() || null;
-  if (patch.tags !== undefined) updates.tags = normalizeTags(patch.tags);
-  if (patch.prickleId !== undefined) updates.prickle_id = patch.prickleId;
-
-  const { error } = await supabase
-    .from("writing_progress_entries")
-    .update(updates)
-    .eq("id", entryId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateEntry(effectiveIdentity.memberId, entryId, {
+      entryDate: patch.entryDate,
+      measure: patch.measure,
+      mode: patch.mode,
+      amount: patch.amount,
+      note: patch.note === undefined ? undefined : patch.note.trim() || null,
+      tags: patch.tags === undefined ? undefined : normalizeTags(patch.tags),
+      prickleId: patch.prickleId,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update entry" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -870,33 +870,25 @@ export async function deleteEntry(entryId: string): Promise<{ success: true } | 
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_progress_entries")
-    .select("id, project_id, member_id, prickle_id")
-    .eq("id", entryId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.findEntry(entryId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Entry not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_progress_entries")
-    .delete()
-    .eq("id", entryId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.deleteEntry(effectiveIdentity.memberId, entryId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete entry" };
+  }
 
   // Phase 1, item 11: don't let a deleted (e.g. bogus) entry permanently inflate engagement.
   // Best-effort: the entry itself is already gone, so a failure here must not turn this into
   // an error response.
-  const { error: activityDeleteError } = await supabase
-    .from("member_activities")
-    .delete()
-    .eq("related_id", entryId)
-    .eq("source", "writing_progress");
-  if (activityDeleteError) console.error("deleteEntry: failed to delete member_activities row", activityDeleteError);
+  await createRepos(supabase)
+    .activities.removeFor("writing_progress", entryId)
+    .catch((activityDeleteError) => console.error("deleteEntry: failed to delete member_activities row", activityDeleteError));
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -922,33 +914,25 @@ export async function getPricklesOnDate(date: string): Promise<PrickleOption[]> 
 
   // A UTC window wide enough for any timezone offset, narrowed to the local date below.
   const dayStartUtc = new Date(`${date}T00:00:00Z`).getTime();
-  const { data: prickles } = await supabase
-    .from("prickles")
-    .select("id, start_time, host:prickle_host(name), prickle_types:type_id(name)")
-    .gte("start_time", new Date(dayStartUtc - DAY_MS).toISOString())
-    .lt("start_time", new Date(dayStartUtc + 2 * DAY_MS).toISOString())
-    .order("start_time", { ascending: true });
+  const repos = createRepos(supabase);
+  const prickles = await repos.prickles.startingBetween({
+    from: new Date(dayStartUtc - DAY_MS).toISOString(),
+    to: new Date(dayStartUtc + 2 * DAY_MS).toISOString(),
+  });
 
-  const onDate = ((prickles ?? []) as unknown as RawEmbeddedPrickle[]).filter(
-    (p) => localDateOf(p.start_time, timeZone) === date
-  );
+  const onDate = prickles.filter((p) => localDateOf(p.startTime, timeZone) === date);
   if (onDate.length === 0) return [];
 
-  const { data: attendance } = await supabase
-    .from("prickle_attendance")
-    .select("prickle_id")
-    .eq("member_id", effectiveIdentity.memberId)
-    .in(
-      "prickle_id",
-      onDate.map((p) => p.id)
-    );
-  const attendedIds = new Set(((attendance ?? []) as { prickle_id: string }[]).map((a) => a.prickle_id));
+  const attendedIds = await repos.attendance.attendedAmong(
+    effectiveIdentity.memberId,
+    onDate.map((p) => p.id)
+  );
 
   return sortPrickleOptions(
     onDate.map((p) => ({
       id: p.id,
-      label: labelForPrickle(p, timeZone),
-      startTime: p.start_time,
+      label: formatPrickleLabel({ startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null }, timeZone),
+      startTime: p.startTime,
       attended: attendedIds.has(p.id),
     }))
   );
@@ -964,21 +948,23 @@ export async function getMyEntriesForPrickle(prickleId: string): Promise<Prickle
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data }, timeZone] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select(
-        `id, project_id, entry_date, measure, mode, amount, note, tags, created_at, prickle_id, ${ENTRY_PRICKLE_EMBED}, writing_projects!inner(title)`
-      )
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("prickle_id", prickleId)
-      .order("created_at", { ascending: true }),
+  const repos = createRepos(supabase);
+  const [entries, prickle, timeZone] = await Promise.all([
+    repos.writing.prickleEntries(effectiveIdentity.memberId, prickleId),
+    repos.prickles.byId(prickleId),
     viewerTimeZone(),
   ]);
 
-  return ((data ?? []) as unknown as (RawEntry & { writing_projects: { title: string } | { title: string }[] })[]).map(
-    (e) => ({ ...toEntryRow(e, timeZone), projectTitle: one(e.writing_projects)?.title ?? "" })
-  );
+  // Every entry here is linked to this one prickle, so its label is the same for all of them.
+  const embedded: RawEmbeddedPrickle | null = prickle
+    ? {
+        id: prickle.id,
+        start_time: prickle.startTime,
+        host: prickle.host ? { name: prickle.host.name, display_name: prickle.host.displayName } : null,
+        prickle_types: prickle.type ? { name: prickle.type.name } : null,
+      }
+    : null;
+  return entries.map(({ project_title, ...e }) => ({ ...toEntryRow({ ...e, prickle: embedded }, timeZone), projectTitle: project_title }));
 }
 
 const UNLOGGED_LOOKBACK_DAYS = 14;
@@ -994,52 +980,34 @@ export async function getUnloggedRecentPrickles(): Promise<PrickleOption[]> {
   const { supabase, effectiveIdentity } = ctx;
   const since = new Date(Date.now() - UNLOGGED_LOOKBACK_DAYS * DAY_MS).toISOString();
 
-  const [{ data: attendance }, { data: linked }, { data: dismissed }, timeZone] = await Promise.all([
-    supabase
-      .from("prickle_attendance")
-      .select(
-        "prickle_id, prickles!inner(id, start_time, host:prickle_host(name), prickle_types!inner(name, purpose))"
-      )
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("prickles.prickle_types.purpose", "writing")
-      .gte("prickles.start_time", since),
-    supabase
-      .from("writing_progress_entries")
-      .select("prickle_id")
-      .eq("member_id", effectiveIdentity.memberId)
-      .not("prickle_id", "is", null)
-      .gte("created_at", since),
-    supabase
-      .from("prickle_checkout_dismissals")
-      .select("prickle_id")
-      .eq("member_id", effectiveIdentity.memberId)
-      .gte("dismissed_at", since),
+  const repos = createRepos(supabase);
+  const [attendance, linked, dismissed, timeZone] = await Promise.all([
+    repos.attendance.forMemberWithPrickles(effectiveIdentity.memberId, {
+      purpose: "writing",
+      prickleStartedSince: since,
+    }),
+    repos.writing.prickleIdsLoggedSince(effectiveIdentity.memberId, since),
+    repos.prickleActivity.dismissedSince("checkout", effectiveIdentity.memberId, since),
     viewerTimeZone(),
   ]);
 
   // Linked to an entry, dismissed from this prompt, or checked out of: nothing left to ask about.
-  const attendedIds = ((attendance ?? []) as unknown as { prickle_id: string }[]).map((a) => a.prickle_id);
-  const { data: checkins } =
-    attendedIds.length === 0
-      ? { data: [] }
-      : await supabase
-          .from("prickle_checkins")
-          .select("prickle_id, feelings_before, need, session_rating, feelings_after")
-          .eq("member_id", effectiveIdentity.memberId)
-          .in("prickle_id", attendedIds)
-          .is("deleted_at", null);
-  const checkedOutIds = ((checkins ?? []) as (Parameters<typeof checkinFromRow>[0] & { prickle_id: string })[])
-    .filter((c) => checkoutAnswered(checkinFromRow(c)))
-    .map((c) => c.prickle_id);
+  const attendedIds = attendance.map((a) => a.prickleId);
+  const checkins = await repos.prickleActivity.checkinsAmong(effectiveIdentity.memberId, attendedIds);
+  const checkedOutIds = [...checkins].filter(([, c]) => checkoutAnswered(c)).map(([prickleId]) => prickleId);
   const linkedIds = new Set([
-    ...[...(linked ?? []), ...(dismissed ?? [])].map((e) => (e as { prickle_id: string }).prickle_id),
+    ...linked,
+    ...dismissed,
     ...checkedOutIds,
   ]);
   const byId = new Map<string, PrickleOption>();
-  for (const row of (attendance ?? []) as unknown as { prickles: RawEmbeddedPrickle | RawEmbeddedPrickle[] }[]) {
-    const p = one(row.prickles);
+  for (const { prickle: p } of attendance) {
     if (!p || linkedIds.has(p.id) || byId.has(p.id)) continue;
-    byId.set(p.id, { id: p.id, label: labelForPrickle(p, timeZone), startTime: p.start_time, attended: true });
+    const label = formatPrickleLabel(
+      { startTime: p.startTime, typeName: p.type?.name ?? null, hostName: p.host ? getMemberDisplayName({ name: p.host.name, display_name: p.host.displayName }) : null },
+      timeZone
+    );
+    byId.set(p.id, { id: p.id, label, startTime: p.startTime, attended: true });
   }
   return [...byId.values()].sort((a, b) => b.startTime.localeCompare(a.startTime));
 }
@@ -1168,18 +1136,17 @@ async function createGoalImpl(
   const details = buildGoalDetails(input);
   if ("error" in details) return details;
 
-  const { data, error } = await supabase
-    .from("writing_goals")
-    .insert({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details })
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Failed to create goal" };
+  let id: string;
+  try {
+    id = await createRepos(supabase).writing.createGoal({ member_id: effectiveIdentity.memberId, project_id: input.projectId, ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to create goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${input.projectId}`);
   revalidatePath("/dashboard");
-  return { success: true, id: data.id };
+  return { success: true, id };
 }
 
 export type UpdateGoalInput = Partial<
@@ -1207,11 +1174,8 @@ export async function updateGoal(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id, goal_type, measure, target_amount, start_date, end_date, habit_period, habit_threshold")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
@@ -1232,13 +1196,11 @@ export async function updateGoal(
   const details = buildGoalDetails(patch);
   if ("error" in details) return details;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ ...fields, ...details })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { ...fields, ...details });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1251,23 +1213,18 @@ export async function deleteGoal(goalId: string): Promise<{ success: true } | { 
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .delete()
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.deleteGoal(effectiveIdentity.memberId, goalId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to delete goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1285,23 +1242,18 @@ export async function archiveGoal(goalId: string): Promise<{ success: true } | {
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: existing } = await supabase
-    .from("writing_goals")
-    .select("id, project_id, member_id")
-    .eq("id", goalId)
-    .single();
+  const writing = createRepos(supabase).writing;
+  const existing = await writing.goalForEdit(goalId).catch(() => null);
 
   if (!existing || existing.member_id !== effectiveIdentity.memberId) {
     return { error: "Goal not found" };
   }
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ archived_at: new Date().toISOString(), is_starred: false })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await writing.updateGoal(effectiveIdentity.memberId, goalId, { archived_at: new Date().toISOString(), is_starred: false });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to archive goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/projects/${existing.project_id}`);
@@ -1315,23 +1267,14 @@ export async function getArchivedGoals(projectId: string): Promise<GoalRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: goalRows }, { data: entryRows }, attendance] = await Promise.all([
-    supabase
-      .from("writing_goals")
-      .select(GOAL_SELECT_COLUMNS)
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .not("archived_at", "is", null),
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId),
+  const [goalRows, entryRows, attendance] = await Promise.all([
+    createRepos(supabase).writing.archivedGoals(effectiveIdentity.memberId, projectId).catch(() => []),
+    createRepos(supabase).writing.entriesForProjects(effectiveIdentity.memberId, [projectId]),
     getMyPrickleAttendance(),
   ]);
 
   const now = new Date();
-  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows ?? [], now, attendance));
+  return ((goalRows ?? []) as unknown as RawGoal[]).map((g) => buildGoalRow(g, entryRows, now, attendance));
 }
 
 export async function toggleGoalStar(
@@ -1342,13 +1285,11 @@ export async function toggleGoalStar(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ is_starred: isStarred })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { is_starred: isStarred });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath("/dashboard");
@@ -1363,13 +1304,11 @@ export async function toggleGoalVisibility(
   if ("error" in ctx) return ctx;
   const { supabase, effectiveIdentity } = ctx;
 
-  const { error } = await supabase
-    .from("writing_goals")
-    .update({ show_on_profile: showOnProfile })
-    .eq("id", goalId)
-    .eq("member_id", effectiveIdentity.memberId);
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).writing.updateGoal(effectiveIdentity.memberId, goalId, { show_on_profile: showOnProfile });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to update goal" };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath(`/members/${effectiveIdentity.memberId}`);
@@ -1382,31 +1321,24 @@ export async function getStarredGoals(): Promise<(GoalRow & { projectTitle: stri
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data: goals } = await supabase
-    .from("writing_goals")
-    .select(`${GOAL_SELECT_COLUMNS}, writing_projects(title)`)
-    .eq("member_id", effectiveIdentity.memberId)
-    .eq("is_starred", true)
-    .is("archived_at", null);
+  const goals = await createRepos(supabase).writing.starredGoals(effectiveIdentity.memberId).catch(() => []);
 
-  if (!goals || goals.length === 0) return [];
+  if (goals.length === 0) return [];
 
   const projectIds = [...new Set(goals.map((g) => g.project_id))];
-  const [{ data: entries }, attendance] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-      .eq("member_id", effectiveIdentity.memberId)
-      .in("project_id", projectIds),
+  const [entries, attendance] = await Promise.all([
+    createRepos(supabase).writing.entriesForProjects(
+      effectiveIdentity.memberId,
+      projectIds.filter((id): id is string => id !== null)
+    ),
     getMyPrickleAttendance(),
   ]);
 
   const now = new Date();
 
-  return (goals as unknown as (RawGoal & { writing_projects: { title: string } | { title: string }[] | null })[]).map((g) => {
-    const project = singleRelation(g.writing_projects);
-    const projectEntries = (entries ?? []).filter((e) => e.project_id === g.project_id);
-    return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: project?.title ?? "Untitled project" };
+  return (goals as unknown as (RawGoal & { project_title: string | null })[]).map((g) => {
+    const projectEntries = entries.filter((e) => e.project_id === g.project_id);
+    return { ...buildGoalRow(g, projectEntries, now, attendance), projectTitle: g.project_title ?? "Untitled project" };
   });
 }
 
@@ -1419,24 +1351,14 @@ export async function getProjectSeries(
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const [{ data: entries }, { data: startingBalanceRow }] = await Promise.all([
-    supabase
-      .from("writing_progress_entries")
-      .select("entry_date, mode, amount, created_at")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("measure", measure),
-    supabase
-      .from("writing_project_starting_balances")
-      .select("amount")
-      .eq("project_id", projectId)
-      .eq("member_id", effectiveIdentity.memberId)
-      .eq("measure", measure)
-      .maybeSingle(),
+  const { writing } = createRepos(supabase);
+  const [entries, startingBalanceAmount] = await Promise.all([
+    writing.seriesEntries(effectiveIdentity.memberId, projectId, measure),
+    writing.startingBalance(effectiveIdentity.memberId, projectId, measure),
   ]);
 
   const series = computeCumulativeSeries(
-    (entries ?? []).map((e) => ({
+    entries.map((e) => ({
       entryDate: e.entry_date,
       createdAt: e.created_at,
       mode: e.mode as EntryMode,
@@ -1444,7 +1366,7 @@ export async function getProjectSeries(
     }))
   );
 
-  const startingBalance = startingBalanceRow?.amount;
+  const startingBalance = startingBalanceAmount ?? undefined;
   return series.map((point) => ({ ...point, total: applyStartingBalance(point.total, startingBalance) }));
 }
 
@@ -1523,6 +1445,10 @@ export async function getProfileWriting(
 // Usage analytics: each action records whether it worked (lib/analytics/server.ts).
 export async function createProject(...args: Parameters<typeof createProjectImpl>): ReturnType<typeof createProjectImpl> {
   return withAction("project_created", () => createProjectImpl(...args));
+}
+
+export async function deleteProject(...args: Parameters<typeof deleteProjectImpl>): ReturnType<typeof deleteProjectImpl> {
+  return withAction("project_deleted", () => deleteProjectImpl(...args));
 }
 
 export async function publishProject(...args: Parameters<typeof publishProjectImpl>): ReturnType<typeof publishProjectImpl> {

@@ -8,12 +8,29 @@
 import { spawnSync } from "node:child_process";
 import { loadTargetEnv, sourceFilesFor } from "./env-files";
 import { ENV_VARS } from "../env-vars.config";
+import { GITHUB_SYNC_USAGE, parseSyncArgs } from "./sync-args";
 
 const REPO = "quillandcup/hub";
 // Production's values: .env.shared overridden by .env.prod.
 const ENV_FILE = sourceFilesFor("production");
 
+// A mistyped scoping flag must not quietly sync everything, so unknown arguments stop the run.
+function parseOnly(): Set<string> | null {
+  const names = new Set(
+    ENV_VARS.filter((spec) => spec.destinations.some((d) => d.kind === "github" || d.kind === "github-dependabot")).map(
+      (spec) => spec.name,
+    ),
+  );
+  const parsed = parseSyncArgs(process.argv.slice(2), { names, targets: [], destination: "GitHub" });
+  if (!parsed.ok) {
+    console.error(`${parsed.error}\n\n${GITHUB_SYNC_USAGE}`);
+    process.exit(2);
+  }
+  return parsed.only;
+}
+
 function main(): void {
+  const only = parseOnly();
   console.log(`🚀 Syncing GitHub Actions secrets/variables for ${REPO}...\n`);
 
   const env = loadTargetEnv("production");
@@ -21,18 +38,25 @@ function main(): void {
   const missing: string[] = [];
 
   for (const spec of ENV_VARS) {
+    if (only && !only.has(spec.name)) continue;
     for (const dest of spec.destinations) {
-      if (dest.kind !== "github") continue;
+      if (dest.kind !== "github" && dest.kind !== "github-dependabot") continue;
       const value = env[spec.name];
       if (value === undefined || value === "") {
         console.warn(`⚠️  ${spec.name} not found in ${ENV_FILE}, skipping...`);
         missing.push(spec.name);
         continue;
       }
-      const label = spec.type === "secret" ? "🔒 secret" : "📤 variable";
+      if (dest.kind === "github-dependabot" && spec.type !== "secret") {
+        console.error(`❌ ${spec.name}: only secrets can go to Dependabot`);
+        process.exit(1);
+      }
+      const dependabot = dest.kind === "github-dependabot";
+      const label = spec.type === "secret" ? `🔒 ${dependabot ? "dependabot " : ""}secret` : "📤 variable";
       console.log(`${label} ${spec.name}...`);
       const cmd = spec.type === "secret" ? "secret" : "variable";
-      const result = spawnSync("gh", [cmd, "set", spec.name, "--repo", REPO], {
+      const args = [cmd, "set", spec.name, "--repo", REPO, ...(dependabot ? ["--app", "dependabot"] : [])];
+      const result = spawnSync("gh", args, {
         input: value,
         stdio: ["pipe", "inherit", "inherit"],
       });

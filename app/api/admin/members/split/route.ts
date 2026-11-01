@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { createRepos } from "@/lib/data/repos";
 import { triggerAttendanceReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse, after } from "next/server";
 
@@ -47,14 +48,12 @@ export async function POST(request: NextRequest) {
   const nameIds = Array.isArray(nameAliasIds) ? nameAliasIds : [];
   const emailIds = Array.isArray(emailAliasIds) ? emailAliasIds : [];
 
-  const { data: original } = await supabase.from("members").select("id, name, email").eq("id", memberId).single();
+  const original = await createRepos(supabase).members.byId(memberId);
   if (!original) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
   // The new email must be free, or be an alias of the member being split.
-  const [{ data: holder }, { data: emailAlias }] = await Promise.all([
-    supabase.from("members").select("id, name").eq("email", newEmail).maybeSingle(),
-    supabase.from("member_email_aliases").select("id, member_id").eq("alias_email", newEmail).maybeSingle(),
-  ]);
+  const aliases = createRepos(supabase).aliases;
+  const [holder, emailAlias] = await Promise.all([createRepos(supabase).members.byEmail(newEmail), aliases.findEmail(newEmail)]);
   if (holder) {
     return NextResponse.json(
       {
@@ -69,61 +68,40 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
-  if (emailAlias && emailAlias.member_id !== original.id) {
+  if (emailAlias && emailAlias.memberId !== original.id) {
     return NextResponse.json(
-      { error: "That email is already an alias of another member.", conflictingMemberId: emailAlias.member_id },
+      { error: "That email is already an alias of another member.", conflictingMemberId: emailAlias.memberId },
       { status: 409 }
     );
   }
 
   // Only aliases that belong to the original member can move.
-  const [{ data: nameRows }, { data: emailRows }] = await Promise.all([
-    nameIds.length
-      ? supabase.from("member_name_aliases").select("id").eq("member_id", original.id).in("id", nameIds)
-      : Promise.resolve({ data: [] as { id: string }[] }),
-    emailIds.length
-      ? supabase.from("member_email_aliases").select("id, alias_email").eq("member_id", original.id).in("id", emailIds)
-      : Promise.resolve({ data: [] as { id: string; alias_email: string }[] }),
-  ]);
-  const moveNameIds = (nameRows ?? []).map((r) => r.id);
+  const [moveNameIds, emailRows] = await Promise.all([aliases.ownedNameIds(original.id, nameIds), aliases.ownedEmails(original.id, emailIds)]);
   // The new member's own email stops being an alias: it's their email now.
-  const moveEmailIds = (emailRows ?? []).filter((r) => r.alias_email !== newEmail).map((r) => r.id);
+  const moveEmailIds = emailRows.filter((r) => r.alias_email !== newEmail).map((r) => r.id);
 
   // Oldest attendance of the original member bounds the reprocess.
-  const { data: earliest } = await supabase
-    .from("prickle_attendance")
-    .select("join_time")
-    .eq("member_id", original.id)
-    .order("join_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const earliestJoinTime = await createRepos(supabase).attendance.firstJoinTime(original.id);
 
   try {
-    if (emailAlias) await run(supabase.from("member_email_aliases").delete().eq("id", emailAlias.id));
+    if (emailAlias) await aliases.removeEmails([emailAlias.id]);
 
-    const { data: created, error: insertError } = await supabase
-      .from("members")
-      .insert({
-        name: newName,
-        email: newEmail,
-        joined_at: new Date().toISOString().split("T")[0],
-        status: "cancelled",
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (insertError || !created) throw insertError ?? new Error("Couldn't create the member");
+    // members.source only allows kajabi or staff; the new member is an ordinary (cancelled) contact.
+    const createdId = await createRepos(supabase).members.create({
+      name: newName,
+      email: newEmail,
+      joinedAt: new Date().toISOString().split("T")[0],
+      status: "cancelled",
+      source: "kajabi",
+    });
+    const created = { id: createdId };
 
-    if (moveNameIds.length) {
-      await run(supabase.from("member_name_aliases").update({ member_id: created.id }).in("id", moveNameIds));
-    }
-    if (moveEmailIds.length) {
-      await run(supabase.from("member_email_aliases").update({ member_id: created.id }).in("id", moveEmailIds));
-    }
+    await aliases.moveNames(moveNameIds, created.id);
+    await aliases.moveEmails(moveEmailIds, created.id);
 
     // Re-file Zoom attendance (all the way back) against the new aliases. Slack
     // activity and members catch up on their next scheduled runs.
-    const from = earliest?.join_time ? new Date(earliest.join_time) : new Date(Date.now() - 90 * 86_400_000);
+    const from = earliestJoinTime ? new Date(earliestJoinTime) : new Date(Date.now() - 90 * 86_400_000);
     after(async () => {
       try {
         await triggerAttendanceReprocessing({ from, to: new Date() });

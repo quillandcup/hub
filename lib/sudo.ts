@@ -1,12 +1,16 @@
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+import { createRepos } from '@/lib/data/repos'
 import { createClient } from '@/lib/supabase/server'
 import type { AuthUser } from '@/lib/auth'
+import { getMemberDisplayName } from '@/lib/member-display-name'
 import { SUDO_COOKIE_NAME, parseSudoCookie } from '@/lib/sudo-cookie'
 
 export interface EffectiveIdentity {
   memberId: string
   memberName: string
+  /** What the community sees: their chosen display name, else memberName. */
+  memberDisplayName?: string
   memberEmail: string
   isSudo: boolean
 }
@@ -39,23 +43,14 @@ const resolveEffectiveIdentity = cache(async (
   if (sudoCookieValue) {
     const parsed = parseSudoCookie(sudoCookieValue)
     if (parsed && parsed.adminId === realUserId) {
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', realUserId)
-        .single()
-
-      if (profile?.role === 'admin') {
-        const { data: member } = await supabase
-          .from('members')
-          .select('id, name, email')
-          .eq('id', parsed.memberId)
-          .single()
+      if (await createRepos(supabase).profiles.isAdmin(realUserId)) {
+        const member = await createRepos(supabase).members.byId(parsed.memberId)
 
         if (member) {
           return {
             memberId: member.id,
             memberName: member.name,
+            memberDisplayName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
             memberEmail: member.email,
             isSudo: true,
           }
@@ -71,27 +66,16 @@ const resolveEffectiveIdentity = cache(async (
   // supabase/migrations/20260831180000_add_alias_self_service.sql, which
   // backs alias-management RLS. Email is only a fallback for accounts that
   // predate that link being set.
-  const { data: byUserId } = await supabase
-    .from('members')
-    .select('id, name, email')
-    .eq('user_id', realUserId)
-    .maybeSingle()
-
-  const member = byUserId ?? (realUserEmail
-    ? (
-        await supabase
-          .from('members')
-          .select('id, name, email')
-          .eq('email', realUserEmail)
-          .maybeSingle()
-      ).data
-    : null)
+  const members = createRepos(supabase).members
+  const member =
+    (await members.byUserId(realUserId)) ?? (realUserEmail ? await members.byEmail(realUserEmail) : null)
 
   if (!member) return null
 
   return {
     memberId: member.id,
     memberName: member.name,
+    memberDisplayName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
     memberEmail: member.email,
     isSudo: false,
   }

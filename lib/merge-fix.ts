@@ -1,6 +1,9 @@
 export interface EnrichedMember {
   id: string;
+  /** The legal name: duplicates are detected on it. */
   name: string;
+  /** The name the community knows them by, shown first. */
+  displayName?: string | null;
   email: string;
   status: string;
   stripe_customer_id: string | null;

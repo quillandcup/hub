@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireAdminAction } from "@/lib/admin-auth";
 import { getCoursesCaller } from "@/lib/courses/caller";
+import { recordLessonCompleted } from "@/lib/courses/activity";
 import { canOpenLessons, loadMemberCourseAccess } from "@/lib/courses/member";
-import { isUuid } from "@/lib/chat/format";
+import { createRepos } from "@/lib/data/repos";
+import { isId } from "@/lib/ids";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
@@ -15,28 +17,27 @@ import { withAction } from "@/lib/analytics/server";
  * read-only, so an admin previewing as a member never changes that member's progress.
  */
 async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promise<{ error?: string }> {
-  if (!isUuid(lessonId)) return { error: "Lesson not found" };
+  if (!isId(lessonId, "les")) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();
   if (!caller) return { error: "Not available" };
   if (caller.identity.isSudo) return { error: "Progress can't be changed while viewing as a member" };
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("course_id, state").eq("id", lessonId).maybeSingle();
+  const lesson = await createRepos(service).courses.lessonById(lessonId);
   if (!lesson || lesson.state !== "open") return { error: "Lesson not found" };
   const access = await loadMemberCourseAccess(service, caller.scope, lesson.course_id);
   if (!canOpenLessons(access)) return { error: "You don't have access to this course" };
 
   // Written as the member (RLS: their own rows only), not with the service role.
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("lesson_progress")
-    .upsert(
-      { member_id: caller.identity.memberId, lesson_id: lessonId, completed_at: complete ? new Date().toISOString() : null },
-      { onConflict: "member_id,lesson_id" }
-    );
-  if (error) {
-    console.error("lesson_progress upsert failed:", error.message);
+  try {
+    await createRepos(supabase).courseProgress.setCompletion(caller.identity.memberId, lessonId, complete ? new Date().toISOString() : null);
+  } catch (error) {
+    console.error("lesson_progress upsert failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't save your progress" };
+  }
+  if (complete) {
+    await recordLessonCompleted(supabase, { memberId: caller.identity.memberId, lessonId, courseId: lesson.course_id, lessonTitle: lesson.title, lessonSeconds: lesson.duration_seconds === null ? null : Number(lesson.duration_seconds) });
   }
 
   revalidatePath("/courses", "layout");
@@ -53,27 +54,29 @@ async function setLessonCompleteImpl(lessonId: string, complete: boolean): Promi
 export async function clearMyLessonProgress(lessonId: string): Promise<{ error?: string; segments?: number }> {
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
-  if (!isUuid(lessonId)) return { error: "Lesson not found" };
+  if (!isId(lessonId, "les")) return { error: "Lesson not found" };
   const caller = await getCoursesCaller();
   if (!caller || !caller.scope.isAdminActing) return { error: "Not available" };
 
   const service = createServiceRoleClient();
-  const { data: lesson } = await service.from("course_lessons").select("video_id").eq("id", lessonId).maybeSingle();
+  const repos = createRepos(service);
+  const lesson = await repos.courses.lessonById(lessonId);
   if (!lesson) return { error: "Lesson not found" };
   const memberId = caller.identity.memberId;
 
   let segments = 0;
   if (lesson.video_id) {
-    const { data, error } = await service.from("video_watch_segments").delete().eq("member_id", memberId).eq("video_id", lesson.video_id).select("id");
-    if (error) {
-      console.error("video_watch_segments delete failed:", error.message);
+    try {
+      segments = await repos.courseProgress.clearSegments(memberId, lesson.video_id);
+    } catch (error) {
+      console.error("video_watch_segments delete failed:", error instanceof Error ? error.message : error);
       return { error: "Couldn't clear your progress" };
     }
-    segments = data?.length ?? 0;
   }
-  const { error } = await service.from("lesson_progress").delete().eq("member_id", memberId).eq("lesson_id", lessonId);
-  if (error) {
-    console.error("lesson_progress delete failed:", error.message);
+  try {
+    await repos.courseProgress.clearProgress(memberId, lessonId);
+  } catch (error) {
+    console.error("lesson_progress delete failed:", error instanceof Error ? error.message : error);
     return { error: "Couldn't clear your progress" };
   }
 

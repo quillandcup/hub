@@ -27,21 +27,29 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => create
 
 vi.mock("@/app/(admin)/admin/members/[id]/MemberDetails", () => ({
   default: ({
-    slackActivities,
+    slackPage,
     activityFeed,
+    emailAliases,
+    eventSlugs,
   }: {
-    slackActivities: { id: string; description: string | null }[];
-    activityFeed: { total: number; page: number };
+    emailAliases: { alias_email: string }[];
+    eventSlugs?: Record<string, string>;
+    slackPage: { rows: { id: string; description: string | null }[] };
+    activityFeed: { total: number; page: number } | null;
   }) => (
     <>
       <ul aria-label="slack activity">
-        {slackActivities.map((a) => (
+        {slackPage.rows.map((a) => (
           <li key={a.id}>{a.description}</li>
         ))}
       </ul>
-      <p>
-        activity {activityFeed.total} on page {activityFeed.page}
-      </p>
+      <p>{activityFeed ? `activity ${activityFeed.total} on page ${activityFeed.page}` : "activity unavailable"}</p>
+      <p>{`event slugs ${JSON.stringify(eventSlugs ?? {})}`}</p>
+      <ol aria-label="email aliases">
+        {emailAliases.map((a) => (
+          <li key={a.alias_email}>{a.alias_email}</li>
+        ))}
+      </ol>
     </>
   ),
 }));
@@ -52,7 +60,8 @@ vi.mock("@/lib/badges", () => ({ getMemberBadges: vi.fn(async () => []) }));
 vi.mock("@/lib/kajabi/membership-history", () => ({ fetchMembershipHistory: vi.fn(async () => []) }));
 vi.mock("@/lib/channels/web-push", () => ({ loadPushDevices: vi.fn(async () => []) }));
 
-import MemberDetailPage from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
+import { getMemberBadges } from "@/lib/badges";
+import MemberDetailPage, { memberTabMetadata } from "@/app/(admin)/admin/members/[id]/MemberDetailPage";
 
 const MEMBER = { id: "member-moss", name: "Moss Bramble", email: "moss.bramble@example.test", kajabi_id: null, stripe_customer_id: null };
 
@@ -91,6 +100,64 @@ describe("MemberDetailPage", () => {
     expect(items).toEqual(["@Fern thanks, see #hub-feedback"]);
   });
 
+  it("loads the Slack rows on every tab, since tabs switch on the client", async () => {
+    useFakeSupabase(
+      memberTables({
+        member_activities: (query) =>
+          query.calls.some((c) => c.method === "eq" && c.args[0] === "source")
+            ? { data: [{ id: "a1", source: "slack", description: "hello" }] }
+            : { data: [] },
+      })
+    );
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["hello"]);
+  });
+
+  it("hands the member's event-linked badges the address of their event", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_AAAAAAAAAAA1" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+      { badgeType: { id: "bt2", event_id: null }, levelName: "Hostess", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: [{ id: "evt_AAAAAAAAAAA1", slug: "spring-retreat-2097-04-10", title: "Spring Retreat" }] } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText('event slugs {"evt_AAAAAAAAAAA1":"spring-retreat-2097-04-10"}')).toBeInTheDocument();
+  });
+
+  it("still renders when an earned badge's event can't be found", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_GONE00000001" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: [] } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("event slugs {}")).toBeInTheDocument();
+  });
+
+  it("still renders when reading an earned badge's event fails", async () => {
+    vi.mocked(getMemberBadges).mockResolvedValueOnce([
+      { badgeType: { id: "bt1", event_id: "evt_AAAAAAAAAAA1" }, levelName: "Retreat", level: null, occurrences: 1, firstAwardedAt: null, lastAwardedAt: null, note: null },
+    ] as never);
+    useFakeSupabase(memberTables({ community_event_details: { data: null, error: { message: "timed out" } } }));
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("event slugs {}")).toBeInTheDocument();
+  });
+
+  it("lists the member's email aliases by address", async () => {
+    useFakeSupabase(
+      memberTables({
+        member_email_aliases: {
+          data: [
+            { id: "e1", alias_email: "zed@example.test", source: "manual", active: true, created_at: "2026-02-01T00:00:00Z" },
+            { id: "e2", alias_email: "ada@example.test", source: "manual", active: true, created_at: "2026-01-01T00:00:00Z" },
+            { id: "e3", alias_email: "ada@example.test", source: "manual", active: false, created_at: "2026-03-01T00:00:00Z" },
+          ],
+        },
+      })
+    );
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    const aliases = screen.getByRole("list", { name: "email aliases" });
+    expect(Array.from(aliases.querySelectorAll("li")).map((li) => li.textContent)).toEqual(["ada@example.test", "ada@example.test", "zed@example.test"]);
+  });
+
   it("loads the member's own activity feed for the Activity Log tab", async () => {
     const supabase = useFakeSupabase(
       memberTables({
@@ -105,5 +172,30 @@ describe("MemberDetailPage", () => {
       .flatMap((q) => q.calls)
       .find((c) => c.method === "args");
     expect(feedCall?.args[0]).toMatchObject({ p_member_id: MEMBER.id, p_audit_only: false });
+  });
+
+  it("still renders the page when the activity feed query times out", async () => {
+    useFakeSupabase(memberTables({ "rpc:count_activity_feed": { data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } } }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await renderServerPage(MemberDetailPage, { id: MEMBER.id, tab: "overview" as const });
+    expect(screen.getByText("activity unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "slack activity" })).toBeInTheDocument();
+  });
+
+  it("titles the page with the member's display name, then the tab", async () => {
+    useFakeSupabase({ members: { data: [{ ...MEMBER, display_name: "Moss B" }] } });
+    const params = Promise.resolve({ id: MEMBER.id });
+    const overview = await memberTabMetadata("overview")({ params });
+    const slack = await memberTabMetadata("slack")({ params });
+    expect(String(overview.title)).toContain("Moss B");
+    expect(String(overview.title)).not.toContain("Moss Bramble");
+    expect(String(slack.title)).toContain("Moss B");
+    expect(String(slack.title)).toContain("Slack Activity");
+  });
+
+  it("titles the page 'Member' when the member does not exist", async () => {
+    useFakeSupabase({ members: { data: [] } });
+    const metadata = await memberTabMetadata("overview")({ params: Promise.resolve({ id: "mbr_AAAAAAAAAAA9" }) });
+    expect(String(metadata.title)).toContain("Member");
   });
 });

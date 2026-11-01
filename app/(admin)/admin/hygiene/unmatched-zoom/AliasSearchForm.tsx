@@ -1,9 +1,12 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useMemo, useState } from "react";
 import MemberSearch from "@/components/MemberSearch";
+import { useTimeout } from "@/components/useTimeout";
 import Modal from "@/components/Modal";
 import { formatDateTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import { suggestMemberMatches } from "@/lib/member-matching";
 
 interface UnmatchedAttendee {
@@ -15,6 +18,7 @@ interface UnmatchedAttendee {
 interface Member {
   id: string;
   name: string;
+  displayName?: string | null;
   email: string;
 }
 
@@ -28,10 +32,15 @@ interface Match {
 export default function AliasSearchForm({
   unmatchedAttendees,
   allMembers,
+  prickleId,
 }: {
   unmatchedAttendees: UnmatchedAttendee[];
   allMembers: Member[];
+  /** On a prickle's page: offers "Ignore here" (this prickle only) next to ignoring the name everywhere. */
+  prickleId?: string;
 }) {
+  const timeZone = useTimeZone();
+  const startClearTimer = useTimeout();
   const [matches, setMatches] = useState<Match[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<string | null>(null);
@@ -51,6 +60,11 @@ export default function AliasSearchForm({
     [unmatchedAttendees, matches, ignoredNames]
   );
 
+  // Suggestions come from the matcher with the legal name; show who they are by display name.
+  const memberById = useMemo(() => new Map(allMembers.map((m) => [m.id, m])), [allMembers]);
+  const displayNameOf = (member: { id: string; name: string }) =>
+    getMemberDisplayName({ name: member.name, display_name: memberById.get(member.id)?.displayName });
+
   const suggestionsByZoomName = useMemo(() => {
     const map = new Map<string, ReturnType<typeof suggestMemberMatches>>();
     for (const attendee of availableZoomNames) {
@@ -68,7 +82,7 @@ export default function AliasSearchForm({
       {
         zoomName,
         memberId: member.id,
-        memberName: member.name,
+        memberName: getMemberDisplayName({ name: member.name, display_name: member.displayName }),
         memberEmail: member.email,
       },
     ]);
@@ -100,7 +114,7 @@ export default function AliasSearchForm({
       setSaveResult(`✓ Saved ${data.inserted} aliases!`);
 
       // Clear matches after successful save
-      setTimeout(() => {
+      startClearTimer(() => {
         setMatches([]);
         setSaveResult(null);
       }, 2000);
@@ -111,8 +125,11 @@ export default function AliasSearchForm({
     }
   };
 
-  const handleIgnore = async (zoomName: string) => {
-    const reason = prompt(`Why are you ignoring "${zoomName}"?\n(Optional - press OK to skip)`);
+  const handleIgnore = async (zoomName: string, scope: "everywhere" | "here") => {
+    const where = scope === "here" ? "on this prickle" : "everywhere (every prickle, including future ones)";
+    const reason = prompt(
+      `Why are you ignoring "${zoomName}" ${where}?\nA guest, a speaker, a test join...\n(Optional - press OK to skip)`
+    );
     if (reason === null) return; // User cancelled
 
     setIgnoring(zoomName);
@@ -123,7 +140,11 @@ export default function AliasSearchForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ zoomName, reason: reason || null }),
+        body: JSON.stringify({
+          zoomName,
+          reason: reason || null,
+          ...(scope === "here" ? { prickleId } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -198,11 +219,11 @@ export default function AliasSearchForm({
                     <span className="font-mono text-plum-600 dark:text-plum-400">
                       {match.zoomName}
                     </span>
-                    <span className="mx-2 text-slate-400">→</span>
+                    <span className="mx-2 text-slate-500 dark:text-slate-400">→</span>
                     <span className="font-semibold text-slate-900 dark:text-slate-100">
                       {match.memberName}
                     </span>
-                    <span className="text-slate-500 text-xs ml-2">
+                    <span className="text-slate-600 dark:text-slate-400 text-xs ml-2">
                       ({match.memberEmail})
                     </span>
                   </div>
@@ -233,7 +254,7 @@ export default function AliasSearchForm({
 
         <div className="divide-y divide-slate-200 dark:divide-slate-800">
           {availableZoomNames.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
+            <div className="p-12 text-center text-slate-600 dark:text-slate-400">
               All matched! 🎉
             </div>
           ) : (
@@ -257,7 +278,7 @@ export default function AliasSearchForm({
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
                       {attendee.zoomName.length} chars •{" "}
                       <button
                         onClick={() => handleViewPrickles(attendee.zoomName)}
@@ -267,7 +288,7 @@ export default function AliasSearchForm({
                       </button>
                     </div>
                     {attendee.emails.length > 0 && (
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                         {attendee.emails.join(", ")}
                       </div>
                     )}
@@ -285,7 +306,7 @@ export default function AliasSearchForm({
                             className="px-2 py-1 text-xs bg-plum-50 dark:bg-plum-900/20 text-plum-700 dark:text-plum-300 border border-plum-200 dark:border-plum-800 rounded-full hover:bg-plum-100 dark:hover:bg-plum-900/40"
                             title={member.email}
                           >
-                            {member.name}
+                            {displayNameOf(member)}
                           </button>
                         ))}
                       </div>
@@ -297,14 +318,25 @@ export default function AliasSearchForm({
                     />
                   </div>
 
-                  {/* Right: Ignore button */}
-                  <div>
+                  {/* Right: Ignore buttons */}
+                  <div className="flex gap-2">
+                    {prickleId && (
+                      <button
+                        onClick={() => handleIgnore(attendee.zoomName, "here")}
+                        disabled={ignoring === attendee.zoomName}
+                        title="Hide this name on this prickle only"
+                        className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
+                      >
+                        Ignore here
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleIgnore(attendee.zoomName)}
+                      onClick={() => handleIgnore(attendee.zoomName, "everywhere")}
                       disabled={ignoring === attendee.zoomName}
+                      title="Hide this name for every prickle, including future ones"
                       className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 rounded disabled:opacity-50"
                     >
-                      {ignoring === attendee.zoomName ? "Ignoring..." : "Ignore"}
+                      {ignoring === attendee.zoomName ? "Ignoring..." : prickleId ? "Ignore always" : "Ignore"}
                     </button>
                   </div>
                 </div>
@@ -321,11 +353,11 @@ export default function AliasSearchForm({
         title={`Prickles for "${selectedZoomName}"`}
       >
         {loadingPrickles ? (
-          <div className="text-center text-slate-500 py-8">Loading...</div>
+          <div className="text-center text-slate-600 dark:text-slate-400 py-8">Loading...</div>
         ) : prickles.length === 0 ? (
           <div className="text-center py-8">
-            <div className="text-slate-500 mb-4">No prickles found</div>
-            <div className="text-sm text-slate-400 max-w-md mx-auto">
+            <div className="text-slate-600 dark:text-slate-400 mb-4">No prickles found</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
               This Zoom name appeared in meetings that weren&apos;t processed into prickles yet.
               Try reprocessing attendance data to include these meetings.
             </div>
@@ -346,7 +378,7 @@ export default function AliasSearchForm({
                       {prickle.type_name || "Unknown Type"}
                     </div>
                     <div className="text-sm text-slate-600 dark:text-slate-400">
-                      {formatDateTime(prickle.start_time)}
+                      {formatDateTime(prickle.start_time, timeZone)}
                     </div>
                   </div>
                   <div className="text-plum-600 dark:text-plum-400">→</div>

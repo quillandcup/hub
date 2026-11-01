@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LogProgressModal from "@/components/writing/LogProgressModal";
 import { getPricklesOnDate, logProgress, updateEntry, type EntryRow } from "@/app/(member)/projects/actions";
 import { getCheckinForLogging, saveCheckin } from "@/app/(member)/prickles/checkin-actions";
+import { EMPTY_CHECKIN, ENERGY_QUESTION, INTENTION_MET_QUESTION, PLEASANTNESS_QUESTION } from "@/lib/prickle-checkins";
+
+const option = async (question: string, label: string) =>
+  within(await screen.findByRole("group", { name: question })).getByRole("button", { name: label });
 
 vi.mock("@/app/(member)/prickles/checkin-actions", () => ({
   getCheckinForLogging: vi.fn(),
@@ -170,12 +174,13 @@ describe("LogProgressModal check-out", () => {
     );
   }
 
-  it("asks only how it went, linking to the check-in modal for the check-in", async () => {
+  it("asks only the check-out questions, linking to the check-in modal for the check-in", async () => {
     renderForPrickle();
     expect(await screen.findByRole("heading", { name: /Check out/ })).toBeInTheDocument();
     expect(getCheckinForLogging).toHaveBeenCalledWith("prickle-other");
-    expect(screen.getByText("How did it go?")).toBeInTheDocument();
-    expect(screen.getByText(/Feeling now/)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: INTENTION_MET_QUESTION })).toBeInTheDocument();
+    expect(screen.getByText("How are you feeling now?")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/My intention/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Coming in/)).not.toBeInTheDocument();
     expect(screen.queryByText(/What I need/)).not.toBeInTheDocument();
 
@@ -186,26 +191,28 @@ describe("LogProgressModal check-out", () => {
 
   it("saves the check-out before the entry, keeping the latest check-in answers", async () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: ["tired"], need: "company", sessionRating: null, feelingsAfter: [] },
+      checkin: { ...EMPTY_CHECKIN, pleasantBefore: 2, energyBefore: 2, need: "company" },
       canEdit: true,
     });
     const user = userEvent.setup();
     renderForPrickle();
-    await user.click(await screen.findByRole("button", { name: /: Good$/ }));
-    await user.click(screen.getByRole("button", { name: "Calm" }));
+    await user.click(await option(INTENTION_MET_QUESTION, "Mostly"));
+    await user.click(await option(PLEASANTNESS_QUESTION, "Good"));
 
     // The check-in was edited in another tab while the modal was open.
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: ["stressed"], need: "company", sessionRating: null, feelingsAfter: [] },
+      checkin: { ...EMPTY_CHECKIN, pleasantBefore: 1, energyBefore: 2, need: "momentum" },
       canEdit: true,
     });
     await fillAmountAndSubmit(user, "Log progress");
 
     expect(saveCheckin).toHaveBeenCalledWith("prickle-other", {
-      feelingsBefore: ["stressed"],
-      need: "company",
-      sessionRating: 4,
-      feelingsAfter: ["calm"],
+      ...EMPTY_CHECKIN,
+      pleasantBefore: 1,
+      energyBefore: 2,
+      need: "momentum",
+      intentionMet: 4,
+      pleasantAfter: 4,
     });
     expect(vi.mocked(saveCheckin).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(logProgress).mock.invocationCallOrder[0]
@@ -214,18 +221,18 @@ describe("LogProgressModal check-out", () => {
 
   it("starts from the saved check-out", async () => {
     vi.mocked(getCheckinForLogging).mockResolvedValue({
-      checkin: { feelingsBefore: [], need: null, sessionRating: 2, feelingsAfter: ["tired"] },
+      checkin: { ...EMPTY_CHECKIN, intentionMet: 2, energyAfter: 1 },
       canEdit: true,
     });
     renderForPrickle();
-    expect(await screen.findByRole("button", { name: /: Meh$/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Tired" })).toHaveAttribute("aria-pressed", "true");
+    expect(await option(INTENTION_MET_QUESTION, "A little")).toHaveAttribute("aria-pressed", "true");
+    expect(await option(ENERGY_QUESTION, "Very low")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("doesn't touch the check-in when the check-out wasn't changed", async () => {
     const user = userEvent.setup();
     renderForPrickle();
-    await screen.findByText("How did it go?");
+    await screen.findByRole("group", { name: INTENTION_MET_QUESTION });
     await fillAmountAndSubmit(user, "Log progress");
     expect(saveCheckin).not.toHaveBeenCalled();
     expect(logProgress).toHaveBeenCalled();
@@ -235,7 +242,7 @@ describe("LogProgressModal check-out", () => {
     vi.mocked(saveCheckin).mockResolvedValue({ error: "Couldn't save your check-in — please try again." });
     const user = userEvent.setup();
     renderForPrickle();
-    await user.click(await screen.findByRole("button", { name: /: OK$/ }));
+    await user.click(await option(INTENTION_MET_QUESTION, "Somewhat"));
     await fillAmountAndSubmit(user, "Log progress");
 
     expect(await screen.findByText("Couldn't save your check-in — please try again.")).toBeInTheDocument();
@@ -248,13 +255,13 @@ describe("LogProgressModal check-out", () => {
       <LogProgressModal isOpen onClose={() => {}} onSaved={() => {}} projects={PROJECTS} defaultEntryDate="2026-10-01" />
     );
     await screen.findByRole("option", { name: OTHER.label });
-    expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: INTENTION_MET_QUESTION })).not.toBeInTheDocument();
     unmount();
 
     vi.mocked(getCheckinForLogging).mockResolvedValue({ checkin: null, canEdit: false });
     renderForPrickle();
     await waitFor(() => expect(getCheckinForLogging).toHaveBeenCalled());
-    expect(screen.queryByText("How did it go?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: INTENTION_MET_QUESTION })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Edit check-in/ })).not.toBeInTheDocument();
   });
 });

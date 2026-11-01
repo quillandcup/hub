@@ -18,7 +18,7 @@ function makeRequest(authHeader?: string): NextRequest {
   return new NextRequest('http://localhost/api/test', { headers })
 }
 
-function makeSupabaseMock(user: any, role: string | null) {
+function makeSupabaseMock(user: any, role: string | null, lookupError?: string) {
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({
@@ -29,9 +29,9 @@ function makeSupabaseMock(user: any, role: string | null) {
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
+      maybeSingle: vi.fn().mockResolvedValue({
         data: role ? { role } : null,
-        error: null,
+        error: lookupError ? { message: lookupError } : null,
       }),
     }),
   }
@@ -68,6 +68,14 @@ describe('requireAdmin', () => {
 
     const result = await requireAdmin(makeRequest())
     expect(result.forbidden).toBe(false)
+  })
+
+  it('is forbidden, not an error, when the role lookup fails even for an admin (unknown is never admin)', async () => {
+    const mockSupabase = makeSupabaseMock({ id: 'user-1', email: 'a@b.com' }, 'admin', 'connection lost')
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as any)
+
+    const result = await requireAdmin(makeRequest())
+    expect(result.forbidden).toBe(true)
   })
 
   it('returns forbidden=false for service-role key (test bypass)', async () => {

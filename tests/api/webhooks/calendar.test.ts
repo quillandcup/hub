@@ -24,12 +24,23 @@ vi.mock('@/lib/processing/trigger', () => ({
   triggerReprocessing: vi.fn(() => Promise.resolve({ processed: [] })),
 }))
 
-import { triggerCalendarSync } from '@/lib/processing/trigger'
+// The sync itself is tested in tests/lib/google-calendar/incremental-sync.test.ts; here the route
+// only has to hand it the right wiring.
+vi.mock('@/lib/google-calendar/incremental-sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/google-calendar/incremental-sync')>()),
+  syncCalendarChanges: vi.fn(() => Promise.resolve({ status: 'done', runs: [] })),
+}))
+vi.mock('@/lib/google-calendar/client', () => ({ GoogleCalendarClient: class {} }))
+vi.mock('@/lib/supabase/service', () => ({ createServiceRoleClient: () => ({}) }))
+
+import { triggerCalendarSync, triggerReprocessing } from '@/lib/processing/trigger'
+import { syncCalendarChanges } from '@/lib/google-calendar/incremental-sync'
 
 describe('Calendar Webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(triggerCalendarSync).mockResolvedValue({ success: true })
+    vi.mocked(syncCalendarChanges).mockResolvedValue({ status: 'done', runs: [] })
   })
 
   describe('GET - Verification', () => {
@@ -80,14 +91,21 @@ describe('Calendar Webhook', () => {
       expect(response.status).toBe(200)
       expect(body.received).toBe(true)
       expect(body.resourceState).toBe('exists')
-      expect(body.triggered).toBe('calendar_sync')
+      expect(body.triggered).toBe('calendar_sync_incremental')
 
-      // Wait for the fire-and-forget trigger to run
+      // Wait for the fire-and-forget sync to run
       await vi.waitFor(() => {
-        expect(triggerCalendarSync).toHaveBeenCalledOnce()
+        expect(syncCalendarChanges).toHaveBeenCalledOnce()
       }, { timeout: 1000 })
 
-      expect(triggerCalendarSync).toHaveBeenCalledWith({ daysBack: 30, daysForward: 90 })
+      // It falls back to the nightly window when there is nothing to build on, and reprocesses
+      // only the dates the sync hands it.
+      const { fullSync, reprocess } = vi.mocked(syncCalendarChanges).mock.calls[0][0]
+      await fullSync()
+      expect(triggerCalendarSync).toHaveBeenCalledWith({ daysBack: 90, daysForward: 90 })
+      const range = { from: new Date('2026-11-01T00:00:00Z'), to: new Date('2026-11-02T00:00:00Z') }
+      await reprocess(range)
+      expect(triggerReprocessing).toHaveBeenCalledWith('calendar_events', 'bronze', { dateRange: range })
     })
 
     describe('channel token', () => {
@@ -120,7 +138,7 @@ describe('Calendar Webhook', () => {
         async (_label, token) => {
           vi.stubEnv('GOOGLE_CALENDAR_WEBHOOK_TOKEN', TOKEN)
           expect((await send(token)).status).toBe(401)
-          expect(triggerCalendarSync).not.toHaveBeenCalled()
+          expect(syncCalendarChanges).not.toHaveBeenCalled()
         }
       )
 
@@ -130,7 +148,7 @@ describe('Calendar Webhook', () => {
         const response = await send('anything')
         expect(response.status).toBe(401)
         expect((await response.json()).error).toBe('Webhook not configured')
-        expect(triggerCalendarSync).not.toHaveBeenCalled()
+        expect(syncCalendarChanges).not.toHaveBeenCalled()
       })
 
       it('skips the check locally when the token is unset', async () => {
@@ -158,7 +176,8 @@ describe('Calendar Webhook', () => {
     it('should still return 200 on internal errors to avoid retries', async () => {
       const fixture = loadWebhookFixture('calendar', 'event-changed.json')
 
-      vi.mocked(triggerCalendarSync).mockRejectedValue(new Error('Internal error'))
+      vi.mocked(syncCalendarChanges).mockRejectedValue(new Error('Internal error'))
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
       const request = new Request('http://localhost:3000/api/webhooks/calendar', {
         method: 'POST',
@@ -187,9 +206,9 @@ describe('Calendar Webhook', () => {
         expect(response.status).toBe(200)
       }
 
-      // Wait for both fire-and-forget triggers to run
+      // Wait for both fire-and-forget syncs to run
       await vi.waitFor(() => {
-        expect(triggerCalendarSync).toHaveBeenCalledTimes(2)
+        expect(syncCalendarChanges).toHaveBeenCalledTimes(2)
       }, { timeout: 1000 })
     })
   })

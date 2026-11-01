@@ -5,11 +5,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authenticateRealtime } from "@/lib/chat/live";
-import type { ChannelSummary } from "@/lib/chat/load";
+import { loadUnreadCounts, type ChannelSummary } from "@/lib/chat/load";
+import { LAST_CHAT_COOKIE } from "@/lib/chat/last-channel";
 import { syncChatReadFromSlack } from "@/app/(member)/chat/actions";
 
 /** A badge reads 99+ beyond that; the server stops counting at 100. */
 const badge = (n: number) => (n > 99 ? "99+" : String(n));
+
+/** Most conversations with unread messages prefetched in full per section, so a busy member doesn't render dozens at once. */
+const MAX_UNREAD_PREFETCH = 5;
+
+/** How long deletes in a conversation are batched before its count is re-read. */
+const DELETE_RECOUNT_MS = 300;
+
+/**
+ * One conversation in the list. The default link prefetch stops at the loading skeleton (the page is
+ * dynamic), so a click still waits for the server. Prefetching every link in full would render every
+ * conversation on each load, so only the ones the member is about to open are: one with unread
+ * messages, or one being hovered, focused or touched. That fills the router's cache (5 minutes), and
+ * a conversation opened from it catches itself up (`ChatLive`). Prefetching only happens in production.
+ */
+function ChannelLink({ href, hasUnread, ...props }: React.ComponentProps<typeof Link> & { href: string; hasUnread: boolean }) {
+  const [warm, setWarm] = useState(false);
+  const heat = () => setWarm(true);
+  return <Link {...props} href={href} prefetch={warm || hasUnread ? true : undefined} onPointerEnter={heat} onFocus={heat} onTouchStart={heat} />;
+}
 
 function Section({
   title,
@@ -23,17 +43,19 @@ function Section({
   unread: Record<string, number>;
 }) {
   if (channels.length === 0) return null;
+  const prefetched = new Set(channels.filter((c) => c.id !== pathname.split("/")[2] && (unread[c.id] ?? 0) > 0).slice(0, MAX_UNREAD_PREFETCH).map((c) => c.id));
   return (
     <div className="mb-4">
-      <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
+      <h2 className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1 px-3">{title}</h2>
       <ul className="space-y-0.5">
         {channels.map((c) => {
           const active = pathname === `/chat/${c.id}`;
           const count = active ? 0 : (unread[c.id] ?? 0);
           return (
             <li key={c.id}>
-              <Link
+              <ChannelLink
                 href={`/chat/${c.id}`}
+                hasUnread={prefetched.has(c.id)}
                 data-track="chat-sidebar-channel"
                 aria-current={active ? "page" : undefined}
                 aria-label={count > 0 ? `${c.label}, ${badge(count)} unread` : undefined}
@@ -52,7 +74,7 @@ function Section({
                     {badge(count)}
                   </span>
                 )}
-              </Link>
+              </ChannelLink>
             </li>
           );
         })}
@@ -102,6 +124,8 @@ function useUnreadCounts(
     const supabase = createClient();
     let cancelled = false;
     let subscription: ReturnType<typeof supabase.channel> | null = null;
+    const stale = new Set<string>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       await authenticateRealtime(supabase);
       if (cancelled) return;
@@ -113,10 +137,34 @@ function useUnreadCounts(
           if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
           setCounts((c) => ({ ...c, [row.channel_id]: Math.min((c[row.channel_id] ?? 0) + 1, 100) }));
         })
+        // A delete is an update that sets deleted_at. The row does not say whether we counted it
+        // (the old row is not sent), so ask the server for those conversations' counts once things
+        // settle; setting rather than decrementing makes repeats and already-read deletes harmless.
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, (payload) => {
+          const row = payload.new as { channel_id: string; thread_root_id: string | null; author_member_id: string | null; deleted_at: string | null };
+          if (!row.deleted_at || row.thread_root_id || row.author_member_id === selfMemberId) return;
+          if (row.channel_id === active.current || !joined.current.has(row.channel_id)) return;
+          stale.add(row.channel_id);
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            const ids = [...stale];
+            stale.clear();
+            void loadUnreadCounts(supabase)
+              .then((fresh) => {
+                if (cancelled) return;
+                setCounts((c) => ({
+                  ...c,
+                  ...Object.fromEntries(ids.filter((id) => id !== active.current).map((id) => [id, fresh[id] ?? 0])),
+                }));
+              })
+              .catch(() => {});
+          }, DELETE_RECOUNT_MS);
+        })
         .subscribe();
     })();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
       if (subscription) void supabase.removeChannel(subscription);
     };
   }, [selfMemberId]);
@@ -163,6 +211,12 @@ export default function ChatSidebar({
   const pathname = usePathname();
   const activeId = pathname.startsWith("/chat/") ? pathname.split("/")[2] : null;
   const counts = useUnreadCounts(unread, activeId, selfMemberId, channels);
+  // Remember the open conversation so /chat can reopen it (a year; read by chat/page.tsx).
+  useEffect(() => {
+    if (activeId && channels.some((c) => c.id === activeId)) {
+      document.cookie = `${LAST_CHAT_COOKIE}=${activeId}; path=/; max-age=31536000; samesite=lax`;
+    }
+  }, [activeId, channels]);
   const [filter, setFilter] = useState("");
   // Finding a conversation by name is separate from searching what was said in them (the form
   // below, which goes to /chat/search): this only narrows the list, as you type, and sends nowhere.
@@ -175,8 +229,8 @@ export default function ChatSidebar({
     // gives way to whatever is open (which has a link back).
     <nav
       aria-label="Conversations"
-      className={`shrink-0 overflow-y-auto border-slate-200 p-4 md:h-full md:w-60 md:border-r dark:border-slate-800 ${
-        pathname === "/chat" ? "max-md:flex-1" : "max-md:hidden"
+      className={`shrink-0 overflow-y-auto border-slate-200 p-4 @split:h-full @split:w-60 @split:border-r dark:border-slate-800 ${
+        pathname === "/chat" ? "flex-1 @split:flex-none" : "hidden @split:block"
       }`}
     >
       <form action="/chat/search" role="search" className="mb-4 px-1">
@@ -201,8 +255,13 @@ export default function ChatSidebar({
       <Section title="Channels" channels={live.filter((c) => c.kind === "channel")} pathname={pathname} unread={counts} />
       <Section title="Group messages" channels={live.filter((c) => c.kind !== "channel")} pathname={pathname} unread={counts} />
       <Section title="Archived" channels={shown.filter((c) => c.archived)} pathname={pathname} unread={counts} />
-      {channels.length === 0 && <p className="px-3 text-sm text-slate-500">No conversations yet.</p>}
-      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-500">No channels match.</p>}
+      {channels.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No conversations yet.</p>}
+      {channels.length > 0 && shown.length === 0 && <p className="px-3 text-sm text-slate-600 dark:text-slate-400">No channels match.</p>}
+      <p className="mt-4 px-3 text-xs">
+        <Link data-track="chat-sidebar-privacy" href="/privacy" className="text-slate-600 underline hover:text-plum-700 dark:text-slate-400 dark:hover:text-plum-300">
+          Who can see this?
+        </Link>
+      </p>
     </nav>
   );
 }

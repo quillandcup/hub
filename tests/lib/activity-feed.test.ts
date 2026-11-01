@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import { InMemoryDataset } from "@/lib/data/in-memory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   actorDisplay,
@@ -8,11 +10,18 @@ import {
   MEMBER_DEFAULTS,
   feedSearch,
   fetchActivityFeed,
+  fetchRecordHistory,
   pageLabel,
   parseFeedFilters,
   summarizePages,
   type ActivityFeedRow,
 } from "@/lib/activity-feed";
+
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 
 vi.mock("@/lib/chat/names", () => ({
   withMentionNames: async (rows: { description?: string | null }[]) =>
@@ -135,6 +144,13 @@ describe("describeRow", () => {
     expect(changedFields(r.data).map(([k]) => k)).toEqual(["status", "name"]);
   });
 
+  it("reads a course reorder as one sentence: how many, of what, and in which module or course", () => {
+    const order = { order: { old: ["a", "b", "c", "d"], new: ["d", "c", "b", "a"] } };
+    expect(describeRow(row({ entity_type: "course_lesson_order", description: "Week 1", data: order }))).toBe("reordered the 4 lessons in “Week 1”");
+    expect(describeRow(row({ entity_type: "course_module_order", description: "The Ready Writer", data: order }))).toBe("reordered the 4 modules in “The Ready Writer”");
+    expect(describeRow(row({ entity_type: "course_lesson_order", description: null, data: {} }))).toBe("reordered the lessons");
+  });
+
   it("uses verbs for insert and delete and caps long field lists", () => {
     expect(describeRow(row({ event_type: "insert", data: { a: { old: null, new: 1 } } }))).toBe("added prickle type");
     expect(describeRow(row({ event_type: "delete" }))).toBe("removed prickle type");
@@ -218,6 +234,18 @@ describe("describeRow for projects, books and check-ins", () => {
     expect(describeRow(book(null))).toBe("added “Moon Garden” to their bookshelf");
   });
 
+  it("reads a soft delete as a delete, and clearing it as a restore", () => {
+    const update = (entity_type: string, deleted_at: { old: unknown; new: unknown }) =>
+      row({ entity_type, event_type: "update", description: "Moon Garden", data: { deleted_at } });
+    const when = "2026-10-29T10:00:00Z";
+    expect(describeRow(update("member_book", change(null, when)))).toBe("removed “Moon Garden” from their bookshelf");
+    expect(describeRow(update("member_book", change(when, null)))).toBe("put “Moon Garden” back on their bookshelf");
+    expect(describeRow(update("writing_goal", change(null, when)))).toBe("deleted writing goal “Moon Garden”");
+    expect(describeRow(update("member_award", change(when, null)))).toBe("restored award “Moon Garden”");
+    // Any other change to the same row is still an ordinary update.
+    expect(describeRow(row({ entity_type: "writing_goal", event_type: "update", data: { target_amount: change(1, 2) } }))).toBe("changed writing goal — target amount");
+  });
+
   it("shows the channel of a check-in or check-out", () => {
     const a = (via: string) =>
       row({ kind: "activity", event_type: "prickle_checkin", title: "Checked in to Morning Writing", data: { via } });
@@ -231,11 +259,11 @@ describe("pageLabel / summarizePages", () => {
     expect(pageLabel("/")).toBe("Home");
     expect(pageLabel("/dashboard")).toBe("Dashboard");
     expect(pageLabel("/my-prickles/all?commit=1")).toBe("My Prickles · All");
-    expect(pageLabel("/prickles/aab9da99-7d3d-401b-bbdf-8f40747c011d")).toBe("Prickles · one");
+    expect(pageLabel("/prickles/prkl_7Kx2mQ9dFh3N")).toBe("Prickles · one");
   });
 
   it("counts places, most visited first", () => {
-    expect(summarizePages(["/projects", "/dashboard", "/projects", "/prickles/aab9da99-7d3d-401b-bbdf-8f40747c011d"])).toEqual([
+    expect(summarizePages(["/projects", "/dashboard", "/projects", "/prickles/prkl_7Kx2mQ9dFh3N"])).toEqual([
       { label: "Projects", count: 2 },
       { label: "Dashboard", count: 1 },
       { label: "Prickles · one", count: 1 },
@@ -293,6 +321,42 @@ describe("fetchActivityFeed", () => {
     expect(result.rows[0].description).toBe("@Fern hello");
   });
 
+  it("shows members by display name, falling back to the legal name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null },
+        ],
+      })
+    );
+    const { supabase } = client(2, [
+      row({ actor_kind: "member", actor_label: "Ada Example", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example", acting_as_member_id: "mbr_AAAAAAAAAAA2", acting_as_member_name: "Bo Example" }),
+      row({ actor_label: "Bramble Admin", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example" }),
+    ]);
+    const { rows } = await fetchActivityFeed(supabase, query(), now);
+    expect(rows[0]).toMatchObject({ member_name: "Ada E", actor_label: "Ada E", acting_as_member_name: "Bo Example" });
+    expect(rows[1]).toMatchObject({ member_name: "Ada E", actor_label: "Bramble Admin" });
+  });
+
+  it("labels a staff actor by their member's display name when the label was their legal name, and leaves an email label", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E", userId: "00000000-0000-4000-8000-000000000001" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null, userId: "00000000-0000-4000-8000-000000000002" },
+        ],
+      })
+    );
+    const { supabase } = client(3, [
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000001", actor_label: "Ada Example" }),
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000001", actor_label: "ada@example.test" }),
+      row({ actor_kind: "staff", actor_user_id: "00000000-0000-4000-8000-000000000002", actor_label: "Bo Example" }),
+    ]);
+    const { rows } = await fetchActivityFeed(supabase, query(), now);
+    expect(rows.map((r) => r.actor_label)).toEqual(["Ada E", "ada@example.test", "Bo Example"]);
+  });
+
   it("clamps a page past the end to the last page", async () => {
     const { supabase, rpc } = client(60, [row({})]);
     const result = await fetchActivityFeed(supabase, query({}, 99, 50), now);
@@ -314,5 +378,28 @@ describe("fetchActivityFeed", () => {
   it("surfaces errors", async () => {
     const failing = client(5, [], new Error("boom"));
     await expect(fetchActivityFeed(failing.supabase, query(), now)).rejects.toThrow("boom");
+  });
+});
+
+describe("fetchRecordHistory", () => {
+  it("shows members by display name, falling back to the legal name", async () => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        members: [
+          { id: "mbr_AAAAAAAAAAA1", name: "Ada Example", displayName: "Ada E" },
+          { id: "mbr_AAAAAAAAAAA2", name: "Bo Example", displayName: null },
+        ],
+      })
+    );
+    const rpc = vi.fn(async () => ({
+      data: [
+        row({ actor_kind: "member", actor_label: "Ada Example", member_id: "mbr_AAAAAAAAAAA1", member_name: "Ada Example", description: "<@U1> hi" }),
+        row({ member_id: "mbr_AAAAAAAAAAA2", member_name: "Bo Example" }),
+      ],
+      error: null,
+    }));
+    const rows = await fetchRecordHistory({ rpc } as unknown as SupabaseClient, ["member"], "mbr_AAAAAAAAAAA1");
+    expect(rows[0]).toMatchObject({ member_name: "Ada E", actor_label: "Ada E", description: "@Fern hi" });
+    expect(rows[1]).toMatchObject({ member_name: "Bo Example" });
   });
 });

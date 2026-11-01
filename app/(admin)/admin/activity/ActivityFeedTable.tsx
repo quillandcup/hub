@@ -6,6 +6,7 @@ import type { ReactionEmojiValue } from "@/lib/slack-reaction-emoji";
 import { DataTablePager } from "@/components/DataTablePager";
 import { useServerDataTable } from "@/lib/hooks/useDataTable";
 import { formatDateTime } from "@/lib/formatters";
+import { useTimeZone } from "@/components/Timezone";
 import {
   actorDisplay,
   changedFields,
@@ -35,7 +36,7 @@ export function ChangeTable({ row }: { row: ActivityFeedRow }) {
             <td className="py-1 pr-3 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
               {field.replace(/_/g, " ")}
             </td>
-            <td className="py-1 pr-2 text-slate-500 line-through break-all">
+            <td className="py-1 pr-2 text-slate-600 dark:text-slate-400 line-through break-all">
               {row.event_type === "insert" ? "" : formatValue(change.old)}
             </td>
             <td className="py-1 text-slate-900 dark:text-slate-100 break-all">
@@ -56,12 +57,12 @@ function PageTrail({ row }: { row: ActivityFeedRow }) {
       <ul className="space-y-0.5">
         {summarizePages(pages).map(({ label, count }) => (
           <li key={label}>
-            {label} <span className="text-slate-400">×{count}</span>
+            {label} <span className="text-slate-500 dark:text-slate-400">×{count}</span>
           </li>
         ))}
       </ul>
       <details className="mt-2">
-        <summary className="cursor-pointer text-slate-500">In order</summary>
+        <summary className="cursor-pointer text-slate-600 dark:text-slate-400">In order</summary>
         <ol className="mt-1 list-decimal list-inside space-y-0.5 font-mono">
           {pages.map((p, i) => (
             <li key={i}>{p}</li>
@@ -112,6 +113,7 @@ export default function ActivityFeedTable({
   /** Drop the About column, where every row is about the same member (their own page). */
   hideAbout?: boolean;
 }) {
+  const timeZone = useTimeZone();
   // Newest first is the only order; there are no sortable columns.
   const table = useServerDataTable<ActivityFeedRow, never>({
     rows,
@@ -127,7 +129,7 @@ export default function ActivityFeedTable({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+            <tr className="text-left text-xs uppercase tracking-wide text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
               <th className="py-2 pr-4 font-medium whitespace-nowrap">When</th>
               <th className="py-2 pr-4 font-medium">Who</th>
               <th className="py-2 pr-4 font-medium">What</th>
@@ -139,8 +141,8 @@ export default function ActivityFeedTable({
               const sudo = !!row.acting_as_member_id;
               return (
                 <tr key={row.event_id} className="border-b border-slate-100 dark:border-slate-800 align-top">
-                  <td className="py-2 pr-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
-                    <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at)}</time>
+                  <td className="py-2 pr-4 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+                    <time dateTime={row.occurred_at}>{formatDateTime(row.occurred_at, timeZone)}</time>
                   </td>
                   <td className="py-2 pr-4">
                     <span
@@ -178,7 +180,7 @@ export default function ActivityFeedTable({
                   {!hideAbout && (
                     <td className="py-2">
                       {row.actor_kind === "member" && !sudo ? (
-                        <span className="text-slate-400">self</span>
+                        <span className="text-slate-500 dark:text-slate-400">self</span>
                       ) : row.member_id && row.member_name ? (
                         <Link
                           href={`/admin/members/${row.member_id}`}
@@ -187,7 +189,7 @@ export default function ActivityFeedTable({
                           {row.member_name}
                         </Link>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-slate-500 dark:text-slate-400">—</span>
                       )}
                     </td>
                   )}

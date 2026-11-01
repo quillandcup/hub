@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import type { ChatTextContext } from "@/components/chat/ChatText";
@@ -9,9 +9,11 @@ import type { ChatMessageView } from "@/lib/chat/load";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/app/(member)/chat/actions", () => ({ editChatMessage: vi.fn(), deleteChatMessage: vi.fn() }));
+vi.mock("@/app/(member)/chat/mention-actions", () => ({ suggestMentions: vi.fn() }));
+import { suggestMentions } from "@/app/(member)/chat/mention-actions";
 import { deleteChatMessage, editChatMessage } from "@/app/(member)/chat/actions";
 import MessageBody from "@/components/chat/MessageBody";
-import { onPoke, optimisticView } from "@/lib/chat/list-events";
+import { MESSAGE_CHANGE_EVENT, onPoke, optimisticView } from "@/lib/chat/list-events";
 
 const CTX: ChatTextContext = { userNames: {}, userMembers: {}, channelIds: {}, channelNames: {}, customEmoji: {} };
 const mine = (extra: Partial<ChatMessageView> = {}): ChatMessageView & { body: string } => ({
@@ -20,31 +22,42 @@ const mine = (extra: Partial<ChatMessageView> = {}): ChatMessageView & { body: s
   ...extra,
   body: "first draft",
 });
-const mount = (message = mine(), canEdit = true) => render(<MessageBody message={message} ctx={CTX} channelId="c1" canEdit={canEdit} />);
+const mount = (message = mine(), canEdit = true, ctx: ChatTextContext = CTX) => render(<MessageBody message={message} ctx={ctx} channelId="c1" canEdit={canEdit} />);
+
+const fire = (what: "edit" | "delete", messageId = "m1") =>
+  act(() => {
+    window.dispatchEvent(new CustomEvent(MESSAGE_CHANGE_EVENT, { detail: { messageId, what } }));
+  });
 
 beforeEach(() => {
   cleanup();
   refresh.mockReset();
   vi.mocked(editChatMessage).mockReset();
+  vi.mocked(suggestMentions).mockReset();
+  vi.mocked(suggestMentions).mockResolvedValue([]);
   vi.mocked(deleteChatMessage).mockReset();
 });
 
 describe("MessageBody", () => {
-  it("offers Edit and Delete only on the viewer's own sent Hub message, with editing allowed", () => {
+  it("starts editing or deleting from the menu's event, only on the viewer's own sent Hub message", () => {
     mount();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    fire("delete", "other");
+    expect(screen.queryByText(/Delete this message\?/)).not.toBeInTheDocument();
+    fire("delete");
+    expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
 
     for (const [message, canEdit] of [
       [mine({ mine: false }), true], // someone else's
-      [mine({ fromHub: false }), true], // written in Slack
+      [mine({ system: true }), true], // a notice Slack posted
       [mine({ syncStatus: "failed" }), true], // not in Slack yet
       [mine({ id: "pending-1" }), true], // not saved yet
       [mine(), false], // no preview, sudo, archived
     ] as const) {
       cleanup();
       mount(message, canEdit);
-      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+      fire("edit");
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       expect(screen.getByText("first draft")).toBeInTheDocument();
     }
   });
@@ -55,7 +68,7 @@ describe("MessageBody", () => {
     const off = onPoke("c1", poked);
     mount();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     const box = screen.getByRole("textbox", { name: "Edit message" });
     expect(box).toHaveValue("first draft");
     await userEvent.clear(box);
@@ -69,26 +82,83 @@ describe("MessageBody", () => {
     off();
   });
 
+  describe("a message written in Slack", () => {
+    const NAMED: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" }, channelNames: { C1: "general" } };
+    const slackWritten = (body: string) => ({ ...mine({ fromHub: false }), body });
+
+    it("shows people, channels and links by name in the edit box, and sends Slack's markup back", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more"), true, NAMED);
+
+      fire("edit");
+      const box = screen.getByRole("textbox", { name: "Edit message" });
+      expect(box).toHaveValue("hi @Ania Ray in #general, see the doc & more");
+
+      await userEvent.type(box, " thanks{Enter}");
+      await waitFor(() =>
+        expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> in <#C1|general>, see <https://example.test/a|the doc> &amp; more thanks")
+      );
+    });
+
+    it("adds a person picked while editing as a real mention, next to the ones that were there", async () => {
+      vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Sam Lee", token: "<@U2>", photoUrl: null }]);
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1> &amp; co"), true, NAMED);
+      fire("edit");
+      const box = screen.getByRole("textbox", { name: "Edit message" });
+      await userEvent.type(box, " and @sa");
+      await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
+      await userEvent.type(box, "{Enter}");
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> &amp; co and <@U2>"));
+    });
+
+    it("escapes what is typed for Slack, and saves nothing when the text is unchanged", async () => {
+      vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+      mount(slackWritten("hi <@U1>"), true, NAMED);
+      fire("edit");
+      await userEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(editChatMessage).not.toHaveBeenCalled();
+
+      fire("edit");
+      await userEvent.type(screen.getByRole("textbox"), " a < b & c{Enter}");
+      await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "hi <@U1> a &lt; b &amp; c"));
+    });
+  });
+
+  it("edits a Hub message as plain text with its people by name, and adds a picked person as a token", async () => {
+    vi.mocked(suggestMentions).mockResolvedValue([{ label: "@Sam Lee", token: "<@U2>", photoUrl: null }]);
+    vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
+    const named: ChatTextContext = { ...CTX, userNames: { U1: "Ania Ray" } };
+    mount({ ...mine(), body: "a < b & <@U1>" }, true, named);
+    fire("edit");
+    const box = screen.getByRole("textbox", { name: "Edit message" });
+    expect(box).toHaveValue("a < b & @Ania Ray");
+    await userEvent.type(box, " @sa");
+    await userEvent.click(await screen.findByRole("option", { name: /Sam Lee/ }));
+    await userEvent.type(box, "{Enter}");
+    await waitFor(() => expect(editChatMessage).toHaveBeenCalledWith("m1", "a < b & <@U1> <@U2>"));
+  });
+
   it("falls back to a page refresh when no live conversation is open", async () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: true });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
 
   it("cancels with Escape or Cancel, and saves nothing for unchanged or empty text", async () => {
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), " more{Escape}");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "{Enter}"); // unchanged
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.clear(screen.getByRole("textbox"));
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -98,7 +168,7 @@ describe("MessageBody", () => {
   it("keeps the editor open with the reason when the edit is refused", async () => {
     vi.mocked(editChatMessage).mockResolvedValue({ ok: false, error: "That message is no longer in Slack." });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fire("edit");
     await userEvent.type(screen.getByRole("textbox"), "!{Enter}");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("no longer in Slack");
@@ -106,29 +176,41 @@ describe("MessageBody", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("asks before deleting, then shows the tombstone at once", async () => {
+  it("asks before deleting, then removes it at once", async () => {
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fire("delete");
     expect(screen.getByText(/Delete this message\?/)).toBeInTheDocument();
     expect(deleteChatMessage).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteChatMessage).toHaveBeenCalledWith("m1"));
-    expect(await screen.findByText("This message was deleted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("This message was deleted.")).not.toBeInTheDocument());
     expect(screen.queryByText("first draft")).not.toBeInTheDocument();
   });
 
   it("keeps the message when 'Keep' is chosen or Slack won't delete it", async () => {
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fire("delete");
     await userEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(screen.getByText("first draft")).toBeInTheDocument();
 
     vi.mocked(deleteChatMessage).mockResolvedValue({ ok: false, error: "Slack won't let this message be deleted." });
+    fire("delete");
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await userEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
     expect(await screen.findByRole("alert")).toHaveTextContent("Slack won't let this message be deleted.");
     expect(screen.getByText("first draft")).toBeInTheDocument();
+  });
+
+  it("hides the message's row in the feed at once when it is deleted", async () => {
+    vi.mocked(deleteChatMessage).mockResolvedValue({ ok: true });
+    const row = document.createElement("article");
+    row.id = "m-m1";
+    document.body.appendChild(row);
+    mount();
+    fire("delete");
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row.style.display).toBe("none"));
+    row.remove();
   });
 });

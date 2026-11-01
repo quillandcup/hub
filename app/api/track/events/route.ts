@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createRepos } from "@/lib/data/repos";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { parseBatch } from "@/lib/analytics/receive";
+import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
 import { userAgentForStorage } from "@/lib/device-label";
 import { SUDO_COOKIE_NAME, actingAsHeaderValue } from "@/lib/sudo-cookie";
 import { withTimeout, AUTH_CHECK_TIMEOUT_MS } from "@/lib/with-timeout";
@@ -25,6 +27,9 @@ export async function POST(request: NextRequest) {
   }
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // "Leave me out of statistics" (lib/analytics/opt-out.ts): a stale tab may still be sending, so nothing is stored.
+  if (await isAnalyticsOptedOut(user.id)) return NextResponse.json({ stored: 0, rejected: [], optedOut: true });
+
   const body = await request.json().catch(() => undefined);
   if (body === undefined) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
@@ -35,12 +40,10 @@ export async function POST(request: NextRequest) {
   const sudo = actingAsHeaderValue(request.cookies.get(SUDO_COOKIE_NAME)?.value, user.id) !== null;
 
   const supabase = await createClient();
-  const { error } = await supabase.from("analytics_events").upsert(
-    parsed.rows.map((row) => ({ ...row, user_id: user.id, sudo })),
-    { onConflict: "user_id,message_id", ignoreDuplicates: true }
-  );
-  if (error) {
-    console.error("Failed to record analytics events:", error.message);
+  try {
+    await createRepos(supabase).analyticsEvents.recordIgnoringDuplicates(parsed.rows.map((row) => ({ ...row, user_id: user.id, sudo })));
+  } catch (error) {
+    console.error("Failed to record analytics events:", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: "Failed to record events" }, { status: 500 });
   }
   return NextResponse.json({ stored: parsed.rows.length, rejected: parsed.rejected });

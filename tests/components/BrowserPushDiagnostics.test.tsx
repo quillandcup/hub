@@ -35,7 +35,7 @@ describe("BrowserPushDiagnostics", () => {
 
   it("lets the admin send a tagged alert twice and shows the latest ID", async () => {
     send.mockResolvedValueOnce("tagged-1").mockResolvedValueOnce("tagged-2");
-    read.mockResolvedValue({ version: "click-diagnostics-v4", entries: [] });
+    read.mockResolvedValue({ version: "click-diagnostics-v5", entries: [] });
     render(<BrowserPushDiagnostics />);
     const tagged = screen.getByRole("button", { name: "Send tagged persistent alert" });
     await userEvent.click(tagged);

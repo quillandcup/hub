@@ -81,7 +81,7 @@ export default function SubscriptionImportForm() {
             accept=".csv"
             required
             disabled={isUploading}
-            className="block w-full text-sm text-slate-500
+            className="block w-full text-sm text-slate-600
               file:mr-4 file:py-2 file:px-4
               file:rounded-md file:border-0
               file:text-sm file:font-semibold

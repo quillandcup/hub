@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { SETTINGS_SECTIONS } from "@/app/(member)/settings/sections";
 import { NOTIFICATION_KINDS } from "@/lib/notifications/registry";
-import { SITE_PAGES, navGroups, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS } from "@/lib/site-pages";
+import { SITE_PAGES, navGroups, pageEnabled, ADMIN_NAV_GROUPS, MEMBER_NAV_GROUPS } from "@/lib/site-pages";
 
 /**
  * lib/site-pages.ts feeds the sidebars and universal search. This fails when a static page route
@@ -16,6 +16,7 @@ const EXCLUDED: Record<string, string> = {
   "/chat/search": "chat's own search page, reached from chat",
   "/admin/search": "the search results page itself",
   "/admin/badges/new": "a create form, reached from Badges",
+  "/admin/courses/new": "the course builder's blank form, reached from Courses",
   "/admin/data/prickle-types/new": "a create form, reached from Prickle Types",
   "/admin/data/import/testing": "developer test harness, reached from Import Data",
   "/admin/player-spike": "temporary Video.js v10 player spike (docs/COURSES.md), reached by URL; delete with the real lesson player",
@@ -36,7 +37,7 @@ function routes(dir: string, prefix = ""): string[] {
   return out;
 }
 
-const staticRoutes = [...routes("(member)"), ...routes("(admin)")].filter((r) => !r.includes("["));
+const staticRoutes = [...routes("(member)"), ...routes("(admin)"), ...routes("privacy", "/privacy")].filter((r) => !r.includes("["));
 const pathOf = (href: string) => href.split(/[?#]/)[0];
 
 describe("site pages registry", () => {
@@ -72,6 +73,26 @@ describe("site pages registry", () => {
     const links = (features: Parameters<typeof navGroups>[1]) => navGroups("member", features).flatMap((g) => g.items.map((p) => p.href));
     expect(links([])).not.toContain("/chat");
     expect(links(["chat"])).toContain("/chat");
+  });
+
+  it("lists the privacy page for every member", () => {
+    const privacy = SITE_PAGES.find((p) => p.href === "/privacy")!;
+    expect(pageEnabled(privacy, [])).toBe(true);
+  });
+
+  it("names My Burrow pages without a My prefix and still finds them by it", () => {
+    const burrow = navGroups("member", ["courses"]).find((g) => g.name === "My Burrow")?.items;
+    expect(burrow?.map((p) => p.title)).toEqual(["Writing", "Prickles", "Courses", "Streaks"]);
+    expect(burrow?.find((p) => p.href === "/projects")?.keywords).toContain("my writing");
+    expect(burrow?.find((p) => p.href === "/my-prickles")?.keywords).toContain("my prickles");
+  });
+
+  it("keeps things to do in Community and things to browse in Explore", () => {
+    const hrefs = (name: string) =>
+      navGroups("member", ["chat", "big_sisters", "events"]).find((g) => g.name === name)?.items.map((p) => p.href);
+    expect(hrefs("Community")).toEqual(["/big-sisters", "/chat", "/wheel-of-wonder"]);
+    expect(hrefs("Explore")).toEqual(["/members", "/bookshelf", "/events"]);
+    expect(SITE_PAGES.find((p) => p.href === "/bookshelf")?.title).toBe("Book Shelf");
   });
 });
 

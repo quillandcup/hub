@@ -38,8 +38,8 @@ describe('computeVideoWatchStats', () => {
     expect(stats.averageWatchedFraction).toBeCloseTo(0.5)
     const first = stats.buckets[0]
     const last = stats.buckets[stats.buckets.length - 1]
-    expect(first).toMatchObject({ plays: 2, viewers: 1 })
-    expect(last).toMatchObject({ plays: 0, viewers: 0 })
+    expect(first).toMatchObject({ timesWatched: 2, plays: 1, people: 1 })
+    expect(last).toMatchObject({ timesWatched: 0, plays: 0, people: 0 })
   })
 
   it('does not double count overlapping stretches in the same member\'s coverage', () => {
@@ -49,32 +49,33 @@ describe('computeVideoWatchStats', () => {
     expect(stats.watchedMarkViewers).toBe(1)
     // The 40 to 60 overlap was played twice.
     const middle = stats.buckets[50]
-    expect(middle).toMatchObject({ plays: 2, viewers: 1 })
+    expect(middle).toMatchObject({ timesWatched: 2, plays: 1, people: 1 })
   })
 
   it('shows a drop-off: fewer viewers further in', () => {
     const stats = computeVideoWatchStats([seg('a', 0, 100), seg('b', 0, 50), seg('c', 0, 10)], 100)
-    expect(stats.buckets[5].viewers).toBe(3)
-    expect(stats.buckets[30].viewers).toBe(2)
-    expect(stats.buckets[80].viewers).toBe(1)
+    expect(stats.buckets[5].people).toBe(3)
+    expect(stats.buckets[30].people).toBe(2)
+    expect(stats.buckets[80].people).toBe(1)
   })
 
   it('splits plays, people and plays-per-session across buckets in proportion to the overlap, on one scale', () => {
     // 10s video, 10 buckets of 1s: 0.5 to 2.5 covers half of bucket 0, all of 1, half of 2.
     const stats = computeVideoWatchStats([seg('a', 0.5, 2.5)], 10)
     expect(stats.buckets).toHaveLength(10)
-    expect(stats.buckets.slice(0, 4).map((b) => b.plays)).toEqual([0.5, 1, 0.5, 0])
+    expect(stats.buckets.slice(0, 4).map((b) => b.timesWatched)).toEqual([0.5, 1, 0.5, 0])
     // One person covering half a slice is half a person there, not a whole one: the same numbers as plays.
-    expect(stats.buckets.slice(0, 4).map((b) => b.viewers)).toEqual([0.5, 1, 0.5, 0])
-    expect(stats.buckets.slice(0, 4).map((b) => b.sessions)).toEqual([0.5, 1, 0.5, 0])
+    expect(stats.buckets.slice(0, 4).map((b) => b.people)).toEqual([0.5, 1, 0.5, 0])
+    expect(stats.buckets.slice(0, 4).map((b) => b.plays)).toEqual([0.5, 1, 0.5, 0])
   })
 
   it('never shows more people than times watched, and the two coincide wherever nobody rewatched', () => {
     // Several people, short and uneven stretches (so slices at the edges are partly covered), nobody replaying anything.
     const stats = computeVideoWatchStats([seg('a', 3.3, 41.7), seg('b', 10.2, 22.9), seg('c', 60, 77.4), seg('d', 70.1, 99.9)], 100)
     for (const b of stats.buckets) {
-      expect(b.viewers).toBeLessThanOrEqual(b.plays + 1e-9)
-      expect(b.viewers).toBeCloseTo(b.plays, 3)
+      expect(b.people).toBeLessThanOrEqual(b.timesWatched + 1e-9)
+      expect(b.people).toBeCloseTo(b.timesWatched, 3)
+      expect(b.plays).toBeCloseTo(b.timesWatched, 3)
     }
   })
 
@@ -82,10 +83,10 @@ describe('computeVideoWatchStats', () => {
     // a watches 0 to 50, then 25 to 75: 25 to 50 is played twice by one person.
     const stats = computeVideoWatchStats([seg('a', 0, 50), seg('a', 25, 75)], 100)
     const at = (second: number) => stats.buckets[Math.floor(second)]
-    expect(at(10)).toMatchObject({ plays: 1, viewers: 1 })
-    expect(at(30)).toMatchObject({ plays: 2, viewers: 1 })
-    expect(at(60)).toMatchObject({ plays: 1, viewers: 1 })
-    for (const b of stats.buckets) expect(b.viewers).toBeLessThanOrEqual(b.plays + 1e-9)
+    expect(at(10)).toMatchObject({ timesWatched: 1, plays: 1, people: 1 })
+    expect(at(30)).toMatchObject({ timesWatched: 2, plays: 1, people: 1 })
+    expect(at(60)).toMatchObject({ timesWatched: 1, plays: 1, people: 1 })
+    for (const b of stats.buckets) expect(b.people).toBeLessThanOrEqual(b.timesWatched + 1e-9)
   })
 
   it('caps the buckets and spans the whole video', () => {
@@ -93,7 +94,7 @@ describe('computeVideoWatchStats', () => {
     expect(stats.buckets).toHaveLength(MAX_BUCKETS)
     expect(stats.buckets[0].start).toBe(0)
     expect(stats.buckets[MAX_BUCKETS - 1].end).toBeCloseTo(3000)
-    expect(stats.buckets.every((b) => b.plays > 0.99 && b.plays < 1.01)).toBe(true)
+    expect(stats.buckets.every((b) => b.timesWatched > 0.99 && b.timesWatched < 1.01)).toBe(true)
   })
 
   it('clips stretches to the video and falls back to the furthest point when the length is unknown', () => {
@@ -127,12 +128,28 @@ describe('computeVideoWatchStats', () => {
   it("shows, per slice, how many plays watched it, which over the plays is that moment's engagement", () => {
     const stats = computeVideoWatchStats([seg('a', 0, 100), seg('b', 0, 50), seg('c', 0, 10)], 100)
     expect(stats.plays).toBe(3)
-    expect(stats.buckets[5].sessions).toBe(3)
-    expect(stats.buckets[30].sessions).toBe(2)
-    expect(stats.buckets[80].sessions).toBe(1)
+    expect(stats.buckets[5].plays).toBe(3)
+    expect(stats.buckets[30].plays).toBe(2)
+    expect(stats.buckets[80].plays).toBe(1)
     // A rewatch inside one play is still one play at that slice.
     const again = computeVideoWatchStats([seg('a', 0, 50), seg('a', 0, 50)], 100)
-    expect(again.buckets[10]).toMatchObject({ plays: 2, viewers: 1, sessions: 1 })
+    expect(again.buckets[10]).toMatchObject({ timesWatched: 2, plays: 1, people: 1 })
+  })
+
+  it('nests the three counts, people <= plays <= times watched: a rewind in a visit, then a return on another day', () => {
+    // Ann plays 0-50 and rewinds to replay 0-50 in one visit, then returns another day for 0-50 again; Bea plays 0-50 once.
+    const stats = computeVideoWatchStats(
+      [seg('ann', 0, 50, { sessionId: 'ann-1' }), seg('ann', 0, 50, { sessionId: 'ann-1' }), seg('ann', 0, 50, { sessionId: 'ann-2' }), seg('bea', 0, 50, { sessionId: 'bea-1' })],
+      100,
+    )
+    // Four passes, three visits, two people.
+    expect(stats.buckets[10]).toMatchObject({ timesWatched: 4, plays: 3, people: 2 })
+    expect(stats.plays).toBe(3)
+    expect(stats.viewers).toBe(2)
+    for (const b of stats.buckets) {
+      expect(b.people).toBeLessThanOrEqual(b.plays + 1e-9)
+      expect(b.plays).toBeLessThanOrEqual(b.timesWatched + 1e-9)
+    }
   })
 
   it('breaks time down by speed, captions and background playing', () => {

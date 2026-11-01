@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdminPage } from "@/lib/admin-auth";
@@ -14,7 +15,6 @@ export const metadata: Metadata = {
 
 export const maxDuration = 60;
 
-const BATCH_SIZE = 1000;
 
 const VIEW_SUMMARIES: Record<FeedView, string> = {
   audit: "Changes made in Hedgie Hub by staff and the system, and anything an admin did while viewing as a member.",
@@ -24,19 +24,10 @@ const VIEW_SUMMARIES: Record<FeedView, string> = {
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
-// The picker needs every member; paginate past PostgREST's 1000-row cap.
+// The picker needs every member (paginated by the repository).
 async function loadMembers(supabase: SupabaseServer) {
-  const members: { id: string; name: string; email: string; user_id: string | null }[] = [];
-  for (let offset = 0; ; offset += BATCH_SIZE) {
-    const { data, error } = await supabase
-      .from("members")
-      .select("id, name, email, user_id")
-      .order("name")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (error) throw error;
-    members.push(...(data ?? []));
-    if (!data || data.length < BATCH_SIZE) return members;
-  }
+  const members = await createRepos(supabase).members.list({ orderBy: "name" });
+  return members.map((m) => ({ id: m.id, name: m.name, displayName: m.displayName, email: m.email, user_id: m.userId }));
 }
 
 /**
@@ -54,18 +45,18 @@ export default async function ActivityLogPage({
   const filters = parseFeedFilters(params);
   const supabase = await createClient();
 
-  const [feed, members, { data: profiles }] = await Promise.all([
+  const [feed, members, profiles] = await Promise.all([
     fetchActivityFeed(supabase, {
       ...filters,
       page: parsePageParam(params.page),
       pageSize: parsePageSizeParam(params.pageSize),
     }).then(async (page) => ({ ...page, rows: await withReactionEmoji(page.rows) })),
     loadMembers(supabase),
-    supabase.from("user_profiles").select("id, email, role").in("role", ["admin", "assistant"]).order("email"),
+    createRepos(supabase).profiles.staff(),
   ]);
 
   const nameByUserId = new Map(members.filter((m) => m.user_id).map((m) => [m.user_id!, m.name]));
-  const staff: StaffUser[] = (profiles ?? []).map((p) => ({
+  const staff: StaffUser[] = profiles.map((p) => ({
     id: p.id,
     name: nameByUserId.get(p.id) ?? p.email,
     email: p.email,
@@ -75,11 +66,7 @@ export default async function ActivityLogPage({
   // The actor filter can also be a non-staff user (clicked from a member's row).
   let actorName: string | null = null;
   if (filters.actorUserId && !staff.some((s) => s.id === filters.actorUserId)) {
-    const { data: actor } = await supabase
-      .from("user_profiles")
-      .select("email")
-      .eq("id", filters.actorUserId)
-      .maybeSingle();
+    const actor = await createRepos(supabase).profiles.byId(filters.actorUserId);
     actorName = nameByUserId.get(filters.actorUserId) ?? actor?.email ?? "Unknown user";
   }
 
@@ -93,13 +80,13 @@ export default async function ActivityLogPage({
       <ActivityFilters
         filters={filters}
         staff={staff}
-        members={members.map(({ id, name, email }) => ({ id, name, email }))}
+        members={members.map(({ id, name, displayName, email }) => ({ id, name, displayName, email }))}
         actorName={actorName}
         memberName={filters.memberId ? (members.find((m) => m.id === filters.memberId)?.name ?? null) : null}
       />
 
       {feed.total === 0 ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           Nothing in this window. Try a longer range{filters.view === "audit" ? " or switch to Everything" : ""}.
         </p>
       ) : (

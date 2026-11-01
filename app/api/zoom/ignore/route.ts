@@ -1,11 +1,15 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
+import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 import { triggerReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/zoom/ignore
  *
- * Ignore a Zoom name so it no longer appears in the unmatched list
+ * Ignore a Zoom name so it no longer appears in the unmatched list.
+ * With `prickleId` only that prickle's appearance is ignored; without it the name is
+ * ignored everywhere, for every future appearance.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { zoomName, reason } = body;
+    const { zoomName, reason, prickleId } = body;
 
     if (!zoomName) {
       return NextResponse.json(
@@ -26,16 +30,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert into ignored list
-    const { error } = await supabase
-      .from("ignored_zoom_names")
-      .insert({
-        zoom_name: zoomName,
-        reason: reason || null,
-        ignored_by: user.id,
-      });
+    if (prickleId !== undefined && prickleId !== null) {
+      if (!isId(prickleId, "prkl")) {
+        return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
+      }
+      try {
+        await createRepos(supabase).zoom.ignoreAppearance({ prickleId, zoomName, reason: reason || null, ignoredBy: user.id });
+      } catch (error: any) {
+        console.error("Error ignoring Zoom name for one prickle:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      // Attendance processing doesn't read this table, so there is nothing to reprocess.
+      return NextResponse.json({ success: true });
+    }
 
-    if (error) {
+    // Insert into ignored list
+    try {
+      await createRepos(supabase).zoom.ignoreName({ zoomName, reason: reason || null, ignoredBy: user.id });
+    } catch (error: any) {
       console.error("Error ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -57,7 +69,7 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/zoom/ignore
  *
- * Un-ignore a Zoom name
+ * Un-ignore a Zoom name (with `prickleId`, only that prickle's appearance)
  */
 export async function DELETE(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -69,7 +81,7 @@ export async function DELETE(request: NextRequest) {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { zoomName } = body;
+    const { zoomName, prickleId } = body;
 
     if (!zoomName) {
       return NextResponse.json(
@@ -78,12 +90,22 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase
-      .from("ignored_zoom_names")
-      .delete()
-      .eq("zoom_name", zoomName);
+    if (prickleId !== undefined && prickleId !== null) {
+      if (!isId(prickleId, "prkl")) {
+        return NextResponse.json({ error: "Invalid prickleId" }, { status: 400 });
+      }
+      try {
+        await createRepos(supabase).zoom.unignoreAppearance(prickleId, zoomName);
+      } catch (error: any) {
+        console.error("Error un-ignoring Zoom name for one prickle:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
+    }
 
-    if (error) {
+    try {
+      await createRepos(supabase).zoom.unignoreName(zoomName);
+    } catch (error: any) {
       console.error("Error un-ignoring Zoom name:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

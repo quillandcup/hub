@@ -1,0 +1,491 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth";
+import { getEffectiveIdentity } from "@/lib/sudo";
+import { isAnalyticsOptedOut } from "@/lib/analytics/opt-out";
+import { SUPPORT_EMAIL } from "@/lib/config";
+import { RETENTION } from "@/lib/retention";
+import { StatsOptOutSwitch } from "./StatsOptOutSwitch";
+
+export const metadata: Metadata = {
+  title: "Privacy",
+};
+
+/** When the wording below was last checked against the code. Bump it whenever the page changes. */
+export const PRIVACY_EFFECTIVE = "2026-10-30";
+
+/**
+ * What the Hub collects, who can see it, how long it is kept and what a member can do about it.
+ *
+ * On for every signed-in member (it was behind the `message_privacy` flag until 2026-10-30). Every
+ * statement here must be true, so change it with the code. It states policy and lists no
+ * resources one by one (what a delete keeps, for instance), so it does not need an edit for every new
+ * feature. What is true of the code today (checked 2026-10-30):
+ *
+ * - Chat: staff read chat content only where RLS lets admins (`chat_can_read_content`: public and
+ *   non-restricted private channels); restricted channels, DMs and group DMs have no admin read path at all;
+ *   admins' read access covers every conversation's metadata (`chat_can_see_channel`: members, who wrote and
+ *   reacted and when, `last_read_at`) but never a deleted message's content (`chat_message_contents` policy
+ *   requires `deleted_at IS NULL`); files follow the content policy. The break-glass section is the
+ *   commitment for the rare case, not a screen: there is no in-app tool yet, so anything done under it is done
+ *   by hand and has to follow what that section promises (docs/SLACK_BRIDGED_CHAT.md).
+ * - Usage log: what is recorded and when (`lib/analytics/events.ts`, `lib/analytics/receive.ts`), the consent
+ *   rule (`components/ConsentBanner.tsx`, `lib/analytics/consent.ts`), the visit cookie
+ *   (`lib/analytics/session-cookie.ts`), notification sends and opens (`lib/notifications/notify.ts`,
+ *   `lib/notifications/attribution.ts`), and the "Share usage statistics" switch (off = left out) (`lib/analytics/opt-out.ts`: the browser,
+ *   the receiver, the server-side recorders and Google Analytics all follow it, and turning it on deletes the
+ *   account's stored usage events).
+ * - Deletes: deleted things are kept until the member asks, as soft deletes or in the audit log.
+ *
+ * **Retention promises that need a job before they can be broken.** The page promises the numbers in
+ * `lib/retention.ts`, and the nightly job in docs/EVENT_LOG.md phase 0 enforces them (deployed 2026-10-31; no row was old
+ * enough to break them before it ran). Checked against production on 2026-10-30: the oldest raw user agent
+ * in `access_events` is from 2026-10-18 (the column is newer than the table), the oldest raw IP from 2026-10-21, and
+ * the oldest user agent in a usage event from 2026-10-20, so the first value passes 90 days on 2027-01-16; usage events
+ * pass 13 months in late 2027. (An earlier note here said 2026-11-25, assuming user agents went back to the table's
+ * creation; they don't.)
+ * **The job (`/api/reconcile/retention`, lib/retention/network-details.ts) must be deployed before 2027-01-16.** It covers the
+ * visit log (`access_events`), the usage log and course viewing, which is what the "How long we keep things" row says. The same
+ * job rolls usage events up into anonymous totals and removes them after `usageMonths` (lib/retention/usage-events.ts); the first
+ * reach that in late 2027 and are removed only once their totals are kept. The
+ * browser string attached to a push subscription or to feedback a member submits is not covered, and the row does not claim it.
+ */
+export default async function PrivacyPage() {
+  // Public: anyone can read it, signed in or not. Only the usage-statistics switch needs an account.
+  const user = await getCurrentUser();
+  const [identity, optedOut] = user
+    ? await Promise.all([getEffectiveIdentity(user), isAnalyticsOptedOut(user.id)])
+    : [null, false];
+
+  return (
+    <div className="min-h-screen bg-canvas dark:bg-slate-950">
+    <div className="container mx-auto px-6 py-6 max-w-5xl">
+      <p className="mb-4 text-sm">
+        <Link href={user ? "/dashboard" : "/login"} className="text-plum-700 dark:text-plum-300 underline">
+          {user ? "Back to the Hub" : "Sign in to the Hub"}
+        </Link>
+      </p>
+      <h1 className="text-2xl font-bold mb-1">Privacy</h1>
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+        What the Hub collects about you, who can see it, how long we keep it and what you can do about it.
+      </p>
+      <p className="text-sm text-slate-500 dark:text-slate-500 mb-6">
+        Effective <time dateTime={PRIVACY_EFFECTIVE}>{PRIVACY_EFFECTIVE}</time>.
+      </p>
+
+      <aside className="mb-8 rounded-lg border border-plum-200 dark:border-plum-800 bg-plum-50 dark:bg-plum-950/30 p-4 text-sm text-slate-800 dark:text-slate-200">
+        <h2 className="text-base font-semibold mb-2">The short version</h2>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            We keep what you do in the Hub, how you use it (the pages and buttons, never what you type), where you connect from,
+            and your activity in chat.
+          </li>
+          <li>
+            Staff can see who talks with whom, where and when, and what is said in the channels that reach the Hub. Restricted
+            channels and group DMs are open to them only through break-glass access, and your one-on-one Slack DMs never reach the Hub.
+          </li>
+          <li>
+            Your exact IP address and browser details are removed after {RETENTION.rawNetworkDays} days, and usage
+            statistics after {RETENTION.usageMonths} months. What you do in the Hub is kept while you are a member, and after you cancel your membership until you ask us to close your account and remove it.
+          </li>
+          <li>
+            You can leave usage statistics off with a switch below, and ask us to show you, correct or remove what we hold.
+          </li>
+        </ul>
+      </aside>
+
+      <nav aria-label="On this page" className="mb-8 text-sm">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-plum-700 dark:text-plum-300">
+          <li><a href="#collect" className="underline">What we collect</a></li>
+          <li><a href="#who-sees" className="underline">Who can see it</a></li>
+          <li><a href="#chat" className="underline">Chat and messages</a></li>
+          <li><a href="#keep" className="underline">How long we keep things</a></li>
+          <li><a href="#cookies" className="underline">Cookies</a></li>
+          <li><a href="#services" className="underline">Services we use</a></li>
+          <li><a href="#more" className="underline">Also good to know</a></li>
+          <li><a href="#choices" className="underline">Your choices</a></li>
+        </ul>
+      </nav>
+
+      <Section id="collect" title="What we collect">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+              <th className="py-2 pr-4 font-semibold">What</th>
+              <th className="py-2 pr-4 font-semibold">What it is</th>
+              <th className="py-2 font-semibold">Why</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            <CollectRow
+              what="Your account and what you do in it"
+              detail="Your profile, projects, goals, check-ins, commitments, sign-ins, and the notifications we sent you."
+              why="To run the Hub, and so your seat is kept warm through different seasons of life."
+            />
+            <CollectRow
+              what="Membership, billing and sessions"
+              detail="Your plan and membership dates from our payment and course providers, and which live sessions (such as Zoom prickles) you joined and for how long. We do not store your card or bank details; our payment provider handles those."
+              why="To know who is a member, and to count and recognize your time writing together."
+            />
+            <CollectRow
+              what="How you use the Hub"
+              detail="Which pages you open, which buttons and links you use, what kind of search you ran and how many results (never the words), whether the things you try work, and your device, browser and screen."
+              why={
+                <>
+                  To fix what is confusing and build what helps. Your choice:{" "}
+                  <a href="#choices" className="underline">
+                    see below
+                  </a>
+                  .
+                </>
+              }
+            />
+            <CollectRow
+              what="Where you connect from"
+              detail="The IP address your connection comes from, the city, region and country it appears to be in, the page you opened and your browser."
+              why="To know where our community writes from, and which device and place you came from."
+            />
+            <CollectRow
+              what="Errors and performance"
+              detail="When something breaks, the error and a short recording of what was on screen around it, with text and form fields masked. Also how fast pages load."
+              why={
+                <>
+                  To find and fix bugs. This is not part of usage statistics:{" "}
+                  <a href="#choices" className="underline">
+                    see below
+                  </a>
+                  .
+                </>
+              }
+            />
+            <CollectRow
+              what="Course videos"
+              detail="Where you stopped, which parts you watched, how fast, whether captions were on, whether the tab was in view, and your device and browser."
+              why="To pick up where you left off, and to learn which lessons work."
+            />
+            <CollectRow
+              what="Notifications"
+              detail="A record of each notification we send you, and whether you have read it in the Hub. Turning usage statistics off does not change that. If usage statistics are on, also which notification a visit came from."
+              why="To send you what you ask for, and so the bell and banners stay right."
+            />
+            <CollectRow
+              what="Chat"
+              detail={
+                <>
+                  What you write, and the activity around it: who you talked with, where, when, how often, which channels you are
+                  in, and your reactions. Chat is covered in{" "}
+                  <a href="#chat" className="underline">
+                    its own section
+                  </a>{" "}
+                  below.
+                </>
+              }
+              why="To run chat, and to understand how the community connects."
+            />
+          </tbody>
+        </table>
+        <p className="text-sm">
+          Location from your IP address is approximate (a VPN or a mobile carrier can make it wrong).
+        </p>
+      </Section>
+
+      <Section id="who-sees" title="Who can see it">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+              <th className="py-2 pr-4 font-semibold">Who</th>
+              <th className="py-2 font-semibold">What they can see</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            <KeepRow what="You" keep="What you add yourself and your own activity, in the Hub's screens, and anything else we hold about you if you ask us." />
+            <KeepRow
+              what="Other members"
+              keep="Your profile as you set it (including the projects and goals you choose to show), the books and awards you add, and what you post in the channels they are in. Not your usage statistics, your IP address or your private notes."
+            />
+            <KeepRow
+              what="Quill & Cup staff"
+              keep="Your account and activity, your course viewing and where you connect from (by name), and usage statistics, mostly as totals, though the individual records are tied to your account while they are kept. Chat is covered in its own section below."
+            />
+            <KeepRow
+              what="Our product and engineering team"
+              keep="Errors and the recordings of what was on screen around them, in our monitoring tool. Other staff cannot see them."
+            />
+            <KeepRow what="The services that run the Hub" keep="Only what they need to do their job. They are listed at the bottom." />
+          </tbody>
+        </table>
+      </Section>
+
+      <Section id="chat" title="Chat and messages">
+        <p>
+          We treat two kinds of information differently. <strong>Content</strong> is what you wrote: message text,
+          formatting, and files. <strong>Activity</strong> is everything around it: who you talked with, where, when,
+          how often, which channels you&apos;re in, and which emoji reactions you added.
+        </p>
+        <p>
+          Activity helps us understand how the community connects, so we can make introductions, spot hedgies who
+          might be feeling isolated, and see what&apos;s working. It also counts toward your engagement, including
+          messages in private channels and direct messages.
+        </p>
+
+        <h3 className={SUBHEADING}>What staff can see</h3>
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+              <th className="py-2 pr-4 font-semibold">Where</th>
+              <th className="py-2 pr-4 font-semibold">Activity</th>
+              <th className="py-2 font-semibold">Content</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            <Row where="Public channels" activity="Yes" content="Yes, same as every member" />
+            <Row where="Private channels that include Billie Bot" activity="Yes" content="Yes, unless the channel is marked restricted" />
+            <Row where="Restricted private channels" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Group DMs that include Billie Bot" activity="Yes" content="No, except break-glass access (below)" />
+            <Row where="Slack DMs, and Slack group DMs or private channels without Billie Bot" activity="No" content="No. These never reach the Hub" />
+          </tbody>
+        </table>
+        <p>
+          In every conversation that reaches the Hub, restricted channels and group DMs included, staff can see who is
+          in it, who wrote and reacted and when, and when you last read it (the Hub keeps that in step with Slack). Files
+          shared in a conversation follow the same rule as its text. We keep a copy of files shared in the channels and
+          group DMs the Hub mirrors, and the copy is removed if the file is deleted.
+        </p>
+
+        <Detail title="Break-glass access">
+          In rare cases, such as a safety or conduct report, an admin may need to read the content of a specific
+          restricted channel or group DM. We will do that only for that one conversation and only for as long as it
+          takes, and we will record who looked, why and when. You won&apos;t receive an automatic notification when
+          this happens.
+        </Detail>
+
+        <Detail title="Connecting your Slack account">
+          Hub chat needs your Slack account connected. That lets the Hub act as you in Slack and only as you: post your
+          messages and reactions, edit and delete the ones you wrote, join and leave channels, add people to a channel,
+          and mark conversations read. It doesn&apos;t give the Hub access to your one-on-one Slack direct messages, and
+          the Hub does nothing in Slack you didn&apos;t ask for there. The connection is kept encrypted and used only by the Hub&apos;s
+          server. You can disconnect it in Settings at any time (chat then stays closed until you reconnect), and Slack
+          shows it under your authorized apps.
+        </Detail>
+
+        <Detail title="Viewing the Hub as you">
+          To help with support, an admin can view the Hub as a member. The chat is read-only and shows what you can see,
+          except restricted channels and group DMs.
+        </Detail>
+
+        <Detail title="Deleted messages and reactions">
+          When you delete a message or remove a reaction, it disappears for everyone, but we keep a record rather
+          than erasing it. Deleted messages and removed reactions no longer count toward your activity. Staff can&apos;t
+          read a deleted message&apos;s text or files in the Hub; the only way to read one is break-glass access, the same
+          as for a restricted conversation.
+        </Detail>
+      </Section>
+
+      <Section id="keep" title="How long we keep things">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-left">
+              <th className="py-2 pr-4 font-semibold">What</th>
+              <th className="py-2 font-semibold">How long</th>
+            </tr>
+          </thead>
+          <tbody className="align-top">
+            <KeepRow
+              what="What you do in the Hub: your projects, check-ins, commitments, course viewing, chat messages and activity, sign-ins, the notifications we sent you, and your history as a member"
+              keep="Until you ask us to remove it. If you leave and come back years later, your seat is still warm: your history is here."
+            />
+            <KeepRow
+              what="Usage statistics: pages, buttons, search, and your device and screen"
+              keep={`${RETENTION.usageMonths} months, then only anonymous totals`}
+            />
+            <KeepRow
+              what="Your exact IP address and your browser's identification string, as recorded when you visit, use the Hub or watch a course"
+              keep={`${RETENTION.rawNetworkDays} days. After that we keep the approximate place and the type of browser and device`}
+            />
+            <KeepRow
+              what="Errors and screen recordings (of errors and of the sample of ordinary visits)"
+              keep="Up to 90 days, set by our monitoring provider"
+            />
+          </tbody>
+        </table>
+        <p>
+          <strong>When you delete something</strong> you added to the Hub, it disappears for you and for everyone else. We may keep a
+          copy, and our change history keeps a record of the change, until you ask us to close your account and remove it. When you ask, we either
+          delete it or take your name off it. Removed data can stay in our database provider&apos;s backups for a limited time
+          before they expire.
+        </p>
+      </Section>
+
+      <Section id="cookies" title="Cookies and similar storage">
+        <p>
+          Most of what the Hub keeps on your device is there to make it work, so we don&apos;t need your consent for it, and you
+          can clear it in your browser settings. In short:
+        </p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            <strong>To make the Hub work:</strong> keeping you signed in, and remembering things like your last chat channel,
+            your video speed and captions, and your recent searches.
+          </li>
+          <li>
+            <strong>Your banner choice</strong> is remembered on your device.
+          </li>
+          <li>
+            <strong>Visit number</strong>, only while usage statistics are on: a short-lived random number that groups the things
+            you do in one visit. It expires after 30 minutes without activity and holds nothing about you.
+          </li>
+          <li>
+            <strong>Google Analytics</strong> sets its own cookie, only if you have allowed it.
+          </li>
+        </ul>
+      </Section>
+
+      <Section id="services" title="Services that help us run the Hub">
+        <p>
+          Your information passes through the services the Hub is built on. We use them to run the Hub and not for anything else.
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-sm">
+          <li>Our database provider, our sign-in and auth provider, and our hosting provider (which also counts visits and page speed).</li>
+          <li>Our monitoring providers, for errors and performance.</li>
+          <li>Our email provider, and your browser&apos;s push service if you turn on browser notifications.</li>
+          <li>Our video hosting provider, for course videos.</li>
+          <li>Our payment and course providers (Stripe and Kajabi), for your membership and billing.</li>
+          <li>Zoom, where live prickles happen, and how we know who joined and for how long.</li>
+          <li>Slack, for chat and notifications.</li>
+          <li>Google Calendar for the prickle schedule, and Google Photos only when you choose photos to add.</li>
+          <li>Google Analytics, only where you allow it.</li>
+          <li>Gravatar, which supplies a profile picture if you haven&apos;t set one; it is asked using a scrambled form of your email address.</li>
+        </ul>
+        <p>
+          Our database and hosting are in the United States, so if you use the Hub from elsewhere your information is transferred
+          there. Our providers are certified under the EU-U.S. Data Privacy Framework (and its UK extension) or we rely on standard
+          contractual clauses with them.
+        </p>
+      </Section>
+
+      <Section id="more" title="Also good to know">
+        <ul className="list-disc pl-5 space-y-1 text-sm">
+          <li>
+            <strong>We don&apos;t share your information</strong> with anyone except the services above.
+          </li>
+          <li>
+            <strong>Security:</strong> we take it seriously: connections are encrypted and staff access is limited by role.
+          </li>
+          <li>
+            <strong>Children:</strong> the Hub isn&apos;t for children under 13. If one has joined, email{" "}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+              {SUPPORT_EMAIL}
+            </a>{" "}
+            and we&apos;ll delete their information.
+          </li>
+          <li>
+            <strong>Other sites</strong> that the Hub links to have their own privacy practices.
+          </li>
+          <li>
+            <strong>Changes:</strong> we update the effective date above, and changes apply immediately.
+          </li>
+        </ul>
+      </Section>
+
+      <Section id="choices" title="Your choices">
+        <h3 className={SUBHEADING}>Usage statistics</h3>
+        {user ? (
+          <StatsOptOutSwitch initialOptedOut={optedOut} readOnly={identity?.isSudo === true} />
+        ) : (
+          <p className="text-sm">
+            Members can turn this off here once signed in.{" "}
+            <Link href="/login" className="underline">
+              Sign in
+            </Link>
+            .
+          </p>
+        )}
+        <p>
+          <strong>If you are in the EU, EEA or UK</strong> we ask before we start, with the banner at the bottom of the page, and
+          if you decline we don&apos;t record any of this, apart from the error recordings described below. Elsewhere it is on until you turn it off here.
+        </p>
+        <Detail title="How usage statistics work">
+          We keep a log of how the Hub is used, so we can fix what is confusing and build what helps. It does not record what you
+          type into search, forms or messages, and we take care that the button and link names it records are the app&apos;s own,
+          such as &ldquo;Save&rdquo; or &ldquo;Log progress&rdquo;, not people&apos;s names or email addresses. If usage statistics are on, we also record a small share of visits as screen recordings, with text and form fields masked. Recordings made when something breaks are separate: they continue if you leave statistics off, because we can&apos;t fix a bug we can&apos;t see. Our host, Vercel,
+          also counts visits and page speed in aggregate, as totals with no individual profile, and that count is not part of
+          this switch. We use Google Analytics only where you have allowed it. After {RETENTION.usageMonths} months the
+          individual records are removed and only anonymous totals remain (for example &ldquo;this page was opened 300 times in
+          March&rdquo;), which is how we see trends over several years.
+        </Detail>
+
+        <h3 className={SUBHEADING}>Notifications</h3>
+        <p>
+          The Hub can notify you in more than one place, such as Slack, email, inside the Hub, or your browser. You choose which,
+          for each kind of notification, in{" "}
+          <Link href="/settings/notifications" className="underline">
+            Settings
+          </Link>
+          , and every email has an unsubscribe link for that kind.
+        </p>
+
+        <h3 className={SUBHEADING}>Asking us</h3>
+        <p>
+          You can ask us at any time to show you what we hold about you, correct it, remove it, or stop using it for usage
+          statistics. Email{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+            {SUPPORT_EMAIL}
+          </a>
+          . We will answer as soon as we can, and within a month. For removal we either delete it or take your name off it, so that
+          it can no longer be tied to you.
+        </p>
+      </Section>
+    </div>
+    </div>
+  );
+}
+
+/** Smaller than a section's heading and in capitals, so the two levels can't be mistaken for each other. */
+const SUBHEADING = "pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="mb-10 space-y-3 text-slate-700 dark:text-slate-300 scroll-mt-6">
+      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/** Long explanations stay folded until someone wants them. */
+function Detail({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2">
+      <summary className="cursor-pointer font-medium text-slate-900 dark:text-slate-100">{title}</summary>
+      <p className="mt-2 text-sm">{children}</p>
+    </details>
+  );
+}
+
+function CollectRow({ what, detail, why }: { what: string; detail: React.ReactNode; why: React.ReactNode }) {
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800">
+      <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{what}</td>
+      <td className="py-2 pr-4">{detail}</td>
+      <td className="py-2">{why}</td>
+    </tr>
+  );
+}
+
+function KeepRow({ what, keep }: { what: string; keep: string }) {
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800">
+      <td className="py-2 pr-4">{what}</td>
+      <td className="py-2">{keep}</td>
+    </tr>
+  );
+}
+
+function Row({ where, activity, content }: { where: string; activity: string; content: string }) {
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800">
+      <td className="py-2 pr-4">{where}</td>
+      <td className="py-2 pr-4">{activity}</td>
+      <td className="py-2">{content}</td>
+    </tr>
+  );
+}

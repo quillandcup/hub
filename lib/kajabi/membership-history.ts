@@ -1,6 +1,6 @@
+import { createRepos } from "@/lib/data/repos";
 import { isMembershipOffer, trialEndDate } from "@/lib/membership";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
 
 export type MembershipPurchase = {
   created_at_kajabi: string;
@@ -177,7 +177,8 @@ export async function fetchStripeTrialInfoByEmail(
 
   const aliasMap = buildAliasMap(emailAliases);
 
-  const stripeCustomers = await fetchAllBronzeRows(supabase, "stripe_customers", "stripe_customer_id, email");
+  const billing = createRepos(supabase).billing;
+  const stripeCustomers = await billing.stripeCustomers();
   if (stripeCustomers.length === 0) return result;
 
   const stripeCustomerIdsByCanonicalEmail = new Map<string, string[]>();
@@ -190,20 +191,16 @@ export async function fetchStripeTrialInfoByEmail(
   }
 
   const stripeCustomerIds = stripeCustomers.map((c) => c.stripe_customer_id);
-  const stripeSubscriptions = await fetchAllBronzeRows(
-    supabase,
-    "stripe_subscriptions",
-    "stripe_customer_id, created_at_stripe, canceled_at, data",
-    (q) => q.in("stripe_customer_id", stripeCustomerIds)
-  );
+  const stripeSubscriptions = await billing.stripeSubscriptionsByCustomers(stripeCustomerIds);
 
   const subscriptionsByStripeCustomerId = new Map<string, StripeTrialInfo[]>();
   for (const s of stripeSubscriptions) {
-    const trialStart = s.data?.trial_start;
-    const trialEnd = s.data?.trial_end;
+    const data = s.data as { trial_start?: number | null; trial_end?: number | null } | null;
+    const trialStart = data?.trial_start;
+    const trialEnd = data?.trial_end;
     const list = subscriptionsByStripeCustomerId.get(s.stripe_customer_id) ?? [];
     list.push({
-      createdAtStripe: s.created_at_stripe,
+      createdAtStripe: s.created_at_stripe as string,
       trialEnd: trialStart && trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
       canceledAt: s.canceled_at ?? null,
     });
@@ -224,40 +221,26 @@ export async function fetchMembershipHistory(
 ): Promise<MembershipPurchase[]> {
   if (customerIds.length === 0) return [];
 
-  const { data: purchases } = await supabase
-    .schema("bronze")
-    .from("kajabi_purchases")
-    .select("created_at_kajabi, effective_start_at, deactivated_at, status, kajabi_offer_id, kajabi_customer_id")
-    .in("kajabi_customer_id", customerIds)
-    .order("created_at_kajabi", { ascending: true });
+  const billing = createRepos(supabase).billing;
+  const purchases = await billing.kajabiPurchasesByCustomers(customerIds);
 
-  if (!purchases || purchases.length === 0) return [];
+  if (purchases.length === 0) return [];
 
-  const offerIds = [...new Set(purchases.map((p: any) => p.kajabi_offer_id).filter(Boolean))];
+  const offerIds = [...new Set(purchases.map((p) => p.kajabi_offer_id).filter((id): id is string => !!id))];
   if (offerIds.length === 0) return [];
 
-  const { data: offers } = await supabase
-    .schema("bronze")
-    .from("kajabi_offers")
-    .select("kajabi_offer_id, name, data, trial_period_days")
-    .in("kajabi_offer_id", offerIds);
+  const offers = await billing.kajabiOffersByIds(offerIds);
 
   const offerMap = new Map<string, OfferInfo>(
-    (offers || []).map((o: any) => [
+    offers.map((o) => [
       o.kajabi_offer_id,
-      { name: o.name, data: o.data, trial_period_days: o.trial_period_days },
+      { name: o.name, data: o.data as OfferInfo["data"], trial_period_days: o.trial_period_days },
     ])
   );
 
-  const { data: customers } = await supabase
-    .schema("bronze")
-    .from("kajabi_customers")
-    .select("kajabi_customer_id, email")
-    .in("kajabi_customer_id", customerIds);
+  const customers = await billing.kajabiCustomers({ customerIds });
 
-  const { data: emailAliases } = await supabase
-    .from("member_email_aliases")
-    .select("alias_email, canonical_email");
+  const emailAliases = await createRepos(supabase).aliases.emailAliases();
 
   const aliasMap = buildAliasMap(emailAliases || []);
   const firstEmail = customers?.find((c: any) => c.email)?.email;
@@ -265,5 +248,5 @@ export async function fetchMembershipHistory(
 
   const stripeInfoByEmail = await fetchStripeTrialInfoByEmail(supabase, emailAliases || []);
 
-  return buildMembershipStints(purchases, offerMap, canonicalEmail, stripeInfoByEmail).reverse();
+  return buildMembershipStints(purchases as RawPurchase[], offerMap, canonicalEmail, stripeInfoByEmail).reverse();
 }

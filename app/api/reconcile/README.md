@@ -26,6 +26,31 @@ Reconciles calendar events from Google Calendar.
 **Schedule:** Daily at 2:00am UTC
 **Timeout:** 300 seconds (5 minutes)
 
+### `/api/reconcile/media` (3:30am daily)
+
+Housekeeping for the media library's bucket (`docs/MEDIA_LIBRARY.md`), not an import.
+
+**What it does:**
+- Removes objects left in `uploads/` for over a day (a signed upload that was never confirmed)
+- Removes the original and renditions of images deleted over 30 days ago, and sets `files_removed_at` on the row (the row stays)
+- Skips a deleted image something still shows (event, book cover, project cover)
+
+**Schedule:** Daily at 3:30am UTC
+**Timeout:** 300 seconds (5 minutes); a run clears at most 200 images and stops starting new work after 240 s
+
+### `/api/reconcile/retention` (4:00am daily)
+
+Enforces what `/privacy` promises about raw network details (`lib/retention/network-details.ts`, constants in `lib/retention.ts`), not an import.
+
+**What it does:**
+- Parses every distinct user-agent string that has no stored device yet and stores the browser and device on its rows (`access_events`, `video_watch_segments`); in usage events the parsed fields replace the raw string
+- Removes the exact IP address and the user agent from rows older than 90 days, keeping the place and the device (a user agent only where the device is already stored)
+
+- Rolls the completed days, weeks and months of usage events up into anonymous totals (`analytics_rollups`: counts of events, visits and members per event, route, control, action, browser, OS, device type and viewport; no ids), then removes usage events older than 13 months whose totals are kept (`lib/retention/usage-events.ts`; the app's own `notification_sent` records are not removed)
+
+**Schedule:** Daily at 4:00am UTC
+**Timeout:** 300 seconds (5 minutes), shared by both steps; stops starting new work after 240 s and picks up the rest the next night
+
 ### `/api/reconcile/zoom` (2:30am daily)
 
 Reconciles Zoom meeting attendance data.
@@ -98,7 +123,7 @@ a `vercel.json` cron has no heartbeat.
 
 Adding a cron job: add it to `CRON_HEARTBEATS`, ping from its route
 (`pingCronHeartbeat` / `withCronHeartbeat`), merge so CI deploys the monitor, then copy
-the monitor's ping URL from Checkly into `.env.prod` and run `npm run env:sync`.
+the monitor's ping URL from Checkly into `.env.prod` and run `pnpm env:sync`.
 
 Execution history and logs are in Vercel dashboard → Project → Cron.
 

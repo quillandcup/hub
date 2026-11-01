@@ -1,9 +1,13 @@
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { createRepos } from "@/lib/data/repos";
+import { attendedPrickleRow } from "@/lib/attendance-view";
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEffectiveIdentity } from "@/lib/sudo";
+import { effectiveMemberHasFeature, getUserFeaturePreviews } from "@/lib/features.server";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { PRIORITY, getRankedUpcomingPrickles, type HighlightReason, type UpcomingPrickle } from "@/lib/upcoming-prickles";
 import { getPrickleScheduleOverview } from "@/lib/prickle-schedule";
@@ -32,7 +36,6 @@ import type { CheckinInput } from "@/lib/prickle-checkins";
 const UPCOMING_WINDOW_DAYS = 14;
 const MAX_UPCOMING_DISPLAY = 8;
 const SCHEDULE_LOOKBACK_DAYS = 90;
-const MEMBERS_BATCH_SIZE = 1000;
 
 /** My Prickles tabs, at /my-prickles (Upcoming) and /my-prickles/<id> (lib/tab-routes.ts). */
 import { MY_PRICKLES_TAB_IDS, MY_PRICKLES_TITLE, MY_PRICKLES_TAB_LABELS, type MyPricklesTabId } from "./tabs";
@@ -61,6 +64,10 @@ export default async function MyPricklesPage({
   const [effectiveIdentity, tzPref] = await Promise.all([getEffectiveIdentity(user), getUserTimezonePreference()]);
   if (!effectiveIdentity) redirect("/admin");
 
+  // Hosting is behind the hosting preview (the sudo'd member's own flag in sudo); an old link opens Upcoming.
+  const hostingOn = await effectiveMemberHasFeature("hosting", effectiveIdentity, await getUserFeaturePreviews(user.id));
+  if (tab === "hosting" && !hostingOn) redirect("/my-prickles");
+
   const memberId = effectiveIdentity.memberId;
   const timeZone = tzPref === "browser" ? ORG_TIMEZONE : tzPref;
 
@@ -73,10 +80,10 @@ export default async function MyPricklesPage({
   const [
     ranked,
     scheduleOverview,
-    { data: attendance },
-    { data: prickleTypes },
+    attendedPrickles,
+    prickleTypes,
     schedules,
-    { data: lockRows },
+    lockRows,
     hostingStats,
     hostEligibility,
     members,
@@ -87,16 +94,10 @@ export default async function MyPricklesPage({
   ] = await Promise.all([
     getRankedUpcomingPrickles(supabase, memberId, timeZone, now, UPCOMING_WINDOW_DAYS),
     getPrickleScheduleOverview(supabase, now, timeZone, SCHEDULE_LOOKBACK_DAYS, UPCOMING_WINDOW_DAYS),
-    supabase
-      .from("prickle_attendance")
-      .select(
-        `id, join_time, leave_time, prickles(id, host:prickle_host(id, name), start_time, end_time, prickle_types(name))`
-      )
-      .eq("member_id", memberId)
-      .order("join_time", { ascending: false }),
-    supabase.from("prickle_types").select("id, name").eq("requires_host", true).order("name"),
+    createRepos(supabase).attendance.forMemberWithPrickles(memberId),
+    createRepos(supabase).prickles.typesRequiringHost(),
     getMySchedules(),
-    supabase.from("prickle_schedule_locks").select("month, locked").in("month", [currentMonth, nextMonth]),
+    createRepos(supabase).prickleSchedules.locksOf([currentMonth, nextMonth]),
     getMyHostingStats(),
     getMyHostEligibility(),
     fetchOtherMembers(supabase, memberId),
@@ -106,7 +107,7 @@ export default async function MyPricklesPage({
     getMyCheckins(),
   ]);
 
-  const overrides = (lockRows ?? []).map((r) => ({ month: r.month as string, locked: r.locked as boolean }));
+  const overrides = lockRows.map((r) => ({ month: r.month, locked: r.locked }));
   const currentMonthLocked = isMonthLocked(getMonthStart(now), overrides, now);
   const nextMonthLocked = isMonthLocked(getNextMonthStart(now), overrides, now);
 
@@ -180,11 +181,11 @@ export default async function MyPricklesPage({
               label: MY_PRICKLES_TAB_LABELS.upcoming,
               content: (
                 <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-                  <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-4">
+                  <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-4">
                     For You — Next {UPCOMING_WINDOW_DAYS} Days
                   </h2>
                   {displayedUpcoming.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
                       No prickles scheduled in the next {UPCOMING_WINDOW_DAYS} days.{" "}
                       <Link data-track="my-prickles-see-the-full-schedule" href="/my-prickles/all" className="text-plum-600 dark:text-plum-400 hover:underline">
                         See the full schedule →
@@ -205,7 +206,7 @@ export default async function MyPricklesPage({
                         />
                       ))}
                       {ranked.length > displayedUpcoming.length && (
-                        <p className="text-xs text-slate-400 mt-3">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                           Showing the top {displayedUpcoming.length} of {ranked.length}. Looking for something specific?{" "}
                           <Link data-track="my-prickles-see-all-prickles"
                             href="/my-prickles/all"
@@ -267,35 +268,39 @@ export default async function MyPricklesPage({
                 </>
               ),
             },
-            {
-              id: "hosting",
-              label: MY_PRICKLES_TAB_LABELS.hosting,
-              content: (
-                <div>
-                  {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
-                  {!settleInFirst && <HostingStats stats={hostingStats} />}
-                  <div data-tour="hosting-schedule">
-                    <HostingScheduleManager
-                      initialSchedules={schedules}
-                      prickleTypes={prickleTypes ?? []}
-                      currentMonth={currentMonth}
-                      nextMonth={nextMonth}
-                      currentMonthLocked={currentMonthLocked}
-                      nextMonthLocked={nextMonthLocked}
-                      hostEligibility={hostEligibility}
-                      calendarHostedCount={hostingStats.totalHosted}
-                    />
-                  </div>
-                </div>
-              ),
-            },
+            ...(hostingOn
+              ? [
+                {
+                  id: "hosting",
+                  label: MY_PRICKLES_TAB_LABELS.hosting,
+                  content: (
+                    <div>
+                      {!settleInFirst && calendarFeedUrls && <CalendarSyncCard initialUrls={calendarFeedUrls} />}
+                      {!settleInFirst && <HostingStats stats={hostingStats} />}
+                      <div data-tour="hosting-schedule">
+                        <HostingScheduleManager
+                          initialSchedules={schedules}
+                          prickleTypes={prickleTypes}
+                          currentMonth={currentMonth}
+                          nextMonth={nextMonth}
+                          currentMonthLocked={currentMonthLocked}
+                          nextMonthLocked={nextMonthLocked}
+                          hostEligibility={hostEligibility}
+                          calendarHostedCount={hostingStats.totalHosted}
+                        />
+                      </div>
+                    </div>
+                  ),
+                },
+                ]
+              : []),
             {
               id: "history",
               label: MY_PRICKLES_TAB_LABELS.history,
               content: (
                 <MemberCalendarClient
                   memberId={memberId}
-                  attendance={attendance || []}
+                  attendance={attendedPrickles.map(attendedPrickleRow)}
                   defaultTimezone={tzPref}
                   memberBasePath="/members"
                   initialView="list"
@@ -317,24 +322,10 @@ async function fetchOtherMembers(
 ): Promise<{ id: string; name: string }[]> {
   // Public directory fields only -- other members' emails are admin-only (and this list is
   // passed to a client component).
-  let members: { id: string; name: string }[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("member_directory")
-      .select("id, name")
-      .order("name")
-      .order("id")
-      .range(offset, offset + MEMBERS_BATCH_SIZE - 1);
-    if (batch && batch.length > 0) {
-      members = members.concat(batch);
-      offset += batch.length;
-      hasMore = batch.length === MEMBERS_BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
+  const members: { id: string; name: string }[] = (await createRepos(supabase).directory.all()).map((m) => ({
+    id: m.id,
+    name: getMemberDisplayName({ name: m.name, display_name: m.display_name }),
+  }));
   // Exclude the hedgie herself from the "who do you want to see" picker.
   return members.filter((m) => m.id !== memberId);
 }

@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -25,26 +26,17 @@ export default async function BigSistersPage() {
   }
 
   const supabase = await createClient();
-  const mentorships = await getMyMentorships(supabase, identity.memberId, new Date().toISOString().slice(0, 10));
+  const mentorships = await getMyMentorships(createRepos(supabase).mentorship, identity.memberId, new Date().toISOString().slice(0, 10));
   const partnerIds = [mentorships.bigSister?.memberId, ...mentorships.mentees.map((m) => m.memberId)].filter(
     (id): id is string => !!id
   );
-  const [{ data: volunteer }, { data: member }] = await Promise.all([
-    supabase
-      .from("big_sister_volunteers")
-      .select("note")
-      .eq("member_id", identity.memberId)
-      .is("deleted_at", null)
-      .maybeSingle(),
-    supabase
-      .from("members")
-      .select("first_joined_at, most_recent_joined_at")
-      .eq("id", identity.memberId)
-      .maybeSingle(),
+  const [volunteer, member] = await Promise.all([
+    createRepos(supabase).mentorship.volunteerNote(identity.memberId),
+    createRepos(supabase).members.byId(identity.memberId),
   ]);
   const eligibility = member
     ? getVolunteerEligibility(
-        { firstJoinedAt: member.first_joined_at, mostRecentJoinedAt: member.most_recent_joined_at },
+        { firstJoinedAt: member.firstJoinedAt, mostRecentJoinedAt: member.mostRecentJoinedAt },
         new Date()
       )
     : null;
@@ -55,7 +47,7 @@ export default async function BigSistersPage() {
   return (
     <div className="container mx-auto px-6 py-8 max-w-2xl">
       <h1 className="text-3xl font-bold mb-2">Big Sisters</h1>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+      <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
         Every new member is matched with a big sister for their first 30 days: someone already in the community who shows them around.
       </p>
 
@@ -69,7 +61,7 @@ export default async function BigSistersPage() {
       />
 
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6 space-y-3 text-sm text-slate-700 dark:text-slate-300">
-        <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+        <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
           How it works
         </h2>
         <p>

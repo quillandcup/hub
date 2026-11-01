@@ -54,7 +54,11 @@ describe("TimezoneSwitcher", () => {
     await userEvent.selectOptions(screen.getByRole("combobox"), "America/Chicago");
 
     expect(screen.getByRole("option", { name: "America/Costa Rica (current location)" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Use current location (America/Costa Rica)" }));
+    const locateButton = screen.getByRole("button", { name: "Use current location (America/Costa Rica)" });
+    const icon = locateButton.querySelector("svg");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(icon).toHaveClass("lucide-locate");
+    await userEvent.click(locateButton);
     expect(updateTimezonePreference).toHaveBeenLastCalledWith("America/Costa_Rica");
     expect(screen.getByRole("combobox")).toHaveValue("America/Costa_Rica");
   });

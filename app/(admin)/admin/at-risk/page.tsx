@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { clock } from "@/lib/clock";
+import { createRepos } from "@/lib/data/repos";
+import { isAtRisk, summarizeAttendance } from "@/lib/domain/attendance";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin-auth";
+import { formatDateOnly } from "@/lib/formatters";
 
 export const metadata: Metadata = {
   title: "At-Risk Members",
 };
+
+function shownName(m: { name: string; displayName: string | null }) {
+  return getMemberDisplayName({ name: m.name, display_name: m.displayName });
+}
 
 export default async function AtRiskPage() {
   await requireAdminPage();
@@ -22,53 +31,28 @@ export default async function AtRiskPage() {
   // Get all active members with their attendance. Leads, cancelled, and
   // on-hiatus members are excluded — a hiatus member isn't expected to
   // attend, so including them only inflates the at-risk count.
-  const { data: activeMembers } = await supabase
-    .from("members")
-    .select(`
-      id,
-      name,
-      email,
-      joined_at,
-      source,
-      prickle_attendance(join_time)
-    `)
-    .eq("status", "active")
-    .order("name");
+  const repos = createRepos(supabase);
+  const [activeMembers, attendance] = await Promise.all([
+    repos.members.list({ status: "active", orderBy: "name" }),
+    repos.attendance.list(),
+  ]);
+  const summaries = summarizeAttendance(attendance);
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  // Filter for at-risk members. Staff-only accounts (source='staff', no
-  // paying Kajabi subscription) are excluded — we're not worried about them
-  // churning. Staff who are ALSO paying members keep source='kajabi' (with
-  // staff_role set) and are still eligible.
-  const atRiskMembers = activeMembers?.filter(m => {
-    if (m.source === "staff") {
-      return false;
-    }
-    // No attendance at all, or no recent attendance
-    if (!m.prickle_attendance || m.prickle_attendance.length === 0) {
-      return true;
-    }
-    const hasRecentAttendance = m.prickle_attendance.some((a: any) =>
-      new Date(a.join_time) >= thirtyDaysAgo
-    );
-    return !hasRecentAttendance;
-  }) || [];
+  // Staff-only accounts are excluded; staff who also pay keep source='kajabi' and stay eligible.
+  const atRiskMembers = activeMembers.filter((m) => isAtRisk(m, summaries.get(m.id), thirtyDaysAgo));
 
-  // Calculate stats for each member
-  const membersWithStats = atRiskMembers.map(m => {
-    const totalAttendance = m.prickle_attendance?.length || 0;
-    const lastAttendance = m.prickle_attendance && m.prickle_attendance.length > 0
-      ? new Date(Math.max(...m.prickle_attendance.map((a: any) => new Date(a.join_time).getTime())))
-      : null;
-
+  const membersWithStats = atRiskMembers.map((m) => {
+    const summary = summaries.get(m.id);
+    const lastAttendance = summary?.lastJoin ?? null;
     return {
       ...m,
-      totalAttendance,
+      totalAttendance: summary?.count ?? 0,
       lastAttendance,
       daysSinceLastAttendance: lastAttendance
-        ? Math.floor((Date.now() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
+        ? Math.floor((clock.now() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
         : null,
     };
   });
@@ -76,7 +60,7 @@ export default async function AtRiskPage() {
   // Sort by days since last attendance (descending), then by name
   membersWithStats.sort((a, b) => {
     if (a.daysSinceLastAttendance === null && b.daysSinceLastAttendance === null) {
-      return a.name.localeCompare(b.name);
+      return shownName(a).localeCompare(shownName(b));
     }
     if (a.daysSinceLastAttendance === null) return -1;
     if (b.daysSinceLastAttendance === null) return 1;
@@ -114,7 +98,7 @@ export default async function AtRiskPage() {
 
           <div className="divide-y divide-slate-200 dark:divide-slate-800">
             {membersWithStats.length === 0 ? (
-              <div className="p-12 text-center text-slate-500">
+              <div className="p-12 text-center text-slate-600 dark:text-slate-400">
                 No at-risk members! 🎉
               </div>
             ) : (
@@ -126,20 +110,23 @@ export default async function AtRiskPage() {
                         href={`/admin/members/${member.id}`}
                         className="font-semibold text-lg text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 transition-colors"
                       >
-                        {member.name}
+                        {shownName(member)}
                       </Link>
+                      {shownName(member) !== member.name && (
+                        <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">{member.name}</span>
+                      )}
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                         {member.email}
                       </div>
                       <div className="flex gap-4 mt-3 text-sm">
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Total attendance:</span>{" "}
+                          <span className="text-slate-600 dark:text-slate-400">Total attendance:</span>{" "}
                           <span className="font-semibold">{member.totalAttendance}</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 dark:text-slate-400">Joined:</span>{" "}
+                          <span className="text-slate-600 dark:text-slate-400">Joined:</span>{" "}
                           <span className="font-semibold">
-                            {new Date(member.joined_at).toLocaleDateString()}
+                            {formatDateOnly(member.joinedAt)}
                           </span>
                         </div>
                       </div>

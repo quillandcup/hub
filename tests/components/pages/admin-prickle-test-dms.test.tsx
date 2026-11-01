@@ -3,6 +3,8 @@
  * The admin prickle page's "send me a test check-in/check-out" action: admin-only, and always to
  * the signed-in admin's own member record, never a sudo'd member.
  */
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   ADMIN_USER,
@@ -11,12 +13,30 @@ import {
   resetServerPageMocks,
   signInAs,
   useFakeSupabase,
-  type FakeQuery,
 } from "@/tests/helpers/server-page";
 
 vi.mock("@/lib/auth", () => import("@/tests/helpers/server-page").then((m) => m.authModule));
 vi.mock("@/lib/sudo", () => import("@/tests/helpers/server-page").then((m) => m.sudoModule));
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
+// The prickle comes from its repository, in memory here.
+const repos = createInMemoryRepos(
+  new InMemoryDataset({
+    // Who is an admin comes from the profiles repository too.
+    userProfiles: [
+      { id: ADMIN_USER.id, email: ADMIN_USER.email!, role: "admin" },
+      { id: MEMBER_USER.id, email: MEMBER_USER.email!, role: "member" },
+    ],
+    members: [{ id: "mbr_AAAAAAAAAAA1", name: "Jenn Parker" }],
+    prickleTypes: [{ id: "prty_AAAAAAAAAAA1", name: "Progress Prickle", normalizedName: "progress", purpose: "writing", requiresHost: false, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
+    prickles: [
+      { id: "p1", typeId: "prty_AAAAAAAAAAA1", hostId: "mbr_AAAAAAAAAAA1", title: null, startTime: "2026-10-05T17:00:00Z", endTime: "2026-10-05T18:00:00Z", source: "calendar", calendarEventId: null },
+    ],
+  }),
+);
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => "service-client" }));
 
 const sendTestCheckinDM = vi.fn<(...args: unknown[]) => Promise<{ error: string } | { delivered: string[] }>>(async () => ({ delivered: ["slack", "email"] }));
@@ -24,22 +44,12 @@ vi.mock("@/lib/prickle-checkin-dms", () => ({ sendTestCheckinDM: (...args: unkno
 
 import { sendTestPrickleDM } from "@/app/(admin)/admin/prickles/[id]/actions";
 
-const ROLES: Record<string, string> = { [ADMIN_USER.id]: "admin", [MEMBER_USER.id]: "member" };
-const userProfiles = (q: FakeQuery) => {
-  const id = q.calls.find((c) => c.method === "eq" && c.args[0] === "id")?.args[1] as string;
-  return { data: ROLES[id] ? [{ role: ROLES[id] }] : [] };
-};
 const ADMIN_IDENTITY = { memberId: "member-bramble", memberName: "Bramble", memberEmail: ADMIN_USER.email!, isSudo: false };
 
 beforeEach(() => {
   resetServerPageMocks();
   sendTestCheckinDM.mockClear();
-  useFakeSupabase({
-    user_profiles: userProfiles,
-    prickles: {
-      data: [{ id: "p1", start_time: "2026-10-05T17:00:00Z", host: { name: "Jenn Parker" }, prickle_types: { name: "Progress Prickle" } }],
-    },
-  });
+  useFakeSupabase({});
 });
 
 describe("sendTestPrickleDM", () => {

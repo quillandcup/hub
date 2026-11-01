@@ -1,5 +1,7 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+
 import { useCallback, useEffect, useState } from "react";
 import { startSudo } from "@/app/actions/sudo";
 
@@ -19,7 +21,7 @@ interface FeedbackItem {
   submitter_email: string | null;
   screenshot_url: string | null;
   member_id: string | null;
-  member: { name: string; email: string } | null;
+  member: { name: string; display_name?: string | null; email: string } | null;
 }
 
 const TYPE_LABELS: Record<FeedbackType, string> = {
@@ -143,7 +145,7 @@ export default function FeedbackClient() {
         {!loading && !error && (
           <div className="divide-y divide-slate-200 dark:divide-slate-700">
             {items.length === 0 && (
-              <div className="p-6 text-sm text-slate-500 dark:text-slate-400">
+              <div className="p-6 text-sm text-slate-600 dark:text-slate-400">
                 No feedback yet.
               </div>
             )}
@@ -159,7 +161,7 @@ export default function FeedbackClient() {
                     />
                   </button>
                 ) : (
-                  <div className="w-32 h-20 flex-shrink-0 flex items-center justify-center rounded border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-400">
+                  <div className="w-32 h-20 flex-shrink-0 flex items-center justify-center rounded border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400">
                     No screenshot
                   </div>
                 )}
@@ -167,11 +169,11 @@ export default function FeedbackClient() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-sm font-medium">{TYPE_LABELS[item.feedback_type]}</span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      {item.member?.name ?? item.submitter_email ?? item.user_id}
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                      {item.member ? getMemberDisplayName(item.member) : (item.submitter_email ?? item.user_id)}
                       {item.is_sudo && " (via sudo)"}
                     </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
                       {new Date(item.created_at).toLocaleString()}
                     </span>
                   </div>
@@ -226,7 +228,7 @@ export default function FeedbackClient() {
             >
               ← Newer
             </button>
-            <span className="text-slate-500 dark:text-slate-400">
+            <span className="text-slate-600 dark:text-slate-400">
               Page {page + 1} of {pageCount}
             </span>
             <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { computeOverlapLayout } from "@/lib/calendar-overlap";
@@ -15,6 +16,8 @@ export interface Prickle {
   attendance_count: number;
   host_missing?: boolean;
   host_late?: boolean;
+  /** Shown in Events (an event follows it), or removed from Events. Absent when it has no event. */
+  in_events?: "shown" | "hidden";
 }
 
 // A non-navigable, informational block (e.g. another host's proposed/confirmed
@@ -81,7 +84,7 @@ function getAttendanceColor(count: number): string {
   } else if (count <= 6) {
     return "bg-plum-200 dark:bg-plum-900 text-plum-900 dark:text-plum-50 border-plum-400 dark:border-plum-600";
   } else if (count <= 10) {
-    return "bg-plum-400 dark:bg-plum-700 text-white border-plum-500 dark:border-plum-500";
+    return "bg-plum-400 dark:bg-plum-700 text-plum-950 dark:text-white border-plum-500 dark:border-plum-500";
   } else {
     return "bg-plum-600 dark:bg-plum-600 text-white border-plum-700 dark:border-plum-400";
   }
@@ -142,14 +145,16 @@ function isSameCalendarDay(isoTimestamp: string, day: Date, timezone: string): b
     month: "2-digit",
     day: "2-digit",
   });
-  const dayDateStr = day.toLocaleDateString("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  // `day` is a calendar date built from year/month/day components in the host's zone, not an instant: read those
+  // components as they are. Formatting it in `timezone` shifts it by a day whenever the host's zone (UTC on the
+  // server) differs from the viewer's, so the server and the browser would put prickles in different columns.
+  const dayDateStr = `${String(day.getMonth() + 1).padStart(2, "0")}/${String(day.getDate()).padStart(2, "0")}/${day.getFullYear()}`;
   return itemDateStr === dayDateStr;
 }
+
+/** Time column plus seven day columns at their minimum: the width below which the week no longer fits and scrolls sideways. */
+const GRID_COLS = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] @pair:grid-cols-[4rem_repeat(7,1fr)]";
+const MIN_GRID_WIDTH = "min-w-[30.75rem]";
 
 export default function CalendarWeekView({
   prickles,
@@ -165,6 +170,7 @@ export default function CalendarWeekView({
   onPrickleClick,
   selectedPrickleIds,
 }: CalendarWeekViewProps) {
+  const withSecondary = useWithSecondaryTime();
   // Reconstruct Date from components to avoid timezone serialization issues
   // Using date components (not timestamps) ensures consistent day-of-week on server and client
   const weekStart = new Date(weekStartDate.year, weekStartDate.month, weekStartDate.day, 0, 0, 0, 0);
@@ -182,6 +188,13 @@ export default function CalendarWeekView({
     userTimezonePreference === "browser"
       ? (detectedTimezone || ORG_TIMEZONE)
       : userTimezonePreference;
+
+  // "Today" depends on the clock and zone of whoever renders it, so the server's answer (UTC) can differ from the
+  // browser's around midnight and fail hydration. Leave it unset until mounted.
+  const [todayString, setTodayString] = useState<string | null>(null);
+  useEffect(() => {
+    setTodayString(new Date().toDateString());
+  }, []);
 
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [hoveredPrickle, setHoveredPrickle] = useState<string | null>(null);
@@ -240,10 +253,17 @@ export default function CalendarWeekView({
   // share the rest and can shrink down to a readable minimum before the grid's
   // intrinsic min-width kicks in and the container scrolls horizontally on its
   // own (bounded to the calendar, not the whole page).
-  const gridColsClass = "grid-cols-[2.75rem_repeat(7,minmax(4rem,1fr))] sm:grid-cols-[4rem_repeat(7,1fr)]";
+  const gridColsClass = GRID_COLS;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip">
+    // `@container` makes this box's width independent of what is inside it (the day columns' container queries
+    // measure it), so the grid, which cannot get narrower than MIN_GRID_WIDTH, overflows it on a phone. That
+    // overflow must reach the scroller around the calendar (CalendarScrollContainer, or the host form's region):
+    // so nothing here may clip sideways. The card is the box inside, as wide as the grid needs. (An earlier
+    // `overflow-clip` on this box hid Thursday to Saturday on phones, with nothing to scroll.) `overflow-clip`
+    // on the card is fine: it never scrolls, and unlike `overflow-hidden` it keeps the sticky day header working.
+    <div className="@container">
+      <div className={`${MIN_GRID_WIDTH} bg-white dark:bg-slate-900 rounded-lg shadow overflow-clip`}>
       {/* Legend */}
       {mode !== "member" && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
@@ -302,22 +322,22 @@ export default function CalendarWeekView({
       {/* Calendar Grid */}
       <div>
           {/* Day Headers — sticky so they stay visible while time rows scroll */}
-          <div className={`sticky top-0 z-20 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
-            <div className="p-2 bg-slate-50 dark:bg-slate-800"></div>
+          <div className={`sticky top-0 z-30 grid ${gridColsClass} border-b border-slate-200 dark:border-slate-800`}>
+            <div className="sticky left-0 z-10 p-2 bg-slate-50 dark:bg-slate-800"></div>
             {days.map((day, i) => {
-              const isToday = day.toDateString() === new Date().toDateString();
+              const isToday = day.toDateString() === todayString;
               return (
                 <div
                   key={i}
-                  className={`p-1 sm:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
+                  className={`p-1 @pair:p-3 text-center border-l border-slate-200 dark:border-slate-800 ${
                     isToday ? "bg-plum-100 border-t-2 border-t-plum-500 dark:bg-plum-950 dark:border-t-0" : "bg-slate-50 dark:bg-slate-800"
                   }`}
                 >
-                  <div className={`text-xs sm:text-sm font-semibold ${isToday ? "text-plum-700 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
-                    <span className="sm:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
-                    <span className="hidden sm:inline">{dayNames[day.getDay()]}</span>
+                  <div className={`text-xs @pair:text-sm font-semibold ${isToday ? "text-plum-700 dark:text-plum-400" : "text-slate-700 dark:text-slate-300"}`}>
+                    <span className="@pair:hidden">{dayNames[day.getDay()].slice(0, 3)}</span>
+                    <span className="hidden @pair:inline">{dayNames[day.getDay()]}</span>
                   </div>
-                  <div className={`text-xs ${isToday ? "text-plum-600 dark:text-plum-500" : "text-slate-500 dark:text-slate-400"}`}>
+                  <div className={`text-xs ${isToday ? "text-plum-700 dark:text-plum-300" : "text-slate-600 dark:text-slate-400"}`}>
                     {day.getMonth() + 1}/{day.getDate()}
                   </div>
                 </div>
@@ -328,15 +348,17 @@ export default function CalendarWeekView({
           {/* Time Grid */}
           <div className="relative">
             <div className={`grid ${gridColsClass}`}>
-              {/* Time Labels */}
-              <div>
+              {/* Time Labels: stay at the left while the days scroll sideways on a narrow screen. Sticky `left-0` sticks at
+                  the content edge of the scroller around the calendar, so that scroller must have no padding of its
+                  own (put it on a box inside), or the column parks inside the gap and scrolled days show beside it. */}
+              <div className="sticky left-0 z-20">
                 {hours.map(hour => {
                   const period = hour < 12 ? "AM" : "PM";
                   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
                   return (
-                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 sm:p-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
-                      <span className="sm:hidden">{displayHour}{period[0]}</span>
-                      <span className="hidden sm:inline">{displayHour} {period}</span>
+                    <div key={hour} data-hour={hour} className="h-[60px] border-b border-slate-200 dark:border-slate-800 px-1 py-2 @pair:p-2 text-[10px] @pair:text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 whitespace-nowrap">
+                      <span className="@pair:hidden">{displayHour}{period[0]}</span>
+                      <span className="hidden @pair:inline">{displayHour} {period}</span>
                     </div>
                   );
                 })}
@@ -344,7 +366,7 @@ export default function CalendarWeekView({
 
               {/* Day Columns */}
               {days.map((day, dayIndex) => {
-                const isToday = day.toDateString() === new Date().toDateString();
+                const isToday = day.toDateString() === todayString;
                 return (
                   <div key={dayIndex} className="relative border-l border-slate-200 dark:border-slate-800">
                     {/* Hour Grid Lines */}
@@ -410,6 +432,8 @@ export default function CalendarWeekView({
                           hour: "numeric",
                           minute: "2-digit",
                         });
+                        // "2:00 AM" -> "2:00A", the hour column's compact style, for a card too narrow for the full time.
+                        const compactStartTime = startTime.replace(/\s*([AP])M$/i, "$1");
 
                         const isSelected = selectedPrickleIds?.has(prickle.id) ?? false;
                         const selectable = onPrickleClick && !onSlotClick;
@@ -436,7 +460,7 @@ export default function CalendarWeekView({
                                     role: "button",
                                     tabIndex: 0,
                                     "aria-pressed": isSelected,
-                                    "aria-label": `${prickle.prickle_type} at ${startTime}`,
+                                    "aria-label": `${prickle.prickle_type} at ${withSecondary(startTime, prickle.start_time, timezone)}`,
                                     onKeyDown: (e: React.KeyboardEvent) => {
                                       if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
@@ -451,9 +475,11 @@ export default function CalendarWeekView({
                               <div className="text-xs font-semibold truncate">
                                 {prickle.prickle_type}
                                 {mode !== "member" && (prickle.host_missing || prickle.host_late) && " ⚠️"}
+                                {prickle.in_events === "shown" && <span title="In Events"> ★</span>}
                               </div>
-                              <div className="text-xs truncate">
-                                {startTime}
+                              <div className="text-[10px] @pair:text-xs truncate">
+                                <span className="@pair:hidden">{compactStartTime}</span>
+                                <span className="hidden @pair:inline">{withSecondary(startTime, prickle.start_time, timezone)}</span>
                               </div>
                               {mode !== "member" && attendanceLabel(prickle, attendanceDataThrough) && (
                                 <div className="text-xs font-bold mt-0.5">
@@ -476,6 +502,7 @@ export default function CalendarWeekView({
                               >
                                 <div className="font-semibold mb-1">{prickle.prickle_type}</div>
                                 <div>Host: {prickle.host || "none"}</div>
+                                {prickle.in_events && <div>{prickle.in_events === "shown" ? "In Events" : "Removed from Events"}</div>}
                                 {showAttendanceDetails && (
                                   <>
                                     {attendanceLabel(prickle, attendanceDataThrough) && (
@@ -498,6 +525,7 @@ export default function CalendarWeekView({
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 }

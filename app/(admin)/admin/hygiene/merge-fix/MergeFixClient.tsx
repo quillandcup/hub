@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BulkMergeMemberModal from "../../members/BulkMergeMemberModal";
-import type { EnrichedGroup } from "@/lib/merge-fix";
+import type { EnrichedGroup, EnrichedMember } from "@/lib/merge-fix";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { dismissGroup, undismissGroup } from "./actions";
 
 export type { EnrichedGroup };
@@ -20,6 +21,14 @@ const AVATAR_COLORS = [
   "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
 ];
+
+// Duplicates are detected on the legal name, so it stays visible under the display name that leads.
+const shownName = (m: EnrichedMember) => getMemberDisplayName({ name: m.name, display_name: m.displayName });
+
+function LegalName({ member }: { member: EnrichedMember }) {
+  if (shownName(member) === member.name) return null;
+  return <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{member.name}</p>;
+}
 
 function groupKey(group: EnrichedGroup) {
   return group.members.map((m) => m.id).sort().join("|");
@@ -98,7 +107,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
         <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
           No duplicates found
         </h2>
-        <p className="text-slate-500 dark:text-slate-400">
+        <p className="text-slate-600 dark:text-slate-400">
           All members have unique names and emails.
         </p>
       </div>
@@ -113,7 +122,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
             All caught up
           </h2>
-          <p className="text-slate-500 dark:text-slate-400">
+          <p className="text-slate-600 dark:text-slate-400">
             You&apos;ve dismissed all suggestions.
           </p>
         </div>
@@ -128,7 +137,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
       <div className="mt-8">
         <button
           onClick={() => setShowDismissed((v) => !v)}
-          className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
         >
           {showDismissed ? "Hide" : "Show"} {dismissedGroups.length} dismissed suggestion{dismissedGroups.length !== 1 ? "s" : ""}
         </button>
@@ -141,7 +150,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                 className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
               >
                 <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                     {group.reason}
                   </span>
                   <ConfidenceBadge confidence={group.confidence} />
@@ -156,7 +165,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         </span>
                       )}
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${AVATAR_COLORS[j % AVATAR_COLORS.length]}`}>
-                        {member.name.charAt(0).toUpperCase()}
+                        {shownName(member).charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -164,13 +173,14 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                             href={`/admin/members/${member.id}`}
                             className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                           >
-                            {member.name}
+                            {shownName(member)}
                           </Link>
                           {j === 0 && (
-                            <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <LegalName member={member} />
+                        <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                           {member.email}
                         </p>
                       </div>
@@ -181,7 +191,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                 <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                   <button
                     onClick={() => undismiss(group)}
-                    className="px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                    className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                   >
                     Restore
                   </button>
@@ -222,7 +232,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
             className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden"
           >
             <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                 {group.reason}
               </span>
               <ConfidenceBadge confidence={group.confidence} />
@@ -237,7 +247,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                     </span>
                   )}
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0 ${AVATAR_COLORS[j % AVATAR_COLORS.length]}`}>
-                    {member.name.charAt(0).toUpperCase()}
+                    {shownName(member).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -245,13 +255,14 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         href={`/admin/members/${member.id}`}
                         className="text-sm font-medium text-slate-900 dark:text-slate-100 hover:text-plum-600 dark:hover:text-plum-400 hover:underline truncate"
                       >
-                        {member.name}
+                        {shownName(member)}
                       </Link>
                       {j === 0 && (
-                        <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">(primary)</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">(primary)</span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    <LegalName member={member} />
+                    <p className="text-xs text-slate-600 dark:text-slate-400 truncate">
                       {member.email}
                     </p>
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -266,7 +277,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           member.stripe_active
                             ? "bg-plum-100 text-plum-700 dark:bg-plum-900/30 dark:text-plum-400"
-                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                         }`}>
                           {member.stripe_active ? "active in Stripe" : "in Stripe"}
                         </span>
@@ -280,7 +291,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
             <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
               <button
                 onClick={() => dismiss(group)}
-                className="px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               >
                 Dismiss
               </button>
@@ -299,7 +310,7 @@ export default function MergeFixClient({ duplicateGroups, dismissedKeys }: Merge
 
       {mergeTarget && (
         <BulkMergeMemberModal
-          members={mergeTarget.members.map((m) => ({ id: m.id, name: m.name, email: m.email }))}
+          members={mergeTarget.members.map((m) => ({ id: m.id, name: m.name, display_name: m.displayName, email: m.email }))}
           isOpen={true}
           onClose={() => setMergeTarget(null)}
         />

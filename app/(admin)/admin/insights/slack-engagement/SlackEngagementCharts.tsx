@@ -68,7 +68,7 @@ function ChartCard({
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6">
       <h2 className="text-lg font-bold mb-0.5">{title}</h2>
-      {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">{subtitle}</p>}
       {children}
     </div>
   )
@@ -91,7 +91,7 @@ function DayHourHeatmap({ heatmap }: { heatmap: HeatCell[] }) {
           {Array.from({ length: 24 }, (_, h) => (
             <div
               key={h}
-              className="text-center text-[9px] text-slate-400 dark:text-slate-500"
+              className="text-center text-[9px] text-slate-500 dark:text-slate-400"
             >
               {h % 3 === 0 ? formatHour(h) : ""}
             </div>
@@ -99,7 +99,7 @@ function DayHourHeatmap({ heatmap }: { heatmap: HeatCell[] }) {
         </div>
         {DAY_ORDER.map((day) => (
           <div key={day} className="grid grid-cols-[3rem_repeat(24,1fr)] gap-[2px] mb-[2px]">
-            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center">
+            <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center">
               {day}
             </div>
             {(byDay.get(day) ?? []).map((cell) => (
@@ -219,7 +219,7 @@ function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) 
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+          <tr className="text-left text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
             <SortableTh
               label="Channel"
               className="py-2 pr-4"
@@ -290,10 +290,10 @@ function ChannelBreakdownTable({ channels }: { channels: ChannelEngagement[] }) 
               <td className="py-2 pr-4 text-right tabular-nums">{c.reactions.toLocaleString()}</td>
               <td className="py-2 pr-4 text-right tabular-nums">{c.threadReplies.toLocaleString()}</td>
               <td className="py-2 pr-4 text-right tabular-nums">{c.uniqueUsers.toLocaleString()}</td>
-              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+              <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">
                 {c.peakDay} {formatHour(c.peakHour)}
               </td>
-              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+              <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">
                 {formatDate(c.lastActivity)}
               </td>
               <td className="py-2 pr-4">
@@ -326,7 +326,7 @@ function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+          <tr className="text-left text-xs text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
             <SortableTh
               label="Channel"
               className="py-2 pr-4"
@@ -377,7 +377,7 @@ function ArchivalCandidatesTable({ candidates }: { candidates: ArchivalCandidate
               <td className="py-2 pr-4 text-right tabular-nums">
                 {c.memberCount?.toLocaleString() ?? "—"}
               </td>
-              <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">
+              <td className="py-2 pr-4 text-slate-600 dark:text-slate-400">
                 {formatDate(c.lastActivity)}
               </td>
               <td className="py-2 pr-4 text-right tabular-nums">
@@ -414,7 +414,7 @@ export default function SlackEngagementCharts({
         subtitle={`Messages + reactions by day and hour (ET), since ${sinceLabel}`}
       >
         <DayHourHeatmap heatmap={heatmap} />
-        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-slate-400 dark:text-slate-500">
+        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400">
           <span>Less</span>
           {["#f0f4f8", "#f4e5ed", "#dca4c0", "#b65a88", "#8b3e64", "#613048"].map((c) => (
             <div
@@ -427,7 +427,8 @@ export default function SlackEngagementCharts({
         </div>
       </ChartCard>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="@container">
+        <div className="grid grid-cols-1 @cards:grid-cols-2 gap-6">
         <ChartCard title="📣 Most Engaged Channels" subtitle={`Messages + reactions since ${sinceLabel}`}>
           <HorizontalBars
             data={channelBarData}
@@ -447,6 +448,7 @@ export default function SlackEngagementCharts({
           />
         </ChartCard>
       </div>
+      </div>
 
       <ChartCard title="📊 Channel Breakdown" subtitle={`Detail since ${sinceLabel}`}>
         <ChannelBreakdownTable channels={channels} />
@@ -457,7 +459,7 @@ export default function SlackEngagementCharts({
         subtitle="Non-archived channels with no recent engagement — consider archiving"
       >
         {archivalCandidates.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             No dormant channels found — everything's seeing some activity. 🎉
           </p>
         ) : (

@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import SudoMemberSearch, { type SudoMember, SUDO_SEARCH_LIMIT } from '@/components/SudoMemberSearch'
 
 const alice = { id: 'm1', name: 'Alice Example', email: 'alice@example.com' }
+const penny = { id: 'm3', name: 'Penelope Legal', displayName: 'Penny Pen', email: 'penny@example.com' }
 const alan = { id: 'm2', name: 'Alan Other', email: 'alan@example.com' }
 
 function mockFetchResponse(members: SudoMember[], ok = true) {
@@ -151,5 +152,41 @@ describe('SudoMemberSearch', () => {
 
     await user.keyboard('{Enter}')
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith(alan))
+  })
+
+  it('shows only the display name, and hands back the whole member when picked', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny, alice]) as any)
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+    render(<Harness onSelect={onSelect} />)
+
+    await user.type(screen.getByRole('combobox'), 'pen')
+
+    expect(await screen.findByText('Penny Pen')).toBeInTheDocument()
+    expect(screen.queryByText(/Penelope Legal/)).not.toBeInTheDocument() // the legal name isn't why it matched
+    expect(screen.queryByText(/penny@example.com/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Penny Pen'))
+    expect(onSelect).toHaveBeenCalledWith(penny) // with the real email
+  })
+
+  it('says why when the match is not in the name shown: legal name, email or nickname', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByRole('combobox')
+
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny]) as any)
+    await user.type(input, 'penelope')
+    expect(await screen.findByText('Penelope Legal')).toBeInTheDocument()
+
+    await user.clear(input)
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([penny]) as any)
+    await user.type(input, 'penny@ex')
+    expect(await screen.findByText('penny@example.com')).toBeInTheDocument()
+
+    await user.clear(input)
+    vi.mocked(global.fetch).mockResolvedValue(mockFetchResponse([{ ...penny, matchedAlias: 'Quillfoot' }]) as any)
+    await user.type(input, 'quillfoot')
+    expect(await screen.findByText('also known as “Quillfoot”')).toBeInTheDocument()
   })
 })

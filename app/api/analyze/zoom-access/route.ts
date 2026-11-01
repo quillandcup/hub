@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { matchAttendeeToMember } from "@/lib/member-matching";
 import { NextRequest, NextResponse } from "next/server";
@@ -25,45 +26,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const [
-      { data: members },
-      { data: nameAliases },
-      { data: emailAliases },
+      members,
+      nameAliases,
+      emailAliases,
     ] = await Promise.all([
-      supabase.from("members").select("id, name, email, status"),
-      supabase.from("member_name_aliases").select("alias, member_id, source"),
-      supabase.from("member_email_aliases").select("alias_email, canonical_email"),
+      createRepos(supabase).members.list(),
+      createRepos(supabase).aliases.nameAliases(),
+      createRepos(supabase).aliases.emailAliases(),
     ]);
 
     const memberStatusMap = new Map(
-      (members ?? []).map((m) => [m.id, m.status as string])
+      members.map((m) => [m.id, m.status])
     );
     const zoomAliases = (nameAliases ?? []).filter((a) => a.source === "zoom");
-    const memberList = (members ?? []).map((m) => ({ id: m.id, name: m.name, email: m.email }));
+    const memberList = members.map((m) => ({ id: m.id, name: m.name, email: m.email }));
 
-    // Paginate zoom_attendees for the last 90 days
-    const attendees: Array<{ name: string; email: string | null; meeting_uuid: string }> = [];
-    {
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data: batch } = await supabase
-          .schema("bronze")
-          .from("zoom_attendees")
-          .select("name, email, meeting_uuid")
-          .gte("join_time", cutoff)
-          .range(offset, offset + 999);
-        if (batch && batch.length > 0) {
-          attendees.push(...batch);
-          offset += batch.length;
-          hasMore = batch.length === 1000;
-        } else {
-          hasMore = false;
-        }
-      }
-    }
+    // zoom_attendees for the last 90 days (the repository pages through them)
+    const attendees = await createRepos(supabase).zoom.attendeesSince(cutoff);
 
     // Group by name for matching efficiency, preserving meeting_uuids
-    const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; meetings: Set<string> }>();
+    const inactiveMatchCounts = new Map<string, { member_id: string; member_name: string; member_display_name: string | null; meetings: Set<string> }>();
 
     for (const attendee of attendees) {
       const result = matchAttendeeToMember(
@@ -82,10 +64,11 @@ export async function GET(request: NextRequest) {
             inactiveMatchCounts.set(result.member_id, {
               member_id: result.member_id,
               member_name: member?.name ?? result.member_id,
+              member_display_name: member?.displayName ?? null,
               meetings: new Set(),
             });
           }
-          inactiveMatchCounts.get(result.member_id)!.meetings.add(attendee.meeting_uuid);
+          if (attendee.meeting_uuid) inactiveMatchCounts.get(result.member_id)!.meetings.add(attendee.meeting_uuid);
         }
       }
     }
@@ -94,6 +77,7 @@ export async function GET(request: NextRequest) {
       .map((r) => ({
         member_id: r.member_id,
         member_name: r.member_name,
+        member_display_name: r.member_display_name,
         member_status: "cancelled",
         prickle_count: r.meetings.size,
       }))

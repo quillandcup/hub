@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { revalidatePath } from "next/cache";
@@ -39,6 +40,20 @@ type IdentityContext =
       effectiveIdentity: NonNullable<Awaited<ReturnType<typeof getEffectiveIdentity>>>;
     };
 
+/** The stored fields of an award from what the member typed. */
+function awardFields(input: AwardInput) {
+  return {
+    award_name: input.awardName.trim(),
+    category: input.category?.trim() || null,
+    work_title: input.workTitle.trim(),
+    book_id: input.bookId || null,
+    project_id: input.projectId || null,
+    award_date: input.awardDate,
+    url: safeUrl(input.url),
+    notes: input.notes?.trim() || null,
+  };
+}
+
 async function requireIdentity(): Promise<IdentityContext> {
   const supabase = await createClient();
   const user = await getCurrentUser();
@@ -56,13 +71,9 @@ export async function getMyAwards(): Promise<MyAwardRow[]> {
   if ("error" in ctx) return [];
   const { supabase, effectiveIdentity } = ctx;
 
-  const { data } = await supabase
-    .from("member_awards")
-    .select("id, award_name, category, work_title, book_id, project_id, award_date, url, notes")
-    .eq("member_id", effectiveIdentity.memberId)
-    .order("award_date", { ascending: false });
+  const awards = await createRepos(supabase).awards.ofMember(effectiveIdentity.memberId);
 
-  return (data ?? []).map((row) => ({
+  return awards.map((row) => ({
     id: row.id,
     awardName: row.award_name,
     category: row.category,
@@ -83,19 +94,11 @@ async function addAwardImpl(input: AwardInput): Promise<{ success: true } | { er
   const validationError = validateAwardInput(input);
   if (validationError) return { error: validationError };
 
-  const { error } = await supabase.from("member_awards").insert({
-    member_id: effectiveIdentity.memberId,
-    award_name: input.awardName.trim(),
-    category: input.category?.trim() || null,
-    work_title: input.workTitle.trim(),
-    book_id: input.bookId || null,
-    project_id: input.projectId || null,
-    award_date: input.awardDate,
-    url: safeUrl(input.url),
-    notes: input.notes?.trim() || null,
-  });
-
-  if (error) return { error: error.message };
+  try {
+    await createRepos(supabase).awards.add({ member_id: effectiveIdentity.memberId, ...awardFields(input) });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 
   // Fire-and-forget: a Slack outage must never block the win from being recorded.
   notifyStaffNewAward({
@@ -124,23 +127,11 @@ export async function updateAward(
 
   // RLS scopes this to the acting member's own rows (or an admin's, during sudo) -- a zero-row
   // result means the id didn't belong to them, not a silent no-op.
-  const { data, error } = await supabase
-    .from("member_awards")
-    .update({
-      award_name: input.awardName.trim(),
-      category: input.category?.trim() || null,
-      work_title: input.workTitle.trim(),
-      book_id: input.bookId || null,
-      project_id: input.projectId || null,
-      award_date: input.awardDate,
-      url: safeUrl(input.url),
-      notes: input.notes?.trim() || null,
-    })
-    .eq("id", awardId)
-    .select("id")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Award not found" };
+  try {
+    if (!(await createRepos(supabase).awards.update(awardId, awardFields(input)))) return { error: "Award not found" };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath("/awards");
@@ -152,9 +143,12 @@ export async function deleteAward(awardId: string): Promise<{ success: true } | 
   if ("error" in ctx) return ctx;
   const { supabase } = ctx;
 
-  const { data, error } = await supabase.from("member_awards").delete().eq("id", awardId).select("id").single();
-
-  if (error || !data) return { error: error?.message ?? "Award not found" };
+  // Soft delete: the row stays until the member asks us to remove it (/privacy).
+  try {
+    if (!(await createRepos(supabase).awards.remove(awardId))) return { error: "Award not found" };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 
   revalidatePath("/projects", "layout");
   revalidatePath("/awards");

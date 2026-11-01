@@ -5,6 +5,7 @@ import type { NotificationKindId } from "@/lib/notifications/registry";
 import { resolveInAppNotifications } from "@/lib/channels/in-app";
 import { daysSinceJoined, isNewcomer } from "@/lib/newcomer";
 import { resolveSlackUserIds } from "@/lib/slack-member-ids";
+import { createRepos } from "@/lib/data/repos";
 import { loadIntroChannelId, loadIntroducedMemberIds, loadLastAttendanceByMember } from "@/lib/newcomer-signals";
 import { loadCalendarPrickleIdsByMember } from "@/lib/prickle-checkin-dms";
 import type { OutboundMessage } from "@/lib/channels";
@@ -53,7 +54,6 @@ export const PRICKLE_LAPSED_AFTER_DAYS = 30;
 const NUDGE_REF: Record<MemberReminderKind, string> = { intro_nudge: "intro", prickle_nudge: "prickle" };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BATCH_SIZE = 1000;
 
 /**
  * Whether a reminder is due. `sentAt` is when earlier ones went out, since the member last did the
@@ -122,25 +122,8 @@ interface MemberRow {
 }
 
 async function loadActiveMembers(supabase: SupabaseClient): Promise<MemberRow[]> {
-  const rows: MemberRow[] = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore) {
-    const { data } = await supabase
-      .from("members")
-      .select("id, first_joined_at, user_id")
-      .eq("status", "active")
-      .order("id")
-      .range(offset, offset + BATCH_SIZE - 1);
-    if (data && data.length > 0) {
-      rows.push(...(data as MemberRow[]));
-      offset += data.length;
-      hasMore = data.length === BATCH_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-  return rows;
+  const members = await createRepos(supabase).members.list({ status: "active" });
+  return members.map((m) => ({ id: m.id, first_joined_at: m.firstJoinedAt, user_id: m.userId }));
 }
 
 /** Whether this is the hour the member's next reminder (the `sent + 1`th) goes out in. */
@@ -156,56 +139,23 @@ const isSendHour = (memberId: string, kind: MemberReminderKind, sent: number, no
 async function loadMemberTimeZones(supabase: SupabaseClient, members: MemberRow[]): Promise<Map<string, string>> {
   const zones = new Map<string, string>();
   const withAccount = members.filter((m) => m.user_id);
-  for (let i = 0; i < withAccount.length; i += 200) {
-    const chunk = withAccount.slice(i, i + 200);
-    const { data } = await supabase
-      .from("user_profiles")
-      .select("id, timezone_preference")
-      .in("id", chunk.map((m) => m.user_id as string));
-    const zoneByUser = new Map((data ?? []).map((p) => [p.id as string, p.timezone_preference as string | null]));
-    for (const m of chunk) {
-      const zone = zoneByUser.get(m.user_id as string);
-      if (isValidTimeZone(zone)) zones.set(m.id, zone);
-    }
+  const profiles = await createRepos(supabase).profiles.byIds(withAccount.map((m) => m.user_id as string));
+  const zoneByUser = new Map(profiles.map((p) => [p.id, p.timezone_preference]));
+  for (const m of withAccount) {
+    const zone = zoneByUser.get(m.user_id as string);
+    if (isValidTimeZone(zone)) zones.set(m.id, zone);
   }
   return zones;
 }
 
 /** `${memberId}:${kind}` -> when each reminder went out. */
 async function loadNudgeLog(supabase: SupabaseClient, memberIds: string[]): Promise<Map<string, Date[]>> {
-  const log = new Map<string, Date[]>();
-  for (let i = 0; i < memberIds.length; i += 200) {
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data } = await supabase
-        .from("member_reminder_log")
-        .select("member_id, kind, sent_at")
-        .in("member_id", memberIds.slice(i, i + 200))
-        .order("id")
-        .range(offset, offset + BATCH_SIZE - 1);
-      for (const row of data ?? []) {
-        const key = `${row.member_id}:${row.kind}`;
-        log.set(key, [...(log.get(key) ?? []), new Date(row.sent_at)]);
-      }
-      offset += data?.length ?? 0;
-      hasMore = (data?.length ?? 0) === BATCH_SIZE;
-    }
-  }
-  return log;
+  return createRepos(supabase).reminderLog.sentTimes(memberIds);
 }
 
 /** Claims today's reminder for the member; false when another run already did (unique member, kind, day). */
 async function tryRecordNudge(supabase: SupabaseClient, memberId: string, kind: MemberReminderKind, now: Date) {
-  const { data, error } = await supabase
-    .from("member_reminder_log")
-    .insert({ member_id: memberId, kind, sent_at: now.toISOString(), sent_on: now.toISOString().slice(0, 10) })
-    .select("id");
-  if (error) {
-    if (error.code !== "23505") console.error(`tryRecordNudge failed for member=${memberId} kind=${kind}:`, error);
-    return false;
-  }
-  return (data?.length ?? 0) > 0;
+  return createRepos(supabase).reminderLog.claim(memberId, kind, now);
 }
 
 export interface MemberReminderResult {
@@ -245,7 +195,7 @@ export async function sendMemberReminders(
 
   const [introduced, lastAttendance, log, channelId, zones] = await Promise.all([
     loadIntroducedMemberIds(supabase, newcomers.map((m) => m.id)),
-    loadLastAttendanceByMember(supabase, memberIds),
+    loadLastAttendanceByMember(createRepos(supabase).attendance, memberIds),
     loadNudgeLog(supabase, memberIds),
     loadIntroChannelId(supabase),
     loadMemberTimeZones(supabase, members),
@@ -382,13 +332,7 @@ async function sendKind(
     if (delivered.length > 0) sent++;
     else {
       // Keep partial successes deduplicated; only a completely undelivered reminder can retry.
-      const { error } = await supabase
-        .from("member_reminder_log")
-        .delete()
-        .eq("member_id", member.id)
-        .eq("kind", kind)
-        .eq("sent_on", now.toISOString().slice(0, 10));
-      if (error) throw new Error(`Releasing ${kind} notification claim failed: ${error.message}`);
+      await createRepos(supabase).reminderLog.release(member.id, kind, now);
     }
   }
   return { sent, dryRun };

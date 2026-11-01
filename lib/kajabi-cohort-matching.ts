@@ -1,3 +1,4 @@
+import { createRepos } from "@/lib/data/repos";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildAliasMap, resolveEmail } from "@/lib/email-aliases";
 
@@ -195,70 +196,55 @@ export async function findKajabiCandidatesForCohort(
     return { candidates: [], offerNamesConfigured: false };
   }
 
-  const { data: offers, error: offersError } = await supabase
-    .schema("bronze")
-    .from("kajabi_offers")
-    .select("kajabi_offer_id, name")
-    .in("name", program.kajabi_offer_names);
-  if (offersError) throw offersError;
+  const billing = createRepos(supabase).billing;
+  const offers = await billing.kajabiOffersByName(program.kajabi_offer_names);
 
   const offerNameById = new Map<string, string>();
-  for (const o of offers || []) offerNameById.set(o.kajabi_offer_id, o.name);
+  for (const o of offers) offerNameById.set(o.kajabi_offer_id, o.name as string);
   const offerIds = Array.from(offerNameById.keys());
   if (offerIds.length === 0) return { candidates: [], offerNamesConfigured: true };
 
   // Bounded by specific offer IDs (a program's total purchases across every
-  // cohort it's ever run, not just this one), so this is still inherently
-  // small (dozens to low hundreds, not thousands) — no pagination loop needed
-  // here unlike the full-table Bronze reads in app/api/process/members.
+  // cohort it's ever run, not just this one), and the repository pages past
+  // 1000 rows regardless.
   // Deliberately unfiltered by date here — the cohort's window is applied
   // inside computeCandidates (pure, no I/O), since PostgREST can't express
   // "COALESCE(a, b) BETWEEN x AND y" as a single-column range filter, and
   // keeping the whole date/grouping pipeline in one pure function is what
   // makes it unit-testable without a database.
-  const { data: allOfferPurchases, error: purchasesError } = await supabase
-    .schema("bronze")
-    .from("kajabi_purchases")
-    .select("kajabi_customer_id, kajabi_offer_id, created_at_kajabi, effective_start_at, deactivated_at")
-    .in("kajabi_offer_id", offerIds);
-  if (purchasesError) throw purchasesError;
-  if (!allOfferPurchases || allOfferPurchases.length === 0) {
+  const allOfferPurchases = await billing.kajabiPurchases({ offerIds });
+  if (allOfferPurchases.length === 0) {
     return { candidates: [], offerNamesConfigured: true };
   }
 
-  const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter(Boolean)));
-  const [{ data: customers, error: customersError }, { data: emailAliases, error: aliasesError }] = await Promise.all([
-    supabase.schema("bronze").from("kajabi_customers").select("kajabi_customer_id, email").in("kajabi_customer_id", customerIds),
-    supabase.from("member_email_aliases").select("alias_email, canonical_email").eq("active", true),
+  const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
+  const [customers, emailAliases] = await Promise.all([
+    billing.kajabiCustomers({ customerIds }),
+    createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
-  if (customersError) throw customersError;
-  if (aliasesError) throw aliasesError;
 
   const aliasMap = buildAliasMap(emailAliases || []);
   const emailByCustomerId = new Map<string, string>();
-  for (const c of customers || []) {
+  for (const c of customers) {
     if (c.email) emailByCustomerId.set(c.kajabi_customer_id, resolveEmail(c.email, aliasMap));
   }
 
   const canonicalEmails = Array.from(new Set(Array.from(emailByCustomerId.values())));
   if (canonicalEmails.length === 0) return { candidates: [], offerNamesConfigured: true };
 
-  const { data: members, error: membersError } = await supabase
-    .from("members")
-    .select("id, name, email, status")
-    .in("email", canonicalEmails);
-  if (membersError) throw membersError;
+  const members = await createRepos(supabase).members.byEmails(canonicalEmails);
 
-  const memberByEmail = new Map((members || []).map((m) => [m.email.toLowerCase(), m]));
+  const memberByEmail = new Map(members.map((m) => [m.email.toLowerCase(), m]));
 
   // Fetched for every member who ever bought a matching offer (not narrowed
   // to this cohort's window) so computeCandidates can annotate any of them —
   // still small, bounded by the same purchase set above.
   const memberIds = Array.from(new Set(Array.from(memberByEmail.values()).map((m) => m.id)));
-  const alreadyElsewhereByMember = await findOtherCohortEnrollments(supabase, program.id, cohort.id, memberIds);
+  const alreadyElsewhereByMember = await createRepos(supabase).programs.enrolledElsewhere(program.id, cohort.id, memberIds);
 
   const candidates = computeCandidates(
-    allOfferPurchases,
+    // Read by offer id, so none has a null offer.
+    allOfferPurchases as RawPurchase[],
     cohort,
     offerNameById,
     emailByCustomerId,
@@ -269,36 +255,3 @@ export async function findKajabiCandidatesForCohort(
   return { candidates, offerNamesConfigured: true };
 }
 
-async function findOtherCohortEnrollments(
-  supabase: SupabaseClient,
-  programId: string,
-  currentCohortId: string,
-  memberIds: string[]
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>();
-  if (memberIds.length === 0) return result;
-
-  const { data: programCohorts, error: cohortsError } = await supabase
-    .from("program_cohorts")
-    .select("id, name")
-    .eq("program_id", programId);
-  if (cohortsError) throw cohortsError;
-
-  const otherCohortIds = (programCohorts || []).map((c) => c.id).filter((id) => id !== currentCohortId);
-  if (otherCohortIds.length === 0) return result;
-
-  const { data: enrollments, error: enrollmentsError } = await supabase
-    .from("member_program_enrollments")
-    .select("member_id, cohort_id")
-    .in("member_id", memberIds)
-    .in("cohort_id", otherCohortIds);
-  if (enrollmentsError) throw enrollmentsError;
-
-  const cohortNameById = new Map((programCohorts || []).map((c) => [c.id, c.name]));
-  for (const e of enrollments || []) {
-    if (!result.has(e.member_id)) {
-      result.set(e.member_id, cohortNameById.get(e.cohort_id) ?? "another cohort");
-    }
-  }
-  return result;
-}

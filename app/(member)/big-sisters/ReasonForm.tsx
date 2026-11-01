@@ -34,7 +34,7 @@ export default function ReasonForm({
       <label htmlFor={`reason-${mentorshipId}`} className="block text-sm font-medium text-slate-800 dark:text-slate-200">
         {name} didn&apos;t stay after their trial. What do you think happened?
       </label>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-2">
+      <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 mb-2">
         Only staff see this. It helps us understand what to do better, like price, timing, or it not being the right
         fit.
       </p>

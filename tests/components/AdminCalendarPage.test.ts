@@ -37,6 +37,6 @@ describe('AdminCalendarPage navigation', () => {
   });
 
   it('passes the newest Zoom meeting start to CalendarWeekView', () => {
-    expect(src).toContain('attendanceDataThrough={latestMeeting?.start_time ?? null}');
+    expect(src).toContain('attendanceDataThrough={latestMeetingStart}');
   });
 });

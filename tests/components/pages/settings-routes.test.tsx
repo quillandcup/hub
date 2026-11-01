@@ -22,7 +22,8 @@ vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").the
 
 const getHostedVibes = vi.fn(async (): Promise<unknown[]> => []);
 vi.mock("@/app/(member)/prickle-picker/actions", () => ({ getHostedVibes: () => getHostedVibes() }));
-vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: vi.fn(async () => []) }));
+const featurePreviews = vi.fn(async (): Promise<string[]> => ["hosting"]);
+vi.mock("@/lib/features.server", () => ({ getUserFeaturePreviews: () => featurePreviews() }));
 vi.mock("@/app/(member)/settings/PreviewsPanel", () => ({ PreviewsPanel: () => <div>previews panel</div> }));
 vi.mock("@/components/HostVibePanel", () => ({ default: () => <div>host vibe panel</div> }));
 vi.mock("@/app/(member)/settings/SessionsPanel", () => ({ SessionsPanel: () => <div>sessions</div> }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   resetServerPageMocks();
   signInAs(MEMBER_USER, MEMBER_IDENTITY);
   getHostedVibes.mockResolvedValue([]);
+  featurePreviews.mockResolvedValue(["hosting"]);
   getNotificationSettings.mockResolvedValue(NOTIFICATION_SETTINGS);
 });
 
@@ -69,6 +71,15 @@ describe("settings routes", () => {
     ]);
   });
 
+  it("still opens Account for someone whose profile can't be read, without admin-only tabs", async () => {
+    useFakeSupabase({ user_profiles: { data: null, error: { message: "db down" } } });
+
+    await renderServerRoute(SettingsIndex, indexProps());
+
+    expect(selectedTab()).toBe("Account");
+    expect(screen.queryByRole("tab", { name: "Previews" })).not.toBeInTheDocument();
+  });
+
   it("/settings/notifications opens Notifications", async () => {
     await renderServerRoute(NotificationsRoute, undefined as never);
     expect(selectedTab()).toBe("Notifications");
@@ -83,6 +94,12 @@ describe("settings routes", () => {
   });
 
   it("sends a non-host on /settings/hosting to /settings", async () => {
+    await expectRedirect(SettingsPage, { tab: "hosting" }, "/settings");
+  });
+
+  it("hides Hosting from a host without the hosting preview", async () => {
+    getHostedVibes.mockResolvedValue([{ typeId: "t1" }]);
+    featurePreviews.mockResolvedValue([]);
     await expectRedirect(SettingsPage, { tab: "hosting" }, "/settings");
   });
 

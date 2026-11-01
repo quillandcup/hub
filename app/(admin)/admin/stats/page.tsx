@@ -15,6 +15,8 @@ import {
   type AttRow,
 } from "@/lib/community-stats"
 import { requireAdminPage } from "@/lib/admin-auth"
+import { createRepos } from "@/lib/data/repos"
+import { statsAttendanceRow } from "@/lib/attendance-view"
 
 export const metadata: Metadata = {
   title: "Community Stats",
@@ -37,54 +39,23 @@ async function fetchAllPrickles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   since: string,
   until: string
-) {
-  const rows: PrickleRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickles")
-      .select("id, start_time, members!host(name), prickle_types(name, normalized_name)")
-      .gte("start_time", since)
-      .lte("start_time", until)
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as PrickleRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
+): Promise<PrickleRow[]> {
+  const prickles = await createRepos(supabase).prickles.startingBetween({ from: since, to: until, inclusiveEnd: true })
+  return prickles.map((p) => ({
+    id: p.id,
+    start_time: p.startTime,
+    members: p.host ? { name: p.host.displayName?.trim() || p.host.name } : null,
+    prickle_types: p.type ? { name: p.type.name, normalized_name: p.type.normalizedName } : null,
+  }))
 }
 
 async function fetchAllAttendance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   since: string,
   until: string
-) {
-  const rows: AttRow[] = []
-  let offset = 0
-  const BATCH = 1000
-  let hasMore = true
-  while (hasMore) {
-    const { data: batch } = await supabase
-      .from("prickle_attendance")
-      .select("member_id, prickle_id, join_time, leave_time, members(name)")
-      .gte("join_time", since)
-      .lte("join_time", until)
-      .range(offset, offset + BATCH - 1)
-    if (batch && batch.length > 0) {
-      rows.push(...(batch as unknown as AttRow[]))
-      offset += batch.length
-      hasMore = batch.length === BATCH
-    } else {
-      hasMore = false
-    }
-  }
-  return rows
+): Promise<AttRow[]> {
+  const records = await createRepos(supabase).attendance.attendeesJoinedBetween(since, until)
+  return records.map(statsAttendanceRow)
 }
 
 function StatCard({
@@ -103,7 +74,7 @@ function StatCard({
       <div className="text-3xl mb-2">{emoji}</div>
       <div className="text-4xl font-bold text-plum-600 dark:text-plum-400 tabular-nums">{value}</div>
       <div className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">{label}</div>
-      {sub && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</div>}
     </div>
   )
 }
@@ -149,13 +120,14 @@ export default async function CommunityStatsPage({
     <div className="container mx-auto px-6 py-8 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-1">Community Stats</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+        <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
           Quill &amp; Cup · {fromLabel} – {toLabel}
         </p>
         <DateRangeFilter from={from} to={to} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="@container">
+        <div className="grid grid-cols-2 @cards:grid-cols-4 gap-4 mb-8">
         <StatCard
           emoji="✍️"
           value={attendedPrickles.length.toLocaleString()}
@@ -180,6 +152,7 @@ export default async function CommunityStatsPage({
           label="of weekdays at 7am"
           sub="someone was always writing"
         />
+      </div>
       </div>
 
       <CommunityStatsCharts

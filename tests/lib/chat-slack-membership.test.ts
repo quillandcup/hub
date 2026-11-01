@@ -1,0 +1,320 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const { writesEnabled } = vi.hoisted(() => ({ writesEnabled: vi.fn(() => true) }));
+vi.mock("@/lib/chat/slack-post", () => ({ chatSlackWritesEnabled: () => writesEnabled() }));
+vi.mock("@slack/web-api", () => ({ WebClient: vi.fn() }));
+let repos = createInMemoryRepos();
+vi.mock("@/lib/data/repos", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/data/repos")>("@/lib/data/repos")),
+  createRepos: () => repos,
+}));
+
+import { InMemoryDataset } from "@/lib/data/in-memory";
+import { createInMemoryRepos } from "@/lib/data/repos";
+import { inviteToSlackChannel, kickFromSlackChannel, inviteAsMember, joinAsMember, kickAsMember, leaveSlackChannelAsMember, slackUserIdsFor } from "@/lib/chat/slack-membership";
+
+const stub = () => {
+  const slack = {
+    conversations: {
+      invite: vi.fn(async () => ({ ok: true })),
+      join: vi.fn(async () => ({ ok: true })),
+      kick: vi.fn(async () => ({ ok: true })),
+      leave: vi.fn(async () => ({ ok: true })),
+      info: vi.fn(async () => ({ ok: true, channel: { is_member: true } })),
+    },
+  };
+  return slack as typeof slack & import("@slack/web-api").WebClient;
+};
+const fail = (code: string) => Object.assign(new Error(code), { data: { error: code } });
+
+beforeEach(() => {
+  writesEnabled.mockReset();
+  writesEnabled.mockReturnValue(true);
+  vi.stubEnv("SLACK_BOT_TOKEN", "xoxb-test");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("slackUserIdsFor", () => {
+  beforeEach(() => {
+    repos = createInMemoryRepos(
+      new InMemoryDataset({
+        chatSlackAuthors: [
+          { slack_user_id: "U_FERN2", member_id: "m-fern" },
+          { slack_user_id: "U_FERN", member_id: "m-fern" },
+          { slack_user_id: "U_GALE", member_id: "m-gale" },
+        ],
+      }),
+    );
+  });
+
+  it("maps each member to their Slack account, the first one when there are several", async () => {
+    const ids = await slackUserIdsFor({} as never, ["m-fern", "m-gale", "m-hazel"]);
+    expect([...ids]).toEqual([["m-fern", "U_FERN"], ["m-gale", "U_GALE"]]);
+  });
+
+  it("asks nothing for nobody", async () => {
+    const lookup = vi.spyOn(repos.chat, "slackUserIdsByMember");
+    expect((await slackUserIdsFor({} as never, [])).size).toBe(0);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("reads a failed lookup as nobody matched, and logs it", async () => {
+    vi.spyOn(repos.chat, "slackUserIdsByMember").mockRejectedValue(new Error("boom"));
+    expect((await slackUserIdsFor({} as never, ["m-fern"])).size).toBe(0);
+    expect(console.error).toHaveBeenCalledWith(expect.any(String), "boom");
+  });
+});
+
+describe("inviteToSlackChannel", () => {
+  it("invites everyone in one call", async () => {
+    const slack = stub();
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: ["U1", "U2"], slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.invite).toHaveBeenCalledWith({ channel: "C1", users: "U1,U2" });
+  });
+
+  it("calls nothing for nobody", async () => {
+    const slack = stub();
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: [], slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.invite).not.toHaveBeenCalled();
+  });
+
+  it("counts someone already in it as done", async () => {
+    const slack = stub();
+    slack.conversations.invite.mockRejectedValue(fail("already_in_channel"));
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: ["U1"], slack })).resolves.toEqual({ ok: true });
+  });
+
+  it.each([
+    ["not_in_channel", "Billie Bot isn't in this conversation"],
+    ["channel_not_found", "can't find this conversation"],
+    ["is_archived", "archived in Slack"],
+    ["user_is_restricted", "a guest"],
+    ["cant_invite", "won't let the people be added"],
+    ["user_not_found", "doesn't know one of those people"],
+    ["missing_scope", "needs a new permission"],
+    ["something_else", "Try again in a moment"],
+  ])("says what Slack's %s means", async (code, words) => {
+    const slack = stub();
+    slack.conversations.invite.mockRejectedValue(fail(code));
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: ["U1"], slack })).resolves.toEqual({ ok: false, error: expect.stringContaining(words) });
+  });
+
+  it("won't touch Slack off production, or without a bot token", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: ["U1"], slack })).resolves.toMatchObject({ ok: false, error: expect.stringContaining("live Hub") });
+    writesEnabled.mockReturnValue(true);
+    vi.stubEnv("SLACK_BOT_TOKEN", "");
+    await expect(inviteToSlackChannel({ channel: "C1", userIds: ["U1"] })).resolves.toEqual({ ok: false, error: "Slack isn't set up to do that." });
+    expect(slack.conversations.invite).not.toHaveBeenCalled();
+  });
+});
+
+describe("kickFromSlackChannel", () => {
+  it("removes the person", async () => {
+    const slack = stub();
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.kick).toHaveBeenCalledWith({ channel: "C1", user: "U1" });
+  });
+
+  it("counts someone who wasn't in it as done, when it is the bot that is in it", async () => {
+    const slack = stub();
+    slack.conversations.kick.mockRejectedValue(fail("not_in_channel"));
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.info).toHaveBeenCalledWith({ channel: "C1" });
+  });
+
+  it("says nothing was removed when it is the bot that isn't in the conversation, or that can't be told", async () => {
+    const slack = stub();
+    slack.conversations.kick.mockRejectedValue(fail("not_in_channel"));
+    slack.conversations.info.mockResolvedValue({ ok: true, channel: { is_member: false } } as never);
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toEqual({ ok: false, error: expect.stringContaining("Billie Bot isn't in this conversation") });
+
+    slack.conversations.info.mockRejectedValue(fail("channel_not_found"));
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toMatchObject({ ok: false });
+  });
+
+  it.each([
+    ["cant_kick_from_general", "default channel"],
+    ["restricted_action", "limits who can remove people"],
+    ["cant_kick_self", "won't let that person be removed"],
+    ["no_permission", "won't let that person be removed"],
+    ["channel_not_found", "can't find this conversation"],
+    ["missing_scope", "needs a new permission"],
+    ["something_else", "Try again in a moment"],
+  ])("says what Slack's %s means", async (code, words) => {
+    const slack = stub();
+    slack.conversations.kick.mockRejectedValue(fail(code));
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toEqual({ ok: false, error: expect.stringContaining(words) });
+  });
+
+  it("won't touch Slack off production, or without a bot token", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1", slack })).resolves.toMatchObject({ ok: false, error: expect.stringContaining("live Hub") });
+    writesEnabled.mockReturnValue(true);
+    vi.stubEnv("SLACK_BOT_TOKEN", "");
+    await expect(kickFromSlackChannel({ channel: "C1", userId: "U1" })).resolves.toEqual({ ok: false, error: "Slack isn't set up to do that." });
+    expect(slack.conversations.kick).not.toHaveBeenCalled();
+  });
+});
+
+describe("leaveSlackChannelAsMember", () => {
+  it("leaves as the member", async () => {
+    const slack = stub();
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.leave).toHaveBeenCalledWith({ channel: "C1" });
+  });
+
+  it("counts not being in it as done", async () => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail("not_in_channel"));
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+  });
+
+  it.each([
+    ["token_revoked", true],
+    ["invalid_auth", true],
+    ["missing_scope", false],
+  ])("asks the caller to use the bot when the token fails with %s", async (code, dead) => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail(code));
+    const result = await leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack });
+    expect(result).toMatchObject({ ok: false, retryWithBot: true });
+    expect(Boolean((result as { deadToken?: boolean }).deadToken)).toBe(dead);
+  });
+
+  it.each([
+    ["channel_not_found", "can't find this conversation"],
+    ["is_archived", "archived"],
+    ["cant_leave_general", "default channel"],
+    ["restricted_action", "doesn't let you remove people"],
+    ["something_else", "Try again in a moment"],
+  ])("says what %s means, without falling back", async (code, words) => {
+    const slack = stub();
+    slack.conversations.leave.mockRejectedValue(fail(code));
+    const result = await leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining(words) });
+    expect(result).not.toHaveProperty("retryWithBot");
+  });
+
+  it("won't touch Slack off production", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(leaveSlackChannelAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false, error: expect.stringContaining("live Hub") });
+    expect(slack.conversations.leave).not.toHaveBeenCalled();
+  });
+});
+
+describe("kickAsMember", () => {
+  it("removes the person as the member", async () => {
+    const slack = stub();
+    await expect(kickAsMember({ channel: "C1", userId: "U1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.kick).toHaveBeenCalledWith({ channel: "C1", user: "U1" });
+  });
+
+  it("hands over to the bot when the member isn't in the conversation themselves, or their token can't", async () => {
+    const slack = stub();
+    for (const code of ["not_in_channel", "missing_scope", "token_revoked"]) {
+      slack.conversations.kick.mockRejectedValue(fail(code));
+      await expect(kickAsMember({ channel: "C1", userId: "U1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false, retryWithBot: true });
+    }
+  });
+
+  it("shows Slack's own refusal", async () => {
+    const slack = stub();
+    slack.conversations.kick.mockRejectedValue(fail("no_permission"));
+    await expect(kickAsMember({ channel: "C1", userId: "U1", token: "xoxp", slack })).resolves.toEqual({ ok: false, error: expect.stringContaining("doesn't let you") });
+  });
+
+  it("won't touch Slack off production", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(kickAsMember({ channel: "C1", userId: "U1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false });
+    expect(slack.conversations.kick).not.toHaveBeenCalled();
+  });
+});
+
+describe("inviteAsMember", () => {
+  it("invites everyone in one call as the member, and calls nothing for nobody", async () => {
+    const slack = stub();
+    await expect(inviteAsMember({ channel: "C1", userIds: ["U1", "U2"], token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.invite).toHaveBeenCalledWith({ channel: "C1", users: "U1,U2" });
+    await expect(inviteAsMember({ channel: "C1", userIds: [], token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.invite).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts someone already in it as done", async () => {
+    const slack = stub();
+    slack.conversations.invite.mockRejectedValue(fail("already_in_channel"));
+    await expect(inviteAsMember({ channel: "C1", userIds: ["U1"], token: "xoxp", slack })).resolves.toEqual({ ok: true });
+  });
+
+  it.each([
+    ["token_revoked", true],
+    ["missing_scope", false],
+    ["not_in_channel", false],
+  ])("hands over to the bot on %s", async (code, dead) => {
+    const slack = stub();
+    slack.conversations.invite.mockRejectedValue(fail(code));
+    const result = await inviteAsMember({ channel: "C1", userIds: ["U1"], token: "xoxp", slack });
+    expect(result).toMatchObject({ ok: false, retryWithBot: true });
+    expect(Boolean((result as { deadToken?: boolean }).deadToken)).toBe(dead);
+  });
+
+  it("shows Slack's refusal in plain words, without falling back", async () => {
+    const slack = stub();
+    slack.conversations.invite.mockRejectedValue(fail("cant_invite"));
+    const result = await inviteAsMember({ channel: "C1", userIds: ["U1"], token: "xoxp", slack });
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("won't let the people be added") });
+    expect(result).not.toHaveProperty("retryWithBot");
+  });
+
+  it("won't touch Slack off production", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(inviteAsMember({ channel: "C1", userIds: ["U1"], token: "xoxp", slack })).resolves.toMatchObject({ ok: false });
+    expect(slack.conversations.invite).not.toHaveBeenCalled();
+  });
+});
+
+describe("joinAsMember", () => {
+  it("joins as the member", async () => {
+    const slack = stub();
+    await expect(joinAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: true });
+    expect(slack.conversations.join).toHaveBeenCalledWith({ channel: "C1" });
+  });
+
+  it.each([
+    ["token_revoked", true],
+    ["missing_scope", false],
+    ["method_not_supported_for_channel_type", false],
+  ])("hands over to the bot on %s", async (code, dead) => {
+    const slack = stub();
+    slack.conversations.join.mockRejectedValue(fail(code));
+    const result = await joinAsMember({ channel: "C1", token: "xoxp", slack });
+    expect(result).toMatchObject({ ok: false, retryWithBot: true });
+    expect(Boolean((result as { deadToken?: boolean }).deadToken)).toBe(dead);
+  });
+
+  it.each([
+    ["channel_not_found", "can't find this conversation"],
+    ["is_archived", "archived"],
+    ["something_else", "Try again in a moment"],
+  ])("says what %s means", async (code, words) => {
+    const slack = stub();
+    slack.conversations.join.mockRejectedValue(fail(code));
+    await expect(joinAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toEqual({ ok: false, error: expect.stringContaining(words) });
+  });
+
+  it("won't touch Slack off production", async () => {
+    const slack = stub();
+    writesEnabled.mockReturnValue(false);
+    await expect(joinAsMember({ channel: "C1", token: "xoxp", slack })).resolves.toMatchObject({ ok: false });
+    expect(slack.conversations.join).not.toHaveBeenCalled();
+  });
+});

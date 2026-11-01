@@ -59,7 +59,7 @@ incident.
 
 **Why this is still a big improvement in practice**: the prior failure mode
 was "migration gets pushed whenever a human remembers to run
-`npm run db:push`" — which could be hours or days, or never until someone
+`pnpm db:push`" — which could be hours or days, or never until someone
 hits the 500. With Option A, the gap shrinks to "a few minutes, reliably,
 every single push." Most schema changes are also additive (new table/column)
 and don't break *existing* code paths — the risk window mainly bites the

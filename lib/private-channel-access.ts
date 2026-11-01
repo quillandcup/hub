@@ -1,7 +1,7 @@
 export interface SlackChannelRow {
   channel_id: string;
   name: string;
-  is_private: boolean;
+  is_private: boolean | null;
   /** Group DMs are private but aren't channels the bot can be removed from. */
   is_mpim?: boolean;
   imported_at: string;

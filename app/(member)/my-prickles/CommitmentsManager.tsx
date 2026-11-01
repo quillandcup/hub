@@ -69,8 +69,8 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
     <li className="py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{commitment.title}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words">{commitment.title}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             {commitment.weeks} {commitment.weeks === 1 ? "week" : "weeks"} · {formatDate(commitment.startDate)} –{" "}
             {formatDate(commitment.endDate)}
             {commitment.status === "cancelled" && " · cancelled"}
@@ -78,15 +78,15 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
           <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{progressSummary(commitment.progress)}</p>
           <div className="mt-2 space-y-1.5">
             {commitment.slots.map((slot, i) => (
-              <div key={`${slot.dayOfWeek}-${slot.startTimeLocal}-${slot.typeId}`} className="flex items-center gap-3">
+              <div key={`${slot.dayOfWeek}-${slot.startTimeLocal}-${slot.typeId}`} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 {multi && (
-                  <span className="text-xs text-slate-500 dark:text-slate-400 w-48 truncate" title={slot.label}>
+                  <span className="text-xs text-slate-600 dark:text-slate-400 w-64 max-w-full" title={slot.label}>
                     {slot.label.split(" · ").slice(1).join(" · ")}
                   </span>
                 )}
                 <OccurrenceDots commitment={commitment} slotIndex={i} />
                 {multi && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500">{slot.progress.kept} kept</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{slot.progress.kept} kept</span>
                 )}
               </div>
             ))}
@@ -115,7 +115,7 @@ function CommitmentCard({ commitment, onCancelled }: { commitment: MyCommitment;
             <button data-track="commitments-cancel"
               type="button"
               onClick={() => setConfirming(true)}
-              className="text-xs text-slate-500 hover:text-rose-600 dark:text-slate-400 flex-shrink-0"
+              className="text-xs text-slate-600 hover:text-rose-600 dark:text-slate-400 flex-shrink-0"
             >
               Cancel
             </button>
@@ -135,7 +135,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
     <div className="space-y-6">
       <section className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
         <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
             Active commitments
           </h2>
           <Link data-track="commitments-make-a-commitment"
@@ -146,7 +146,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
           </Link>
         </div>
         {active.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             No active commitments yet. Pick the prickles you&apos;ll show up to from{" "}
             <Link data-track="commitments-all-prickles" href="/my-prickles/all?commit=" className="text-plum-600 dark:text-plum-400 hover:underline">
               All Prickles
@@ -164,7 +164,7 @@ export default function CommitmentsManager({ commitments }: { commitments: MyCom
 
       {past.length > 0 && (
         <section className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-6">
-          <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+          <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide mb-2">
             Past commitments
           </h2>
           <ul>

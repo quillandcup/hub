@@ -2,33 +2,41 @@ import type { NextConfig } from "next";
 import path from "path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import appConfig from "./app.config";
+import { helpImagesVersion } from "./scripts/help-images-version";
 
 // Preview deployments have intermittently hung indefinitely (~45 min, then
 // force-errored with no diagnostic output) during Next.js's "checking
 // validity of types" build phase -- reproduced across multiple unrelated
 // branches/commits/times, never in GitHub Actions CI running the identical
-// `npm run build`. Not correlated with the Sentry auth-token warning (which
+// `pnpm build`. Not correlated with the Sentry auth-token warning (which
 // is benign and unrelated -- see next.config's Sentry options below). Root
 // cause unconfirmed (a Vercel build-machine resource stall was suspected,
 // but the account is on Pro, not Hobby, so that specific explanation
 // doesn't clearly hold -- treat this as a verified-effective workaround for
 // an unexplained stall, not a diagnosed fix). GitHub Actions CI already
-// runs the full `npm run build` (typecheck) on every PR and push to main,
+// runs the full `pnpm build` (typecheck) on every PR and push to main,
 // so skip that same, resource-heavy pass on preview builds specifically to
 // remove the hang risk; production builds keep full enforcement as a second
 // safety net.
 //
 // Next.js 16 removed the `eslint` build option entirely (`next build` no
 // longer lints at all, regardless of config) -- linting now only happens
-// via the explicit `npm run lint` step in CI.
+// via the explicit `pnpm lint` step in CI.
 const isPreview = process.env.VERCEL_ENV === "preview";
 
 const nextConfig: NextConfig = {
+  // Pairs this build with the help screenshot set captured from the same source (scripts/help-images-version.ts).
+  // Derived from git at build time, not configuration: "local" outside CI.
+  env: { HELP_IMAGES_VERSION: helpImagesVersion() },
   outputFileTracingRoot: path.join(__dirname),
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   typescript: {
     ignoreBuildErrors: isPreview,
   },
+  // Revisiting a page within 30s reuses what the client already has (default 0: every click renders on
+  // the server). Makes flipping between chat conversations instant; a server action that calls
+  // revalidatePath still clears it, and the live conversation reconciles over Realtime.
+  experimental: { staleTimes: { dynamic: 30 } },
 };
 
 export default withSentryConfig(nextConfig, {

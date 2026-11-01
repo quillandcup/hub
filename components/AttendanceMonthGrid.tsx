@@ -1,5 +1,7 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -34,6 +36,15 @@ function dateKey(date: Date, timezone: string): string {
   });
 }
 
+// A grid cell is a Date at the host's local midnight standing for a calendar day. Its key is that
+// local day, not the instant converted to `timezone` (which shifts the day whenever the host zone
+// differs from the display zone). Same "MM/DD/YYYY" shape as dateKey, so the two compare.
+function cellKey(date: Date): string {
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${mm}/${dd}/${date.getFullYear()}`;
+}
+
 export default function AttendanceMonthGrid({
   attendance,
   timezone,
@@ -44,6 +55,7 @@ export default function AttendanceMonthGrid({
   checkins,
   onOpenCheck,
 }: Props) {
+  const withSecondary = useWithSecondaryTime();
   const router = useRouter();
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
@@ -64,17 +76,10 @@ export default function AttendanceMonthGrid({
   });
 
   const getDay = (date: Date | null) =>
-    date ? (byDate.get(dateKey(date, timezone)) ?? []) : [];
+    date ? (byDate.get(cellKey(date)) ?? []) : [];
 
-  const isToday = (date: Date | null) => {
-    if (!date) return false;
-    const t = new Date();
-    return (
-      date.getDate() === t.getDate() &&
-      date.getMonth() === t.getMonth() &&
-      date.getFullYear() === t.getFullYear()
-    );
-  };
+  const todayKey = dateKey(new Date(), timezone);
+  const isToday = (date: Date | null) => !!date && cellKey(date) === todayKey;
 
   const fmt = (date: Date, opts: Intl.DateTimeFormatOptions) =>
     date.toLocaleString("en-US", { timeZone: timezone, ...opts });
@@ -122,7 +127,8 @@ export default function AttendanceMonthGrid({
                       <div className="mt-1 space-y-1">
                         {att.slice(0, 3).map((record) => {
                           const typeName = record.prickles?.prickle_types?.name;
-                          const hostName = record.prickles?.host?.name;
+                          const host = record.prickles?.host;
+                          const hostName = host ? getMemberDisplayName(host) : undefined;
                           const label = hostName ? `${typeName} w/ ${shortName(hostName)}` : typeName;
                           return (
                             <div
@@ -135,7 +141,7 @@ export default function AttendanceMonthGrid({
                           );
                         })}
                         {att.length > 3 && (
-                          <div className="text-xs text-slate-500 dark:text-slate-400 px-1.5">
+                          <div className="text-xs text-slate-600 dark:text-slate-400 px-1.5">
                             +{att.length - 3} more
                           </div>
                         )}
@@ -177,17 +183,17 @@ export default function AttendanceMonthGrid({
                         {prickle.prickle_types?.name || "Unknown"}
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        {formatTime(joinTime)} – {formatTime(leaveTime)} ({duration} min)
+                        {withSecondary(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)} ({duration} min)
                       </div>
                       {prickle.host && (
-                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                           Host:{" "}
                           <Link data-track="attendance-grid-open-host"
                             href={`${memberBasePath}/${prickle.host.id}`}
                             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {prickle.host.name}
+                            {getMemberDisplayName(prickle.host)}
                           </Link>
                         </div>
                       )}
@@ -201,7 +207,7 @@ export default function AttendanceMonthGrid({
 
         {selectedDay && selectedAtt.length === 0 && (
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-            <p className="text-center text-slate-500 dark:text-slate-400">
+            <p className="text-center text-slate-600 dark:text-slate-400">
               No attendance recorded for {formatDate(selectedDay)}
             </p>
           </div>

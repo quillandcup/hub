@@ -5,9 +5,10 @@ import { requireCoursesPage } from "@/lib/courses/caller";
 import { canOpenLessons, loadCourseView } from "@/lib/courses/member";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import PageBanner from "@/components/PageBanner";
 import CourseOutline from "../CourseOutline";
 import { courseTitle } from "@/lib/courses/page-title";
-import { safeUrl } from "@/lib/url";
+import { courseImageUrl } from "@/lib/courses/image-urls";
 import { formatCourseDate } from "@/lib/courses/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -61,12 +62,22 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
   const started = progress.completed > 0;
   const percent = progress.available > 0 ? Math.round((progress.completed / progress.available) * 100) : 0;
 
-  const thumbnail = safeUrl(course.thumbnail_url);
+  const thumbnail = courseImageUrl(course.thumbnail_url);
+  const hero = courseImageUrl(course.hero_url);
   const buttonLabel = progress.allDone ? "Review" : started ? "Continue" : "Start";
 
   return (
     <div>
-      <header className="bg-plum-700 px-6 py-12 text-center text-white">
+      {course.is_draft && <PageBanner>This course is a draft: only staff can see it. Publish it from its admin page when it is ready for members.</PageBanner>}
+      <header className="relative isolate overflow-hidden bg-plum-700 px-6 py-12 text-center text-white">
+        {hero && (
+          <>
+            {/* The Kajabi banner, under a dark overlay so the white title stays readable. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={hero} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-black/60" />
+          </>
+        )}
         <div className="mx-auto max-w-3xl">
           <Link data-track="course-breadcrumb-courses" href="/courses" className="text-sm text-plum-100 hover:underline">
             ← Courses
@@ -84,7 +95,8 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
         </div>
       </header>
 
-      <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 lg:grid-cols-[1fr_18rem]">
+      <div className="@container">
+      <div className="container mx-auto grid max-w-5xl gap-6 px-6 py-8 @split:grid-cols-[1fr_18rem]">
         <div>
           {access.kind === "ended" && (
             <p role="status" className="mb-4 rounded-lg bg-slate-100 p-4 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
@@ -94,8 +106,8 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
           <CourseOutline slug={course.slug} outline={outline} completed={completed} canOpen={canOpen} previewComingSoon={caller.scope.isAdminActing} />
         </div>
 
-        <aside className="order-first lg:order-none">
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-6 dark:border-slate-800 dark:bg-slate-900">
+        <aside className="order-first @split:order-none">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm @split:sticky @split:top-6 dark:border-slate-800 dark:bg-slate-900">
             {thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={thumbnail} alt="" className="block w-full" />
@@ -115,11 +127,12 @@ export default async function CoursePage({ params }: { params: Promise<{ slug: s
               {progress.completed} of {progress.available} available {progress.available === 1 ? "lesson" : "lessons"} done
             </p>
             {access.kind === "open" && access.endsAt && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">Your access runs until {formatCourseDate(access.endsAt)}.</p>
             )}
             </div>
           </div>
         </aside>
+      </div>
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ const mux = {
   failNext: false,
   statuses: {} as Record<string, { status: 'preparing' | 'ready' | 'errored'; durationSeconds?: number; playbackId?: string }>,
 }
+// Never reset: asset ids are unique in `videos`, and `mux.created` is cleared before every test.
+let assetSeq = 0
 const api: CourseMuxApi = {
   createAsset: vi.fn(async (opts) => {
     if (mux.failNext) {
@@ -27,7 +29,7 @@ const api: CourseMuxApi = {
       throw new Error('Mux said no')
     }
     mux.created.push(opts)
-    return { assetId: `asset-${mux.created.length}-${ts}` }
+    return { assetId: `asset-${++assetSeq}-${ts}` }
   }),
   getAsset: vi.fn(async (assetId) => mux.statuses[assetId] ?? { status: 'preparing' as const }),
 }
@@ -208,6 +210,29 @@ describe('Course media step', () => {
       const again = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
       expect(again.uploaded).toEqual([])
       expect(again.alreadyInMux).toBe(2)
+    } finally {
+      await supabase.from('videos').delete().in('source_key', draftKeys)
+    }
+  })
+  it('uploads exactly the videos picked, and reports picks this upload does not cover', async () => {
+    const draftKeys = [media('draft'), media('indraft')]
+    try {
+      const picked = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, {
+        drafts: true,
+        mediaIds: [media('draft'), media('a'), `${COURSE}-nope`],
+      })
+
+      // One of the two drafts. A visible lesson's video and an unknown id aren't drafts, so they are reported, not uploaded.
+      expect(picked.uploaded.map((u) => u.mediaId)).toEqual([media('draft')])
+      expect(picked.notAvailable.sort()).toEqual([media('a'), `${COURSE}-nope`].sort())
+      expect(mux.created).toHaveLength(1)
+      expect((await supabase.from('videos').select('id').eq('source_key', media('indraft'))).data).toEqual([])
+
+      // Without a selection nothing is reported unavailable and every draft still left is considered.
+      const rest = await uploadCourseVideos(supabase, api, COURSE, NOW, fingerprint, { drafts: true })
+      expect(rest.notAvailable).toEqual([])
+      expect(rest.uploaded.map((u) => u.mediaId)).toEqual([media('indraft')])
+      expect(rest.alreadyInMux).toBe(1)
     } finally {
       await supabase.from('videos').delete().in('source_key', draftKeys)
     }

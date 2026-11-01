@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createRepos } from "@/lib/data/repos";
 import { getCurrentUser } from "@/lib/auth";
 import { getEffectiveIdentity } from "@/lib/sudo";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { TimezoneSwitcher } from "./TimezoneSwitcher";
+import { SecondaryTimezoneSwitcher } from "./SecondaryTimezoneSwitcher";
 import { SessionsPanel } from "./SessionsPanel";
 import { IdentityPanel } from "./IdentityPanel";
 import { ProfilePanel } from "./ProfilePanel";
@@ -31,18 +33,20 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
   if (!user) return null;
 
   const supabase = await createClient();
-  const [{ data: profile }, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
-    supabase.from("user_profiles").select("timezone_preference, role").eq("id", user.id).single(),
+  const [profile, effectiveIdentity, hostedVibes, notificationSettings, enabledFeatures] = await Promise.all([
+    createRepos(supabase).profiles.byId(user.id).catch(() => null),
     getEffectiveIdentity(user),
     getHostedVibes(),
     getNotificationSettings(),
     getUserFeaturePreviews(user.id),
   ]);
   const isAdmin = profile?.role === "admin";
+  // Hosting is behind the hosting preview, and only for hosts.
+  const hostingOn = enabledFeatures.includes("hosting") && hostedVibes.length > 0;
 
   // Hosting is for hosts, Notifications for members and Previews for admins; an old link otherwise opens Account.
   if (
-    (tab === "hosting" && hostedVibes.length === 0) ||
+    (tab === "hosting" && !hostingOn) ||
     (tab === "notifications" && !notificationSettings) ||
     (tab === "previews" && !isAdmin)
   ) {
@@ -132,6 +136,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                   <div className="space-y-6">
                     <ThemeSwitcher />
                     <TimezoneSwitcher initialTimezone={timezonePreference} />
+                    <SecondaryTimezoneSwitcher initialTimezone={profile?.secondary_timezone ?? null} />
                   </div>
                 ),
               },
@@ -144,7 +149,7 @@ export default async function SettingsPage({ tab }: { tab: SettingsTabId }) {
                     },
                   ]
                 : []),
-              ...(hostedVibes.length > 0
+              ...(hostingOn
                 ? [
                     {
                       id: "hosting" as const,

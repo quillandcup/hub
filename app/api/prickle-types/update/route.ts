@@ -1,7 +1,10 @@
 import { requireAdmin } from "@/lib/supabase/api-auth";
-import { triggerReprocessing } from "@/lib/processing/trigger";
+import { triggerReprocessing, triggerPrickleTypeReprocessing } from "@/lib/processing/trigger";
 import { NextRequest, NextResponse } from "next/server";
+import { audienceChainError } from "@/lib/audience-rules";
 import { normalizePrickleType } from "@/lib/prickle-types";
+import { isId } from "@/lib/ids";
+import { createRepos } from "@/lib/data/repos";
 
 /**
  * Update an existing prickle type
@@ -10,13 +13,13 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
   if (!auth.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (auth.forbidden) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const { supabase } = auth;
+  const prickles = createRepos(auth.supabase).prickles;
 
   try {
     const parsed = await request.json().catch(() => undefined);
     if (parsed === undefined) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     const body = parsed;
-    const { typeId, name, description, purpose, soloTaskFriendly } = body;
+    const { typeId, name, description, purpose, soloTaskFriendly, listedInEvents, announcedPublicly, guestsAllowed, defaultHostId, summaryAliases, namesGuestSpeaker } = body;
 
     if (!typeId || !name) {
       return NextResponse.json(
@@ -32,6 +35,35 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (listedInEvents !== undefined && typeof listedInEvents !== "boolean") {
+      return NextResponse.json(
+        { error: "listedInEvents must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (announcedPublicly !== undefined && typeof announcedPublicly !== "boolean") {
+      return NextResponse.json(
+        { error: "announcedPublicly must be a boolean" },
+        { status: 400 }
+      );
+    }
+    if (guestsAllowed !== undefined && typeof guestsAllowed !== "boolean") {
+      return NextResponse.json(
+        { error: "guestsAllowed must be a boolean" },
+        { status: 400 }
+      );
+    }
+    // Guests need public, public needs listed: judged with the flags the type will have, so an update that
+    // names only one of them is judged with the others as they are now.
+    {
+      const now = await prickles.typeById(typeId);
+      const chain = audienceChainError({
+        listed: listedInEvents ?? now?.listedInEvents ?? false,
+        publicly: announcedPublicly ?? now?.announcedPublicly ?? false,
+        guests: guestsAllowed ?? now?.guestsAllowed ?? false,
+      });
+      if (chain) return NextResponse.json({ error: chain }, { status: 400 });
+    }
     if (soloTaskFriendly !== undefined && typeof soloTaskFriendly !== "boolean") {
       return NextResponse.json(
         { error: "soloTaskFriendly must be a boolean" },
@@ -39,16 +71,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (defaultHostId !== undefined && defaultHostId !== null && !isId(defaultHostId, "mbr")) {
+      return NextResponse.json({ error: "defaultHostId must be a member id or null" }, { status: 400 });
+    }
+    if (summaryAliases !== undefined && (!Array.isArray(summaryAliases) || summaryAliases.some((a) => typeof a !== "string"))) {
+      return NextResponse.json({ error: "summaryAliases must be a list of names" }, { status: 400 });
+    }
+    if (namesGuestSpeaker !== undefined && typeof namesGuestSpeaker !== "boolean") {
+      return NextResponse.json({ error: "namesGuestSpeaker must be a boolean" }, { status: 400 });
+    }
+
+    // Aliases are stored the way calendar titles are matched: normalized, no blanks, no repeats
+    const aliases =
+      summaryAliases === undefined
+        ? undefined
+        : [...new Set((summaryAliases as string[]).map((a) => normalizePrickleType(a)).filter(Boolean))];
+
     // Regenerate normalized_name from the new name
     const normalizedName = normalizePrickleType(name);
 
     // Check if another type already has this normalized name
-    const { data: existingType } = await supabase
-      .from("prickle_types")
-      .select("id")
-      .eq("normalized_name", normalizedName)
-      .neq("id", typeId)
-      .single();
+    const existingType = await prickles.typeIdByNormalizedName(normalizedName, { excludingId: typeId });
 
     if (existingType) {
       return NextResponse.json(
@@ -58,18 +101,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the prickle type
-    const { error: updateError } = await supabase
-      .from("prickle_types")
-      .update({
+    try {
+      await prickles.updateType(typeId, {
         name: name.trim(),
-        normalized_name: normalizedName,
+        normalizedName,
         description: description?.trim() || null,
-        ...(purpose !== undefined ? { purpose } : {}),
-        ...(soloTaskFriendly !== undefined ? { solo_task_friendly: soloTaskFriendly } : {}),
-      })
-      .eq("id", typeId);
-
-    if (updateError) {
+        purpose,
+        soloTaskFriendly,
+        listedInEvents,
+        announcedPublicly,
+        guestsAllowed,
+        defaultHostId,
+        summaryAliases: aliases,
+        namesGuestSpeaker,
+      });
+    } catch (updateError) {
       console.error("Error updating prickle type:", updateError);
       return NextResponse.json(
         { error: "Failed to update prickle type" },
@@ -77,9 +123,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-trigger calendar prickles reprocessing (last 90 days)
+    // Auto-trigger calendar prickles reprocessing. Changing who hosts, other names or the speaker flag
+    // reaches back to the type's older prickles; other edits only need the recent window.
     console.log('Triggering calendar reprocessing from prickle_types change');
-    await triggerReprocessing('prickle_types', 'local');
+    if (defaultHostId !== undefined || aliases !== undefined || namesGuestSpeaker !== undefined) {
+      await triggerPrickleTypeReprocessing();
+    } else {
+      await triggerReprocessing('prickle_types', 'local');
+    }
 
     return NextResponse.json({
       success: true,

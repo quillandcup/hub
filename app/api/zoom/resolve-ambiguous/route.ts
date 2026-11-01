@@ -1,5 +1,7 @@
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { triggerReprocessing } from "@/lib/processing/trigger";
+import { adminNameAliasConflictMessage, findNameAliasConflict } from "@/lib/name-alias-conflict";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -17,10 +19,11 @@ import { NextRequest, NextResponse } from "next/server";
  * - { zoomName, action: "ignore" }: marks the entry ignored without creating
  *   an alias (e.g. a one-off typo/nickname not worth wiring up).
  *
- * Matches by zoom_name alone (not the (zoom_name, zoom_email) unique key) --
- * NULL zoom_email values don't dedupe under that constraint, so the same
- * bare name can accumulate several identical unresolved rows; this clears
- * all of them in one action.
+ * Matches by zoom_name alone, not the (zoom_name, zoom_email) key, so an
+ * entry seen both with and without an email is cleared in one action.
+ *
+ * The alias is checked first (lib/name-alias-conflict.ts): a name that is
+ * another member's alias or real name is refused (409) rather than reassigned.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request);
@@ -39,13 +42,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "ignore") {
-      const { error } = await supabase
-        .from("ambiguous_zoom_names")
-        .update({ status: "ignored" })
-        .eq("zoom_name", zoomName)
-        .eq("status", "unresolved");
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      try {
+        await createRepos(supabase).zoom.ignoreAmbiguousName(zoomName);
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
       return NextResponse.json({ success: true });
     }
 
@@ -53,19 +54,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "memberId is required" }, { status: 400 });
     }
 
-    const { error: aliasError } = await supabase
-      .from("member_name_aliases")
-      .upsert({ member_id: memberId, alias: zoomName, source: "zoom" }, { onConflict: "alias" });
+    // Don't take a name from another member (the upsert below would reassign it silently) or
+    // shadow another member's real name. Already this member's own active alias: nothing to add.
+    const checked = await findNameAliasConflict(memberId, zoomName);
+    if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 500 });
+    const { conflict } = checked;
+    // A Zoom name that matched several members is ambiguous because it is somebody's real name (and
+    // others' aliases or first names). Choosing who uses it is the point, so another member's real
+    // name is allowed here, as long as an unresolved entry exists for it: the alias then wins over
+    // the full-name match. Another member's alias is still refused.
+    let allowedRealNameShadow = false;
+    if (conflict?.kind === "other_name") {
+      try {
+        allowedRealNameShadow = await createRepos(supabase).zoom.hasUnresolvedAmbiguousName(zoomName);
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
+    }
+    if (conflict && conflict.kind !== "own" && !allowedRealNameShadow) {
+      return NextResponse.json({ error: adminNameAliasConflictMessage(zoomName, conflict) }, { status: 409 });
+    }
 
-    if (aliasError) return NextResponse.json({ error: aliasError.message }, { status: 500 });
+    if (!conflict || allowedRealNameShadow) {
+      try {
+        await createRepos(supabase).aliases.upsertName(memberId, zoomName, "zoom");
+      } catch (err) {
+        return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      }
+    }
 
-    const { error: resolveError } = await supabase
-      .from("ambiguous_zoom_names")
-      .update({ status: "resolved", resolved_member_id: memberId })
-      .eq("zoom_name", zoomName)
-      .eq("status", "unresolved");
-
-    if (resolveError) return NextResponse.json({ error: resolveError.message }, { status: 500 });
+    try {
+      await createRepos(supabase).zoom.resolveAmbiguousName(zoomName, memberId);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
 
     console.log("Triggering attendance reprocessing from ambiguous_zoom_names resolution");
     await triggerReprocessing("member_name_aliases", "local");

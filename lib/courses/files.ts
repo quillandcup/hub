@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAllBronzeRows } from "@/lib/supabase/bronze-pagination";
-import { fetchAll, inBatches } from "@/lib/courses/db";
+import { createRepos } from "@/lib/data/repos";
+import type { LessonFileRecord } from "@/lib/data/courses";
 import { visibleLessonIds } from "@/lib/courses/visible";
 
 /**
@@ -10,10 +10,14 @@ import { visibleLessonIds } from "@/lib/courses/visible";
  * `course-files` bucket and records a `course_lesson_files` row, which the lesson page lists and serves
  * through a short-lived signed link after an access check.
  *
- * Only files of lessons members can see (open or "Coming soon") are copied, and only once the course
- * is published (a file hangs off a Hub lesson). A file already copied is never copied again; a file
- * Kajabi no longer lists is removed from storage and the table (the lesson's files are re-derived from
- * Bronze, like everything in Silver). Safe to repeat. Needs a service-role client.
+ * Files of every lesson are copied, drafts' included (`draft: true`): a file costs nothing to keep, and
+ * staff preview draft lessons. A draft's files stay staff-only without any extra rule here: a draft is
+ * a hidden Hub lesson, members' row-level security only reads files of open lessons, and the download
+ * route (`/courses/[slug]/lessons/[lessonId]/files/[fileId]`) refuses anyone who can't open the lesson.
+ * They are copied only once the course is published (a file hangs off a Hub lesson). A file already
+ * copied is never copied again; a file Kajabi no longer lists is removed from storage and the table
+ * (the lesson's files are re-derived from Bronze, like everything in Silver). Safe to repeat. Needs a
+ * service-role client.
  */
 
 export const COURSE_FILES_BUCKET = "course-files";
@@ -36,6 +40,8 @@ export interface PlannedFile {
   kajabiFileId: string;
   filename: string;
   lessonTitle: string;
+  /** Its lesson isn't visible to members (a Kajabi draft, or under a draft module): staff-only. */
+  draft: boolean;
   position: number;
   state: FilePlanState;
   sourceUrl: string | null;
@@ -44,7 +50,7 @@ export interface PlannedFile {
 
 export interface FilePlan {
   files: PlannedFile[];
-  /** Hub files whose Kajabi file is gone (or whose lesson is no longer visible): to be removed. */
+  /** Hub files whose Kajabi file (or lesson) is gone: to be removed. */
   stale: { id: string; storagePath: string; filename: string }[];
   /** The Hub course, or null when it isn't published (nothing can be copied). */
   courseId: string | null;
@@ -94,40 +100,24 @@ export function formatBytes(bytes: number | null | undefined): string | null {
 }
 
 export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: string, now: Date): Promise<FilePlan> {
-  const [modules, lessons] = await Promise.all([
-    fetchAllBronzeRows(supabase, "kajabi_course_modules", "kajabi_id, parent_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-    fetchAllBronzeRows(supabase, "kajabi_course_lessons", "kajabi_id, module_kajabi_id, position, title, publishing_option", (q) =>
-      q.eq("course_kajabi_id", courseKajabiId).is("deleted_at", null)
-    ),
-  ]);
+  const repos = createRepos(supabase);
+  const repo = repos.kajabiCourses;
+  const [modules, lessons] = await Promise.all([repo.liveModules(courseKajabiId), repo.liveLessonOutlines(courseKajabiId)]);
   const visible = visibleLessonIds(modules, lessons);
   const titleById = new Map(lessons.map((l) => [l.kajabi_id, l.title as string]));
 
-  const bronzeFiles: any[] = [];
-  for (const batch of inBatches([...visible])) {
-    bronzeFiles.push(
-      ...(await fetchAllBronzeRows(supabase, "kajabi_lesson_files", "kajabi_id, lesson_kajabi_id, filename, source_url, raw_payload", (q) =>
-        q.in("lesson_kajabi_id", batch).is("deleted_at", null)
-      ))
-    );
-  }
+  const bronzeFiles = await repo.liveFiles(lessons.map((l) => l.kajabi_id));
 
-  const { data: course, error } = await supabase.from("courses").select("id").eq("source", "kajabi").eq("source_key", courseKajabiId).maybeSingle();
-  if (error) throw new Error(`courses read failed: ${error.message}`);
+  const course = await repos.courses.courseBySource("kajabi", courseKajabiId);
   const courseId: string | null = course?.id ?? null;
 
   const hubLessonByKey = new Map<string, string>();
-  const existing: any[] = [];
+  let existing: LessonFileRecord[] = [];
   if (courseId) {
-    for (const l of await fetchAll(supabase, "course_lessons", "id, source_key", (q) => q.eq("course_id", courseId).eq("source", "kajabi"))) {
-      hubLessonByKey.set(l.source_key, l.id);
+    for (const l of await repos.courses.lessonsOf([courseId], { source: "kajabi", includeHidden: true })) {
+      if (l.source_key) hubLessonByKey.set(l.source_key, l.id);
     }
-    const hubIds = [...hubLessonByKey.values()];
-    for (const batch of inBatches(hubIds)) {
-      existing.push(...(await fetchAll(supabase, "course_lesson_files", "id, source_key, storage_path, filename", (q) => q.in("lesson_id", batch))));
-    }
+    existing = await repos.courses.filesOfLessons([...hubLessonByKey.values()]);
   }
   const copiedKeys = new Set(existing.map((f) => f.source_key));
 
@@ -145,7 +135,8 @@ export async function planCourseFiles(supabase: SupabaseClient, courseKajabiId: 
         kajabiFileId: f.kajabi_id as string,
         filename: f.filename as string,
         lessonTitle: titleById.get(f.lesson_kajabi_id) ?? "",
-        position: typeof f.raw_payload?.position === "number" ? f.raw_payload.position : index,
+        draft: !visible.has(f.lesson_kajabi_id),
+        position: typeof (f.raw_payload as { position?: unknown } | null)?.position === "number" ? (f.raw_payload as { position: number }).position : index,
         state,
         sourceUrl: (f.source_url as string | null) ?? null,
         hubLessonId,
@@ -191,6 +182,7 @@ export async function copyCourseFiles(
   download: typeof fetch = fetch
 ): Promise<CopyFilesResult> {
   const plan = await planCourseFiles(supabase, courseKajabiId, now);
+  const repos = createRepos(supabase);
   const result: CopyFilesResult = { copied: [], alreadyCopied: 0, removed: 0, needsNewLink: [], waitingForLesson: 0, failed: [] };
   const bucket = supabase.storage.from(COURSE_FILES_BUCKET);
 
@@ -214,32 +206,31 @@ export async function copyCourseFiles(
       const { error: uploadError } = await bucket.upload(path, body, { contentType, upsert: true });
       if (uploadError) throw new Error(uploadError.message);
 
-      const { error: rowError } = await supabase.from("course_lesson_files").upsert(
-        {
-          lesson_id: file.hubLessonId,
-          source_key: file.kajabiFileId,
-          filename: file.filename,
-          content_type: contentType,
-          size_bytes: body.byteLength,
-          content_hash: createHash("sha256").update(body).digest("hex"),
-          storage_path: path,
-          position: file.position,
-        },
-        { onConflict: "source_key" }
-      );
-      if (rowError) throw new Error(rowError.message);
+      await repos.courses.saveLessonFile({
+        lesson_id: file.hubLessonId!,
+        source_key: file.kajabiFileId,
+        filename: file.filename,
+        content_type: contentType,
+        size_bytes: body.byteLength,
+        content_hash: createHash("sha256").update(body).digest("hex"),
+        storage_path: path,
+        position: file.position,
+      });
       result.copied.push({ kajabiFileId: file.kajabiFileId, filename: file.filename, bytes: body.byteLength });
     } catch (error: any) {
       result.failed.push({ kajabiFileId: file.kajabiFileId, filename: file.filename, error: error?.message ?? "copy failed" });
     }
   }
 
-  // Files Kajabi no longer lists (or whose lesson is no longer visible): the row and the stored object go.
+  // Files Kajabi no longer lists (or whose lesson is gone): the row and the stored object go.
   for (const stale of plan.stale) {
     await bucket.remove([stale.storagePath]);
-    const { error } = await supabase.from("course_lesson_files").delete().eq("id", stale.id);
-    if (error) result.failed.push({ kajabiFileId: stale.id, filename: stale.filename, error: `couldn't remove the row: ${error.message}` });
-    else result.removed++;
+    try {
+      await repos.courses.deleteLessonFile(stale.id);
+      result.removed++;
+    } catch (error: any) {
+      result.failed.push({ kajabiFileId: stale.id, filename: stale.filename, error: `couldn't remove the row: ${error.message}` });
+    }
   }
 
   return result;

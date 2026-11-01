@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageBounds } from "@/lib/pagination";
+import { isAnyId, isId } from "@/lib/ids";
 import { withMentionNames } from "@/lib/chat/names";
+import { createRepos } from "@/lib/data/repos";
+import { throwIfDbError } from "@/lib/db-error";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 /**
  * The central activity log: audit_log rows, member_activities rows and page
@@ -104,7 +108,7 @@ export function parseFeedFilters(params: Record<string, Param>, defaults: FeedDe
     view: parseView(first(params.view), defaults.view),
     kinds: kindList.length > 0 ? kindList : null,
     actorUserId: actor && UUID_RE.test(actor) ? actor : null,
-    memberId: member && UUID_RE.test(member) ? member : null,
+    memberId: isId(member, "mbr") ? member : null,
     sudoOnly: first(params.sudo) === "1",
     hideSystem: first(params.nosystem) === "1",
     hideSlack: first(params.noslack) === "1",
@@ -161,7 +165,7 @@ export async function fetchActivityFeed(
 ): Promise<FeedPage> {
   const args = rpcArgs(query, now);
   const { data: count, error: countError } = await supabase.rpc("count_activity_feed", args);
-  if (countError) throw countError;
+  throwIfDbError("activity feed: count_activity_feed", countError);
   const total = (count as number | null) ?? 0;
 
   const bounds = pageBounds(query.page, query.pageSize, total);
@@ -172,8 +176,41 @@ export async function fetchActivityFeed(
     p_offset: bounds.offset,
     p_limit: bounds.pageSize,
   });
-  if (error) throw error;
-  return { rows: await withMentionNames((data ?? []) as ActivityFeedRow[]), total, page: bounds.page, pageSize: bounds.pageSize };
+  throwIfDbError("activity feed: get_activity_feed", error);
+  return { rows: await withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[])), total, page: bounds.page, pageSize: bounds.pageSize };
+}
+
+/**
+ * The SQL function names members by legal name. Admins know them by display name too, so swap it in
+ * for the member, the member an admin was viewing as, and an actor's label when it is a member's legal
+ * name: a member actor, or a staff actor, who is labelled by their own member record (found through
+ * their auth user id) and otherwise by their account email, which stays as it is.
+ */
+export async function withMemberDisplayNames(supabase: SupabaseClient, rows: ActivityFeedRow[]): Promise<ActivityFeedRow[]> {
+  const repos = createRepos(supabase);
+  const actorUserIds = [...new Set(rows.map((r) => r.actor_user_id).filter((id): id is string => !!id))];
+  const memberIdByUserId = actorUserIds.length > 0 ? await repos.members.idsByUserId(actorUserIds) : new Map<string, string>();
+  const ids = [...new Set([...rows.flatMap((r) => [r.member_id, r.acting_as_member_id]), ...memberIdByUserId.values()].filter((id): id is string => !!id))];
+  if (ids.length === 0) return rows;
+  const members = new Map<string, { legal: string; shown: string }>();
+  for (const m of await repos.members.byIds(ids)) members.set(m.id, { legal: m.name, shown: getMemberDisplayName({ name: m.name, display_name: m.displayName }) });
+  return rows.map((r) => {
+    const member = r.member_id ? members.get(r.member_id) : undefined;
+    const actingAs = r.acting_as_member_id ? members.get(r.acting_as_member_id) : undefined;
+    const staffMember = r.actor_user_id ? members.get(memberIdByUserId.get(r.actor_user_id) ?? "") : undefined;
+    const actor =
+      r.actor_kind === "member" && member && r.actor_label === r.member_name
+        ? member.shown
+        : staffMember && r.actor_label === staffMember.legal
+          ? staffMember.shown
+          : r.actor_label;
+    return {
+      ...r,
+      member_name: member?.shown ?? r.member_name,
+      acting_as_member_name: actingAs?.shown ?? r.acting_as_member_name,
+      actor_label: actor,
+    };
+  });
 }
 
 /** What else counts as part of one record's history, beyond rows about the record itself. */
@@ -204,8 +241,8 @@ export async function fetchRecordHistory(
     p_parent_column: scope.parentColumn ?? null,
     p_member_rows: scope.memberRows ?? false,
   });
-  if (error) throw error;
-  return withMentionNames((data ?? []) as ActivityFeedRow[]);
+  throwIfDbError("record history: get_record_history", error);
+  return withMemberDisplayNames(supabase, await withMentionNames((data ?? []) as ActivityFeedRow[]));
 }
 
 // ---------------------------------------------------------------------------
@@ -217,13 +254,19 @@ export interface ReactionRow {
   activity_type?: string | null;
   event_type?: string | null;
   title?: string | null;
-  data?: Record<string, unknown> | null;
+  /** Activity data: an object for reactions, though the column's type is any JSON value. */
+  data?: unknown;
 }
 
 /** The emoji name (no colons) of a Slack reaction row, else null. */
+/** The row's data when it is an object (arrays and scalars are not activity data). */
+export function dataObject(data: unknown): Record<string, unknown> | null {
+  return data !== null && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+}
+
 export function reactionName(row: ReactionRow): string | null {
   if ((row.activity_type ?? row.event_type) !== "slack_reaction") return null;
-  const fromData = row.data?.reaction;
+  const fromData = dataObject(row.data)?.reaction;
   if (typeof fromData === "string" && fromData) return fromData;
   return row.title?.match(/:([^:\s]+(?:::skin-tone-\d)?):/)?.[1] ?? null;
 }
@@ -320,6 +363,13 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
     if (fields.token) return "generated a new calendar link";
   }
   if (row.entity_type === "wheel_of_wonder_match" && row.event_type === "insert") return "spun the Wheel of Wonder";
+  // One entry per reorder of a course's modules or a module's lessons (the migration says why not one per row).
+  if (row.entity_type === "course_lesson_order" || row.entity_type === "course_module_order") {
+    const order = fields.order?.new;
+    const count = Array.isArray(order) ? ` ${order.length}` : "";
+    const what = row.entity_type === "course_lesson_order" ? "lessons" : "modules";
+    return `reordered the${count} ${what}${row.description ? ` in “${formatValue(row.description)}”` : ""}`;
+  }
   if (row.entity_type === "restricted_slack_channel") {
     const channel = row.description ? `#${formatValue(row.description)}` : "a Slack channel";
     if (row.event_type === "insert") return `restricted staff access to messages in ${channel}`;
@@ -328,6 +378,16 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
 
   const name = recordName(row);
   const quoted = name ? ` “${name}”` : "";
+  // Members' deletes are soft: the row stays and `deleted_at` is set (or cleared, if restored).
+  if (row.event_type === "update" && fields.deleted_at) {
+    const deleted = !fields.deleted_at.old && !!fields.deleted_at.new;
+    const restored = !!fields.deleted_at.old && !fields.deleted_at.new;
+    if (deleted || restored) {
+      if (row.entity_type === "member_book") return deleted ? `removed${quoted} from their bookshelf` : `put${quoted} back on their bookshelf`;
+      const entity = ENTITY_LABELS[row.entity_type ?? ""] ?? humanize(row.entity_type ?? "record");
+      return `${deleted ? "deleted" : "restored"} ${entity}${quoted}`;
+    }
+  }
   if (row.entity_type === "writing_project" && fields.phase && row.event_type === "update") {
     return `moved writing project${quoted} from ${humanize(String(fields.phase.old))} to ${humanize(String(fields.phase.new))}`;
   }
@@ -341,17 +401,16 @@ function specialAuditPhrase(row: ActivityFeedRow): string | null {
   return null;
 }
 
-const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const titleCase = (s: string) => s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** "/prickles/<uuid>" -> "Prickles · one", "/my-prickles/all" -> "My Prickles · All": paths read as places. */
+/** "/prickles/<id>" -> "Prickles · one", "/my-prickles/all" -> "My Prickles · All": paths read as places. */
 export function pageLabel(path: string): string {
   const segments = path.split("?")[0].split("/").filter(Boolean);
   if (segments.length === 0) return "Home";
   const [first, second] = segments;
   const section = titleCase(first);
   if (!second) return section;
-  return UUID_SEGMENT.test(second) ? `${section} · one` : `${section} · ${titleCase(second)}`;
+  return isAnyId(second) ? `${section} · one` : `${section} · ${titleCase(second)}`;
 }
 
 export interface PageCount {

@@ -69,6 +69,7 @@ describe('/api/courses/watch', () => {
   beforeEach(async () => {
     await supabase.from('video_watch_segments').delete().in('member_id', [ids.current, ids.ended])
     await supabase.from('lesson_progress').delete().in('member_id', [ids.current, ids.ended])
+    await supabase.from('member_activities').delete().in('member_id', [ids.current, ids.ended]).eq('source', 'courses')
     actAs('current')
   })
 
@@ -97,6 +98,23 @@ describe('/api/courses/watch', () => {
     expect(await progressOf('current', ids.lessonA)).toMatchObject({ last_position_seconds: 55, completed_at: null })
   })
 
+  it('logs the lesson as watched in the activity log once a day of watching is long enough, and only once a day', async () => {
+    const activitiesOf = async () => (await supabase.from('member_activities').select('*').eq('member_id', ids.current).eq('source', 'courses')).data ?? []
+    await post(body({ segments: [{ ...segment, id: newId(), start: 0, end: 60 }] }))
+    expect(await activitiesOf()).toEqual([])
+    expect((await post(body({ segments: [{ ...segment, id: newId(), start: 60, end: 400 }] }))).status).toBe(200)
+    expect(await post(body({ segments: [{ ...segment, id: newId(), start: 400, end: 450 }] })).then((r) => r.status)).toBe(200)
+    const rows = await activitiesOf()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ activity_type: 'lesson_watched', title: 'Watched A', data: { lesson_id: ids.lessonA, course_id: ids.course } })
+  })
+
+  it("doesn't log a staff preview of a lesson members can't open yet", async () => {
+    actAs('current', { isAdminActing: true })
+    await post(body({ lessonId: ids.lessonSoon, segments: [{ ...segment, id: newId(), start: 0, end: 400 }] }))
+    expect((await supabase.from('member_activities').select('id').eq('member_id', ids.current).eq('source', 'courses')).data).toEqual([])
+  })
+
   it('stores a resent segment once', async () => {
     const first = { ...segment, id: newId() }
     expect(await (await post(body({ segments: [first] }))).json()).toEqual({ saved: 1 })
@@ -119,6 +137,8 @@ describe('/api/courses/watch', () => {
     const viewed = rows.filter((r) => r.kind === 'viewed')
     expect(viewed).toHaveLength(1)
     expect(viewed[0]).toMatchObject({ video_id: ids.video, session_id: sessionId, client_segment_id: sessionId, user_agent: agent['user-agent'] })
+    // The device is parsed at write time, so it outlives the user agent (removed after 90 days).
+    expect(viewed[0].device).toEqual({ browser: 'Chrome', browser_version: '130.0', os: 'Windows', os_version: null, device_type: 'desktop' })
     expect(Number(viewed[0].start_seconds)).toBe(0)
     expect(Number(viewed[0].end_seconds)).toBe(0)
     // The marker is not a stretch, and it moves no position.
@@ -170,7 +190,7 @@ describe('/api/courses/watch', () => {
   it("doesn't track a lesson that is still coming soon, one without a video, or an unknown one", async () => {
     expect((await post(body({ lessonId: ids.lessonSoon }))).status).toBe(404)
     expect((await post(body({ lessonId: ids.lessonNoVideo }))).status).toBe(404)
-    expect((await post(body({ lessonId: '00000000-0000-4000-a000-0000000000ff' }))).status).toBe(404)
+    expect((await post(body({ lessonId: 'les_AAAAAAAAAAff' }))).status).toBe(404)
     expect(await segmentsOf('current')).toEqual([])
   })
 

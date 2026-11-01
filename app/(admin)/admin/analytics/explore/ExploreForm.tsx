@@ -97,7 +97,7 @@ function FilterRows({
         const valueLabel = `${label} filter ${f + 1} value`;
         return (
           <div key={f} className="flex flex-wrap items-center gap-2 pl-16">
-            <span className="text-sm text-slate-500">where</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">where</span>
             <select
               aria-label={`${label} filter ${f + 1} property`}
               className={field}
@@ -110,7 +110,7 @@ function FilterRows({
                 </option>
               ))}
             </select>
-            <span className="text-sm text-slate-500">is</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">is</span>
             {prop?.kind === "bool" || prop?.kind === "enum" ? (
               <select aria-label={valueLabel} className={field} value={filter.value} onChange={(e) => setFilter({ ...filter, value: e.target.value })}>
                 <option value="">choose…</option>
@@ -189,7 +189,7 @@ export function ExploreForm({
           return (
             <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-slate-500 w-14">Step {i + 1}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400 w-14">Step {i + 1}</span>
                 <select
                   aria-label={`Step ${i + 1} event`}
                   className={field}
@@ -220,7 +220,7 @@ export function ExploreForm({
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold text-slate-900 dark:text-slate-100">Break down by (optional)</legend>
-        <p className="text-xs text-slate-500 dark:text-slate-400">Counts one event by the values of a property. It has its own filters; the funnel&apos;s don&apos;t apply to it.</p>
+        <p className="text-xs text-slate-600 dark:text-slate-400">Counts one event by the values of a property. It has its own filters; the funnel&apos;s don&apos;t apply to it.</p>
         <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label="Breakdown event"
@@ -242,7 +242,7 @@ export function ExploreForm({
           </select>
           {breakdown && (
             <>
-              <span className="text-sm text-slate-500">by</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400">by</span>
               <select aria-label="Breakdown property" className={field} value={breakdown.property} onChange={(e) => setBreakdown({ ...breakdown, property: e.target.value })}>
                 {describe(breakdown.event).properties.map((p) => (
                   <option key={p.name} value={p.name}>

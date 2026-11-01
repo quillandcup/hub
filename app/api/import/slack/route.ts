@@ -1,3 +1,6 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
+import type { NewSlackUser } from "@/lib/data/slack-users";
+import { createRepos } from "@/lib/data/repos";
 import { requireAdmin } from "@/lib/supabase/api-auth";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { triggerReprocessing } from "@/lib/processing/trigger";
@@ -36,38 +39,31 @@ export async function POST(request: NextRequest) {
     // UPSERT to Bronze tables (idempotent)
     const importTimestamp = new Date().toISOString();
 
-    const { error: usersError } = await supabase
-      .schema('bronze').from("slack_users")
-      .upsert(
-        users.map(u => ({ ...u, imported_at: importTimestamp })),
-        { onConflict: "user_id" }
-      );
+    // The CSV's columns go in as they come; the other tables below are tried either way, and the
+    // first failure is thrown once they all have been.
+    const repos = createRepos(supabase);
+    const settle = (run: () => Promise<unknown>) => run().then(() => null, (error: unknown) => error);
 
-    const { error: channelsError } = await supabase
-      .schema('bronze').from("slack_channels")
-      .upsert(
-        channels.map(c => ({ ...c, imported_at: importTimestamp })),
-        { onConflict: "channel_id" }
-      );
+    const usersError = await settle(() =>
+      repos.slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })) as unknown as NewSlackUser[])
+    );
 
-    const { error: messagesError } = await supabase
-      .schema('bronze').from("slack_messages")
-      .upsert(
-        messages.map(m => ({ ...m, imported_at: importTimestamp })),
-        { onConflict: "channel_id,message_ts" }
-      );
+    const channelsError = await settle(() => repos.slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })) as any[]));
 
-    const { error: reactionsError } = await supabase
-      .schema('bronze').from("slack_reactions")
-      .upsert(
+    invalidateChatLookups();
+
+    const messagesError = await settle(() => repos.slackMessages.upsertMessages(messages.map(m => ({ ...m, imported_at: importTimestamp })) as any[]));
+
+    const reactionsError = await settle(() =>
+      repos.slackMessages.upsertReactions(
         // CSVs exported before the column was renamed carry `removed_at`.
         reactions.map(({ removed_at, ...r }) => ({
           ...r,
           ...(removed_at !== undefined && r.deleted_at === undefined ? { deleted_at: removed_at } : {}),
           imported_at: importTimestamp,
-        })),
-        { onConflict: "channel_id,message_ts,reaction,user_id" }
-      );
+        })) as any[]
+      )
+    );
 
     if (usersError) throw usersError;
     if (channelsError) throw channelsError;

@@ -52,7 +52,7 @@ describe('Admin prickle detail page routing', () => {
     // The in-prickle record count (usually 1) mismatches the modal which shows
     // all-time prickles. We batch-fetch historical meeting_uuid counts instead.
     expect(adminPageSrc).toContain('historicalMeetings');
-    expect(adminPageSrc).toContain('meeting_uuid');
+    expect(adminPageSrc).toContain('zoom.meetingCountsByName(');
     expect(adminPageSrc).toContain('a.appearances');
   });
 
@@ -90,7 +90,7 @@ describe('Member prickle detail page unmatched zoom section', () => {
 
   it('fetches historical meeting counts to populate appearances for unmatched names', () => {
     expect(memberPageSrc).toContain('historicalMeetings');
-    expect(memberPageSrc).toContain('meeting_uuid');
+    expect(memberPageSrc).toContain('zoom.meetingCountsByName(');
     expect(memberPageSrc).toContain('a.appearances');
   });
 });

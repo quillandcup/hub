@@ -1,3 +1,5 @@
+import { invalidateChatLookups } from "@/lib/chat/invalidate-lookups";
+import { createRepos } from "@/lib/data/repos";
 import { WebClient } from '@slack/web-api';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,11 +12,8 @@ import {
   slackThreadKey,
   type SeenInSlack,
 } from '@/lib/slack-deletions';
-import { fetchAllBronzeRows } from '@/lib/supabase/bronze-pagination';
 import {
-  isKeptSlackMessage,
-  slackMessageUserId,
-  slackTsToIso,
+  addSlackMessage as addMessage,
   threadKey,
   isThreadBehind, slackUsersChangedForMembers,
   threadsNeedingReplies,
@@ -33,6 +32,8 @@ import {
   syncCustomEmoji,
   toSlackChannelRow,
 } from '@/lib/slack-capture';
+import { removeFilesGoneFromSlack } from '@/lib/chat/file-cleanup';
+import { getSlackBotToken } from '@/lib/slack-bot-token';
 
 export const maxDuration = 300; // 5 minutes for Slack API calls
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServiceRoleClient();
 
   try {
-    const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+    const SLACK_BOT_TOKEN = await getSlackBotToken();
 
     if (!SLACK_BOT_TOKEN) {
       return NextResponse.json(
@@ -179,12 +180,14 @@ export async function POST(request: NextRequest) {
     // Batched: a 90-day import (with thread replies) is thousands of messages
     // and 10k+ reactions, and one statement that size hits Postgres's
     // statement timeout when an admin runs the import from the page.
-    const storedUsers = await fetchAllBronzeRows(supabase, "slack_users", "user_id, email, image_url");
+    const storedUsers = await createRepos(supabase).slackUsers.list();
     const usersChanged = slackUsersChangedForMembers(storedUsers, users);
-    await upsertInBatches(supabase, "slack_users", users.map(u => ({ ...u, imported_at: importTimestamp })), "user_id");
-    await upsertInBatches(supabase, "slack_channels", channels.map(c => ({ ...c, imported_at: importTimestamp })), "channel_id");
-    await upsertInBatches(supabase, "slack_messages", allMessages.map(m => ({ ...m, imported_at: importTimestamp })), "channel_id,message_ts");
-    await upsertInBatches(supabase, "slack_reactions", allReactions.map(r => ({ ...r, imported_at: importTimestamp })), "channel_id,message_ts,reaction,user_id");
+    await createRepos(supabase).slackUsers.upsert(users.map(u => ({ ...u, imported_at: importTimestamp })));
+    // (small batches, two at a time: see the repositories' upserts)
+    await createRepos(supabase).slackWorkspace.upsertChannels(channels.map(c => ({ ...c, imported_at: importTimestamp })));
+    invalidateChatLookups();
+    await createRepos(supabase).slackMessages.upsertMessages(allMessages.map(m => ({ ...m, imported_at: importTimestamp })));
+    await createRepos(supabase).slackMessages.upsertReactions(allReactions.map(r => ({ ...r, imported_at: importTimestamp })));
 
     // Upserts can't express "this reaction was taken back", so mark stored
     // reactions on the fetched messages that Slack no longer reports (deleted_at).
@@ -225,6 +228,7 @@ export async function POST(request: NextRequest) {
     });
     if (membership) console.log(`  Members: ${membership.members} across ${membership.channelsSynced} channels (${membership.left} left, ${membership.channelsFailed} channels failed); history: ${memberNotices.length} join/leave notices, ${membership.eventsInferred} inferred`);
     const emoji = await capture('custom emoji', () => syncCustomEmoji(supabase, slack, importTimestamp));
+    invalidateChatLookups();
     if (emoji && !emoji.skipped) console.log(`  Custom emoji: ${emoji.emoji} (${emoji.removed} removed)`);
 
     // Detect date range from imported messages
@@ -268,6 +272,10 @@ export async function POST(request: NextRequest) {
     const files = await capture('files', () =>
       copySlackFiles(supabase, SLACK_BOT_TOKEN, allMessages, importTimestamp, startedAt + FILE_COPY_DEADLINE_MS)
     );
+    // Files Slack deleted (shown as tombstones, or dropped from an edited message): soft-delete the
+    // Bronze row and remove our copy. The file_deleted webhook does the same at once.
+    const filesGone = await capture('deleted files', () => removeFilesGoneFromSlack(supabase, allMessages));
+    if (filesGone && filesGone.gone > 0) console.log(`  Files deleted in Slack: ${filesGone.gone} (${filesGone.removed} cleaned up, ${filesGone.failed} failed)`);
     if (files) console.log(`  Files: ${files.copied} copied, ${files.skipped} skipped, ${files.failed} failed, ${files.pending} still pending`);
 
     return NextResponse.json({
@@ -278,6 +286,7 @@ export async function POST(request: NextRequest) {
         membership,
         emoji,
         files,
+        filesGone,
         errors: captureErrors,
       },
       fetched: {
@@ -471,32 +480,15 @@ async function loadStoredThreadReplies(supabase: SupabaseClient, parents: any[])
     tsByChannel.set(p.channel_id, list);
   }
 
-  const CHUNK = 100;
-  const PAGE = 1000;
+  const messages = createRepos(supabase).slackMessages;
   for (const [channelId, threadTs] of tsByChannel) {
-    for (let i = 0; i < threadTs.length; i += CHUNK) {
-      const chunk = threadTs.slice(i, i + CHUNK);
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .schema('bronze')
-          .from('slack_messages')
-          .select('thread_ts, message_ts')
-          .eq('channel_id', channelId)
-          .in('thread_ts', chunk)
-          .is('deleted_at', null)
-          .order('message_ts')
-          .range(offset, offset + PAGE - 1);
-        if (error) throw error;
-        for (const row of data ?? []) {
-          if (row.message_ts === row.thread_ts) continue; // the parent itself
-          const key = threadKey(channelId, row.thread_ts);
-          const have = stored.get(key) ?? { count: 0, latestTs: null };
-          have.count++;
-          if (!have.latestTs || parseFloat(row.message_ts) > parseFloat(have.latestTs)) have.latestTs = row.message_ts;
-          stored.set(key, have);
-        }
-        if (!data || data.length < PAGE) break;
-      }
+    for (const row of await messages.threadMessages(channelId, threadTs)) {
+      if (row.message_ts === row.thread_ts) continue; // the parent itself
+      const key = threadKey(channelId, row.thread_ts);
+      const have = stored.get(key) ?? { count: 0, latestTs: null };
+      have.count++;
+      if (!have.latestTs || parseFloat(row.message_ts) > parseFloat(have.latestTs)) have.latestTs = row.message_ts;
+      stored.set(key, have);
     }
   }
   return stored;
@@ -548,78 +540,6 @@ async function fetchThreadReplies(slack: WebClient, parents: any[], startedAt: n
 
   await Promise.all(Array.from({ length: THREAD_CONCURRENCY }, worker));
   return { messages, reactions, seenByThread, deferred: queue.length };
-}
-
-function addMessage(
-  msg: any,
-  channelId: string,
-  channelName: string,
-  channelType: string,
-  messages: any[],
-  reactions: any[]
-) {
-  // Skip join/leave messages (keep file_share, thread_broadcast)
-  if (!isKeptSlackMessage(msg)) {
-    return;
-  }
-
-  messages.push({
-    message_ts: msg.ts,
-    channel_id: channelId,
-    channel_name: channelName,
-    channel_type: channelType,
-    user_id: slackMessageUserId(msg),
-    user_email: '', // Will be filled from users map later
-    user_name: '', // Will be filled from users map later
-    text: msg.text || '',
-    message_type: msg.subtype || 'message',
-    thread_ts: msg.thread_ts || null,
-    reply_count: msg.reply_count || 0,
-    reply_users_count: msg.reply_users_count || 0,
-    occurred_at: slackTsToIso(msg.ts),
-    edited_at: msg.edited ? new Date(msg.edited.ts * 1000).toISOString() : null,
-    deleted_at: null,
-    files: msg.files ? msg.files : null,
-    raw_payload: msg
-  });
-
-  // Extract reactions
-  if (msg.reactions) {
-    for (const reaction of msg.reactions) {
-      for (const userId of reaction.users) {
-        reactions.push({
-          message_ts: msg.ts,
-          channel_id: channelId,
-          channel_name: channelName,
-          reaction: reaction.name,
-          user_id: userId,
-          user_email: '', // Will be filled later
-          user_name: '', // Will be filled later
-          occurred_at: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-          deleted_at: null,
-          raw_payload: reaction
-        });
-      }
-    }
-  }
-}
-
-const UPSERT_BATCH_SIZE = 500;
-const UPSERT_CONCURRENCY = 4;
-
-async function upsertInBatches(supabase: SupabaseClient, table: string, rows: any[], onConflict: string) {
-  const batches: any[][] = [];
-  for (let i = 0; i < rows.length; i += UPSERT_BATCH_SIZE) batches.push(rows.slice(i, i + UPSERT_BATCH_SIZE));
-
-  for (let i = 0; i < batches.length; i += UPSERT_CONCURRENCY) {
-    const results = await Promise.all(
-      batches.slice(i, i + UPSERT_CONCURRENCY).map(batch =>
-        supabase.schema('bronze').from(table).upsert(batch, { onConflict })
-      )
-    );
-    const failed = results.find(r => r.error);
-    if (failed?.error) throw failed.error;
-  }
 }
 
 function dedupeBy<T>(rows: T[], key: (row: T) => string) {

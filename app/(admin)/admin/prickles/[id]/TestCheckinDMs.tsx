@@ -37,7 +37,7 @@ export default function TestCheckinDMs({ prickleId }: { prickleId: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
       <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Test check-in messages</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         Sends you the Slack DM and email a member would get for this prickle, whether or not one is due. It
         doesn&apos;t count as the real one, and your answers save to your own check-in for this prickle.
       </p>

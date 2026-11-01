@@ -1,5 +1,6 @@
 "use server";
 
+import { createRepos } from "@/lib/data/repos";
 import { getSearcher, type Searcher } from "@/lib/search/context";
 import { recordSearchTimings } from "@/lib/search/metrics";
 import { parseUniversal, wantsChat } from "@/lib/search/syntax";
@@ -17,6 +18,7 @@ import { getUnloggedRecentPrickles } from "@/app/(member)/projects/actions";
 import { getUserTimezonePreference } from "@/lib/timezone";
 import { ORG_TIMEZONE } from "@/lib/config";
 import { clock } from "@/lib/clock";
+import { isId } from "@/lib/ids";
 
 export interface PaletteSearch {
   results: KindResults[];
@@ -117,14 +119,7 @@ export async function searchSuggestions(): Promise<{ needsAttention: Suggestion[
 
   const [derived, notifications, unread, channels] = await Promise.all([
     openCheckins(supabase, viewerMemberId).catch(() => [] as Suggestion[]),
-    supabase
-      .from("in_app_notifications")
-      .select("id, kind, text, url")
-      .eq("member_id", viewerMemberId)
-      .is("read_at", null)
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then((r) => r.data ?? [], () => []),
+    createRepos(supabase).notifications.inAppUnread(viewerMemberId, 20).catch(() => []),
     chatOn ? syncedUnreadCounts(supabase, viewerMemberId) : Promise.resolve({} as Record<string, number>),
     chatOn && typeof searcher.ctx.chatChannels === "function" ? searcher.ctx.chatChannels().catch(() => []) : Promise.resolve([]),
   ]);
@@ -175,20 +170,14 @@ export async function suggestOperatorValues(operator: "from" | "channel", typed:
 
   const out: OperatorValue[] = [];
   if ("me".startsWith(needle)) out.push({ value: "me", label: "Me", sublabel: "Your own" });
-  const like = `%${needle.replace(/[\\%_,()"]/g, " ").trim()}%`;
-  const { data } = await searcher.ctx.supabase
-    .from("member_directory")
-    .select("id, name, display_name, photo_url")
-    .or(`name.ilike."${like}",display_name.ilike."${like}"`)
-    .order("name")
-    .limit(VALUE_LIMIT);
-  for (const m of data ?? []) {
+  const data = await createRepos(searcher.ctx.supabase).directory.matching(needle, VALUE_LIMIT);
+  for (const m of data) {
     out.push({ value: m.name, label: m.display_name || m.name, sublabel: m.display_name && m.display_name !== m.name ? m.name : undefined, imageUrl: m.photo_url });
   }
   return out.slice(0, VALUE_LIMIT);
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i; // an in_app_notifications id
 
 /**
  * "Mark as read" for rows of "Needs attention" (by their Suggestion ids), so they leave every list:
@@ -203,24 +192,20 @@ export async function markSuggestionsRead(ids: string[]): Promise<number> {
   const results = await Promise.all(
     ids.slice(0, MAX_SUGGESTIONS).map(async (id) => {
       const [kind, ref] = String(id).split(":");
-      if (!UUID.test(ref ?? "")) return false;
+      // A check-in or check-out names a prickle; a notification names an in_app_notifications row (still a uuid).
+      if (kind === "notification" ? !UUID.test(ref ?? "") : !isId(ref, "prkl")) return false;
       try {
         if (kind === "checkout") return (await dismissCheckout(supabase, viewerMemberId, ref)) === null;
         if (kind === "checkin") return (await dismissCheckin(supabase, viewerMemberId, ref)) === null;
         if (kind === "notification") {
           // A check-in or check-out notification closes its prickle's offer too (which also reads it), so it doesn't come back as a derived row.
-          const { data: note } = await supabase.from("in_app_notifications").select("kind, ref").eq("id", ref).eq("member_id", viewerMemberId).maybeSingle();
-          if (note && UUID.test(note.ref ?? "")) {
+          const note = await createRepos(supabase).notifications.inAppById(viewerMemberId, ref);
+          if (note && isId(note.ref, "prkl")) {
             if (note.kind === "prickle_checkin") return (await dismissCheckin(supabase, viewerMemberId, note.ref)) === null;
             if (note.kind === "prickle_checkout") return (await dismissCheckout(supabase, viewerMemberId, note.ref)) === null;
           }
-          const { error } = await supabase
-            .from("in_app_notifications")
-            .update({ read_at: new Date().toISOString() })
-            .eq("id", ref)
-            .eq("member_id", viewerMemberId)
-            .is("read_at", null);
-          return !error;
+          await createRepos(supabase).notifications.markInAppRead(viewerMemberId, [ref]);
+          return true;
         }
       } catch (error) {
         console.error("markSuggestionsRead failed", { id, error });

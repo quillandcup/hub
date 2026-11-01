@@ -7,15 +7,27 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import EditPrickleTypeForm from "./EditPrickleTypeForm";
 import { requireAdminPage } from "@/lib/admin-auth";
+import type { PrickleTypePurpose } from "@/lib/prickle-picker";
+import { createRepos } from "@/lib/data/repos";
+import { getMemberDisplayName } from "@/lib/member-display-name";
 
 const getPrickleType = cache(async (id: string) => {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("prickle_types")
-    .select("id, name, normalized_name, description, purpose, solo_task_friendly")
-    .eq("id", id)
-    .single();
-  return data;
+  const type = await createRepos(await createClient()).prickles.typeById(id);
+  if (!type) return null;
+  return {
+    id: type.id,
+    name: type.name,
+    normalized_name: type.normalizedName,
+    description: type.description ?? null,
+    purpose: type.purpose,
+    solo_task_friendly: type.soloTaskFriendly,
+    listed_in_events: type.listedInEvents,
+    announced_publicly: type.announcedPublicly,
+    guests_allowed: type.guestsAllowed,
+    default_host_id: type.defaultHostId ?? null,
+    summary_aliases: type.summaryAliases ?? [],
+    names_guest_speaker: type.namesGuestSpeaker ?? false,
+  };
 });
 
 export async function generateMetadata({
@@ -46,15 +58,23 @@ export default async function EditPrickleTypePage({
   const prickleType = await getPrickleType(id);
 
   if (!prickleType) {
-    redirect("/data/prickle-types");
+    redirect("/admin/data/prickle-types");
   }
+
+  const members = (await createRepos(await createClient()).members.list({ status: "active", orderBy: "name" })).map(({ id, name, displayName, email }) => ({ id, name, displayName, email }));
+  // The default host may no longer be active; still show who it is
+  const defaultHost = prickleType.default_host_id
+    ? (members.find((m) => m.id === prickleType.default_host_id) ??
+      (await createRepos(await createClient()).members.byIds([prickleType.default_host_id]))[0])
+    : null;
+  const defaultHostName = defaultHost ? getMemberDisplayName({ name: defaultHost.name, display_name: defaultHost.displayName }) : null;
 
   return (
     <div className="min-h-screen bg-canvas dark:bg-slate-950">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="container mx-auto px-6 py-4 relative">
           <Link
-            href="/data/prickle-types"
+            href="/admin/data/prickle-types"
             className="text-plum-600 hover:text-plum-700 dark:text-plum-400 text-sm mb-2 inline-block"
           >
             ← Back to Prickle Types
@@ -76,7 +96,11 @@ export default async function EditPrickleTypePage({
 
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-2xl">
-          <EditPrickleTypeForm prickleType={prickleType} />
+          <EditPrickleTypeForm
+            prickleType={{ ...prickleType, purpose: prickleType.purpose as PrickleTypePurpose }}
+            members={members}
+            defaultHostName={defaultHostName}
+          />
         </div>
       </main>
     </div>

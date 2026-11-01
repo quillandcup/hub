@@ -13,7 +13,7 @@ import { DataTablePager } from "@/components/DataTablePager";
 
 function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2) {
-    return <span className="text-slate-400 text-sm">—</span>;
+    return <span className="text-slate-500 dark:text-slate-400 text-sm">—</span>;
   }
   const W = 80;
   const H = 24;
@@ -122,7 +122,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
     <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
       {hasFilters && (
         <div className="px-6 pt-3 pb-0 flex items-center gap-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-600 dark:text-slate-400">
             {table.total} of {rows.length} rows
           </span>
           <button
@@ -184,7 +184,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
                 onClick={() => handleSort("max")}
                 filter={filterInput("max")}
               />
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 Trend
               </th>
               <SortableTh
@@ -228,7 +228,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
                 <td className="px-6 py-4">
                   <Sparkline values={row.sparkline} />
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                   {new Date(row.lastSession).toLocaleDateString(undefined, {
                     year: "numeric",
                     month: "short",
@@ -243,7 +243,7 @@ export default function PricklesTable({ rows, from, to }: Props) {
       </div>
 
       {table.total === 0 && rows.length > 0 && (
-        <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm">
+        <div className="p-8 text-center text-slate-600 dark:text-slate-400 text-sm">
           No rows match current filters.{" "}
           <button
             onClick={() => setFilters({})}

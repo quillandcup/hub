@@ -1,6 +1,6 @@
 -- pgTAP tests for get_record_history's p_parent_column and p_member_rows (20261102000000): an
 -- event's history includes its attendees' adds and removes, and a member's includes every row about
--- them, but another event's attendees stay out. Rolled back. Run with `npm run test:pgtap`.
+-- them, but another event's attendees stay out. Rolled back. Run with `pnpm test:pgtap`.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = extensions, public;
@@ -15,9 +15,12 @@ ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
 INSERT INTO public.members (id, name, email, joined_at, status) VALUES
   ('00000000-0000-4000-a000-00000000f401', 'Child Alice', 'child-alice@example.test', now(), 'lead');
-INSERT INTO public.events (id, slug, title, event_type, starts_at, ends_at) VALUES
-  ('00000000-0000-4000-a000-00000000f411', 'child-event-a', 'Child Event A', 'other', current_date, current_date),
-  ('00000000-0000-4000-a000-00000000f412', 'child-event-b', 'Child Event B', 'other', current_date, current_date);
+INSERT INTO public.prickles (id, source, start_time, end_time, title) VALUES
+  ('prkl_CHILDEVT0001', 'calendar', now(), now() + interval '1 hour', 'Child Event A'),
+  ('prkl_CHILDEVT0002', 'calendar', now(), now() + interval '1 hour', 'Child Event B');
+INSERT INTO public.community_events (id, slug, event_type, prickle_id) VALUES
+  ('00000000-0000-4000-a000-00000000f411', 'child-event-a', 'other', 'prkl_CHILDEVT0001'),
+  ('00000000-0000-4000-a000-00000000f412', 'child-event-b', 'other', 'prkl_CHILDEVT0002');
 
 CREATE TEMP TABLE result(label text, value jsonb) ON COMMIT DROP;
 GRANT INSERT ON result TO authenticated;

@@ -120,11 +120,14 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/reports/name-matching/route.ts'), 'utf-8'
       )
-      // All four large-table queries must use while-loop pagination
-      const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(4)
-      expect(content).toContain('from("zoom_attendees")')
-      expect(content).toContain('from("prickle_attendance")')
+      // Zoom attendees, members and prickle_attendance go through their repositories, which paginate (tests/api/data/)
+      expect(content).toContain('zoom.attendeesForMatching(')
+      expect(content).not.toContain('from("zoom_attendees")')
+      expect(content).toContain('members.identities(')
+      expect(content).not.toContain('from("members")')
+      // prickle_attendance goes through its repository, which paginates (tests/api/data/)
+      expect(content).toContain('attendance.attendedPrickleIdsByMember()')
+      expect(content).not.toContain('from("prickle_attendance")')
       // Must not use the old single-shot pattern for these tables
       expect(content).not.toMatch(/const\s*\{\s*data:\s*allZoomNames\s*\}/)
       expect(content).not.toMatch(/const\s*\{\s*data:\s*matchedAttendance\s*\}/)
@@ -202,14 +205,14 @@ describe('Report Route Pagination', () => {
       expect(testUser.message_count).toBe(MESSAGE_COUNT)
     }, 30000)
 
-    it('should verify pagination code exists in unmatched-slack-users route', async () => {
+    it('should count messages through the paginating repository in the unmatched-slack-users route', async () => {
       const fs = await import('fs/promises')
       const path = await import('path')
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/reports/unmatched-slack-users/route.ts'), 'utf-8'
       )
-      expect(content).toContain('while (hasMore)')
-      expect(content).toContain('from("slack_messages_meta")')
+      // The repository pages through the metadata view (its contract covers 1000+ rows)
+      expect(content).toContain('slackMessages.messageCountsByUser()')
       // Must not use the old single-shot destructuring for slack_messages
       expect(content).not.toMatch(/\{\s*data:\s*slackMessages\s*[,}]/)
     })
@@ -228,12 +231,12 @@ describe('Report Route Pagination', () => {
       const content = await fs.readFile(
         path.join(process.cwd(), 'app/api/members/network/route.ts'), 'utf-8'
       )
-      // Both members and prickle_attendance queries must use pagination loops
-      const whileCount = (content.match(/while \(hasMore\)/g) ?? []).length
-      expect(whileCount).toBeGreaterThanOrEqual(2)
-      expect(content).toContain('from("prickle_attendance")')
-      expect(content).toContain('from("members")')
-      expect(content).toContain('.range(offset, offset + 999)')
+      // Members and prickle_attendance go through their repositories, which paginate
+      // (tests/api/data/)
+      expect(content).toContain('members.list(')
+      expect(content).toContain('attendance.list()')
+      expect(content).not.toContain('from("prickle_attendance")')
+      expect(content).not.toContain('from("members")')
       // Must not have the old single-shot pattern
       expect(content).not.toMatch(/const\s*\{\s*data:\s*attendance\s*\}\s*=\s*await\s+supabase/)
     })

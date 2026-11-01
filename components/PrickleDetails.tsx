@@ -1,5 +1,6 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SortableTh } from "@/components/SortableTh";
@@ -7,8 +8,12 @@ import { useDataTable } from "@/lib/hooks/useDataTable";
 import type { SortValue } from "@/lib/hooks/useTableSort";
 import { DataTablePager } from "@/components/DataTablePager";
 import { ORG_TIMEZONE } from "@/lib/config";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import type { PrickleRoster, RosterReason } from "@/lib/prickle-roster";
+import type { PrickleDetail } from "@/lib/domain/prickle";
 import { REASON_ICON } from "@/components/ReasonBadges";
+import PrickleDescription from "@/components/PrickleDescription";
+import PrickleEditForm, { type PrickleEditConfig } from "@/components/PrickleEditForm";
 
 /** The same icons the prickle lists use (ReasonBadges), here worded for what another member did. */
 const ROSTER_REASONS: Record<RosterReason, { icon: string; label: string }> = {
@@ -26,7 +31,7 @@ const TIMEZONES = [
 ];
 
 interface PrickleDetailsProps {
-  prickle: any;
+  prickle: PrickleDetail;
   attendanceRecords: any[];
   hostMissing: boolean;
   hostLate: boolean;
@@ -38,6 +43,8 @@ interface PrickleDetailsProps {
   hasStarted?: boolean;
   /** For a prickle that hasn't started: who committed to it or added it to their calendar (lib/prickle-roster.ts). */
   roster?: PrickleRoster | null;
+  /** Admin only: makes the card editable (an Edit button that turns the text into fields, with Save). */
+  edit?: PrickleEditConfig;
 }
 
 type SortColumn = "member" | "join" | "leave" | "duration";
@@ -66,10 +73,16 @@ export default function PrickleDetails({
   insightsSlotUrl,
   hasStarted = true,
   roster = null,
+  edit,
 }: PrickleDetailsProps) {
+  const [editing, setEditing] = useState(false);
   const table = useDataTable<any, SortColumn>({
     rows: attendanceRecords,
-    getSortValue,
+    // Sort by the name the column shows.
+    getSortValue: (record, column) =>
+      column === "member" && record.members
+        ? getMemberDisplayName(record.members).toLowerCase()
+        : getSortValue(record, column),
     defaultSort: null,
   });
   const { sortColumn, sortDirection, handleSort } = table;
@@ -86,15 +99,16 @@ export default function PrickleDetails({
       : userTimezonePreference;
 
   const [timezone, setTimezone] = useState(defaultTimezone);
+  const withSecondary = useWithSecondaryTime();
 
   useEffect(() => {
     setTimezone(defaultTimezone);
   }, [defaultTimezone]);
 
-  const prickleType = prickle.prickle_types as any;
-  const hostMember = prickle.host as any;
-  const startTime = new Date(prickle.start_time);
-  const endTime = new Date(prickle.end_time);
+  const prickleType = prickle.type;
+  const hostMember = prickle.host;
+  const startTime = new Date(prickle.startTime);
+  const endTime = new Date(prickle.endTime);
   const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
 
   const uniqueMembers = new Set(attendanceRecords.map(r => r.member_id || r.members?.id)).size;
@@ -106,6 +120,7 @@ export default function PrickleDetails({
       minute: "2-digit",
     });
   };
+  const formatTimeWithOrg = (date: Date) => withSecondary(formatTime(date), date, timezone);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -139,22 +154,33 @@ export default function PrickleDetails({
 
       {/* Prickle Info */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold mb-4">{prickle.title || "Prickle Details"}</h2>
-        {prickle.description && (
-          <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-line">{prickle.description}</p>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <h2 className="text-xl font-bold">{editing ? "Edit prickle" : prickle.title || "Prickle Details"}</h2>
+          {edit && !editing && (
+            <button type="button" onClick={() => setEditing(true)} className="text-sm text-plum-600 dark:text-plum-400 hover:underline flex-shrink-0">
+              Edit
+            </button>
+          )}
+        </div>
+        {editing && edit && <div className="mb-4"><PrickleEditForm prickle={prickle} edit={edit} onDone={() => setEditing(false)} /></div>}
+        {!editing && prickle.description && (
+          <PrickleDescription markdown={prickle.description} />
         )}
         <div className="grid grid-cols-2 gap-4 text-sm">
+          {!editing && (
           <div>
             <span className="text-slate-600 dark:text-slate-400">Type:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">{prickleType?.name || "Unknown"}</p>
           </div>
+          )}
+          {!editing && (
           <div>
             <span className="text-slate-600 dark:text-slate-400">Host:</span>
             <p className="font-semibold">
               {hostMember ? (
                 <>
                   <Link data-track="prickle-open-host" href={`${memberBasePath}/${hostMember.id}`} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                    {hostMember.name}
+                    {getMemberDisplayName({ name: hostMember.name, display_name: hostMember.displayName })}
                   </Link>
                   {(hostMissing || hostLate) && (
                     <span className="ml-2" title={hostMissing ? "Host did not attend" : "Host was late (>5 min)"}>
@@ -177,6 +203,19 @@ export default function PrickleDetails({
               )}
             </p>
           </div>
+          )}
+          {!editing && prickle.guestSpeaker && (
+            <div>
+              <span className="text-slate-600 dark:text-slate-400">Guest speaker:</span>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.guestSpeaker}</p>
+            </div>
+          )}
+          {!editing && prickle.location && (
+            <div>
+              <span className="text-slate-600 dark:text-slate-400">Location:</span>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{prickle.location}</p>
+            </div>
+          )}
           <div>
             <span className="text-slate-600 dark:text-slate-400">Date:</span>
             <p className="font-semibold text-slate-900 dark:text-slate-100">{formatDate(startTime)}</p>
@@ -186,12 +225,12 @@ export default function PrickleDetails({
             <p className="font-semibold text-slate-900 dark:text-slate-100">
               {insightsSlotUrl ? (
                 <Link data-track="prickle-open-insights" href={insightsSlotUrl} className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                  {formatTime(startTime)} - {formatTime(endTime)}
+                  {formatTimeWithOrg(startTime)} - {formatTimeWithOrg(endTime)}
                 </Link>
               ) : (
                 <>{formatTime(startTime)} - {formatTime(endTime)}</>
               )}
-              <span className="text-slate-500 dark:text-slate-400 ml-2">({durationMinutes} min)</span>
+              <span className="text-slate-600 dark:text-slate-400 ml-2">({durationMinutes} min)</span>
             </p>
           </div>
           <div>
@@ -226,7 +265,7 @@ export default function PrickleDetails({
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-xl font-bold">{hasStarted ? `Attendees (${uniqueMembers})` : "Who's coming"}</h2>
           {attendanceRecords.length > uniqueMembers && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               {attendanceRecords.length} total records (some members left and rejoined)
             </p>
           )}
@@ -273,11 +312,11 @@ export default function PrickleDetails({
                     <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                       <td className="px-6 py-4">
                         <Link data-track="prickle-open-attendee" href={`${memberBasePath}/${member.id}`} className="text-sm font-medium text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline">
-                          {member.name}
+                          {getMemberDisplayName(member)}
                         </Link>
                         {showMemberEmails && (
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            {member.email}
+                          <div className="text-xs text-slate-600 dark:text-slate-400">
+                            {[getMemberDisplayName(member) !== member.name ? member.name : null, member.email].filter(Boolean).join(" · ")}
                           </div>
                         )}
                       </td>
@@ -322,7 +361,7 @@ export default function PrickleDetails({
                       {entry.name}
                     </Link>
                     {entry.isYou && (
-                      <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="ml-2 text-xs text-slate-600 dark:text-slate-400">
                         {entry.hiddenFromOthers ? "You (hidden from others)" : "You"}
                       </span>
                     )}
@@ -330,18 +369,18 @@ export default function PrickleDetails({
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
               {(["host", "committed", "calendar"] as const)
                 .filter((reason) => roster.entries.some((e) => e.reason === reason))
                 .map((reason) => `${ROSTER_REASONS[reason].icon} ${ROSTER_REASONS[reason].label}`)
                 .join(" · ")}
             </p>
             {roster.total > roster.entries.length && (
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                 and {roster.total - roster.entries.length} more
               </p>
             )}
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
               Don&apos;t want to be listed?{" "}
               <Link data-track="prickle-change-it-in-your-profile" href="/settings/profile" className="underline">
                 Change it in your profile settings
@@ -350,7 +389,7 @@ export default function PrickleDetails({
             </p>
           </div>
         ) : (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="p-12 text-center text-slate-600 dark:text-slate-400">
             {hasStarted ? "No attendance records for this Prickle" : "Stay tuned to see who attends!"}
           </div>
         )}

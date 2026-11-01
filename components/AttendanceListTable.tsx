@@ -1,5 +1,7 @@
 "use client";
 
+import { getMemberDisplayName } from "@/lib/member-display-name";
+import { useWithSecondaryTime } from "@/components/SecondaryTimezone";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -54,7 +56,7 @@ function getSortValue(record: any, column: SortColumn): SortValue {
     case "duration":
       return (new Date(record.leave_time).getTime() - new Date(record.join_time).getTime()) / 60000;
     case "host":
-      return record.prickles?.host?.name?.toLowerCase() ?? null;
+      return record.prickles?.host ? getMemberDisplayName(record.prickles.host).toLowerCase() : null;
   }
 }
 
@@ -68,6 +70,7 @@ export default function AttendanceListTable({
   checkins,
   onOpenCheck,
 }: Props) {
+  const withSecondary = useWithSecondaryTime();
   const router = useRouter();
   const showPills = checkins !== undefined && onOpenCheck !== undefined;
   const columnCount = showPills ? 5 : 4;
@@ -111,7 +114,7 @@ export default function AttendanceListTable({
   if (attendance.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow">
-        <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+        <div className="p-12 text-center text-slate-600 dark:text-slate-400">
           No attendance records for this member
         </div>
       </div>
@@ -149,7 +152,7 @@ export default function AttendanceListTable({
                 onClick={() => handleSort("host")}
               />
               {showPills && (
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Check in / out
                 </th>
               )}
@@ -193,7 +196,7 @@ export default function AttendanceListTable({
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
-                          {formatTime(joinTime)} – {formatTime(leaveTime)}
+                          {withSecondary(`${formatTime(joinTime)} – ${formatTime(leaveTime)}`, joinTime, timezone)}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">
                           {duration} min
@@ -205,7 +208,7 @@ export default function AttendanceListTable({
                               className="text-plum-600 hover:text-plum-700 dark:text-plum-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {prickle.host.name}
+                              {getMemberDisplayName(prickle.host)}
                             </Link>
                           ) : (
                             "None"
