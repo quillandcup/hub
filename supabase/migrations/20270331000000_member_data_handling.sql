@@ -22,6 +22,8 @@
 -- read-only report of how many rows each choice would touch for one member, which also answers "show me what you
 -- hold about me". The routine that carries the choices out is a separate, reviewed change.
 
+SET LOCAL lock_timeout = '1s';
+
 CREATE TABLE public.member_data_handling (
   table_name text NOT NULL,
   column_name text NOT NULL,
