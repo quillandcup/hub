@@ -148,7 +148,7 @@ describe("updateEntry", () => {
     const result = await updateEntry("wpe_AAAAAAAAAAA1", { entryDate: "2026-02-02", measure: "pages", mode: "set_total", amount: 12, note: " hi ", tags: ["A", "a"], prickleId: null });
 
     expect(result).toEqual({ success: true });
-    expect(await repos.writing.entriesForProjects(ME, [PROJECT])).toEqual([
+    expect(await repos.writing.entries(ME, { projectIds: [PROJECT] })).toEqual([
       expect.objectContaining({ entry_date: "2026-02-02", measure: "pages", mode: "set_total", amount: 12, note: "hi", tags: ["a"] }),
     ]);
     expect(revalidatePath).toHaveBeenCalledWith("/prickles/prkl_AAAAAAAAAAA1");
@@ -160,7 +160,7 @@ describe("updateEntry", () => {
 
     await updateEntry("wpe_AAAAAAAAAAA1", { entryDate: "2026-02-01", measure: "words", mode: "delta", amount: 1, note: "   " });
 
-    expect((await repos.writing.entriesForProjects(ME, [PROJECT]))[0].note).toBeNull();
+    expect((await repos.writing.entries(ME, { projectIds: [PROJECT] }))[0].note).toBeNull();
   });
 
   it("won't touch an entry that isn't the member's, or doesn't exist", async () => {

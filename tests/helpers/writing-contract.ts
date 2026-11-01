@@ -37,7 +37,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
 
       const mine = await ctx.repo().activeProjects(a);
       expect(mine.map((p) => p.title)).toEqual(["New Draft", "Old Draft"]);
-      expect(await ctx.repo().latestActiveProjectId(a)).toBe(mine[0].id);
+      expect((await ctx.repo().activeProjects(a, { limit: 1 })).map((p) => p.id)).toEqual([mine[0].id]);
       expect((await ctx.repo().activeProjects(b)).map((p) => p.title)).toEqual(["Not Mine"]);
     });
 
@@ -46,7 +46,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       await ctx.seed({});
 
       expect(await ctx.repo().activeProjects(a)).toEqual([]);
-      expect(await ctx.repo().latestActiveProjectId(a)).toBeNull();
+      expect(await ctx.repo().activeProjects(a, { limit: 1 })).toEqual([]);
       expect(await ctx.repo().goalCount(a)).toBe(0);
     });
 
@@ -251,16 +251,16 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const id = await ctx.repo().addEntry({ memberId: a, projectId: ids.p, entryDate: "2026-03-01", measure: "words", mode: "delta", amount: 1, note: "keep", tags: ["x"] });
 
       await ctx.repo().updateEntry(b, id, { amount: 999 });
-      expect((await ctx.repo().entriesForProjects(a, [ids.p]))[0].amount).toBe(1);
+      expect((await ctx.repo().entries(a, { projectIds: [ids.p] }))[0].amount).toBe(1);
 
       await ctx.repo().updateEntry(a, id, { entryDate: "2026-03-02", measure: "pages", mode: "set_total", amount: 40, tags: [], prickleId: ctx.prickleId });
-      expect(await ctx.repo().entriesForProjects(a, [ids.p])).toEqual([
+      expect(await ctx.repo().entries(a, { projectIds: [ids.p] })).toEqual([
         expect.objectContaining({ id, entry_date: "2026-03-02", measure: "pages", mode: "set_total", amount: 40, note: "keep", tags: [] }),
       ]);
       expect((await ctx.repo().findEntry(id))?.prickle_id).toBe(ctx.prickleId);
 
       await ctx.repo().updateEntry(a, id, { note: null, prickleId: null });
-      expect((await ctx.repo().entriesForProjects(a, [ids.p]))[0].note).toBeNull();
+      expect((await ctx.repo().entries(a, { projectIds: [ids.p] }))[0].note).toBeNull();
       expect((await ctx.repo().findEntry(id))?.prickle_id).toBeNull();
     });
 
@@ -319,12 +319,12 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         entries: [entry({ amount: 1, note: "a", tags: ["x"] }), entry({ project: "q", amount: 2 }), entry({ member: 1, project: "theirs", amount: 3 })],
       });
 
-      expect((await ctx.repo().entriesForProjects(a, [ids.p, ids.q])).map((e) => e.amount).sort()).toEqual([1, 2]);
-      expect(await ctx.repo().entriesForProjects(a, [ids.p])).toEqual([
+      expect((await ctx.repo().entries(a, { projectIds: [ids.p, ids.q] })).map((e) => e.amount).sort()).toEqual([1, 2]);
+      expect(await ctx.repo().entries(a, { projectIds: [ids.p] })).toEqual([
         { id: expect.any(String), project_id: ids.p, entry_date: "2026-02-01", measure: "words", mode: "delta", amount: 1, note: "a", tags: ["x"], created_at: expect.any(String) },
       ]);
-      expect(await ctx.repo().entriesForProjects(a, [ids.theirs])).toEqual([]);
-      expect(await ctx.repo().entriesForProjects(a, [])).toEqual([]);
+      expect(await ctx.repo().entries(a, { projectIds: [ids.theirs] })).toEqual([]);
+      expect(await ctx.repo().entries(a, { projectIds: [] })).toEqual([]);
     });
 
     it("lists the dated amounts of one project and measure", async () => {
@@ -350,8 +350,8 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         ],
       });
 
-      expect(await ctx.repo().recentProjectMeasures(a, ids.p, 50)).toEqual(["words", "pages", "words"]);
-      expect(await ctx.repo().recentProjectMeasures(a, ids.p, 2)).toEqual(["words", "pages"]);
+      expect((await ctx.repo().recentEntryMeasures(a, 50, { projectId: ids.p })).map((e) => e.measure)).toEqual(["words", "pages", "words"]);
+      expect((await ctx.repo().recentEntryMeasures(a, 2, { projectId: ids.p })).map((e) => e.measure)).toEqual(["words", "pages"]);
     });
 
     it("tells which members logged in which project against which prickles", async () => {
@@ -413,16 +413,16 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       await ctx.repo().updateProject(b, ids.other, { phase: "abandoned" });
 
       expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Going"]);
-      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
+      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => [p.title, p.phase])).toEqual([["Dropped", "abandoned"], ["Done", "complete"]]);
       expect(await ctx.repo().projectSummary(a, ids.dropped)).toMatchObject({ title: "Dropped", phase: "abandoned" });
       // Past projects can still be picked to log against; only the lists apart.
       expect((await ctx.repo().activeProjects(a)).map((p) => p.title)).toEqual(["Dropped", "Done", "Going"]);
       expect(await ctx.repo().projectSummaries(b)).toEqual([]);
-      expect((await ctx.repo().pastProjectSummaries(b)).map((p) => p.title)).toEqual(["Theirs"]);
+      expect((await ctx.repo().projectSummaries(b, { past: true })).map((p) => p.title)).toEqual(["Theirs"]);
 
       await ctx.repo().updateProject(a, ids.dropped, { phase: "revising" });
       expect((await ctx.repo().projectSummaries(a)).map((p) => p.title)).toEqual(["Dropped", "Going"]);
-      expect((await ctx.repo().pastProjectSummaries(a)).map((p) => p.title)).toEqual(["Done"]);
+      expect((await ctx.repo().projectSummaries(a, { past: true })).map((p) => p.title)).toEqual(["Done"]);
     });
 
     it("deletes a project with its goals and entries, only for its owner, and keeps it out of every read", async () => {
@@ -450,9 +450,9 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(await repo.ownsProject(a, ids.gone)).toBe(false);
       expect((await repo.projectSummaries(a)).map((p) => p.title)).toEqual(["Keep"]);
       expect((await repo.activeProjects(a)).map((p) => p.title)).toEqual(["Keep"]);
-      expect(await repo.latestActiveProjectId(a)).toBe(ids.p);
-      expect(await repo.pastProjectSummaries(a)).toEqual([]);
-      expect((await repo.projectEntries(a)).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.activeProjects(a, { limit: 1 })).map((p) => p.id)).toEqual([ids.p]);
+      expect(await repo.projectSummaries(a, { past: true })).toEqual([]);
+      expect((await repo.entries(a)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.projectGoals(a)).map((g) => g.id)).toEqual([keepGoal]);
       expect(await repo.goalCount(a)).toBe(1);
       expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([]);
@@ -461,7 +461,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       // A deleted project can't be edited back to life, nor listed as a past one.
       await repo.updateProject(a, ids.gone, { title: "Revived", phase: "complete" });
       expect(await repo.projectSummary(a, ids.gone)).toBeNull();
-      expect(await repo.pastProjectSummaries(a)).toEqual([]);
+      expect(await repo.projectSummaries(a, { past: true })).toEqual([]);
     });
 
     it("changes only the given fields of the member's own project", async () => {
@@ -497,8 +497,8 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         ],
       });
 
-      expect((await ctx.repo().projectEntries(a)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([4, 7, 10]);
-      expect((await ctx.repo().projectEntries(b)).map((e) => e.amount)).toEqual([99]);
+      expect((await ctx.repo().entries(a)).map((e) => e.amount).sort((x, y) => x - y)).toEqual([4, 7, 10]);
+      expect((await ctx.repo().entries(b)).map((e) => e.amount)).toEqual([99]);
 
       const detailed = await ctx.repo().projectEntriesWithPrickles(a, ids.p);
       expect(detailed.map((e) => e.entry_date)).toEqual(["2026-02-03", "2026-02-01"]);
@@ -547,7 +547,7 @@ export function defineWritingContract(name: string, setup: () => WritingContract
           { key: "q", member: 0, title: "Q", createdAt: "2026-01-02T10:00:00Z" },
         ],
       });
-      expect(await ctx.repo().startingBalance(a, ids.p, "words")).toBeNull();
+      expect((await ctx.repo().startingBalances(a, ids.p)).find((b) => b.measure === "words")?.amount ?? null).toBeNull();
 
       await ctx.repo().replaceStartingBalances(a, ids.p, [{ measure: "words", amount: 5000 }, { measure: "pages", amount: 12 }], ["scenes"]);
       await ctx.repo().replaceStartingBalances(a, ids.q, [{ measure: "words", amount: 1 }], []);
@@ -557,11 +557,11 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       ]);
       expect(await ctx.repo().startingBalances(a)).toHaveLength(3);
       expect(await ctx.repo().startingBalances(b)).toEqual([]);
-      expect(await ctx.repo().startingBalance(a, ids.p, "words")).toBe(5000);
+      expect((await ctx.repo().startingBalances(a, ids.p)).find((b) => b.measure === "words")?.amount ?? null).toBe(5000);
 
       await ctx.repo().replaceStartingBalances(a, ids.p, [{ measure: "words", amount: 6000 }], ["pages"]);
       expect(await ctx.repo().startingBalances(a, ids.p)).toEqual([{ project_id: ids.p, measure: "words", amount: 6000 }]);
-      expect(await ctx.repo().startingBalance(a, ids.p, "pages")).toBeNull();
+      expect((await ctx.repo().startingBalances(a, ids.p)).find((b) => b.measure === "pages")?.amount ?? null).toBeNull();
       expect(await ctx.repo().startingBalances(a, ids.q)).toHaveLength(1);
     });
 
@@ -587,12 +587,12 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect((await repo.activeGoalCandidates()).map((g) => g.goal_id)).not.toContain(goneGoal);
 
       expect(await repo.recentEntryMeasures(a, 10)).toEqual([{ project_id: ids.p, measure: "words" }]);
-      expect(await repo.recentProjectMeasures(a, ids.p, 10)).toEqual(["words"]);
+      expect((await repo.recentEntryMeasures(a, 10, { projectId: ids.p })).map((e) => e.measure)).toEqual(["words"]);
       expect(await repo.entriesForPrickle(a, ctx.prickleId)).toEqual([{ project_id: ids.p, measure: "words", mode: "delta", amount: 5 }]);
       expect((await repo.prickleEntries(a, ctx.prickleId)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.exportEntries(a)).map((e) => e.measure)).toEqual(["words"]);
-      expect((await repo.entriesForProjects(a, [ids.p])).map((e) => e.id)).toEqual([keepEntry]);
-      expect((await repo.projectEntries(a)).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.entries(a, { projectIds: [ids.p] })).map((e) => e.id)).toEqual([keepEntry]);
+      expect((await repo.entries(a)).map((e) => e.id)).toEqual([keepEntry]);
       expect((await repo.projectEntriesWithPrickles(a, ids.p)).map((e) => e.id)).toEqual([keepEntry]);
       expect(await repo.seriesEntries(a, ids.p, "pages")).toEqual([]);
       expect(await repo.loggedAgainstPrickles([a], [ctx.prickleId])).toEqual([{ member_id: a, prickle_id: ctx.prickleId, project_id: ids.p }]);
@@ -614,18 +614,18 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       await repo.importEntries([row]);
       await repo.importGoals([{ member_id: a, project_id: project.id, external_id: tag("g"), goal_type: "target", measure: "words", target_amount: 10, created_at: "2025-02-01T10:00:00Z" }]);
 
-      const [entry] = await repo.entriesForProjects(a, [project.id]);
+      const [entry] = await repo.entries(a, { projectIds: [project.id] });
       await repo.deleteEntry(a, entry.id);
       const goalId = (await repo.projectGoals(a, project.id))[0].id;
       await repo.deleteGoal(a, goalId);
 
       expect(await repo.importEntries([row])).toBe(0);
-      expect(await repo.entriesForProjects(a, [project.id])).toEqual([]);
+      expect(await repo.entries(a, { projectIds: [project.id] })).toEqual([]);
       // Deleted rows still show as imported, flagged, so a re-import neither brings them back nor tries to.
       expect((await repo.importedEntries(a)).map((e) => [e.external_id, e.deleted])).toEqual([[tag("e"), true]]);
       expect((await repo.importedGoals(a)).map((g) => [g.external_id, g.deleted])).toEqual([[tag("g"), true]]);
       expect(await repo.overwriteImportedEntries([{ ...row, amount: 50 }])).toBe(1);
-      expect(await repo.entriesForProjects(a, [project.id])).toEqual([]);
+      expect(await repo.entries(a, { projectIds: [project.id] })).toEqual([]);
       expect(await repo.overwriteImportedGoal(a, tag("g"), { target_amount: 50 })).toBe(0);
     });
 

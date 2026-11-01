@@ -202,10 +202,8 @@ const goalColumns = (g: WritingGoalRow): GoalColumns => ({
 });
 
 export interface WritingRepository {
-  /** The member's projects that aren't archived or deleted, newest first (the picker's list, past phases included). */
-  activeProjects(memberId: string): Promise<ProjectChoice[]>;
-  /** The id of the member's newest project that isn't archived, or null. */
-  latestActiveProjectId(memberId: string): Promise<string | null>;
+  /** The member's projects that aren't archived or deleted, newest first (the picker's list, past phases included), at most `limit` of them. */
+  activeProjects(memberId: string, options?: { limit?: number }): Promise<ProjectChoice[]>;
   /** Whether the project exists, is this member's and isn't deleted. */
   ownsProject(memberId: string, projectId: string): Promise<boolean>;
   /** Every member's projects whose cover is a link rather than a library image (for moving them in), by id. Paginated. */
@@ -216,8 +214,8 @@ export interface WritingRepository {
   goalCount(memberId: string): Promise<number>;
   /** The measure of each goal that isn't archived, with its project (a goal can be project-less). */
   activeGoalMeasures(memberId: string): Promise<{ project_id: string | null; measure: string }[]>;
-  /** The measures of the member's latest entries, newest first. */
-  recentEntryMeasures(memberId: string, limit: number): Promise<{ project_id: string; measure: string }[]>;
+  /** The measures of the member's latest entries, newest first, `limit` of them (repeats kept), optionally one project's. */
+  recentEntryMeasures(memberId: string, limit: number, options?: { projectId?: string }): Promise<{ project_id: string; measure: string }[]>;
   /** What the member logged against this prickle, in the order they logged it. */
   entriesForPrickle(memberId: string, prickleId: string): Promise<{ project_id: string; measure: string; mode: string; amount: number }[]>;
   /** The member's entries by date, with their project's title, optionally one project's. */
@@ -252,34 +250,26 @@ export interface WritingRepository {
   prickleEntries(memberId: string, prickleId: string): Promise<PrickleEntry[]>;
   /** The prickles the member linked an entry to since `since` (ISO, by when the entry was logged). */
   prickleIdsLoggedSince(memberId: string, since: string): Promise<Set<string>>;
-  /** The member's entries in these projects (no particular order). */
-  entriesForProjects(memberId: string, projectIds: string[]): Promise<EntryColumns[]>;
+  /** Every entry the member logged (all pages), in no particular order; with `projectIds`, only those projects' (an empty list gives none). */
+  entries(memberId: string, options?: { projectIds?: string[] }): Promise<EntryColumns[]>;
   /** The dated amounts the member logged in one project for one measure (no particular order). */
   seriesEntries(memberId: string, projectId: string, measure: string): Promise<{ entry_date: string; mode: string; amount: number; created_at: string }[]>;
-  /** The measures of the member's latest entries in a project, newest first, `limit` of them (repeats kept). */
-  recentProjectMeasures(memberId: string, projectId: string, limit: number): Promise<string[]>;
   /** Which of these members logged against which of these prickles, in which project; every row, past 1000. */
   loggedAgainstPrickles(memberIds: string[], prickleIds: string[]): Promise<LoggedAgainstPrickle[]>;
 
 
   // --- projects and starting balances ---
 
-  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show. */
-  projectSummaries(memberId: string): Promise<ProjectSummary[]>;
-  /** The member's projects in a past phase (complete, published, abandoned), newest first. */
-  pastProjectSummaries(memberId: string): Promise<ProjectSummary[]>;
+  /** The member's projects still going (not in a past phase), newest first, with the columns the projects pages show; with `past`, those in a past phase (complete, published, abandoned) instead. */
+  projectSummaries(memberId: string, options?: { past?: boolean }): Promise<ProjectSummary[]>;
   /** One of the member's projects (archived or not), or null when it isn't theirs, is deleted or doesn't exist. */
   projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null>;
-  /** Every entry the member logged, in no particular order (all pages). */
-  projectEntries(memberId: string): Promise<ProjectEntry[]>;
   /** One project's entries, newest date first, each with the prickle it was logged against (type and host joined). */
   projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]>;
   /** The member's goals that aren't archived, optionally one project's. */
   projectGoals(memberId: string, projectId?: string): Promise<ProjectGoal[]>;
   /** The member's starting balances, optionally one project's. */
   startingBalances(memberId: string, projectId?: string): Promise<StartingBalance[]>;
-  /** The amount of one project's starting balance for a measure, or null when there is none. */
-  startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null>;
   /** Creates a project and returns its id. */
   createProject(memberId: string, title: string, phase: string): Promise<string>;
   /** Changes the given fields of the member's project (a project that isn't theirs, or is deleted, is left alone). */
@@ -317,30 +307,18 @@ export interface WritingRepository {
 export class SupabaseWritingRepository implements WritingRepository {
   constructor(private readonly db: Db) {}
 
-  async activeProjects(memberId: string): Promise<ProjectChoice[]> {
-    const { data, error } = await this.db
+  async activeProjects(memberId: string, { limit }: { limit?: number } = {}): Promise<ProjectChoice[]> {
+    let query = this.db
       .from("writing_projects")
       .select("id, title")
       .eq("member_id", memberId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
+    if (limit !== undefined) query = query.limit(limit);
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     return data ?? [];
-  }
-
-  async latestActiveProjectId(memberId: string) {
-    const { data, error } = await this.db
-      .from("writing_projects")
-      .select("id")
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data?.id ?? null;
   }
 
   async ownsProject(memberId: string, projectId: string) {
@@ -361,15 +339,10 @@ export class SupabaseWritingRepository implements WritingRepository {
     return data ?? [];
   }
 
-  async recentEntryMeasures(memberId: string, limit: number) {
-    const { data, error } = await this.db
-      .from("writing_progress_entries")
-      .select("project_id, measure")
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit);
+  async recentEntryMeasures(memberId: string, limit: number, { projectId }: { projectId?: string } = {}) {
+    let query = this.db.from("writing_progress_entries").select("project_id, measure").eq("member_id", memberId).is("deleted_at", null);
+    if (projectId) query = query.eq("project_id", projectId);
+    const { data, error } = await query.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit);
     if (error) throw new Error(error.message);
     return data ?? [];
   }
@@ -560,18 +533,13 @@ export class SupabaseWritingRepository implements WritingRepository {
     return new Set((data ?? []).map((e) => e.prickle_id as string));
   }
 
-  async entriesForProjects(memberId: string, projectIds: string[]) {
-    if (projectIds.length === 0) return [];
-    return fetchAllRows<EntryColumns>((from, to) =>
-      this.db
-        .from("writing_progress_entries")
-        .select("id, project_id, entry_date, measure, mode, amount, note, tags, created_at")
-        .eq("member_id", memberId)
-        .is("deleted_at", null)
-        .in("project_id", projectIds)
-        .order("id")
-        .range(from, to),
-    );
+  async entries(memberId: string, { projectIds }: { projectIds?: string[] } = {}) {
+    if (projectIds?.length === 0) return [];
+    return fetchAllRows<EntryColumns>((from, to) => {
+      let query = this.db.from("writing_progress_entries").select(ENTRY_COLUMNS).eq("member_id", memberId).is("deleted_at", null);
+      if (projectIds) query = query.in("project_id", projectIds);
+      return query.order("id").range(from, to);
+    });
   }
 
   async seriesEntries(memberId: string, projectId: string, measure: string) {
@@ -586,20 +554,6 @@ export class SupabaseWritingRepository implements WritingRepository {
         .order("id")
         .range(from, to),
     );
-  }
-
-  async recentProjectMeasures(memberId: string, projectId: string, limit: number) {
-    const { data, error } = await this.db
-      .from("writing_progress_entries")
-      .select("measure")
-      .eq("project_id", projectId)
-      .eq("member_id", memberId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(limit);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((e) => e.measure);
   }
 
   async loggedAgainstPrickles(memberIds: string[], prickleIds: string[]) {
@@ -618,25 +572,9 @@ export class SupabaseWritingRepository implements WritingRepository {
 
   // --- projects and starting balances ---
 
-  async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    const { data, error } = await this.db
-      .from("writing_projects")
-      .select(SUMMARY_COLUMNS)
-      .eq("member_id", memberId)
-      .not("phase", "in", `(${PAST_PHASES.join(",")})`)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false });
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  }
-
-  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    const { data, error } = await this.db
-      .from("writing_projects")
-      .select(SUMMARY_COLUMNS)
-      .eq("member_id", memberId)
-      .in("phase", [...PAST_PHASES])
+  async projectSummaries(memberId: string, { past = false }: { past?: boolean } = {}): Promise<ProjectSummary[]> {
+    const query = this.db.from("writing_projects").select(SUMMARY_COLUMNS).eq("member_id", memberId);
+    const { data, error } = await (past ? query.in("phase", [...PAST_PHASES]) : query.not("phase", "in", `(${PAST_PHASES.join(",")})`))
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false });
@@ -654,12 +592,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
-  }
-
-  async projectEntries(memberId: string): Promise<ProjectEntry[]> {
-    return fetchAllRows<ProjectEntry>((from, to) =>
-      this.db.from("writing_progress_entries").select(ENTRY_COLUMNS).eq("member_id", memberId).is("deleted_at", null).order("id").range(from, to),
-    );
   }
 
   async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
@@ -696,18 +628,6 @@ export class SupabaseWritingRepository implements WritingRepository {
       if (projectId) query = query.eq("project_id", projectId);
       return query.order("project_id").order("measure").range(from, to);
     });
-  }
-
-  async startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null> {
-    const { data, error } = await this.db
-      .from("writing_project_starting_balances")
-      .select("amount")
-      .eq("project_id", projectId)
-      .eq("member_id", memberId)
-      .eq("measure", measure)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data?.amount ?? null;
   }
 
   async createProject(memberId: string, title: string, phase: string): Promise<string> {
@@ -903,12 +823,10 @@ export class InMemoryWritingRepository implements WritingRepository {
     return [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : a.id < b.id ? 1 : -1));
   }
 
-  async activeProjects(memberId: string) {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.deleted_at)).map(({ id, title }) => ({ id, title }));
-  }
-
-  async latestActiveProjectId(memberId: string) {
-    return (await this.activeProjects(memberId))[0]?.id ?? null;
+  async activeProjects(memberId: string, { limit }: { limit?: number } = {}) {
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !p.deleted_at))
+      .slice(0, limit)
+      .map(({ id, title }) => ({ id, title }));
   }
 
   async ownsProject(memberId: string, projectId: string) {
@@ -923,8 +841,8 @@ export class InMemoryWritingRepository implements WritingRepository {
     return this.liveGoals().filter((g) => g.member_id === memberId && !g.archived_at).map((g) => ({ project_id: g.project_id, measure: g.measure }));
   }
 
-  async recentEntryMeasures(memberId: string, limit: number) {
-    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId))
+  async recentEntryMeasures(memberId: string, limit: number, { projectId }: { projectId?: string } = {}) {
+    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && (!projectId || e.project_id === projectId)))
       .slice(0, limit)
       .map((e) => ({ project_id: e.project_id, measure: e.measure }));
   }
@@ -1084,20 +1002,17 @@ export class InMemoryWritingRepository implements WritingRepository {
     return new Set(this.liveEntries().filter((e) => e.member_id === memberId && e.prickle_id && e.created_at >= since).map((e) => e.prickle_id as string));
   }
 
-  async entriesForProjects(memberId: string, projectIds: string[]) {
-    return this.liveEntries().filter((e) => e.member_id === memberId && projectIds.includes(e.project_id)).map((e) => this.columns(e));
+  async entries(memberId: string, { projectIds }: { projectIds?: string[] } = {}) {
+    return this.liveEntries()
+      .filter((e) => e.member_id === memberId && (!projectIds || projectIds.includes(e.project_id)))
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+      .map((e) => this.columns(e));
   }
 
   async seriesEntries(memberId: string, projectId: string, measure: string) {
     return this.liveEntries()
       .filter((e) => e.member_id === memberId && e.project_id === projectId && e.measure === measure)
       .map((e) => ({ entry_date: e.entry_date, mode: e.mode, amount: e.amount, created_at: e.created_at }));
-  }
-
-  async recentProjectMeasures(memberId: string, projectId: string, limit: number) {
-    return this.newestFirst(this.liveEntries().filter((e) => e.member_id === memberId && e.project_id === projectId))
-      .slice(0, limit)
-      .map((e) => e.measure);
   }
 
   async loggedAgainstPrickles(memberIds: string[], prickleIds: string[]) {
@@ -1112,24 +1027,13 @@ export class InMemoryWritingRepository implements WritingRepository {
     return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
   }
 
-  async projectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && !isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
-  }
-
-  async pastProjectSummaries(memberId: string): Promise<ProjectSummary[]> {
-    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && isPastPhase(p.phase) && !p.deleted_at)).map(summaryOf);
+  async projectSummaries(memberId: string, { past = false }: { past?: boolean } = {}): Promise<ProjectSummary[]> {
+    return this.newestFirst(this.data.writingProjects.filter((p) => p.member_id === memberId && isPastPhase(p.phase) === past && !p.deleted_at)).map(summaryOf);
   }
 
   async projectSummary(memberId: string, projectId: string): Promise<ProjectSummary | null> {
     const project = this.data.writingProjects.find((p) => p.id === projectId && p.member_id === memberId && !p.deleted_at);
     return project ? summaryOf(project) : null;
-  }
-
-  async projectEntries(memberId: string): Promise<ProjectEntry[]> {
-    return this.liveEntries()
-      .filter((e) => e.member_id === memberId)
-      .sort((a, b) => (a.id < b.id ? -1 : 1))
-      .map(entryOf);
   }
 
   async projectEntriesWithPrickles(memberId: string, projectId: string): Promise<ProjectEntryDetail[]> {
@@ -1180,10 +1084,6 @@ export class InMemoryWritingRepository implements WritingRepository {
       .filter((b) => b.member_id === memberId && (!projectId || b.project_id === projectId))
       .map(({ project_id, measure, amount }) => ({ project_id, measure, amount }))
       .sort((a, b) => (a.project_id < b.project_id ? -1 : a.project_id > b.project_id ? 1 : a.measure < b.measure ? -1 : 1));
-  }
-
-  async startingBalance(memberId: string, projectId: string, measure: string): Promise<number | null> {
-    return this.data.writingBalances.find((b) => b.member_id === memberId && b.project_id === projectId && b.measure === measure)?.amount ?? null;
   }
 
   async createProject(memberId: string, title: string, phase: string): Promise<string> {
