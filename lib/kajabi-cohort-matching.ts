@@ -219,7 +219,7 @@ export async function findKajabiCandidatesForCohort(
 
   const customerIds = Array.from(new Set(allOfferPurchases.map((p) => p.kajabi_customer_id).filter((id): id is string => !!id)));
   const [customers, emailAliases] = await Promise.all([
-    billing.kajabiCustomersByIds(customerIds),
+    billing.kajabiCustomers({ customerIds }),
     createRepos(supabase).aliases.emailAliases({ activeOnly: true }),
   ]);
 

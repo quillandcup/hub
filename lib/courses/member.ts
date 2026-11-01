@@ -57,6 +57,8 @@ export interface CourseRow {
   thumbnail_url?: string | null;
   /** The banner behind the course title (the course page only); our copy when there is one. */
   hero_url?: string | null;
+  /** Not available to members yet: only staff acting as themselves are ever given one. */
+  is_draft: boolean;
 }
 
 /** A course with its images resolved to our copy when there is one; only what the pages show (never the whole row). */
@@ -68,6 +70,7 @@ function withCourseImage(course: CourseRecord): CourseRow {
     description: course.description,
     thumbnail_url: courseImageSrc("course", course.id, course.thumbnail_asset_id, course.thumbnail_url),
     hero_url: courseImageSrc("hero", course.id, course.hero_asset_id, course.hero_url),
+    is_draft: course.is_draft,
   };
 }
 
@@ -115,6 +118,9 @@ function loadCompleted(supabase: SupabaseClient, memberId: string, lessonIds: st
 /** A member's access to one course (admins acting as themselves open everything). */
 export async function loadMemberCourseAccess(supabase: SupabaseClient, scope: MemberScope, courseId: string): Promise<CourseAccess> {
   if (scope.isAdminActing) return { kind: "admin" };
+  // A draft is no one's to open yet, whatever access rows exist (staff in sudo see what the member sees).
+  const course = await createRepos(supabase).courses.courseById(courseId);
+  if (!course || course.is_draft) return { kind: "none" };
   const row = (await loadAccessRows(supabase, scope.memberId, [courseId])).get(courseId);
   return resolveCourseAccess(row, false, scope.now ?? new Date());
 }
@@ -133,14 +139,17 @@ export async function loadCourseList(supabase: SupabaseClient, scope: MemberScop
   let accessByCourse = new Map<string, AccessRowLike>();
 
   if (scope.isAdminActing) {
-    courseIds = (await repos.courses.courses({ isDraft: false })).map((c) => c.id);
+    // Staff acting as themselves get every course, drafts too, to preview them.
+    courseIds = (await repos.courses.courses()).map((c) => c.id);
   } else {
     accessByCourse = await loadAccessRows(supabase, scope.memberId);
     courseIds = Array.from(accessByCourse.keys());
   }
   if (courseIds.length === 0) return [];
 
-  const courses: CourseRow[] = (await repos.courses.courses({ ids: courseIds })).map(withCourseImage);
+  const courses: CourseRow[] = (await repos.courses.courses({ ids: courseIds }))
+    .filter((c) => scope.isAdminActing || !c.is_draft)
+    .map(withCourseImage);
   const { modules, lessons } = await loadStructure(supabase, courseIds, scope.isAdminActing);
   const completed = await loadCompleted(supabase, scope.memberId, lessons.map((l) => l.id));
 
@@ -221,8 +230,9 @@ export interface CourseView {
 
 /** One course by slug, or null when there is none. */
 export async function loadCourseView(supabase: SupabaseClient, slug: string, scope: MemberScope): Promise<CourseView | null> {
-  const courseRow = await createRepos(supabase).courses.courseBySlug(slug, { isDraft: false });
-  if (!courseRow) return null;
+  const courseRow = await createRepos(supabase).courses.courseBySlug(slug);
+  // A draft is there for staff acting as themselves to preview; to everyone else (staff in sudo too) it doesn't exist.
+  if (!courseRow || (courseRow.is_draft && !scope.isAdminActing)) return null;
   const course = withCourseImage(courseRow);
 
   const accessRow = scope.isAdminActing ? undefined : (await loadAccessRows(supabase, scope.memberId, [course.id])).get(course.id);
@@ -287,7 +297,7 @@ export async function loadLessonView(
 
   let video: LessonView["video"] = null;
   if (lesson.video_id) {
-    const v = await repos.courses.video(lesson.video_id);
+    const v = (await repos.courses.videosByIds([lesson.video_id]))[0];
     if (v) video = { id: lesson.video_id, status: v.status, playbackId: v.mux_playback_id };
   }
 

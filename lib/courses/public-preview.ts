@@ -43,6 +43,7 @@ export async function publicLessonPreview(
 
   const course = await repos.courses.courseById(lesson.course_id);
   if (!course || (opts.slug !== undefined && course.slug !== opts.slug)) return { blocked: "not_found" };
+  if (course.is_draft) return { blocked: "course_not_live" };
   if (course.launch_at && new Date(course.launch_at).getTime() > (opts.now ?? new Date()).getTime()) return { blocked: "course_not_live" };
 
   if (lesson.state !== "open") return { blocked: "not_open" };

@@ -38,13 +38,14 @@ import { fileURLToPath } from "node:url";
 export const MIN_PATCH_SCORE = 80;
 /**
  * Minimum combined coverage per area and measure, in percent. Each sits about two points under
- * the 2026-10-14 baseline (lib 85.6/84.3/88.9/76.5, components 70.1/69.9/68.6/66.4,
- * app/api 59.2/56.5/66.5/46.7); raise them as tests are added.
+ * the 2026-10-31 baseline (lib 96.1/94.2/96.4/87.1, components 90.0/88.8/86.4/84.6,
+ * app/api 84.7/81.3/87.1/73.1, as lines/statements/functions/branches); raise them as tests
+ * are added.
  */
 export const AREA_FLOORS: Record<string, Record<"lines" | "statements" | "functions" | "branches", number>> = {
-  lib: { lines: 83, statements: 82, functions: 86, branches: 74 },
-  components: { lines: 68, statements: 67, functions: 66, branches: 64 },
-  "app/api": { lines: 57, statements: 54, functions: 64, branches: 44 },
+  lib: { lines: 94, statements: 92, functions: 94, branches: 85 },
+  components: { lines: 88, statements: 86, functions: 84, branches: 82 },
+  "app/api": { lines: 82, statements: 79, functions: 85, branches: 71 },
 };
 const SOURCE = /^((app|lib|components|emails)\/.+\.(ts|tsx)|(proxy|instrumentation|instrumentation-client)\.ts)$/;
 const EXCLUDED = [/\.d\.ts$/, /\.test\.tsx?$/];

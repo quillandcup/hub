@@ -49,6 +49,8 @@ interface MemberDetailsProps {
   programOverrides?: { id: string; starts_at: string; expires_at: string | null; reason: string | null }[];
   statusOverrides?: { id: string; override_type: string; reason: string | null; starts_at: string; expires_at: string | null }[];
   earnedBadges: EarnedBadge[];
+  /** The address of each event an earned badge is linked to, by event id. */
+  eventSlugs?: Record<string, string>;
   awardableBadgeTypes: { id: string; name: string; icon: string }[];
   awards: {
     id: string;
@@ -81,6 +83,7 @@ export default function MemberDetails({
   programOverrides = [],
   statusOverrides = [],
   earnedBadges,
+  eventSlugs,
   awardableBadgeTypes,
   awards,
   nameAliases,
@@ -237,6 +240,7 @@ export default function MemberDetails({
           <MemberBadgesPanel
             memberId={member.id}
             earnedBadges={earnedBadges}
+            eventSlugs={eventSlugs}
             awardableBadgeTypes={awardableBadgeTypes}
             awards={awards}
           />

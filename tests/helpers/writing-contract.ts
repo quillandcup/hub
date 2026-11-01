@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { WritingRepository } from "@/lib/data/writing";
 
-export type SeedProject = { key: string; member: 0 | 1; title: string; archived?: boolean; createdAt: string };
+export type SeedProject = { key: string; member: 0 | 1; title: string; phase?: string; createdAt: string };
 export type SeedGoal = { member: 0 | 1; project?: string; measure: string; archived?: boolean };
 export type SeedEntry = { member: 0 | 1; project: string; entryDate: string; measure: string; mode: "delta" | "set_total"; amount: number; createdAt: string; prickle?: boolean; note?: string; tags?: string[] };
 
@@ -25,13 +25,12 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       ctx = setup();
     });
 
-    it("lists a member's projects that aren't archived, newest first, and names the latest", async () => {
+    it("lists a member's projects newest first, and names the latest", async () => {
       const [a, b] = ctx.memberIds;
       await ctx.seed({
         projects: [
           { key: "old", member: 0, title: "Old Draft", createdAt: "2026-01-01T10:00:00Z" },
           { key: "new", member: 0, title: "New Draft", createdAt: "2026-03-01T10:00:00Z" },
-          { key: "gone", member: 0, title: "Shelved", archived: true, createdAt: "2026-05-01T10:00:00Z" },
           { key: "theirs", member: 1, title: "Not Mine", createdAt: "2026-06-01T10:00:00Z" },
         ],
       });
@@ -209,13 +208,11 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       const ids = await ctx.seed({
         projects: [
           { key: "p", member: 0, title: "Novel", createdAt: "2026-01-01T10:00:00Z" },
-          { key: "gone", member: 1, title: "Shelved", archived: true, createdAt: "2026-01-01T10:00:00Z" },
           { key: "q", member: 1, title: "Memoir", createdAt: "2026-01-01T10:00:00Z" },
         ],
       });
       const mine = await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "words", target_amount: 1 });
       await ctx.repo().createGoal({ member_id: a, project_id: ids.p, measure: "pages", target_amount: 1, archived_at: "2026-06-01T00:00:00Z" });
-      await ctx.repo().createGoal({ member_id: b, project_id: ids.gone, measure: "words", target_amount: 1 });
       await ctx.repo().createGoal({ member_id: a, measure: "words", target_amount: 1 });
       const theirs = await ctx.repo().createGoal({ member_id: b, project_id: ids.q, measure: "scenes", target_amount: 1 });
 
@@ -224,7 +221,6 @@ export function defineWritingContract(name: string, setup: () => WritingContract
         { goal_id: theirs, member_id: b, project_id: ids.q, project_title: "Memoir", measure: "scenes" },
         { goal_id: mine, member_id: a, project_id: ids.p, project_title: "Novel", measure: "words" },
       ]);
-      expect((await ctx.repo().activeGoalCandidates()).every((c) => c.project_id !== ids.gone)).toBe(true);
     });
 
     describe("progress entries", () => {
@@ -387,13 +383,13 @@ export function defineWritingContract(name: string, setup: () => WritingContract
       expect(await ctx.repo().projectSummaries(b)).toEqual([]);
     });
 
-    it("lists active projects newest first and still finds an archived one by id", async () => {
+    it("lists active projects newest first and still finds a past one by id", async () => {
       const [a] = ctx.memberIds;
       const ids = await ctx.seed({
         projects: [
           { key: "old", member: 0, title: "Old", createdAt: "2026-01-01T10:00:00Z" },
           { key: "new", member: 0, title: "New", createdAt: "2026-03-01T10:00:00Z" },
-          { key: "gone", member: 0, title: "Shelved", archived: true, createdAt: "2026-05-01T10:00:00Z" },
+          { key: "gone", member: 0, title: "Shelved", phase: "abandoned", createdAt: "2026-05-01T10:00:00Z" },
         ],
       });
 

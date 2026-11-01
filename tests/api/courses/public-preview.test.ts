@@ -93,6 +93,13 @@ describe('Public lesson preview', () => {
     expect(await preview('loose')).toHaveProperty('preview')
   })
 
+  it('is blocked while the course is a draft, and public once it is published', async () => {
+    await supabase.from('courses').update({ is_draft: true }).eq('id', ids.course)
+    expect(await preview('loose')).toEqual({ blocked: 'course_not_live' })
+    await supabase.from('courses').update({ is_draft: false }).eq('id', ids.course)
+    expect(await preview('loose')).toHaveProperty('preview')
+  })
+
   it('is blocked whenever the courses feature is not on for everyone, even if a segment or a member has it', async () => {
     await setFlag(false)
     expect(await isFeatureOnForEveryone(supabase, 'courses')).toBe(false)

@@ -82,6 +82,25 @@ describe("PATCH /api/admin/events/[id]", () => {
     expect(data.hubSessions[0]).toMatchObject({ title: "Open Day", hostName: "Bo Example" });
   });
 
+  it("hosts an event made in the Hub by a member or by someone who isn't one, and keeps only one of the two", async () => {
+    data = new InMemoryDataset({ prickleTypes: [EVENT_TYPE], members: [{ id: "mbr_HOST00000001", name: "Fern Example" }] });
+    repos = createInMemoryRepos(data);
+    const made = await (await post({ ...BASE, host_name: "Bo Example" })).json();
+    const edit = (body: unknown) => update(new NextRequest("http://localhost/x", { method: "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id: made.event.id }) });
+
+    // Picking a member makes them the host and drops the free-text one.
+    expect((await edit({ host_id: "mbr_HOST00000001", host_name: "Fern Example" })).status).toBe(200);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_HOST00000001", hostName: null });
+
+    // Saving again without changing the host leaves it alone.
+    expect((await edit({ host_id: "mbr_HOST00000001", host_name: "Fern Example", title: "Open Day" })).status).toBe(200);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: "mbr_HOST00000001", hostName: null, title: "Open Day" });
+
+    // Clearing the member and typing a name makes a guest host.
+    expect((await edit({ host_id: null, host_name: "Guest Host" })).status).toBe(200);
+    expect(data.hubSessions[0]).toMatchObject({ hostId: null, hostName: "Guest Host" });
+  });
+
   it("refuses an end before the start", async () => {
     const made = await (await post(BASE)).json();
     const res = await update(new NextRequest("http://localhost/x", { method: "PATCH", body: JSON.stringify({ starts_at: "2097-05-03", ends_at: "2097-05-01" }) }), { params: Promise.resolve({ id: made.event.id }) });

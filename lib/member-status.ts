@@ -43,7 +43,7 @@ export async function recomputeMemberStatus(
     ]);
 
     const allEmails = [member.email, ...emailAliasRows.map((a) => a.alias_email)];
-    const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomersByEmail(allEmails);
+    const kajabiCustomers = await createRepos(supabase).billing.kajabiCustomers({ emails: allEmails });
     const customerIds = kajabiCustomers.map((c) => c.kajabi_customer_id).filter(Boolean);
     const membershipHistory = await fetchMembershipHistory(supabase, customerIds);
 

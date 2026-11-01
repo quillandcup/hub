@@ -24,6 +24,9 @@ export const PROSPECT_RULES: ProspectRule[] = [
   { id: "writer-identity", label: "Describes themselves as a writer", weight: 15, bio: /\b(writer|novelist|storyteller|poet|memoirist|author)\b/ },
   { id: "writing-community-tags", label: "Uses writing-community hashtags", weight: 15, hashtags: ["amwriting", "writingcommunity", "writersofinstagram", "writerscommunity", "writerslife", "wip", "novelwriting", "writingprompts", "amwritingfantasy", "amwritingromance"] },
   { id: "book-lover-tags", label: "Posts about books (weaker signal)", weight: 5, hashtags: ["bookstagram", "booklover", "bookish", "amreading"] },
+  // Quill & Cup is women only, publicly. This is a nudge from what a person says about herself in her
+  // bio, never from a name or photo, and nothing is penalized for lacking it: Ania reviews everyone.
+  { id: "self-described-woman", label: "Describes herself as a woman or uses she/her", weight: 10, bio: /\bshe\s?\/\s?(her|they)\b|\b(woman|female|women'?s?) (writer|author|novelist|poet|writers|authors|fiction|writing)\b|\b(mom|mama|mother) (of|and|&)\b/ },
   { id: "sells-to-writers", label: "Sells services to writers (coach, editor, ghostwriter, publisher)", weight: -40, bio: /\b(book coach|writing coach|ghostwrit\w*|developmental editor|copy ?editor|proofread\w*|book (marketing|launch)|publishing (services|consultant)|self-?publishing (coach|expert))\b/ },
   { id: "promo-account", label: "Looks like a promo or bot account", weight: -30, bio: /\b(dm (me )?for|promo|giveaway|follow ?back|f4f|link in bio to buy)\b/ },
   { id: "established-author", label: "Established author (bestselling, many books)", weight: -15, bio: /\b(best-?selling|usa today|new york times|nyt|award-?winning) (author|novelist)\b/ },

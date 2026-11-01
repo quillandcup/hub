@@ -69,7 +69,7 @@ defineWritingContract("SupabaseWritingRepository", () => ({
     for (const p of projects) {
       const { data, error } = await db
         .from("writing_projects")
-        .insert({ member_id: memberIds[p.member], title: p.title, archived_at: p.archived ? "2026-06-01T00:00:00Z" : null, created_at: p.createdAt })
+        .insert({ member_id: memberIds[p.member], title: p.title, ...(p.phase ? { phase: p.phase } : {}), created_at: p.createdAt })
         .select("id")
         .single();
       if (error) throw new Error(error.message);

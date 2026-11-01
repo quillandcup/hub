@@ -148,7 +148,13 @@ export async function PATCH(
       if (description !== undefined) patch.description = description || null;
       if (location !== undefined) patch.location = location || null;
       if (speakers.value !== undefined) patch.guestSpeaker = speakers.value;
-      if (host_name !== undefined && (host_name || null) !== current.host_name) {
+      if (typeof host_id === "string" && host_id) {
+        // A member hosts it: their name is shown, so the free-text host goes.
+        if (host_id !== current.host_id) {
+          patch.hostId = host_id;
+          patch.hostName = null;
+        }
+      } else if (host_name !== undefined && (host_name || null) !== current.host_name) {
         patch.hostName = typeof host_name === "string" && host_name.trim() ? host_name.trim() : null;
         patch.hostId = null;
       }

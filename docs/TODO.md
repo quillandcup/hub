@@ -445,8 +445,9 @@ Both failed CI on unrelated PRs on 2026-10-30 and passed on a re-run of the same
 
 Context: API route tests run in-process through `apiFetch` (`tests/helpers/api-fetch.ts`) so
 `app/api` coverage counts, and per-area floors on the combined unit + db numbers live in
-`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-14: lib ~86% lines, components
-~72%, `app/api` ~59% (46% branches), `app/(member)` ~56%, `app/(admin)` ~19%.
+`AREA_FLOORS` (`scripts/coverage-report.ts`). Combined, 2026-10-31: lib ~96% lines, components
+~90%, `app/api` ~85% (73% branches). `app/(member)` and `app/(admin)` were ~56% and ~19% on
+2026-10-14 and haven't been re-measured.
 
 - [ ] **Floors for `app/(member)` and `app/(admin)`.** Neither has one; `app/(admin)` is the
       biggest gap in the repo. Add the floors once a round of page tests lifts them.
@@ -603,6 +604,8 @@ CodeQL is on GitHub's default setup (`gh api repos/quillandcup/hub/code-scanning
 - **Why Skew Protection isn't saving us:** The Vercel project has it on (`skewProtectionMaxAge` 43200, read with the Vercel API, 2026-10-23), but the live site doesn't use it: the static assets on `/login` carry no `?dpl=` and the HTML has no `data-dpl-id`. Next only attaches the deployment id (assets, `x-deployment-id` header, `data-dpl-id`, reload on mismatch) when `deploymentId` or `NEXT_DEPLOYMENT_ID` is set at build time (`node_modules/next/dist/docs/.../next-config-js/deploymentId.md`), and neither is set. CI builds before the deployment exists (`vercel build --prod`, then `vercel deploy --prebuilt --prod`, `.github/workflows/ci.yml`), so the build may not know its own deployment id; that part is unconfirmed.
 - **Why deferred:** The fix needs a decision: a per-deploy `deploymentId` (even the git SHA) makes Next hard-reload a stale tab on mismatch, but routing old tabs to their original deployment is Vercel's job and may need the deployment id from Vercel at build time, which a `--prebuilt` flow might not have. Impact so far is small.
 - **Where to start:** Find out how Vercel handles Skew Protection for `vercel build` + `deploy --prebuilt` (does `vercel build` set `VERCEL_DEPLOYMENT_ID`?). Then try `deploymentId` in `next.config.ts` and check that `/login` assets carry `?dpl=`. Keep HUB-A and HUB-6 open in Sentry until fixed; they are the evidence, so don't mute them.
+- **Resolved (2026-10-31):** the deploy workflow's `vercel build --prod` now runs with `NEXT_DEPLOYMENT_ID` set to the commit being built, so Next attaches the id and hard-reloads a stale tab on mismatch.
+- **Still open:** confirm after the first deploy that `/login` assets carry `?dpl=` and the HTML has `data-dpl-id`. This does not route an old tab's action call to its original deployment (Vercel's own `dpl_` ids aren't known to a prebuilt build); if stale tabs still hit `UnrecognizedActionError` on actions (not navigations), look at a remote Vercel build. Then resolve HUB-A and HUB-6 in Sentry.
 
 ---
 
@@ -1109,6 +1112,18 @@ Show a `/live` page displaying the currently active prickle and its attendees in
 
 ## UI Enhancements
 
+### Event photo import: the Google Photos picker only lists the importer's own photos in a shared album _(Needs Scheduling)_
+A member who found a shared album in Google's picker saw only the photos they uploaded themselves, though the same album opened by its link shows everyone's. The picker is Google's own screen (Photos Picker API, `lib/google-photos-picker/client.ts`); Google removed the shared-album read scopes in April 2025, so the app cannot list the album's items itself, and I found no Google documentation of this behaviour, so it is unconfirmed whether it is a limit or a bug. Deferred because nothing on our side controls it. Options, simplest first:
+- **Each contributor imports their own photos** from the same album; a re-import skips photos already imported (`planImportBatch`, `lib/google-photos-picker/import-batch.ts`). No code.
+- **Save the album's photos to the importer's library first** ("Save to library" in Google Photos) and pick them from the main Photos view. Not yet verified that the picker then lists them; try it on the next event.
+- **An upload fallback:** an admin downloads the album as a zip from Google and uploads the files on the import page (`app/(admin)/admin/events/[slug]/import-photos/`), through the same storage, `event_photos` rows and sized copies. The reliable route, and the most work.
+Update `ImportPhotosClient.tsx`'s shared-album note once one of these is confirmed.
+
+### Event photos: store sized copies and serve them from a CDN _(Needs Scheduling)_
+The event photo route (`app/api/events/[eventId]/photos/[photoId]/route.ts`) resizes with sharp on every request (`?w=480` for grids, `?w=1600` for the lightbox) and relies on the browser's one-day private cache, so the first view of each photo is still slow and every request still pays for auth, a database lookup and a full-original download. Two follow-ups, deferred until the page is still slow after the resize change:
+- **Store the sized copies at import time** (the import commit route, `app/api/admin/events/[id]/photos/import/commit/route.ts`), the way `renditionOf` in `lib/media/library.ts` caches library renditions, and backfill the photos already imported. Removes the slow first view.
+- **Serve them from a CDN.** The photos are private and checked per viewer, so this needs short-lived signed Storage URLs handed out by the page instead of the proxy route, and a decision on how long a hidden photo's old URL may keep working. A bigger change; only worth it if the stored copies are not enough.
+
 ### Sidebar auto-hide: pin and wider rollout _(Needs Scheduling)_
 Chat now rests the member sidebar as an icon rail that opens over the page on hover or focus (`components/MemberNavigation.tsx`). Deferred until members have used it: a pin button with a per-member preference to keep it open, and whether other pages with a second pane should do the same. The admin sidebar (`AdminNavigation.tsx`) is unchanged; change all three navigation files together if the behavior spreads.
 
@@ -1133,6 +1148,11 @@ Chat now rests the member sidebar as an icon rail that opens over the page on ho
 6. **Calendar-backed edits are overrides until write-back lands.** Editing a calendar-backed event's title, description, host, guest speaker or location (on the event page or the prickle page) saves a decision in `unmatched_calendar_events` that the sync applies on top of the calendar; the Google item itself is not changed, and the times (start, end) cannot be edited at all. Write-back (item 2) turns these into real edits to the calendar item and makes the times editable.
 
 **Why deferred:** the first PR only had to remove the duplicated fields and the two-sources-of-truth editing before launch. **Where to start:** `lib/calendar-events.ts`, `lib/data/events.ts`, `docs/CALENDAR_EVENTS.md`.
+
+### Events for one cohort only (live course lessons) _(Needs Scheduling)_
+The first group through a course (the Ready Writer) has its lessons run live, as calendar items titled "<course> | Lesson N: ...". They are events, but only for the people in the course. Every event today is visible to every member, and there is no audience narrower than "members" (`guests_allowed` and `announced_publicly` only widen it), so tagging such an item `#event` would show it to the whole community. Until this exists the items stay in the unmatched queue (`/admin/hygiene/unmatched-events`), left pending rather than ignored, and the cohort is told about the sessions where it already meets.
+
+**Why deferred:** it is a feature, not a flag: who may see an event has to be enforced everywhere events are read, and launch was days away. **Where to start:** a nullable cohort on `community_events` (`program_cohorts` has the window and `program_id`; `member_program_enrollments` says who is in it), so visibility is "an event with no cohort is for everyone, one with a cohort is for its enrolled members and admins". Enforce it in the `community_events` RLS select policy first, then check every reader that bypasses RLS with the service role: the member Events pages and the past list (`lib/events-agenda.ts`, `app/api/events/past-prickles`), search (`lib/search/universal.ts`), the calendar feed (`lib/data/calendar-feed.ts`), notifications, and the admin forms (a cohort picker beside the audience fields, `components/EventAudienceFields.tsx`). Decide how a lesson item gets its cohort: by an `#event cohort=<slug>` style tag in the calendar description or a prickle type tied to a program (`lib/calendar-events.ts`, `hasEventTag`). The related idea of an event pointing at a program is item 4 under "Managing events in the Hub". The prickle on such an event is still a normal calendar prickle of the Event type, so it stays out of the session lists and prickle search (they skip the Event type) and shows in the admin calendar. Not checked: whether a member outside the cohort can still open it by its prickle id (`/prickles/<id>`, and the RLS select policy on `prickles`); verify that before relying on the event's own visibility.
 
 ### Daily coaching videos: member submissions in the Hub _(Needs Scheduling)_
 Members who want to teach a daily coaching video fill out an external **coaching video sign-up form**, and a separate shared list of **proposed coaching videos** gives them ideas. The Hub has courses and lessons (`docs/COURSES.md`) but no way for a member to propose, claim or schedule a video, and no list of proposals. The Kajabi lesson "Submit a Daily Coaching Video" stays in Kajabi until this exists.
@@ -1242,7 +1262,7 @@ Left out of the first outline editor (`docs/COURSES.md`, "Editing model") on pur
 - **Move across lists.** Dragging works within one list (a module's lessons, a course's modules, a module's submodules). Moving a lesson into another module, or a submodule into another module, is not built: it needs a database function like `reorder_course_children` that also changes `module_id` / `parent_id` (keeping the same-course and one-level rules, which the database already enforces) and renumbers both lists, then drop targets on module headers.
 - **Duplicating a lesson doesn't copy its downloads.** The files live in the private `course-files` bucket under the lesson's id (`course_lesson_files`); a copy needs the storage objects copied too, so a lesson doesn't share a file with its copy (deleting one would remove the other's).
 - **Lessons without a module.** The database allows a lesson in no module (imported courses have some), but the editor only adds lessons inside a module.
-- **Reorders aren't in the audit log** (a change of `position` alone is skipped on purpose, see `docs/ACTIVITY_AND_AUDIT_LOG.md`). If "who rearranged this" matters, add one audit row per reorder from `reorder_course_children` instead of per row.
+- ~~**Reorders aren't in the audit log.**~~ **Resolved (2026-10-31):** one entry per reorder, with the order before and after (`docs/ACTIVITY_AND_AUDIT_LOG.md`).
 - **Deleting a lesson members have progress in is refused** ("hide it instead"), which needs the status menu (next PR) to be a real way out.
 
 ### Course builder: the Video actions that are still disabled _(Needs Scheduling)_
@@ -1607,5 +1627,8 @@ There used to be one narrow fix: changing a `measure='prickles'` goal's anchor a
 
 **Why deferred:** it's a known gap but hasn't caused a reported problem yet, and versioning every field is real design work (schema for change history, UI for "goal changed on this date," how charts/exports treat a versioned goal) beyond what's warranted to build speculatively.
 
+### Drop writing_projects.archived_at _(Needs Scheduling)_
+Nothing reads or sets `writing_projects.archived_at` any more (#736 replaced the two functions that filtered on it and removed the repository filters), and no production row had it set. The column is still in the schema because a drop must not ship in the same PR as the last read (CLAUDE.md, "Migrations: expand, then contract"). **Where to start:** once #736's `main` run has deployed, a migration with `ALTER TABLE public.writing_projects DROP COLUMN archived_at;`, then `pnpm types:gen` (remove the three `archived_at` lines under `writing_projects` in `lib/data/database.types.ts`) and drop the `Omit<..., "archived_at">` in `WritingProjectRow` (`lib/data/writing.ts`). Squawk (`ban-drop-column`) will fail it: the user has to approve the `-- squawk-ignore ban-drop-column (last read removed in #736, deployed)` for that statement. `writing_goals.archived_at` is a different column and stays.
+
 ### Browse Past/Archived Projects (Resolved)
-**Resolved:** My Writing lists projects in a past phase (`complete`, `published`, `abandoned`; `PAST_PHASES` in `lib/writing-projects.ts`) apart from the ongoing ones, under "Past projects" (`app/(member)/projects/PastProjects.tsx`). Changing a project's status on its page moves it between the lists. Members can delete a project from its details modal (soft delete, `writing_projects.deleted_at`, with its goals and entries). There is deliberately no manual archive: it overlapped with the statuses (On hold, Complete, Abandoned). The `archived_at` column and the filters on it stay, but nothing sets it today.
+**Resolved:** My Writing lists projects in a past phase (`complete`, `published`, `abandoned`; `PAST_PHASES` in `lib/writing-projects.ts`) apart from the ongoing ones, under "Past projects" (`app/(member)/projects/PastProjects.tsx`). Changing a project's status on its page moves it between the lists. Members can delete a project from its details modal (soft delete, `writing_projects.deleted_at`, with its goals and entries). There is deliberately no manual archive: it overlapped with the statuses (On hold, Complete, Abandoned). The code no longer reads `writing_projects.archived_at` (#736); the column itself is still there, see the next entry.
