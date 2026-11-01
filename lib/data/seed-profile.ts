@@ -211,7 +211,7 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
       const host = hostNamed(slot.summary);
       const hostPerson = host ? profile.people.find((p) => p.name === host && p.joinedDaysAgo !== null) : undefined;
       prickles.push({
-        id: seedId("prkl", `${date}|${slot.startLocal}|${slot.summary}`),
+        id: seedId("prkl", `${profile.name}|${date}|${slot.startLocal}|${slot.summary}`),
         typeId: typeId.get(typeNamed(slot.summary)) ?? null,
         hostId: hostPerson ? idOf(hostPerson.key) : null,
         title: null,
