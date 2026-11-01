@@ -131,7 +131,7 @@ export default async function AdminLessonPage({ params }: Params) {
             </button>
           </div>
         </div>
-        <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">Last imported from Kajabi {formatCourseDateTime(lesson.fetchedAt)}.</p>
+        {!detail.editable && <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">Last imported from Kajabi {formatCourseDateTime(lesson.fetchedAt)}.</p>}
         {hub && (
           <div className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white p-4 text-sm shadow dark:bg-slate-900">
             <span className="font-medium">Staff tools</span>

@@ -76,8 +76,8 @@ describe("an editable outline", () => {
     expect(screen.getAllByRole("button", { name: "Delete lesson" })[0]).toBeEnabled();
     for (const select of screen.getAllByRole("combobox")) expect(select).toBeEnabled();
     expect(screen.getAllByRole("button", { name: "Open lesson comments" })[0]).toBeDisabled();
-    // The title isn't a link to a lesson page there isn't yet.
-    expect(screen.queryByRole("link", { name: "Lesson one" })).not.toBeInTheDocument();
+    // The title opens the lesson's own page.
+    expect(screen.getByRole("link", { name: "Lesson one" })).toHaveAttribute("href", `/admin/courses/${COURSE}/lessons/${L1}`);
   });
 
   it("links a lesson and a module to the member's preview of them", async () => {

@@ -282,7 +282,7 @@ function LessonRow({ lesson, indent, sibling }: { lesson: ExplainedLesson; inden
         <NameField label="Lesson name" initial={lesson.title} submitLabel="Save" onSubmit={(title) => editor.run(() => renameCourseItem(editor.courseId, "lesson", lesson.kajabiId, title))} onCancel={() => setRenaming(false)} />
       ) : (
         <span className="min-w-0 flex-1">
-          {editor || !builder ? (
+          {!builder ? (
             <span className="font-medium">{lesson.title}</span>
           ) : (
             <Link href={builder} className="font-medium hover:underline">

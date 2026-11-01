@@ -167,6 +167,36 @@ describe('Admin course data', () => {
       expect((await loadHubOutline(supabase, 'crs_AAAAAAAAAAA1')).modules).toEqual([])
     })
 
+    it("give a lesson's own page from the Hub's rows: where it sits, what it says, why it is hidden or open", async () => {
+      const { data: lessons } = await supabase.from('course_lessons').select('id, title').eq('course_id', hubId)
+      const withText = lessons!.find((l) => l.title === 'With text')!
+      const plain = lessons!.find((l) => l.title === 'Plain')!
+      await supabase.from('course_lessons').update({ body_html: '<p>Hello <script>x</script></p>' }).eq('id', withText.id)
+
+      const detail = (await loadAdminLesson(supabase, hubId, withText.id))!
+      expect(detail).toMatchObject({
+        editable: true,
+        course: { id: hubId, title: `Admin Hub ${ts}` },
+        lesson: { kajabiId: withText.id, title: 'With text', publishingOption: 'inherit', state: 'open', hasVideo: false, contentFetchedAt: null },
+        hub: { slug: HUB, lessonId: withText.id },
+        video: null,
+        files: [],
+      })
+      expect(detail.lesson.bodyHtml).toContain('Hello')
+      expect(detail.lesson.bodyHtml).not.toContain('script')
+      expect(detail.trail.map((t) => t.title)).toEqual(['First', 'Week'])
+      expect(detail.modules.map((m) => m.path)).toEqual(['First', 'First / Week', 'Second'])
+
+      expect((await loadAdminLesson(supabase, hubId, plain.id))!.lesson).toMatchObject({ state: 'hidden', reason: 'Draft in the Hub', publishingOption: 'draft' })
+    })
+
+    it("give no lesson page for another course's lesson, an unknown one, or an id that isn't one", async () => {
+      const { data: lessons } = await supabase.from('course_lessons').select('id').eq('course_id', hubId).limit(1)
+      expect(await loadAdminLesson(supabase, ids.course, lessons![0].id)).toBeNull()
+      expect(await loadAdminLesson(supabase, hubId, 'les_AAAAAAAAAAA1')).toBeNull()
+      expect(await loadAdminLesson(supabase, hubId, 'nope')).toBeNull()
+    })
+
     it('are null for a course imported from Kajabi, even by its own id, and for an unknown one', async () => {
       const { data: imported } = await supabase.from('courses').select('id').eq('source_key', PUBLISHED).single()
       expect(await loadHubCourse(supabase, imported!.id, now)).toBeNull()

@@ -57,6 +57,7 @@ const detail = (over: Partial<AdminLessonDetail> = {}, lesson: Partial<AdminLess
   files: [{ filename: "Tracker_Sheet.pdf", sizeBytes: 2048 }],
   hub: { slug: "the-ready-writer", lessonId: "les_AAAAAAAAAAA1" },
   video: { status: "ready", playbackId: "pb1" },
+  editable: false,
   ...over,
 });
 const params = { params: Promise.resolve({ id: "crs_AAAAAAAAAAA1", lessonId: "les_AAAAAAAAAAA1" }) };
@@ -91,6 +92,17 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(within(form).getByText("2 KB")).toBeInTheDocument();
     expect(within(form).getByRole("radio", { name: "Published" })).toBeChecked();
     expect(within(form).getByText(/Members see it as coming soon. Inside “Module 2” \(Locked\)\./)).toBeInTheDocument();
+  });
+
+  it("shows a Hub-owned lesson with its title and status ready to change, and no line about a Kajabi import", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }, { publishingOption: "inherit" }));
+    await renderServerPage(AdminLessonPage, params);
+
+    const form = screen.getByRole("form", { name: "Lesson builder" });
+    expect(within(form).getByRole("textbox", { name: "Title" })).toBeEnabled();
+    expect(within(form).getByRole("radio", { name: "Follows what is above" })).toBeChecked();
+    expect(within(form).getByRole("radio", { name: "Draft" })).toBeEnabled();
+    expect(screen.queryByText(/Last imported from Kajabi/)).not.toBeInTheDocument();
   });
 
   it("plays the lesson's video in the builder with the members' player, poster from the lesson thumbnail and no watch tracking", async () => {

@@ -3,6 +3,7 @@ import type { AdminLessonDetail } from "@/lib/courses/admin";
 import { formatBytes } from "@/lib/courses/files";
 import { memberEffect } from "@/lib/courses/explain";
 import { STATUS_CHOICES, statusChoices } from "@/lib/courses/status-choices";
+import { LessonStatusField, LessonTitleField } from "./LessonEditableFields";
 
 const FIELD =
   "w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800";
@@ -13,8 +14,9 @@ const SOON = "Not available yet: courses are imported from Kajabi for now";
 
 /**
  * One lesson as Kajabi's lesson page lays it out (details, media, text, downloads; status,
- * thumbnail and comments beside them), filled from the latest import. Everything that changes the
- * lesson is disabled until the builder can save.
+ * thumbnail and comments beside them). An imported lesson is shown as the latest import has it, with
+ * everything that changes it disabled. In a Hub-owned course (`detail.editable`) the title and the
+ * status can be changed; the rest waits for the editor (docs/TODO.md).
  */
 export default function LessonBuilderForm({ detail, media }: { detail: AdminLessonDetail; media: ReactNode }) {
   const { lesson, trail, modules, files } = detail;
@@ -25,10 +27,14 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
       <div className="space-y-6">
         <div className={CARD}>
           <h2 className="mb-4 text-lg font-semibold">Lesson details</h2>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Title</span>
-            <input type="text" disabled defaultValue={lesson.title} className={FIELD} />
-          </label>
+          {detail.editable ? (
+            <LessonTitleField courseId={detail.course.id} lessonId={lesson.kajabiId} title={lesson.title} />
+          ) : (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Title</span>
+              <input type="text" disabled defaultValue={lesson.title} className={FIELD} />
+            </label>
+          )}
           <label className="mt-4 block text-sm">
             <span className="mb-1 block font-medium">Select module</span>
             <select disabled defaultValue={inModule} className={FIELD}>
@@ -50,7 +56,7 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
             <div className="prose prose-slate max-h-96 max-w-none overflow-y-auto rounded border border-slate-200 p-4 opacity-80 dark:prose-invert dark:border-slate-700" dangerouslySetInnerHTML={{ __html: lesson.bodyHtml }} />
           ) : (
             <p className="rounded border border-slate-200 p-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
-              {lesson.contentFetchedAt ? "This lesson has no text." : "The text hasn't been imported yet (the content step hasn't run for this lesson)."}
+              {lesson.contentFetchedAt || detail.editable ? "This lesson has no text." : "The text hasn't been imported yet (the content step hasn't run for this lesson)."}
             </p>
           )}
 
@@ -76,6 +82,9 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
       <div className="space-y-6">
         <div className={CARD}>
           <h2 className="mb-3 text-lg font-semibold">Status</h2>
+          {detail.editable ? (
+            <LessonStatusField courseId={detail.course.id} lessonId={lesson.kajabiId} option={lesson.publishingOption} />
+          ) : (
           <fieldset disabled>
             <legend className="sr-only">Status</legend>
             <div className="space-y-2 text-sm">
@@ -91,6 +100,7 @@ export default function LessonBuilderForm({ detail, media }: { detail: AdminLess
               })}
             </div>
           </fieldset>
+          )}
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
             {memberEffect(lesson.state, lesson.reason)}
           </p>
