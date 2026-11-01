@@ -18,6 +18,8 @@
 -- The columns, filled in for what exists
 ------------------------------------------------------------------------------------------------
 
+set lock_timeout = '5s';
+
 ALTER TABLE public.course_modules ADD COLUMN publishing_option text DEFAULT 'inherit';
 ALTER TABLE public.course_lessons ADD COLUMN publishing_option text DEFAULT 'inherit';
 
