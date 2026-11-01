@@ -81,18 +81,20 @@ export default function TimeSeriesSection({
       </Form>
       <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">The From and To dates are used when the range is &ldquo;Custom range&rdquo;.</p>
 
-      <div className="mt-5">
-        <p className="text-sm text-slate-600 dark:text-slate-400">{metric.label}</p>
-        <p data-testid="series-total" className="text-3xl font-semibold tabular-nums">
-          {formatMetricValue(series.total, series.unit)}
-        </p>
+      <div className={modal ? "mt-3" : "mt-5"}>
+        <div className={modal ? "flex flex-wrap items-baseline gap-x-3" : ""}>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{metric.label}</p>
+          <p data-testid="series-total" className={`${modal ? "text-xl" : "text-3xl"} font-semibold tabular-nums`}>
+            {formatMetricValue(series.total, series.unit)}
+          </p>
+        </div>
         <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{metric.definition}</p>
         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
           {series.range.from} to {series.range.to}, by {series.granularity}. Each visit counts on the day it began.
         </p>
       </div>
 
-      <div className="mt-4">
+      <div className={modal ? "mx-auto mt-3 max-w-3xl" : "mt-4"}>
         <TimeSeriesChart points={series.points} unit={series.unit} metricLabel={metric.label} granularityLabel={granularity.value} />
       </div>
     </div>
