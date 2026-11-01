@@ -127,7 +127,7 @@ describe("loadChannelForMember", () => {
     failing = ["channelRecord"];
     await expect(loadChannelForMember(sb, GENERAL, FERN, false)).resolves.toBeNull();
 
-    failing = ["isInChannel"];
+    failing = ["activeMembership"];
     await expect(loadChannelForMember(sb, GENERAL, FERN, false)).resolves.toMatchObject({ joined: false });
     await expect(loadChannelForMember(sb, HOSTS, FERN, false)).resolves.toBeNull();
   });
@@ -143,7 +143,7 @@ describe("loadChannelMembers", () => {
   });
 
   it("lists nobody when the members can't be read", async () => {
-    failing = ["activeMemberIds"];
+    failing = ["activeMembersOf"];
     await expect(loadChannelMembers(sb, GENERAL)).resolves.toEqual([]);
   });
 });
