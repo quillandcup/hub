@@ -11,11 +11,11 @@ import { getTestSupabaseAdminClient } from '../../helpers/supabase'
 const ts = Date.now()
 const PREFIX = `test-outline-${ts}`
 
-const auth = vi.hoisted(() => ({ admin: true }))
+const auth = vi.hoisted(() => ({ admin: true, client: null as unknown }))
 vi.mock('@/lib/admin-auth', async () => {
   const { getTestSupabaseAdminClient } = await import('../../helpers/supabase')
   return {
-    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
+    requireAdminAction: async () => (auth.admin ? { ok: true, user: { id: 'user-admin', email: 'admin@example.test' }, supabase: auth.client ?? getTestSupabaseAdminClient() } : { ok: false, error: 'Not authorized' }),
   }
 })
 // The outcome is recorded against the current visit, which a test doesn't have.
@@ -23,7 +23,7 @@ vi.mock('@/lib/analytics/server', () => ({ withAction: async (_action: string, r
 const revalidatePath = vi.hoisted(() => vi.fn())
 vi.mock('next/cache', () => ({ revalidatePath }))
 
-import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
+import { addCourseLesson, addCourseModule, deleteCourseItem, duplicateCourseItem, renameCourseItem, reorderCourseItems, saveLessonText, setCourseItemStatus } from '@/app/(admin)/admin/courses/outline-actions'
 
 describe('Course outline actions', () => {
   const supabase = getTestSupabaseAdminClient()
@@ -106,6 +106,67 @@ describe('Course outline actions', () => {
       expect(await addCourseModule(ids.course, null, 'Denied')).toEqual({ error: 'Not authorized' })
       expect(await addCourseLesson(ids.course, ids.week1, 'Denied')).toEqual({ error: 'Not authorized' })
       expect(revalidatePath).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('saveLessonText', () => {
+    const stored = async (id: string) => (await supabase.from('course_lessons').select('body_html, excerpt').eq('id', id).single()).data!
+
+    it('stores the text cleaned to the lesson allowlist, with its teaser, and refreshes the pages', async () => {
+      const result = await saveLessonText(ids.course, ids.a, '<h2>Welcome</h2><p onclick="x()">Hello <b>Hedgies</b><script>alert(1)</script></p><a href="javascript:alert(1)">bad</a>')
+      expect(result).toEqual({ id: ids.a })
+      const row = await stored(ids.a)
+      expect(row.body_html).toContain('<h2>Welcome</h2>')
+      expect(row.body_html).not.toMatch(/script|onclick|javascript:/)
+      expect(row.excerpt).toBe('Welcome Hello Hedgies bad')
+      expect(revalidatePath).toHaveBeenCalledWith(`/admin/courses/${ids.course}`)
+      expect(revalidatePath).toHaveBeenCalledWith('/courses', 'layout')
+    })
+
+    it('drops the empty paragraph the editor leaves at the end', async () => {
+      await saveLessonText(ids.course, ids.a, '<ol><li><p>One</p></li></ol><p></p>')
+      expect((await stored(ids.a)).body_html).toBe('<ol><li><p>One</p></li></ol>')
+    })
+
+    it('clears the text when it is empty', async () => {
+      await saveLessonText(ids.course, ids.a, '<p>Something</p>')
+      expect(await saveLessonText(ids.course, ids.a, '<p> </p>')).toEqual({ id: ids.a })
+      expect(await stored(ids.a)).toEqual({ body_html: null, excerpt: null })
+    })
+
+    it('records the change in the audit log for that lesson', async () => {
+      await saveLessonText(ids.course, ids.a, '<p>Audited text</p>')
+      const { data } = await supabase.from('audit_log').select('changes').eq('entity_type', 'course_lesson').eq('entity_id', ids.a).eq('action', 'update')
+      expect(JSON.stringify(data)).toContain('Audited text')
+    })
+
+    it("won't write the text of another course's lesson, an imported course's, or a missing one's, and refuses a bad id or too long a text", async () => {
+      expect((await saveLessonText(ids.other, ids.a, '<p>x</p>')).error).toMatch(/can't be edited here/)
+      expect((await saveLessonText(ids.kajabi, ids.a, '<p>x</p>')).error).toMatch(/can't be edited here/)
+      expect((await saveLessonText(ids.course, 'les_AAAAAAAAAAA1', '<p>x</p>')).error).toMatch(/can't be edited here/)
+      expect(await saveLessonText('nope', ids.a, '<p>x</p>')).toEqual({ error: 'Not found.' })
+      expect(await saveLessonText(ids.course, ids.m1, '<p>x</p>')).toEqual({ error: 'Not found.' })
+      expect(await saveLessonText(ids.course, ids.a, 'x'.repeat(200_001))).toEqual({ error: 'That text is too long.' })
+    })
+
+    it('says so when the database refuses the write, and changes nothing', async () => {
+      await saveLessonText(ids.course, ids.a, '<p>Before</p>')
+      auth.client = { from: () => { throw new Error('connection lost') } }
+      try {
+        const result = await saveLessonText(ids.course, ids.a, '<p>After</p>')
+        expect(result.error).toMatch(/save the text/)
+        expect(result.id).toBeUndefined()
+      } finally {
+        auth.client = null
+      }
+      expect((await stored(ids.a)).body_html).toBe('<p>Before</p>')
+    })
+
+    it("does nothing for someone who isn't an admin", async () => {
+      auth.admin = false
+      expect(await saveLessonText(ids.course, ids.a, '<p>Denied</p>')).toEqual({ error: 'Not authorized' })
+      auth.admin = true
+      expect((await stored(ids.a)).body_html ?? '').not.toContain('Denied')
     })
   })
 

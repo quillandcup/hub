@@ -7,6 +7,8 @@ import { CourseWriteError } from "@/lib/data/courses";
 import { createRepos } from "@/lib/data/repos";
 import { isId } from "@/lib/ids";
 import { parseItemTitle } from "@/lib/courses/editor";
+import { lessonExcerpt } from "@/lib/courses/excerpt";
+import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
 
 /**
  * The course editor's outline writes: add, rename, delete, duplicate and reorder the modules and
@@ -22,6 +24,7 @@ export type ItemKind = "module" | "lesson";
 
 const PREFIX = { module: "mod", lesson: "les" } as const;
 const MAX_REORDER = 500;
+const MAX_LESSON_TEXT = 200_000;
 const NOT_EDITABLE = "That course can't be edited here: it isn't in the Hub, or it's imported from Kajabi.";
 
 type DbError = { code?: string; message: string };
@@ -91,6 +94,25 @@ async function renameItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: 
   }
   revalidate(courseId);
   return { id };
+}
+
+async function saveLessonTextImpl(auth: Auth, courseId: string, lessonId: string, html: string): Promise<OutlineResult> {
+  if (!isId(courseId, "crs") || !isId(lessonId, "les")) return { error: "Not found." };
+  if (typeof html !== "string" || html.length > MAX_LESSON_TEXT) return { error: "That text is too long." };
+
+  // The same allowlist as the Kajabi import: what is stored is never what the browser sent.
+  // The editor leaves an empty paragraph after a list or a quote to type in; it is not part of the text.
+  const cleaned = sanitizeLessonHtml(html)?.replace(/(<p>\s*<\/p>\s*)+$/i, "") ?? null;
+  const excerpt = lessonExcerpt(cleaned);
+  // Empty paragraphs are not text: a lesson with nothing but those has no text (an image alone still counts).
+  const body = excerpt === null && !/<img\b/i.test(cleaned ?? "") ? null : cleaned;
+  try {
+    if (!(await createRepos(auth.supabase).courses.setLessonText({ id: lessonId, courseId }, { body_html: body, excerpt }))) return { error: NOT_EDITABLE };
+  } catch (error) {
+    return { error: describe(asDbError(error), "save the text") };
+  }
+  revalidate(courseId);
+  return { id: lessonId };
 }
 
 async function deleteItemImpl(auth: Auth, courseId: string, kind: ItemKind, id: string): Promise<OutlineResult> {
@@ -181,6 +203,13 @@ export async function reorderCourseItems(courseId: string, kind: ItemKind, paren
   const auth = await requireAdminAction();
   if (!auth.ok) return { error: auth.error };
   return withAction("course_items_reordered", () => reorderItemsImpl(auth, courseId, kind, parentId, orderedIds));
+}
+
+/** A Hub-owned lesson's text, as HTML from the editor; it is cleaned to the lesson allowlist before it is stored. */
+export async function saveLessonText(courseId: string, lessonId: string, html: string): Promise<OutlineResult> {
+  const auth = await requireAdminAction();
+  if (!auth.ok) return { error: auth.error };
+  return withAction("course_lesson_text_saved", () => saveLessonTextImpl(auth, courseId, lessonId, html));
 }
 
 /** A module's or lesson's own setting: draft, published or locked. */

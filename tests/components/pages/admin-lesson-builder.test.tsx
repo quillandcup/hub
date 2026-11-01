@@ -105,6 +105,20 @@ describe("/admin/courses/[id]/lessons/[lessonId]", () => {
     expect(screen.queryByText(/Last imported from Kajabi/)).not.toBeInTheDocument();
   });
 
+  it("gives a Hub-owned lesson an editor for its text, and an imported one only the text", async () => {
+    loadAdminLesson.mockResolvedValue(detail({ editable: true }, { bodyHtml: "<p>Hey Hedgies</p>" }));
+    const { unmount } = await renderServerPage(AdminLessonPage, params);
+    expect(await screen.findByRole("textbox", { name: "Lesson text" })).toHaveTextContent("Hey Hedgies");
+    expect(screen.getByRole("button", { name: "Save text" })).toBeInTheDocument();
+    unmount();
+
+    loadAdminLesson.mockResolvedValue(detail({ editable: false }));
+    await renderServerPage(AdminLessonPage, params);
+    expect(screen.getByText("Hey Hedgies")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Lesson text" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save text" })).not.toBeInTheDocument();
+  });
+
   it("plays the lesson's video in the builder with the members' player, poster from the lesson thumbnail and no watch tracking", async () => {
     loadAdminLesson.mockResolvedValue(detail());
     await renderServerPage(AdminLessonPage, params);
