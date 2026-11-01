@@ -209,4 +209,11 @@ describe("MemberNavigation auto-hide on chat", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Sidebar/ }));
     await vi.waitFor(() => expect(sidebar()).not.toHaveAttribute("data-auto-hide"));
   });
+
+  it("ends sudo from the Admin Portal button while viewing as a member", () => {
+    render(<MemberNavigation isAdmin={true} isSudo={true} enabledFeatures={[]} />);
+    const sidebar = screen.getByRole("complementary");
+    expect(within(sidebar).queryByRole("link", { name: /Admin Portal/ })).toBeNull();
+    expect(within(sidebar).getByRole("button", { name: /Admin Portal/ })).toHaveAttribute("type", "submit");
+  });
 });
