@@ -1,6 +1,7 @@
 import type { AttendanceRow } from "./attendance";
 import type { BadgeType, MemberBadge } from "./badges";
 import { InMemoryDataset } from "./in-memory";
+import type { Row } from "./db";
 import type { InAppNotificationRow } from "./notifications";
 import type { Prickle, PrickleType } from "./prickles";
 
@@ -20,15 +21,30 @@ export interface ProfilePerson {
   key: string;
   name: string;
   email: string;
-  /** Signs in during a demo (has an account); the others only fill the room. */
-  signsIn: boolean;
-  role: "admin" | "member";
+  /** Signs in during a demo (has an account); the others only fill the room. False when not given. */
+  signsIn?: boolean;
+  /** "member" when not given. */
+  role?: "admin" | "member";
   /** Days since they joined, or null for staff who have no member record. */
   joinedDaysAgo: number | null;
-  /** How often they come to a prickle they could attend (0 to 1). */
-  rate: number;
+  /** How often they come to a prickle they could attend (0 to 1). 0.5 when not given. */
+  rate?: number;
   bio?: string;
+  /** Membership status: "active" when not given; "cancelled" for someone who has left. */
+  status?: MemberStatus;
+  /**
+   * They stopped coming this many days ago (a lapsing member): no attendance after that, however high
+   * `rate` is. Not given means they keep coming.
+   */
+  lastAttendedDaysAgo?: number;
+  /**
+   * The key of the person who is their big sister: makes a Big Sister match that started the day they
+   * joined (a 30-day trial, so it is only live in their first month).
+   */
+  bigSister?: string;
 }
+
+export type MemberStatus = "active" | "paused" | "cancelled";
 
 /** One slot of the week's rhythm; the calendar title is "Type w/Host", or just "Type" when nobody hosts. */
 export interface ProfileSlot {
@@ -65,9 +81,14 @@ export interface SeedProfile {
   weeklyPattern: ProfileSlot[];
   /** How far back and ahead the prickles run, in days from today. */
   history: { daysBack: number; daysAhead: number };
-  badges: ProfileBadge[];
-  notifications: ProfileNotification[];
+  /** None when not given. */
+  badges?: ProfileBadge[];
+  /** None when not given. */
+  notifications?: ProfileNotification[];
 }
+
+/** The days a Big Sister trial lasts in a profile (a real trial's length comes from its offer; this is a fixture). */
+export const PROFILE_TRIAL_DAYS = 30;
 
 /** FNV-1a mapped to [0, 1): the same input gives the same crowd on every run and machine. */
 export function hash01(text: string): number {
@@ -145,11 +166,28 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     id: idOf(p.key),
     name: p.name,
     email: p.email,
-    status: "active",
+    status: p.status ?? "active",
     source: "kajabi",
     bio: p.bio ?? null,
     joinedAt: new Date(now.getTime() - (p.joinedDaysAgo as number) * DAY).toISOString().slice(0, 10),
   }));
+
+  const mentorships: Row<"mentorships">[] = withRecord.flatMap((p) => {
+    if (!p.bigSister) return [];
+    const startedMs = now.getTime() - (p.joinedDaysAgo as number) * DAY;
+    return [{
+      id: seedId("mshp", `${p.key}|${p.bigSister}`),
+      mentor_member_id: idOf(p.bigSister),
+      new_member_id: idOf(p.key),
+      kind: "trial",
+      status: "matched",
+      started_on: new Date(startedMs).toISOString().slice(0, 10),
+      trial_ends_on: new Date(startedMs + PROFILE_TRIAL_DAYS * DAY).toISOString().slice(0, 10),
+      outcome_note: null,
+      created_at: new Date(startedMs).toISOString(),
+      updated_at: new Date(startedMs).toISOString(),
+    }];
+  });
 
   const typeNames = [...new Set(profile.weeklyPattern.map((s) => typeNamed(s.summary)))];
   const prickleTypes: PrickleType[] = typeNames.map((name) => ({
@@ -194,8 +232,9 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
       const memberId = idOf(person.key);
       const isHost = prickle.hostId === memberId;
       const joinedAt = now.getTime() - (person.joinedDaysAgo as number) * DAY;
+      if (!isHost && person.lastAttendedDaysAgo !== undefined && start > now.getTime() - person.lastAttendedDaysAgo * DAY) continue;
       const roll = (suffix: string) => hash01(`${prickle.id}|${person.email}|${suffix}`);
-      if (!isHost && (joinedAt > start || roll("") >= person.rate)) continue;
+      if (!isHost && (joinedAt > start || roll("") >= (person.rate ?? 0.5))) continue;
 
       const row = (join: number, leave: number, n: number): AttendanceRow => ({
         id: seedId("att", `${prickle.id}|${person.email}|${n}`),
@@ -226,7 +265,7 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     }
   }
 
-  const badgeTypes: BadgeType[] = profile.badges.map((b) => ({
+  const badgeTypes: BadgeType[] = (profile.badges ?? []).map((b) => ({
     id: seedId("bdgt", b.key),
     key: b.key,
     name: b.name,
@@ -238,7 +277,7 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     program_id: null,
     event_id: null,
   }));
-  const memberBadges: MemberBadge[] = profile.badges.flatMap((b) =>
+  const memberBadges: MemberBadge[] = (profile.badges ?? []).flatMap((b) =>
     b.awardedTo.map((a) => ({
       id: seedId("mbdg", `${b.key}|${a.person}`),
       memberId: idOf(a.person),
@@ -250,7 +289,7 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     })),
   );
 
-  const inAppNotifications: InAppNotificationRow[] = profile.notifications.map((n, i) => ({
+  const inAppNotifications: InAppNotificationRow[] = (profile.notifications ?? []).map((n, i) => ({
     id: seedId("ntf", `${n.person}|${n.kind}|${i}`),
     memberId: idOf(n.person),
     kind: n.kind,
@@ -262,5 +301,5 @@ export function buildDataset(profile: SeedProfile, now: Date, { timeZone }: Buil
     createdAt: new Date(now.getTime() - n.minutesAgo * MINUTE).toISOString(),
   }));
 
-  return new InMemoryDataset({ members, prickleTypes, prickles, attendance, badgeTypes, memberBadges, inAppNotifications });
+  return new InMemoryDataset({ members, prickleTypes, prickles, attendance, badgeTypes, memberBadges, inAppNotifications, mentorships });
 }

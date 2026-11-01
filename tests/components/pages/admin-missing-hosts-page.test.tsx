@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { renderServerPage, resetServerPageMocks, useFakeSupabase } from "@/tests/helpers/server-page";
-import { InMemoryDataset } from "@/lib/data/in-memory";
+import { HOSTING_HEAVY } from "@/lib/data/profiles/index";
+import { buildDataset } from "@/lib/data/seed-profile";
 import { createInMemoryRepos } from "@/lib/data/repos";
 
 vi.mock("@/lib/supabase/server", () => import("@/tests/helpers/server-page").then((m) => m.supabaseServerModule));
@@ -28,17 +29,15 @@ beforeEach(() => {
 
 describe("prickles missing hosts page", () => {
   it("checks the visitor is an admin, then hands the client what it shows", async () => {
-    repos = createInMemoryRepos(
-      new InMemoryDataset({
-        members: [{ id: "mbr_AAAAAAAAAAA1", name: "Ada Example" }],
-        prickleTypes: [{ id: "t1", name: "Sprint", normalizedName: "sprint", purpose: "writing", requiresHost: true, soloTaskFriendly: false, listedInEvents: false, announcedPublicly: false, guestsAllowed: false }],
-        prickles: [{ id: "p1", typeId: "t1", hostId: null, title: null, source: "calendar", calendarEventId: null, startTime: "2026-10-19T15:00:00Z", endTime: "2026-10-19T16:00:00Z" }],
-      }),
-    );
+    const dataset = buildDataset(HOSTING_HEAVY, new Date(), { timeZone: "America/New_York" });
+    for (const prickle of dataset.prickles) if (prickle.hostId) prickle.hostId = null; // nobody hosts anything
+    repos = createInMemoryRepos(dataset);
 
     await renderServerPage(MissingHostsPage, {});
 
     expect(requireAdminPage).toHaveBeenCalled();
-    expect(JSON.parse(screen.getByTestId("props").textContent!)).toEqual({ stats: 1, members: 1 });
+    const props = JSON.parse(screen.getByTestId("props").textContent!);
+    expect(props.members).toBe(dataset.members.length);
+    expect(props.stats).toBeGreaterThan(0);
   });
 });
