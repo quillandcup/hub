@@ -179,6 +179,10 @@ export default function ChatLive({
     };
 
     const onMessage = (change: Change) => {
+      // A message that changed (a delete made in Slack, say) is asked for by id: the newest page leaves a deleted one out,
+      // so without this the list would keep showing it.
+      const changedId = (change.new.id ?? change.old.id) as string | undefined;
+      if (changedId && change.eventType !== "INSERT") changedIds.current.add(changedId);
       const root = (change.new.thread_root_id ?? null) as string | null;
       const belongsAtBottom =
         change.eventType === "INSERT" &&

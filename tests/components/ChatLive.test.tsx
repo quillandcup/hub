@@ -395,7 +395,13 @@ describe("ChatLive", () => {
       await act(async () => vi.advanceTimersByTime(1000));
       expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["old-2", "old-3"]);
 
+      // A message that changed is asked for by id too: a delete made in Slack would otherwise never leave the list.
       act(() => handlers.chat_messages(update));
+      await act(async () => vi.advanceTimersByTime(1000));
+      expect(loadLatestChat).toHaveBeenLastCalledWith("c1", ["m1"]);
+
+      // A new message is in the newest page already.
+      act(() => handlers.chat_messages(insert()));
       await act(async () => vi.advanceTimersByTime(1000));
       expect(loadLatestChat).toHaveBeenLastCalledWith("c1", []);
     });

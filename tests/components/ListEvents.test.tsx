@@ -199,6 +199,22 @@ describe("MessageList: shows what is being sent", () => {
     ]);
   });
 
+  it("takes away a message the server says was deleted, unless replies keep it as a tombstone", () => {
+    render(list([serverView(1), serverView(2), serverView(3)]));
+    act(() =>
+      emitListEvent({
+        kind: "merge",
+        channelId: "c1",
+        views: [serverView(1, { contentState: "deleted", body: null, replyCount: 0 }), serverView(2, { contentState: "deleted", body: null, replyCount: 2 })],
+        ctx: CTX,
+      }),
+    );
+    const shown = screen.getAllByRole("article").map((a) => a.textContent ?? "");
+    expect(shown.some((t) => t.includes("message 1"))).toBe(false);
+    expect(shown.some((t) => t.includes("message 3"))).toBe(true);
+    expect(shown).toHaveLength(2);
+  });
+
   it("ignores a merge for another conversation or while showing an older page", () => {
     render(list([serverView(1)]));
     act(() => emitListEvent({ kind: "merge", channelId: "c2", views: [serverView(3)], ctx: CTX }));
