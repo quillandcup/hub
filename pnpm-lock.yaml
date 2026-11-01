@@ -301,8 +301,8 @@ importers:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@22.19.17)
       stripe:
-        specifier: ^22.6.2
-        version: 22.6.2(@types/node@22.19.17)
+        specifier: ^23.0.1
+        version: 23.0.1(@types/node@22.19.17)
       turndown:
         specifier: ^7.2.4
         version: 7.2.4
@@ -360,7 +360,7 @@ importers:
         version: 10.6.1(postcss@8.5.31)
       checkly:
         specifier: latest
-        version: 10.1.0(supports-color@8.1.1)
+        version: 10.0.0(supports-color@8.1.1)
       doctoc:
         specifier: ^2.5.0
         version: 2.5.0(supports-color@8.1.1)
@@ -3718,8 +3718,8 @@ packages:
   character-reference-invalid@2.0.1:
     resolution: {integrity: sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw==}
 
-  checkly@10.1.0:
-    resolution: {integrity: sha512-QNriE/VfBm49UyApiBh6YDNvRuvLEfLzfX0YpNlF5EJky1i8k/vWarEGnKDzt0lt2Cjzhrqy1emG3utRcPaS9g==}
+  checkly@10.0.0:
+    resolution: {integrity: sha512-fsMxrp+Zn3vgPXKZ+UFTrGu5Lyb6ksGpdKAJqM8BWP4jyojOUABQX3Ca22IEsteyJI7Aoav8v48Q4drmVM5O+w==}
     engines: {node: '>=22.13.0'}
     hasBin: true
 
@@ -6910,11 +6910,11 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
 
-  stripe@22.6.2:
-    resolution: {integrity: sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==}
-    engines: {node: '>=18'}
+  stripe@23.0.1:
+    resolution: {integrity: sha512-VFLs9IAzSZ8GIm6/vqhjqOL0fbYrSNYCpgZ3LS3YkSi/i5RnyMpu/Hf9YxPTOCYwc3mZKU3IJvuvKffQH2NLMg==}
+    engines: {node: '>=20'}
     peerDependencies:
-      '@types/node': '>=18'
+      '@types/node': '>=20'
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -7585,10 +7585,6 @@ packages:
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
-
-  yoctocolors@2.1.2:
-    resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
-    engines: {node: '>=18'}
 
   yoctocolors@2.2.0:
     resolution: {integrity: sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==}
@@ -10671,7 +10667,7 @@ snapshots:
 
   character-reference-invalid@2.0.1: {}
 
-  checkly@10.1.0(supports-color@8.1.1):
+  checkly@10.0.0(supports-color@8.1.1):
     dependencies:
       '@oclif/core': 5.1.10
       '@oclif/plugin-help': 7.0.6
@@ -12576,7 +12572,7 @@ snapshots:
   log-symbols@7.0.1:
     dependencies:
       is-unicode-supported: 2.1.0
-      yoctocolors: 2.1.2
+      yoctocolors: 2.2.0
 
   loglevel@1.9.2: {}
 
@@ -14606,7 +14602,7 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  stripe@22.6.2(@types/node@22.19.17):
+  stripe@23.0.1(@types/node@22.19.17):
     optionalDependencies:
       '@types/node': 22.19.17
 
@@ -15419,8 +15415,6 @@ snapshots:
       fd-slicer: 1.1.0
 
   yocto-queue@0.1.0: {}
-
-  yoctocolors@2.1.2: {}
 
   yoctocolors@2.2.0: {}
 
