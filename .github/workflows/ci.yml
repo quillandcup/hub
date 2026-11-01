@@ -187,8 +187,14 @@ jobs:
       # next.config.ts's now-removed `eslint.ignoreDuringBuilds` option), so
       # this is now the only thing that lints the codebase. Placed in the
       # fast unit job (no Supabase/Docker needed) for quick feedback.
+      #
+      # Started in the background so it overlaps the unit tests instead of adding its ~40s in front
+      # of them (ESLint is single-threaded, the runner has cores to spare); "Check lint result"
+      # below fails the job with its output if it failed. Same pattern as the build in test-db.
       - name: Run lint
-        run: pnpm lint
+        run: |
+          nohup sh -c 'pnpm lint; echo $? > /tmp/lint.exit' > /tmp/lint.log 2>&1 &
+          disown
 
       # This bucket is pure-logic/component tests -- every dependency is mocked
       # (vi.mock / vi.fn / stubbed global.fetch) or the test is pure functions in,
@@ -198,6 +204,19 @@ jobs:
       # runs combined, so they are checked by the Coverage report job (scripts/coverage-report.ts).
       - name: Run unit test suite (with coverage)
         run: pnpm test:unit:coverage
+
+      - name: Check lint result
+        if: ${{ !cancelled() }}
+        run: |
+          for i in $(seq 1 120); do
+            [ -f /tmp/lint.exit ] && break
+            sleep 2
+          done
+          cat /tmp/lint.log
+          if [ "$(cat /tmp/lint.exit 2>/dev/null)" != "0" ]; then
+            echo "Lint failed, or did not finish in time"
+            exit 1
+          fi
 
       - name: Upload coverage report
         if: ${{ !cancelled() }}
@@ -282,7 +301,7 @@ jobs:
         # /tmp/supabase-start.exit when it finishes, so the wait step below can
         # tell "still starting" apart from "done" and "failed".
         run: |
-          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
+          nohup sh -c 'supabase start -x imgproxy -x edge-runtime -x studio -x logflare -x vector -x realtime; echo $? > /tmp/supabase-start.exit' > /tmp/supabase-start.log 2>&1 &
           disown
 
       # Also serves as the production build check that used to be a separate
@@ -353,8 +372,13 @@ jobs:
       # schema, so regenerate here and fail on any difference. `types:gen` runs the CLI version
       # pinned in package.json (tests/lib/supabase-cli-version.test.ts keeps it equal to
       # SUPABASE_CLI_VERSION above): the generator's formatting differs between versions.
+      #
+      # Started in the background so it overlaps the db tests (it only reads the schema);
+      # "Check the generated database types result" below fails the job with its output.
       - name: Check the generated database types are current
-        run: pnpm types:check
+        run: |
+          nohup sh -c 'pnpm types:check; echo $? > /tmp/types.exit' > /tmp/types.log 2>&1 &
+          disown
 
       # API-route tests call the route handlers in-process (tests/helpers/api-fetch.ts), so v8
       # counts them; the few HTTP smoke tests need the built app and run at the end (they add no coverage:
@@ -370,6 +394,19 @@ jobs:
           name: coverage-db
           path: coverage/db
           retention-days: 14
+
+      - name: Check the generated database types result
+        if: ${{ !cancelled() }}
+        run: |
+          for i in $(seq 1 60); do
+            [ -f /tmp/types.exit ] && break
+            sleep 2
+          done
+          cat /tmp/types.log
+          if [ "$(cat /tmp/types.exit 2>/dev/null)" != "0" ]; then
+            echo "The generated database types are out of date, or the check did not finish in time"
+            exit 1
+          fi
 
       # SQL-level tests (pgTAP) in supabase/tests/database: RLS, SECURITY DEFINER functions,
       # auth hooks -- things only observable as a specific Postgres role. Each file rolls back.

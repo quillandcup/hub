@@ -49,7 +49,7 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts', './tests/setup-jsdom.ts'],
     // Only applies with --coverage (pnpm test:unit:coverage / test:db:coverage).
     // Each project writes to its own directory (see the scripts in package.json) so CI
-    // can merge the two lcov files. 
+    // can merge the two coverage-final.json files.
     coverage: {
       provider: 'v8',
       // Every source area, so code no test imports shows up as 0% instead of being absent
@@ -65,7 +65,8 @@ export default defineConfig({
         'instrumentation-client.ts',
       ],
       exclude: ['**/*.d.ts', '**/*.test.*', 'lib/**/types.ts'],
-      reporter: ['text-summary', 'json-summary', 'json', 'lcov', 'html'],
+      // json is what scripts/coverage-report.ts reads; html is the browsable report in the artifacts.
+      reporter: ['text-summary', 'json', 'html'],
       reportOnFailure: true,
       // No thresholds here: the per-area floors are on the unit and db runs combined, so they live
       // in scripts/coverage-report.ts (AREA_FLOORS), which the CI coverage job runs.
