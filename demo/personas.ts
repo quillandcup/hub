@@ -40,9 +40,6 @@ export const FILLER_MEMBERS: FillerMember[] = COMMUNITY.people
   .filter((p) => !p.signsIn)
   .map((p) => ({ name: p.name, email: p.email, joinedDaysAgo: p.joinedDaysAgo as number, rate: p.rate ?? 0.5 }));
 
-/** Each member's short bio, by name, so the member directory and profiles read like a community. */
-export const BIOS: Record<string, string> = Object.fromEntries(COMMUNITY.people.flatMap((p) => (p.bio ? [[p.name, p.bio]] : [])));
-
 export function persona(key: string): Persona {
   const p = PERSONAS.find((x) => x.key === key);
   if (!p) throw new Error(`No demo persona "${key}"`);

@@ -7,6 +7,8 @@
  * leaves early), so a reseed makes the same crowd, and a test can say exactly what the output is.
  */
 
+import { hostNamed } from "@/lib/data/seed-profile";
+
 export interface PrickleSlot {
   key: string;
   summary: string;
@@ -67,9 +69,7 @@ function row(slot: PrickleSlot, person: { name: string; email: string }, meeting
 }
 
 /** The host named in a calendar title ("Progress Prickle w/Hazel Hosting"), or null for a prickle without one. */
-export function hostOf(summary: string): string | null {
-  return /\bw\/\s*(.+?)\s*$/i.exec(summary)?.[1] ?? null;
-}
+export const hostOf = hostNamed;
 
 /**
  * Attendance rows for every prickle that has ended by `now`. The named host comes a couple of minutes early
