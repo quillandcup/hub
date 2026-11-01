@@ -103,8 +103,8 @@ export function formatProbe(requests: readonly ProbedRequest[]): string {
  */
 export function describeDomShape(pattern: string): string[] {
   const re = new RegExp(pattern, "i");
-  // Any attribute that holds an address: href, src, action, and data-whatever-url, -path, -endpoint.
-  const isUrlAttr = (name: string) => /(^|-)(url|href|src|action|path|endpoint)$/.test(name);
+  // Any attribute that holds a link or request address: href, action, and data-whatever-url, -path, -endpoint (not src: image addresses can carry a name).
+  const isUrlAttr = (name: string) => /(^|-)(url|href|action|path|endpoint)$/.test(name);
   const squeeze = (value: string): string => {
     let path: string;
     try {
@@ -149,4 +149,58 @@ export function loginHint(requests: readonly ProbedRequest[]): string | null {
   const sawLogin = requests.some((r) => /(^|\/)(login|sign_in)$/.test(r.path));
   if (!sawLogin) return null;
   return "The page sent the browser to a login screen, so what was recorded is the login, not the page. A member page opens through a preview link from the Kajabi admin: start the probe from the admin page that has the link, click it in the window (a new tab is recorded too), and open the part you want to see.";
+}
+
+/**
+ * The structure of the HTML inside a response, as lines of `tag.classes xN attrs: names | urls: paths`, for pages
+ * that load their data as markup (a Rails-style `text/javascript` response that appends an escaped HTML string, an
+ * HTML fragment, or a whole document). Element, class and attribute NAMES and the paths of link-like attributes
+ * (ids squeezed, no query, never `src`) only: never an element's text or an attribute's value, since the markup holds
+ * members' words and names. With a `pattern`, only elements whose tag, classes, id or data attribute names match it
+ * are described (for a whole page); without one, every element is (for a fragment that is all comments).
+ */
+export function describeMarkup(text: string, options: { pattern?: RegExp; maxLines?: number } = {}): string[] {
+  const maxLines = options.maxLines ?? 60;
+  // A script response carries its HTML as an escaped string: undo the common escapes, and drop script and style bodies.
+  const source = text
+    .replace(/\\u003c/gi, "<")
+    .replace(/\\u003e/gi, ">")
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'")
+    .replace(/\\\//g, "/")
+    .replace(/\\[nrt]/g, " ");
+  // Script and style bodies are skipped while walking the tags (no text is rewritten): from such an opening tag, resume after its closing tag.
+  const lower = source.toLowerCase();
+  const groups = new Map<string, { count: number; attrs: Set<string>; urls: Set<string> }>();
+  const tagRe = /<([a-zA-Z][a-zA-Z0-9-]*)((?:\s[^<>]*)?)\/?>/g;
+  const attrRe = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+  const isUrlAttr = (name: string) => /(^|-)(url|href|action|path|endpoint)$/.test(name);
+  for (let tag = tagRe.exec(source); tag; tag = tagRe.exec(source)) {
+    const name = tag[1].toLowerCase();
+    if (name === "script" || name === "style") {
+      const close = lower.indexOf(`</${name}`, tagRe.lastIndex);
+      tagRe.lastIndex = close === -1 ? source.length : close;
+      continue;
+    }
+    const attrs = new Map<string, string>();
+    for (let a = attrRe.exec(tag[2]); a; a = attrRe.exec(tag[2])) attrs.set(a[1].toLowerCase(), a[2] ?? a[3] ?? a[4] ?? "");
+    const classes = (attrs.get("class") ?? "").split(/\s+/).filter(Boolean).slice(0, 5).map((c) => c.replace(/\d{5,}/g, ":id"));
+    if (options.pattern) {
+      const dataNames = [...attrs.keys()].filter((n) => n.startsWith("data-"));
+      const hit = [name, ...classes, attrs.get("id") ?? "", ...dataNames].some((v) => options.pattern!.test(v));
+      if (!hit) continue;
+    }
+    const key = `${name}${classes.length ? `.${classes.join(".")}` : ""}`;
+    const group = groups.get(key) ?? { count: 0, attrs: new Set<string>(), urls: new Set<string>() };
+    group.count++;
+    for (const [n, v] of attrs) {
+      if (n === "class" || n === "style") continue;
+      group.attrs.add(n.replace(/\d{5,}/g, ":id"));
+      if (isUrlAttr(n) && v && !v.startsWith("#") && !/^(?!https?:)[a-z][a-z0-9+.-]*:/i.test(v.trim())) group.urls.add(normalizeRequestPath(v));
+    }
+    groups.set(key, group);
+  }
+  return [...groups.entries()]
+    .slice(0, maxLines)
+    .map(([key, g]) => `${key} x${g.count} attrs: ${[...g.attrs].sort().join(", ") || "none"}${g.urls.size ? ` | urls: ${[...g.urls].sort().slice(0, 4).join(", ")}` : ""}`);
 }
