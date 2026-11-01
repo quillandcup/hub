@@ -206,6 +206,13 @@ export default async function MemberDetailPage({
     badges.awardsWithDetails(id),
   ]);
 
+  // The address of each event a badge is linked to (admin event pages are at the slug).
+  const eventIds = [...new Set(earnedBadges.flatMap((b) => (b.badgeType.event_id ? [b.badgeType.event_id] : [])))];
+  const eventSlugs: Record<string, string> = {};
+  for (const event of await Promise.all(eventIds.map((eventId) => createRepos(supabase).events.byId(eventId).catch(() => null)))) {
+    if (event) eventSlugs[event.id] = event.slug;
+  }
+
   const awards = rawAwards.map((a) => ({
     id: a.id,
     badgeTypeId: a.badgeTypeId,
@@ -350,6 +357,7 @@ export default async function MemberDetailPage({
           programOverrides={programOverrides}
           statusOverrides={statusOverrides}
           earnedBadges={earnedBadges}
+          eventSlugs={eventSlugs}
           awardableBadgeTypes={awardableBadgeTypes}
           awards={awards}
           nameAliases={nameAliasRows ?? []}

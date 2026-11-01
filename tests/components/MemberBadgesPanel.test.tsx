@@ -153,4 +153,19 @@ describe("MemberBadgesPanel", () => {
     );
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });
+
+  it("links an event badge and an award earned through an event to the event's address, not its id", () => {
+    const retreatBadge: EarnedBadge = { ...hostessBadge, badgeType: { ...hostessBadge.badgeType, id: "bt-retreat", key: "retreat", name: "Retreat", event_id: "evt_AAAAAAAAAAA1" } };
+    render(
+      <MemberBadgesPanel
+        memberId="m1"
+        earnedBadges={[retreatBadge]}
+        eventSlugs={{ evt_AAAAAAAAAAA1: "spring-retreat-2026-04-10" }}
+        awardableBadgeTypes={awardableBadgeTypes}
+        awards={[{ ...awards[0], eventId: "evt_AAAAAAAAAAA1", eventTitle: "Spring Retreat", eventSlug: "spring-retreat-2026-04-10" }]}
+      />,
+    );
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefs.filter((h) => h?.startsWith("/admin/events/"))).toEqual(["/admin/events/spring-retreat-2026-04-10", "/admin/events/spring-retreat-2026-04-10"]);
+  });
 });
