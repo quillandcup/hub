@@ -61,6 +61,11 @@ describe("loadCourseRoster", () => {
     expect((await loadCourseRoster(createRepos(client), "crs_AAAAAAAAAAA1", NOW))!.rows).toEqual([]);
   });
 
+  it("finds the course by its slug as well as its id", async () => {
+    dataset = new InMemoryDataset({ courses: [courseRow({ id: "crs_AAAAAAAAAAA1", slug: "the-ready-writer", title: "Course" })] });
+    expect((await loadCourseRoster(createRepos(client), "the-ready-writer", NOW))!.course).toEqual({ id: "crs_AAAAAAAAAAA1", title: "Course" });
+  });
+
   it("lists everyone with access, with the name they are known by and their progress", async () => {
     dataset = new InMemoryDataset({
       members: [

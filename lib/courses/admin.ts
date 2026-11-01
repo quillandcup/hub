@@ -1,6 +1,7 @@
 import type { Repos } from "@/lib/data/repos";
 import type { LessonRecord } from "@/lib/data/courses";
 import { isId } from "@/lib/ids";
+import { resolveCourseParam } from "@/lib/courses/course-param";
 import { buildHubOutline, type HubOutline } from "@/lib/courses/hub-outline";
 import { explainCourse, type ExplainedCourse, type ExplainedLesson } from "@/lib/courses/explain";
 import { sanitizeLessonHtml } from "@/lib/courses/sanitize";
@@ -168,7 +169,8 @@ export async function kajabiIdOfCourse(repos: AdminCourseRepos, courseId: string
   return course?.source === "kajabi" ? course.source_key : null;
 }
 
-export async function loadAdminCourse(repos: AdminCourseRepos, courseId: string, now = new Date()): Promise<AdminCourseDetail | null> {
+export async function loadAdminCourse(repos: AdminCourseRepos, courseParam: string, now = new Date()): Promise<AdminCourseDetail | null> {
+  const courseId = await resolveCourseParam(repos, courseParam);
   const kajabiId = await kajabiIdOfCourse(repos, courseId);
   if (!kajabiId) return null;
   const repo = repos.kajabiCourses;
@@ -217,7 +219,8 @@ export async function loadAdminCourse(repos: AdminCourseRepos, courseId: string,
 }
 
 /** A course's title for the browser tab, without loading the rest of the page. Null for an unknown id. */
-export async function loadAdminCourseTitle(repos: AdminCourseRepos, courseId: string): Promise<string | null> {
+export async function loadAdminCourseTitle(repos: AdminCourseRepos, courseParam: string): Promise<string | null> {
+  const courseId = await resolveCourseParam(repos, courseParam);
   if (!isId(courseId, "crs")) return null;
   return (await repos.courses.courseById(courseId))?.title ?? null;
 }
@@ -253,7 +256,8 @@ export interface AdminLessonDetail {
 }
 
 /** One lesson for its builder page: Kajabi's data as last imported, with the state members get. Null when the course or lesson isn't there. */
-export async function loadAdminLesson(repos: AdminCourseRepos, courseId: string, lessonId: string): Promise<AdminLessonDetail | null> {
+export async function loadAdminLesson(repos: AdminCourseRepos, courseParam: string, lessonId: string): Promise<AdminLessonDetail | null> {
+  const courseId = await resolveCourseParam(repos, courseParam);
   if (!isId(courseId, "crs") || !isId(lessonId, "les")) return null;
   const found = await repos.courses.lessonById(lessonId);
   if (found && found.course_id === courseId && found.source === "hub") return loadHubLesson(repos, courseId, found);
