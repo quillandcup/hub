@@ -143,6 +143,20 @@ export async function exchangeBotToken(service: SupabaseClient, botToken: string
   return { expiresAt };
 }
 
+/**
+ * Recovery: store a credential you got another way (a reinstall's tokens), replacing whatever is stored. It is stored as
+ * already expired, so the first use refreshes it with the refresh token and the app stores the pair it gets back.
+ */
+export async function seedBotToken(service: SupabaseClient, accessToken: string, refreshToken: string): Promise<void> {
+  const { error } = await service.rpc("slack_bot_token_save", {
+    p_access_token: accessToken,
+    p_refresh_token: refreshToken,
+    p_expires_at: new Date(clock.now()).toISOString(),
+  });
+  if (error) throw new Error(`Could not store the tokens: ${error.message}`);
+  forgetSlackBotToken();
+}
+
 /** When the stored credential expires, for the script's status command; null when nothing is stored. */
 export async function botTokenStatus(service: SupabaseClient): Promise<{ expiresAt: Date | null } | null> {
   const stored = await readStored(service);

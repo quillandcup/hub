@@ -9,7 +9,7 @@ vi.mock("@slack/web-api", () => ({
 }));
 vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: () => db.client }));
 
-import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled } from "@/lib/slack-bot-token";
+import { botTokenStatus, exchangeBotToken, forgetSlackBotToken, getSlackBotToken, rotationEnabled, seedBotToken } from "@/lib/slack-bot-token";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const HOUR = 3600_000;
@@ -218,6 +218,26 @@ describe("getSlackBotToken", () => {
     store("xoxb-never-expires", null, null);
     await expect(getSlackBotToken(db.client)).resolves.toBe("xoxb-never-expires");
     expect(slack.access).not.toHaveBeenCalled();
+  });
+});
+
+describe("seedBotToken (recovery after a reinstall)", () => {
+  useFakeClock(() => NOW);
+
+  it("stores the pair as already expired, so the first use refreshes it and the app stores what it gets back", async () => {
+    store("xoxe.xoxb-dead", -1000, "xoxe-dead-refresh");
+    await seedBotToken(db.client, "xoxe.xoxb-seed", "xoxe-seed-refresh");
+    expect(db.state.row).toMatchObject({ access: "xoxe.xoxb-seed", refresh: "xoxe-seed-refresh", expires: NOW });
+
+    slack.access.mockResolvedValue(refreshed("9"));
+    await expect(getSlackBotToken(db.client)).resolves.toBe("xoxe.xoxb-9");
+    expect(slack.access).toHaveBeenCalledWith(expect.objectContaining({ refresh_token: "xoxe-seed-refresh" }));
+    expect(db.state.row).toMatchObject({ access: "xoxe.xoxb-9", refresh: "xoxe-refresh-9" });
+  });
+
+  it("says so when it can't store them", async () => {
+    db.state.saveFailures = 1;
+    await expect(seedBotToken(db.client, "a", "r")).rejects.toThrow("Could not store the tokens");
   });
 });
 
