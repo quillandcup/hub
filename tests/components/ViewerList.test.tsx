@@ -35,6 +35,13 @@ describe("ViewerList", () => {
     expect(screen.getByRole("img", { name: /Covered 50% of the video: 0:00 to 2:30/ })).toBeInTheDocument();
   });
 
+  it("keeps the date on one line, and says so when a visit has no recorded time", () => {
+    render(<ViewerList sessions={[session(), session({ sessionId: "s2", startedAt: null })]} durationSeconds={300} shown={10} more={null} />);
+
+    expect(screen.getByText(/October 1, 2026/)).toHaveClass("whitespace-nowrap");
+    expect(screen.getByText("Unknown time")).toBeInTheDocument();
+  });
+
   it("names the device from the stored one when the user agent is gone, else from the string, else says unknown", () => {
     const { rerender } = render(
       <ViewerList sessions={[session({ device: { browser: "Safari", browser_version: "17.5", os: "iOS", os_version: "17.5", device_type: "phone" } })]} durationSeconds={300} shown={1} more={null} />,
